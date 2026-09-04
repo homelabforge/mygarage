@@ -67,6 +67,22 @@ class LiveLinkDeviceResponse(LiveLinkDeviceBase):
     )
     enabled: bool
     last_seen: datetime | None
+    #: When this device last proved the vehicle moved. NULL on a device whose
+    #: speed and odometer arrive under names nothing here recognises, which
+    #: records no drives at all -- so the admin page can say which device that
+    #: is instead of showing an empty session list with no explanation. A silent
+    #: zero is the failure the whole boundary rework exists to remove.
+    last_movement_at: datetime | None = Field(
+        None, description="When this device last reported a recognised movement signal"
+    )
+    #: Computed per response, not stored; see
+    #: `LiveLinkService.movement_unreadable_device_ids` for the rule and why it
+    #: is not simply `last_movement_at is None`. Every handler returning this
+    #: schema must answer it: the False default would otherwise report "reads
+    #: fine" about a device nobody asked about.
+    movement_unreadable: bool = Field(
+        False, description="Device reports telemetry but nothing recognisable as movement"
+    )
     created_at: datetime
     updated_at: datetime | None
 
@@ -188,6 +204,19 @@ class LiveLinkSettingsResponse(BaseModel):
         60, description="Seconds to wait before ending session after ECU offline (0 = disabled)"
     )
 
+    # Session boundaries. `session_timeout_minutes` above is a CONNECTION-LOSS
+    # detector; this is the separate question of whether a stop ended the drive.
+    session_gap_minutes: int = Field(
+        15, description="Minutes stationary before a stop counts as a separate drive"
+    )
+    session_boundary_mode: str = Field(
+        "movement",
+        description=(
+            "'movement' decides sessions from speed/odometer/RPM; 'contact' restores "
+            "the pre-v3.3.0 rule of opening one whenever the device is reachable"
+        ),
+    )
+
     # Notification toggles
     notify_device_offline: bool = Field(True, description="Notify when device goes offline")
     notify_threshold_alerts: bool = Field(True, description="Notify on threshold breaches")
@@ -206,15 +235,14 @@ class LiveLinkSettingsUpdate(BaseModel):
     firmware_check_enabled: bool | None = None
     alert_cooldown_minutes: int | None = Field(None, ge=5, le=120)
     session_grace_period_seconds: int | None = Field(None, ge=0, le=300)
+    # Lower bound of 1, not 0: a zero gap closes a session on the first
+    # stationary sample, so every traffic light becomes a separate trip.
+    session_gap_minutes: int | None = Field(None, ge=1, le=240)
+    session_boundary_mode: Literal["movement", "contact"] | None = None
     notify_device_offline: bool | None = None
     notify_threshold_alerts: bool | None = None
     notify_firmware_update: bool | None = None
     notify_new_device: bool | None = None
-
-
-# =============================================================================
-# Firmware Schemas
-# =============================================================================
 
 
 class FirmwareInfoResponse(BaseModel):

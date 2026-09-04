@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, AlertCircle, Plug, Shield, Check, X, Plus, Radio, Settings, ArrowUpCircle, HelpCircle, Webhook, Sparkles, AtSign } from 'lucide-react'
+import { CheckCircle, AlertCircle, Plug, Shield, Pencil, Trash2, Plus, Radio, Settings, ArrowUpCircle, HelpCircle, Webhook, Sparkles, AtSign } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
@@ -11,7 +11,8 @@ import AddProviderModal from '../modals/AddProviderModal'
 import EditProviderModal from '../modals/EditProviderModal'
 import LiveLinkSettingsModal from '../modals/LiveLinkSettingsModal'
 import WidgetKeysPanel from '../settings/WidgetKeysPanel'
-import { Select, Toggle, Drawer } from '../ui'
+import { Card, Chip, IconButton, Select, Toggle, Drawer } from '../ui'
+import type { IconType } from '../ui/types'
 
 // Sample VIN for testing NHTSA API connection
 const TEST_VIN = '1HGCM82633A123456'
@@ -34,6 +35,59 @@ type POIProvider = {
   api_usage: number
   api_limit: number | null
   priority: number
+}
+
+/**
+ * One integration section.
+ *
+ * Replaces seven copies of `bg-garage-surface rounded-lg border
+ * border-garage-border p-6` wrapping a hand-rolled `<h2>` — pre-reskin markup
+ * that the rest of the app stopped using at v3.0.0, which is why this tab drifted
+ * out of step with every card beside it.
+ *
+ * The title row is written out here rather than delegated to `CardHeader`, which
+ * would otherwise be the obvious reuse: `CardHeader` renders its icon on the
+ * RIGHT, beside the actions, and has no slot for a subtitle. This tab needs the
+ * icon leading the title with the description stacked under it, which is what
+ * `settings/WidgetKeysPanel.tsx` does at the top of this same page -- so taking
+ * `CardHeader` put two different header shapes on one screen. The `h3`
+ * typography is copied from it so the two stay identical. Seven hand-rolled
+ * headers becoming one is still the point; promoting a `description` +
+ * leading-icon variant into `CardHeader` is the follow-up, and is a change to a
+ * primitive with ~40 call sites rather than to this tab.
+ *
+ * `breakInside` matters: the middle group is a CSS-columns masonry, and a card
+ * allowed to split across a column boundary loses its header.
+ */
+function IntegrationCard({
+  icon: Icon,
+  title,
+  description,
+  actions,
+  children,
+}: {
+  icon: IconType
+  title: string
+  description: string
+  /** Rendered in the title row, left of the icon — the About sidecar trigger. */
+  actions?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <Card breakInside>
+      <header className="mb-4 flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <Icon aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-(--accent-fg)" />
+          <div>
+            <h3 className="text-[15px] font-bold tracking-[-.02em] text-text">{title}</h3>
+            <p className="mt-0.5 text-sm text-text-mute">{description}</p>
+          </div>
+        </div>
+        {actions}
+      </header>
+      {children}
+    </Card>
+  )
 }
 
 export default function SettingsIntegrationsTab() {
@@ -264,79 +318,13 @@ export default function SettingsIntegrationsTab() {
       {/* API Keys — user-scoped read keys for external integrations. Full width. */}
       <WidgetKeysPanel />
 
-      {/* Inbound webhooks + Telegram bot + LLM receipt parse */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-          <div className="flex items-start gap-3 mb-6">
-            <Webhook className="w-6 h-6 text-primary mt-1" />
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.webhooks')}</h2>
-              <p className="text-sm text-garage-text-muted">{t('integrations.webhooksDesc')}</p>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="webhook_ingest_token" className="block text-sm font-medium text-garage-text mb-2">
-                {t('integrations.webhookToken')}
-              </label>
-              <input
-                type="password"
-                id="webhook_ingest_token"
-                value={formData.webhook_ingest_token}
-                onChange={(e) => setFormData({ ...formData, webhook_ingest_token: e.target.value })}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
-                placeholder={t('integrations.webhookTokenPlaceholder')}
-                autoComplete="off"
-              />
-              <p className="mt-1 text-sm text-garage-text-muted">{t('integrations.webhookTokenDesc')}</p>
-            </div>
-            <div className="p-3 bg-garage-bg/50 border border-garage-border rounded-lg">
-              <p className="text-xs text-garage-text-muted font-mono break-all">
-                POST /api/v1/webhooks/fuel|odometer|reminders/complete
-              </p>
-              <p className="text-xs text-garage-text-muted mt-1">{t('integrations.webhookHeaderHint')}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-          <div className="flex items-start gap-3 mb-6">
-            <AtSign className="w-6 h-6 text-primary mt-1" />
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.telegramInbound')}</h2>
-              <p className="text-sm text-garage-text-muted">{t('integrations.telegramInboundDesc')}</p>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <Toggle
-                label={t('integrations.enableTelegramInbound')}
-                checked={formData.telegram_inbound_enabled === 'true'}
-                onChange={(next) =>
-                  setFormData({ ...formData, telegram_inbound_enabled: next ? 'true' : 'false' })
-                }
-              />
-              <p className="mt-1 text-sm text-garage-text-muted">
-                {t('integrations.enableTelegramInboundDesc')}
-              </p>
-            </div>
-            <div className="p-3 bg-garage-bg/50 border border-garage-border rounded-lg">
-              <p className="text-xs text-garage-text-muted">{t('integrations.telegramCommandHint')}</p>
-              <p className="text-xs text-garage-text-muted font-mono mt-1">
-                fuel &lt;vin|nickname&gt; &lt;odo&gt;[km|mi] &lt;vol&gt;[L|gal|kWh] [price] [cost]
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6 lg:col-span-2">
-          <div className="flex items-start gap-3 mb-6">
-            <Sparkles className="w-6 h-6 text-primary mt-1" />
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.llmSection')}</h2>
-              <p className="text-sm text-garage-text-muted">{t('integrations.llmSectionDesc')}</p>
-            </div>
-          </div>
+      {/* LLM is full width: its three credential fields want a row, and a
+          half-width column would stack them into a tower. */}
+      <IntegrationCard
+          icon={Sparkles}
+          title={t('integrations.llmSection')}
+          description={t('integrations.llmSectionDesc')}
+        >
           <div className="space-y-4">
             <Toggle
               label={t('integrations.enableLlmReceipt')}
@@ -345,16 +333,22 @@ export default function SettingsIntegrationsTab() {
                 setFormData({ ...formData, llm_receipt_parse_enabled: next ? 'true' : 'false' })
               }
             />
-            <Toggle
-              label={t('integrations.enableLlmAssistant')}
-              checked={formData.llm_garage_assistant_enabled === 'true'}
-              onChange={(next) =>
-                setFormData({ ...formData, llm_garage_assistant_enabled: next ? 'true' : 'false' })
-              }
-            />
-            <p className="text-xs text-garage-text-muted -mt-2 ml-14">
-              {t('integrations.enableLlmAssistantDesc')}
-            </p>
+            {/* Wrapped like every other toggle-plus-description pair on this tab.
+                Left as a bare sibling of `space-y-4`, the description took the
+                container's 16px gap instead of its own 4px and had to be dragged
+                back up with a negative margin. */}
+            <div>
+              <Toggle
+                label={t('integrations.enableLlmAssistant')}
+                checked={formData.llm_garage_assistant_enabled === 'true'}
+                onChange={(next) =>
+                  setFormData({ ...formData, llm_garage_assistant_enabled: next ? 'true' : 'false' })
+                }
+              />
+              <p className="mt-1 ml-14 text-sm text-garage-text-muted">
+                {t('integrations.enableLlmAssistantDesc')}
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label htmlFor="llm_base_url" className="block text-sm font-medium text-garage-text mb-2">
@@ -410,23 +404,19 @@ export default function SettingsIntegrationsTab() {
             </div>
             <p className="text-sm text-garage-text-muted">{t('integrations.llmHint')}</p>
           </div>
-        </div>
-      </div>
+        </IntegrationCard>
 
-      {/* NHTSA (tall) on the left; CarComplaints + LiveLink stacked on the right.
-          items-start so the shorter right column doesn't stretch to NHTSA's height. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        {/* NHTSA Integration */}
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-        <div className="flex items-start gap-3 mb-6">
-          <Shield className="w-6 h-6 text-primary mt-1" />
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.nhtsa')}</h2>
-            <p className="text-sm text-garage-text-muted">
-              {t('integrations.nhtsaDesc')}
-            </p>
-          </div>
-        </div>
+      {/* The remaining four (five with LiveLink) flow as a masonry rather than
+          sitting in a fixed 2-col grid. The grid paired a ~530px NHTSA card
+          against ~280px of stacked cards and left the rest of that row empty;
+          columns let the short ones close the gap themselves. Source order is
+          preserved, so the one-column mobile reading order still groups. */}
+      <div className="columns-1 gap-6 lg:columns-2 [&>*]:mb-6">
+        <IntegrationCard
+          icon={Shield}
+          title={t('integrations.nhtsa')}
+          description={t('integrations.nhtsaDesc')}
+        >
 
         <div className="space-y-6">
           {/* Enable NHTSA Integration */}
@@ -436,7 +426,7 @@ export default function SettingsIntegrationsTab() {
               checked={formData.nhtsa_enabled === 'true'}
               onChange={(next) => setFormData({ ...formData, nhtsa_enabled: next ? 'true' : 'false' })}
             />
-            <p className="mt-1 text-sm text-garage-text-muted">
+            <p className="mt-1 ml-14 text-sm text-garage-text-muted">
               {t('integrations.enableNHTSADesc')}
             </p>
           </div>
@@ -449,7 +439,7 @@ export default function SettingsIntegrationsTab() {
               disabled={formData.nhtsa_enabled === 'false'}
               onChange={(next) => setFormData({ ...formData, nhtsa_auto_check: next ? 'true' : 'false' })}
             />
-            <p className="mt-1 text-sm text-garage-text-muted">
+            <p className="mt-1 ml-14 text-sm text-garage-text-muted">
               {t('integrations.enableAutoCheckDesc')}
             </p>
           </div>
@@ -511,29 +501,78 @@ export default function SettingsIntegrationsTab() {
             </p>
           </div>
         </div>
-        </div>
+        </IntegrationCard>
 
-        {/* Right column: CarComplaints + LiveLink stacked */}
-        <div className="space-y-6">
-        {/* CarComplaints Integration */}
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-        <div className="flex items-start gap-3 mb-6">
-          <Plug className="w-6 h-6 text-primary mt-1" />
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.carComplaints')}</h2>
-            <p className="text-sm text-garage-text-muted">
-              {t('integrations.carComplaintsDesc')}
-            </p>
+        <IntegrationCard
+          icon={Webhook}
+          title={t('integrations.webhooks')}
+          description={t('integrations.webhooksDesc')}
+        >
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="webhook_ingest_token" className="block text-sm font-medium text-garage-text mb-2">
+                {t('integrations.webhookToken')}
+              </label>
+              <input
+                type="password"
+                id="webhook_ingest_token"
+                value={formData.webhook_ingest_token}
+                onChange={(e) => setFormData({ ...formData, webhook_ingest_token: e.target.value })}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                placeholder={t('integrations.webhookTokenPlaceholder')}
+                autoComplete="off"
+              />
+              <p className="mt-1 text-sm text-garage-text-muted">{t('integrations.webhookTokenDesc')}</p>
+            </div>
+            <div className="p-3 bg-garage-bg/50 border border-garage-border rounded-lg">
+              <p className="text-xs text-garage-text-muted font-mono break-all">
+                POST /api/v1/webhooks/fuel|odometer|reminders/complete
+              </p>
+              <p className="text-xs text-garage-text-muted mt-1">{t('integrations.webhookHeaderHint')}</p>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setHelpDrawer('carcomplaints')}
-            aria-label={t('integrations.aboutCarComplaints')}
-            className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full border border-garage-border text-garage-text-muted hover:text-(--accent-fg) hover:border-(--accent-line) transition-colors"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </button>
-        </div>
+        </IntegrationCard>
+
+        <IntegrationCard
+          icon={AtSign}
+          title={t('integrations.telegramInbound')}
+          description={t('integrations.telegramInboundDesc')}
+        >
+          <div className="space-y-4">
+            <div>
+              <Toggle
+                label={t('integrations.enableTelegramInbound')}
+                checked={formData.telegram_inbound_enabled === 'true'}
+                onChange={(next) =>
+                  setFormData({ ...formData, telegram_inbound_enabled: next ? 'true' : 'false' })
+                }
+              />
+              <p className="mt-1 ml-14 text-sm text-garage-text-muted">
+                {t('integrations.enableTelegramInboundDesc')}
+              </p>
+            </div>
+            <div className="p-3 bg-garage-bg/50 border border-garage-border rounded-lg">
+              <p className="text-xs text-garage-text-muted">{t('integrations.telegramCommandHint')}</p>
+              <p className="text-xs text-garage-text-muted font-mono mt-1">
+                fuel &lt;vin|nickname&gt; &lt;odo&gt;[km|mi] &lt;vol&gt;[L|gal|kWh] [price] [cost]
+              </p>
+            </div>
+          </div>
+        </IntegrationCard>
+
+        <IntegrationCard
+          icon={Plug}
+          title={t('integrations.carComplaints')}
+          description={t('integrations.carComplaintsDesc')}
+          actions={
+            <IconButton
+              icon={HelpCircle}
+              label={t('integrations.aboutCarComplaints')}
+              variant="surface"
+              onClick={() => setHelpDrawer('carcomplaints')}
+            />
+          }
+        >
 
         <div className="space-y-6">
           {/* Enable CarComplaints Integration */}
@@ -543,34 +582,27 @@ export default function SettingsIntegrationsTab() {
               checked={formData.carcomplaints_enabled === 'true'}
               onChange={(next) => setFormData({ ...formData, carcomplaints_enabled: next ? 'true' : 'false' })}
             />
-            <p className="mt-1 text-sm text-garage-text-muted">
+            <p className="mt-1 ml-14 text-sm text-garage-text-muted">
               {t('integrations.enableCarComplaintsDesc')}
             </p>
           </div>
         </div>
-        </div>
+        </IntegrationCard>
 
-        {/* LiveLink Integration — admin-only (infra endpoints require admin, v2.28.0;
-            shown in none-mode where auth is disabled) */}
         {canManageLiveLink && (
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-          <div className="flex items-start gap-3 mb-6">
-            <Radio className="w-6 h-6 text-primary mt-1" />
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.livelink')}</h2>
-              <p className="text-sm text-garage-text-muted">
-                {t('integrations.livelinkDesc')}
-              </p>
-            </div>
-            <button
-              type="button"
+        <IntegrationCard
+          icon={Radio}
+          title={t('integrations.livelink')}
+          description={t('integrations.livelinkDesc')}
+          actions={
+            <IconButton
+              icon={HelpCircle}
+              label={t('integrations.aboutLiveLink')}
+              variant="surface"
               onClick={() => setHelpDrawer('livelink')}
-              aria-label={t('integrations.aboutLiveLink')}
-              className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full border border-garage-border text-garage-text-muted hover:text-(--accent-fg) hover:border-(--accent-line) transition-colors"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
-          </div>
+            />
+          }
+        >
 
           <div className="space-y-6">
             {livelinkLoading ? (
@@ -635,28 +667,23 @@ export default function SettingsIntegrationsTab() {
               </>
             )}
           </div>
-        </div>
+        </IntegrationCard>
         )}
-        </div>
+      </div>
 
-        {/* Shop Finder Integration — full width for the provider table */}
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6 lg:col-span-2">
-        <div className="flex items-start gap-3 mb-6">
-          <Plug className="w-6 h-6 text-primary mt-1" />
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.shopFinder')}</h2>
-            <p className="text-sm text-garage-text-muted">
-              {t('integrations.shopFinderDesc')}
-            </p>
-          </div>
-        </div>
+      {/* Shop Finder is full width for the provider table. */}
+      <IntegrationCard
+          icon={Plug}
+          title={t('integrations.shopFinder')}
+          description={t('integrations.shopFinderDesc')}
+        >
 
         <div className="space-y-4">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-garage-border">
                 <th className="text-left py-2 px-3 text-garage-text">{t('integrations.provider')}</th>
-                <th className="text-left py-2 px-3 text-garage-text">{t('integrations.active')}</th>
+                <th className="text-left py-2 px-3 text-garage-text">{t('integrations.status')}</th>
                 <th className="text-left py-2 px-3 text-garage-text">{t('integrations.apiLimits')}</th>
                 <th className="text-right py-2 px-3 text-garage-text">{t('integrations.options')}</th>
               </tr>
@@ -670,32 +697,41 @@ export default function SettingsIntegrationsTab() {
                       : provider.display_name}
                   </td>
                   <td className="py-3 px-3">
-                    {provider.enabled ? (
-                      <Check className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <X className="w-4 h-4 text-red-500" />
-                    )}
+                    {/* Was a bare lucide Check / X with no accessible name, so a
+                        screen reader announced an empty cell for every provider,
+                        and five red X glyphs read as five errors rather than as
+                        five switched-off providers. */}
+                    <Chip tone={provider.enabled ? 'success' : 'muted'}>
+                      {provider.enabled
+                        ? t('integrations.statusActive')
+                        : t('integrations.statusInactive')}
+                    </Chip>
                   </td>
                   <td className="py-3 px-3 text-garage-text-muted">
                     {provider.api_limit
                       ? `${provider.api_usage}/${provider.api_limit}`
                       : `${provider.api_usage || 0}/${t('integrationsTab.unlimited')}`}
                   </td>
-                  <td className="py-3 px-3 text-right space-x-2">
-                    <button
-                      onClick={() => handleEditProvider(provider)}
-                      className="text-(--accent-fg) hover:underline"
-                    >
-                      {t('integrationsTab.edit')}
-                    </button>
-                    {!provider.is_default && (
-                      <button
-                        onClick={() => handleRemoveProvider(provider.name)}
-                        className="text-danger hover:underline"
-                      >
-                        {t('integrationsTab.remove')}
-                      </button>
-                    )}
+                  <td className="py-3 px-3">
+                    {/* Icon buttons rather than two text links: a red "Remove" on
+                        every row made a routine table look destructive. The label
+                        is what a screen reader reads, so nothing is lost. */}
+                    <div className="flex items-center justify-end gap-2">
+                      <IconButton
+                        icon={Pencil}
+                        label={t('integrationsTab.edit')}
+                        variant="surface"
+                        onClick={() => handleEditProvider(provider)}
+                      />
+                      {!provider.is_default && (
+                        <IconButton
+                          icon={Trash2}
+                          label={t('integrationsTab.remove')}
+                          variant="danger"
+                          onClick={() => handleRemoveProvider(provider.name)}
+                        />
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -710,8 +746,7 @@ export default function SettingsIntegrationsTab() {
             {t('integrations.addService')}
           </button>
         </div>
-        </div>
-      </div>
+        </IntegrationCard>
 
       {/* Modals — rendered at the tab root, outside the grid */}
       <AddProviderModal

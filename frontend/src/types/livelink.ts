@@ -65,6 +65,7 @@ export type DTCClearResponse = components['schemas']['DTCClearResponse']
 export type MQTTSettings = components['schemas']['MQTTSettingsResponse']
 export type MQTTSettingsUpdate = components['schemas']['MQTTSettingsUpdate']
 export type MQTTStatus = components['schemas']['MQTTStatusResponse']
+
 export type MQTTTestResult = components['schemas']['MQTTTestResult']
 
 // -- Device Command Types --
@@ -117,6 +118,8 @@ export interface SessionQueryParams {
   min_duration_seconds?: number
   limit?: number
   offset?: number
+  /** Include sessions with no evidence the vehicle moved. Server default is true. */
+  include_stationary?: boolean
 }
 
 // -- Daily Summary Types (no generated schema) --

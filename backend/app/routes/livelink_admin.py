@@ -104,6 +104,8 @@ async def get_livelink_settings(
         firmware_check_enabled=await _get_bool_setting(db, "livelink_firmware_check_enabled", True),
         alert_cooldown_minutes=await service.get_alert_cooldown_minutes(),
         session_grace_period_seconds=await service.get_session_grace_period_seconds(),
+        session_gap_minutes=await service.get_session_gap_minutes(),
+        session_boundary_mode=await service.get_session_boundary_mode(),
         notify_device_offline=await _get_bool_setting(db, "livelink_notify_device_offline", True),
         notify_threshold_alerts=await _get_bool_setting(
             db, "livelink_notify_threshold_alerts", True
@@ -161,6 +163,14 @@ async def update_livelink_settings(
             "livelink_session_grace_period_seconds",
             str(updates.session_grace_period_seconds),
         )
+    if updates.session_gap_minutes is not None:
+        await SettingsService.set(
+            db, "livelink_session_gap_minutes", str(updates.session_gap_minutes)
+        )
+    if updates.session_boundary_mode is not None:
+        await SettingsService.set(
+            db, "livelink_session_boundary_mode", updates.session_boundary_mode
+        )
     if updates.notify_device_offline is not None:
         await SettingsService.set(
             db, "livelink_notify_device_offline", str(updates.notify_device_offline).lower()
@@ -211,6 +221,20 @@ async def regenerate_global_token(
 # =============================================================================
 
 
+async def _device_response(db: AsyncSession, device) -> LiveLinkDeviceResponse:
+    """One device, with `movement_unreadable` actually answered.
+
+    The field defaults to False on the schema, so a handler that skips this
+    reports "this device's movement reads fine" about a device nobody asked
+    about. That is the silent zero this whole feature exists to remove, one
+    layer up from where it was removed.
+    """
+    unreadable = await LiveLinkService(db).movement_unreadable_device_ids([device])
+    return LiveLinkDeviceResponse.model_validate(device).model_copy(
+        update={"movement_unreadable": device.device_id in unreadable}
+    )
+
+
 @router.get("/devices", response_model=LiveLinkDeviceListResponse)
 async def list_devices(
     db: AsyncSession = Depends(get_db),
@@ -224,11 +248,17 @@ async def list_devices(
     """
     service = LiveLinkService(db)
     devices = await service.list_devices()
+    unreadable = await service.movement_unreadable_device_ids(devices)
 
     online_count = sum(1 for d in devices if d.device_status == "online")
 
     return LiveLinkDeviceListResponse(
-        devices=[LiveLinkDeviceResponse.model_validate(d) for d in devices],
+        devices=[
+            LiveLinkDeviceResponse.model_validate(d).model_copy(
+                update={"movement_unreadable": d.device_id in unreadable}
+            )
+            for d in devices
+        ],
         total=len(devices),
         online_count=online_count,
     )
@@ -247,7 +277,7 @@ async def get_device(
     - Owner of the device's linked vehicle (admin for unlinked devices).
     """
     device = await _get_device_for_owner_or_404(db, device_id, current_user)
-    return LiveLinkDeviceResponse.model_validate(device)
+    return await _device_response(db, device)
 
 
 @router.put("/devices/{device_id}", response_model=LiveLinkDeviceResponse)
@@ -292,7 +322,7 @@ async def update_device(
     if not device:
         raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
 
-    return LiveLinkDeviceResponse.model_validate(device)
+    return await _device_response(db, device)
 
 
 @router.delete("/devices/{device_id}", status_code=204)

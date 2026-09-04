@@ -16,6 +16,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import OdometerRecord
 
 
+def auto_sync_marker(source_type: str, source_id: int) -> str:
+    """The note that marks an odometer row as owned by one source record.
+
+    Written here and matched by the cleanup paths that remove a synced row when
+    its source is deleted. Those paths used to hardcode the format string, so
+    the writer and the matcher were one edit apart from silently disagreeing --
+    and a mismatch does not fail loudly, it just orphans the row.
+    """
+    return f"[AUTO-SYNC from {source_type} #{source_id}]"
+
+
 async def sync_odometer_from_record(
     db: AsyncSession,
     vin: str,
@@ -59,7 +70,7 @@ async def sync_odometer_from_record(
     )
     existing = result.scalars().first()
 
-    auto_sync_marker = f"[AUTO-SYNC from {source_type} #{source_id}]"
+    marker = auto_sync_marker(source_type, source_id)
 
     # Migration 055 added odometer_records.fuel_record_id with ON DELETE
     # CASCADE for fuel-sourced rows. Set it when source is 'fuel' so the
@@ -73,7 +84,7 @@ async def sync_odometer_from_record(
 
         if is_auto_synced or is_livelink:
             existing.odometer_km = odometer_km
-            existing.notes = auto_sync_marker
+            existing.notes = marker
             existing.source = source_type
             existing.fuel_record_id = fk_value
             if commit:
@@ -88,7 +99,7 @@ async def sync_odometer_from_record(
         vin=vin,
         date=date,
         odometer_km=odometer_km,
-        notes=auto_sync_marker,
+        notes=marker,
         source=source_type,
         fuel_record_id=fk_value,
     )

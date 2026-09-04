@@ -3,7 +3,52 @@
 from decimal import Decimal
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+
+
+@pytest_asyncio.fixture
+async def test_vehicle(db_session, test_user):
+    """A vehicle owned by THIS test alone, shadowing the shared conftest one.
+
+    The suite shares one database with no per-test rollback, and the shared
+    `test_vehicle` fixture hands every test the same VIN. That was survivable
+    while `POST /tires` upserted by position: a second test claiming FL simply
+    overwrote the first one's tire.
+
+    v3.3.0 makes a corner claimable once -- a second POST to an occupied
+    position is a 409 -- so tests in this file would collide with each other
+    depending on execution order. Each gets its own vehicle instead, which is
+    the fix the upsert semantics were previously hiding the need for.
+    """
+    import uuid
+
+    from app.models.vehicle import Vehicle
+
+    vin = f"TIRETEST{uuid.uuid4().hex[:9].upper()}"
+    db_session.add(
+        Vehicle(
+            vin=vin,
+            user_id=test_user["id"],
+            nickname="Tire test",
+            vehicle_type="Car",
+            year=2020,
+            make="Honda",
+            model="Accord",
+        )
+    )
+    await db_session.commit()
+
+    yield {"vin": vin, "user_id": test_user["id"]}
+
+    # Clean up. The suite shares one database, and leaving a vehicle behind per
+    # test is not harmless: `test_list_vehicles` asserts a specific VIN appears
+    # in a PAGINATED listing, so nine extra vehicles pushed it off the page and
+    # failed a test in another file entirely.
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+    await db_session.commit()
 
 
 @pytest.mark.integration
@@ -24,7 +69,7 @@ class TestTireRoutes:
     async def test_upsert_list_and_delete(self, client: AsyncClient, auth_headers, test_vehicle):
         vin = test_vehicle["vin"]
         create = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={
                 "vin": vin,
@@ -70,10 +115,28 @@ class TestTireRoutes:
         )
         assert response.status_code == 422
 
-    async def test_readings_project_wear(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_readings_project_wear(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        """A projection needs the tire's OWN distance, which needs bounds.
+
+        The open mount period's upper bound is the vehicle's latest
+        `OdometerRecord` -- there is no odometer column on `Vehicle`, and a
+        tire reading's odometer does not create one. A vehicle with no odometer
+        record therefore has no bounded distance for any tire still mounted on
+        it, which is its own empty state rather than a zero.
+        """
+        import datetime as _dt
+
+        from app.models.odometer import OdometerRecord
+
         vin = test_vehicle["vin"]
+        db_session.add(
+            OdometerRecord(vin=vin, date=_dt.date(2026, 6, 1), odometer_km=12000, source="manual")
+        )
+        await db_session.commit()
         created = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={
                 "vin": vin,
@@ -81,6 +144,13 @@ class TestTireRoutes:
                 "brand": "Continental",
                 "tread_depth_mm": "6.0",
                 "min_tread_mm": "2.0",
+                # v3.3.0: the projection is period-aware. Without an odometer
+                # on the mount there is no bounded distance for this tire, and
+                # the raw odometer delta between two readings -- which is what
+                # the old code used -- is exactly the figure this release
+                # exists to stop publishing. The status in that case is
+                # `unverified_mount_history`, asserted separately below.
+                "mounted_odometer_km": "10000",
             },
         )
         assert created.status_code == 201
@@ -119,7 +189,7 @@ class TestTireRoutes:
     ):
         vin = test_vehicle["vin"]
         created = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={
                 "vin": vin,
@@ -144,7 +214,7 @@ class TestTireRoutes:
     async def test_update_tire_metadata(self, client: AsyncClient, auth_headers, test_vehicle):
         vin = test_vehicle["vin"]
         created = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={
                 "vin": vin,
@@ -176,15 +246,18 @@ class TestTireRoutes:
         from app.models.reminder import Reminder
 
         vin = test_vehicle["vin"]
-        await client.post(
-            f"/api/vehicles/{vin}/tires",
+        # v3.3.0: a second POST to an occupied corner is a 409, not an upsert.
+        # A tire is a thing you own, so changing its tread is a PUT on that tire.
+        created = await client.post(
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={"vin": vin, "position": "RL", "tread_depth_mm": "2.0", "min_tread_mm": "3.0"},
         )
-        await client.post(
-            f"/api/vehicles/{vin}/tires",
+        assert created.status_code == 201, created.text
+        await client.put(
+            f"/api/vehicles/{vin}/tires/{created.json()['id']}",
             headers=auth_headers,
-            json={"vin": vin, "position": "RL", "tread_depth_mm": "8.0", "min_tread_mm": "3.0"},
+            json={"tread_depth_mm": "8.0"},
         )
         result = await db_session.execute(
             select(Reminder).where(Reminder.vin == vin, Reminder.title == "Tire tread low (RL)")
@@ -202,7 +275,7 @@ class TestTireRoutes:
         """
         vin = test_vehicle["vin"]
         created = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={
                 "vin": vin,
@@ -217,13 +290,16 @@ class TestTireRoutes:
         )
         assert created.status_code in (200, 201)
 
-        # A later save that only carries a new tread reading.
-        updated = await client.post(
-            f"/api/vehicles/{vin}/tires",
+        # A later save that only carries a new tread reading. Before v3.3.0
+        # this was a second POST to the same position; it is now a partial PUT,
+        # because a POST to an occupied corner is a conflict. The property being
+        # protected is unchanged: a save that omits a field must not erase it.
+        updated = await client.put(
+            f"/api/vehicles/{vin}/tires/{created.json()['id']}",
             headers=auth_headers,
-            json={"vin": vin, "position": "FR", "tread_depth_mm": "6.0"},
+            json={"tread_depth_mm": "6.0"},
         )
-        assert updated.status_code in (200, 201)
+        assert updated.status_code == 200, updated.text
         body = updated.json()
         assert body["brand"] == "Michelin"
         assert body["model_name"] == "Pilot Sport 4"
@@ -239,7 +315,7 @@ class TestTireRoutes:
         """Backfilling history must not report a worn tire as healthy."""
         vin = test_vehicle["vin"]
         created = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={"vin": vin, "position": "RR", "tread_depth_mm": "4.0", "min_tread_mm": "3.0"},
         )
@@ -346,7 +422,7 @@ class TestPressureOnlyTireReadings:
         title = "Tire tread low (FL)"
 
         created = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={
                 "vin": vin,
@@ -413,7 +489,7 @@ class TestPressureOnlyTireReadings:
         title = "Tire tread low (RR)"
 
         created = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={"vin": vin, "position": "RR", "tread_depth_mm": "1.5", "min_tread_mm": "3.0"},
         )
@@ -421,12 +497,14 @@ class TestPressureOnlyTireReadings:
         assert created.json()["below_threshold"] is True
         assert await self._reminder_status(db_session, vin, title) == "pending"
 
-        cleared = await client.post(
-            f"/api/vehicles/{vin}/tires",
+        # v3.3.0: clearing a tread is an update to THAT tire, not a re-POST to
+        # the corner it happens to occupy. A second POST there is a 409.
+        cleared = await client.put(
+            f"/api/vehicles/{vin}/tires/{created.json()['id']}",
             headers=auth_headers,
-            json={"vin": vin, "position": "RR", "tread_depth_mm": None},
+            json={"tread_depth_mm": None},
         )
-        assert cleared.status_code in (200, 201), cleared.text
+        assert cleared.status_code == 200, cleared.text
         assert cleared.json()["tread_depth_mm"] is None
         assert await self._reminder_status(db_session, vin, title) == "pending"
 
@@ -440,7 +518,7 @@ class TestPressureOnlyTireReadings:
         """
         vin = await self._vehicle(client, auth_headers, "1HGCM82633A152003")
         created = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={"vin": vin, "position": "FR", "tread_depth_mm": "6.0"},
         )
@@ -476,7 +554,7 @@ class TestPressureOnlyTireReadings:
         """The #152 flow end to end: no tread anywhere, pressure history only."""
         vin = await self._vehicle(client, auth_headers, "1HGCM82633A152004")
         created = await client.post(
-            f"/api/vehicles/{vin}/tires",
+            f"/api/vehicles/{vin}/tires/create-and-mount",
             headers=auth_headers,
             json={"vin": vin, "position": "RL", "pressure_kpa": "240"},
         )

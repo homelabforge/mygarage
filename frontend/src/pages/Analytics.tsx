@@ -68,6 +68,7 @@ import type {
   DEFAnalysis,
 } from '../types/analytics'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
+import TireAnalyticsSection from '../components/TireAnalyticsSection'
 import ExportMenu from '../components/ExportMenu'
 import { Badge } from '../components/ui'
 import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
@@ -1429,6 +1430,13 @@ export default function Analytics() {
           </div>
         </div>
       )}
+
+      {/* Tires (spec B, #152). The component self-gates on `tires.length`, so
+          a vehicle with none renders nothing at all rather than four empty
+          blocks. Deliberately NOT gated on isMotorized here: the constant is
+          `NON_MOTORIZED_TYPES = ['Trailer', 'FifthWheel', 'TravelTrailer']`,
+          which excludes exactly the vehicles that have tires and blowouts. */}
+      {vin && <TireAnalyticsSection vin={vin} />}
 
       {/* Hours Accumulated — the hours analog of an odometer-over-time series;
           no equivalent point series exists for distance (total_km_driven /

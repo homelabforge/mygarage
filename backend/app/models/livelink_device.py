@@ -3,9 +3,20 @@ from __future__ import annotations
 """LiveLink WiCAN device model."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -79,6 +90,32 @@ class LiveLinkDevice(Base):
 
     # Session grace period (WiFi drop resilience)
     pending_offline_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Movement state (migration 098). Durable, per device, and never in process
+    # memory: the MQTT subscriber, the HTTPS route and the scheduler are three
+    # execution contexts, so an in-memory candidate is invisible to two of them
+    # and is lost on every restart -- which silently converts "keep the warm-up
+    # samples" into "drop them" every time the container cycles.
+    #
+    # Scoped per DEVICE, never per VIN: a vehicle carrying both a WiCAN dongle
+    # and a Torque phone would otherwise let one source confirm the other's
+    # pending drive.
+    #
+    # All four pending fields reset together — on promotion to a session, on
+    # expiry past the drive gap, and when an explicit offline FINALIZES (not
+    # when it arrives, or a brief WiFi drop inside the grace period would
+    # discard the warm-up samples this state exists to preserve).
+    last_movement_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    #: Engine on, nothing moving yet. NULL = no pending drive.
+    pending_since: Mapped[datetime | None] = mapped_column(DateTime)
+    #: Which signal opened the pending drive. Only ``'rpm'`` is written today:
+    #: a pending drive IS "engine on, nothing moving yet", and a sample above the
+    #: movement floor confirms movement outright rather than opening one.
+    pending_source: Mapped[str | None] = mapped_column(String(10))
+    #: First of the two consecutive above-floor speed samples the debounce needs.
+    movement_candidate_at: Mapped[datetime | None] = mapped_column(DateTime)
+    #: Odometer at pending open, for the odometer-increase movement signal.
+    movement_baseline_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
 
     # State
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)

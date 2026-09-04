@@ -7,21 +7,40 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 TirePosition = Literal["FL", "FR", "RL", "RR", "SPARE"]
 TIRE_POSITIONS: tuple[str, ...] = ("FL", "FR", "RL", "RR", "SPARE")
 
 
 class TireBase(BaseModel):
-    """Shared tire fields."""
+    """Shared tire fields.
 
-    position: TirePosition
+    **`position` is not here, and neither is `installed_date`.**
+
+    `position` left because a tire is no longer identified by a corner (D2c):
+    it is a thing you own, which is sometimes mounted somewhere. Mounting is a
+    separate operation with its own conflict semantics, so `POST /api/tires`
+    no longer upserts by position.
+
+    `installed_date` left because it is now DERIVED from the earliest mount
+    period (D12). Keeping it writable would need synchronisation on every
+    period create, edit and delete, and would give the same fact two sources.
+
+    `extra="forbid"` is deliberate and is what makes the break loud (D13). A
+    stale v3.2 browser tab POSTing a payload with `position` gets a 422 naming
+    the field. Pydantic's default is to IGNORE unknown fields, which here would
+    mean silently creating a second, unmounted tire instead of updating the one
+    at that corner -- a duplicate the user did not ask for and cannot see the
+    cause of.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     brand: str | None = Field(None, max_length=80)
     model_name: str | None = Field(None, max_length=80)
     size: str | None = Field(None, max_length=40)
     dot_code: str | None = Field(None, max_length=20)
-    installed_date: date_type | None = None
     tread_depth_mm: Decimal | None = Field(None, ge=0, le=30)
     pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
     min_tread_mm: Decimal | None = Field(
@@ -40,17 +59,106 @@ class TireCreate(TireBase):
 
 
 class TireUpdate(BaseModel):
-    """Partial tire update."""
+    """Partial tire update.
+
+    Neither `position` nor `installed_date` is writable here: position changes
+    through mount/dismount (D14), and `installed_date` is derived (D12).
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     brand: str | None = Field(None, max_length=80)
     model_name: str | None = Field(None, max_length=80)
     size: str | None = Field(None, max_length=40)
     dot_code: str | None = Field(None, max_length=20)
-    installed_date: date_type | None = None
     tread_depth_mm: Decimal | None = Field(None, ge=0, le=30)
     pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
     min_tread_mm: Decimal | None = Field(None, ge=0, le=10)
     notes: str | None = None
+    #: The set this tire belongs to, or null for ungrouped. Writable HERE and
+    #: nowhere else: `TireCreate` deliberately does not take one, because a set
+    #: is a label applied to a tire you already own rather than part of its
+    #: identity. `update_tire` uses `exclude_unset`, so omitting the key leaves
+    #: membership alone and sending null clears it -- two different intents that
+    #: a plain optional field would collapse into one.
+    set_id: int | None = None
+
+
+class TireMountRequest(BaseModel):
+    """Mount a tire at a position."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    position: TirePosition
+    mounted_on: date_type | None = None
+    mounted_odometer_km: Decimal | None = Field(None, ge=0)
+    notes: str | None = None
+
+
+class TireDismountRequest(BaseModel):
+    """Take a tire off the vehicle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dismounted_on: date_type | None = None
+    dismounted_odometer_km: Decimal | None = Field(None, ge=0)
+    notes: str | None = None
+
+
+class TireCreateAndMountRequest(TireCreate):
+    """Create a tire and mount it in one atomic operation.
+
+    Offered because create-then-mount is two calls for the common case, and
+    the conflict semantics are the MOUNT's: if that corner is occupied the
+    whole operation fails and no tire is created. A caller that did the two
+    steps itself and got a conflict on the second would be left with an
+    orphan tire it did not ask for.
+    """
+
+    position: TirePosition
+    mounted_on: date_type | None = None
+    mounted_odometer_km: Decimal | None = Field(None, ge=0)
+
+
+class TireRotationMove(BaseModel):
+    """One tire's destination in a rotation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tire_id: int
+    position: TirePosition
+
+
+class TireRotationRequest(BaseModel):
+    """Move several tires at once.
+
+    All or nothing. A partial rotation would leave the vehicle in an
+    arrangement the user did not ask for and cannot easily read back, which
+    for something done four tires at a time is worse than a refusal.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    moves: list[TireRotationMove] = Field(..., min_length=1)
+    odometer_km: Decimal | None = Field(None, ge=0)
+    rotated_on: date_type | None = None
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def _no_duplicate_targets(self) -> TireRotationRequest:
+        """Two tires cannot be sent to one corner.
+
+        Caught here rather than by the unique index, because the index fires
+        mid-write and the resulting IntegrityError cannot say which pair of
+        moves conflicted.
+        """
+        positions = [m.position for m in self.moves]
+        if len(set(positions)) != len(positions):
+            raise ValueError("Two tires cannot be rotated to the same position")
+        tire_ids = [m.tire_id for m in self.moves]
+        if len(set(tire_ids)) != len(tire_ids):
+            raise ValueError("A tire cannot be rotated to two positions")
+        return self
 
 
 class TireReadingCreate(BaseModel):
@@ -90,7 +198,9 @@ class TireReadingResponse(BaseModel):
     id: int
     tire_id: int
     vin: str
-    position: str
+    # Nullable since 097: a reading can be taken on a stored tire.
+    position: str | None = None
+    mount_period_id: int | None = None
     recorded_at: date_type
     odometer_km: Decimal | None
     tread_depth_mm: Decimal | None
@@ -101,27 +211,75 @@ class TireReadingResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MountPeriodResponse(BaseModel):
+    """One interval a tire spent mounted at one position."""
+
+    id: int
+    position: str
+    mounted_on: date_type | None
+    dismounted_on: date_type | None
+    mounted_odometer_km: Decimal | None
+    dismounted_odometer_km: Decimal | None
+    is_assumed: bool
+    observed_active_on: date_type | None
+    notes: str | None
+
+    model_config = {"from_attributes": True}
+
+
 class TireResponse(TireBase):
-    """Tire with optional wear projection."""
+    """A tire, with where it is now and what is known about its wear.
+
+    `position` is RE-DECLARED here as nullable rather than inherited: it left
+    the write schema (D2c) but is still part of every read. Declaring it only
+    on the base would have made it required on writes; omitting it entirely
+    would have dropped it from responses. Neither is what a reader wants.
+
+    `installed_date` is DERIVED, not stored (D12): the `mounted_on` of the
+    earliest period **that has one**. When the earliest period is the migrated
+    assumed one with a null start, this is null -- NOT the next known remount
+    date. A plain MIN(mounted_on) would skip the unknown and report a later
+    date as the installation date, which is worse than reporting nothing.
+    """
 
     id: int
     vin: str
+    position: TirePosition | None = None
+    set_id: int | None = None
+    retired_on: date_type | None = None
+    installed_date: date_type | None = None
     created_at: datetime
     updated_at: datetime | None = None
-    # Estimated km remaining until min_tread_mm based on last two readings.
+    # Estimated km remaining until min_tread_mm based on the last two readings.
     projected_km_remaining: Decimal | None = None
-    # Estimated calendar date of wear-out (null when projection unavailable).
+    # Estimated calendar date of wear-out. Null even on a successful projection
+    # when the two readings are same-day, so it is not a proxy for "projected".
     projected_wear_date: date_type | None = None
+    # Why a projection is or is not available. See WearStatus.
+    wear_status: str | None = None
+    # Distance driven ON THIS TIRE, summed over its mount periods.
+    distance_km: Decimal | None = None
+    # The measurable part when the full history is not known, and the date it
+    # runs from. Non-null for `incomplete`.
+    known_distance_km: Decimal | None = None
+    known_distance_since: date_type | None = None
+    # Why the distance is or is not available. See DistanceStatus.
+    distance_status: str | None = None
+    # The periods a user must supply a number for, so the UI can link to the
+    # exact one instead of saying "record a mount".
+    blocking_period_ids: list[int] = Field(default_factory=list)
     below_threshold: bool = False
+    mount_periods: list[MountPeriodResponse] = Field(default_factory=list)
     readings: list[TireReadingResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 
     @field_validator("position")
     @classmethod
-    def _position_ok(cls, v: str) -> str:
-        if v not in TIRE_POSITIONS:
-            raise ValueError(f"position must be one of {TIRE_POSITIONS}")
+    def _position_ok(cls, v: str | None) -> str | None:
+        """None is valid: it means the tire is in storage, not mounted."""
+        if v is not None and v not in TIRE_POSITIONS:
+            raise ValueError(f"position must be one of {TIRE_POSITIONS} or null")
         return v
 
 
@@ -130,3 +288,69 @@ class TireListResponse(BaseModel):
 
     tires: list[TireResponse]
     total: int
+
+
+class TireSetCreate(BaseModel):
+    """Name a group of tires.
+
+    No `tire_ids` here. Membership is set from the TIRE side
+    (`PUT /tires/{id}` with a `set_id`), so there is exactly one writer for it
+    and no way for the two ends to disagree about who is in what.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=1, max_length=60)
+    notes: str | None = None
+
+
+class TireSetUpdate(BaseModel):
+    """Rename a set, or change its notes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(None, min_length=1, max_length=60)
+    notes: str | None = None
+
+
+class TireSetResponse(BaseModel):
+    """A set, with enough about its members to render it without a second call."""
+
+    id: int
+    vin: str
+    name: str
+    notes: str | None = None
+    created_at: datetime
+    #: Members, retired tires excluded: a retired tire is history rather than
+    #: inventory, and a set that still counted it would offer to fit a tire the
+    #: user has thrown away.
+    tire_ids: list[int] = Field(default_factory=list)
+    #: How many members are on the vehicle right now. 0 means the whole set is
+    #: in storage, which is what makes "currently fitted" renderable without
+    #: the caller joining the tire list itself.
+    mounted_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class TireSetListResponse(BaseModel):
+    """All sets for a vehicle."""
+
+    sets: list[TireSetResponse]
+    total: int
+
+
+class TireSetMountRequest(BaseModel):
+    """Fit every tire in a set, each at the corner it was last on.
+
+    The odometer is a reading of the VEHICLE and applies to the whole swap: it
+    closes the periods of everything coming off and opens the periods of
+    everything going on. One number, because that is what the user reads off
+    the dash once.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    odometer_km: Decimal | None = Field(None, ge=0)
+    mounted_on: date_type | None = None
+    notes: str | None = None

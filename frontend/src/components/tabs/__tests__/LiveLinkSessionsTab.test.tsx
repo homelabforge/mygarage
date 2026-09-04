@@ -77,10 +77,13 @@ const endedSession = {
   started_at: 'x', ended_at: 'x', duration_seconds: 3600, distance_km: 100,
   max_speed: 60, avg_speed: 40, avg_rpm: 2000, max_rpm: 4000,
   avg_coolant_temp: 90, max_coolant_temp: 95, start_odometer: 1000, end_odometer: 1100,
+  // Cut by the movement rule, so the "Earlier detection" chip stays off unless
+  // a test explicitly asks for a legacy row.
+  boundary_algorithm_version: 1,
 } satisfies DriveSession
 const inProgressSession = { ...endedSession, id: 6, ended_at: null } satisfies DriveSession
 const list = (over: Partial<DriveSessionListResponse> = {}) =>
-  ({ sessions: [endedSession], total: 1, ...over }) satisfies DriveSessionListResponse
+  ({ sessions: [endedSession], total: 1, stationary_total: 0, ...over }) satisfies DriveSessionListResponse
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -97,7 +100,72 @@ describe('LiveLinkSessionsTab', () => {
     // reader's own unit can be claimed for it again.
     expect(screen.getByText('62 mi')).toBeInTheDocument()
     expect(screen.getByText('37 mph')).toBeInTheDocument()         // 60 km/h / 1.60934, at 0 dp
-    expect(getSessions.mock.calls).toStrictEqual([['V1', { limit: 50 }]]) // M1: exact call identity
+    expect(getSessions.mock.calls).toStrictEqual([['V1', { limit: 50, include_stationary: false }]])
+  })
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Hiding drives the old rule invented.
+  //
+  // Sessions used to open whenever the dongle reached the broker, and a parked
+  // WiCAN checks in about every 95 minutes. On the instance this was built
+  // against, 2,921 of 3,262 recorded sessions never moved at all. They cannot
+  // be rebuilt (the telemetry was never captured) and must not be deleted (a
+  // release that tried removed 2,700 km of real distance), so the list hides
+  // them by default and says so.
+  //
+  // The filter is MOVEMENT, not `boundary_algorithm_version`: 341 of that same
+  // history are pre-v3.3.0 sessions in which the vehicle really did move.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  it('asks the API to leave out sessions in which nothing moved, by default', async () => {
+    render(<LiveLinkSessionsTab vin="V1" />)
+    await screen.findByText('1h 0m')
+    expect(getSessions).toHaveBeenCalledWith('V1', { limit: 50, include_stationary: false })
+  })
+
+  it('explains an empty list rather than looking broken when drives are hidden', async () => {
+    // The upgrade case: every drive on record predates movement detection, so
+    // the default view is legitimately empty. An unexplained blank page here is
+    // indistinguishable from a failure, and this is the state every existing
+    // instance lands in on the day it upgrades.
+    getSessions.mockResolvedValue(list({ sessions: [], total: 0, stationary_total: 2921 }))
+    render(<LiveLinkSessionsTab vin="V1" />)
+
+    expect(await screen.findByText('livelink.sessions.stationaryHiddenTitle')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'livelink.sessions.showStationary' })).toBeInTheDocument()
+  })
+
+  it('keeps the ordinary empty state when there is nothing hidden either', async () => {
+    // A genuinely new instance has no drives and nothing to explain. Offering
+    // to reveal 0 hidden drives would be nonsense.
+    getSessions.mockResolvedValue(list({ sessions: [], total: 0, stationary_total: 0 }))
+    render(<LiveLinkSessionsTab vin="V1" />)
+
+    expect(await screen.findByText('livelink.sessions.noRecords')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'livelink.sessions.showStationary' })).toBeNull()
+  })
+
+  it('refetches with the old drives included when asked, and can put them back', async () => {
+    getSessions.mockResolvedValue(list({ sessions: [], total: 0, stationary_total: 2921 }))
+    render(<LiveLinkSessionsTab vin="V1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'livelink.sessions.showStationary' }))
+
+    await vi.waitFor(() =>
+      expect(getSessions).toHaveBeenLastCalledWith('V1', { limit: 50, include_stationary: true })
+    )
+  })
+
+  it('marks a drive the old rule recorded, so a revealed row says what it is', async () => {
+    const legacyRow = { ...endedSession, id: 9, boundary_algorithm_version: 0 }
+    const modernRow = { ...endedSession, id: 10, boundary_algorithm_version: 1 }
+    getSessions.mockResolvedValue(
+      list({ sessions: [legacyRow, modernRow], total: 2, stationary_total: 1 })
+    )
+    render(<LiveLinkSessionsTab vin="V1" />)
+
+    await screen.findAllByText('1h 0m')
+    expect(screen.getAllByText('livelink.sessions.legacyBadge')).toHaveLength(1)
   })
 
   it('shows the in-progress chip only for an active (unended) session — both ways (fails if the isActive marker is dropped or shown unconditionally)', async () => {

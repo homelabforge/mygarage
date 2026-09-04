@@ -526,6 +526,11 @@ async def export_hours_records_csv(
 async def export_warranties_csv(
     request: Request,
     vin: str,
+    units: str | None = Query(
+        None,
+        pattern="^(metric|imperial)$",
+        description=_UNITS_QUERY_DESCRIPTION,
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -542,16 +547,18 @@ async def export_warranties_csv(
     records = result.scalars().all()
 
     # Generate CSV
+    # Every column here maps to a real WarrantyRecord attribute. The previous
+    # set named five that do not exist (`coverage`, `cost`, `deductible`,
+    # `max_claims`, `terms`), so this route returned 500 for any vehicle with a
+    # warranty. `Mileage Limit (km)` is unit-bearing and resolved by build_csv.
     headers = [
         "Provider",
         "Type",
-        "Coverage",
+        "Policy Number",
+        "Coverage Details",
         "Start Date",
         "End Date",
-        "Cost",
-        "Deductible",
-        "Max Claims",
-        "Terms",
+        "Mileage Limit (km)",
         "Notes",
     ]
 
@@ -561,18 +568,18 @@ async def export_warranties_csv(
             [
                 record.provider or "",
                 record.warranty_type or "",
-                record.coverage or "",
+                record.policy_number or "",
+                record.coverage_details or "",
                 record.start_date.isoformat() if record.start_date else "",
                 record.end_date.isoformat() if record.end_date else "",
-                f"{record.cost:.2f}" if record.cost else "",
-                f"{record.deductible:.2f}" if record.deductible else "",
-                record.max_claims or "",
-                record.terms or "",
+                # Canonical km. build_csv converts the cell and renames the
+                # header token together, so the two cannot disagree.
+                record.mileage_limit_km if record.mileage_limit_km is not None else None,
                 record.notes or "",
             ]
         )
 
-    output = generate_csv_stream(headers, rows)
+    output = build_csv(headers, rows, await resolve_export_units(units, current_user, db))
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_warranties_{datetime.now().strftime('%Y%m%d')}.csv"
@@ -612,6 +619,7 @@ async def export_insurance_csv(
         "Start Date",
         "End Date",
         "Premium",
+        "Premium Frequency",
         "Deductible",
         "Coverage Limits",
         "Notes",
@@ -626,7 +634,8 @@ async def export_insurance_csv(
                 record.policy_type or "",
                 record.start_date.isoformat() if record.start_date else "",
                 record.end_date.isoformat() if record.end_date else "",
-                f"{record.premium:.2f}" if record.premium else "",
+                f"{record.premium_amount:.2f}" if record.premium_amount else "",
+                record.premium_frequency or "",
                 f"{record.deductible:.2f}" if record.deductible else "",
                 record.coverage_limits or "",
                 record.notes or "",

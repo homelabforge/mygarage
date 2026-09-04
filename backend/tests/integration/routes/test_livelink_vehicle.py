@@ -133,6 +133,11 @@ class TestVehicleSessions:
             mock_service = MagicMock()
             mock_service.get_vehicle_sessions = AsyncMock(return_value=[])
             mock_service.get_session_count = AsyncMock(return_value=0)
+            # Reported alongside every list so a filtered view can say how many
+            # motionless sessions it is holding back. Stubbed because the whole
+            # service is replaced here; the counts themselves are covered in
+            # tests/unit/services/test_session_stationary_filter.py.
+            mock_service.get_stationary_session_count = AsyncMock(return_value=0)
             mock_service_class.return_value = mock_service
 
             response = await client.get(

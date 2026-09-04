@@ -2,60 +2,306 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
+from collections.abc import Sequence
 from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
-from app.models.tire import Tire, TireReading
+from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.user import User
 from app.schemas.tire import (
-    TIRE_POSITIONS,
+    MountPeriodResponse,
     TireCreate,
+    TireCreateAndMountRequest,
+    TireDismountRequest,
     TireListResponse,
+    TireMountRequest,
     TireReadingCreate,
     TireReadingResponse,
     TireResponse,
+    TireRotationRequest,
     TireUpdate,
+)
+from app.services.tire_results import (
+    DistanceResult,
+    DistanceStatus,
+    WearResult,
+    WearStatus,
 )
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.odometer_sync import auto_sync_marker, sync_odometer_from_record
 
 logger = logging.getLogger(__name__)
 
+# `source_type` for the odometer readings the tire paths publish. Two of them,
+# and the split decides what happens when a tire is deleted: a mount, dismount,
+# retire or reading odometer exists because of ONE tire and goes with it, while
+# a rotation's is a reading of the VEHICLE taken while several tires were on
+# it. Deleting one of those tires does not make the reading untrue, and
+# cascading it would break the distance figure for every other tire in the same
+# rotation. Both fit `odometer_records.source` VARCHAR(20) -- a length
+# PostgreSQL enforces and SQLite does not.
+ODOMETER_SOURCE_TIRE = "tire"
+ODOMETER_SOURCE_ROTATION = "tire_rotation"
+ODOMETER_SOURCE_SET = "tire_set"
 
-def _project_wear(
-    readings: list[TireReading],
-    min_tread: Decimal | None,
-) -> tuple[Decimal | None, object | None]:
-    """Estimate km remaining and wear date from the two most recent readings.
 
-    Requires two readings with odometer and decreasing tread. Returns
-    ``(projected_km_remaining, projected_wear_date)``.
+async def apply_mount_moves(
+    db: AsyncSession,
+    *,
+    vacate: Sequence[Tire],
+    assign: Sequence[tuple[Tire, str]],
+    when: dt.date,
+    odometer_km: Decimal | None,
+    notes: str | None = None,
+) -> None:
+    """Take tires off corners and put tires onto corners, in two phases.
+
+    **Why two phases.** `uq_tires_vin_position` is an IMMEDIATE unique index on
+    both dialects, so assigning one tire at a time fails the moment a
+    destination is still occupied -- which for a rotation or a seasonal swap is
+    always. An X-pattern collides on the very first move even though the
+    requested FINAL arrangement is perfectly legal. So: clear every affected
+    `tires.position` and close every affected period, FLUSH, then assign the new
+    positions and open the new periods. Deferring the constraint is not an
+    option; SQLite has no `DEFERRABLE INITIALLY DEFERRED`.
+
+    A tire in `vacate` and not in `assign` ends up stored, which is what a
+    seasonal swap does to the set coming off. A tire in `assign` and not in
+    `vacate` is a stored tire being fitted, and has no open period to close.
+
+    Extracted when tire sets arrived, because the alternative was a second copy
+    of the vacate/flush/assign dance -- the subtlest thing in the tire service,
+    and the one whose absence does not fail loudly but corrupts an arrangement.
+
+    Args:
+        vacate: Tires to take off, closing each one's open period at
+            `when`/`odometer_km`.
+        assign: `(tire, position)` pairs to fit, opening a period for each.
+        when: The date both halves are recorded at.
+        odometer_km: The vehicle's odometer, bounding both halves.
+        notes: Free text copied onto every period this opens.
     """
-    if min_tread is None or len(readings) < 2:
-        return None, None
-    newer, older = readings[0], readings[1]
-    if (
-        newer.odometer_km is None
-        or older.odometer_km is None
-        or newer.tread_depth_mm is None
-        or older.tread_depth_mm is None
-    ):
-        return None, None
-    km_delta = newer.odometer_km - older.odometer_km
-    tread_delta = older.tread_depth_mm - newer.tread_depth_mm
-    if km_delta <= 0 or tread_delta <= 0:
-        return None, None
-    remaining_tread = newer.tread_depth_mm - min_tread
+    vacate_ids = [tire.id for tire in vacate]
+    open_periods = {}
+    if vacate_ids:
+        open_periods = {
+            period.tire_id: period
+            for period in (
+                await db.execute(
+                    select(TireMountPeriod).where(
+                        TireMountPeriod.tire_id.in_(vacate_ids),
+                        TireMountPeriod.dismounted_on.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        }
+
+    # ---- Phase 1: vacate. -----------------------------------------------
+    for tire in vacate:
+        tire.position = None
+        period = open_periods.get(tire.id)
+        if period is not None:
+            period.dismounted_on = when
+            period.dismounted_odometer_km = odometer_km
+    # The flush is the point of the split: without it the assignments below
+    # race the old values still sitting in the unique index.
+    await db.flush()
+
+    # ---- Phase 2: assign. -----------------------------------------------
+    for tire, position in assign:
+        tire.position = position
+        db.add(
+            TireMountPeriod(
+                tire_id=tire.id,
+                position=position,
+                mounted_on=when,
+                mounted_odometer_km=odometer_km,
+                is_assumed=False,
+                notes=notes,
+            )
+        )
+
+
+def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceResult:
+    """Distance driven ON THIS TIRE, summed over its mount periods.
+
+    This is the calculation the whole mount-period model exists for. The old
+    one took the raw odometer delta between two readings, which for anyone
+    running a second seasonal set counts the distance driven on the OTHER set.
+
+    Args:
+        tire: The tire, with `mount_periods` loaded.
+        current_odometer: The vehicle's latest odometer reading, used as the
+            upper bound of any period still open. None when the vehicle has no
+            odometer record at all, which makes an open period unbounded.
+
+    Returns:
+        A `DistanceResult` whose `status` says why a figure is or is not
+        available. Never a bare zero: "this tire has never rolled" and "this
+        tire rolled zero kilometres" are different answers.
+    """
+    periods = list(tire.mount_periods or [])
+    if not periods:
+        return DistanceResult(status=DistanceStatus.NO_PERIODS)
+
+    # A spare accrues nothing: it is in the trunk while the vehicle drives.
+    rolling = [p for p in periods if p.position != "SPARE"]
+    if not rolling:
+        return DistanceResult(status=DistanceStatus.SPARE_ONLY)
+
+    known = Decimal("0")
+    earliest: dt.date | None = None
+    contributed = 0
+    blocking: list[int] = []
+
+    for period in rolling:
+        start = period.mounted_odometer_km
+        end = (
+            period.dismounted_odometer_km if period.dismounted_on is not None else current_odometer
+        )
+        if start is None or end is None:
+            blocking.append(period.id)
+            continue
+        if end < start:
+            return DistanceResult(
+                status=DistanceStatus.ODOMETER_ROLLBACK,
+                blocking_period_ids=[period.id],
+            )
+        known += end - start
+        contributed += 1
+        # Only a period that CONTRIBUTED can date the known figure, and its
+        # `mounted_on` may still be null on a migrated assumed period.
+        if period.mounted_on is not None:
+            earliest = period.mounted_on if earliest is None else min(earliest, period.mounted_on)
+
+    if contributed == 0:
+        # Every migrated tire, on upgrade day. NOT `incomplete`: there is no
+        # subtotal to show, and "0 km since an unknown date" is worse than
+        # saying nothing.
+        return DistanceResult(status=DistanceStatus.NOTHING_BOUNDED, blocking_period_ids=blocking)
+    if blocking:
+        return DistanceResult(
+            status=DistanceStatus.INCOMPLETE,
+            known_value=known,
+            known_since=earliest,
+            blocking_period_ids=blocking,
+        )
+    return DistanceResult(
+        status=DistanceStatus.COMPLETE,
+        all_time_value=known,
+        known_value=known,
+        known_since=earliest,
+    )
+
+
+def project_wear(
+    tire: Tire,
+    current_odometer: Decimal | None,
+    readings: list[TireReading] | None = None,
+) -> WearResult:
+    """Estimate remaining tread life, with the reason when there is none.
+
+    Two changes from the pre-v3.3.0 `_project_wear`, both of which were
+    producing wrong or missing numbers in production:
+
+    1. It is **period-aware**. The old one used the raw odometer delta between
+       the two readings as distance driven on this tire. That is only correct
+       for someone who has never had a second set, and it errs HIGH -- the
+       dangerous direction. Where the mount history cannot support the figure
+       it is now withheld (`UNVERIFIED_MOUNT_HISTORY`) rather than published
+       with an "estimate" badge.
+
+    2. It **sorts its own readings**. `_sync_low_tread_reminder` passed them
+       unsorted, so `readings[0]` was the OLDEST, `tread_delta` came out
+       negative, and the low-tread projection has been silently missing from
+       every reminder. Selection moved inside so this surface and the reminder
+       quote the same number by construction.
+
+    Args:
+        tire: The tire, with `mount_periods` loaded.
+        current_odometer: The vehicle's latest odometer, for open periods.
+        readings: Override for the reading list; defaults to the tire's own.
+            Passed in by callers that already loaded them.
+
+    Returns:
+        A `WearResult`. Its `status` is exhaustive: every current null exit of
+        the old function maps to a named member, so a caller can say WHICH
+        input is missing instead of rendering one message for five states.
+    """
+    candidates = sorted(
+        [r for r in (readings if readings is not None else tire.readings or [])],
+        key=lambda r: r.recorded_at,
+        reverse=True,
+    )
+    min_tread = tire.min_tread_mm
+
+    if min_tread is None:
+        # No 2.0 fallback: the 2.0 is a COLUMN default applied at insert, not
+        # to a row that already holds null.
+        return WearResult(status=WearStatus.NO_MINIMUM_SET)
+
+    with_tread = [r for r in candidates if r.tread_depth_mm is not None]
+    if len(with_tread) < 2:
+        return WearResult(status=WearStatus.INSUFFICIENT_READINGS)
+
+    newer, older = with_tread[0], with_tread[1]
+    if newer.odometer_km is None or older.odometer_km is None:
+        return WearResult(status=WearStatus.NO_READING_ODOMETERS)
+
+    newer_tread, older_tread = newer.tread_depth_mm, older.tread_depth_mm
+    if newer_tread is None or older_tread is None:  # pragma: no cover - filtered above
+        return WearResult(status=WearStatus.INSUFFICIENT_READINGS)
+
+    tread_delta = older_tread - newer_tread
+    if tread_delta <= 0:
+        # Flat or increasing tread. Distinct from "you have not driven on this
+        # tire": the prompts differ, and the old code could not tell a caller
+        # which of the two had happened.
+        return WearResult(status=WearStatus.TREAD_NOT_DECREASING)
+
+    # The distance is the tire's own, not the vehicle's odometer span.
+    distance = distance_on_tire(tire, current_odometer)
+    if distance.status is DistanceStatus.COMPLETE:
+        km_delta = newer.odometer_km - older.odometer_km
+    elif distance.status is DistanceStatus.NOTHING_BOUNDED:
+        # The migrated shape. The raw delta is exactly the legacy calculation
+        # this release exists to stop publishing.
+        return WearResult(
+            status=WearStatus.UNVERIFIED_MOUNT_HISTORY,
+            blocking_period_ids=distance.blocking_period_ids,
+        )
+    else:
+        return WearResult(
+            status=WearStatus.NO_DISTANCE_ON_TIRE,
+            blocking_period_ids=distance.blocking_period_ids,
+        )
+
+    if km_delta <= 0:
+        return WearResult(status=WearStatus.NO_DISTANCE_ON_TIRE)
+
+    remaining_tread = newer_tread - min_tread
     if remaining_tread <= 0:
-        return Decimal("0"), newer.recorded_at
+        # At or past the threshold. This is the SAFETY case: it carries a
+        # number and a date, and the reminder fires on it.
+        return WearResult(
+            status=WearStatus.AT_OR_BELOW_MINIMUM,
+            km_remaining=Decimal("0"),
+            wear_date=newer.recorded_at,
+        )
+
     mm_per_km = tread_delta / km_delta
     km_left = remaining_tread / mm_per_km
     day_delta = (newer.recorded_at - older.recorded_at).days
@@ -65,7 +311,13 @@ def _project_wear(
         if km_per_day > 0:
             days_left = int(km_left / km_per_day)
             wear_date = newer.recorded_at + timedelta(days=max(days_left, 0))
-    return km_left.quantize(Decimal("0.1")), wear_date
+    # `wear_date` stays None for same-day readings: the km figure is still
+    # valid, so status is PROJECTED and the date is simply unavailable.
+    return WearResult(
+        status=WearStatus.PROJECTED,
+        km_remaining=km_left.quantize(Decimal("0.1")),
+        wear_date=wear_date,
+    )
 
 
 class TireService:
@@ -74,42 +326,138 @@ class TireService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    def _to_response(self, tire: Tire, include_readings: bool = True) -> TireResponse:
+    async def _current_odometer(self, vin: str) -> Decimal | None:
+        """The vehicle's latest odometer reading, in canonical km.
+
+        Used as the upper bound for any mount period still open. There is no
+        odometer column on `Vehicle` -- it is a relationship -- so this is a
+        query, and it legitimately returns None for a vehicle that has never
+        had a reading. That is its own empty state, not a zero: every open
+        period on such a vehicle is unbounded.
+        """
+        result = await self.db.execute(
+            select(OdometerRecord.odometer_km)
+            .where(OdometerRecord.vin == vin)
+            .order_by(OdometerRecord.date.desc(), OdometerRecord.id.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def _publish_odometer(
+        self,
+        vin: str,
+        when: dt.date,
+        odometer_km: Decimal | None,
+        source_type: str,
+        source_id: int,
+    ) -> None:
+        """Record a tire operation's odometer as a reading of the VEHICLE.
+
+        Every tire write that takes an odometer was storing it on the mount
+        period and nowhere else, so `distance_on_tire` -- which bounds an OPEN
+        period with the vehicle's latest `OdometerRecord` -- could not see the
+        number the user had just typed. Rotating four tires and entering the
+        odometer left the distance `incomplete`, and the only way out was to go
+        and log the same reading a second time somewhere else.
+
+        Always composed into the caller's transaction: `commit=False` is fixed
+        here rather than passed at each call site, because a commit
+        in the middle of a mount, a rotation or a retire splits the operation in
+        half. The shared helper's refusals come with it -- a manual reading on
+        the same date is never overwritten, and a null odometer is a no-op.
+        """
+        await sync_odometer_from_record(
+            self.db, vin, when, odometer_km, source_type, source_id, commit=False
+        )
+
+    @staticmethod
+    def _derived_installed_date(tire: Tire) -> dt.date | None:
+        """The `mounted_on` of the earliest period THAT HAS ONE.
+
+        Null when the earliest period is the migrated assumed one with an
+        unknown start. Deliberately not `MIN(mounted_on)` over the non-null
+        values only: that would skip the unknown and report a later REMOUNT
+        date as the installation date, which reads as fact and is wrong.
+        """
+        periods = sorted(
+            tire.mount_periods or [], key=lambda mp: (mp.mounted_on or dt.date.min, mp.id)
+        )
+        if not periods:
+            return None
+        return periods[0].mounted_on
+
+    def _to_response(
+        self,
+        tire: Tire,
+        include_readings: bool = True,
+        current_odometer: Decimal | None = None,
+    ) -> TireResponse:
         readings = sorted(
             list(tire.readings or []),
             key=lambda r: r.recorded_at,
             reverse=True,
         )
-        km_left, wear_date = _project_wear(readings, tire.min_tread_mm)
+        wear = project_wear(tire, current_odometer, readings)
+        distance = distance_on_tire(tire, current_odometer)
         below = bool(
             tire.tread_depth_mm is not None
             and tire.min_tread_mm is not None
             and tire.tread_depth_mm <= tire.min_tread_mm
         )
         payload = TireResponse.model_validate(tire)
-        payload.projected_km_remaining = km_left
-        payload.projected_wear_date = wear_date
+        # Same wire names as before v3.3.0. A single-value result type would
+        # have silently dropped `projected_wear_date`, which the tire card
+        # renders beside the km figure.
+        payload.projected_km_remaining = wear.km_remaining
+        payload.projected_wear_date = wear.wear_date
+        payload.wear_status = wear.status.value
+        payload.distance_km = distance.all_time_value
+        payload.known_distance_km = distance.known_value
+        payload.known_distance_since = distance.known_since
+        payload.distance_status = distance.status.value
+        # Whichever result is blocked names the periods to act on. Distance
+        # wins when both are: it is the more specific repair.
+        payload.blocking_period_ids = distance.blocking_period_ids or wear.blocking_period_ids
+        payload.installed_date = self._derived_installed_date(tire)
         payload.below_threshold = below
+        payload.mount_periods = [
+            MountPeriodResponse.model_validate(period)
+            for period in sorted(
+                tire.mount_periods or [], key=lambda mp: (mp.mounted_on or dt.date.min, mp.id)
+            )
+        ]
         if include_readings:
             payload.readings = [TireReadingResponse.model_validate(r) for r in readings]
         else:
             payload.readings = []
         return payload
 
-    async def list_tires(self, vin: str, current_user: User) -> TireListResponse:
+    async def list_tires(
+        self, vin: str, current_user: User, include_retired: bool = False
+    ) -> TireListResponse:
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
         try:
             await get_vehicle_or_403(vin, current_user, self.db)
+            query = select(Tire).where(Tire.vin == vin)
+            if not include_retired:
+                # A retired tire is history, not inventory. It still appears in
+                # analytics -- its final distance and wear are the most
+                # complete data the app will ever have about it -- but it does
+                # not belong in the list of tires you can act on.
+                query = query.where(Tire.retired_on.is_(None))
             result = await self.db.execute(
-                select(Tire)
-                .where(Tire.vin == vin)
-                .options(selectinload(Tire.readings))
-                .order_by(Tire.position)
+                query.options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
+                # Mounted tires first, then stored ones. `position` is
+                # nullable now, and a bare ORDER BY sorts NULLs FIRST on
+                # SQLite and LAST on PostgreSQL, so the two dialects would
+                # disagree about the order of a user's own tire list.
+                .order_by(Tire.position.is_(None), Tire.position)
             )
             tires = result.scalars().unique().all()
-            responses = [self._to_response(t) for t in tires]
+            current_odometer = await self._current_odometer(vin)
+            responses = [self._to_response(t, current_odometer=current_odometer) for t in tires]
             return TireListResponse(tires=responses, total=len(responses))
         except HTTPException:
             raise
@@ -121,33 +469,31 @@ class TireService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def upsert_tire(self, vin: str, data: TireCreate, current_user: User) -> TireResponse:
+    async def create_tire(self, vin: str, data: TireCreate, current_user: User) -> TireResponse:
+        """Create a tire. It is NOT mounted anywhere until you mount it.
+
+        This replaced `upsert_tire`, and the change is the release's breaking
+        one. Before v3.3.0 a tire WAS a corner: `POST /api/tires` carried a
+        `position` and upserted by `(vin, position)`, so there was no way to
+        own a tire that was off the vehicle -- a seasonal set had to be deleted
+        and re-entered every six months, taking its readings with it.
+
+        A tire is now a thing you own. Mounting is a separate operation with
+        its own conflict semantics (that corner may be occupied), which is why
+        it cannot be folded back into a create.
+
+        A stale client still sending `position` gets a 422 naming the field,
+        because `TireBase` forbids extras (D13). Pydantic's default is to
+        ignore unknown fields, which here would silently create a SECOND,
+        unmounted tire rather than updating the one at that corner.
+        """
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
-        if data.position not in TIRE_POSITIONS:
-            raise HTTPException(status_code=400, detail="Invalid tire position")
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
-            result = await self.db.execute(
-                select(Tire)
-                .where(Tire.vin == vin, Tire.position == data.position)
-                .options(selectinload(Tire.readings))
-            )
-            tire = result.scalar_one_or_none()
-            if tire is None:
-                # Create: schema defaults are meaningful, so take the full model.
-                tire = Tire(vin=vin, **data.model_dump(exclude={"vin"}))
-                self.db.add(tire)
-            else:
-                # Update: only touch what the caller actually sent. A full
-                # model_dump wrote every field including unset defaults, so
-                # re-saving a position erased brand, model, size and DOT code
-                # and reset the custom wear threshold.
-                for key, value in data.model_dump(
-                    exclude={"vin", "position"}, exclude_unset=True
-                ).items():
-                    setattr(tire, key, value)
+            tire = Tire(vin=vin, **data.model_dump(exclude={"vin"}))
+            self.db.add(tire)
             await self.db.commit()
             # Re-query rather than refresh(attribute_names=["readings"]).
             # updated_at is server-side onupdate=func.now(), so the flush leaves
@@ -155,11 +501,12 @@ class TireService:
             # TireResponse to lazy-load it and the update path raised
             # MissingGreenlet -> 500 after the write had already committed.
             result = await self.db.execute(
-                select(Tire).where(Tire.id == tire.id).options(selectinload(Tire.readings))
+                select(Tire)
+                .where(Tire.id == tire.id)
+                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
             )
             tire = result.scalar_one()
-            await self._sync_low_tread_reminder(tire)
-            return self._to_response(tire)
+            return await self._reload_and_sync(tire.id, vin)
         except HTTPException:
             raise
         except OperationalError as e:
@@ -170,6 +517,290 @@ class TireService:
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    async def mount_tire(
+        self, vin: str, tire_id: int, data: TireMountRequest, current_user: User
+    ) -> TireResponse:
+        """Mount a tire at a position, opening a mount period.
+
+        **This is the only writer of `tires.position`** (D14), together with
+        `dismount_tire`. Both representations -- the tire's current position
+        and the open period's position -- are written here or neither is, so
+        they cannot drift. An earlier design let a period's position be edited
+        directly, which let the tire card and the reading history disagree
+        about which corner a tire was on.
+
+        Nothing at the database level prevents two tires on one vehicle from
+        each holding an open period at FL: `tire_mount_periods` has no `vin`,
+        so the constraint cannot be written there. It is enforced here, under
+        the parent-tire row lock, and it has its own test because no index
+        will catch it.
+        """
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        tire = await self._get_tire_for_update(vin, tire_id)
+
+        if tire.position is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"This tire is already mounted at {tire.position}. Dismount it first.",
+            )
+
+        occupant = (
+            await self.db.execute(
+                select(Tire).where(
+                    Tire.vin == vin,
+                    Tire.position == data.position,
+                    Tire.id != tire.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if occupant is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Another tire is already mounted at {data.position}.",
+            )
+
+        # Hoisted so the period and the odometer reading cannot land on
+        # different dates when this runs across midnight.
+        mounted_on = data.mounted_on or utc_now().date()
+        tire.position = data.position
+        self.db.add(
+            TireMountPeriod(
+                tire_id=tire.id,
+                position=data.position,
+                mounted_on=mounted_on,
+                mounted_odometer_km=data.mounted_odometer_km,
+                is_assumed=False,
+                notes=data.notes,
+            )
+        )
+        await self._publish_odometer(
+            vin, mounted_on, data.mounted_odometer_km, ODOMETER_SOURCE_TIRE, tire.id
+        )
+        await self.db.commit()
+        # The reminder title names the position, so mounting changes it.
+        return await self._reload_and_sync(tire.id, vin)
+
+    async def dismount_tire(
+        self, vin: str, tire_id: int, data: TireDismountRequest, current_user: User
+    ) -> TireResponse:
+        """Take a tire off the vehicle, closing its open period."""
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        tire = await self._get_tire_for_update(vin, tire_id)
+
+        if tire.position is None:
+            raise HTTPException(status_code=409, detail="This tire is not mounted.")
+
+        open_period = (
+            await self.db.execute(
+                select(TireMountPeriod)
+                .where(
+                    TireMountPeriod.tire_id == tire.id,
+                    TireMountPeriod.dismounted_on.is_(None),
+                )
+                .order_by(TireMountPeriod.id.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+        dismounted_on = data.dismounted_on or utc_now().date()
+        tire.position = None
+        if open_period is not None:
+            open_period.dismounted_on = dismounted_on
+            open_period.dismounted_odometer_km = data.dismounted_odometer_km
+            if data.notes:
+                open_period.notes = data.notes
+        # Published even when there is no open period to close: the user still
+        # read that number off the dashboard.
+        await self._publish_odometer(
+            vin, dismounted_on, data.dismounted_odometer_km, ODOMETER_SOURCE_TIRE, tire.id
+        )
+        await self.db.commit()
+        return await self._reload_response(tire.id, vin)
+
+    async def create_and_mount(
+        self, vin: str, data: TireCreateAndMountRequest, current_user: User
+    ) -> TireResponse:
+        """Create a tire and mount it, atomically.
+
+        The conflict semantics are the MOUNT's: if the corner is occupied the
+        whole operation fails and no tire is created. Doing the two calls by
+        hand and losing the second would leave an orphan tire behind.
+        """
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+
+        occupant = (
+            await self.db.execute(
+                select(Tire).where(Tire.vin == vin, Tire.position == data.position)
+            )
+        ).scalar_one_or_none()
+        if occupant is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Another tire is already mounted at {data.position}.",
+            )
+
+        tire = Tire(
+            vin=vin,
+            position=data.position,
+            **data.model_dump(exclude={"vin", "position", "mounted_on", "mounted_odometer_km"}),
+        )
+        self.db.add(tire)
+        await self.db.flush()
+        mounted_on = data.mounted_on or utc_now().date()
+        self.db.add(
+            TireMountPeriod(
+                tire_id=tire.id,
+                position=data.position,
+                mounted_on=mounted_on,
+                mounted_odometer_km=data.mounted_odometer_km,
+                is_assumed=False,
+            )
+        )
+        await self._publish_odometer(
+            vin, mounted_on, data.mounted_odometer_km, ODOMETER_SOURCE_TIRE, tire.id
+        )
+        await self.db.commit()
+        return await self._reload_and_sync(tire.id, vin)
+
+    async def rotate_tires(
+        self, vin: str, data: TireRotationRequest, current_user: User
+    ) -> TireListResponse:
+        """Move several tires at once, in two phases.
+
+        **Why two phases.** `uq_tires_vin_position` is an IMMEDIATE unique
+        index on both dialects, so assigning one tire at a time fails the
+        moment a destination is still occupied -- which for a rotation is
+        always. An X-pattern swap collides on the very first move even though
+        the requested FINAL arrangement is perfectly legal.
+
+        So: clear every affected `tires.position` and close every affected
+        period, FLUSH, then assign the new positions and open the new periods.
+        Deferring the constraint is not an option; SQLite has no
+        `DEFERRABLE INITIALLY DEFERRED`.
+
+        All or nothing. A rotation that applied its valid moves and rejected
+        the rest would leave the vehicle in an arrangement nobody asked for.
+        """
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+
+        moving_ids = [move.tire_id for move in data.moves]
+        tires = {
+            tire.id: tire
+            for tire in (
+                await self.db.execute(select(Tire).where(Tire.id.in_(moving_ids), Tire.vin == vin))
+            )
+            .scalars()
+            .all()
+        }
+        missing = [tid for tid in moving_ids if tid not in tires]
+        if missing:
+            raise HTTPException(status_code=404, detail=f"Tire(s) not found: {missing}")
+
+        # A destination held by a tire that is NOT part of this rotation is a
+        # conflict, not a swap. Checked before any write.
+        targets = {move.position for move in data.moves}
+        blockers = (
+            (
+                await self.db.execute(
+                    select(Tire).where(
+                        Tire.vin == vin,
+                        Tire.position.in_(targets),
+                        Tire.id.notin_(moving_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if blockers:
+            occupied = sorted(t.position for t in blockers if t.position)
+            raise HTTPException(
+                status_code=409,
+                detail=f"Position(s) {occupied} are held by tires not in this rotation.",
+            )
+
+        when = data.rotated_on or utc_now().date()
+        await apply_mount_moves(
+            self.db,
+            vacate=[tires[tire_id] for tire_id in moving_ids],
+            assign=[(tires[move.tire_id], move.position) for move in data.moves],
+            when=when,
+            odometer_km=data.odometer_km,
+            notes=data.notes,
+        )
+
+        # ONE reading however many tires moved: the odometer is a fact about
+        # the vehicle, not about each corner. `min(moving_ids)` is only the
+        # marker's id and nothing reads it back -- it is order-independent, so
+        # a client that lists its moves differently produces the same note.
+        await self._publish_odometer(
+            vin, when, data.odometer_km, ODOMETER_SOURCE_ROTATION, min(moving_ids)
+        )
+        await self.db.commit()
+        return await self.list_tires(vin, current_user)
+
+    async def _get_tire_for_update(self, vin: str, tire_id: int) -> Tire:
+        """Load a tire, scoped to its vehicle, or 404."""
+        tire = (
+            await self.db.execute(
+                select(Tire)
+                .where(Tire.id == tire_id, Tire.vin == vin)
+                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
+            )
+        ).scalar_one_or_none()
+        if tire is None:
+            raise HTTPException(status_code=404, detail="Tire not found")
+        return tire
+
+    async def _reload_and_sync(self, tire_id: int, vin: str) -> TireResponse:
+        """Reload, run the low-tread reminder sync, and serialise.
+
+        The sync has to happen on every path that can change a tire's tread or
+        its mounted state, not only on the reading path. A tire entered with a
+        tread already below its threshold is exactly the case a user needs
+        warned about, and the previous `upsert_tire` did sync it -- so the
+        create/mount split had to carry that behaviour across rather than drop
+        it silently.
+        """
+        tire = (
+            await self.db.execute(
+                select(Tire)
+                .where(Tire.id == tire_id)
+                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
+            )
+        ).scalar_one()
+        await self._sync_low_tread_reminder(tire)
+        return await self._reload_response(tire_id, vin)
+
+    async def _reload_response(self, tire_id: int, vin: str) -> TireResponse:
+        """Re-query and serialise.
+
+        Re-queried rather than refreshed: `updated_at` is a server-side
+        onupdate, so a flush leaves it expired even with
+        expire_on_commit=False, and a partial refresh left TireResponse to
+        lazy-load it -- MissingGreenlet, a 500 after the write had committed.
+        """
+        tire = (
+            await self.db.execute(
+                select(Tire)
+                .where(Tire.id == tire_id)
+                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
+            )
+        ).scalar_one()
+        return self._to_response(tire, current_odometer=await self._current_odometer(vin))
 
     async def update_tire(
         self, vin: str, tire_id: int, data: TireUpdate, current_user: User
@@ -182,17 +813,36 @@ class TireService:
             result = await self.db.execute(
                 select(Tire)
                 .where(Tire.id == tire_id, Tire.vin == vin)
-                .options(selectinload(Tire.readings))
+                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
             )
             tire = result.scalar_one_or_none()
             if not tire:
                 raise HTTPException(status_code=404, detail="Tire not found")
-            for key, value in data.model_dump(exclude_unset=True).items():
+            fields = data.model_dump(exclude_unset=True)
+            # `tires.set_id` carries no composite FK against the tire's vin, by
+            # design (D6: a set is UX grouping no calculation depends on, so it
+            # is not worth one). That makes this the ONLY thing standing between
+            # a user and a tire filed under another vehicle's set, so it is
+            # checked before the assignment rather than after.
+            if fields.get("set_id") is not None:
+                owner = (
+                    await self.db.execute(
+                        select(TireSet.id).where(TireSet.id == fields["set_id"], TireSet.vin == vin)
+                    )
+                ).scalar_one_or_none()
+                if owner is None:
+                    raise HTTPException(status_code=404, detail="Tire set not found")
+            for key, value in fields.items():
                 setattr(tire, key, value)
             await self.db.commit()
             await self.db.refresh(tire)
             await self._sync_low_tread_reminder(tire)
-            return self._to_response(tire)
+            # WITH the odometer. Without it every edit answered as though the
+            # vehicle had never had a reading, so a PUT that only changed a
+            # brand came back reporting the tire's distance as unknown. The
+            # wrong figure never rendered because the client refetches, which
+            # is exactly why it survived.
+            return self._to_response(tire, current_odometer=await self._current_odometer(vin))
         except HTTPException:
             raise
         except OperationalError as e:
@@ -200,7 +850,64 @@ class TireService:
             logger.error("DB error updating tire %s: %s", tire_id, sanitize_for_log(e))
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
+    async def retire_tire(
+        self, vin: str, tire_id: int, data: TireDismountRequest, current_user: User
+    ) -> TireResponse:
+        """Retire a tire: it comes off the vehicle and keeps everything.
+
+        This is what a user means by "I replaced this tire", and before v3.3.0
+        the only way to express it was DELETE -- which cascades through every
+        reading and every mount period. Shipping the mount-period model beside
+        an unchanged delete would mean the first thing someone does after
+        collecting a season of data is erase it.
+
+        Delete still exists, for a tire entered by mistake.
+        """
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        tire = await self._get_tire_for_update(vin, tire_id)
+
+        if tire.retired_on is not None:
+            raise HTTPException(status_code=409, detail="This tire is already retired.")
+
+        # One date for the closed period and the retirement both, so a retire
+        # that runs across midnight cannot record two.
+        retired_on = data.dismounted_on or utc_now().date()
+
+        if tire.position is not None:
+            # Close the open period and free the corner, so the replacement can
+            # go where the old one was.
+            open_period = (
+                await self.db.execute(
+                    select(TireMountPeriod)
+                    .where(
+                        TireMountPeriod.tire_id == tire.id,
+                        TireMountPeriod.dismounted_on.is_(None),
+                    )
+                    .order_by(TireMountPeriod.id.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if open_period is not None:
+                open_period.dismounted_on = retired_on
+                open_period.dismounted_odometer_km = data.dismounted_odometer_km
+            tire.position = None
+
+        tire.retired_on = retired_on
+        await self._publish_odometer(
+            vin, retired_on, data.dismounted_odometer_km, ODOMETER_SOURCE_TIRE, tire.id
+        )
+        await self.db.commit()
+        return await self._reload_response(tire.id, vin)
+
     async def delete_tire(self, vin: str, tire_id: int, current_user: User) -> None:
+        """Permanently delete a tire and everything measured about it.
+
+        For a tire entered by mistake. To replace a worn tire, RETIRE it: this
+        cascades through `tire_readings` and `tire_mount_periods`.
+        """
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
@@ -209,6 +916,32 @@ class TireService:
         tire = result.scalar_one_or_none()
         if not tire:
             raise HTTPException(status_code=404, detail="Tire not found")
+
+        # Detach the reminders first, in the same transaction as the delete.
+        # The composite FK `(tire_id, vin) -> tires(id, vin)` carries NO
+        # ON DELETE action: a referential action applies to every column in the
+        # FK, so SET NULL would try to null `vin` as well -- and `vin` is NOT
+        # NULL, which makes SQLite reject the delete outright and retiring a
+        # tire impossible. Measured. Nulling `tire_id` here keeps the reminder
+        # as history and makes it inert: the sync never adopts a row whose
+        # `tire_id` is null.
+        await self.db.execute(
+            update(Reminder)
+            .where(Reminder.tire_id == tire_id, Reminder.vin == vin)
+            .values(tire_id=None, source=None)
+        )
+        # The odometer readings this tire published. Nothing cascades them:
+        # `odometer_records` carries a FK for fuel-sourced rows only. A tire
+        # entered with a typo'd odometer and then deleted would otherwise leave
+        # the typo behind as the vehicle's latest reading, where it poisons
+        # every mileage reminder the vehicle has. Marker-exact, so a manual row
+        # is never touched -- and a row some LATER sync took ownership of
+        # carries that source's marker now, not this tire's.
+        await self.db.execute(
+            delete(OdometerRecord)
+            .where(OdometerRecord.vin == vin)
+            .where(OdometerRecord.notes == auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id))
+        )
         await self.db.delete(tire)
         await self.db.commit()
 
@@ -227,7 +960,7 @@ class TireService:
             result = await self.db.execute(
                 select(Tire)
                 .where(Tire.id == tire_id, Tire.vin == vin)
-                .options(selectinload(Tire.readings))
+                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
             )
             tire = result.scalar_one_or_none()
             if not tire:
@@ -271,14 +1004,24 @@ class TireService:
                     tire.tread_depth_mm = data.tread_depth_mm
                 if data.pressure_kpa is not None:
                     tire.pressure_kpa = data.pressure_kpa
+            # A reading's odometer is vehicle context by this schema's own
+            # words, not an observation of the tire. Without publishing it the
+            # five writers above make things WORSE for someone who only records
+            # readings: mounting gives the open period an upper bound equal to
+            # its own start, and the card reports a confident "0 km" instead of
+            # admitting it does not know.
+            await self._publish_odometer(
+                vin, data.recorded_at, data.odometer_km, ODOMETER_SOURCE_TIRE, tire.id
+            )
             await self.db.commit()
             await self.db.refresh(tire)
             result = await self.db.execute(
-                select(Tire).where(Tire.id == tire_id).options(selectinload(Tire.readings))
+                select(Tire)
+                .where(Tire.id == tire_id)
+                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
             )
             tire = result.scalar_one()
-            await self._sync_low_tread_reminder(tire)
-            return self._to_response(tire)
+            return await self._reload_and_sync(tire.id, vin)
         except HTTPException:
             raise
         except OperationalError as e:
@@ -327,9 +1070,24 @@ class TireService:
 
         if below and existing is None:
             due = utc_now().date()
-            km_left, wear_date = _project_wear(list(tire.readings or []), tire.min_tread_mm)
+            # `project_wear` sorts its own readings now. The old call passed
+            # them unsorted, so `newer` was the OLDEST reading, `tread_delta`
+            # came out negative, and this projection has been silently absent
+            # from every low-tread reminder ever raised.
+            wear = project_wear(tire, await self._current_odometer(tire.vin))
+            km_left, wear_date = wear.km_remaining, wear.wear_date
             reminder = Reminder(
                 vin=tire.vin,
+                # Which tire, and that WE made this. The sync never adopts a
+                # row whose `source` or `tire_id` is null, so a reminder a
+                # human wrote with the same title is left alone, and a reminder
+                # whose tire has been deleted becomes inert rather than
+                # attaching itself to the next tire at that corner.
+                tire_id=tire.id,
+                source="low_tread",
+                tread_depth_mm=tire.tread_depth_mm,
+                tread_threshold_mm=tire.min_tread_mm,
+                projected_distance_km=km_left,
                 title=title,
                 reminder_type="date" if wear_date is None else "both",
                 due_date=wear_date or due,

@@ -121,6 +121,9 @@ class VehicleBase(BaseModel):
     oil_filter_part_number: str | None = Field(
         None, description="Oil filter part number", max_length=50
     )
+    fuel_filter_part_number: str | None = Field(
+        None, description="Fuel filter part number", max_length=50
+    )
     lug_nut_torque_nm: Decimal | None = Field(
         None, description="Wheel lug-nut torque in Newton-meters", ge=0, le=99999.9
     )

@@ -185,8 +185,28 @@ function render(adapter: UnitAdapter, canonical: number | null | undefined): str
  * @returns The quantity's formatter.
  */
 function quantityFormat(units: UnitSet, quantity: UnitQuantity, showBoth: boolean): QuantityFormat {
-  const adapter = adapterFor(units, quantity)
-  const counterpart = counterpartFor(units, quantity)
+  return formatForAdapter(adapterFor(units, quantity), counterpartFor(units, quantity), showBoth)
+}
+
+/**
+ * Build a formatter around an adapter chosen by the caller.
+ *
+ * Exists for the one quantity the resolved vocabulary cannot name: engine oil
+ * capacity is read in quarts wherever fuel is read in gallons, and `UnitSet`
+ * has no quart token (see `utils/oilCapacityUnit.ts`). Exported so that
+ * quantity gets the SAME surface as every table-driven one, rather than a
+ * second hand-written `QuantityFormat` free to drift from this one.
+ *
+ * @param adapter The unit to read and write in.
+ * @param counterpart The show-both companion, or null when there is none.
+ * @param showBoth Whether to append the counterpart representation.
+ * @returns The formatter.
+ */
+export function formatForAdapter(
+  adapter: UnitAdapter,
+  counterpart: UnitAdapter | null,
+  showBoth: boolean
+): QuantityFormat {
   return {
     unit: adapter.unit,
     label: adapter.label,

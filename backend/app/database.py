@@ -139,13 +139,11 @@ async def init_db():
     # Run migrations using the migration runner
     logger.info("Running database migrations...")
     try:
-        # Convert async database URL to sync for migrations
-        # asyncpg -> psycopg2, aiosqlite -> sqlite
-        sync_url = settings.database_url
-        if "asyncpg" in sync_url:
-            sync_url = sync_url.replace("postgresql+asyncpg", "postgresql+psycopg2")
-        elif "aiosqlite" in sync_url:
-            sync_url = sync_url.replace("sqlite+aiosqlite", "sqlite")
+        # Convert async database URL to sync for migrations. Shared with the
+        # maintenance tools under backend/tools/, which need the same mapping.
+        from app.utils.db_url import to_sync_url
+
+        sync_url = to_sync_url(settings.database_url)
 
         # Import and run migration runner
         from app.migrations.runner import run_migrations

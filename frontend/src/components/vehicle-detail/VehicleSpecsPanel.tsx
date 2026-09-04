@@ -16,7 +16,7 @@ import {
   type UnitFieldOrigin,
   type UnitFormat,
 } from '../../utils/unitFormat'
-import { useUnitFormat } from '../../hooks/useUnitFormat'
+import { useUnitFormat, useOilCapacityFormat } from '../../hooks/useUnitFormat'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
 
 interface VehicleSpecsPanelProps {
@@ -42,6 +42,7 @@ type SpecForm = {
   oil_viscosity: string
   oil_capacity: string
   oil_filter_part_number: string
+  fuel_filter_part_number: string
   lug_nut_torque: string
   coolant_type: string
   brake_fluid_type: string
@@ -77,10 +78,10 @@ function readUnitField(
   return { ok: true, value: quantity.toCanonical(parsed.value) }
 }
 
-function seedForm(vehicle: Vehicle, u: UnitFormat): SpecForm {
+function seedForm(vehicle: Vehicle, u: UnitFormat, oilFormat: QuantityFormat): SpecForm {
   const oil = seedUnitField(
     vehicle.oil_capacity_liters != null ? Number(vehicle.oil_capacity_liters) : null,
-    u.volume
+    oilFormat
   )
   const torque = seedUnitField(
     vehicle.lug_nut_torque_nm != null ? Number(vehicle.lug_nut_torque_nm) : null,
@@ -91,6 +92,7 @@ function seedForm(vehicle: Vehicle, u: UnitFormat): SpecForm {
     oil_viscosity: str(vehicle.oil_viscosity),
     oil_capacity: oil.display,
     oil_filter_part_number: str(vehicle.oil_filter_part_number),
+    fuel_filter_part_number: str(vehicle.fuel_filter_part_number),
     lug_nut_torque: torque.display,
     coolant_type: str(vehicle.coolant_type),
     brake_fluid_type: str(vehicle.brake_fluid_type),
@@ -117,13 +119,16 @@ export default function VehicleSpecsPanel({
 }: VehicleSpecsPanelProps) {
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
+  // Oil capacity is quarts where fuel is gallons; `u.volume` is the fuel
+  // adapter and asking it for oil stored 3.785x over. See utils/oilCapacityUnit.ts.
+  const oilFormat = useOilCapacityFormat()
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<SpecForm>(() => seedForm(vehicle, u))
+  const [form, setForm] = useState<SpecForm>(() => seedForm(vehicle, u, oilFormat))
 
   useEffect(() => {
-    if (open) setForm(seedForm(vehicle, u))
-  }, [open, vehicle, u])
+    if (open) setForm(seedForm(vehicle, u, oilFormat))
+  }, [open, vehicle, u, oilFormat])
 
   useEffect(() => {
     if (editRequestKey > 0) setOpen(true)
@@ -133,6 +138,7 @@ export default function VehicleSpecsPanel({
     vehicle.oil_viscosity ||
       vehicle.oil_capacity_liters != null ||
       vehicle.oil_filter_part_number ||
+      vehicle.fuel_filter_part_number ||
       vehicle.lug_nut_torque_nm != null ||
       vehicle.coolant_type ||
       vehicle.brake_fluid_type ||
@@ -153,7 +159,7 @@ export default function VehicleSpecsPanel({
       const oil = readUnitField(
         form.oil_capacity,
         form.origins.oil_capacity_liters,
-        u.volume,
+        oilFormat,
         locale
       )
       if (!oil.ok) {
@@ -178,6 +184,7 @@ export default function VehicleSpecsPanel({
         oil_viscosity: emptyToNull(form.oil_viscosity),
         oil_capacity_liters: oil.value,
         oil_filter_part_number: emptyToNull(form.oil_filter_part_number),
+        fuel_filter_part_number: emptyToNull(form.fuel_filter_part_number),
         lug_nut_torque_nm: torque.value,
         coolant_type: emptyToNull(form.coolant_type),
         brake_fluid_type: emptyToNull(form.brake_fluid_type),
@@ -198,7 +205,7 @@ export default function VehicleSpecsPanel({
 
   /* One interpolated key per field, carrying the resolved unit, replacing the
    * pair of hardcoded 'gal'/'L' strings and the binary getTorqueUnit call. */
-  const oilCapacityLabel = t('detail.specs.oilCapacityWithUnit', { unit: u.volume.label })
+  const oilCapacityLabel = t('detail.specs.oilCapacityWithUnit', { unit: oilFormat.label })
   const lugTorqueLabel = t('detail.specs.lugTorqueWithUnit', { unit: u.torque.label })
 
   return (
@@ -210,7 +217,7 @@ export default function VehicleSpecsPanel({
         />
         <CardHeader title={t('detail.specs.title')} />
         {hasSpecs ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
             {vehicle.oil_viscosity && (
               <div>
                 <p className="text-sm text-text-mute">{t('detail.specs.oilViscosity')}</p>
@@ -221,7 +228,7 @@ export default function VehicleSpecsPanel({
               <div>
                 <p className="text-sm text-text-mute">{t('detail.specs.oilCapacity')}</p>
                 <Mono size="sm" className="block">
-                  {u.volume.format(Number(vehicle.oil_capacity_liters))}
+                  {oilFormat.format(Number(vehicle.oil_capacity_liters))}
                 </Mono>
               </div>
             )}
@@ -229,6 +236,12 @@ export default function VehicleSpecsPanel({
               <div>
                 <p className="text-sm text-text-mute">{t('detail.specs.oilFilter')}</p>
                 <Mono size="sm" className="block">{vehicle.oil_filter_part_number}</Mono>
+              </div>
+            )}
+            {vehicle.fuel_filter_part_number && (
+              <div>
+                <p className="text-sm text-text-mute">{t('detail.specs.fuelFilter')}</p>
+                <Mono size="sm" className="block">{vehicle.fuel_filter_part_number}</Mono>
               </div>
             )}
             {vehicle.lug_nut_torque_nm != null && (
@@ -286,7 +299,7 @@ export default function VehicleSpecsPanel({
           </div>
         }
       >
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
           <Field id="spec_oil_viscosity" label={t('detail.specs.oilViscosity')}>
             <Input
               id="spec_oil_viscosity"
@@ -307,6 +320,13 @@ export default function VehicleSpecsPanel({
               id="spec_oil_filter"
               value={form.oil_filter_part_number}
               onChange={(e) => setField('oil_filter_part_number', e.target.value)}
+            />
+          </Field>
+          <Field id="spec_fuel_filter" label={t('detail.specs.fuelFilter')}>
+            <Input
+              id="spec_fuel_filter"
+              value={form.fuel_filter_part_number}
+              onChange={(e) => setField('fuel_filter_part_number', e.target.value)}
             />
           </Field>
           <Field id="spec_lug_torque" label={lugTorqueLabel}>
@@ -337,15 +357,17 @@ export default function VehicleSpecsPanel({
               onChange={(e) => setField('transmission_fluid_type', e.target.value)}
             />
           </Field>
-          <Field id="spec_notes" label={t('detail.specs.notes')}>
-            <Textarea
-              id="spec_notes"
-              value={form.maintenance_specs_notes}
-              onChange={(e) => setField('maintenance_specs_notes', e.target.value)}
-              rows={3}
-            />
-          </Field>
-          <p className="text-xs text-text-mute flex items-start gap-2">
+          <div className="sm:col-span-2">
+            <Field id="spec_notes" label={t('detail.specs.notes')}>
+              <Textarea
+                id="spec_notes"
+                value={form.maintenance_specs_notes}
+                onChange={(e) => setField('maintenance_specs_notes', e.target.value)}
+                rows={3}
+              />
+            </Field>
+          </div>
+          <p className="sm:col-span-2 text-xs text-text-mute flex items-start gap-2">
             <Wrench className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
             {t('detail.specs.hint')}
           </p>

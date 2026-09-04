@@ -15,7 +15,8 @@ from app.services.import_adapters.fuel_csv import (
     parse_fuelio,
     parse_tesla,
 )
-from app.services.tire_service import _project_wear
+from app.services.tire_results import WearStatus
+from app.services.tire_service import project_wear
 
 
 class _Reading:
@@ -23,6 +24,29 @@ class _Reading:
         self.recorded_at = recorded_at
         self.odometer_km = odometer_km
         self.tread_depth_mm = tread_depth_mm
+
+
+def _tire_with(readings, min_tread, *, bounded=True):
+    """A tire whose mount history supports (or does not support) a projection.
+
+    v3.3.0 made the projection period-aware: the distance is the tire's own,
+    not the vehicle's odometer span between two readings. So these tests need
+    a tire with a bounded mount period, and `bounded=False` exercises the case
+    the release exists to stop publishing.
+    """
+    from app.models.tire import Tire, TireMountPeriod
+
+    # `readings` are plain stand-ins, not ORM instances, so they go through
+    # project_wear's explicit parameter rather than the relationship.
+    tire = Tire(vin="V" * 17, position="FL", min_tread_mm=min_tread)
+    tire.mount_periods = [
+        TireMountPeriod(
+            position="FL",
+            mounted_on=date(2025, 1, 1),
+            mounted_odometer_km=Decimal("9000") if bounded else None,
+        )
+    ]
+    return tire
 
 
 def test_parse_fuelio_metric():
@@ -87,15 +111,17 @@ def test_project_wear():
         _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("4.0")),
         _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
     ]
-    km_left, wear_date = _project_wear(readings, Decimal("2.0"))
-    assert km_left is not None
-    assert km_left == Decimal("2000.0")
-    assert wear_date is not None
+    result = project_wear(_tire_with(readings, Decimal("2.0")), Decimal("12000"), readings)
+    assert result.status is WearStatus.PROJECTED
+    assert result.km_remaining == Decimal("2000.0")
+    assert result.wear_date is not None
 
 
 def test_project_wear_needs_two_readings():
     readings = [_Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0"))]
-    assert _project_wear(readings, Decimal("2.0")) == (None, None)
+    result = project_wear(_tire_with(readings, Decimal("2.0")), Decimal("12000"), readings)
+    assert result.status is WearStatus.INSUFFICIENT_READINGS
+    assert result.km_remaining is None
 
 
 def test_project_wear_already_below_threshold():
@@ -103,9 +129,31 @@ def test_project_wear_already_below_threshold():
         _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
         _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
     ]
-    km_left, wear_date = _project_wear(readings, Decimal("2.0"))
-    assert km_left == Decimal("0")
-    assert wear_date == date(2026, 6, 1)
+    result = project_wear(_tire_with(readings, Decimal("2.0")), Decimal("12000"), readings)
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+    assert result.wear_date == date(2026, 6, 1)
+
+
+def test_project_wear_is_suppressed_without_a_bounded_mount_history():
+    """The whole reason this release exists.
+
+    With no odometer on the mount period, the only distance available is the
+    vehicle's raw odometer span -- which for a two-set owner counts the
+    kilometres driven on the OTHER set, and errs high. The number is withheld
+    rather than published with an "estimate" badge.
+    """
+    readings = [
+        _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("4.0")),
+        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+    ]
+    result = project_wear(
+        _tire_with(readings, Decimal("2.0"), bounded=False),
+        Decimal("12000"),
+        readings,
+    )
+    assert result.status is WearStatus.UNVERIFIED_MOUNT_HISTORY
+    assert result.km_remaining is None
 
 
 def test_parse_fuel_command_metric():

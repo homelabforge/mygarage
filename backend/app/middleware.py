@@ -13,6 +13,7 @@ response body streams through untouched.
 import json
 import logging
 import os
+import re
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 
@@ -238,6 +239,35 @@ class CSRFProtectionMiddleware:
 #: the (linear-time) normalizer. An optional Traefik `maxRequestBodyBytes` cap is
 #: documented as deploy-side defense-in-depth but is not in this repo (R1-H3).
 INGEST_PATH = "/api/v1/livelink/ingest"
+
+#: Router prefixes whose handlers write telemetry. Maintenance mode closes these
+#: and nothing else: the rest of the API stays reachable so an operator can watch
+#: the upgrade, and /api/health keeps answering so the container healthcheck does
+#: not fail the maintenance window and trigger a restart.
+#: Ingest routers, closed wholesale: everything under them writes telemetry.
+MAINTENANCE_CLOSED_PREFIXES = ("/api/v1/livelink", "/api/v1/torque")
+
+#: Individual admin routes that write telemetry. The admin router as a whole
+#: must stay OPEN -- the operator uses it to watch the repair and to turn
+#: maintenance mode back off -- so these are matched exactly rather than by
+#: prefix. `POST /api/livelink/devices/{id}/backfill` reaches `bulk_backfill`.
+_MAINTENANCE_CLOSED_ADMIN_RE = re.compile(r"^/api/livelink/devices/[^/]+/backfill/?$")
+
+
+def is_maintenance_closed(path: str) -> bool:
+    """Whether maintenance mode should refuse a request to ``path``.
+
+    Args:
+        path: The request path, without query string.
+
+    Returns:
+        True if the path can write telemetry and must be refused with 503.
+    """
+    if path.startswith(MAINTENANCE_CLOSED_PREFIXES):
+        return True
+    return _MAINTENANCE_CLOSED_ADMIN_RE.match(path) is not None
+
+
 INGEST_MAX_BODY_BYTES = 256 * 1024
 
 
@@ -329,6 +359,48 @@ def _get_header(scope: Scope, name: bytes) -> str | None:
         if key.lower() == name_lower:
             return value.decode("latin-1")
     return None
+
+
+class MaintenanceModeMiddleware:
+    """Refuse telemetry ingest with 503 while the instance is in maintenance mode.
+
+    The upgrade procedure for the odometer repair tools requires that no new
+    reading lands between the migration and the repair. Migrations run inside
+    this app's own lifespan and the MQTT toggle is a database row, so stopping
+    ingest from outside the process is not possible; this closes it from inside.
+
+    ``settings.maintenance_mode`` is read per request rather than captured at
+    construction, so the gate can be flipped in tests without rebuilding the app.
+    The cost is one attribute read per request on a boolean that is almost always
+    False.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        from app.config import settings
+
+        if scope["type"] != "http" or not settings.maintenance_mode:
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        if not is_maintenance_closed(path):
+            await self.app(scope, receive, send)
+            return
+
+        logger.info("Maintenance mode: refused ingest request to %s", path)
+        await _send_json(
+            send,
+            status=503,
+            payload={
+                "detail": (
+                    "MyGarage is in maintenance mode and is not accepting telemetry. "
+                    "Readings buffered on the device will be delivered once it exits."
+                )
+            },
+        )
 
 
 async def _send_json(send: Send, *, status: int, payload: Mapping[str, object]) -> None:

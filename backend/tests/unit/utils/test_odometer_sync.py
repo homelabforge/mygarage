@@ -6,6 +6,7 @@ Tests auto-syncing of odometer records from service/fuel records.
 
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -34,6 +35,59 @@ async def clean_odometer_records(db_session: AsyncSession, test_vehicle):
         delete(OdometerRecord).where(OdometerRecord.vin == test_vehicle["vin"])
     )
     await db_session.commit()
+
+
+#: The `source_id` values these tests pass for `source_type="fuel"`. Enumerated
+#: rather than guessed: `test_the_fixture_covers_every_fuel_source_id` reads
+#: them back out of this file and fails if one is missing.
+FUEL_SOURCE_IDS = (1, 2, 42, 99)
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def fuel_records_the_tests_reference(db_session: AsyncSession, test_vehicle):
+    """Create the `fuel_records` rows these tests point `fuel_record_id` at.
+
+    `odometer_records.fuel_record_id` carries a real foreign key. PostgreSQL
+    enforces it and rejected every sync from a fuel record here, because the
+    tests passed bare integers with no matching row; SQLite does not enforce FKs
+    without `PRAGMA foreign_keys=ON`, which the model's own comment notes, so
+    the whole file passed there and had never been run against PostgreSQL --
+    CI runs only tests/migrations and tests/integration under it.
+
+    Worse than a straight failure: the rejected flush poisoned the shared
+    session, so the next tests in the file failed with PendingRollbackError and
+    pointed at themselves rather than at this.
+    """
+    from app.models.fuel import FuelRecord
+
+    vin = test_vehicle["vin"]
+    for record_id in FUEL_SOURCE_IDS:
+        existing = await db_session.get(FuelRecord, record_id)
+        if existing is None:
+            db_session.add(FuelRecord(id=record_id, vin=vin, date=date(2024, 1, 1)))
+    await db_session.commit()
+
+    yield
+
+    await db_session.execute(delete(FuelRecord).where(FuelRecord.id.in_(FUEL_SOURCE_IDS)))
+    await db_session.commit()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_the_fixture_covers_every_fuel_source_id():
+    """Guard on the fixture. A test added with a new fuel `source_id` would
+    fail on PostgreSQL only, in a file nothing runs there."""
+    import re
+
+    source = Path(__file__).read_text()
+    used = {
+        int(m.group(1)) for m in re.finditer(r'source_type="fuel",\s*\n\s*source_id=(\d+)', source)
+    }
+    assert used, "the scan found no fuel source ids, so this guard is vacuous"
+    assert used <= set(FUEL_SOURCE_IDS), (
+        f"these fuel source_ids have no fuel_records row: {sorted(used - set(FUEL_SOURCE_IDS))}"
+    )
 
 
 @pytest.mark.unit

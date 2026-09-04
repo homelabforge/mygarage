@@ -17,11 +17,27 @@ const useUpsertTireMock = vi.fn()
 const useAddTireReadingMock = vi.fn()
 const useDeleteTireMock = vi.fn()
 
+// v3.3.0 split the single upsert into create-and-mount plus update, and added
+// mount/dismount. The old `useUpsertTire` name is kept for the mock variable
+// because every assertion below is about the payload a save produces, and that
+// payload is now create-and-mount's.
 vi.mock('../../hooks/queries/useTires', () => ({
   useTires: () => useTiresMock(),
-  useUpsertTire: () => useUpsertTireMock(),
+  useCreateAndMountTire: () => useUpsertTireMock(),
+  useCreateTire: () => useUpsertTireMock(),
+  useUpdateTire: () => useUpsertTireMock(),
+  useMountTire: () => useUpsertTireMock(),
+  useDismountTire: () => useUpsertTireMock(),
+  useRetireTire: () => useUpsertTireMock(),
+  useRotateTires: () => useUpsertTireMock(),
   useAddTireReading: () => useAddTireReadingMock(),
   useDeleteTire: () => useDeleteTireMock(),
+  // Sets are not this file's subject; it just has to render past them.
+  useTireSets: () => ({ data: { sets: [], total: 0 }, isLoading: false, error: null }),
+  useCreateTireSet: () => useUpsertTireMock(),
+  useUpdateTireSet: () => useUpsertTireMock(),
+  useDeleteTireSet: () => useUpsertTireMock(),
+  useMountTireSet: () => useUpsertTireMock(),
 }))
 
 vi.mock('@tanstack/react-query', () => ({

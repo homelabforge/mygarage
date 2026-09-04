@@ -29,7 +29,8 @@
 
 import { useMemo } from 'react'
 import { useUnitPreference } from './useUnitPreference'
-import { makeUnitFormat, type UnitFormat } from '../utils/unitFormat'
+import { makeUnitFormat, type UnitFormat, type QuantityFormat } from '../utils/unitFormat'
+import { oilCapacityFormat } from '../utils/oilCapacityUnit'
 
 /**
  * Get the unit formatters for the current client.
@@ -44,4 +45,23 @@ import { makeUnitFormat, type UnitFormat } from '../utils/unitFormat'
 export function useUnitFormat(): UnitFormat {
   const { units, showBoth } = useUnitPreference()
   return useMemo(() => makeUnitFormat(units, showBoth), [units, showBoth])
+}
+
+/**
+ * Get the formatter for engine oil capacity.
+ *
+ * Separate from `useUnitFormat` because oil capacity is the one quantity the
+ * resolved vocabulary cannot name: it is read in quarts wherever fuel is read
+ * in gallons, and `UnitSet` holds no quart token. See
+ * `utils/oilCapacityUnit.ts` for why that is derived rather than added.
+ *
+ * Memoized on the resolved set, like its sibling, so the returned formatter
+ * keeps its identity across renders and callers can hold it in a dependency
+ * array.
+ *
+ * @returns The oil-capacity formatter, closed over the client's resolved units.
+ */
+export function useOilCapacityFormat(): QuantityFormat {
+  const { units } = useUnitPreference()
+  return useMemo(() => oilCapacityFormat(units), [units])
 }

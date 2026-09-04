@@ -36,6 +36,7 @@ from app.utils.csv_units import (
     FUEL_SPEED,
     FUEL_TEMPERATURE,
     FUEL_VOLUME,
+    MILEAGE_LIMIT_DISTANCE,
     ODOMETER_DISTANCE,
     READING_DISTANCE,
     QuantitySpec,
@@ -355,6 +356,7 @@ class TestEmissionMeetsTheImporter:
     SPECS: dict[str, tuple[QuantitySpec, str]] = {
         "Odometer (km)": (ODOMETER_DISTANCE, "distance"),
         "Reading (km)": (READING_DISTANCE, "distance"),
+        "Mileage Limit (km)": (MILEAGE_LIMIT_DISTANCE, "distance"),
         "Liters": (FUEL_VOLUME, "volume"),
         "Price Per Liter": (FUEL_PRICE, "price_per_volume"),
         "Price Per Unit": (DEF_PRICE, "price_per_volume"),

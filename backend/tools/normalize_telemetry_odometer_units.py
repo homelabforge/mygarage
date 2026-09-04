@@ -46,6 +46,7 @@ from app.utils.odometer_units import (  # noqa: E402
     resolve_odometer_unit,
 )
 from app.utils.units import UnitConverter  # noqa: E402
+from tools._tool_db import resolve_sync_url  # noqa: E402
 
 #: Above this, the vehicle's km odometer records tower over its stored odometer
 #: telemetry by roughly the miles factor, so the telemetry is still in miles.
@@ -91,7 +92,12 @@ def _mixed_units_step(conn, device_id: str, param_key: str):
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", required=True, help="Path to mygarage.db")
+    parser.add_argument(
+        "--db",
+        help=(
+            "Database to operate on: a path to mygarage.db, or a full SQLAlchemy URL (postgresql+asyncpg://...). Omit to use the instance's configured database, which is the right choice when running inside the container."
+        ),
+    )
     parser.add_argument(
         "--apply",
         action="store_true",
@@ -103,7 +109,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     """Convert miles-recorded odometer telemetry to kilometres."""
     args = _parse_args()
-    engine = create_engine(f"sqlite:///{args.db}")
+    engine = create_engine(resolve_sync_url(args.db))
     factor = float(UnitConverter.MILES_TO_KM)
 
     with engine.begin() as conn:
@@ -197,7 +203,11 @@ def main() -> int:
                 f"\nDRY RUN - {total_hist:,} historical and {total_latest} latest row(s) "
                 "would be converted. Re-run with --apply."
             )
-            return 0
+            # A refused key must reach the caller's exit status, not just the
+            # console: the upgrade note has operators dry-run first, and a
+            # script gating --apply on this would otherwise apply what the dry
+            # run just refused. Matches fix_session_odometer_units.py.
+            return 2 if mixed_keys else 0
 
         for device_id, vin, param_key in plan:
             conn.execute(

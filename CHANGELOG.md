@@ -9,18 +9,132 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Upgrade note
 
-If any LiveLink device reports a custom odometer PID (a bare `ODOMETER` autopid rather than the standard `A6-ODOMETER`), its stored odometer telemetry and drive-session odometers are in miles and this release starts reading them as kilometres. Migration 096 classifies the devices but deliberately converts no data: an instance that has already converted by hand cannot be told apart from one that has not, and converting twice is unrecoverable. Back up first, then run, in this order:
+**Back up first, and read this in full.** This release cannot be downgraded.
+
+#### Before upgrading
+
+Take a full backup: `POST /api/backup/create-full`, or Settings -> Backup ->
+Create Full Backup. On SQLite this uses the SQLite Online Backup API; MyGarage
+runs in WAL mode, so a plain `cp` of the database file produces a copy that is
+torn but plausible. On PostgreSQL, use `pg_dump`.
+
+The backup is the only way back. There are no down-migrations, and once this
+release's migrations have run, an older image cannot read the database.
+
+#### Odometer units on custom PIDs
+
+If any LiveLink device reports a custom odometer PID (a bare `ODOMETER` autopid
+rather than the standard `A6-ODOMETER`), its stored odometer telemetry and
+drive-session odometers are in miles and this release starts reading them as
+kilometres. Migration 096 classifies the devices but deliberately converts no
+data: an instance that has already converted by hand cannot be told apart from
+one that has not, and converting twice is unrecoverable.
+
+The repair tools must see the data exactly as the migration left it, before any
+new reading arrives. Start the container in maintenance mode to get that window:
+migrations run, but no telemetry can be written by any path: the scheduler and
+MQTT subscriber do not start and cannot be restarted, the two ingest endpoints
+and the admin SD-card backfill answer 503, and the three telemetry writers
+themselves refuse. So neither a dongle replaying its buffer, nor a manual
+backfill, nor an MQTT restart can land readings mid-repair. The rest of the
+admin API stays open, so you can watch the repair and turn maintenance mode back
+off.
 
 ```
-python tools/backfill_livelink_odometer.py --db /data/mygarage.db --apply
-python tools/normalize_telemetry_odometer_units.py --db /data/mygarage.db --apply
-python tools/fix_session_odometer_units.py --db /data/mygarage.db --apply
-python tools/recompute_session_aggregates.py --apply
+# 1. start in maintenance mode (compose: add to the service's environment)
+MYGARAGE_MAINTENANCE_MODE=1
+
+# 2. run the repair, in this order
+docker exec -w /app mygarage python tools/backfill_livelink_odometer.py --apply
+docker exec -w /app mygarage python tools/normalize_telemetry_odometer_units.py --apply
+docker exec -w /app mygarage python tools/fix_session_odometer_units.py --apply
+docker exec -w /app mygarage python tools/recompute_session_aggregates.py --apply
+
+# 3. remove MYGARAGE_MAINTENANCE_MODE and restart
 ```
 
-The order matters. The reconstruction reads telemetry as the device reported it and applies the device's declared unit, so it has to run while the history is still device-native; after the conversion it would multiply an already-metric figure again, and an inflated odometer record becomes the floor every later reading must beat rather than something a later reading corrects.
+The tools default to the instance's own configured database, so `--db` is only
+needed to point one somewhere else; it accepts a path or a full SQLAlchemy URL.
+Both SQLite and PostgreSQL are supported, and the sequence is exercised
+end-to-end against both in CI.
 
-Run them before the upgraded instance records new readings. Each is dry run by default and reads from the data whether its work is still outstanding, so running one twice cannot double a value. Where that cannot be decided safely, the tool says so and exits 2 rather than guess: the reconstruction refuses telemetry that already reads as metric, and the two converters refuse a device whose history mixes miles and kilometres, which is what a run started after new readings landed leaves behind.
+The order matters. The odometer backfill reads telemetry as the device reported
+it and applies the device's declared unit, so it has to run while the history is
+still device-native; after the conversion it would multiply an already-metric
+figure again, and an inflated odometer record becomes the floor every later
+reading must beat rather than something a later reading corrects.
+
+Each tool is dry run by default and reads from the data whether its work is
+still outstanding, so running one twice cannot double a value. Where that cannot
+be decided safely, the tool says so and **exits 2** rather than guess: the
+reconstruction refuses telemetry that already reads as metric, and the two
+converters refuse a device whose history mixes miles and kilometres, which is
+what a run started after new readings landed leaves behind. A dry run that
+refused something also exits 2, so a script may gate `--apply` on it.
+
+**`recompute_session_aggregates.py` will lower the distance on old drives, often
+sharply.** A session's distance used to be the difference between the vehicle's
+newest odometer reading when it closed and when it opened, so every kilometre
+driven while no session was open was charged to whichever session opened next.
+That tool recomputes each session from the telemetry inside its own window, and
+a session that was mostly a parked vehicle checking in contains very little. On
+the instance this was developed against, one vehicle's recorded session distance
+went from 3,890 km to 340 km.
+
+Of that 340 km, 104 km was recomputed from telemetry still on disk and 236 km is
+older figures left untouched on 18 sessions whose telemetry has since been
+pruned. Nothing blanks a session it cannot recompute, because for a drive past
+the retention horizon that stored figure is the only record left of it. So the
+total after this step is a mix of the two, and it keeps shrinking as more
+history ages out.
+
+Your vehicle's mileage is not affected. Odometer records are a separate table
+fed by its own readings, and nothing here writes to it. Only the distance shown
+against individual LiveLink drives changes.
+
+**How far back the repair reaches.** All four tools work from telemetry still on
+disk, and telemetry is pruned to `livelink_telemetry_retention_days` (default
+90). Readings older than that are gone and cannot be reconstructed. If you want
+more history repaired, raise that setting and wait for the data to age out more
+slowly *before* upgrading; the nightly prune runs at 04:00.
+
+#### Drives are counted differently from this release on
+
+A drive session used to start whenever the dongle could reach the broker. A
+parked WiCAN checks in roughly every 95 minutes, so most recorded "drives" were
+a parked vehicle: on the instance this was found on, 2,975 of 3,238. Drives
+taken out of broker range were missed instead.
+
+Sessions are now decided by movement, so from this release your drive count
+drops sharply and the remaining drives are real ones.
+
+Existing history is left exactly as it was: nothing is deleted, merged or
+rewritten. Every session records which rule produced it, so drives recorded
+before this release stay marked as such and a later release can revisit them.
+Old drives keep their boundaries even if you run the repair sequence above,
+which only recomputes the figures inside a window it does not move.
+
+The drive list does hide the sessions in which nothing moved, which is most of
+them, and names the count so the page never just looks empty. A real journey
+recorded by the old rule still shows, tagged so its figures can be read with
+the right expectations.
+
+If your device reports no speed or odometer that MyGarage recognises, it will
+record no drives at all. LiveLink settings names the device, and the container
+log lists the readings it does send; set **How drives are detected** to "By
+device connection" to keep the old behaviour for it.
+
+#### Tire wear estimates go quiet until you record a mount odometer
+
+Migration 097 gives every existing tire an assumed mount period whose starting
+odometer is unknown, because nothing recorded one before now. Until you supply
+it, the tire card says which reading is missing instead of showing a figure.
+
+If you have only ever run one set, the old estimate was correct for you and you
+lose it until you enter that number. It is withheld rather than relabelled
+because for anyone running a second set it was wrong by the distance driven on
+the other set, and wrong in the direction that says a worn tire is fine. One
+odometer per tire, on its mount, restores the estimate.
 
 ### Added
 - Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque, coolant/brake/transmission fluid) with an Overview editor (migration 095).
@@ -28,8 +142,42 @@ Run them before the upgraded instance records new readings. Each is dry run by d
 - LiveLink devices carry an odometer unit, inferred from the PID shape and editable per device in LiveLink settings (migration 096). A standard `A6-ODOMETER` PID is kilometres per SAE J1979; a custom autopid is whatever the dash shows, and the instance can now say so.
 - `backend/tools/backfill_livelink_odometer.py` reconstructs the odometer records the units regression below discarded, from raw telemetry already on disk. Dry run by default, and it never overwrites a day that already has a record.
 - German translation updated across all six namespaces; thanks [@SCDT95](https://github.com/SCDT95) (#155).
+- Tires record mount periods, so a tire's distance is summed over the times it was actually on the vehicle rather than taken from the odometer (migration 097, #153).
+- Retire a tire instead of deleting it. Retiring keeps every reading and mount period; delete is still there for a tire entered by mistake (#153).
+- Rotate all four tires in one action, choosing from the four standard patterns (#153).
+- Tire sets: name a group such as "Winter studded" and fit it in one action, each tire returning to the corner it was last on (#153).
+- Tires can be entered straight into storage, so a set you own but have not fitted is tracked like any other (#153).
+- The tire card shows distance on tire, and says which reading is missing when it cannot work one out (#153).
+- The drive list hides sessions in which the vehicle never moved, and says how many it is holding back. The old rule opened a drive whenever the device connected, so a parked vehicle checking in became one: on the instance this was developed against that is 2,921 of 3,262 recorded sessions. Nothing is deleted and one click shows them. The filter is movement, not the rule that recorded the session, because 341 of those same older sessions are real journeys.
+- Vehicles record a fuel filter part number alongside the oil filter (migration 099). Available to every vehicle rather than diesels only: a diesel's filters are a scheduled item, and an older petrol vehicle's inline filter is a real service part too. A vehicle without one leaves it blank and the card omits the row.
+- Engine oil capacity is read in quarts wherever fuel is read in gallons. It shared the fuel unit, so a reader on US gallons was asked for gallons of engine oil: entering `12` for a 12-quart engine stored 45.4 litres and the card read `12 gal` straight back, which made the error invisible from the screen. A reader on litres is unaffected, and a UK reader gets the Imperial quart.
+- Drive distance is read from the finest distance signal a device publishes, not from the odometer alone. A WiCAN reporting its odometer only every 24 km recorded no distance for any trip shorter than that, which was most of them; the standard `31-DISTANCESINCECODECLEAR` PID alongside it resolves to 1 km. A device whose odometer already resolves at least as finely is unchanged, and a distance counter never supplies a session's odometer readings.
+- Two LiveLink settings: **Stop before a new drive** (default 15 minutes) sets how long a stop lasts before the next movement counts as a separate drive, and **How drives are detected** switches between movement and the old connection-based rule.
+- Analytics has a Tires section: tread over time, projected life, distance on tire, and a readiness block naming the one reading to record next (#152). It is on the Analytics page only for now; the PDF report and the garage export do not include it.
+
+### Changed
+- Drive sessions are detected by movement rather than by the dongle connecting. A parked vehicle checking in no longer records a drive; see the upgrade note.
+- **BREAKING (API):** `POST /api/vehicles/{vin}/tires` no longer accepts `position` and creates a stored tire. Mount it afterwards, or use `POST /api/vehicles/{vin}/tires/create-and-mount`, which does both atomically. A payload carrying `position` is rejected with HTTP 422 naming the field.
+- Settings -> Integrations is laid out on the same cards as the rest of the app. It was still on pre-v3.0.0 markup, so seven sections hand-rolled their own headers, and a fixed two-column grid paired the tall NHTSA card against two short ones and left a quarter of that row empty. The sections now flow, and each one's description and toggle text sit in the same place.
+- Integrations follows the Title Case rule: names of things are Title Case (LLM Features, Telegram Fuel Bot, Webhook Ingest Token, API Base URL) and toggle labels say what they do in sentence case. Both spellings were previously on the same screen.
 
 ### Fixed
+- Drives taken out of range of the broker are recorded. Readings pulled from the dongle's SD card could update an existing session but never create one, so a drive away from home was recorded as nothing at all.
+- A stop no longer splits one drive in two. The five-minute setting detects a lost connection and was also being used to end drives, so any stop longer than that became two trips: a charge, a fuel stop, or a school pickup.
+- A drive ends when the vehicle stops moving, not when the dongle stops talking. Sessions were being closed at the last check-in, padding every drive with up to 95 minutes of parked readings and dragging its average speed down.
+- Ending a drive no longer marks the ECU offline, which had been blocking remote commands after every trip.
+- A drive session is closed when the ECU reports offline. The check looked for a change of state that had already been recorded, so it never fired and the session was left to time out instead.
+- Two ingest paths arriving at once can no longer create a second, orphaned drive session that nothing ever closes.
+- Warranty, insurance and tax CSV work in both directions. Export returned HTTP 500 for any vehicle with a warranty or an insurance record, and import rejected every warranty, insurance and tax row with "Invalid record data", blaming your file for an application bug. No tax record had ever imported successfully.
+- Warranty CSV exports the mileage limit, in your own units. The column was missing entirely.
+- Reminder notifications work on PostgreSQL. The notification timestamp was written with a timezone into a column that has none, so the write failed and no reminder notification had ever been sent on a PostgreSQL instance. SQLite accepted it, which is why it went unnoticed.
+- Saving a service visit no longer does nothing without saying why. A value the browser rejected, such as a negative cost, a third decimal place or a blank date, aborted the save with no message, and where the field was inside a collapsed line item there was nothing on screen to look at.
+- The tire wear estimate no longer over-states remaining life for anyone running two sets. It measured the whole odometer span between two readings, which counts the distance driven on the other set (#153).
+- The odometer you type into a mount, dismount, rotation, retirement or tread reading is recorded as an odometer reading, so a tire's distance completes without entering the same number twice.
+- The maintenance tools are now in the runtime image. `backend/tools/` was built and then discarded, so every command in the upgrade note above failed with `can't open file`.
+- The maintenance tools work on PostgreSQL. Three of them hardcoded a SQLite path, which on PostgreSQL created an empty SQLite file and then failed with `no such table`, leaving those instances with no repair path.
+- `MYGARAGE_MAINTENANCE_MODE=1` starts the instance for migrations only: no scheduler, no MQTT subscriber, and telemetry ingest answers 503. The upgrade note asks operators to repair data before new readings land, and there was previously no window in which that was possible.
+- A dry run of `normalize_telemetry_odometer_units.py` that refused a mixed-unit device now exits 2 like its sibling tool, instead of reporting success.
 - Drive-session speed, RPM and temperature figures now count readings that arrive after the session has closed. A WiCAN buffers readings while it cannot reach the broker and replays them later with their original timestamps, and a session was summarised once on close, so a drive that peaked at 85 km/h could be recorded as 20. `backend/tools/recompute_session_aggregates.py` repairs sessions summarised before the fix.
 - Drive-session distance measures odometer movement inside the session. It was the difference between the vehicle's newest reading at each end, whatever their age, so every kilometre driven while no session was open was charged to whichever session opened next: a vehicle idling in a driveway for eleven minutes at a top speed of 2 km/h was credited with 14 km. Sessions that recorded distance the vehicle did not cover in that window are repaired by the same tool.
 - Readings pulled from a dongle's SD card now update the drive sessions they fall inside, and their odometer values are converted to kilometres. That path bypasses live ingest by design, because a pull is tens of thousands of rows, so it had been bypassing both. It is the only path for anything driven out of range of the broker.

@@ -693,5 +693,8 @@
     "formSubmitFallback": "An error occurred",
     "actionFailed": "Failed to {{action}}. {{message}}",
     "actionFailedCheckInput": "Failed to {{action}}. Please check your input."
-  }
+  },
+  "mustNotBeNegative": "Cannot be negative",
+  "mustBeANumber": "Enter a number",
+  "tooManyDecimals": "At most {{count}} decimal places"
 }

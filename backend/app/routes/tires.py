@@ -9,13 +9,23 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.tire import (
     TireCreate,
+    TireCreateAndMountRequest,
+    TireDismountRequest,
     TireListResponse,
+    TireMountRequest,
     TireReadingCreate,
     TireResponse,
+    TireRotationRequest,
+    TireSetCreate,
+    TireSetListResponse,
+    TireSetMountRequest,
+    TireSetResponse,
+    TireSetUpdate,
     TireUpdate,
 )
 from app.services.auth import require_auth
 from app.services.tire_service import TireService
+from app.services.tire_set_service import TireSetService
 
 logger = logging.getLogger(__name__)
 
@@ -25,22 +35,111 @@ router = APIRouter(prefix="/api/vehicles", tags=["tires"])
 @router.get("/{vin}/tires", response_model=TireListResponse)
 async def list_tires(
     vin: str,
+    include_retired: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ) -> TireListResponse:
-    """List tires (all positions) for a vehicle with wear projections."""
-    return await TireService(db).list_tires(vin, current_user)
+    """List a vehicle's tires, with distance and wear.
+
+    Retired tires are excluded unless `include_retired` is set: they are
+    history rather than inventory, and nothing more can be recorded about them.
+    """
+    return await TireService(db).list_tires(vin, current_user, include_retired)
 
 
 @router.post("/{vin}/tires", response_model=TireResponse, status_code=201)
-async def upsert_tire(
+async def create_tire(
     vin: str,
     data: TireCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ) -> TireResponse:
-    """Create or replace the tire at a given position."""
-    return await TireService(db).upsert_tire(vin, data, current_user)
+    """Create a tire. It is not mounted until you mount it.
+
+    **Breaking in v3.3.0.** This used to take a `position` and upsert by
+    `(vin, position)`. It no longer accepts `position` at all, and a payload
+    carrying one is rejected with 422 rather than silently creating a second,
+    unmounted tire. Create then mount, or use the create-and-mount endpoint.
+    """
+    return await TireService(db).create_tire(vin, data, current_user)
+
+
+@router.post("/{vin}/tires/rotate", response_model=TireListResponse)
+async def rotate_tires(
+    vin: str,
+    data: TireRotationRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireListResponse:
+    """Move several tires at once.
+
+    All or nothing: if any move is invalid, nothing moves. Returns the whole
+    tire list, because a rotation changes several of them and returning one
+    would leave the caller to re-fetch the rest.
+    """
+    return await TireService(db).rotate_tires(vin, data, current_user)
+
+
+@router.post("/{vin}/tires/create-and-mount", response_model=TireResponse, status_code=201)
+async def create_and_mount_tire(
+    vin: str,
+    data: TireCreateAndMountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireResponse:
+    """Create a tire and mount it in one step.
+
+    Atomic: if the corner is occupied the whole operation fails with 409 and
+    no tire is created. Doing the two calls by hand and losing the second
+    leaves an orphan tire the caller did not ask for.
+    """
+    return await TireService(db).create_and_mount(vin, data, current_user)
+
+
+@router.post("/{vin}/tires/{tire_id}/mount", response_model=TireResponse)
+async def mount_tire(
+    vin: str,
+    tire_id: int,
+    data: TireMountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireResponse:
+    """Mount a stored tire at a position, opening a mount period.
+
+    409 if this tire is already mounted, or if another tire holds that corner.
+    """
+    return await TireService(db).mount_tire(vin, tire_id, data, current_user)
+
+
+@router.post("/{vin}/tires/{tire_id}/retire", response_model=TireResponse)
+async def retire_tire(
+    vin: str,
+    tire_id: int,
+    data: TireDismountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireResponse:
+    """Retire a tire: take it off the vehicle and keep its whole history.
+
+    This is what replacing a worn tire means. `DELETE` still exists for a tire
+    entered by mistake, and it destroys every reading and mount period.
+    """
+    return await TireService(db).retire_tire(vin, tire_id, data, current_user)
+
+
+@router.post("/{vin}/tires/{tire_id}/dismount", response_model=TireResponse)
+async def dismount_tire(
+    vin: str,
+    tire_id: int,
+    data: TireDismountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireResponse:
+    """Take a tire off the vehicle, closing its open mount period.
+
+    The tire keeps its readings and its history; it simply has no position.
+    """
+    return await TireService(db).dismount_tire(vin, tire_id, data, current_user)
 
 
 @router.put("/{vin}/tires/{tire_id}", response_model=TireResponse)
@@ -80,3 +179,71 @@ async def add_tire_reading(
 ) -> TireResponse:
     """Append a tread/pressure reading and refresh wear projection + reminders."""
     return await TireService(db).add_reading(vin, tire_id, data, current_user)
+
+
+# --- Tire sets ------------------------------------------------------------
+#
+# `/{vin}/tire-sets` rather than `/{vin}/tires/sets`: the second would sit under
+# the `/{vin}/tires/{tire_id}` pattern and be shadowed by it unless declared
+# first, which is a route-ordering trap the rotate endpoint already had to be
+# careful about. A separate literal segment cannot be shadowed at all.
+
+
+@router.get("/{vin}/tire-sets", response_model=TireSetListResponse)
+async def list_tire_sets(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireSetListResponse:
+    """Every tire set for a vehicle, with its membership."""
+    return await TireSetService(db).list_sets(vin, current_user)
+
+
+@router.post("/{vin}/tire-sets", response_model=TireSetResponse, status_code=201)
+async def create_tire_set(
+    vin: str,
+    data: TireSetCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireSetResponse:
+    """Name a new, empty set. Tires join it through `PUT /tires/{id}`."""
+    return await TireSetService(db).create_set(vin, data, current_user)
+
+
+@router.put("/{vin}/tire-sets/{set_id}", response_model=TireSetResponse)
+async def update_tire_set(
+    vin: str,
+    set_id: int,
+    data: TireSetUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireSetResponse:
+    """Rename a set, or change its notes."""
+    return await TireSetService(db).update_set(vin, set_id, data, current_user)
+
+
+@router.delete("/{vin}/tire-sets/{set_id}", status_code=204)
+async def delete_tire_set(
+    vin: str,
+    set_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> None:
+    """Delete a set. Its tires survive, ungrouped."""
+    await TireSetService(db).delete_set(vin, set_id, current_user)
+
+
+@router.post("/{vin}/tire-sets/{set_id}/mount", response_model=TireListResponse)
+async def mount_tire_set(
+    vin: str,
+    set_id: int,
+    data: TireSetMountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireListResponse:
+    """Fit every tire in a set, each at the corner it was last on.
+
+    Returns the vehicle's whole tire list, because a swap changes the set that
+    came off as well as the one that went on.
+    """
+    return await TireSetService(db).mount_set(vin, set_id, data, current_user)

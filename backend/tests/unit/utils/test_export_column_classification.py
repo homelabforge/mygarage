@@ -61,8 +61,8 @@ EXPECTED_HEADER_LISTS: dict[str, int] = {
     # added to one of these is a real hazard too, and a worse one, because
     # there is no conversion layer to have missed.
     "export_hours_records_csv": 4,
-    "export_warranties_csv": 10,
-    "export_insurance_csv": 9,
+    "export_warranties_csv": 8,
+    "export_insurance_csv": 10,
     "export_tax_records_csv": 5,
     "export_notes_csv": 3,
 }
@@ -107,16 +107,18 @@ DIMENSIONLESS_HEADERS: frozenset[str] = frozenset(
         "Provider",
         "Policy Number",
         "Type",
-        "Coverage",
+        # v3.3.0 renamed `Coverage` to `Coverage Details`, the actual model
+        # attribute, and dropped `Terms` and `Max Claims`, which had no model
+        # field at all and made the warranty export 500 on every row.
+        "Coverage Details",
         "Coverage Limits",
-        "Terms",
+        "Premium Frequency",
         "Title",
         "Content",
         # Booleans and counts.
         "Full Tank",
         "Missed Fill-up",
         "Is Hauling",
-        "Max Claims",
         # Percentages and ratios. Unitless by definition.
         "SOC Start (%)",
         "SOC End (%)",

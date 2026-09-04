@@ -5,17 +5,27 @@ import ipaddress
 import logging
 import secrets
 import socket
+from collections.abc import Sequence
+from datetime import timedelta
 from urllib.parse import urlsplit
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_device import LiveLinkDevice
+from app.models.vehicle_telemetry import VehicleTelemetry
 from app.services.settings_service import SettingsService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.movement_keys import is_parked_heartbeat_key, is_speed_param_key
+from app.utils.odometer_units import is_odometer_param_key
 
 logger = logging.getLogger(__name__)
+
+#: How recently a device must have published something for "it reports no
+#: readable movement" to be worth saying. A dongle left in a drawer has no
+#: movement either, and is not a misconfiguration anyone can act on.
+OPERATING_RECENTLY_DAYS = 7
 
 # Token prefix for easy identification
 TOKEN_PREFIX = "ll_"
@@ -195,6 +205,75 @@ class LiveLinkService:
             select(LiveLinkDevice).order_by(LiveLinkDevice.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def movement_unreadable_device_ids(self, devices: Sequence[LiveLinkDevice]) -> set[str]:
+        """Device ids whose movement this codebase cannot read, by vocabulary.
+
+        A device recording no drives is either parked, not driven yet, or
+        publishing its speed under a name nothing here recognises. Only the last
+        is a problem, and it is a fact about the device's KEYS, not about time:
+
+        * it is publishing something beyond the parked battery heartbeat, and
+        * none of what it publishes is a speed or an odometer this codebase
+          knows.
+
+        RPM does not count as readable, though it is a movement signal. An
+        engine turning with the vehicle stationary is a remote start or a
+        warm-up, so RPM opens a PENDING drive and never confirms one
+        (`session_boundaries`). A device whose RPM is legible but whose speed
+        arrives under an unrecognised name still records no sessions at all,
+        which is precisely the cohort this names.
+
+        Deliberately NOT ``last_movement_at IS NULL``, and not that paired with
+        recent telemetry either. Both have been tried and both named entire
+        fleets on the first boot after upgrading. The bare column is true for
+        every device migration 098 touches, by construction. Pairing it with
+        seven days of telemetry HISTORY is worse for being subtler: the column
+        can only be written by telemetry arriving AFTER the migration while the
+        history is almost entirely from before it, so the two halves measure
+        different time bases and every device driven in the last week but not
+        since the upgrade comes out flagged.
+
+        Asking about the vocabulary removes time from the question. A device
+        that has never moved is not misdescribed, because "can this be read" and
+        "has this moved yet" are different questions and only the first has an
+        action attached.
+
+        One query per candidate, reading DISTINCT keys off
+        `uq_telemetry_dedup` (`device_id`, `param_key`, `timestamp`) so it is an
+        index-only scan returning a device's key vocabulary (tens of rows), not
+        its telemetry. Candidates are filtered in Python first, from columns
+        already loaded, so a fleet with nothing to answer costs no SQL at all.
+        """
+        cutoff = utc_now() - timedelta(days=OPERATING_RECENTLY_DAYS)
+        candidates = [
+            device.device_id
+            for device in devices
+            # A dongle dormant in a drawer publishes nothing and is not
+            # misconfigured. An unset `last_seen` still asks: SD-card backfill
+            # inserts telemetry without going through `store_telemetry`, so it
+            # is not proof of an unused device.
+            if device.enabled
+            and device.vin is not None
+            and (device.last_seen is None or device.last_seen >= cutoff)
+        ]
+        if not candidates:
+            return set()
+
+        unreadable = set()
+        for device_id in candidates:
+            rows = await self.db.execute(
+                select(VehicleTelemetry.param_key)
+                .where(VehicleTelemetry.device_id == device_id)
+                .where(VehicleTelemetry.timestamp >= cutoff)
+                .distinct()
+            )
+            keys = [key for (key,) in rows.all()]
+            operating = any(not is_parked_heartbeat_key(key) for key in keys)
+            readable = any(is_speed_param_key(key) or is_odometer_param_key(key) for key in keys)
+            if operating and not readable:
+                unreadable.add(device_id)
+        return unreadable
 
     # =========================================================================
     # SD-Card Backfill Helpers
@@ -549,6 +628,39 @@ class LiveLinkService:
         """Get alert cooldown period in minutes."""
         setting = await SettingsService.get(self.db, "livelink_alert_cooldown_minutes")
         return int(setting.value) if setting and setting.value else 30
+
+    async def get_session_gap_minutes(self) -> int:
+        """Minutes stationary-but-connected before a stop becomes a separate drive.
+
+        Its own setting, NOT the session timeout. The two answer different
+        questions -- "has this device gone quiet?" is not "was that the same
+        drive?" -- and conflating them means an admin cannot fix trip grouping
+        without also changing failure detection.
+
+        Five minutes would also be actively wrong for the vehicles the movement
+        predicate exists to rescue. An ICE vehicle idling at a light keeps RPM
+        and survives a movement-measured timeout; a stationary EV reports
+        neither speed nor RPM, so every EV stop over five minutes -- a
+        drive-through, a school pickup, a charging stop, a drawbridge -- would
+        split the drive.
+
+        Governs BOTH the live path and SD replay, so a drive that arrived off
+        the card and a live drive are cut the same way.
+        """
+        setting = await SettingsService.get(self.db, "livelink_session_gap_minutes")
+        return int(setting.value) if setting and setting.value else 15
+
+    async def get_session_boundary_mode(self) -> str:
+        """``'movement'`` (default) or ``'contact'`` (the pre-v3.3.0 rule).
+
+        An escape hatch, not a feature. For a device whose signals nothing
+        recognises, ``contact`` keeps producing REAL drives rather than phantom
+        ones -- and it gives an operator a way to bisect a bad upgrade on an
+        instance where downgrading is not possible.
+        """
+        setting = await SettingsService.get(self.db, "livelink_session_boundary_mode")
+        value = (setting.value or "").strip().lower() if setting else ""
+        return value if value in {"movement", "contact"} else "movement"
 
     async def get_session_grace_period_seconds(self) -> int:
         """Get session grace period in seconds (0 = disabled)."""

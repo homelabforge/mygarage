@@ -28,6 +28,7 @@ import {
   Download,
 } from 'lucide-react'
 import { livelinkService } from '@/services/livelinkService'
+import NoMovementSignalNotice from '@/components/livelink/NoMovementSignalNotice'
 import { vehicleService } from '@/services/vehicleService'
 import { Select, Drawer, Toggle } from '@/components/ui'
 import type {
@@ -754,6 +755,8 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                 </div>
               </section>
 
+              <NoMovementSignalNotice devices={devices?.devices ?? []} />
+
               {/* Section: Alerts & Notifications */}
               <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
                 <div className="flex items-center gap-2 mb-4">
@@ -820,7 +823,52 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                       {t('modal.livelink.sessionGracePeriodDesc')}
                     </p>
                   </div>
-                  <div /> {/* Empty cell for grid alignment */}
+                  <div>
+                    <label className="block text-sm font-medium text-garage-text mb-1">
+                      {t('modal.livelink.sessionGap')}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="240"
+                        value={settings?.session_gap_minutes ?? 15}
+                        onChange={(e) => handleSaveSettings({ session_gap_minutes: parseInt(e.target.value) })}
+                        disabled={saving}
+                        className="w-20 px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text text-sm focus:ring-2 focus:ring-primary"
+                      />
+                      <span className="text-garage-text-muted text-sm">{t('modal.livelink.minutes')}</span>
+                    </div>
+                    <p className="text-xs text-garage-text-muted mt-1">
+                      {t('modal.livelink.sessionGapDesc')}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-garage-text mb-1">
+                      {t('modal.livelink.boundaryMode')}
+                    </label>
+                    <Select
+                      value={settings?.session_boundary_mode ?? 'movement'}
+                      onChange={(e) =>
+                        handleSaveSettings({
+                          // The API accepts only these two, and the Select offers only
+                          // these two, but `e.target.value` is a bare string: the cast
+                          // is where those two facts are tied together.
+                          session_boundary_mode: e.target.value as 'movement' | 'contact',
+                        })
+                      }
+                      disabled={saving}
+                      options={[
+                        { value: 'movement', label: t('modal.livelink.boundaryModeMovement') },
+                        { value: 'contact', label: t('modal.livelink.boundaryModeContact') },
+                      ]}
+                    />
+                    <p className="text-xs text-garage-text-muted mt-1">
+                      {settings?.session_boundary_mode === 'contact'
+                        ? t('modal.livelink.boundaryModeContactDesc')
+                        : t('modal.livelink.boundaryModeMovementDesc')}
+                    </p>
+                  </div>
                   <div className="col-span-2 grid grid-cols-2 gap-3">
                     <Toggle
                       label={t('modal.livelink.notifyNewDevice')}

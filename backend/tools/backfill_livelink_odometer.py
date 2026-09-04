@@ -41,6 +41,7 @@ from app.utils.odometer_units import (  # noqa: E402
     odometer_value_to_km,
     resolve_odometer_unit,
 )
+from tools._tool_db import as_date, resolve_sync_url  # noqa: E402
 
 #: Below this, a "mi" device's stored telemetry already sits in the same range
 #: as the vehicle's kilometre odometer records, so it has been converted and
@@ -51,7 +52,12 @@ ALREADY_CANONICAL_RATIO = 1.4
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", required=True, help="Path to mygarage.db")
+    parser.add_argument(
+        "--db",
+        help=(
+            "Database to operate on: a path to mygarage.db, or a full SQLAlchemy URL (postgresql+asyncpg://...). Omit to use the instance's configured database, which is the right choice when running inside the container."
+        ),
+    )
     parser.add_argument("--vin", help="Limit to one VIN (default: every affected vehicle)")
     parser.add_argument(
         "--apply",
@@ -64,7 +70,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     """Reconstruct and optionally write the missing odometer records."""
     args = _parse_args()
-    engine = create_engine(f"sqlite:///{args.db}")
+    engine = create_engine(resolve_sync_url(args.db))
 
     with engine.begin() as conn:
         devices = {
@@ -135,7 +141,7 @@ def main() -> int:
                 continue
             if args.vin and row.vin != args.vin:
                 continue
-            day = date.fromisoformat(row.day)
+            day = as_date(row.day)
             key = (row.vin, day)
             if key not in best or row.value > best[key][0]:
                 best[key] = (row.value, row.param_key, row.device_id)
@@ -146,7 +152,7 @@ def main() -> int:
 
         # Days that already carry a record of any source are left alone.
         taken: set[tuple[str, date]] = {
-            (row.vin, date.fromisoformat(row.date))
+            (row.vin, as_date(row.date))
             for row in conn.execute(text("SELECT vin, date FROM odometer_records"))
         }
 
@@ -160,7 +166,7 @@ def main() -> int:
         for row in conn.execute(
             text("SELECT vin, date, odometer_km FROM odometer_records ORDER BY date")
         ):
-            existing[row.vin].append((date.fromisoformat(row.date), float(row.odometer_km)))
+            existing[row.vin].append((as_date(row.date), float(row.odometer_km)))
 
         def _floor_for(vin: str, day: date) -> float:
             """Highest odometer already recorded on or before ``day``."""

@@ -1,12 +1,23 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Gauge, AlertTriangle, Pencil } from 'lucide-react'
+import { Plus, Trash2, Gauge, AlertTriangle, Pencil, RotateCw, Layers } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
-import type { Tire, TirePosition, TireReading } from '../types/tire'
+import type { MountedPosition, Tire, TirePosition, TireReading, TireSet } from '../types/tire'
 import {
   useTires,
-  useUpsertTire,
+  useCreateTire,
+  useCreateAndMountTire,
+  useDismountTire,
+  useMountTire,
+  useRetireTire,
+  useRotateTires,
+  useTireSets,
+  useCreateTireSet,
+  useUpdateTireSet,
+  useDeleteTireSet,
+  useMountTireSet,
+  useUpdateTire,
   useAddTireReading,
   useDeleteTire,
 } from '../hooks/queries/useTires'
@@ -19,7 +30,49 @@ import {
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { Button, IconButton, Card, Chip, Drawer, EmptyState, Input, Field, ListRow } from './ui'
 
-const POSITIONS: TirePosition[] = ['FL', 'FR', 'RL', 'RR', 'SPARE']
+const POSITIONS: MountedPosition[] = ['FL', 'FR', 'RL', 'RR', 'SPARE']
+
+/**
+ * The corners a rotation moves.
+ *
+ * SPARE is deliberately not one of them. A five-tire rotation that works the
+ * spare into the pattern is a real thing, but it is only correct for a
+ * full-size matching spare, and getting it wrong puts a temporary spare into
+ * daily service. The rotate endpoint takes an arbitrary move list, so that
+ * case stays expressible; this UI does not guess at it.
+ */
+const ROTATION_CORNERS = ['FL', 'FR', 'RL', 'RR'] as const
+type RotationCorner = (typeof ROTATION_CORNERS)[number]
+
+type RotationPatternId = 'forwardCross' | 'rearwardCross' | 'xPattern' | 'frontToBack'
+
+/**
+ * Where each corner's tire goes, per standard pattern.
+ *
+ * These are the four patterns every tire manufacturer publishes, and which one
+ * is right depends on the drivetrain, so the drawer names the drivetrain
+ * rather than making the user recognise the diagram.
+ *
+ * Every entry must be a PERMUTATION of `ROTATION_CORNERS`: a typo that sends
+ * two tires to one corner is rejected by the request schema with a 422 the
+ * user cannot act on, and one that drops a corner would silently leave a tire
+ * where it was. `TireList.rotationPatterns.test.ts` asserts the property, one
+ * pattern at a time, rather than trusting four hand-written maps to be read
+ * correctly.
+ */
+const ROTATION_PATTERNS: Record<RotationPatternId, Record<RotationCorner, RotationCorner>> = {
+  // The fronts go straight back; the rears cross to the front. FWD wears the
+  // fronts, so the worn pair moves to the axle that wears less.
+  forwardCross: { FL: 'RL', FR: 'RR', RL: 'FR', RR: 'FL' },
+  // The mirror image, for RWD and 4WD, which wear the rears.
+  rearwardCross: { FL: 'RR', FR: 'RL', RL: 'FL', RR: 'FR' },
+  xPattern: { FL: 'RR', FR: 'RL', RL: 'FR', RR: 'FL' },
+  // The only pattern that keeps every tire on its own side, which is what a
+  // directional tread pattern requires.
+  frontToBack: { FL: 'RL', FR: 'RR', RL: 'FL', RR: 'FR' },
+}
+
+const ROTATION_PATTERN_IDS = Object.keys(ROTATION_PATTERNS) as RotationPatternId[]
 
 /**
  * The canonical origin of every unit-bearing field on the tire form.
@@ -37,7 +90,12 @@ interface TireFormOrigins {
 }
 
 interface TireFormState {
+  /** Null means "into storage": a tire owned but not on the vehicle. */
   position: TirePosition
+  /** Null means ungrouped. Only editable on an EXISTING tire: `POST /tires`
+   *  does not take a `set_id`, because a set is a label you apply to a tire
+   *  you already own rather than part of its identity. */
+  set_id: number | null
   brand: string
   model_name: string
   size: string
@@ -107,7 +165,43 @@ interface TireListProps {
 export default function TireList({ vin }: TireListProps) {
   const { t } = useTranslation('vehicles')
   const { data, isLoading, error } = useTires(vin)
-  const upsert = useUpsertTire(vin)
+  const createTire = useCreateTire(vin)
+  const createAndMount = useCreateAndMountTire(vin)
+  const updateTire = useUpdateTire(vin)
+  const mount = useMountTire(vin)
+  const dismount = useDismountTire(vin)
+  const retire = useRetireTire(vin)
+  const rotate = useRotateTires(vin)
+  const [retireTireId, setRetireTireId] = useState<number | null>(null)
+  const [rotateOpen, setRotateOpen] = useState(false)
+  const [rotatePattern, setRotatePattern] = useState<RotationPatternId>('forwardCross')
+  const sets = useTireSets(vin)
+  const createSet = useCreateTireSet(vin)
+  const updateSet = useUpdateTireSet(vin)
+  const deleteSet = useDeleteTireSet(vin)
+  const mountSet = useMountTireSet(vin)
+  const [setsOpen, setSetsOpen] = useState(false)
+  const [newSetName, setNewSetName] = useState('')
+  const [renamingSetId, setRenamingSetId] = useState<number | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  /* The fit form expands INSIDE the sets drawer rather than opening a second
+   * one. `<Drawer>` sets `inert` on #root, so a drawer opened from a drawer is
+   * dead rather than merely behind -- and a fit needs one field, which does not
+   * justify a nested surface even if it worked. */
+  const [fittingSetId, setFittingSetId] = useState<number | null>(null)
+  const [fitOdometer, setFitOdometer] = useState('')
+  const [mountTireId, setMountTireId] = useState<number | null>(null)
+  const [dismountTireId, setDismountTireId] = useState<number | null>(null)
+  const [mountPosition, setMountPosition] = useState<MountedPosition>('FL')
+  /* Separate odometer state per drawer. They were briefly one field, which
+   * meant a value typed into Mount and abandoned reappeared in Dismount --
+   * and silently became that period's closing bound. A wrong odometer here is
+   * not a cosmetic slip: it is the number the tire's whole distance is
+   * computed from. */
+  const [mountOdometer, setMountOdometer] = useState('')
+  const [dismountOdometer, setDismountOdometer] = useState('')
+  const [retireOdometer, setRetireOdometer] = useState('')
+  const [rotateOdometer, setRotateOdometer] = useState('')
   const addReading = useAddTireReading(vin)
   const remove = useDeleteTire(vin)
   /* Every unit on this card and in both drawers resolves through `u`, per
@@ -141,6 +235,7 @@ export default function TireList({ vin }: TireListProps) {
     const pressure = seedUnitField(num(tire?.pressure_kpa), u.pressure)
     return {
       position,
+      set_id: tire?.set_id ?? null,
       brand: tire?.brand ?? '',
       model_name: tire?.model_name ?? '',
       size: tire?.size ?? '',
@@ -161,8 +256,53 @@ export default function TireList({ vin }: TireListProps) {
   const [readingForm, setReadingForm] = useState<ReadingFormState>(emptyReadingForm)
 
   const tires = data?.tires ?? []
-  const takenPositions = new Set(tires.map((tire: Tire) => tire.position))
+  /* A stored tire occupies no corner, so its null position must not be
+   * counted as taken -- otherwise dismounting a tire would make its old
+   * corner permanently unavailable. */
+  const takenPositions = new Set(
+    tires.map((tire: Tire) => tire.position).filter((p): p is MountedPosition => p != null)
+  )
   const freePositions = POSITIONS.filter((p) => !takenPositions.has(p))
+  const mountedTires = tires.filter((tire: Tire) => tire.position != null)
+  const storedTires = tires.filter((tire: Tire) => tire.position == null)
+
+  /* Rotation is all-or-nothing server-side, so the button is only offered when
+     every corner it would move is actually occupied. Sending a move for an
+     empty corner is a 404 on the missing tire; sending a partial pattern is a
+     409 on the corner held by a tire that is not in the rotation. Neither is
+     something a user can act on, and both are avoidable by looking at the list
+     that is already on screen. */
+  const tireAt = (position: RotationCorner): Tire | undefined =>
+    mountedTires.find((tire: Tire) => tire.position === position)
+  const canRotate = ROTATION_CORNERS.every((corner) => tireAt(corner) !== undefined)
+
+  /* `tire_ids` and `mounted_count` carry server-side defaults, so the generated
+     type marks them optional even though every response has them. Normalised
+     once here rather than defended at each of the four places below -- the
+     shape of lie that has cost this codebase two Criticals before. */
+  const tireSets = (sets.data?.sets ?? []).map((s: TireSet) => ({
+    ...s,
+    tire_ids: s.tire_ids ?? [],
+    mounted_count: s.mounted_count ?? 0,
+  }))
+  /* Stored tires grouped by set, ungrouped last. Rendering them as one flat
+     list is what makes a second seasonal set unreadable: four winter tires and
+     a spare look the same, and the whole reason a set exists is to say which
+     four move together. */
+  const storedGroups: { key: string; label: string; tires: Tire[] }[] = [
+    ...tireSets
+      .map((s) => ({
+        key: `set-${s.id}`,
+        label: s.name,
+        tires: storedTires.filter((tire: Tire) => tire.set_id === s.id),
+      }))
+      .filter((group) => group.tires.length > 0),
+    {
+      key: 'ungrouped',
+      label: t('tireList.setUngrouped'),
+      tires: storedTires.filter((tire: Tire) => tire.set_id == null),
+    },
+  ].filter((group) => group.tires.length > 0)
 
   /* Derived from the live list rather than held in state: a mutation refetches
    * and replaces every Tire object, so a captured one would go stale the moment
@@ -180,12 +320,129 @@ export default function TireList({ vin }: TireListProps) {
    * user. The Record type keeps the map exhaustive. Chips still show the short
    * codes — these are for the card heading and the drawer titles, where there
    * is room and where "FL" was untranslatable English in every locale. */
-  const positionLabels: Record<TirePosition, string> = {
+  const rotationPatternLabels: Record<RotationPatternId, { name: string; desc: string }> = {
+    forwardCross: {
+      name: t('tireList.rotatePatterns.forwardCross'),
+      desc: t('tireList.rotatePatterns.forwardCrossDesc'),
+    },
+    rearwardCross: {
+      name: t('tireList.rotatePatterns.rearwardCross'),
+      desc: t('tireList.rotatePatterns.rearwardCrossDesc'),
+    },
+    xPattern: {
+      name: t('tireList.rotatePatterns.xPattern'),
+      desc: t('tireList.rotatePatterns.xPatternDesc'),
+    },
+    frontToBack: {
+      name: t('tireList.rotatePatterns.frontToBack'),
+      desc: t('tireList.rotatePatterns.frontToBackDesc'),
+    },
+  }
+
+  const positionLabels: Record<MountedPosition, string> = {
     FL: t('tireList.positions.FL'),
     FR: t('tireList.positions.FR'),
     RL: t('tireList.positions.RL'),
     RR: t('tireList.positions.RR'),
     SPARE: t('tireList.positions.SPARE'),
+  }
+
+  /**
+   * A name for a tire's current position, including when it has none.
+   *
+   * `position` is nullable since v3.3.0, and a stored tire still has to be
+   * identifiable in a list, a drawer title and an aria-label. Typed against
+   * `MountedPosition` so `positionLabels[null]` cannot type-check anywhere:
+   * every caller comes through here and gets the storage wording instead of
+   * an `undefined` rendered into the UI.
+   */
+  const labelFor = (position: TirePosition): string =>
+    position ? positionLabels[position] : t('tireList.inStorage')
+
+  /**
+   * What to show for "distance on this tire", for every status.
+   *
+   * Six statuses, each with its own wording, because the previous single
+   * "unknown" collapsed five different repairs into one message. In
+   * particular `nothing_bounded` is the state of EVERY tire immediately after
+   * upgrading -- migration 097 gives each existing tire an assumed mount
+   * period whose start odometer is unknown -- so it is the common case rather
+   * than an edge one, and it must never render as "0 km".
+   *
+   * Spelled out as literal t() calls rather than
+   * t(`tireList.distance.${status}`): validate-i18n-usage scans for string
+   * literals, so a computed key is invisible to it and a missing translation
+   * would ship a raw key to the user.
+   */
+  /**
+   * What to show for the wear projection, for every status.
+   *
+   * The card used to render a bare "—" whenever `projected_km_remaining` was
+   * null, which covers seven different situations with one uninformative
+   * dash. Driving the real production data made the cost obvious: every tire
+   * on the maintainer's own instance showed "Wear Estimate —" and nothing
+   * about what to do, which is the same dead end the typed statuses exist to
+   * replace.
+   */
+  const wearSummary = (tire: Tire): string => {
+    const projection = (): string =>
+      tire.projected_km_remaining != null
+        ? `~${u.distance.format(num(tire.projected_km_remaining))}` +
+            (tire.projected_wear_date
+              ? ` · ${formatDateForDisplay(tire.projected_wear_date)}`
+              : '')
+        : '—'
+
+    switch (tire.wear_status) {
+      case 'projected':
+        return projection()
+      case 'at_or_below_minimum':
+        return t('tireList.wear.replaceNow')
+      case 'no_minimum_set':
+        return t('tireList.wear.noMinimum')
+      case 'insufficient_readings':
+        return t('tireList.wear.needsSecondReading')
+      case 'no_reading_odometers':
+        return t('tireList.wear.needsReadingOdometer')
+      case 'tread_not_decreasing':
+        return t('tireList.wear.treadNotDecreasing')
+      case 'no_distance_on_tire':
+      case 'unverified_mount_history':
+        return t('tireList.wear.needsMountOdometer')
+      default:
+        // No status on the payload at all: a response cached by a client that
+        // predates v3.3.0, or any future member this switch has not learned
+        // yet. Fall back to the number if one is present rather than hiding a
+        // figure the server did send -- an unknown status is a reason to stop
+        // explaining, not a reason to withhold.
+        return projection()
+    }
+  }
+
+  const distanceSummary = (tire: Tire): string => {
+    switch (tire.distance_status) {
+      case 'complete':
+        return tire.distance_km != null ? u.distance.format(num(tire.distance_km)) : '—'
+      case 'incomplete':
+        return tire.known_distance_km != null
+          ? t('tireList.distance.since', {
+              distance: u.distance.format(num(tire.known_distance_km)),
+              date: tire.known_distance_since
+                ? formatDateForDisplay(tire.known_distance_since)
+                : '',
+            })
+          : t('tireList.distance.nothingBounded')
+      case 'nothing_bounded':
+        return t('tireList.distance.nothingBounded')
+      case 'no_periods':
+        return t('tireList.distance.noPeriods')
+      case 'spare_only':
+        return t('tireList.distance.spareOnly')
+      case 'odometer_rollback':
+        return t('tireList.distance.rollback')
+      default:
+        return '—'
+    }
   }
 
   /* One key per field, interpolated with the resolved unit, replacing the pairs
@@ -202,12 +459,21 @@ export default function TireList({ vin }: TireListProps) {
    * Instead, Add only offers unoccupied positions and Edit locks the position. */
   const openAddForm = () => {
     setEditingTireId(null)
-    setForm(seedTireForm(null, freePositions[0] ?? 'FL'))
+    // Storage, not 'FL', when every corner is taken. The old fallback selected
+    // an OCCUPIED chip that the form then refused to submit, and the Add button
+    // was disabled outright in that state -- so the one moment a second set
+    // most obviously needs entering, four tires already on the vehicle, was the
+    // one moment nothing could be entered at all.
+    setForm(seedTireForm(null, freePositions[0] ?? null))
     setFormOpen(true)
   }
 
   const openEditForm = (tire: Tire) => {
     setEditingTireId(tire.id)
+    // The tire's OWN position, including null. It used to fall back to the
+    // first free corner, which titled a stored tire's drawer after a corner it
+    // was not in. Editing never moves a tire either way: position changes
+    // through mount, dismount and rotate.
     setForm(seedTireForm(tire, tire.position))
     setFormOpen(true)
   }
@@ -245,37 +511,198 @@ export default function TireList({ vin }: TireListProps) {
   }
 
   const handleSave = () => {
-    upsert.mutate(
+    // Create-and-mount for a new tire, PUT for an existing one.
+    //
+    // Before v3.3.0 both were one POST that upserted by position, so the same
+    // payload covered both. It no longer does: a POST to an occupied corner is
+    // now a 409, and `position` is not a writable field on a tire at all --
+    // where a tire sits changes through mount/dismount, not through its
+    // metadata form.
+    const shared = {
+      brand: form.brand || null,
+      model_name: form.model_name || null,
+      size: form.size || null,
+      dot_code: form.dot_code || null,
+      tread_depth_mm: canonicalFromUnitField(
+        form.tread_depth_mm,
+        form.origins.tread_depth_mm,
+        u.tread
+      ),
+      pressure_kpa: canonicalFromUnitField(
+        form.pressure_kpa,
+        form.origins.pressure_kpa,
+        u.pressure
+      ),
+      min_tread_mm:
+        canonicalFromUnitField(form.min_tread_mm, form.origins.min_tread_mm, u.tread) ??
+        DEFAULT_MIN_TREAD_MM,
+      notes: form.notes || null,
+    }
+
+    const handlers = {
+      onSuccess: () => {
+        toast.success(t('tireList.saved'))
+        closeForm()
+      },
+      onError: (err: unknown) => {
+        toast.error(getActionErrorMessage(err, t('tireList.saveAction')))
+      },
+    }
+
+    if (editingTireId !== null) {
+      // `set_id` goes ONLY here. `TireCreate` declares extra="forbid", so
+      // sending it on a create is a 422 rather than a field the server ignores
+      // -- membership is a label applied to a tire you already own.
+      updateTire.mutate({ tireId: editingTireId, set_id: form.set_id, ...shared }, handlers)
+      return
+    }
+    // `POST /tires` forbids a `position` key outright (extra="forbid"), so the
+    // two creates cannot share one payload: passing `position: null` to it is a
+    // 422, not a null.
+    if (form.position == null) {
+      createTire.mutate({ vin, ...shared }, handlers)
+      return
+    }
+    createAndMount.mutate({ vin, position: form.position, ...shared }, handlers)
+  }
+
+  /**
+   * Retire the tire the retire drawer is open on.
+   *
+   * Separate from `handleDelete` on purpose, and it is the one users should
+   * reach for: retiring keeps every reading and every mount period, which is
+   * the history this release exists to make worth collecting. Delete stays in
+   * the edit drawer for a tire entered by mistake.
+   */
+  const handleRetire = () => {
+    if (retireTireId === null) return
+    retire.mutate(
       {
-        vin,
-        position: form.position,
-        brand: form.brand || null,
-        model_name: form.model_name || null,
-        size: form.size || null,
-        dot_code: form.dot_code || null,
-        tread_depth_mm: canonicalFromUnitField(
-          form.tread_depth_mm,
-          form.origins.tread_depth_mm,
-          u.tread
+        tireId: retireTireId,
+        dismounted_odometer_km: canonicalFromUnitField(
+          retireOdometer,
+          { canonical: null, display: '' },
+          u.distance
         ),
-        pressure_kpa: canonicalFromUnitField(
-          form.pressure_kpa,
-          form.origins.pressure_kpa,
-          u.pressure
-        ),
-        min_tread_mm:
-          canonicalFromUnitField(form.min_tread_mm, form.origins.min_tread_mm, u.tread) ??
-          DEFAULT_MIN_TREAD_MM,
-        notes: form.notes || null,
       },
       {
         onSuccess: () => {
-          toast.success(t('tireList.saved'))
-          closeForm()
+          toast.success(t('tireList.retired'))
+          setRetireTireId(null)
+          setRetireOdometer('')
         },
-        onError: (err) => {
-          toast.error(getActionErrorMessage(err, t('tireList.saveAction')))
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.retireAction'))),
+      }
+    )
+  }
+
+  const handleCreateSet = () => {
+    const name = newSetName.trim()
+    if (!name) return
+    createSet.mutate(
+      { name },
+      {
+        onSuccess: () => {
+          toast.success(t('tireList.setCreated'))
+          setNewSetName('')
         },
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.setCreateAction'))),
+      }
+    )
+  }
+
+  const handleRenameSet = (setId: number) => {
+    const name = renameValue.trim()
+    if (!name) return
+    updateSet.mutate(
+      { setId, name },
+      {
+        onSuccess: () => {
+          toast.success(t('tireList.setSaved'))
+          setRenamingSetId(null)
+        },
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.setSaveAction'))),
+      }
+    )
+  }
+
+  const handleDeleteSet = (setId: number) => {
+    if (!confirm(t('tireList.setConfirmDelete'))) return
+    deleteSet.mutate(setId, {
+      onSuccess: () => toast.success(t('tireList.setDeleted')),
+      onError: (err: unknown) =>
+        toast.error(getActionErrorMessage(err, t('tireList.setDeleteAction'))),
+    })
+  }
+
+  /**
+   * Fit a whole set: the one action that replaces eight.
+   *
+   * No positions in the payload. The server reads each tire's own mount
+   * history for the corner it was last on, and refuses -- naming the tires --
+   * rather than guessing for one that has never been fitted.
+   */
+  const handleFitSet = (setId: number) => {
+    mountSet.mutate(
+      {
+        setId,
+        odometer_km: canonicalFromUnitField(
+          fitOdometer,
+          { canonical: null, display: '' },
+          u.distance
+        ),
+      },
+      {
+        onSuccess: () => {
+          toast.success(t('tireList.setFitted'))
+          setFittingSetId(null)
+          setFitOdometer('')
+          setSetsOpen(false)
+        },
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.setFitAction'))),
+      }
+    )
+  }
+
+  /**
+   * Apply the selected pattern to the four mounted corners.
+   *
+   * The moves are built from the LIVE list rather than from anything held in
+   * state, so a rotation cannot be submitted against an arrangement that has
+   * since changed. `canRotate` has already established every corner is filled;
+   * the guard here is what makes that a type-level fact rather than a promise.
+   */
+  const handleRotate = () => {
+    const pattern = ROTATION_PATTERNS[rotatePattern]
+    const moves = ROTATION_CORNERS.flatMap((corner) => {
+      const tire = tireAt(corner)
+      return tire ? [{ tire_id: tire.id, position: pattern[corner] }] : []
+    })
+    if (moves.length !== ROTATION_CORNERS.length) {
+      toast.error(t('tireList.rotateNeedsFourCorners'))
+      return
+    }
+    rotate.mutate(
+      {
+        moves,
+        odometer_km: canonicalFromUnitField(
+          rotateOdometer,
+          { canonical: null, display: '' },
+          u.distance
+        ),
+      },
+      {
+        onSuccess: () => {
+          toast.success(t('tireList.rotated'))
+          setRotateOpen(false)
+          setRotateOdometer('')
+        },
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.rotateAction'))),
       }
     )
   }
@@ -369,23 +796,53 @@ export default function TireList({ vin }: TireListProps) {
           <Gauge className="h-5 w-5" />
           {t('tireList.title')}
         </h2>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={openAddForm}
-          disabled={freePositions.length === 0}
-          icon={Plus}
-        >
-          {t('tireList.add')}
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Vehicle-level, so it sits in the header rather than on a card:
+              a rotation is one action on four tires, and putting it on each
+              card would ask which of four identical buttons to press. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Layers}
+            onClick={() => setSetsOpen(true)}
+          >
+            {t('tireList.sets')}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={RotateCw}
+            disabled={!canRotate || rotate.isPending}
+            title={canRotate ? undefined : t('tireList.rotateNeedsFourCorners')}
+            onClick={() => setRotateOpen(true)}
+          >
+            {t('tireList.rotate')}
+          </Button>
+          {/* No longer disabled when every corner is taken: that is exactly
+              when a second seasonal set gets entered, and Add now offers
+              storage as a destination. */}
+          <Button variant="primary" size="sm" onClick={openAddForm} icon={Plus}>
+            {t('tireList.add')}
+          </Button>
+        </div>
       </div>
 
       {tires.length === 0 && (
         <EmptyState icon={Gauge} title={t('tireList.empty')} description={t('tireList.emptyHint')} />
       )}
 
+      {/* Mounted and stored are separate sections, not one list sorted by
+          position. "In storage" is a state a tire spends half the year in
+          now, and a stored tire mixed into the corner list reads as a corner
+          whose label failed to render. The heading only appears when there is
+          something in it, so a single-set owner sees exactly what they saw
+          before this release. */}
+      {storedTires.length > 0 && (
+        <h3 className="text-sm font-semibold text-text-mute">{t('tireList.onTheVehicle')}</h3>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
-        {tires.map((tire: Tire) => (
+        {mountedTires.map((tire: Tire) => (
           <Card key={tire.id} padding="sm" className="relative space-y-2">
             {/* A full-bleed sibling button, which is a fourth clickable-card
                 shape in this codebase and deliberately so. `Card interactive`
@@ -403,14 +860,14 @@ export default function TireList({ vin }: TireListProps) {
               type="button"
               className="ui-focus-ring absolute inset-0 rounded-card"
               aria-label={t('tireList.historyOpen', {
-                position: positionLabels[tire.position],
+                position: labelFor(tire.position),
               })}
               onClick={() => setHistoryTireId(tire.id)}
             />
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="font-semibold flex items-center gap-2">
-                  {positionLabels[tire.position]}
+                  {labelFor(tire.position)}
                   {tire.below_threshold && (
                     <span className="inline-flex items-center gap-1 text-xs text-danger">
                       <AlertTriangle className="h-3.5 w-3.5" />
@@ -453,26 +910,540 @@ export default function TireList({ vin }: TireListProps) {
                 {tire.pressure_kpa != null ? u.pressure.format(num(tire.pressure_kpa)) : '—'}
               </dd>
               <dt className="text-text-mute">{t('tireList.projection')}</dt>
-              <dd className="font-mono text-xs">
-                {tire.projected_km_remaining != null
-                  ? `~${u.distance.format(num(tire.projected_km_remaining))}`
-                  : '—'}
-                {tire.projected_wear_date
-                  ? ` · ${formatDateForDisplay(tire.projected_wear_date)}`
-                  : ''}
-              </dd>
+              <dd className="font-mono text-xs">{wearSummary(tire)}</dd>
+              {/* Distance on tire belongs on the MOUNTED card, not only on the
+                  stored one. It is the number this whole release exists to
+                  make correct, and leaving it off the card people actually
+                  look at made the feature invisible on real data. */}
+              <dt className="text-text-mute">{t('tireList.distanceOnTire')}</dt>
+              <dd className="font-mono text-xs">{distanceSummary(tire)}</dd>
             </dl>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="relative z-10"
-              onClick={() => openReadingForm(tire)}
-            >
-              {t('tireList.addReading')}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="relative z-10"
+                onClick={() => openReadingForm(tire)}
+              >
+                {t('tireList.addReading')}
+              </Button>
+              {/* Dismount, not delete. Taking a tire off for the season keeps
+                  every reading and mount period; the destructive action stays
+                  in the edit drawer where a mis-tap cannot reach it. */}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="relative z-10"
+                disabled={dismount.isPending}
+                onClick={() => setDismountTireId(tire.id)}
+              >
+                {t('tireList.dismount')}
+              </Button>
+              {/* Retire sits beside Dismount and not beside Delete, because
+                  the mis-tap this arrangement guards against is the one that
+                  actually happens: reaching for Delete when you mean "I
+                  replaced this tire". The drawer it opens IS the confirmation
+                  step, and it explains the difference. */}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="relative z-10"
+                disabled={retire.isPending}
+                onClick={() => setRetireTireId(tire.id)}
+              >
+                {t('tireList.retire')}
+              </Button>
+            </div>
           </Card>
         ))}
       </div>
+
+      {storedTires.length > 0 && (
+        <>
+          <h3 className="text-sm font-semibold text-text-mute">{t('tireList.inStorageHeading')}</h3>
+          {storedGroups.map((group) => (
+        <div key={group.key} className="space-y-2">
+          {/* The set's own name, so four winter tires read as a set rather
+              than as four unrelated cards. Only rendered when more than one
+              group exists: a single-set owner should see exactly what they
+              saw before sets existed. */}
+          {storedGroups.length > 1 && (
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-text-mute">
+              {group.label}
+            </h4>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {group.tires.map((tire: Tire) => (
+              <Card key={tire.id} padding="sm" className="space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-semibold">{labelFor(tire.position)}</div>
+                    <div className="text-sm text-text-mute">
+                      {[tire.brand, tire.model_name, tire.size].filter(Boolean).join(' · ') || '—'}
+                    </div>
+                  </div>
+                  <IconButton
+                    icon={Pencil}
+                    label={t('tireList.edit')}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEditForm(tire)}
+                  />
+                </div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                  <dt className="text-text-mute">{t('tireList.tread')}</dt>
+                  <dd className="font-mono">
+                    {tire.tread_depth_mm != null ? u.tread.format(num(tire.tread_depth_mm)) : '—'}
+                  </dd>
+                  <dt className="text-text-mute">{t('tireList.distanceOnTire')}</dt>
+                  <dd className="font-mono">{distanceSummary(tire)}</dd>
+                </dl>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={freePositions.length === 0 || mount.isPending}
+                    onClick={() => setMountTireId(tire.id)}
+                  >
+                    {t('tireList.mount')}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setHistoryTireId(tire.id)}>
+                    {t('tireList.history')}
+                  </Button>
+                  {/* A set can wear out and be replaced without ever going
+                      back on the vehicle, so retire has to reach a stored
+                      tire too. */}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={retire.isPending}
+                    onClick={() => setRetireTireId(tire.id)}
+                  >
+                    {t('tireList.retire')}
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+          ))}
+        </>
+      )}
+
+      {/* Mount and dismount are their own drawers, not confirm dialogs: both
+          carry an odometer reading, and that reading is what makes the tire's
+          distance computable at all. A confirm with no field would produce a
+          mount period with no bound, which reports "not recorded yet" forever
+          -- the exact dead end this release exists to get out of. */}
+      <Drawer
+        open={mountTireId !== null}
+        onClose={() => setMountTireId(null)}
+        title={t('tireList.mountTitle')}
+        icon={Gauge}
+        width="xs"
+        closeLabel={t('common:close')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setMountTireId(null)}>
+              {t('common:cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={mount.isPending}
+              onClick={() => {
+                if (mountTireId === null) return
+                mount.mutate(
+                  {
+                    tireId: mountTireId,
+                    position: mountPosition,
+                    mounted_odometer_km: canonicalFromUnitField(
+                      mountOdometer,
+                      { canonical: null, display: '' },
+                      u.distance
+                    ),
+                  },
+                  {
+                    onSuccess: () => {
+                      toast.success(t('tireList.mounted'))
+                      setMountTireId(null)
+                      setMountOdometer('')
+                    },
+                    onError: (err: unknown) =>
+                      toast.error(getActionErrorMessage(err, t('tireList.mountAction'))),
+                  }
+                )
+              }}
+            >
+              {t('tireList.mount')}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Field id="mount-position" label={t('tireList.position')}>
+            <div className="flex flex-wrap gap-2">
+              {freePositions.map((position) => (
+                <Chip
+                  key={position}
+                  selected={mountPosition === position}
+                  onClick={() => setMountPosition(position)}
+                >
+                  {position}
+                </Chip>
+              ))}
+            </div>
+          </Field>
+          <Field
+            id="mount-odometer"
+            label={odometerLabel}
+            hint={t('tireList.mountOdometerHint')}
+          >
+            <Input
+              id="mount-odometer"
+              type="number"
+              step={u.distance.step}
+              value={mountOdometer}
+              onChange={(e) => setMountOdometer(e.target.value)}
+            />
+          </Field>
+        </div>
+      </Drawer>
+
+      <Drawer
+        open={dismountTireId !== null}
+        onClose={() => setDismountTireId(null)}
+        title={t('tireList.dismountTitle')}
+        icon={Gauge}
+        width="xs"
+        closeLabel={t('common:close')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDismountTireId(null)}>
+              {t('common:cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={dismount.isPending}
+              onClick={() => {
+                if (dismountTireId === null) return
+                dismount.mutate(
+                  {
+                    tireId: dismountTireId,
+                    dismounted_odometer_km: canonicalFromUnitField(
+                      dismountOdometer,
+                      { canonical: null, display: '' },
+                      u.distance
+                    ),
+                  },
+                  {
+                    onSuccess: () => {
+                      toast.success(t('tireList.dismounted'))
+                      setDismountTireId(null)
+                      setDismountOdometer('')
+                    },
+                    onError: (err: unknown) =>
+                      toast.error(getActionErrorMessage(err, t('tireList.dismountAction'))),
+                  }
+                )
+              }}
+            >
+              {t('tireList.dismount')}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-mute">{t('tireList.dismountHint')}</p>
+          <Field
+            id="dismount-odometer"
+            label={odometerLabel}
+            hint={t('tireList.mountOdometerHint')}
+          >
+            <Input
+              id="dismount-odometer"
+              type="number"
+              step={u.distance.step}
+              value={dismountOdometer}
+              onChange={(e) => setDismountOdometer(e.target.value)}
+            />
+          </Field>
+        </div>
+      </Drawer>
+
+      {/* Retire is its own drawer for the same reason dismount is: it closes a
+          mount period, and a period closed without an odometer is one this
+          tire's distance can never be computed from. The hint is the whole
+          point of the drawer, though -- it is the only place the app says out
+          loud that retiring and deleting are different. */}
+      <Drawer
+        open={retireTireId !== null}
+        onClose={() => setRetireTireId(null)}
+        title={t('tireList.retireTitle')}
+        icon={Gauge}
+        width="xs"
+        closeLabel={t('common:close')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRetireTireId(null)}>
+              {t('common:cancel')}
+            </Button>
+            <Button variant="primary" disabled={retire.isPending} onClick={handleRetire}>
+              {t('tireList.retire')}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-mute">{t('tireList.retireHint')}</p>
+          <Field id="retire-odometer" label={odometerLabel} hint={t('tireList.mountOdometerHint')}>
+            <Input
+              id="retire-odometer"
+              type="number"
+              step={u.distance.step}
+              value={retireOdometer}
+              onChange={(e) => setRetireOdometer(e.target.value)}
+            />
+          </Field>
+        </div>
+      </Drawer>
+
+      <Drawer
+        open={rotateOpen}
+        onClose={() => setRotateOpen(false)}
+        title={t('tireList.rotateTitle')}
+        icon={RotateCw}
+        width="sm"
+        closeLabel={t('common:close')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRotateOpen(false)}>
+              {t('common:cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!canRotate || rotate.isPending}
+              onClick={handleRotate}
+            >
+              {t('tireList.rotate')}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-mute">{t('tireList.rotateHint')}</p>
+          <div>
+            <span id="rotate-pattern-label" className="mb-1 block text-sm font-medium text-text">
+              {t('tireList.rotatePattern')}
+            </span>
+            {/* Named by drivetrain rather than drawn as a diagram: the user
+                knows what they drive, and a four-arrow diagram is the part of
+                every tire-rotation chart people misread. The resulting moves
+                are shown below in full, so the choice is checkable without
+                trusting the name. */}
+            <div
+              role="group"
+              aria-labelledby="rotate-pattern-label"
+              className="flex flex-wrap gap-2"
+            >
+              {ROTATION_PATTERN_IDS.map((id) => (
+                <Chip
+                  key={id}
+                  selected={rotatePattern === id}
+                  onClick={() => setRotatePattern(id)}
+                >
+                  {rotationPatternLabels[id].name}
+                </Chip>
+              ))}
+            </div>
+            <p className="mt-1 text-sm text-text-mute">{rotationPatternLabels[rotatePattern].desc}</p>
+          </div>
+          <div>
+            <span className="mb-1 block text-sm font-medium text-text">
+              {t('tireList.rotatePreview')}
+            </span>
+            <ul className="space-y-1">
+              {ROTATION_CORNERS.map((corner) => (
+                <ListRow
+                  key={corner}
+                  label={positionLabels[corner]}
+                  value={positionLabels[ROTATION_PATTERNS[rotatePattern][corner]]}
+                />
+              ))}
+            </ul>
+          </div>
+          <Field
+            id="rotate-odometer"
+            label={odometerLabel}
+            hint={t('tireList.rotateOdometerHint')}
+          >
+            <Input
+              id="rotate-odometer"
+              type="number"
+              step={u.distance.step}
+              value={rotateOdometer}
+              onChange={(e) => setRotateOdometer(e.target.value)}
+            />
+          </Field>
+        </div>
+      </Drawer>
+
+      <Drawer
+        open={setsOpen}
+        onClose={() => {
+          setSetsOpen(false)
+          setFittingSetId(null)
+          setRenamingSetId(null)
+        }}
+        title={t('tireList.setsTitle')}
+        icon={Layers}
+        width="sm"
+        closeLabel={t('common:close')}
+        footer={
+          <Button variant="ghost" onClick={() => setSetsOpen(false)}>
+            {t('common:close')}
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-mute">{t('tireList.setsHint')}</p>
+
+          {tireSets.length === 0 ? (
+            <EmptyState
+              icon={Layers}
+              size="sm"
+              title={t('tireList.setsEmpty')}
+              description={t('tireList.setsEmptyHint')}
+            />
+          ) : (
+            <ul className="space-y-2">
+              {tireSets.map((tireSet) => (
+                <li key={tireSet.id} className="rounded-card border border-border p-3 space-y-2">
+                  {renamingSetId === tireSet.id ? (
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Field id={`set-rename-${tireSet.id}`} label={t('tireList.setName')}>
+                          <Input
+                            id={`set-rename-${tireSet.id}`}
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                          />
+                        </Field>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={updateSet.isPending}
+                        onClick={() => handleRenameSet(tireSet.id)}
+                      >
+                        {t('common:save')}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setRenamingSetId(null)}>
+                        {t('common:cancel')}
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-semibold">{tireSet.name}</div>
+                          <div className="text-sm text-text-mute">
+                            {t('tireList.setMembership', {
+                              total: tireSet.tire_ids.length,
+                              mounted: tireSet.mounted_count,
+                            })}
+                          </div>
+                        </div>
+                        <IconButton
+                          icon={Trash2}
+                          label={t('common:delete')}
+                          variant="danger"
+                          size="sm"
+                          disabled={deleteSet.isPending}
+                          onClick={() => handleDeleteSet(tireSet.id)}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {/* Fitting an empty set is a 409 the user cannot act
+                            on from here, so the control is not offered until
+                            the set has something in it. */}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={tireSet.tire_ids.length === 0 || mountSet.isPending}
+                          onClick={() => {
+                            setFittingSetId(tireSet.id)
+                            setFitOdometer('')
+                          }}
+                        >
+                          {t('tireList.setFit')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setRenamingSetId(tireSet.id)
+                            setRenameValue(tireSet.name)
+                          }}
+                        >
+                          {t('tireList.setRename')}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {fittingSetId === tireSet.id && (
+                    <div className="space-y-2 border-t border-border pt-2">
+                      <p className="text-sm text-text-mute">{t('tireList.setFitHint')}</p>
+                      <Field id={`set-fit-odometer-${tireSet.id}`} label={odometerLabel}>
+                        <Input
+                          id={`set-fit-odometer-${tireSet.id}`}
+                          type="number"
+                          step={u.distance.step}
+                          value={fitOdometer}
+                          onChange={(e) => setFitOdometer(e.target.value)}
+                        />
+                      </Field>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={mountSet.isPending}
+                          onClick={() => handleFitSet(tireSet.id)}
+                        >
+                          {t('tireList.setFit')}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setFittingSetId(null)}>
+                          {t('common:cancel')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex items-end gap-2 border-t border-border pt-4">
+            <div className="flex-1">
+              <Field id="new-set-name" label={t('tireList.setName')}>
+                <Input
+                  id="new-set-name"
+                  value={newSetName}
+                  onChange={(e) => setNewSetName(e.target.value)}
+                />
+              </Field>
+            </div>
+            <Button
+              variant="primary"
+              icon={Plus}
+              disabled={createSet.isPending || newSetName.trim() === ''}
+              onClick={handleCreateSet}
+            >
+              {t('tireList.setAdd')}
+            </Button>
+          </div>
+        </div>
+      </Drawer>
 
       <Drawer
         open={formOpen}
@@ -482,9 +1453,11 @@ export default function TireList({ vin }: TireListProps) {
            Adding stays the generic "Add Tire": retitling as the position chips
            are pressed would make a create read like an edit. */
         title={
-          editingTireId !== null
-            ? t('tireList.editTitleNamed', { position: positionLabels[form.position] })
-            : t('tireList.addTitle')
+          editingTireId === null
+            ? t('tireList.addTitle')
+            : form.position == null
+              ? t('tireList.editTitleStored')
+              : t('tireList.editTitleNamed', { position: positionLabels[form.position] })
         }
         icon={Gauge}
         width="sm"
@@ -507,7 +1480,7 @@ export default function TireList({ vin }: TireListProps) {
             <Button variant="ghost" onClick={closeForm}>
               {t('common:cancel')}
             </Button>
-            <Button variant="primary" onClick={handleSave} disabled={upsert.isPending}>
+            <Button variant="primary" onClick={handleSave} disabled={createAndMount.isPending || updateTire.isPending}>
               {t('common:save')}
             </Button>
           </>
@@ -555,8 +1528,52 @@ export default function TireList({ vin }: TireListProps) {
                   </Chip>
                 )
               })}
+              {/* Storage is a sixth destination, not a sixth corner. It is the
+                  only way to enter a tire you own but are not fitting today,
+                  which is every second seasonal set, and without it a tire
+                  could only come into the app by being mounted onto a corner
+                  it then had to be dismounted from. */}
+              <Chip
+                selected={form.position == null}
+                onClick={
+                  editingTireId === null ? () => setForm({ ...form, position: null }) : undefined
+                }
+              >
+                {t('tireList.inStorage')}
+              </Chip>
             </div>
+            {editingTireId === null && form.position == null && (
+              <p className="mt-1 text-sm text-text-mute">{t('tireList.storedHint')}</p>
+            )}
           </div>
+          {/* Membership is editable on an EXISTING tire only, because
+              `POST /tires` forbids a `set_id`. Hidden rather than disabled
+              when adding: a control that cannot be used yet reads as broken,
+              and the tire can be filed the moment it is saved. */}
+          {editingTireId !== null && tireSets.length > 0 && (
+            <div className="mb-4">
+              <span id="tire-set-label" className="mb-1 block text-sm font-medium text-text">
+                {t('tireList.setLabel')}
+              </span>
+              <div role="group" aria-labelledby="tire-set-label" className="flex flex-wrap gap-2">
+                <Chip
+                  selected={form.set_id == null}
+                  onClick={() => setForm({ ...form, set_id: null })}
+                >
+                  {t('tireList.setNone')}
+                </Chip>
+                {tireSets.map((tireSet) => (
+                  <Chip
+                    key={tireSet.id}
+                    selected={form.set_id === tireSet.id}
+                    onClick={() => setForm({ ...form, set_id: tireSet.id })}
+                  >
+                    {tireSet.name}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field id="tire-brand" label={t('tireList.brand')}>
               <Input
@@ -621,7 +1638,7 @@ export default function TireList({ vin }: TireListProps) {
         open={readingTire !== null}
         onClose={() => setReadingTireId(null)}
         title={t('tireList.readingTitle', {
-          position: readingTire ? positionLabels[readingTire.position] : '',
+          position: readingTire ? labelFor(readingTire.position) : '',
         })}
         icon={Gauge}
         width="xs"
@@ -684,7 +1701,7 @@ export default function TireList({ vin }: TireListProps) {
         open={historyTire !== null}
         onClose={() => setHistoryTireId(null)}
         title={t('tireList.historyTitle', {
-          position: historyTire ? positionLabels[historyTire.position] : '',
+          position: historyTire ? labelFor(historyTire.position) : '',
         })}
         icon={Gauge}
         width="sm"

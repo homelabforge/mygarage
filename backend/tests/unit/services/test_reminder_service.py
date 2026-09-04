@@ -702,14 +702,28 @@ class TestCheckDueRemindersNaiveLastNotifiedAt:
             reminder_type="hours",
             due_hours=Decimal("500.0"),
             status="pending",
-            last_notified_at=datetime.now(UTC) - timedelta(hours=1),
+            # NAIVE, which is what the column actually holds on both dialects.
+            #
+            # This was seeded AWARE, relying on SQLite's bind processor to drop
+            # the tzinfo on write. PostgreSQL does not: asyncpg rejects an aware
+            # value for `TIMESTAMP WITHOUT TIME ZONE` outright, and because this
+            # suite shares one session the failed flush then poisoned it, taking
+            # two unrelated tests in `test_fuel_hours_economy.py` down with a
+            # PendingRollbackError. Invisible in CI, which runs only
+            # tests/migrations and tests/integration under PostgreSQL.
+            #
+            # The precondition under test is "the stored value is naive", and
+            # seeding it naive establishes that directly rather than by relying
+            # on one dialect's silent coercion.
+            last_notified_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=1),
         )
         db_session.add(reminder)
         await db_session.commit()
         await db_session.refresh(reminder)
 
-        # Confirms the setup actually reproduces the bug's precondition:
-        # the value written as UTC-aware round-trips through SQLite naive.
+        # The precondition, asserted rather than assumed: without a naive stored
+        # value there is no TypeError for `check_due_reminders` to avoid, and
+        # this test would pass against the unfixed code.
         assert reminder.last_notified_at.tzinfo is None
 
         sent_messages: list[str] = []

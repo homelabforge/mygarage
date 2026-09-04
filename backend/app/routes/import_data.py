@@ -73,6 +73,7 @@ from app.utils.csv_units import (
     FUEL_SPEED,
     FUEL_TEMPERATURE,
     FUEL_VOLUME,
+    MILEAGE_LIMIT_DISTANCE,
     ODOMETER_DISTANCE,
     PRICE_PER_VOLUME,
     READING_DISTANCE,
@@ -637,7 +638,12 @@ async def import_odometer_csv(
 
             # Create record
             record = OdometerRecord(vin=vin, date=date, odometer_km=odometer_km, notes=notes)
-            db.add(record)
+            # A savepoint per row. Without it the INSERT is only attempted at
+            # the commit below, which is outside this handler: a CHECK
+            # violation would escape the route as a 500 and discard every
+            # valid row in the file along with the bad one.
+            async with db.begin_nested():
+                db.add(record)
             import_result.add_success()
 
         except Exception as e:
@@ -743,23 +749,29 @@ async def import_warranties_csv(
     """Import warranties from CSV file."""
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
-    # Validate and parse CSV
+    # Validate and parse CSV. Read through the unit machinery rather than a
+    # bare DictReader: `Mileage Limit` is unit-bearing, so the file's own
+    # marker decides whether the number is km or miles. A plain reader cannot
+    # see a tokenised header at all, and would silently store miles as km.
     csv_data = await validate_csv_upload(file)
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    rows, units = _read_csv_with_units(csv_data, (MILEAGE_LIMIT_DISTANCE,))
 
     import_result = ImportResult()
 
-    for row_num, row in enumerate(csv_reader, start=2):
+    for row_num, row in enumerate(rows, start=2):
         try:
             provider = row.get("Provider", "").strip() or None
             warranty_type = row.get("Type", "").strip() or None
-            coverage = row.get("Coverage", "").strip() or None
+            # `Coverage` is the pre-v3.3.0 spelling. Both are read so a file
+            # exported before this release still imports rather than coming
+            # back 200 with every row blamed on the user's file.
+            coverage_details = (
+                row.get("Coverage Details", "") or row.get("Coverage", "")
+            ).strip() or None
+            policy_number = row.get("Policy Number", "").strip() or None
             start_date = parse_date(row.get("Start Date", ""))
             end_date = parse_date(row.get("End Date", ""))
-            cost = parse_decimal(row.get("Cost", ""))
-            deductible = parse_decimal(row.get("Deductible", ""))
-            max_claims = parse_int(row.get("Max Claims", ""))
-            terms = row.get("Terms", "").strip() or None
+            mileage_limit_km = _canonical_cell(units, row, DISTANCE)
             notes = row.get("Notes", "").strip() or None
 
             # Check for duplicates if requested
@@ -780,16 +792,19 @@ async def import_warranties_csv(
                 vin=vin,
                 provider=provider,
                 warranty_type=warranty_type,
-                coverage=coverage,
+                policy_number=policy_number,
+                coverage_details=coverage_details,
                 start_date=start_date,
                 end_date=end_date,
-                cost=cost,
-                deductible=deductible,
-                max_claims=max_claims,
-                terms=terms,
+                mileage_limit_km=mileage_limit_km,
                 notes=notes,
             )
-            db.add(record)
+            # A savepoint per row. Without it the INSERT is only attempted at
+            # the commit below, which is outside this handler: a CHECK
+            # violation would escape the route as a 500 and discard every
+            # valid row in the file along with the bad one.
+            async with db.begin_nested():
+                db.add(record)
             import_result.add_success()
 
         except Exception as e:
@@ -827,7 +842,8 @@ async def import_insurance_csv(
             policy_type = row.get("Type", "").strip() or None
             start_date = parse_date(row.get("Start Date", ""))
             end_date = parse_date(row.get("End Date", ""))
-            premium = parse_decimal(row.get("Premium", ""))
+            premium_amount = parse_decimal(row.get("Premium", ""))
+            premium_frequency = row.get("Premium Frequency", "").strip() or None
             deductible = parse_decimal(row.get("Deductible", ""))
             coverage_limits = row.get("Coverage Limits", "").strip() or None
             notes = row.get("Notes", "").strip() or None
@@ -852,12 +868,18 @@ async def import_insurance_csv(
                 policy_type=policy_type,
                 start_date=start_date,
                 end_date=end_date,
-                premium=premium,
+                premium_amount=premium_amount,
+                premium_frequency=premium_frequency,
                 deductible=deductible,
                 coverage_limits=coverage_limits,
                 notes=notes,
             )
-            db.add(record)
+            # A savepoint per row. Without it the INSERT is only attempted at
+            # the commit below, which is outside this handler: a CHECK
+            # violation would escape the route as a 500 and discard every
+            # valid row in the file along with the bad one.
+            async with db.begin_nested():
+                db.add(record)
             import_result.add_success()
 
         except Exception as e:
@@ -890,20 +912,26 @@ async def import_tax_csv(
 
     for row_num, row in enumerate(csv_reader, start=2):
         try:
-            year = parse_int(row.get("Year", ""))
+            # TaxRecord has `date`, `tax_type`, `amount`, `renewal_date`,
+            # `notes`. This importer previously read `Year`, `Paid Date`,
+            # `Due Date` and `Jurisdiction` and constructed with four
+            # attributes the model does not have, so no tax record has ever
+            # imported. The export writes `Date` and `Renewal Date`; the two
+            # halves now share one vocabulary.
+            record_date = parse_date(row.get("Date", "")) or parse_date(row.get("Paid Date", ""))
             tax_type = row.get("Type", "").strip() or None
             amount = parse_decimal(row.get("Amount", ""))
-            paid_date = parse_date(row.get("Paid Date", ""))
-            due_date = parse_date(row.get("Due Date", ""))
-            jurisdiction = row.get("Jurisdiction", "").strip() or None
+            renewal_date = parse_date(row.get("Renewal Date", "")) or parse_date(
+                row.get("Due Date", "")
+            )
             notes = row.get("Notes", "").strip() or None
 
             # Check for duplicates if requested
-            if skip_duplicates and year and tax_type:
+            if skip_duplicates and record_date and tax_type:
                 existing = await db.execute(
                     select(TaxRecord).where(
                         TaxRecord.vin == vin,
-                        TaxRecord.year == year,
+                        TaxRecord.date == record_date,
                         TaxRecord.tax_type == tax_type,
                     )
                 )
@@ -914,15 +942,18 @@ async def import_tax_csv(
             # Create record
             record = TaxRecord(
                 vin=vin,
-                year=year,
+                date=record_date,
                 tax_type=tax_type,
                 amount=amount,
-                paid_date=paid_date,
-                due_date=due_date,
-                jurisdiction=jurisdiction,
+                renewal_date=renewal_date,
                 notes=notes,
             )
-            db.add(record)
+            # A savepoint per row. Without it the INSERT is only attempted at
+            # the commit below, which is outside this handler: a CHECK
+            # violation would escape the route as a 500 and discard every
+            # valid row in the file along with the bad one.
+            async with db.begin_nested():
+                db.add(record)
             import_result.add_success()
 
         except Exception as e:
@@ -970,7 +1001,12 @@ async def import_notes_csv(
 
             # Create record
             record = Note(vin=vin, date=date, title=title, content=content)
-            db.add(record)
+            # A savepoint per row. Without it the INSERT is only attempted at
+            # the commit below, which is outside this handler: a CHECK
+            # violation would escape the route as a 500 and discard every
+            # valid row in the file along with the bad one.
+            async with db.begin_nested():
+                db.add(record)
             import_result.add_success()
 
         except Exception as e:

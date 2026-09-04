@@ -95,6 +95,13 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:////data/mygarage.db"
 
+    # Maintenance mode. Starts the app far enough to apply migrations and no
+    # further: no scheduler, no MQTT subscriber, and telemetry ingest answers
+    # 503. It exists because the odometer repair tools must run before any new
+    # reading lands, and migrations run inside this app's own lifespan, so
+    # without it there is no window in which that instruction can be obeyed.
+    maintenance_mode: bool = False
+
     # File Storage
     data_dir: Path = Path("/data")
     attachments_dir: Path = Path("/data/attachments")

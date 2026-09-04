@@ -100,6 +100,11 @@ class TestLiveLinkDevices:
         with patch("app.routes.livelink_admin.LiveLinkService") as mock_service_class:
             mock_service = MagicMock()
             mock_service.list_devices = AsyncMock(return_value=[])
+            # The route asks which devices report telemetry but nothing readable
+            # as movement, so the settings page can name them. Stubbed because
+            # the whole service is replaced here; the predicate itself is
+            # covered in tests/unit/services/test_movement_unreadable_devices.py.
+            mock_service.movement_unreadable_device_ids = AsyncMock(return_value=set())
             mock_service_class.return_value = mock_service
 
             response = await client.get("/api/livelink/devices", headers=auth_headers)

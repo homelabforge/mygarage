@@ -145,6 +145,32 @@ async def run(args: argparse.Namespace) -> int:
             for sid, before_v, after_v in speed_gains[:10]:
                 print(f"  session {sid}: max speed {before_v:,.0f} -> {after_v:,.0f} km/h")
 
+        # Both directions, because only reporting the losses describes this as
+        # damage. A session gains distance when a finer source than the odometer
+        # is available in its window (see app/utils/distance_counters.py), and on
+        # the hardware that motivated it that is most of them.
+        measured = [
+            (sid, after["distance_km"])
+            for sid, before, after in changed
+            if before["distance_km"] is None and after["distance_km"] is not None
+        ]
+        if measured:
+            total = sum(km for _, km in measured if km)
+            print(
+                f"\n{len(measured):,} session(s) get a distance where they had none "
+                f"({total:,.0f} km in total)."
+            )
+
+        distance_gains = _movers(changed, "distance_km", rising=True)
+        if distance_gains:
+            total = sum(after_v - before_v for _, before_v, after_v in distance_gains)
+            print(
+                f"\n{len(distance_gains):,} session(s) gain distance from a finer source "
+                f"than the odometer ({total:,.0f} km in total). Largest:"
+            )
+            for sid, before_v, after_v in distance_gains[:10]:
+                print(f"  session {sid}: distance {before_v:,.1f} -> {after_v:,.1f} km")
+
         distance_drops = _movers(changed, "distance_km", rising=False)
         if distance_drops:
             total = sum(before_v - after_v for _, before_v, after_v in distance_drops)

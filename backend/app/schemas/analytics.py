@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.tire import TireResponse
+
 
 class MonthlyCostSummary(BaseModel):
     """Monthly cost summary."""
@@ -451,3 +453,61 @@ class PeriodComparison(BaseModel):
     l_per_100km_change_percent: Decimal | None = None
 
     model_config = {"from_attributes": True}
+
+
+class TireReadiness(BaseModel):
+    """How many of a vehicle's live tires can answer each question.
+
+    Retired tires are counted in none of these (B10). The three capabilities
+    are INDEPENDENT and so are the four prompts: a tire can have a perfectly
+    good distance and no projection, and telling that owner to add odometers to
+    their tread readings would be advice about the wrong data.
+
+    The prompts are what the readiness block is for. A page that only said
+    "0 of 2" would be an apology; these say which number to go and write down.
+    """
+
+    #: Non-retired tires on this vehicle.
+    total: int = 0
+    #: Has two or more tread-bearing readings, so a trend line exists.
+    can_trend: int = 0
+    #: `wear_status` carries an actual figure (`projected` or the
+    #: at-or-below-minimum safety case).
+    can_project: int = 0
+    #: `distance_status` is `complete`. A partial history counts as a prompt,
+    #: not as an answer, even though it does report its measurable part.
+    can_report_distance: int = 0
+    #: Below `min_tread_mm` today. Surfaced as an action rather than a chart.
+    under_minimum: int = 0
+
+    #: Fewer than two tread-bearing readings. One reading is a point.
+    needs_second_reading: int = 0
+    #: Two readings, but one of the newest pair carries no odometer.
+    needs_reading_odometer: int = 0
+    #: `min_tread_mm` is null, so nothing can be projected against it. There is
+    #: no 2.0 fallback: that is a column default applied at insert.
+    needs_minimum_tread: int = 0
+    #: Distance is blocked on a mount period's odometer bound. Excludes
+    #: `spare_only` (a state, not a gap) and `odometer_rollback` (bad data,
+    #: repaired by correcting a number rather than supplying one).
+    needs_mount_odometer: int = 0
+
+
+class TireAnalyticsSummary(BaseModel):
+    """Tire wear and life for one vehicle.
+
+    `tires` are the SAME `TireResponse` objects the tire card renders, computed
+    once by `TireService`. Analytics deliberately adds no second serialisation
+    of distance or wear: a copy that can disagree with the card is worse than
+    no copy, and the tread trend is derivable from each tire's own readings,
+    which are already on the wire.
+    """
+
+    readiness: TireReadiness = Field(default_factory=TireReadiness)
+    #: Every tire, retired ones included. The retired ones carry `retired_on`
+    #: and belong in the history blocks only.
+    tires: list[TireResponse] = Field(default_factory=list)
+    #: False when the vehicle has no `OdometerRecord` at all, which makes every
+    #: OPEN mount period unbounded however complete its history is. Its own
+    #: empty state, explained once rather than per tire.
+    has_odometer_record: bool = False

@@ -24,6 +24,14 @@ class DriveSessionResponse(DriveSessionBase):
     vin: str
     device_id: str
 
+    #: Which rule cut this session's boundaries. 0 means the pre-v3.3.0 contact
+    #: rule, which opened a drive whenever the dongle reached the broker, so a
+    #: parked vehicle checking in became one. Exposed so a row shown under
+    #: "include earlier drives" can say what it is rather than just look wrong.
+    boundary_algorithm_version: int = Field(
+        0, description="0 = recorded on device contact (pre-v3.3.0), 1 = on movement"
+    )
+
     # Odometer data
     start_odometer: float | None = Field(None, description="Odometer at start (km)")
     end_odometer: float | None = Field(None, description="Odometer at end (km)")
@@ -64,7 +72,12 @@ class DriveSessionListResponse(BaseModel):
     """Schema for drive session list response."""
 
     sessions: list[DriveSessionResponse]
+    #: Sessions matching the request's filter, so pagination and the list agree.
     total: int
+    #: Sessions with no evidence the vehicle moved, reported whether or not they
+    #: are included. A filtered list that shows nothing is indistinguishable
+    #: from a broken one unless it can say how many it is holding back.
+    stationary_total: int = 0
 
 
 class DriveSessionDetailResponse(DriveSessionResponse):

@@ -58,15 +58,19 @@ from app.schemas.analytics import (
     SeasonalAnalyticsSummary,
     ServiceHistoryItem,
     ServiceTypeCostBreakdown,
+    TireAnalyticsSummary,
     VehicleAnalytics,
     VendorAnalysis,
     VendorAnalyticsSummary,
 )
 from app.services import analytics_service
+from app.services.analytics_service.tires import tire_readiness
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.def_service import DEFRecordService
 from app.services.fuel_service import calculate_average_hours_economy
+from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.service_visit_service import service_visit_cost_load_options
+from app.services.tire_service import TireService
 from app.utils.cache import cached
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.render_context import render_context_for_request
@@ -1382,6 +1386,34 @@ async def get_seasonal_analytics(
         highest_cost_season=highest_season.season if highest_season else None,
         lowest_cost_season=lowest_season.season if lowest_season else None,
         annual_average=Decimal(str(round(annual_average, 2))),
+    )
+
+
+@router.get("/vehicles/{vin}/tires", response_model=TireAnalyticsSummary)
+async def get_tire_analytics(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_auth),
+) -> TireAnalyticsSummary:
+    """Tire wear and life for one vehicle, plus what is missing to compute it.
+
+    Read-only and computes nothing of its own: the tires come from
+    `TireService.list_tires`, so this page and the tire card cannot disagree
+    about a distance or a projection. What analytics adds is the readiness
+    block, which is the part worth shipping on an instance that has no tire
+    data yet.
+
+    Retired tires are INCLUDED (B10). Their final figures are the most complete
+    data the app will ever hold about them, and they are excluded from the
+    readiness counts rather than from the response.
+    """
+    await get_vehicle_or_403(vin, user, db)
+    listed = await TireService(db).list_tires(vin, user, include_retired=True)
+    odometer_km, _ = await latest_odometer_km_and_date(db, vin.upper().strip())
+    return TireAnalyticsSummary(
+        readiness=tire_readiness(listed.tires),
+        tires=listed.tires,
+        has_odometer_record=odometer_km is not None,
     )
 
 

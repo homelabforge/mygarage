@@ -49,9 +49,20 @@ OBD2_PID_PREFIX_RE = re.compile(r"^[0-9A-F]{2}-")
 _ODOMETER_BARE_KEYS = frozenset({"ODOMETER", "ODO", "MILEAGE", "TOTAL_DISTANCE", "DISTANCE_TOTAL"})
 
 
+def bare_param_key(param_key: str) -> str:
+    """Uppercase ``param_key`` with any two-hex-digit OBD2 PID prefix removed.
+
+    The one normalisation every key-class predicate in this codebase applies
+    before matching. Written out separately in three modules until it drifted
+    into being three things that merely looked alike; a change to the prefix
+    shape (three-digit PIDs, say) now has one place to land.
+    """
+    return OBD2_PID_PREFIX_RE.sub("", param_key.upper())
+
+
 def is_odometer_param_key(param_key: str) -> bool:
     """True if ``param_key`` names an odometer, prefixed or bare."""
-    return OBD2_PID_PREFIX_RE.sub("", param_key.upper()) in _ODOMETER_BARE_KEYS
+    return bare_param_key(param_key) in _ODOMETER_BARE_KEYS
 
 
 def infer_odometer_unit(param_key: str) -> str:

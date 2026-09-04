@@ -38,6 +38,52 @@ from app.utils.autopid_normalizer import (
 from app.utils.odometer_units import odometer_value_to_km
 
 
+class MaintenanceModeError(RuntimeError):
+    """Raised when a telemetry write is attempted during maintenance mode.
+
+    The upgrade procedure for the odometer repair tools needs a window in which
+    no new reading lands: a single reading arriving mid-repair recreates the
+    mixed-unit state the tools refuse to run against.
+
+    This lives on the writers rather than only on the routes because two rounds
+    of review found an entry point the route gate did not cover -- first the
+    admin SD backfill route, then `POST /api/livelink/mqtt/restart`, which
+    writes nothing itself but starts the MQTT subscriber. MQTT is not a route,
+    the scheduler is not a route, and the next ingest path need not be one
+    either. Enumerating entry points is a floor; this is the choke point they
+    all pass through.
+    """
+
+
+#: How far a device-supplied sample timestamp may sit from its arrival time and
+#: still count as "live" for the purpose of anchoring ``last_movement_at``.
+#:
+#: Matches the default contact-loss timeout, deliberately: a sample that is
+#: further from now than the timeout that would have closed the session cannot
+#: be describing the session that is open. Beyond this the reading is treated as
+#: replay -- still real driving, still allowed to open and extend a session, but
+#: not allowed to move the anchor every live timeout measures from.
+LIVE_SAMPLE_TOLERANCE_SECONDS = 300
+
+
+def _refuse_if_in_maintenance(operation: str) -> None:
+    """Raise if maintenance mode is on.
+
+    Args:
+        operation: Name of the write being attempted, for the log and message.
+
+    Raises:
+        MaintenanceModeError: If ``settings.maintenance_mode`` is set.
+    """
+    from app.config import settings
+
+    if settings.maintenance_mode:
+        logger.warning("Maintenance mode: refused %s", operation)
+        raise MaintenanceModeError(
+            f"{operation} refused: MyGarage is in maintenance mode and is not accepting telemetry."
+        )
+
+
 @dataclass
 class StoreResult:
     """Result from store_telemetry() with stored count and validated data."""
@@ -354,6 +400,7 @@ class TelemetryService:
         Returns:
             StoreResult with stored count and validated data
         """
+        _refuse_if_in_maintenance("store_telemetry")
         if timestamp is None:
             timestamp = utc_now()
 
@@ -448,6 +495,22 @@ class TelemetryService:
                 # Duplicate (same device_id, param_key, timestamp) - skip
                 pass
 
+        # Decide what this batch means for the device's drive session.
+        #
+        # Here rather than at each caller, because there are THREE live ingest
+        # sites -- MQTT `can/rx`, MQTT `can/status`, and the HTTPS payload route
+        # -- and all three funnel through this method. An earlier design
+        # revision hooked only the MQTT telemetry path, whose own comment
+        # describes it as the FALLBACK for "WiCAN devices that don't send
+        # explicit can/status messages": an instance whose dongle sends status
+        # messages, or any instance on HTTPS ingest, would have kept 100% of its
+        # phantom sessions while the changelog claimed otherwise.
+        #
+        # Reads `valid_data`, not the raw batch: the validator has already
+        # dropped out-of-range garbage, and a spurious 400 km/h reading must not
+        # be what opens a drive.
+        await self._observe_movement(vin, device_id, valid_data, timestamp, received_at)
+
         # Check for odometer reading and sync
         await self._sync_odometer_from_telemetry(vin, autopid_data, timestamp)
 
@@ -455,6 +518,45 @@ class TelemetryService:
         await self._refresh_closed_session(vin, device_id, timestamp)
 
         return StoreResult(stored_count=stored_count, validated_data=valid_data)
+
+    async def _observe_movement(
+        self,
+        vin: str,
+        device_id: str,
+        samples: dict[str, float | int | str | None],
+        sample_at: datetime,
+        received_at: datetime,
+    ) -> None:
+        """Feed one validated batch to the session state machine.
+
+        ``sample_at`` is the device's own reading time and ``received_at`` is
+        when it arrived here. The two are distinguished because they diverge:
+        MQTT stamps ``utc_now()`` unconditionally, while the HTTPS route accepts
+        an optional device timestamp that a buffering dongle sets hours in the
+        past -- or, with a bad clock plugin, in the future.
+
+        A sample far from receipt time may still open and extend a session (it
+        is real driving that happened), but must not anchor
+        ``last_movement_at``, which every live timeout measures from. Anchoring
+        a live session on a replayed timestamp drags it hours away from where it
+        belongs and makes the contact-loss clock fire against a moment the
+        device never spoke.
+        """
+        from app.services.session_service import SessionService  # local import avoids cycle
+
+        device = (
+            await self.db.execute(
+                select(LiveLinkDevice).where(LiveLinkDevice.device_id == device_id)
+            )
+        ).scalar_one_or_none()
+        if device is None:
+            return
+
+        sample = sample_at.replace(tzinfo=None) if sample_at.tzinfo else sample_at
+        arrival = received_at.replace(tzinfo=None) if received_at.tzinfo else received_at
+        live = abs((arrival - sample).total_seconds()) <= LIVE_SAMPLE_TOLERANCE_SECONDS
+
+        await SessionService(self.db).observe_telemetry(device, samples, sample, live=live)
 
     async def _refresh_closed_session(self, vin: str, device_id: str, timestamp: datetime) -> None:
         """Recompute aggregates for a CLOSED session this reading falls inside.
@@ -666,6 +768,7 @@ class TelemetryService:
         Returns the number of rows actually inserted (conflict-skipped rows are
         not counted).
         """
+        _refuse_if_in_maintenance("bulk_backfill")
         if not rows:
             return 0
 
@@ -676,6 +779,7 @@ class TelemetryService:
         commit_batch = 500
         inserted = 0
         stamps: list[datetime] = []
+        observed: list[tuple[datetime, str, float]] = []
 
         # The SD path writes `r.value` straight to a metric-canonical column,
         # so it needs the same odometer conversion `store_telemetry` applies:
@@ -694,6 +798,11 @@ class TelemetryService:
                 converted = odometer_value_to_km(value, r.param_key, device_unit, device_kind)
                 if converted is not None:
                     value = converted
+            # Kept for the session reconstruction below, in CANONICAL km. The
+            # predicate compares odometer readings against each other, so a
+            # batch mixing raw miles with converted kilometres would see
+            # increases and decreases that never happened.
+            observed.append((ts, r.param_key, value))
 
             # Use the module-level dialect_insert (sqlite or pg, chosen at import time)
             stmt = (
@@ -742,10 +851,148 @@ class TelemetryService:
         # loops over log files (`SdBackfillService._backfill`), so this is once
         # per file, not once per pull.
         if stamps:
+            # Create the sessions these rows describe BEFORE refreshing, so a
+            # newly created session is included in the refresh rather than
+            # waiting for the next pull. This is the motivating case for the
+            # whole boundary rework: `_refresh_sessions_in_span` selects
+            # `ended_at IS NOT NULL`, i.e. sessions that already exist and are
+            # already closed, so this path had never created one -- and it is
+            # the only path for anything driven out of broker range.
+            #
+            # Once per call, not once per row: running the live side-effects per
+            # row is precisely what `bulk_backfill` exists to avoid.
+            await self._reconstruct_sessions_from_batch(vin, device_id, observed)
             await self._refresh_sessions_in_span(vin, device_id, min(stamps), max(stamps))
             await self.db.commit()
 
         return inserted
+
+    async def _reconstruct_sessions_from_batch(
+        self,
+        vin: str,
+        device_id: str,
+        observed: list[tuple[datetime, str, float]],
+    ) -> int:
+        """Create or extend the drive sessions a replayed batch describes.
+
+        Returns the number of sessions created or extended.
+
+        The grouping is `session_boundaries.group_drives`, which applies the
+        same movement predicate and the same gap as the live path -- so a drive
+        is cut the same way whether it arrived over MQTT or off an SD card.
+
+        Three rules keep this from making things worse than the bug it fixes:
+
+        - **Torque sessions are never touched.** The phone supplies an
+          authoritative session id; re-bounding it on a gap threshold replaces
+          good evidence with inference. Excluded by `external_session_id`, not
+          by heuristic.
+        - **No overlaps are written.** Nothing in the schema forbids them, and
+          every aggregate is a window scan, so two overlapping sessions both
+          claim the same samples and both report the same distance.
+        - **An ambiguous window is left alone.** A drive overlapping more than
+          one existing session is a history-repair problem, not a backfill one;
+          merging them here would be a destructive guess made during an ingest.
+        """
+        from app.services.session_boundaries import BOUNDARY_ALGORITHM_MOVEMENT, group_drives
+
+        device = (
+            await self.db.execute(
+                select(LiveLinkDevice).where(LiveLinkDevice.device_id == device_id)
+            )
+        ).scalar_one_or_none()
+        if device is None or not device.vin:
+            return 0
+
+        from app.services.livelink_service import LiveLinkService  # local: avoids a cycle
+
+        gap = await LiveLinkService(self.db).get_session_gap_minutes()
+        drives = group_drives(observed, gap)
+        if not drives:
+            return 0
+
+        changed = 0
+        for drive in drives:
+            overlapping = list(
+                (
+                    await self.db.execute(
+                        select(DriveSession)
+                        .where(DriveSession.device_id == device_id)
+                        .where(DriveSession.external_session_id.is_(None))
+                        .where(DriveSession.started_at <= drive.movement_ended_at)
+                        .where(
+                            func.coalesce(DriveSession.ended_at, DriveSession.started_at)
+                            >= drive.started_at
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            if len(overlapping) > 1:
+                logger.info(
+                    "SD reconstruction: drive %s..%s for %s spans %d existing sessions; "
+                    "left unchanged (history repair, not ingest)",
+                    drive.started_at,
+                    drive.movement_ended_at,
+                    device_id,
+                    len(overlapping),
+                )
+                continue
+
+            if overlapping:
+                session = overlapping[0]
+                if session.ended_at is None:
+                    # An OPEN session is the live path's business: it is still
+                    # deciding where this drive ends, and closing it here would
+                    # race the timeout clocks.
+                    continue
+                session.started_at = min(self._naive_ts(session.started_at), drive.started_at)
+                session.ended_at = max(self._naive_ts(session.ended_at), drive.movement_ended_at)
+                session.movement_started_at = min(
+                    self._naive_ts(session.movement_started_at) or drive.movement_started_at,
+                    drive.movement_started_at,
+                )
+                session.movement_ended_at = max(
+                    self._naive_ts(session.movement_ended_at) or drive.movement_ended_at,
+                    drive.movement_ended_at,
+                )
+            else:
+                session = DriveSession(
+                    vin=device.vin,
+                    device_id=device_id,
+                    started_at=drive.started_at,
+                    ended_at=drive.movement_ended_at,
+                    movement_started_at=drive.movement_started_at,
+                    movement_ended_at=drive.movement_ended_at,
+                    boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
+                    effective_gap_minutes=gap,
+                )
+                self.db.add(session)
+                logger.info(
+                    "SD reconstruction: created session for %s over %s..%s",
+                    device_id,
+                    drive.started_at,
+                    drive.movement_ended_at,
+                )
+
+            # Read back into locals and narrow. Both were assigned non-None a
+            # few lines up, in either branch, but they are nullable columns and
+            # a later edit to one branch could stop being true without anything
+            # here noticing.
+            window_start = self._naive_ts(session.started_at)
+            window_end = self._naive_ts(session.ended_at)
+            if window_start is not None and window_end is not None:
+                session.duration_seconds = max(0, int((window_end - window_start).total_seconds()))
+            changed += 1
+
+        await self.db.flush()
+        return changed
+
+    @staticmethod
+    def _naive_ts(value: datetime | None) -> datetime | None:
+        return value.replace(tzinfo=None) if value is not None and value.tzinfo else value
 
     async def _refresh_sessions_in_span(
         self, vin: str, device_id: str, start: datetime, end: datetime
@@ -799,6 +1046,7 @@ class TelemetryService:
         Does NOT commit — the caller owns the transaction. `values` keys are already
         canonical param_keys (see torque_pid_map). `timestamp` must be naive UTC.
         """
+        _refuse_if_in_maintenance("store_torque_telemetry")
         if not values:
             return 0
         ts = timestamp.replace(tzinfo=None) if timestamp.tzinfo is not None else timestamp
@@ -886,7 +1134,7 @@ class TelemetryService:
         # against the clock, so a single dongle with a wrong date would push the
         # cutoff past every normally-dated parameter and blank the dashboard
         # until real time caught up.
-        now = utc_now().replace(tzinfo=None)
+        now = utc_now()
         plausible = [row.timestamp for row in rows if row.timestamp <= now]
         newest = max(plausible) if plausible else now
         cutoff = newest - LATEST_VALUE_STALE_AFTER

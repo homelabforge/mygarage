@@ -186,6 +186,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/analytics/vehicles/{vin}/tires": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tire Analytics
+         * @description Tire wear and life for one vehicle, plus what is missing to compute it.
+         *
+         *     Read-only and computes nothing of its own: the tires come from
+         *     `TireService.list_tires`, so this page and the tire card cannot disagree
+         *     about a distance or a projection. What analytics adds is the readiness
+         *     block, which is the part worth shipping on an instance that has no tire
+         *     data yet.
+         *
+         *     Retired tires are INCLUDED (B10). Their final figures are the most complete
+         *     data the app will ever hold about them, and they are excluded from the
+         *     readiness counts rather than from the response.
+         */
+        get: operations["get_tire_analytics_api_analytics_vehicles__vin__tires_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analytics/vehicles/{vin}/vendors": {
         parameters: {
             query?: never;
@@ -4717,6 +4747,14 @@ export interface paths {
          *     - **offset**: Pagination offset
          *     - **start**: Filter by start time
          *     - **end**: Filter by end time
+         *     - **include_stationary**: Include sessions in which nothing moved. The
+         *       pre-v3.3.0 rule opened a drive whenever the dongle reached the broker, so
+         *       a parked vehicle checking in became one. Defaults True, so no existing
+         *       caller loses history. Filters on MOVEMENT rather than on which rule cut
+         *       the session, because plenty of pre-v3.3.0 sessions are real journeys.
+         *
+         *     `stationary_total` is reported either way, so a view that hides them can say
+         *     how many it is holding back rather than appear empty for no reason.
          *
          *     **Security:**
          *     - Requires authentication
@@ -5912,6 +5950,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/tire-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tire Sets
+         * @description Every tire set for a vehicle, with its membership.
+         */
+        get: operations["list_tire_sets_api_vehicles__vin__tire_sets_get"];
+        put?: never;
+        /**
+         * Create Tire Set
+         * @description Name a new, empty set. Tires join it through `PUT /tires/{id}`.
+         */
+        post: operations["create_tire_set_api_vehicles__vin__tire_sets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tire-sets/{set_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Tire Set
+         * @description Rename a set, or change its notes.
+         */
+        put: operations["update_tire_set_api_vehicles__vin__tire_sets__set_id__put"];
+        post?: never;
+        /**
+         * Delete Tire Set
+         * @description Delete a set. Its tires survive, ungrouped.
+         */
+        delete: operations["delete_tire_set_api_vehicles__vin__tire_sets__set_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tire-sets/{set_id}/mount": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mount Tire Set
+         * @description Fit every tire in a set, each at the corner it was last on.
+         *
+         *     Returns the vehicle's whole tire list, because a swap changes the set that
+         *     came off as well as the one that went on.
+         */
+        post: operations["mount_tire_set_api_vehicles__vin__tire_sets__set_id__mount_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/tires": {
         parameters: {
             query?: never;
@@ -5921,15 +6030,71 @@ export interface paths {
         };
         /**
          * List Tires
-         * @description List tires (all positions) for a vehicle with wear projections.
+         * @description List a vehicle's tires, with distance and wear.
+         *
+         *     Retired tires are excluded unless `include_retired` is set: they are
+         *     history rather than inventory, and nothing more can be recorded about them.
          */
         get: operations["list_tires_api_vehicles__vin__tires_get"];
         put?: never;
         /**
-         * Upsert Tire
-         * @description Create or replace the tire at a given position.
+         * Create Tire
+         * @description Create a tire. It is not mounted until you mount it.
+         *
+         *     **Breaking in v3.3.0.** This used to take a `position` and upsert by
+         *     `(vin, position)`. It no longer accepts `position` at all, and a payload
+         *     carrying one is rejected with 422 rather than silently creating a second,
+         *     unmounted tire. Create then mount, or use the create-and-mount endpoint.
          */
-        post: operations["upsert_tire_api_vehicles__vin__tires_post"];
+        post: operations["create_tire_api_vehicles__vin__tires_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tires/create-and-mount": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create And Mount Tire
+         * @description Create a tire and mount it in one step.
+         *
+         *     Atomic: if the corner is occupied the whole operation fails with 409 and
+         *     no tire is created. Doing the two calls by hand and losing the second
+         *     leaves an orphan tire the caller did not ask for.
+         */
+        post: operations["create_and_mount_tire_api_vehicles__vin__tires_create_and_mount_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tires/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate Tires
+         * @description Move several tires at once.
+         *
+         *     All or nothing: if any move is invalid, nothing moves. Returns the whole
+         *     tire list, because a rotation changes several of them and returning one
+         *     would leave the caller to re-fetch the rest.
+         */
+        post: operations["rotate_tires_api_vehicles__vin__tires_rotate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5960,6 +6125,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/tires/{tire_id}/dismount": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismount Tire
+         * @description Take a tire off the vehicle, closing its open mount period.
+         *
+         *     The tire keeps its readings and its history; it simply has no position.
+         */
+        post: operations["dismount_tire_api_vehicles__vin__tires__tire_id__dismount_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tires/{tire_id}/mount": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mount Tire
+         * @description Mount a stored tire at a position, opening a mount period.
+         *
+         *     409 if this tire is already mounted, or if another tire holds that corner.
+         */
+        post: operations["mount_tire_api_vehicles__vin__tires__tire_id__mount_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/tires/{tire_id}/readings": {
         parameters: {
             query?: never;
@@ -5974,6 +6183,29 @@ export interface paths {
          * @description Append a tread/pressure reading and refresh wear projection + reminders.
          */
         post: operations["add_tire_reading_api_vehicles__vin__tires__tire_id__readings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tires/{tire_id}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retire Tire
+         * @description Retire a tire: take it off the vehicle and keep its whole history.
+         *
+         *     This is what replacing a worn tire means. `DELETE` still exists for a tire
+         *     entered by mistake, and it destroys every reading and mount period.
+         */
+        post: operations["retire_tire_api_vehicles__vin__tires__tire_id__retire_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8114,6 +8346,12 @@ export interface components {
              */
             avg_throttle?: number | null;
             /**
+             * Boundary Algorithm Version
+             * @description 0 = recorded on device contact (pre-v3.3.0), 1 = on movement
+             * @default 0
+             */
+            boundary_algorithm_version: number;
+            /**
              * Created At
              * Format: date-time
              */
@@ -8224,6 +8462,11 @@ export interface components {
         DriveSessionListResponse: {
             /** Sessions */
             sessions: components["schemas"]["DriveSessionResponse"][];
+            /**
+             * Stationary Total
+             * @default 0
+             */
+            stationary_total: number;
             /** Total */
             total: number;
         };
@@ -8257,6 +8500,12 @@ export interface components {
              * @description Average throttle (%)
              */
             avg_throttle?: number | null;
+            /**
+             * Boundary Algorithm Version
+             * @description 0 = recorded on device contact (pre-v3.3.0), 1 = on movement
+             * @default 0
+             */
+            boundary_algorithm_version: number;
             /**
              * Created At
              * Format: date-time
@@ -10153,8 +10402,19 @@ export interface components {
              * @description User-friendly device name
              */
             label?: string | null;
+            /**
+             * Last Movement At
+             * @description When this device last reported a recognised movement signal
+             */
+            last_movement_at?: string | null;
             /** Last Seen */
             last_seen: string | null;
+            /**
+             * Movement Unreadable
+             * @description Device reports telemetry but nothing recognisable as movement
+             * @default false
+             */
+            movement_unreadable: boolean;
             /**
              * Odometer Unit
              * @description Declared odometer units ('km'/'mi'); None means inferred from the key
@@ -10393,6 +10653,18 @@ export interface components {
              */
             notify_threshold_alerts: boolean;
             /**
+             * Session Boundary Mode
+             * @description 'movement' decides sessions from speed/odometer/RPM; 'contact' restores the pre-v3.3.0 rule of opening one whenever the device is reachable
+             * @default movement
+             */
+            session_boundary_mode: string;
+            /**
+             * Session Gap Minutes
+             * @description Minutes stationary before a stop counts as a separate drive
+             * @default 15
+             */
+            session_gap_minutes: number;
+            /**
              * Session Grace Period Seconds
              * @description Seconds to wait before ending session after ECU offline (0 = disabled)
              * @default 60
@@ -10434,6 +10706,10 @@ export interface components {
             notify_new_device?: boolean | null;
             /** Notify Threshold Alerts */
             notify_threshold_alerts?: boolean | null;
+            /** Session Boundary Mode */
+            session_boundary_mode?: ("movement" | "contact") | null;
+            /** Session Gap Minutes */
+            session_gap_minutes?: number | null;
             /** Session Grace Period Seconds */
             session_grace_period_seconds?: number | null;
             /** Session Timeout Minutes */
@@ -10744,6 +11020,30 @@ export interface components {
             total_spot_rental_cost: string;
             /** Year */
             year: number;
+        };
+        /**
+         * MountPeriodResponse
+         * @description One interval a tire spent mounted at one position.
+         */
+        MountPeriodResponse: {
+            /** Dismounted Odometer Km */
+            dismounted_odometer_km: string | null;
+            /** Dismounted On */
+            dismounted_on: string | null;
+            /** Id */
+            id: number;
+            /** Is Assumed */
+            is_assumed: boolean;
+            /** Mounted Odometer Km */
+            mounted_odometer_km: string | null;
+            /** Mounted On */
+            mounted_on: string | null;
+            /** Notes */
+            notes: string | null;
+            /** Observed Active On */
+            observed_active_on: string | null;
+            /** Position */
+            position: string;
         };
         /**
          * NoteCreate
@@ -13339,6 +13639,26 @@ export interface components {
             unit: string | null;
         };
         /**
+         * TireAnalyticsSummary
+         * @description Tire wear and life for one vehicle.
+         *
+         *     `tires` are the SAME `TireResponse` objects the tire card renders, computed
+         *     once by `TireService`. Analytics deliberately adds no second serialisation
+         *     of distance or wear: a copy that can disagree with the card is worse than
+         *     no copy, and the tread trend is derivable from each tire's own readings,
+         *     which are already on the wire.
+         */
+        TireAnalyticsSummary: {
+            /**
+             * Has Odometer Record
+             * @default false
+             */
+            has_odometer_record: boolean;
+            readiness?: components["schemas"]["TireReadiness"];
+            /** Tires */
+            tires?: components["schemas"]["TireResponse"][];
+        };
+        /**
          * TireCreate
          * @description Create / upsert a tire at a position.
          */
@@ -13347,8 +13667,6 @@ export interface components {
             brand?: string | null;
             /** Dot Code */
             dot_code?: string | null;
-            /** Installed Date */
-            installed_date?: string | null;
             /**
              * Min Tread Mm
              * @description Wear-out threshold in mm; drives reminder hooks
@@ -13357,6 +13675,44 @@ export interface components {
             min_tread_mm: number | string | null;
             /** Model Name */
             model_name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Pressure Kpa */
+            pressure_kpa?: number | string | null;
+            /** Size */
+            size?: string | null;
+            /** Tread Depth Mm */
+            tread_depth_mm?: number | string | null;
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * TireCreateAndMountRequest
+         * @description Create a tire and mount it in one atomic operation.
+         *
+         *     Offered because create-then-mount is two calls for the common case, and
+         *     the conflict semantics are the MOUNT's: if that corner is occupied the
+         *     whole operation fails and no tire is created. A caller that did the two
+         *     steps itself and got a conflict on the second would be left with an
+         *     orphan tire it did not ask for.
+         */
+        TireCreateAndMountRequest: {
+            /** Brand */
+            brand?: string | null;
+            /** Dot Code */
+            dot_code?: string | null;
+            /**
+             * Min Tread Mm
+             * @description Wear-out threshold in mm; drives reminder hooks
+             * @default 2.0
+             */
+            min_tread_mm: number | string | null;
+            /** Model Name */
+            model_name?: string | null;
+            /** Mounted Odometer Km */
+            mounted_odometer_km?: number | string | null;
+            /** Mounted On */
+            mounted_on?: string | null;
             /** Notes */
             notes?: string | null;
             /**
@@ -13374,6 +13730,18 @@ export interface components {
             vin: string;
         };
         /**
+         * TireDismountRequest
+         * @description Take a tire off the vehicle.
+         */
+        TireDismountRequest: {
+            /** Dismounted Odometer Km */
+            dismounted_odometer_km?: number | string | null;
+            /** Dismounted On */
+            dismounted_on?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
          * TireListResponse
          * @description All tires for a vehicle.
          */
@@ -13382,6 +13750,82 @@ export interface components {
             tires: components["schemas"]["TireResponse"][];
             /** Total */
             total: number;
+        };
+        /**
+         * TireMountRequest
+         * @description Mount a tire at a position.
+         */
+        TireMountRequest: {
+            /** Mounted Odometer Km */
+            mounted_odometer_km?: number | string | null;
+            /** Mounted On */
+            mounted_on?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Position
+             * @enum {string}
+             */
+            position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+        };
+        /**
+         * TireReadiness
+         * @description How many of a vehicle's live tires can answer each question.
+         *
+         *     Retired tires are counted in none of these (B10). The three capabilities
+         *     are INDEPENDENT and so are the four prompts: a tire can have a perfectly
+         *     good distance and no projection, and telling that owner to add odometers to
+         *     their tread readings would be advice about the wrong data.
+         *
+         *     The prompts are what the readiness block is for. A page that only said
+         *     "0 of 2" would be an apology; these say which number to go and write down.
+         */
+        TireReadiness: {
+            /**
+             * Can Project
+             * @default 0
+             */
+            can_project: number;
+            /**
+             * Can Report Distance
+             * @default 0
+             */
+            can_report_distance: number;
+            /**
+             * Can Trend
+             * @default 0
+             */
+            can_trend: number;
+            /**
+             * Needs Minimum Tread
+             * @default 0
+             */
+            needs_minimum_tread: number;
+            /**
+             * Needs Mount Odometer
+             * @default 0
+             */
+            needs_mount_odometer: number;
+            /**
+             * Needs Reading Odometer
+             * @default 0
+             */
+            needs_reading_odometer: number;
+            /**
+             * Needs Second Reading
+             * @default 0
+             */
+            needs_second_reading: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Under Minimum
+             * @default 0
+             */
+            under_minimum: number;
         };
         /**
          * TireReadingCreate
@@ -13419,12 +13863,14 @@ export interface components {
             created_at: string;
             /** Id */
             id: number;
+            /** Mount Period Id */
+            mount_period_id?: number | null;
             /** Notes */
             notes: string | null;
             /** Odometer Km */
             odometer_km: string | null;
             /** Position */
-            position: string;
+            position?: string | null;
             /** Pressure Kpa */
             pressure_kpa: string | null;
             /**
@@ -13441,7 +13887,18 @@ export interface components {
         };
         /**
          * TireResponse
-         * @description Tire with optional wear projection.
+         * @description A tire, with where it is now and what is known about its wear.
+         *
+         *     `position` is RE-DECLARED here as nullable rather than inherited: it left
+         *     the write schema (D2c) but is still part of every read. Declaring it only
+         *     on the base would have made it required on writes; omitting it entirely
+         *     would have dropped it from responses. Neither is what a reader wants.
+         *
+         *     `installed_date` is DERIVED, not stored (D12): the `mounted_on` of the
+         *     earliest period **that has one**. When the earliest period is the migrated
+         *     assumed one with a null start, this is null -- NOT the next known remount
+         *     date. A plain MIN(mounted_on) would skip the unknown and report a later
+         *     date as the installation date, which is worse than reporting nothing.
          */
         TireResponse: {
             /**
@@ -13449,6 +13906,8 @@ export interface components {
              * @default false
              */
             below_threshold: boolean;
+            /** Blocking Period Ids */
+            blocking_period_ids?: number[];
             /** Brand */
             brand?: string | null;
             /**
@@ -13456,12 +13915,20 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Distance Km */
+            distance_km?: string | null;
+            /** Distance Status */
+            distance_status?: string | null;
             /** Dot Code */
             dot_code?: string | null;
             /** Id */
             id: number;
             /** Installed Date */
             installed_date?: string | null;
+            /** Known Distance Km */
+            known_distance_km?: string | null;
+            /** Known Distance Since */
+            known_distance_since?: string | null;
             /**
              * Min Tread Mm
              * @description Wear-out threshold in mm; drives reminder hooks
@@ -13470,13 +13937,12 @@ export interface components {
             min_tread_mm: string | null;
             /** Model Name */
             model_name?: string | null;
+            /** Mount Periods */
+            mount_periods?: components["schemas"]["MountPeriodResponse"][];
             /** Notes */
             notes?: string | null;
-            /**
-             * Position
-             * @enum {string}
-             */
-            position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+            /** Position */
+            position?: ("FL" | "FR" | "RL" | "RR" | "SPARE") | null;
             /** Pressure Kpa */
             pressure_kpa?: string | null;
             /** Projected Km Remaining */
@@ -13485,6 +13951,10 @@ export interface components {
             projected_wear_date?: string | null;
             /** Readings */
             readings?: components["schemas"]["TireReadingResponse"][];
+            /** Retired On */
+            retired_on?: string | null;
+            /** Set Id */
+            set_id?: number | null;
             /** Size */
             size?: string | null;
             /** Tread Depth Mm */
@@ -13493,18 +13963,129 @@ export interface components {
             updated_at?: string | null;
             /** Vin */
             vin: string;
+            /** Wear Status */
+            wear_status?: string | null;
+        };
+        /**
+         * TireRotationMove
+         * @description One tire's destination in a rotation.
+         */
+        TireRotationMove: {
+            /**
+             * Position
+             * @enum {string}
+             */
+            position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+            /** Tire Id */
+            tire_id: number;
+        };
+        /**
+         * TireRotationRequest
+         * @description Move several tires at once.
+         *
+         *     All or nothing. A partial rotation would leave the vehicle in an
+         *     arrangement the user did not ask for and cannot easily read back, which
+         *     for something done four tires at a time is worse than a refusal.
+         */
+        TireRotationRequest: {
+            /** Moves */
+            moves: components["schemas"]["TireRotationMove"][];
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km?: number | string | null;
+            /** Rotated On */
+            rotated_on?: string | null;
+        };
+        /**
+         * TireSetCreate
+         * @description Name a group of tires.
+         *
+         *     No `tire_ids` here. Membership is set from the TIRE side
+         *     (`PUT /tires/{id}` with a `set_id`), so there is exactly one writer for it
+         *     and no way for the two ends to disagree about who is in what.
+         */
+        TireSetCreate: {
+            /** Name */
+            name: string;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
+         * TireSetListResponse
+         * @description All sets for a vehicle.
+         */
+        TireSetListResponse: {
+            /** Sets */
+            sets: components["schemas"]["TireSetResponse"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * TireSetMountRequest
+         * @description Fit every tire in a set, each at the corner it was last on.
+         *
+         *     The odometer is a reading of the VEHICLE and applies to the whole swap: it
+         *     closes the periods of everything coming off and opens the periods of
+         *     everything going on. One number, because that is what the user reads off
+         *     the dash once.
+         */
+        TireSetMountRequest: {
+            /** Mounted On */
+            mounted_on?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km?: number | string | null;
+        };
+        /**
+         * TireSetResponse
+         * @description A set, with enough about its members to render it without a second call.
+         */
+        TireSetResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /**
+             * Mounted Count
+             * @default 0
+             */
+            mounted_count: number;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes?: string | null;
+            /** Tire Ids */
+            tire_ids?: number[];
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * TireSetUpdate
+         * @description Rename a set, or change its notes.
+         */
+        TireSetUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Notes */
+            notes?: string | null;
         };
         /**
          * TireUpdate
          * @description Partial tire update.
+         *
+         *     Neither `position` nor `installed_date` is writable here: position changes
+         *     through mount/dismount (D14), and `installed_date` is derived (D12).
          */
         TireUpdate: {
             /** Brand */
             brand?: string | null;
             /** Dot Code */
             dot_code?: string | null;
-            /** Installed Date */
-            installed_date?: string | null;
             /** Min Tread Mm */
             min_tread_mm?: number | string | null;
             /** Model Name */
@@ -13513,6 +14094,8 @@ export interface components {
             notes?: string | null;
             /** Pressure Kpa */
             pressure_kpa?: number | string | null;
+            /** Set Id */
+            set_id?: number | null;
             /** Size */
             size?: string | null;
             /** Tread Depth Mm */
@@ -14835,6 +15418,11 @@ export interface components {
              */
             drive_type?: string | null;
             /**
+             * Fuel Filter Part Number
+             * @description Fuel filter part number
+             */
+            fuel_filter_part_number?: string | null;
+            /**
              * Fuel Type
              * @description Fuel type (primary capability)
              */
@@ -15330,6 +15918,11 @@ export interface components {
             /** Fuel Economy Highway L Per 100Km */
             fuel_economy_highway_l_per_100km?: string | null;
             /**
+             * Fuel Filter Part Number
+             * @description Fuel filter part number
+             */
+            fuel_filter_part_number?: string | null;
+            /**
              * Fuel Type
              * @description Fuel type (primary capability)
              */
@@ -15787,6 +16380,11 @@ export interface components {
              * @description Exterior color
              */
             exterior_color?: string | null;
+            /**
+             * Fuel Filter Part Number
+             * @description Fuel filter part number
+             */
+            fuel_filter_part_number?: string | null;
             /**
              * Fuel Type
              * @description Fuel type (primary capability)
@@ -17231,6 +17829,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeasonalAnalyticsSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tire_analytics_api_analytics_vehicles__vin__tires_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireAnalyticsSummary"];
                 };
             };
             /** @description Validation Error */
@@ -18735,7 +19364,10 @@ export interface operations {
     };
     export_warranties_csv_api_export_vehicles__vin__warranties_csv_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Unit system for the exported values. OMIT this parameter to export in the caller's own unit preferences (the instance default on an auth_mode=none instance), which is the only way to receive a mixed set such as kilometres with UK gallons. Pass `metric` or `imperial` to force that preset instead. Every unit-bearing column names its unit in the header, e.g. `Odometer (mi)`, `Volume (gal_uk)`, `Price Per Unit (gal_uk)`. */
+                units?: string | null;
+            };
             header?: never;
             path: {
                 vin: string;
@@ -23940,6 +24572,8 @@ export interface operations {
                 start?: string | null;
                 /** @description Filter sessions ending before this time */
                 end?: string | null;
+                /** @description Include sessions with no evidence the vehicle moved */
+                include_stationary?: boolean;
             };
             header?: never;
             path: {
@@ -26173,9 +26807,179 @@ export interface operations {
             };
         };
     };
-    list_tires_api_vehicles__vin__tires_get: {
+    list_tire_sets_api_vehicles__vin__tire_sets_get: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireSetListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_tire_set_api_vehicles__vin__tire_sets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireSetCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireSetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_tire_set_api_vehicles__vin__tire_sets__set_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                set_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireSetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireSetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_tire_set_api_vehicles__vin__tire_sets__set_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                set_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mount_tire_set_api_vehicles__vin__tire_sets__set_id__mount_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                set_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireSetMountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tires_api_vehicles__vin__tires_get: {
+        parameters: {
+            query?: {
+                include_retired?: boolean;
+            };
             header?: never;
             path: {
                 vin: string;
@@ -26204,7 +27008,7 @@ export interface operations {
             };
         };
     };
-    upsert_tire_api_vehicles__vin__tires_post: {
+    create_tire_api_vehicles__vin__tires_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -26226,6 +27030,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TireResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_and_mount_tire_api_vehicles__vin__tires_create_and_mount_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireCreateAndMountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rotate_tires_api_vehicles__vin__tires_rotate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireRotationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26305,6 +27179,78 @@ export interface operations {
             };
         };
     };
+    dismount_tire_api_vehicles__vin__tires__tire_id__dismount_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                tire_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireDismountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mount_tire_api_vehicles__vin__tires__tire_id__mount_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                tire_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireMountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     add_tire_reading_api_vehicles__vin__tires__tire_id__readings_post: {
         parameters: {
             query?: never;
@@ -26323,6 +27269,42 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retire_tire_api_vehicles__vin__tires__tire_id__retire_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                tire_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireDismountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

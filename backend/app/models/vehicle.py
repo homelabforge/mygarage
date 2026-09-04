@@ -135,6 +135,9 @@ class Vehicle(Base):
     oil_viscosity: Mapped[str | None] = mapped_column(String(30))
     oil_capacity_liters: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     oil_filter_part_number: Mapped[str | None] = mapped_column(String(50))
+    # Migration 099. Not gated on fuel type: a diesel's filters are a scheduled
+    # item, and an older petrol vehicle's inline filter is a real one too.
+    fuel_filter_part_number: Mapped[str | None] = mapped_column(String(50))
     lug_nut_torque_nm: Mapped[Decimal | None] = mapped_column(Numeric(6, 1))
     coolant_type: Mapped[str | None] = mapped_column(String(50))
     brake_fluid_type: Mapped[str | None] = mapped_column(String(30))
