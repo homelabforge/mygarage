@@ -235,8 +235,8 @@ class TestTorqueIsUntouched:
     ``resolve_torque_session`` is a second constructor on a separate contract:
     the phone has already decided where the drive begins and supplies its id, so
     a movement predicate has nothing to add and would only overrule a better
-    source. Reconstruction excludes Torque by ``external_session_id`` rather
-    than by heuristic, for the same reason.
+    source. Any pass over history excludes Torque by ``external_session_id``
+    rather than by heuristic, for the same reason.
     """
 
     async def test_a_torque_upload_still_opens_a_session_immediately(
@@ -259,7 +259,7 @@ class TestTorqueIsUntouched:
         """Version 0, because its boundaries come from the phone.
 
         Stamping it 1 would claim a provenance it does not have, and it is also
-        how reconstruction knows to leave it alone.
+        how any later pass over history knows to leave it alone.
         """
         vin, device = await make_livelink_vehicle("ingtq", "2", kind="torque")
         service = SessionService(db_session)

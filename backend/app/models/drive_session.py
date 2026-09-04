@@ -81,7 +81,8 @@ class DriveSession(Base):
     # 1 would claim a provenance they do not have.
     #
     # Every constructor must set this. Defaulting new rows to 0 would make them
-    # masquerade as pre-098 history, and a later reconstruction would skip them.
+    # masquerade as pre-098 history, which any later pass over history would
+    # then skip as already-correct.
     boundary_algorithm_version: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default=text("0"), default=0
     )

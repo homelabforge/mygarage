@@ -1,15 +1,12 @@
 """LiveLink admin endpoints for settings, devices, and parameters."""
 
-import json
 import logging
 from enum import StrEnum
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.livelink_reconstruction_run import LiveLinkReconstructionRun
 from app.models.user import User
 from app.schemas.dtc import DTCDefinitionResponse, DTCSearchResponse
 from app.schemas.livelink import (
@@ -30,9 +27,6 @@ from app.schemas.livelink import (
     MQTTSettingsUpdate,
     MQTTStatusResponse,
     MQTTTestResult,
-    ReconstructionRefusal,
-    ReconstructionRunListResponse,
-    ReconstructionRunResponse,
     SdConfigResponse,
     SdConfigUpdate,
     TokenGenerateResponse,
@@ -227,6 +221,20 @@ async def regenerate_global_token(
 # =============================================================================
 
 
+async def _device_response(db: AsyncSession, device) -> LiveLinkDeviceResponse:
+    """One device, with `movement_unreadable` actually answered.
+
+    The field defaults to False on the schema, so a handler that skips this
+    reports "this device's movement reads fine" about a device nobody asked
+    about. That is the silent zero this whole feature exists to remove, one
+    layer up from where it was removed.
+    """
+    unreadable = await LiveLinkService(db).movement_unreadable_device_ids([device])
+    return LiveLinkDeviceResponse.model_validate(device).model_copy(
+        update={"movement_unreadable": device.device_id in unreadable}
+    )
+
+
 @router.get("/devices", response_model=LiveLinkDeviceListResponse)
 async def list_devices(
     db: AsyncSession = Depends(get_db),
@@ -240,11 +248,17 @@ async def list_devices(
     """
     service = LiveLinkService(db)
     devices = await service.list_devices()
+    unreadable = await service.movement_unreadable_device_ids(devices)
 
     online_count = sum(1 for d in devices if d.device_status == "online")
 
     return LiveLinkDeviceListResponse(
-        devices=[LiveLinkDeviceResponse.model_validate(d) for d in devices],
+        devices=[
+            LiveLinkDeviceResponse.model_validate(d).model_copy(
+                update={"movement_unreadable": d.device_id in unreadable}
+            )
+            for d in devices
+        ],
         total=len(devices),
         online_count=online_count,
     )
@@ -263,7 +277,7 @@ async def get_device(
     - Owner of the device's linked vehicle (admin for unlinked devices).
     """
     device = await _get_device_for_owner_or_404(db, device_id, current_user)
-    return LiveLinkDeviceResponse.model_validate(device)
+    return await _device_response(db, device)
 
 
 @router.put("/devices/{device_id}", response_model=LiveLinkDeviceResponse)
@@ -308,7 +322,7 @@ async def update_device(
     if not device:
         raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
 
-    return LiveLinkDeviceResponse.model_validate(device)
+    return await _device_response(db, device)
 
 
 @router.delete("/devices/{device_id}", status_code=204)
@@ -447,65 +461,6 @@ async def send_device_command(
 # =============================================================================
 # Parameter Endpoints
 # =============================================================================
-
-
-@router.get("/reconstruction-runs", response_model=ReconstructionRunListResponse)
-async def list_reconstruction_runs(
-    limit: int = Query(20, ge=1, le=100),
-    db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(get_current_admin_user),
-):
-    """Recent session-boundary reconstruction runs, newest first.
-
-    The tool answers "what did this change, and what did it refuse?" only if
-    something outlives the run: a log rotates and a container restart loses it.
-    Refusal is the ROUTINE outcome for a session whose telemetry coverage cannot
-    be proven, so without this a safe refusal and a broken tool look identical.
-
-    **Security:**
-    - Requires an admin
-    """
-    total = (await db.execute(select(func.count(LiveLinkReconstructionRun.id)))).scalar() or 0
-    rows = list(
-        (
-            await db.execute(
-                select(LiveLinkReconstructionRun)
-                .order_by(LiveLinkReconstructionRun.started_at.desc())
-                .limit(limit)
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-    runs = []
-    for row in rows:
-        refusals = []
-        if row.refusals:
-            try:
-                refusals = [ReconstructionRefusal(**entry) for entry in json.loads(row.refusals)]
-            except ValueError, TypeError:
-                # A malformed audit row must not take the whole page down: the
-                # counts are still readable and are the part an admin acts on.
-                logger.warning("Unreadable refusals payload on run %d", row.id)
-        runs.append(
-            ReconstructionRunResponse(
-                id=row.id,
-                started_at=row.started_at,
-                finished_at=row.finished_at,
-                dry_run=row.dry_run,
-                gap_minutes=row.gap_minutes,
-                boundary_version=row.boundary_version,
-                sessions_created=row.sessions_created,
-                sessions_merged=row.sessions_merged,
-                sessions_split=row.sessions_split,
-                sessions_closed=row.sessions_closed,
-                sessions_refused=row.sessions_refused,
-                refusals=refusals,
-            )
-        )
-
-    return ReconstructionRunListResponse(runs=runs, total=total)
 
 
 @router.get("/parameters", response_model=LiveLinkParameterListResponse)

@@ -1134,7 +1134,7 @@ class TelemetryService:
         # against the clock, so a single dongle with a wrong date would push the
         # cutoff past every normally-dated parameter and blank the dashboard
         # until real time caught up.
-        now = utc_now().replace(tzinfo=None)
+        now = utc_now()
         plausible = [row.timestamp for row in rows if row.timestamp <= now]
         newest = max(plausible) if plausible else now
         cutoff = newest - LATEST_VALUE_STALE_AFTER

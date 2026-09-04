@@ -39,7 +39,7 @@ from app.utils.db_url import to_sync_url
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
-#: The published order. Index 0 must run before index 1: the reconstruction
+#: The published order. Index 0 must run before index 1: the odometer backfill
 #: reads telemetry as the device reported it, so it has to run while the
 #: history is still device-native.
 UPGRADE_SEQUENCE = (

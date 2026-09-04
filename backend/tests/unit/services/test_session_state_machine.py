@@ -287,7 +287,7 @@ class TestTheOdometerSignal:
 
         A vehicle whose speed arrives under a name nothing recognises still
         proves it moved. Without this, that cohort records no drives at all --
-        and the reconstruction tool, which requires positive evidence of
+        and SD replay, which requires positive evidence of
         movement before touching anything, would then erase its history.
         """
         vin, device = await make_livelink_vehicle("smodo", "1")
@@ -871,7 +871,7 @@ class TestScopeAndProvenance:
         self, db_session: AsyncSession, make_livelink_vehicle
     ):
         """Defaulting new rows to 0 is not half-right, it is wrong: they would
-        masquerade as pre-098 history and a later reconstruction would skip
+        masquerade as pre-098 history and any later pass over history would skip
         them."""
         vin, device = await make_livelink_vehicle("smscope", "2")
         service = SessionService(db_session)

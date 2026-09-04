@@ -4,7 +4,7 @@
 ``livelink_session_timeout_minutes`` and argued the two would then "agree by
 construction". They would not: the live path also ends a session on explicit
 ECU-offline plus a 60-second grace, and on Torque's own session id, so a
-key-off/key-on pair 90 seconds apart splits live and merges in reconstruction.
+key-off/key-on pair 90 seconds apart splits live and merges on SD replay.
 The questions are different -- "has this device gone quiet?" is not "was that
 the same drive?" -- and conflating them means an admin cannot fix trip grouping
 without also changing failure detection.
@@ -134,7 +134,7 @@ class TestTheGapSetting:
         assert sessions[0].ended_at is not None, "the 3-minute gap should have closed this"
         assert sessions[0].effective_gap_minutes == 3, (
             "the gap in force is recorded on the session, so a later "
-            "reconstruction knows what it is looking at"
+            "pass over history knows what it is looking at"
         )
 
 

@@ -37,7 +37,6 @@ import type {
   BackfillResultResponse,
   TorqueSourceCreateResponse,
   TorqueSourceListResponse,
-  ReconstructionRunList,
 } from '../types/livelink'
 import type { TripList, LocationTrackingResponse, TripPointsResponse, LastLocation } from '../types/trips'
 import { withBase } from '../utils/basePath'
@@ -424,20 +423,6 @@ export const livelinkService = {
    */
   async updateMQTTSettings(settings: MQTTSettingsUpdate): Promise<MQTTSettings> {
     const response = await api.put<MQTTSettings>('/livelink/mqtt/settings', settings)
-    return response.data
-  },
-
-  /**
-   * Recent session-boundary reconstruction runs, newest first.
-   *
-   * The tool that writes these is a CLI, so this is the only way the result
-   * ever reaches a person. Refusal is its routine outcome, and in a log a safe
-   * refusal and a broken tool look identical.
-   */
-  async getReconstructionRuns(limit = 20): Promise<ReconstructionRunList> {
-    const response = await api.get<ReconstructionRunList>('/livelink/reconstruction-runs', {
-      params: { limit },
-    })
     return response.data
   },
 

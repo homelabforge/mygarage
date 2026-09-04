@@ -28,7 +28,6 @@ import {
   Download,
 } from 'lucide-react'
 import { livelinkService } from '@/services/livelinkService'
-import ReconstructionRunsSection from '@/components/livelink/ReconstructionRunsSection'
 import NoMovementSignalNotice from '@/components/livelink/NoMovementSignalNotice'
 import { vehicleService } from '@/services/vehicleService'
 import { Select, Drawer, Toggle } from '@/components/ui'
@@ -42,7 +41,6 @@ import type {
   MQTTSettings,
   MQTTStatus,
   BackfillResultResponse,
-  ReconstructionRun,
 } from '@/types/livelink'
 import type { Vehicle } from '@/types/vehicle'
 import { getActiveLocale } from '@/constants/i18n'
@@ -57,7 +55,6 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<LiveLinkSettings | null>(null)
-  const [reconstructionRuns, setReconstructionRuns] = useState<ReconstructionRun[]>([])
   const [devices, setDevices] = useState<LiveLinkDeviceListResponse | null>(null)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [firmware, setFirmware] = useState<FirmwareInfo | null>(null)
@@ -97,7 +94,6 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
         deviceFirmwareData,
         mqttSettingsData,
         mqttStatusData,
-        reconstructionData,
       ] = await Promise.all([
         livelinkService.getSettings(),
         livelinkService.getDevices(),
@@ -106,9 +102,6 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
         livelinkService.getDeviceFirmwareStatus(),
         livelinkService.getMQTTSettings(),
         livelinkService.getMQTTStatus(),
-        // Tolerated separately: this is an advanced repair surface, and a
-        // failure here must not blank the whole settings modal.
-        livelinkService.getReconstructionRuns().catch(() => ({ runs: [], total: 0 })),
       ])
       setSettings(settingsData)
       setDevices(devicesData)
@@ -117,7 +110,6 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       setDeviceFirmware(deviceFirmwareData)
       setMqttSettings(mqttSettingsData)
       setMqttStatus(mqttStatusData)
-      setReconstructionRuns(reconstructionData.runs)
     } catch (error) {
       console.error('Failed to load LiveLink settings:', error)
       toast.error(t('modal.failedToLoadLiveLink'))
@@ -764,8 +756,6 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
               </section>
 
               <NoMovementSignalNotice devices={devices?.devices ?? []} />
-
-              <ReconstructionRunsSection runs={reconstructionRuns} />
 
               {/* Section: Alerts & Notifications */}
               <section className="bg-garage-bg rounded-lg border border-garage-border p-4">

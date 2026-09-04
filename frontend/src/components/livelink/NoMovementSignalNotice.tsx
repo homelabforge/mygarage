@@ -12,50 +12,23 @@ import type { LiveLinkDevice } from '@/types/livelink'
  * failure the boundary rework exists to remove, so reintroducing one for this
  * cohort would be absurd.
  *
- * The backend logs the same thing once per process with the parameter keys
- * attached. This is the half that survives a log rotation and reaches someone
- * who is not reading logs.
+ * The backend picks the cohort, because the answer needs the devices' parameter
+ * keys; see `LiveLinkService.movement_unreadable_device_ids` for why the browser
+ * cannot and what an earlier version of this file got wrong by trying.
  *
- * A device that has simply never been driven since the upgrade also has no
- * movement on record, so this waits for it to have been HEARD FROM recently:
- * a device checking in and still reporting nothing readable is the actionable
- * case, and a dongle sitting in a drawer is not.
- *
- * "Recently" is measured against the NEWEST check-in among the devices shown,
- * not against the wall clock. `Date.now()` in render is impure -- it makes the
- * component non-idempotent, and eslint refuses it -- and the relative form is
- * the better question anyway: it asks whether this device is keeping up with
- * the others, so an instance whose whole fleet has been offline for a month
- * raises nothing rather than raising everything.
+ * The backend logs the same conclusion once per process with the keys attached.
+ * This is the half that survives a log rotation and reaches someone who is not
+ * reading logs.
  */
 
 interface Props {
   devices: LiveLinkDevice[]
 }
 
-/** How far behind the newest check-in a device may be and still be flagged. */
-const RECENTLY_SEEN_DAYS = 7
-
 export default function NoMovementSignalNotice({ devices }: Props): React.ReactElement | null {
   const { t } = useTranslation('forms')
 
-  const seenAt = (device: LiveLinkDevice): number =>
-    device.last_seen == null ? Number.NEGATIVE_INFINITY : new Date(device.last_seen).getTime()
-
-  const newestCheckIn = devices.reduce(
-    (newest, device) => Math.max(newest, seenAt(device)),
-    Number.NEGATIVE_INFINITY
-  )
-  const cutoff = newestCheckIn - RECENTLY_SEEN_DAYS * 24 * 60 * 60 * 1000
-
-  const affected = devices.filter(
-    (device) =>
-      device.enabled &&
-      device.vin != null &&
-      device.last_movement_at == null &&
-      device.last_seen != null &&
-      seenAt(device) >= cutoff
-  )
+  const affected = devices.filter((device) => device.movement_unreadable)
 
   if (affected.length === 0) return null
 

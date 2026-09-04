@@ -8395,6 +8395,12 @@
             ],
             "title": "Last Seen"
           },
+          "movement_unreadable": {
+            "default": false,
+            "description": "Device reports telemetry but nothing recognisable as movement",
+            "title": "Movement Unreadable",
+            "type": "boolean"
+          },
           "odometer_unit": {
             "anyOf": [
               {
@@ -11556,127 +11562,6 @@
           }
         },
         "title": "RecallUpdate",
-        "type": "object"
-      },
-      "ReconstructionRefusal": {
-        "description": "One session the reconstruction tool declined to touch, and why.",
-        "properties": {
-          "reason": {
-            "description": "A key, not a sentence: rendered with a translated label, because a refusal is a routine outcome an admin has to be able to read",
-            "title": "Reason",
-            "type": "string"
-          },
-          "session_id": {
-            "title": "Session Id",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "session_id",
-          "reason"
-        ],
-        "title": "ReconstructionRefusal",
-        "type": "object"
-      },
-      "ReconstructionRunListResponse": {
-        "description": "Recent reconstruction runs, newest first.",
-        "properties": {
-          "runs": {
-            "items": {
-              "$ref": "#/components/schemas/ReconstructionRunResponse"
-            },
-            "title": "Runs",
-            "type": "array"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "runs",
-          "total"
-        ],
-        "title": "ReconstructionRunListResponse",
-        "type": "object"
-      },
-      "ReconstructionRunResponse": {
-        "description": "One invocation of the session-boundary reconstruction tool.",
-        "properties": {
-          "boundary_version": {
-            "title": "Boundary Version",
-            "type": "integer"
-          },
-          "dry_run": {
-            "title": "Dry Run",
-            "type": "boolean"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "gap_minutes": {
-            "title": "Gap Minutes",
-            "type": "integer"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "refusals": {
-            "items": {
-              "$ref": "#/components/schemas/ReconstructionRefusal"
-            },
-            "title": "Refusals",
-            "type": "array"
-          },
-          "sessions_closed": {
-            "title": "Sessions Closed",
-            "type": "integer"
-          },
-          "sessions_created": {
-            "title": "Sessions Created",
-            "type": "integer"
-          },
-          "sessions_merged": {
-            "title": "Sessions Merged",
-            "type": "integer"
-          },
-          "sessions_refused": {
-            "title": "Sessions Refused",
-            "type": "integer"
-          },
-          "sessions_split": {
-            "title": "Sessions Split",
-            "type": "integer"
-          },
-          "started_at": {
-            "format": "date-time",
-            "title": "Started At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "started_at",
-          "dry_run",
-          "gap_minutes",
-          "boundary_version",
-          "sessions_created",
-          "sessions_merged",
-          "sessions_split",
-          "sessions_closed",
-          "sessions_refused"
-        ],
-        "title": "ReconstructionRunResponse",
         "type": "object"
       },
       "ReminderCreate": {
@@ -31843,57 +31728,6 @@
           }
         ],
         "summary": "Update Parameter",
-        "tags": [
-          "LiveLink Admin"
-        ]
-      }
-    },
-    "/api/livelink/reconstruction-runs": {
-      "get": {
-        "description": "Recent session-boundary reconstruction runs, newest first.\n\nThe tool answers \"what did this change, and what did it refuse?\" only if\nsomething outlives the run: a log rotates and a container restart loses it.\nRefusal is the ROUTINE outcome for a session whose telemetry coverage cannot\nbe proven, so without this a safe refusal and a broken tool look identical.\n\n**Security:**\n- Requires an admin",
-        "operationId": "list_reconstruction_runs_api_livelink_reconstruction_runs_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReconstructionRunListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "List Reconstruction Runs",
         "tags": [
           "LiveLink Admin"
         ]

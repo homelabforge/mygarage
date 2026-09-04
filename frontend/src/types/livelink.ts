@@ -66,10 +66,6 @@ export type MQTTSettings = components['schemas']['MQTTSettingsResponse']
 export type MQTTSettingsUpdate = components['schemas']['MQTTSettingsUpdate']
 export type MQTTStatus = components['schemas']['MQTTStatusResponse']
 
-/** One session-boundary reconstruction run, and the sessions it declined. */
-export type ReconstructionRun = components['schemas']['ReconstructionRunResponse']
-export type ReconstructionRunList = components['schemas']['ReconstructionRunListResponse']
-export type ReconstructionRefusal = components['schemas']['ReconstructionRefusal']
 export type MQTTTestResult = components['schemas']['MQTTTestResult']
 
 // -- Device Command Types --

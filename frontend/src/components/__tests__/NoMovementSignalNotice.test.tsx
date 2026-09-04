@@ -1,25 +1,31 @@
 /**
  * The notice that keeps `contact` mode honest.
  *
- * A device whose speed and odometer arrive under names this codebase does not
- * recognise records no drives at all, and "no drives" is indistinguishable from
- * "the vehicle was parked". A silent zero is exactly the failure the boundary
- * rework exists to remove, so shipping one for this cohort would be absurd.
- *
- * Every test seeds the state that makes it meaningful. The component's default
- * is to render nothing, so an assertion of absence proves nothing unless the
- * fixture is one that SHOULD have raised the notice but for the single property
- * under test.
+ * Deciding WHICH devices cannot have their movement read needs their parameter
+ * keys, so the backend decides and this renders the answer. What is left to
+ * test here is that it renders that answer and never a guess of its own: the
+ * previous version inferred the cohort from `last_movement_at == null`, which
+ * migration 098 makes true for every device that exists.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import NoMovementSignalNotice from '../livelink/NoMovementSignalNotice'
 import type { LiveLinkDevice } from '@/types/livelink'
 
-const NOW = new Date('2026-09-03T12:00:00Z')
-const daysBefore = (n: number) =>
-  new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000).toISOString()
+// The shared setup mocks `t` as `(key) => key`, which discards interpolation --
+// and the device names ARE the interpolation here, so under that mock a notice
+// naming the wrong vehicle is indistinguishable from one naming the right one.
+// Overridden for this file only, so the names become assertable.
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) =>
+      options?.devices ? `${key}:${String(options.devices)}` : key,
+    i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
+  }),
+  Trans: ({ children }: { children: React.ReactNode }) => children,
+  initReactI18next: { type: '3rdParty', init: () => {} },
+}))
 
 const device = (overrides: Partial<LiveLinkDevice> = {}): LiveLinkDevice =>
   ({
@@ -28,9 +34,10 @@ const device = (overrides: Partial<LiveLinkDevice> = {}): LiveLinkDevice =>
     label: null,
     vin: '1HGCM82633A123456',
     enabled: true,
-    last_seen: daysBefore(0),
+    last_seen: '2026-09-03T12:00:00Z',
     last_movement_at: null,
-    created_at: daysBefore(400),
+    movement_unreadable: false,
+    created_at: '2025-08-01T12:00:00Z',
     updated_at: null,
     ecu_status: 'online',
     device_status: 'online',
@@ -42,37 +49,46 @@ const device = (overrides: Partial<LiveLinkDevice> = {}): LiveLinkDevice =>
 const notice = () => screen.queryByText('modal.livelink.noMovementSignal')
 
 describe('NoMovementSignalNotice', () => {
-  it('names a device that checks in but never reports movement', () => {
-    render(<NoMovementSignalNotice devices={[device()]} />)
+  it('names a device the backend found unreadable', () => {
+    render(<NoMovementSignalNotice devices={[device({ movement_unreadable: true })]} />)
     expect(notice()).toBeTruthy()
   })
 
-  it('says nothing about a device that has reported movement', () => {
-    render(<NoMovementSignalNotice devices={[device({ last_movement_at: daysBefore(1) })]} />)
+  it('stays quiet for a device that has simply not moved yet', () => {
+    // The day-one case, and the whole reason this component stopped deciding
+    // for itself: no movement is on record, because the column that records it
+    // was created by the migration that shipped it. The backend can see the
+    // device is publishing only its parked heartbeat. This component cannot,
+    // and must not guess.
+    render(
+      <NoMovementSignalNotice
+        devices={[device({ last_movement_at: null, movement_unreadable: false })]}
+      />
+    )
     expect(notice()).toBeNull()
   })
 
-  it('says nothing about a dongle sitting in a drawer', () => {
-    // Long behind the newest check-in. It reports no movement because nothing
-    // is driving it, which is not a problem anyone can fix.
+  it('names only the unreadable device when the fleet is mixed', () => {
     render(
       <NoMovementSignalNotice
         devices={[
-          device({ device_id: 'active', last_movement_at: daysBefore(0) }),
-          device({ device_id: 'drawer', last_seen: daysBefore(60) }),
+          device({ device_id: 'readable', label: 'Ram', movement_unreadable: false }),
+          device({ device_id: 'unreadable', label: 'Mirage', movement_unreadable: true }),
         ]}
       />
     )
-    expect(notice()).toBeNull()
+    expect(notice()).toBeTruthy()
+    expect(screen.getByText(/Mirage/)).toBeTruthy()
+    expect(screen.queryByText(/Ram/)).toBeNull()
   })
 
-  it('says nothing about a disabled or unlinked device', () => {
+  it('falls back to the device id when a device has no label', () => {
     render(
       <NoMovementSignalNotice
-        devices={[device({ enabled: false }), device({ device_id: 'b', vin: null })]}
+        devices={[device({ device_id: 'aabbccddeeff', label: null, movement_unreadable: true })]}
       />
     )
-    expect(notice()).toBeNull()
+    expect(screen.getByText(/aabbccddeeff/)).toBeTruthy()
   })
 
   it('says nothing when there are no devices at all', () => {
@@ -80,28 +96,8 @@ describe('NoMovementSignalNotice', () => {
     expect(notice()).toBeNull()
   })
 
-  it('raises nothing when the whole fleet is equally stale', () => {
-    // The cutoff is relative to the newest check-in, so a fleet that has all
-    // been offline for a month is quiet rather than entirely flagged. This is
-    // the behaviour that replaced `Date.now()`, which is impure in render.
-    render(
-      <NoMovementSignalNotice
-        devices={[
-          device({ device_id: 'a', last_seen: daysBefore(90), last_movement_at: daysBefore(90) }),
-          device({ device_id: 'b', last_seen: daysBefore(91) }),
-        ]}
-      />
-    )
-    // 'b' is one day behind 'a', so it IS within the window and flagged: being
-    // stale together is not the exemption, being stale RELATIVE to the fleet is.
-    expect(notice()).toBeTruthy()
-  })
-
   it('renders the same output twice for the same input', () => {
-    // Idempotence, which is what the impure-function rule protects. With
-    // `Date.now()` the cutoff moved between renders and a device could appear
-    // and disappear without its data changing.
-    const devices = [device()]
+    const devices = [device({ movement_unreadable: true })]
     const first = render(<NoMovementSignalNotice devices={devices} />).container.innerHTML
     const second = render(<NoMovementSignalNotice devices={devices} />).container.innerHTML
     expect(first).toBe(second)

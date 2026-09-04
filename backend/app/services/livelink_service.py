@@ -5,17 +5,26 @@ import ipaddress
 import logging
 import secrets
 import socket
+from collections.abc import Sequence
+from datetime import timedelta
 from urllib.parse import urlsplit
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_device import LiveLinkDevice
+from app.models.vehicle_telemetry import VehicleTelemetry
 from app.services.settings_service import SettingsService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.movement_keys import PARKED_HEARTBEAT_KEYS
 
 logger = logging.getLogger(__name__)
+
+#: How recently a device must have published something for "it reports no
+#: readable movement" to be worth saying. A dongle left in a drawer has no
+#: movement either, and is not a misconfiguration anyone can act on.
+OPERATING_RECENTLY_DAYS = 7
 
 # Token prefix for easy identification
 TOKEN_PREFIX = "ll_"
@@ -195,6 +204,78 @@ class LiveLinkService:
             select(LiveLinkDevice).order_by(LiveLinkDevice.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def movement_unreadable_device_ids(self, devices: Sequence[LiveLinkDevice]) -> set[str]:
+        """Device ids whose movement this codebase demonstrably cannot read.
+
+        A device recording no drives is either parked or unreadable, and only
+        one of those is a problem. Both halves of the question are required:
+
+        * no movement has EVER been recognised (``last_movement_at`` is unset), and
+        * it has published something other than the parked heartbeat recently.
+
+        The first half alone is what an earlier revision asked, and migration
+        098 makes it true for every device that exists, so on the first boot
+        after upgrading it named the entire fleet and pointed at the setting
+        that reverts the boundary fix. A parked WiCAN publishes a
+        battery-voltage heartbeat every 95 minutes and should record no drives;
+        saying so about it is noise. A device publishing RPM, coolant and
+        throttle while reporting nothing recognisable as speed or an odometer is
+        the actionable case, and it is the only one.
+
+        Decided here rather than in the browser because the answer needs the
+        device's parameter keys, which the settings page does not have and
+        should not be sent a fleet's worth of.
+
+        NOT the same predicate as
+        ``SessionService._warn_if_no_movement_signal_ever``, which asks the
+        narrower question of one payload it is already holding. This one adds
+        ``enabled``, a linked VIN, and a recency bound, because it renders a
+        row a person is asked to act on: a disabled or unlinked device is not
+        misconfigured, and a dongle in a drawer is not either. They share the
+        key test and nothing else.
+
+        An EXISTS per candidate, not one grouped scan of the fleet. The grouped
+        form reads every telemetry row in the window to build groups Python then
+        discards (20.3 ms on a 263k-row instance), and is most expensive for
+        exactly the devices it flags: an unreadable device never gets
+        ``last_movement_at``, so it stays a candidate forever. EXISTS stops at
+        the first non-heartbeat row, measured at 0.01 ms for the same fleet, and
+        scales with devices rather than rows.
+        """
+        cutoff = utc_now() - timedelta(days=OPERATING_RECENTLY_DAYS)
+        candidates = [
+            device.device_id
+            for device in devices
+            # `last_seen` is already loaded, so a dongle dormant in a drawer
+            # costs no SQL at all rather than a range scan that returns nothing.
+            # A device that has NEVER been seen still asks: SD-card backfill
+            # inserts telemetry without going through `store_telemetry`, so an
+            # unset `last_seen` is not proof of an unused device.
+            if device.enabled
+            and device.vin is not None
+            and device.last_movement_at is None
+            and (device.last_seen is None or device.last_seen >= cutoff)
+        ]
+        if not candidates:
+            return set()
+
+        unreadable = set()
+        for device_id in candidates:
+            operating = await self.db.execute(
+                select(VehicleTelemetry.id)
+                .where(VehicleTelemetry.device_id == device_id)
+                .where(VehicleTelemetry.timestamp >= cutoff)
+                # Matched in SQL, where a Python predicate cannot go, so this is
+                # the one place `is_parked_heartbeat_key` is spelled out. The
+                # fold is kept because `_calculate_session_aggregates` still
+                # carries mixed-case candidates.
+                .where(func.upper(VehicleTelemetry.param_key).not_in(sorted(PARKED_HEARTBEAT_KEYS)))
+                .limit(1)
+            )
+            if operating.first() is not None:
+                unreadable.add(device_id)
+        return unreadable
 
     # =========================================================================
     # SD-Card Backfill Helpers
@@ -565,8 +646,8 @@ class LiveLinkService:
         drive-through, a school pickup, a charging stop, a drawbridge -- would
         split the drive.
 
-        Governs BOTH the live boundaries and reconstruction, so a replayed drive
-        and a live drive are cut the same way.
+        Governs BOTH the live path and SD replay, so a drive that arrived off
+        the card and a live drive are cut the same way.
         """
         setting = await SettingsService.get(self.db, "livelink_session_gap_minutes")
         return int(setting.value) if setting and setting.value else 15

@@ -1,7 +1,7 @@
 """Session service for drive session detection and management."""
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -19,7 +19,17 @@ from app.services.session_boundaries import (
     extract_signals,
 )
 from app.utils.datetime_utils import utc_now
-from app.utils.movement_keys import rpm_param_key_candidates, speed_param_key_candidates
+from app.utils.distance_counters import (
+    TravelledSpan,
+    is_distance_source_param_key,
+    measure_travelled,
+    select_distance_source,
+)
+from app.utils.movement_keys import (
+    is_parked_heartbeat_key,
+    rpm_param_key_candidates,
+    speed_param_key_candidates,
+)
 from app.utils.odometer_units import is_odometer_param_key
 
 logger = logging.getLogger(__name__)
@@ -39,12 +49,6 @@ RPM_PARAM_KEYS = rpm_param_key_candidates()
 #: a session that opened at 1 km/h while idle accounting called the same sample
 #: stationary is a contradiction the code cannot resolve.
 IDLE_THRESHOLD_KMH = 5.0
-
-#: Keys a PARKED vehicle publishes on its own. A batch containing nothing else
-#: is a heartbeat, not a vehicle whose movement went unread, so it must not
-#: trigger the no-movement diagnostic below -- otherwise the warning fires for
-#: every device on every instance and means nothing.
-PARKED_HEARTBEAT_KEYS = frozenset({"BATTERY_VOLTAGE"})
 
 #: Every column `refresh_aggregates` derives from a session's window. Listed so
 #: `clear_first` can null them all; a column added to the recompute steps but
@@ -460,7 +464,7 @@ class SessionService:
             return
         if device.device_id in _NO_MOVEMENT_WARNED:
             return
-        operating_keys = sorted(key for key in samples if key.upper() not in PARKED_HEARTBEAT_KEYS)
+        operating_keys = sorted(key for key in samples if not is_parked_heartbeat_key(key))
         if not operating_keys:
             return
         _NO_MOVEMENT_WARNED.add(device.device_id)
@@ -928,7 +932,7 @@ class SessionService:
         # open the new one and advance the pointer.
         if device.current_session_id:
             await self.end_session(
-                device, utc_now().replace(tzinfo=None)
+                device, utc_now()
             )  # server-now end >= prior start (R2-H1, R2-H2)
         # Deliberately do NOT set start_odometer here. _get_current_odometer() is VIN-scoped,
         # not device-scoped, so on a vehicle with BOTH a WiCAN dongle and a Torque source it
@@ -1026,23 +1030,30 @@ class SessionService:
         matching `_calculate_session_aggregates`: telemetry is pruned on a
         retention schedule while sessions are kept forever, so an old session's
         window is legitimately empty and must not be blanked.
+
+        THE ODOMETER IS NOT THE ONLY DISTANCE SOURCE
+        --------------------------------------------
+        It used to be the only one read, which is useless on hardware whose
+        odometer resolves more coarsely than a typical trip. Every distance
+        source in the window is now measured and the finest one supplies
+        `distance_km`, while the odometer keeps `start_odometer` / `end_odometer`
+        to itself and wins ties. The measurements behind that, and the reason
+        the two key sets stay disjoint, live with the rule in
+        `app/utils/distance_counters.py`.
         """
         if not session.started_at or not session.ended_at:
             return
 
-        # One grouped pass over the window. Odometer keys cannot be an `IN`
-        # list -- the standard SAE J1979 key carries an arbitrary two-hex-digit
-        # PID prefix (`A6-ODOMETER`) and a WiCAN autopid has none at all -- and
-        # a substring match would swallow trip counters like `21-DISTANCEMILON`
-        # (see app/utils/odometer_units.py). Grouping by key lets
-        # `is_odometer_param_key` decide in Python without a second scan, and
-        # keeps any function off the indexed `param_key` column.
+        # Which keys the window holds, so the readings query below can name them
+        # in an `IN` list of literals. They cannot be listed up front: the
+        # standard SAE J1979 odometer key carries an arbitrary two-hex-digit PID
+        # prefix (`A6-ODOMETER`) while a WiCAN autopid has none at all, and a
+        # substring match would swallow `DISTANCE_TO_EMPTY` (see
+        # app/utils/distance_counters.py). Grouping by key lets Python decide
+        # which are distance sources while keeping any function off the indexed
+        # `param_key` column.
         result = await self.db.execute(
-            select(
-                VehicleTelemetry.param_key,
-                func.min(VehicleTelemetry.value),
-                func.max(VehicleTelemetry.value),
-            )
+            select(VehicleTelemetry.param_key)
             .where(VehicleTelemetry.vin == session.vin)
             # Scoped to the session's own device, not just its VIN. One vehicle
             # can carry both a WiCAN dongle and a Torque source, and
@@ -1054,23 +1065,28 @@ class SessionService:
             .where(VehicleTelemetry.timestamp <= session.ended_at)
             .group_by(VehicleTelemetry.param_key)
         )
-        spans = [
-            (low, high)
-            for key, low, high in result.all()
-            if low is not None and high is not None and is_odometer_param_key(key)
-        ]
+        source_keys = [key for (key,) in result.all() if is_distance_source_param_key(key)]
+        odometer_keys = {key for key in source_keys if is_odometer_param_key(key)}
 
-        if spans:
-            low = min(pair[0] for pair in spans)
-            high = max(pair[1] for pair in spans)
-            session.start_odometer = float(low)
-            session.end_odometer = float(high)
-            session.distance_km = float(high) - float(low)
-            return
+        if source_keys:
+            travelled = await self._distance_by_source(session, source_keys)
 
-        # No odometer in the window. A Torque trip never has one -- the app
-        # reports no odometer PID -- so its distance comes from the GPS
-        # breadcrumb. This lives here rather than in `end_session` so every
+            # The odometer columns are the odometer's alone, and stay a span
+            # rather than a sum: they answer "what did the clock read", not
+            # "how far did it move".
+            odometer_spans = [travelled[key] for key in odometer_keys]
+            if odometer_spans:
+                session.start_odometer = min(span.low for span in odometer_spans)
+                session.end_odometer = max(span.high for span in odometer_spans)
+
+            best = select_distance_source(travelled, odometer_keys)
+            if best is not None:
+                session.distance_km = travelled[best].distance_km
+                return
+
+        # No distance source in the window at all. A Torque trip never has
+        # one -- the app reports no odometer and no distance PID -- so its
+        # distance comes from the GPS breadcrumb. This lives here rather than in `end_session` so every
         # caller gets the same policy: computed only in `end_session`, a
         # Torque session's distance stayed frozen at whatever the breadcrumb
         # held on close while its speed and RPM were repaired around it.
@@ -1080,6 +1096,44 @@ class SessionService:
         if len(points) >= 2:
             coords = [(float(p.latitude), float(p.longitude)) for p in points]
             session.distance_km = float(LocationService.haversine_km(coords))
+
+    async def _distance_by_source(
+        self, session: DriveSession, source_keys: Sequence[str]
+    ) -> dict[str, TravelledSpan]:
+        """Measure how far each distance source moved inside the session window.
+
+        One ordered pass over only the keys the window actually holds, so the
+        `IN` list is literals discovered by the caller rather than a function
+        applied to the indexed `param_key` column. `uq_telemetry_dedup`
+        (`device_id`, `param_key`, `timestamp`) serves both the lookup and the
+        ordering, so no sort is needed on either dialect.
+
+        The readings come back to Python rather than folding into a window
+        function in SQL, which reverses the rule
+        `movement_keys.speed_param_key_candidates` states for the aggregate
+        reader. Measured on a full 3,262-session rebuild of the instance this
+        was written for, it costs 3 ms: sessions average 9 distance-source rows
+        because only source keys are fetched, never the whole window. Folding it
+        into SQL would raise the worst case from 2,701 rows to 35,049.
+        """
+        rows = await self.db.execute(
+            select(
+                VehicleTelemetry.param_key,
+                VehicleTelemetry.value,
+            )
+            .where(VehicleTelemetry.vin == session.vin)
+            .where(VehicleTelemetry.device_id == session.device_id)
+            .where(VehicleTelemetry.timestamp >= session.started_at)
+            .where(VehicleTelemetry.timestamp <= session.ended_at)
+            .where(VehicleTelemetry.param_key.in_(list(source_keys)))
+            .order_by(VehicleTelemetry.param_key, VehicleTelemetry.timestamp)
+        )
+
+        series: dict[str, list[float]] = {}
+        for key, value in rows.all():
+            series.setdefault(key, []).append(float(value))
+
+        return {key: measure_travelled(values) for key, values in series.items()}
 
     async def _calculate_session_aggregates(self, session: DriveSession) -> None:
         """Calculate aggregate statistics for a session from telemetry data."""

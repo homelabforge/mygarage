@@ -75,6 +75,14 @@ class LiveLinkDeviceResponse(LiveLinkDeviceBase):
     last_movement_at: datetime | None = Field(
         None, description="When this device last reported a recognised movement signal"
     )
+    #: Computed per response, not stored; see
+    #: `LiveLinkService.movement_unreadable_device_ids` for the rule and why it
+    #: is not simply `last_movement_at is None`. Every handler returning this
+    #: schema must answer it: the False default would otherwise report "reads
+    #: fine" about a device nobody asked about.
+    movement_unreadable: bool = Field(
+        False, description="Device reports telemetry but nothing recognisable as movement"
+    )
     created_at: datetime
     updated_at: datetime | None
 
@@ -235,48 +243,6 @@ class LiveLinkSettingsUpdate(BaseModel):
     notify_threshold_alerts: bool | None = None
     notify_firmware_update: bool | None = None
     notify_new_device: bool | None = None
-
-
-class ReconstructionRefusal(BaseModel):
-    """One session the reconstruction tool declined to touch, and why."""
-
-    session_id: int
-    reason: str = Field(
-        ...,
-        description=(
-            "A key, not a sentence: rendered with a translated label, because a "
-            "refusal is a routine outcome an admin has to be able to read"
-        ),
-    )
-
-
-class ReconstructionRunResponse(BaseModel):
-    """One invocation of the session-boundary reconstruction tool."""
-
-    id: int
-    started_at: datetime
-    finished_at: datetime | None = None
-    dry_run: bool
-    gap_minutes: int
-    boundary_version: int
-    sessions_created: int
-    sessions_merged: int
-    sessions_split: int
-    sessions_closed: int
-    sessions_refused: int
-    refusals: list[ReconstructionRefusal] = Field(default_factory=list)
-
-
-class ReconstructionRunListResponse(BaseModel):
-    """Recent reconstruction runs, newest first."""
-
-    runs: list[ReconstructionRunResponse]
-    total: int
-
-
-# =============================================================================
-# Firmware Schemas
-# =============================================================================
 
 
 class FirmwareInfoResponse(BaseModel):

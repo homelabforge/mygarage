@@ -17,7 +17,7 @@ with that, and each has a test below:
    driveway idle that was credited 14 km and started this whole rework.
 3. **No odometer signal.** The one signal that covers a device whose speed
    arrives under a name nothing recognises. Without it, C7's "refuse to
-   reconstruct without positive evidence" would erase that whole cohort.
+   rebuild without positive evidence" would erase that whole cohort.
 """
 
 from __future__ import annotations

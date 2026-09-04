@@ -1,9 +1,9 @@
 """Tests for migration 098: durable movement state and one open session per device.
 
 098 is the schema half of the session-boundary rework. It adds movement state to
-``livelink_devices``, provenance to ``drive_sessions``, the reconstruction-run
-audit table, and -- the part with teeth -- a **partial unique index** making "one
-open session per device" a constraint rather than a convention.
+``livelink_devices``, provenance to ``drive_sessions``, and -- the part with
+teeth -- a **partial unique index** making "one open session per device" a
+constraint rather than a convention.
 
 That index can fail on existing data, which is why the preflight is the bulk of
 both the migration and this file. There are two ways a database gets a second
@@ -244,9 +244,9 @@ class TestSchema:
         """Zero means "cut by the old rule", and getting it backwards is unrecoverable.
 
         Every pre-098 session was bounded by contact, not movement. Stamping
-        them `1` would claim they follow semantics they do not, and a later
-        reconstruction -- whose whole job is finding sessions cut the old way --
-        would skip every one of them, forever.
+        them `1` would claim they follow semantics they do not, and any later
+        pass over history -- whose whole job is finding sessions cut the old
+        way -- would skip every one of them, forever.
         """
         _dialect, engine, _url = engine_for_migration
         _make_pre_098_schema(engine)
@@ -265,32 +265,6 @@ class TestSchema:
             ).scalar_one()
         assert version == 0
         assert gap is None, "NULL means 'the old contact timeout applied', not 'zero minutes'"
-
-    def test_reconstruction_runs_table_is_created(self, engine_for_migration):
-        _dialect, engine, _url = engine_for_migration
-        _make_pre_098_schema(engine)
-        assert not inspect(engine).has_table("livelink_reconstruction_runs")
-
-        _load("098_session_boundaries").upgrade(engine)
-
-        insp = inspect(engine)
-        assert insp.has_table("livelink_reconstruction_runs")
-        columns = {c["name"] for c in insp.get_columns("livelink_reconstruction_runs")}
-        expected = {
-            "id",
-            "started_at",
-            "finished_at",
-            "dry_run",
-            "gap_minutes",
-            "boundary_version",
-            "sessions_created",
-            "sessions_merged",
-            "sessions_split",
-            "sessions_closed",
-            "sessions_refused",
-            "refusals",
-        }
-        assert expected <= columns, f"missing: {sorted(expected - columns)}"
 
     def test_the_movement_index_exists(self, engine_for_migration):
         """The timeout query scans on `last_movement_at`; unindexed it is a table scan."""

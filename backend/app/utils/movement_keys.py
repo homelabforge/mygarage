@@ -27,7 +27,7 @@ Torque needs no special case: ``torque_pid_map`` maps ``k0d -> SPEED`` and
 
 from __future__ import annotations
 
-from app.utils.odometer_units import OBD2_PID_PREFIX_RE
+from app.utils.odometer_units import bare_param_key
 
 #: Speed aliases, with any OBD2 PID prefix stripped. ``VEHICLESPEED`` is what
 #: ``0D-VehicleSpeed`` becomes; ``SPEED`` is the bare WiCAN autopid and the
@@ -44,6 +44,11 @@ _RPM_BARE_KEYS = frozenset({"RPM", "ENGINERPM", "ENGINE_RPM"})
 #: is derived from the alias sets above rather than hand-copied beside them.
 _SPEED_PID_PREFIXES = ("0D",)
 _RPM_PID_PREFIXES = ("0C",)
+
+#: Keys a PARKED vehicle publishes on its own, prefix stripped. Read through
+#: :func:`is_parked_heartbeat_key`; the set is public only because
+#: ``LiveLinkService`` matches it in SQL, where a Python predicate cannot go.
+PARKED_HEARTBEAT_KEYS = frozenset({"BATTERY_VOLTAGE"})
 
 
 def _candidates(bare_keys: frozenset[str], prefixes: tuple[str, ...]) -> list[str]:
@@ -69,16 +74,27 @@ def rpm_param_key_candidates() -> list[str]:
     return _candidates(_RPM_BARE_KEYS, _RPM_PID_PREFIXES)
 
 
-def _bare(param_key: str) -> str:
-    """Uppercase ``param_key`` with any two-hex-digit PID prefix removed."""
-    return OBD2_PID_PREFIX_RE.sub("", param_key.upper())
-
-
 def is_speed_param_key(param_key: str) -> bool:
     """True if ``param_key`` names a road-speed reading."""
-    return _bare(param_key) in _SPEED_BARE_KEYS
+    return bare_param_key(param_key) in _SPEED_BARE_KEYS
 
 
 def is_rpm_param_key(param_key: str) -> bool:
     """True if ``param_key`` names an engine-RPM reading."""
-    return _bare(param_key) in _RPM_BARE_KEYS
+    return bare_param_key(param_key) in _RPM_BARE_KEYS
+
+
+def is_parked_heartbeat_key(param_key: str) -> bool:
+    """True if ``param_key`` is something a PARKED vehicle publishes on its own.
+
+    A batch containing nothing else is a heartbeat, not a vehicle whose movement
+    went unread, and the difference is the whole content of the "this device's
+    movement is unreadable" warning: without it that warning fires for every
+    parked dongle on every instance, which is how it came to name an entire
+    fleet on the first boot after migration 098.
+
+    A predicate rather than the bare set because both callers would otherwise
+    re-derive the normalisation, and one of them already forgot the PID-prefix
+    strip that every other predicate here applies.
+    """
+    return bare_param_key(param_key) in PARKED_HEARTBEAT_KEYS

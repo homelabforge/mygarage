@@ -2457,34 +2457,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/livelink/reconstruction-runs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Reconstruction Runs
-         * @description Recent session-boundary reconstruction runs, newest first.
-         *
-         *     The tool answers "what did this change, and what did it refuse?" only if
-         *     something outlives the run: a log rotates and a container restart loses it.
-         *     Refusal is the ROUTINE outcome for a session whose telemetry coverage cannot
-         *     be proven, so without this a safe refusal and a broken tool look identical.
-         *
-         *     **Security:**
-         *     - Requires an admin
-         */
-        get: operations["list_reconstruction_runs_api_livelink_reconstruction_runs_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/livelink/settings": {
         parameters: {
             query?: never;
@@ -10413,6 +10385,12 @@ export interface components {
             /** Last Seen */
             last_seen: string | null;
             /**
+             * Movement Unreadable
+             * @description Device reports telemetry but nothing recognisable as movement
+             * @default false
+             */
+            movement_unreadable: boolean;
+            /**
              * Odometer Unit
              * @description Declared odometer units ('km'/'mi'); None means inferred from the key
              */
@@ -11863,62 +11841,6 @@ export interface components {
              * @description Summary of the recall issue
              */
             summary?: string | null;
-        };
-        /**
-         * ReconstructionRefusal
-         * @description One session the reconstruction tool declined to touch, and why.
-         */
-        ReconstructionRefusal: {
-            /**
-             * Reason
-             * @description A key, not a sentence: rendered with a translated label, because a refusal is a routine outcome an admin has to be able to read
-             */
-            reason: string;
-            /** Session Id */
-            session_id: number;
-        };
-        /**
-         * ReconstructionRunListResponse
-         * @description Recent reconstruction runs, newest first.
-         */
-        ReconstructionRunListResponse: {
-            /** Runs */
-            runs: components["schemas"]["ReconstructionRunResponse"][];
-            /** Total */
-            total: number;
-        };
-        /**
-         * ReconstructionRunResponse
-         * @description One invocation of the session-boundary reconstruction tool.
-         */
-        ReconstructionRunResponse: {
-            /** Boundary Version */
-            boundary_version: number;
-            /** Dry Run */
-            dry_run: boolean;
-            /** Finished At */
-            finished_at?: string | null;
-            /** Gap Minutes */
-            gap_minutes: number;
-            /** Id */
-            id: number;
-            /** Refusals */
-            refusals?: components["schemas"]["ReconstructionRefusal"][];
-            /** Sessions Closed */
-            sessions_closed: number;
-            /** Sessions Created */
-            sessions_created: number;
-            /** Sessions Merged */
-            sessions_merged: number;
-            /** Sessions Refused */
-            sessions_refused: number;
-            /** Sessions Split */
-            sessions_split: number;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
         };
         /**
          * ReminderCreate
@@ -21056,37 +20978,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LiveLinkParameterResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_reconstruction_runs_api_livelink_reconstruction_runs_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReconstructionRunListResponse"];
                 };
             };
             /** @description Validation Error */

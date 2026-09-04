@@ -55,11 +55,11 @@ docker exec -w /app mygarage python tools/recompute_session_aggregates.py --appl
 
 The tools default to the instance's own configured database, so `--db` is only
 needed to point one somewhere else; it accepts a path or a full SQLAlchemy URL.
-Both SQLite and PostgreSQL are supported, and the reconstruction is exercised
+Both SQLite and PostgreSQL are supported, and the sequence is exercised
 end-to-end against both in CI.
 
-The order matters. The reconstruction reads telemetry as the device reported it
-and applies the device's declared unit, so it has to run while the history is
+The order matters. The odometer backfill reads telemetry as the device reported
+it and applies the device's declared unit, so it has to run while the history is
 still device-native; after the conversion it would multiply an already-metric
 figure again, and an inflated odometer record becomes the floor every later
 reading must beat rather than something a later reading corrects.
@@ -71,6 +71,19 @@ reconstruction refuses telemetry that already reads as metric, and the two
 converters refuse a device whose history mixes miles and kilometres, which is
 what a run started after new readings landed leaves behind. A dry run that
 refused something also exits 2, so a script may gate `--apply` on it.
+
+**`recompute_session_aggregates.py` will lower the distance on old drives, often
+sharply.** A session's distance used to be the difference between the vehicle's
+newest odometer reading when it closed and when it opened, so every kilometre
+driven while no session was open was charged to whichever session opened next.
+That tool recomputes each session from the telemetry inside its own window, and
+a session that was mostly a parked vehicle checking in contains very little. On
+the instance this was developed against, one vehicle's recorded session distance
+went from 3,890 km to 104 km, and 104 km is the honest figure for those windows.
+
+Your vehicle's mileage is not affected. Odometer records are a separate table
+fed by its own readings, and nothing here writes to it. Only the distance shown
+against individual LiveLink drives changes.
 
 **How far back the repair reaches.** All four tools work from telemetry still on
 disk, and telemetry is pruned to `livelink_telemetry_retention_days` (default
@@ -85,24 +98,14 @@ parked WiCAN checks in roughly every 95 minutes, so most recorded "drives" were
 a parked vehicle: on the instance this was found on, 2,975 of 3,238. Drives
 taken out of broker range were missed instead.
 
-Sessions are now decided by movement, so your drive count will drop sharply and
-the remaining drives will be real ones. History is not rewritten automatically.
-Each session records which rule produced it, and to rebuild older ones:
+Sessions are now decided by movement, so from this release your drive count
+drops sharply and the remaining drives are real ones.
 
-```
-docker exec -w /app mygarage python tools/reconstruct_session_boundaries.py
-docker exec -w /app mygarage python tools/reconstruct_session_boundaries.py --apply
-```
-
-Dry run first, as above. It only touches sessions whose stored telemetry proves
-what happened, so it cannot reach further back than
-`livelink_telemetry_retention_days` (default 90), and it leaves anything it
-cannot prove alone. Every run is listed under LiveLink settings with what it
-changed and what it left, including why.
-
-It corrects each old drive on its own, so where the old rule split one journey
-across two of them, the rebuild keeps them as two. Both will show real driving
-and neither overlaps the other; the journey simply reads as two trips.
+Existing history is left exactly as it was: nothing is deleted, merged or
+rewritten. Every session records which rule produced it, so drives recorded
+before this release stay marked as such and a later release can revisit them.
+Old drives keep their boundaries even if you run the repair sequence above,
+which only recomputes the figures inside a window it does not move.
 
 If your device reports no speed or odometer that MyGarage recognises, it will
 record no drives at all. LiveLink settings names the device, and the container
@@ -133,8 +136,8 @@ odometer per tire, on its mount, restores the estimate.
 - Tire sets: name a group such as "Winter studded" and fit it in one action, each tire returning to the corner it was last on (#153).
 - Tires can be entered straight into storage, so a set you own but have not fitted is tracked like any other (#153).
 - The tire card shows distance on tire, and says which reading is missing when it cannot work one out (#153).
+- Drive distance is read from the finest distance signal a device publishes, not from the odometer alone. A WiCAN reporting its odometer only every 24 km recorded no distance for any trip shorter than that, which was most of them; the standard `31-DISTANCESINCECODECLEAR` PID alongside it resolves to 1 km. A device whose odometer already resolves at least as finely is unchanged, and a distance counter never supplies a session's odometer readings.
 - Two LiveLink settings: **Stop before a new drive** (default 15 minutes) sets how long a stop lasts before the next movement counts as a separate drive, and **How drives are detected** switches between movement and the old connection-based rule.
-- `backend/tools/reconstruct_session_boundaries.py` rebuilds drive boundaries recorded before this release, from stored telemetry. Dry run by default; LiveLink settings lists each run and what it refused (migration 098).
 - Analytics has a Tires section: tread over time, projected life, distance on tire, and a readiness block naming the one reading to record next (#152). It is on the Analytics page only for now; the PDF report and the garage export do not include it.
 
 ### Changed

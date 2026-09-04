@@ -14,7 +14,7 @@ lost on every container restart. Hence five columns on ``livelink_devices``.
 Sessions also gain provenance. Every row that exists today was cut by the old
 rule, so ``boundary_algorithm_version`` defaults to **0** -- "pre-098
 semantics". Getting that default backwards would make every historic session
-look already-correct and be skipped by every future reconstruction, forever.
+look already-correct and be skipped by any future pass over history, forever.
 
 NOT FATAL
 ---------
@@ -102,41 +102,6 @@ def _add_missing_columns(conn, inspector) -> int:
         print(f"  ✓ Added {table}.{column}")
         added += 1
     return added
-
-
-def _create_reconstruction_runs(conn, inspector, is_pg: bool) -> None:
-    """The audit table for history reconstruction.
-
-    Three revisions of the design answered "how does an admin know what
-    happened?" with "log it". A log rotates and a container restart loses it,
-    so the one question asked afterwards -- what did this change, and what did
-    it refuse? -- becomes unanswerable at exactly the moment it matters.
-    Refusal is a routine outcome here, not an exceptional one, and in a quiet
-    log it is indistinguishable from success.
-    """
-    if inspector.has_table("livelink_reconstruction_runs"):
-        print("  → livelink_reconstruction_runs already present")
-        return
-    pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
-    conn.execute(
-        text(f"""
-            CREATE TABLE livelink_reconstruction_runs (
-                id {pk},
-                started_at TIMESTAMP NOT NULL,
-                finished_at TIMESTAMP,
-                dry_run BOOLEAN NOT NULL DEFAULT TRUE,
-                gap_minutes INTEGER NOT NULL,
-                boundary_version INTEGER NOT NULL DEFAULT 1,
-                sessions_created INTEGER NOT NULL DEFAULT 0,
-                sessions_merged INTEGER NOT NULL DEFAULT 0,
-                sessions_split INTEGER NOT NULL DEFAULT 0,
-                sessions_closed INTEGER NOT NULL DEFAULT 0,
-                sessions_refused INTEGER NOT NULL DEFAULT 0,
-                refusals TEXT
-            )
-        """)
-    )
-    print("  ✓ Created livelink_reconstruction_runs")
 
 
 def _last_telemetry_by_device(conn) -> dict[str, datetime]:
@@ -285,7 +250,6 @@ def upgrade(engine=None) -> None:
     if engine is None:
         engine = _get_fallback_engine()
 
-    is_pg = engine.dialect.name == "postgresql"
     inspector = inspect(engine)
 
     # One transaction: the runner stamps `schema_migrations` in a SEPARATE
@@ -294,7 +258,6 @@ def upgrade(engine=None) -> None:
     # transactional DDL, so this holds on both dialects.
     with engine.begin() as conn:
         _add_missing_columns(conn, inspector)
-        _create_reconstruction_runs(conn, inspector, is_pg)
 
         # Re-inspect: the preflight and index steps read columns this
         # transaction just added.

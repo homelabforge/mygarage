@@ -25,8 +25,8 @@ twelve lines apart.
 
 *The odometer.* An odometer increase proves movement even when speed arrives
 under a name nothing recognises, which is the cohort that would otherwise have
-no sessions at all and, worse, be erased by a reconstruction that requires
-positive evidence of movement.
+no sessions at all and, worse, be erased by any later pass over history that
+requires positive evidence of movement.
 
 *RPM.* An engine turning with the vehicle stationary is a remote start, a
 diagnostic session, a winter warm-up, or the eleven-minute driveway idle that was
@@ -65,8 +65,8 @@ PENDING_SOURCE_RPM = "rpm"
 
 #: Stamped on every session this algorithm cuts. 0 is the column default and
 #: means "pre-098, bounded on contact", so history is not misdescribed -- but a
-#: NEW session left at 0 would masquerade as history and be skipped by every
-#: future reconstruction, which is why each constructor sets this explicitly.
+#: NEW session left at 0 would masquerade as history and be skipped by any
+#: future pass over history, which is why each constructor sets this explicitly.
 BOUNDARY_ALGORITHM_MOVEMENT = 1
 
 
@@ -176,7 +176,7 @@ def group_drives(
     drive taken away from home was recorded as nothing at all.
 
     Applies the SAME predicate and the SAME gap as the live path, deliberately.
-    An earlier design revision scoped the gap threshold to reconstruction only,
+    An earlier design revision scoped the gap threshold to SD replay only,
     which meant one journey got two different answers depending on whether it
     arrived over MQTT or off an SD card.
 
