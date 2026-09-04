@@ -65,6 +65,24 @@ class TestMovementUnreadableDeviceIds:
 
         assert device.device_id in flagged
 
+    async def test_legible_rpm_does_not_make_a_device_readable(
+        self, db_session, make_vehicle, seed
+    ):
+        """RPM is a movement signal and still does not answer this question.
+
+        An engine turning with the vehicle stationary is a remote start, a
+        warm-up or a driveway idle, so RPM opens a PENDING drive and never
+        confirms one. A device whose RPM is perfectly legible but whose speed
+        arrives under an unrecognised name records no sessions at all, which is
+        exactly the cohort this names. Counting RPM as readable would hide it.
+        """
+        vin, device = await make_vehicle("10")
+        await seed(vin, device.device_id, [("0C-ENGINERPM", 1), ("CUSTOM_ROAD_SPEED", 1)])
+
+        flagged = await LiveLinkService(db_session).movement_unreadable_device_ids([device])
+
+        assert device.device_id in flagged
+
     async def test_a_parked_heartbeat_alone_is_not_flagged(self, db_session, make_vehicle, seed):
         """The day-one false alarm, and the reason this is not `last_movement_at IS NULL`.
 
@@ -80,12 +98,45 @@ class TestMovementUnreadableDeviceIds:
 
         assert device.device_id not in flagged
 
-    async def test_a_device_that_has_moved_is_not_flagged(self, db_session, make_vehicle, seed):
-        """Movement on record answers the question outright."""
+    async def test_a_readable_device_is_not_flagged_before_it_has_moved(
+        self, db_session, make_vehicle, seed
+    ):
+        """The day migration 098 runs, and the bug that survived the first fix.
+
+        `last_movement_at` is a column 098 CREATES, so it is null for every
+        device that exists until fresh telemetry arrives. Pairing that against
+        seven days of telemetry HISTORY compares two different time bases: the
+        history is almost entirely older than the column. Every device driven in
+        the last week but not since the upgrade came out flagged, which on a
+        real database was the entire fleet.
+
+        So the question is asked without reference to time at all. This device
+        publishes `0D-VEHICLESPEED`, which this codebase reads; whether it has
+        moved YET is a different question and not the one the notice answers.
+        """
         vin, device = await make_vehicle("3")
-        device.last_movement_at = utc_now() - timedelta(days=1)
-        await db_session.flush()
-        await seed(vin, device.device_id, [("0C-ENGINERPM", 1)])
+        assert device.last_movement_at is None, "as 098 leaves every existing device"
+        await seed(
+            vin,
+            device.device_id,
+            [("0C-ENGINERPM", 1), ("0D-VEHICLESPEED", 1), ("05-ENGINECOOLANTTEMP", 1)],
+        )
+
+        flagged = await LiveLinkService(db_session).movement_unreadable_device_ids([device])
+
+        assert device.device_id not in flagged
+
+    async def test_an_unprefixed_odometer_alone_counts_as_readable(
+        self, db_session, make_vehicle, seed
+    ):
+        """The cohort with no recognised speed key still has a readable odometer.
+
+        An odometer increase is one of the three movement proofs, so a device
+        reporting a bare `ODOMETER` autopid and nothing else recognisable is
+        readable and must not be named.
+        """
+        vin, device = await make_vehicle("9")
+        await seed(vin, device.device_id, [("0C-ENGINERPM", 1), ("ODOMETER", 1)])
 
         flagged = await LiveLinkService(db_session).movement_unreadable_device_ids([device])
 

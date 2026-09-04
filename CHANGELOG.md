@@ -79,7 +79,14 @@ driven while no session was open was charged to whichever session opened next.
 That tool recomputes each session from the telemetry inside its own window, and
 a session that was mostly a parked vehicle checking in contains very little. On
 the instance this was developed against, one vehicle's recorded session distance
-went from 3,890 km to 104 km, and 104 km is the honest figure for those windows.
+went from 3,890 km to 340 km.
+
+Of that 340 km, 104 km was recomputed from telemetry still on disk and 236 km is
+older figures left untouched on 18 sessions whose telemetry has since been
+pruned. Nothing blanks a session it cannot recompute, because for a drive past
+the retention horizon that stored figure is the only record left of it. So the
+total after this step is a mix of the two, and it keeps shrinking as more
+history ages out.
 
 Your vehicle's mileage is not affected. Odometer records are a separate table
 fed by its own readings, and nothing here writes to it. Only the distance shown
