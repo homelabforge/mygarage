@@ -73,17 +73,34 @@ name: Unit Gate Selftest
 # every case, which reads as a mutation that flipped nothing rather than as an
 # error. It is 9 mutations and 2.6% of the spawns, so that trade is not close.
 #
-# ★ THE FIGURES ABOVE ARE LOCAL, AND THE RUNNER IS WHAT THE TIMEOUT GOVERNS.
-# Workers are capped at min(8, nproc), and a GitHub runner has 4, so expect
-# less than the 3.13x seen at 8. The 90-minute budget stays until a completed
-# runner log says otherwise. Re-measure THERE, then cut it.
+# ★ AND THEN THE RUNNER SAID 1.17x, NOT 3.13x. MEASURED on 40aaaec: 4 workers
+# (min(8, nproc), and a hosted runner has 4), selftest step 2414 s against the
+# ~2816 s the serial step took on f5a4106 at the same 85 cases and 80
+# mutations. Local said 3.13x. The runner says 1.17x, and the runner is what
+# the timeout governs.
 #
-# The remaining lever, if it is ever needed, is still spawns and still not
-# coverage: about 6,800 `bun` and `bunx` invocations each pay full interpreter
-# startup for a scan that takes milliseconds, so batching several cases per
-# invocation, or scanning in-process, would take most of what is left off the
-# clock. That one needs a multi-file mode in validate-units.ts, which is the
-# artifact under test, so it carries a proof obligation this change does not.
+# The reason is that a single `bun run` here is ALREADY multi-core: it loads
+# the real TypeScript compiler to resolve identifiers, so one invocation
+# occupies roughly the whole of a 4-core runner. Concurrency can only spend
+# cores that were idle, and on that box none are. The 20-core host has spare
+# capacity for 8 workers, which is the entire difference between the two
+# numbers. Do not read the local figure as a prediction of anything.
+#
+# So the 90-minute budget STAYS. 40m14s against a 45-minute budget is what
+# cancelled 4a63349, and 1.17x is not the kind of margin to re-tighten on.
+#
+# What this does mean: on CI the real saving now comes from the receipt below,
+# which skips the run outright, not from the workers. The remaining lever for
+# the run itself is spawns, and it is the one that would actually pay here:
+# 6,800 interpreter starts on a box with no spare cores is exactly the cost
+# parallelism cannot touch.
+#
+# Batching several cases per `bun` invocation, or scanning in-process, is what
+# would take that off the clock. It needs a multi-file mode in
+# validate-units.ts, which is the artifact under test, so it carries a proof
+# obligation this change does not: the mutation table patches literal source
+# strings, and new code that repeats one of them turns a mutation into a
+# "PATTERN occurs 2 times" failure.
 #
 # The historical note, kept because it is the reason to distrust an estimate: The run is about 6,800 `bun` and `bunx` invocations (85 cases x 80
 # mutations, plus the reference pass, the validity probes and the scope, walk,
