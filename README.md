@@ -24,9 +24,10 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 
 - **VIN Decoding** - Automatic vehicle details via NHTSA API
 - **Service Visits** - Track maintenance with line items, tax/fees, and attachments
+- **Maintenance Specs** - Oil viscosity, capacity and filter, fuel filter, lug-nut torque, and coolant/brake/transmission fluid per vehicle
 - **Reminders** - Date, mileage, or engine-hours maintenance reminders with due alerts
-- **Tire Tracking** - Per-position tread, DOT and pressure readings with wear projection and low-tread reminders
-- **LiveLink Telemetry** - Real-time OBD2 data, drive sessions, GPS trips, and DTCs via a WiCAN device (HTTPS POST or MQTT) or the Torque Pro app. See [LiveLink (WiCAN) Setup](docs/LIVELINK_SETUP.md).
+- **Tire Tracking** - Tread, DOT and pressure readings per position, with mount periods, rotation, seasonal sets, storage, and wear projection
+- **LiveLink Telemetry** - Real-time OBD2 data, movement-detected drive sessions, GPS trips, and DTCs via a WiCAN device (HTTPS POST or MQTT) or the Torque Pro app. See [LiveLink (WiCAN) Setup](docs/LIVELINK_SETUP.md).
 - **POI Finder** - Discover nearby auto shops, EV charging, and fuel stations with interactive map
 - **Fuel & DEF Tracking** - Log fill-ups (and DEF for diesels) and analyze fuel economy trends
 - **EV & PHEV Charging** - Charge sessions with start/end SOC, charge level, location, and battery health
@@ -39,6 +40,7 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 - **Family Multi-User System** - Separate accounts with vehicle sharing, ownership transfers, and family dashboard
 - **Languages & Currencies** - English, German, French, Polish, Brazilian Portuguese, Russian, Ukrainian; 16 currencies
 - **Authentication Options** - No auth, local JWT, or OIDC (Authentik, Keycloak, Google, Azure AD)
+- **Ask My Garage** - Opt-in assistant answering questions from your own specs, service history and DTCs. See [Tier 2 Features](docs/tier2-features.md).
 - **Self-Hosted** - Your data stays on your infrastructure
 
 ---
