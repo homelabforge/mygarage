@@ -3488,6 +3488,12 @@
             "description": "Average throttle (%)",
             "title": "Avg Throttle"
           },
+          "boundary_algorithm_version": {
+            "default": 0,
+            "description": "0 = recorded on device contact (pre-v3.3.0), 1 = on movement",
+            "title": "Boundary Algorithm Version",
+            "type": "integer"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3719,6 +3725,11 @@
             "title": "Sessions",
             "type": "array"
           },
+          "stationary_total": {
+            "default": 0,
+            "title": "Stationary Total",
+            "type": "integer"
+          },
           "total": {
             "title": "Total",
             "type": "integer"
@@ -3793,6 +3804,12 @@
             ],
             "description": "Average throttle (%)",
             "title": "Avg Throttle"
+          },
+          "boundary_algorithm_version": {
+            "default": 0,
+            "description": "0 = recorded on device contact (pre-v3.3.0), 1 = on movement",
+            "title": "Boundary Algorithm Version",
+            "type": "integer"
           },
           "created_at": {
             "format": "date-time",
@@ -37478,7 +37495,7 @@
     },
     "/api/vehicles/{vin}/livelink/sessions": {
       "get": {
-        "description": "Get drive sessions for a vehicle.\n\n**Path Parameters:**\n- **vin**: Vehicle VIN\n\n**Query Parameters:**\n- **limit**: Max results (default 50)\n- **offset**: Pagination offset\n- **start**: Filter by start time\n- **end**: Filter by end time\n\n**Security:**\n- Requires authentication",
+        "description": "Get drive sessions for a vehicle.\n\n**Path Parameters:**\n- **vin**: Vehicle VIN\n\n**Query Parameters:**\n- **limit**: Max results (default 50)\n- **offset**: Pagination offset\n- **start**: Filter by start time\n- **end**: Filter by end time\n- **include_stationary**: Include sessions in which nothing moved. The\n  pre-v3.3.0 rule opened a drive whenever the dongle reached the broker, so\n  a parked vehicle checking in became one. Defaults True, so no existing\n  caller loses history. Filters on MOVEMENT rather than on which rule cut\n  the session, because plenty of pre-v3.3.0 sessions are real journeys.\n\n`stationary_total` is reported either way, so a view that hides them can say\nhow many it is holding back rather than appear empty for no reason.\n\n**Security:**\n- Requires authentication",
         "operationId": "list_vehicle_sessions_api_vehicles__vin__livelink_sessions_get",
         "parameters": [
           {
@@ -37549,6 +37566,18 @@
               ],
               "description": "Filter sessions ending before this time",
               "title": "End"
+            }
+          },
+          {
+            "description": "Include sessions with no evidence the vehicle moved",
+            "in": "query",
+            "name": "include_stationary",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "Include sessions with no evidence the vehicle moved",
+              "title": "Include Stationary",
+              "type": "boolean"
             }
           }
         ],

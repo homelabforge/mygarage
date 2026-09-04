@@ -298,6 +298,9 @@ async def list_vehicle_sessions(
     offset: int = Query(0, ge=0),
     start: datetime | None = Query(None, description="Filter sessions starting after this time"),
     end: datetime | None = Query(None, description="Filter sessions ending before this time"),
+    include_stationary: bool = Query(
+        True, description="Include sessions with no evidence the vehicle moved"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
@@ -312,6 +315,14 @@ async def list_vehicle_sessions(
     - **offset**: Pagination offset
     - **start**: Filter by start time
     - **end**: Filter by end time
+    - **include_stationary**: Include sessions in which nothing moved. The
+      pre-v3.3.0 rule opened a drive whenever the dongle reached the broker, so
+      a parked vehicle checking in became one. Defaults True, so no existing
+      caller loses history. Filters on MOVEMENT rather than on which rule cut
+      the session, because plenty of pre-v3.3.0 sessions are real journeys.
+
+    `stationary_total` is reported either way, so a view that hides them can say
+    how many it is holding back rather than appear empty for no reason.
 
     **Security:**
     - Requires authentication
@@ -327,12 +338,15 @@ async def list_vehicle_sessions(
         offset=offset,
         start=start,
         end=end,
+        include_stationary=include_stationary,
     )
-    total = await session_service.get_session_count(vin)
+    total = await session_service.get_session_count(vin, include_stationary=include_stationary)
+    stationary_total = await session_service.get_stationary_session_count(vin)
 
     return DriveSessionListResponse(
         sessions=[DriveSessionResponse.model_validate(s) for s in sessions],
         total=total,
+        stationary_total=stationary_total,
     )
 
 

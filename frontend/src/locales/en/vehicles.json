@@ -787,7 +787,14 @@
       "loadError": "Failed to load drive sessions",
       "noRecords": "No drive sessions recorded",
       "odometerStartEnd": "Odometer Start / End",
-      "sessionCount": "{{count}} sessions recorded"
+      "sessionCount": "{{count, number}} sessions recorded",
+      "legacyBadge": "Earlier detection",
+      "stationaryHiddenTitle": "No drives recorded yet",
+      "stationaryHiddenDesc": "Drives are recorded when the vehicle moves. {{count, number}} earlier sessions were logged while the vehicle was parked, because the device connected.",
+      "stationaryHiddenDesc_one": "Drives are recorded when the vehicle moves. {{count, number}} earlier session was logged while the vehicle was parked, because the device connected.",
+      "stationaryHiddenDesc_other": "Drives are recorded when the vehicle moves. {{count, number}} earlier sessions were logged while the vehicle was parked, because the device connected.",
+      "showStationary": "Show parked sessions",
+      "hideStationary": "Hide parked sessions"
     },
     "telemetryWillAppear": "Data will appear here when your WiCAN device starts sending readings",
     "trips": {

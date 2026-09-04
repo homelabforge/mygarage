@@ -4747,6 +4747,14 @@ export interface paths {
          *     - **offset**: Pagination offset
          *     - **start**: Filter by start time
          *     - **end**: Filter by end time
+         *     - **include_stationary**: Include sessions in which nothing moved. The
+         *       pre-v3.3.0 rule opened a drive whenever the dongle reached the broker, so
+         *       a parked vehicle checking in became one. Defaults True, so no existing
+         *       caller loses history. Filters on MOVEMENT rather than on which rule cut
+         *       the session, because plenty of pre-v3.3.0 sessions are real journeys.
+         *
+         *     `stationary_total` is reported either way, so a view that hides them can say
+         *     how many it is holding back rather than appear empty for no reason.
          *
          *     **Security:**
          *     - Requires authentication
@@ -8338,6 +8346,12 @@ export interface components {
              */
             avg_throttle?: number | null;
             /**
+             * Boundary Algorithm Version
+             * @description 0 = recorded on device contact (pre-v3.3.0), 1 = on movement
+             * @default 0
+             */
+            boundary_algorithm_version: number;
+            /**
              * Created At
              * Format: date-time
              */
@@ -8448,6 +8462,11 @@ export interface components {
         DriveSessionListResponse: {
             /** Sessions */
             sessions: components["schemas"]["DriveSessionResponse"][];
+            /**
+             * Stationary Total
+             * @default 0
+             */
+            stationary_total: number;
             /** Total */
             total: number;
         };
@@ -8481,6 +8500,12 @@ export interface components {
              * @description Average throttle (%)
              */
             avg_throttle?: number | null;
+            /**
+             * Boundary Algorithm Version
+             * @description 0 = recorded on device contact (pre-v3.3.0), 1 = on movement
+             * @default 0
+             */
+            boundary_algorithm_version: number;
             /**
              * Created At
              * Format: date-time
@@ -24532,6 +24557,8 @@ export interface operations {
                 start?: string | null;
                 /** @description Filter sessions ending before this time */
                 end?: string | null;
+                /** @description Include sessions with no evidence the vehicle moved */
+                include_stationary?: boolean;
             };
             header?: never;
             path: {

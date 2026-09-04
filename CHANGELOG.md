@@ -114,6 +114,11 @@ before this release stay marked as such and a later release can revisit them.
 Old drives keep their boundaries even if you run the repair sequence above,
 which only recomputes the figures inside a window it does not move.
 
+The drive list does hide the sessions in which nothing moved, which is most of
+them, and names the count so the page never just looks empty. A real journey
+recorded by the old rule still shows, tagged so its figures can be read with
+the right expectations.
+
 If your device reports no speed or odometer that MyGarage recognises, it will
 record no drives at all. LiveLink settings names the device, and the container
 log lists the readings it does send; set **How drives are detected** to "By
@@ -143,6 +148,7 @@ odometer per tire, on its mount, restores the estimate.
 - Tire sets: name a group such as "Winter studded" and fit it in one action, each tire returning to the corner it was last on (#153).
 - Tires can be entered straight into storage, so a set you own but have not fitted is tracked like any other (#153).
 - The tire card shows distance on tire, and says which reading is missing when it cannot work one out (#153).
+- The drive list hides sessions in which the vehicle never moved, and says how many it is holding back. The old rule opened a drive whenever the device connected, so a parked vehicle checking in became one: on the instance this was developed against that is 2,921 of 3,262 recorded sessions. Nothing is deleted and one click shows them. The filter is movement, not the rule that recorded the session, because 341 of those same older sessions are real journeys.
 - Drive distance is read from the finest distance signal a device publishes, not from the odometer alone. A WiCAN reporting its odometer only every 24 km recorded no distance for any trip shorter than that, which was most of them; the standard `31-DISTANCESINCECODECLEAR` PID alongside it resolves to 1 km. A device whose odometer already resolves at least as finely is unchanged, and a distance counter never supplies a session's odometer readings.
 - Two LiveLink settings: **Stop before a new drive** (default 15 minutes) sets how long a stop lasts before the next movement counts as a separate drive, and **How drives are detected** switches between movement and the old connection-based rule.
 - Analytics has a Tires section: tread over time, projected life, distance on tire, and a readiness block naming the one reading to record next (#152). It is on the Analytics page only for now; the PDF report and the garage export do not include it.

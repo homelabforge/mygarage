@@ -60,12 +60,26 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
   const [sessions, setSessions] = useState<DriveSessionListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [expandedSession, setExpandedSession] = useState<number | null>(null)
+  // Sessions in which nothing moved are hidden by default. A parked WiCAN
+  // checked in about every 95 minutes and, under the pre-v3.3.0 rule, each
+  // check-in opened a session: on a real instance 2,921 of 3,262 never moved at
+  // all. They are hidden rather than deleted, because the telemetry needed to
+  // rebuild them as real drives was never captured and a release that deleted
+  // them removed 2,700 km of genuine distance.
+  //
+  // Filters on MOVEMENT, not on which rule cut the session. 341 of that same
+  // history are pre-v3.3.0 sessions in which the vehicle demonstrably moved,
+  // and they are real journeys the user took.
+  const [includeStationary, setIncludeStationary] = useState(false)
   const u = useUnitFormat()
 
   const fetchSessions = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await livelinkService.getSessions(vin, { limit: 50 })
+      const data = await livelinkService.getSessions(vin, {
+        limit: 50,
+        include_stationary: includeStationary,
+      })
       setSessions(data)
     } catch (err) {
       console.error('Failed to fetch sessions:', err)
@@ -73,7 +87,7 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
     } finally {
       setLoading(false)
     }
-  }, [vin, t])
+  }, [vin, t, includeStationary])
 
   useEffect(() => {
     fetchSessions()
@@ -126,6 +140,30 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
   }
 
   if (!sessions || sessions.sessions.length === 0) {
+    // Nothing to show because everything on record predates movement detection
+    // is a different state from nothing on record at all, and every instance
+    // that upgrades lands in the first one. An unexplained blank page there is
+    // indistinguishable from a failure.
+    if (sessions && !includeStationary && sessions.stationary_total > 0) {
+      return (
+        <EmptyState
+          icon={Clock}
+          title={t('livelink.sessions.stationaryHiddenTitle')}
+          description={t('livelink.sessions.stationaryHiddenDesc', {
+            count: sessions.stationary_total,
+          })}
+          action={
+            <button
+              type="button"
+              onClick={() => setIncludeStationary(true)}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              {t('livelink.sessions.showStationary')}
+            </button>
+          }
+        />
+      )
+    }
     return (
       <EmptyState icon={Clock} title={t('livelink.sessions.noRecords')} description={t('livelink.sessions.autoDetected')} />
     )
@@ -136,6 +174,17 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
       {/* Session Count */}
       <div className="flex items-center justify-between text-sm text-text-mute">
         <span>{t('livelink.sessions.sessionCount', { count: sessions.total })}</span>
+        {sessions.stationary_total > 0 && (
+          <button
+            type="button"
+            onClick={() => setIncludeStationary((shown) => !shown)}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            {includeStationary
+              ? t('livelink.sessions.hideStationary')
+              : t('livelink.sessions.showStationary')}
+          </button>
+        )}
       </div>
 
       {/* Session List */}
@@ -202,6 +251,13 @@ function SessionCard({
             </div>
           </div>
           {isActive && <Chip tone="success" icon={Activity}>{t('livelink.sessions.inProgress')}</Chip>}
+          {/* Says what a revealed row is. Version 0 means the drive was cut on
+              device contact, so it may be a parked vehicle's check-in rather
+              than a journey, and its distance may be an odometer step that
+              accrued while it sat still. */}
+          {session.boundary_algorithm_version === 0 && (
+            <Chip tone="muted">{t('livelink.sessions.legacyBadge')}</Chip>
+          )}
         </div>
 
         <div className="flex items-center gap-6">

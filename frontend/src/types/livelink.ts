@@ -118,6 +118,8 @@ export interface SessionQueryParams {
   min_duration_seconds?: number
   limit?: number
   offset?: number
+  /** Include sessions with no evidence the vehicle moved. Server default is true. */
+  include_stationary?: boolean
 }
 
 // -- Daily Summary Types (no generated schema) --

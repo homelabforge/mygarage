@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,6 +74,26 @@ _DERIVED_SESSION_COLUMNS = (
 #: Devices already named by `_warn_if_no_movement_signal_ever`, this process.
 #: See that method for why this is process-local rather than a column.
 _NO_MOVEMENT_WARNED: set[str] = set()
+
+
+def _moved_predicate():
+    """SQL for "this session has evidence the vehicle moved".
+
+    Distance above zero, or a top speed at or above the movement floor. NULL is
+    not evidence, so ``coalesce`` reads it as stationary: a session whose
+    telemetry has been pruned cannot prove it was a drive, and showing every
+    unprovable row defeats the filter entirely. On the data this was measured
+    against, only 5 of 2,816 speed-less sessions carry any distance at all.
+
+    Uses :data:`IDLE_THRESHOLD_KMH` rather than a literal so the list hides
+    exactly what the boundary predicate calls stationary. Two definitions of
+    "moving" in one subsystem is how a vehicle comes to be simultaneously idle
+    and under way.
+    """
+    return or_(
+        func.coalesce(DriveSession.distance_km, 0) > 0,
+        func.coalesce(DriveSession.max_speed, 0) >= IDLE_THRESHOLD_KMH,
+    )
 
 
 class SessionService:
@@ -1427,8 +1447,28 @@ class SessionService:
         offset: int = 0,
         start: datetime | None = None,
         end: datetime | None = None,
+        include_stationary: bool = True,
     ) -> list[DriveSession]:
-        """Get sessions for a vehicle."""
+        """Get sessions for a vehicle.
+
+        ``include_stationary=False`` hides sessions with no evidence the vehicle
+        moved. A parked WiCAN checks in about every 95 minutes and, under the
+        pre-098 contact rule, each check-in opened a session: on the instance
+        this was built against, 2,921 of 3,262 recorded sessions never moved at
+        all. They cannot be rebuilt into real drives, because the telemetry that
+        would prove where a drive began and ended was never captured, and they
+        must not be deleted: a release that tried removed 2,700 km of genuinely
+        recorded distance.
+
+        Filters on MOVEMENT, not on ``boundary_algorithm_version``. Hiding by
+        algorithm buries 341 of those same sessions in which the vehicle
+        demonstrably DID move, which is real history and the user's own record
+        of it. What makes a row worthless is that nothing moved, not which rule
+        cut it.
+
+        A property of the VIEW. Every row stays, the default shows all of them,
+        and the caller that narrows says so explicitly.
+        """
         query = (
             select(DriveSession)
             .where(DriveSession.vin == vin)
@@ -1439,16 +1479,39 @@ class SessionService:
             query = query.where(DriveSession.started_at >= start)
         if end:
             query = query.where(DriveSession.ended_at <= end)
+        if not include_stationary:
+            query = query.where(_moved_predicate())
 
         query = query.offset(offset).limit(limit)
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def get_session_count(self, vin: str) -> int:
-        """Get total session count for a vehicle."""
+    async def get_session_count(self, vin: str, include_stationary: bool = True) -> int:
+        """Total session count for a vehicle, under the same filter as the list.
+
+        Takes ``include_stationary`` because a total that counted rows the list
+        refuses to show would leave the last page of a filtered list
+        permanently empty, and report a number of drives the UI never renders.
+        """
+        query = select(func.count(DriveSession.id)).where(DriveSession.vin == vin)
+        if not include_stationary:
+            query = query.where(_moved_predicate())
+        result = await self.db.execute(query)
+        row = result.first()
+        return row[0] if row else 0
+
+    async def get_stationary_session_count(self, vin: str) -> int:
+        """How many of a vehicle's sessions show no evidence it ever moved.
+
+        Reported alongside a filtered list so the view can name what it is
+        holding back. A list showing nothing is indistinguishable from a broken
+        one unless it can say why it is empty.
+        """
         result = await self.db.execute(
-            select(func.count(DriveSession.id)).where(DriveSession.vin == vin)
+            select(func.count(DriveSession.id))
+            .where(DriveSession.vin == vin)
+            .where(~_moved_predicate())
         )
         row = result.first()
         return row[0] if row else 0
