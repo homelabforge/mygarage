@@ -19,6 +19,6 @@ permissions:
 
 jobs:
   codeql:
-    uses: homelabforge/shared-workflows/.github/workflows/codeql.yml@v1.4.3
+    uses: homelabforge/shared-workflows/.github/workflows/codeql.yml@v1.5.0
     with:
       python-extension-pack: homelabforge/mygarage-models
