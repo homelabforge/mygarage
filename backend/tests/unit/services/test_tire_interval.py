@@ -401,7 +401,17 @@ class TestFaultsSuppressRatherThanClamp:
         assert result.km is None
         assert result.blocking_period_ids == [1, 2]
 
-    def test_a_period_nested_inside_another_is_caught(self):
+    def test_a_period_contained_inside_another_is_caught(self):
+        """Simple containment: two periods, one wholly inside the other.
+
+        This alone does not prove the running-maximum behaviour claimed by
+        `_overlapping_period_ids`'s docstring: with only two periods,
+        "contained" and "adjacent in lo-sorted order" are the same
+        relationship, so an implementation that compared each contribution
+        only against its immediate predecessor would pass this unchanged.
+        See `test_a_period_overlapping_a_non_adjacent_predecessor_is_caught`
+        below for the shape that actually distinguishes the two.
+        """
         tire = _tire(
             [
                 _period(
@@ -427,6 +437,60 @@ class TestFaultsSuppressRatherThanClamp:
             Decimal("20000"),
         )
         assert result.status is IntervalStatus.OVERLAPPING_HISTORY
+
+    def test_a_period_overlapping_a_non_adjacent_predecessor_is_caught(self):
+        """Pins the running-maximum sweep specifically, not just "some
+        overlap got detected."
+
+        Three periods, sorted by start: 1 spans 10,000-20,000 for most of
+        the year, 2 is a short backdated mount nested early at
+        11,000-12,000, and 3 is a second short mount nested later at
+        15,000-16,000. Period 3 overlaps period 1 (15,000 < 20,000) but not
+        period 2, its immediate predecessor in sorted order
+        (15,000 >= 12,000).
+
+        A sweep that compares each period only against its immediate
+        predecessor's end (rather than the running maximum end seen so
+        far) would clash 1 against 2, then compare 3 against 2's end of
+        12,000, see 15,000 >= 12,000, and never flag 3 at all: it would
+        report `blocking_period_ids == [1, 2]`. Tracking the running
+        maximum (still 20,000 after period 2, since 12,000 does not raise
+        it) catches period 3 against period 1's end too, so the correct
+        answer includes all three ids.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="20000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+                _period(
+                    2,
+                    start_odo="11000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 2, 1),
+                    end_day=dt.date(2026, 3, 1),
+                ),
+                _period(
+                    3,
+                    start_odo="15000",
+                    end_odo="16000",
+                    start_day=dt.date(2026, 5, 1),
+                    end_day=dt.date(2026, 6, 1),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 2), "10000"),
+            _reading(dt.date(2026, 9, 29), "20000"),
+            Decimal("20000"),
+        )
+        assert result.status is IntervalStatus.OVERLAPPING_HISTORY
+        assert result.blocking_period_ids == [1, 2, 3]
 
     def test_touching_endpoints_are_a_continuous_history_not_an_overlap(self):
         """A dismount at 12,000 and a remount at 12,000 is the normal shape
