@@ -710,11 +710,117 @@ class TestContradictoryHistory:
         )
         assert result.status is IntervalStatus.HISTORY_CONTRADICTS
 
+    def test_an_open_period_with_readings_after_the_mount_that_run_backwards(self):
+        """PR #161 review, P1. `_odometer_goes_backwards`'s docstring
+        claimed the full odometer-does-not-run-backwards invariant but
+        implemented only half of it: it checked a reading after a dismount
+        and a reading before a mount, and silently skipped the other two
+        implications of the same invariant.
+
+        Reproduction: an OPEN period mounted at 10,000, with both readings
+        dated AFTER the mount. The period being open means `dismounted_on`
+        is None, so the after-dismount rule never runs; both readings being
+        dated after `mounted_on` means the before-mount rule never runs
+        either. The withdrawn implementation saw no violation, clipped the
+        interval to the period, and returned a confident 1,000 km even
+        though the odometer visibly ran backwards (10,000 down to 9,000)
+        between the mount and the first reading.
+        """
+        tire = _tire([_open_period(1, start_odo="10000", start_day=dt.date(2026, 1, 1))])
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 10), "9000"),
+            _reading(dt.date(2026, 1, 20), "11000"),
+            Decimal("11000"),
+        )
+        assert result.status is IntervalStatus.HISTORY_CONTRADICTS
+        assert result.km is None
+        assert result.blocking_period_ids == [1]
+
+    def test_a_reading_before_a_dismount_that_reads_above_it(self):
+        """PR #161 review, P1, symmetric case. A CLOSED period whose
+        dismount odometer is exceeded by a reading dated strictly BEFORE the
+        dismount. Dismounted 30 June at 12,000; a reading on 1 March reads
+        13,000. Between 1 March and 30 June the odometer would have had to
+        fall from 13,000 to 12,000, the same reset this class exists to
+        catch, just discovered from the mount side rather than the dismount
+        side.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 6, 30),
+                )
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 3, 1), "13000"),
+            _reading(dt.date(2026, 4, 1), "14000"),
+            Decimal("14000"),
+        )
+        assert result.status is IntervalStatus.HISTORY_CONTRADICTS
+        assert result.km is None
+        assert result.blocking_period_ids == [1]
+
 
 class TestTheMonotonicityCheckDoesNotOverFire:
     """The withdrawn range-membership form rejected all of these. They are
     ordinary histories, and a suppression here is a user watching a correct
     wear estimate disappear."""
+
+    def test_a_reading_on_the_mount_day_reading_below_the_mount_odometer(self):
+        """Same-day guard, mount side, PR #161 review P1. A reading recorded
+        ON `mounted_on` that reads below `mounted_odometer_km` is not a
+        contradiction: the vehicle could have been driven between the
+        reading and the mount later that same day, and day-granular dates
+        cannot say which happened first. The new rule must fire only on a
+        STRICTLY later date; this pins that it does not fire on an equal
+        one, and that the estimate still projects normally. If the
+        comparison were ever loosened from `>` to `>=` this test fails.
+        """
+        tire = _tire([_open_period(1, start_odo="10000", start_day=dt.date(2026, 1, 1))])
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 1), "9000"),
+            _reading(dt.date(2026, 1, 10), "11000"),
+            Decimal("11000"),
+        )
+        assert result.status is IntervalStatus.COMPLETE
+        assert result.km == Decimal("1000")
+
+    def test_a_reading_on_the_dismount_day_reading_above_the_dismount_odometer(self):
+        """Same-day guard, dismount side, PR #161 review P1. A reading
+        recorded ON `dismounted_on` that reads above `dismounted_odometer_km`
+        is not a contradiction: the vehicle could have been driven further
+        that same day before the tire was measured. The new rule must fire
+        only on a STRICTLY earlier date; this pins that it does not fire on
+        an equal one, and that the estimate still projects normally. If the
+        comparison were ever loosened from `<` to `<=` this test fails.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 1, 31),
+                )
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 15), "11000"),
+            _reading(dt.date(2026, 1, 31), "13000"),
+            Decimal("13000"),
+        )
+        assert result.status is IntervalStatus.COMPLETE
+        assert result.km == Decimal("1000")
 
     def test_a_tire_measured_in_storage_while_the_vehicle_is_parked(self):
         """Case 9c. Dismounted 31 Jan at 12,000, measured 2 Feb at 12,000.

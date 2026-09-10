@@ -237,11 +237,33 @@ def _odometer_goes_backwards(
     """C5: periods whose odometer bounds contradict a reading's date.
 
     The invariant is that a vehicle's odometer does not run backwards in
-    time. So a reading taken AFTER a period was dismounted cannot read below
-    that period's dismount odometer, and a reading taken BEFORE a period was
-    mounted cannot read above its mount odometer. A violation means the dates
-    and the odometers describe two different histories, which is what an
-    odometer reset looks like.
+    time. Relating a reading to a period's mount and dismount, that
+    invariant yields four implications, all enforced here:
+
+    1. A reading dated AFTER `dismounted_on` cannot read BELOW
+       `dismounted_odometer_km` (the odometer would have to have gone down
+       since the dismount).
+    2. A reading dated BEFORE `mounted_on` cannot read ABOVE
+       `mounted_odometer_km` (the odometer would have to go down between the
+       reading and the mount).
+    3. A reading dated AFTER `mounted_on` cannot read BELOW
+       `mounted_odometer_km` (the odometer would have to have gone down
+       since the mount).
+    4. A reading dated BEFORE `dismounted_on` cannot read ABOVE
+       `dismounted_odometer_km` (the odometer would have to go down between
+       the reading and the dismount).
+
+    A violation of any of the four means the dates and the odometers
+    describe two different histories, which is what an odometer reset looks
+    like.
+
+    Every comparison is STRICT on the date, never `>=`/`<=`. These dates are
+    day-granular, so two events recorded on the same calendar day cannot be
+    ordered: a tire legitimately measured on the morning of its mount day can
+    read slightly below the mount odometer, because the vehicle was driven
+    between the measurement and the mount later that day. On the boundary
+    day the true order is unknowable, so it must not be judged. The same
+    applies symmetrically to a reading taken on the day of a dismount.
 
     Stated as monotonicity, NOT as range membership. An earlier revision
     asked whether a reading's odometer fell inside a period's odometer range
@@ -260,20 +282,28 @@ def _odometer_goes_backwards(
         for reading in readings:
             if reading.odometer_km is None:
                 continue
-            if (
-                period.dismounted_on is not None
-                and period.dismounted_odometer_km is not None
-                and reading.recorded_at > period.dismounted_on
-                and reading.odometer_km < period.dismounted_odometer_km
-            ):
-                clashing.add(period.id)
-            if (
-                period.mounted_on is not None
-                and period.mounted_odometer_km is not None
-                and reading.recorded_at < period.mounted_on
-                and reading.odometer_km > period.mounted_odometer_km
-            ):
-                clashing.add(period.id)
+            if period.dismounted_on is not None and period.dismounted_odometer_km is not None:
+                if (
+                    reading.recorded_at > period.dismounted_on
+                    and reading.odometer_km < period.dismounted_odometer_km
+                ):
+                    clashing.add(period.id)
+                if (
+                    reading.recorded_at < period.dismounted_on
+                    and reading.odometer_km > period.dismounted_odometer_km
+                ):
+                    clashing.add(period.id)
+            if period.mounted_on is not None and period.mounted_odometer_km is not None:
+                if (
+                    reading.recorded_at < period.mounted_on
+                    and reading.odometer_km > period.mounted_odometer_km
+                ):
+                    clashing.add(period.id)
+                if (
+                    reading.recorded_at > period.mounted_on
+                    and reading.odometer_km < period.mounted_odometer_km
+                ):
+                    clashing.add(period.id)
     return sorted(clashing)
 
 
