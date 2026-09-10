@@ -339,3 +339,38 @@ class TestPreExistingInvalidRowsAreRepaired:
                 "due_mileage_km": reminder.due_mileage_km,
             }
         )
+
+    async def test_a_genuine_both_type_edit_is_left_alone(self, db_session, vin):
+        """Guard, added after a re-review of this same fix. The broad
+        predicate first shipped here ("not date-typed, or mileage is not
+        None") also matched a row a USER had validly edited: taking a
+        low-tread reminder and adding a real mileage target makes it
+        `reminder_type="both"` with a genuine `due_mileage_km`, not a
+        corrupt row. That predicate would have reverted the edit and nulled
+        the user's mileage on the very next sync, silently. The narrowed
+        predicate (`reminder_type == "both"` AND `due_mileage_km is None`)
+        must leave this row untouched: it is not the shape the pre-C10
+        constructor wrote, and it is not what the write schema rejects.
+        """
+        tire = await _tire(db_session, vin, position="FL", tread="1.5")
+        db_session.add(
+            Reminder(
+                vin=vin,
+                tire_id=tire.id,
+                source="low_tread",
+                title="Tire tread low (FL)",
+                reminder_type="both",
+                due_date=date(2026, 12, 1),
+                due_mileage_km=Decimal("15000"),
+                status="pending",
+            )
+        )
+        await db_session.commit()
+
+        await _sync(db_session, tire)
+
+        rows = await _pending(db_session, vin)
+        assert len(rows) == 1
+        reminder = rows[0]
+        assert reminder.reminder_type == "both"
+        assert reminder.due_mileage_km == Decimal("15000")

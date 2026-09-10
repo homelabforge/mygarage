@@ -1358,8 +1358,21 @@ class TireService:
         # unconditionally, before the branches below, so it runs whichever
         # of them fires this sync, including the case where the tire is
         # still below threshold and nothing else about the row changes.
-        if existing is not None and (
-            existing.reminder_type != "date" or existing.due_mileage_km is not None
+        #
+        # The predicate is deliberately exact, not "anything not date-typed
+        # with no mileage". A user can take this reminder and add a real
+        # mileage target, which makes it `reminder_type="both"` with a
+        # genuine `due_mileage_km` -- a valid, user-authored edit, not a
+        # corrupt row. Matching on `reminder_type != "date"` alone would
+        # revert that edit and null their mileage on the next sync, silently.
+        # `both` with a NULL mileage is precisely what the pre-C10
+        # constructor wrote and precisely what the write schema rejects; any
+        # other combination is either already valid or was never ours to
+        # begin with, and is left alone.
+        if (
+            existing is not None
+            and existing.reminder_type == "both"
+            and existing.due_mileage_km is None
         ):
             existing.reminder_type = "date"
             existing.due_mileage_km = None
