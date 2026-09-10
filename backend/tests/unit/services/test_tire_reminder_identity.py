@@ -235,8 +235,12 @@ class TestTheReminderIsEditableAfterwards:
         and then refused every ordinary edit with a 422 the user could not
         clear.
 
-        Two bounded readings so the projection resolves and `wear_date` is
-        non-null, which is the branch that used to produce "both".
+        The tire's own scalar tread (1.5) is at or below its 2.0 minimum, so
+        C7 resolves this as `AT_OR_BELOW_MINIMUM` before the rate projection
+        is ever reached; the two bounded readings below are inert for this
+        path. `wear_date` comes from the newest tread-bearing reading's
+        `recorded_at` rather than a resolved km-per-day figure, and is still
+        non-null, which is what used to produce "both".
         """
         tire = await _tire(db_session, vin, position="FL", tread="1.5")
         db_session.add(
