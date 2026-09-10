@@ -363,3 +363,133 @@ class TestTheDegenerateShapes:
             Decimal("12000"),
         )
         assert result.status is IntervalStatus.NO_DISTANCE
+
+
+class TestFaultsSuppressRatherThanClamp:
+    def test_overlapping_periods_are_not_summed(self):
+        """Case 6. A tire cannot be in two places, so 7,000 + 5,000 over a
+        union of 10,000 is a contradiction, not a total.
+
+        Reachable: nothing validates that a mount's odometer exceeds the
+        previous dismount's, so one mistyped backdated mount produces it.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="17000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 4, 30),
+                ),
+                _period(
+                    2,
+                    start_odo="15000",
+                    end_odo="20000",
+                    start_day=dt.date(2026, 5, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 2), "10000"),
+            _reading(dt.date(2026, 9, 29), "20000"),
+            Decimal("20000"),
+        )
+        assert result.status is IntervalStatus.OVERLAPPING_HISTORY
+        assert result.km is None
+        assert result.blocking_period_ids == [1, 2]
+
+    def test_a_period_nested_inside_another_is_caught(self):
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="20000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+                _period(
+                    2,
+                    start_odo="12000",
+                    end_odo="14000",
+                    start_day=dt.date(2026, 2, 1),
+                    end_day=dt.date(2026, 3, 1),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 2), "10000"),
+            _reading(dt.date(2026, 9, 29), "20000"),
+            Decimal("20000"),
+        )
+        assert result.status is IntervalStatus.OVERLAPPING_HISTORY
+
+    def test_touching_endpoints_are_a_continuous_history_not_an_overlap(self):
+        """A dismount at 12,000 and a remount at 12,000 is the normal shape
+        of a rotation. It must not be read as a contradiction."""
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 4, 30),
+                ),
+                _period(
+                    2,
+                    start_odo="12000",
+                    end_odo="14000",
+                    start_day=dt.date(2026, 5, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 2), "10000"),
+            _reading(dt.date(2026, 9, 29), "14000"),
+            Decimal("14000"),
+        )
+        assert result.status is IntervalStatus.COMPLETE
+        assert result.km == Decimal("4000")
+
+    def test_a_reversed_period_is_not_clamped_away(self):
+        """Case 7, pinning C3. PASSES against 95b65b7 for an unrelated
+        reason: `distance_on_tire` returns ODOMETER_ROLLBACK for ANY reversed
+        period anywhere on the tire, so today's gate suppresses without ever
+        looking at the interval. This test exists to stop a
+        `max(0, hi - lo)` implementation from silently contributing zero
+        while a second period supplies a confident subtotal.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="13000",
+                    end_odo="11000",
+                    start_day=dt.date(2026, 5, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+                _period(
+                    2,
+                    start_odo="10000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 4, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 2), "10000"),
+            _reading(dt.date(2026, 9, 29), "14000"),
+            Decimal("14000"),
+        )
+        assert result.status is IntervalStatus.ODOMETER_ROLLBACK
+        assert result.km is None
+        assert result.blocking_period_ids == [1]

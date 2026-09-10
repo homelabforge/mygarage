@@ -209,6 +209,28 @@ def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceRe
     )
 
 
+def _overlapping_period_ids(contributions: list[tuple[Decimal, Decimal, int]]) -> list[int]:
+    """Ids of contributing spans that claim the same kilometres.
+
+    Touching endpoints are not an overlap: a dismount at 12,000 and a
+    remount at 12,000 is what a rotation looks like. Only a strict
+    intersection counts.
+
+    Tracks the running maximum end rather than comparing neighbours, so a
+    period nested wholly inside an earlier one is caught even though the
+    span between them in sorted order does not intersect.
+    """
+    clashing: set[int] = set()
+    running_hi: Decimal | None = None
+    running_id: int | None = None
+    for lo, hi, period_id in sorted(contributions, key=lambda c: c[0]):
+        if running_hi is not None and running_id is not None and lo < running_hi:
+            clashing.update({running_id, period_id})
+        if running_hi is None or hi > running_hi:
+            running_hi, running_id = hi, period_id
+    return sorted(clashing)
+
+
 def distance_between(
     tire: Tire,
     older: TireReading,
@@ -257,6 +279,7 @@ def distance_between(
         return IntervalResult(status=IntervalStatus.SPARE_ONLY)
 
     blocking: list[int] = []
+    faulted: list[int] = []
     contributions: list[tuple[Decimal, Decimal, int]] = []
 
     for period in rolling:
@@ -283,10 +306,26 @@ def distance_between(
             blocking.append(period.id)
             continue
 
+        if end < start:
+            # C3. NOT `max(0, hi - lo)`: clamping contributes a silent zero
+            # for a faulted period while another period supplies a positive
+            # total, publishing a confident figure over known-corrupt data.
+            faulted.append(period.id)
+            continue
+
         lo, hi = max(a_odo, start), min(b_odo, end)
         if hi > lo:
             contributions.append((lo, hi, period.id))
 
+    overlapping = _overlapping_period_ids(contributions)
+    if overlapping:
+        return IntervalResult(
+            status=IntervalStatus.OVERLAPPING_HISTORY, blocking_period_ids=overlapping
+        )
+    if faulted:
+        return IntervalResult(
+            status=IntervalStatus.ODOMETER_ROLLBACK, blocking_period_ids=sorted(faulted)
+        )
     if blocking:
         return IntervalResult(
             status=IntervalStatus.UNVERIFIED, blocking_period_ids=sorted(blocking)
