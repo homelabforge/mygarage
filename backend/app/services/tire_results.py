@@ -112,3 +112,54 @@ class WearResult:
     #: proxy for "did this project": read `status` for that.
     wear_date: dt.date | None = None
     blocking_period_ids: list[int] = field(default_factory=list)
+
+
+class IntervalStatus(StrEnum):
+    """Why `distance_between` did or did not produce a figure.
+
+    Deliberately NOT `DistanceStatus`. That enum is on the wire as
+    `TireResponse.distance_status` and answers a different question, the
+    tire's lifetime distance. This one is internal to the projection and
+    never serialised, which is why adding members here moves no API types.
+    """
+
+    #: Every period that could overlap the interval is bounded. `km` is the
+    #: answer.
+    COMPLETE = "complete"
+    #: No mount period recorded at all.
+    NO_PERIODS = "no_periods"
+    #: Every period is at SPARE, so the tire has never rolled.
+    SPARE_ONLY = "spare_only"
+    #: The readings describe no distance on this tire: they are equal, they
+    #: run backwards, or every period lies outside the interval.
+    NO_DISTANCE = "no_distance"
+    #: A period that MAY overlap the interval is missing a load-bearing
+    #: odometer bound. The repair is to supply a number.
+    UNVERIFIED = "unverified"
+    #: A period ends below where it started. The repair is to correct a
+    #: number, not to supply a missing one.
+    ODOMETER_ROLLBACK = "odometer_rollback"
+    #: Two contributing periods claim the same kilometres. A tire cannot be
+    #: in two places, so the history is contradictory and the sum would
+    #: over-count.
+    OVERLAPPING_HISTORY = "overlapping_history"
+    #: The periods' dates and odometers describe different histories, which
+    #: is what an odometer reset between them looks like.
+    HISTORY_CONTRADICTS = "history_contradicts"
+
+
+@dataclass(frozen=True)
+class IntervalResult:
+    """Distance driven on one tire between two readings.
+
+    `km` is non-null only for COMPLETE. Every other status withholds the
+    figure rather than publishing a subtotal, because this number is the
+    DENOMINATOR of a wear rate and a wrong one is wrong in both directions:
+    too small understates remaining life, and too large overstates it, which
+    is the dangerous direction and is exactly the defect this replaces.
+    """
+
+    status: IntervalStatus
+    km: Decimal | None = None
+    #: Periods the user must act on. Which kind of action is in the STATUS.
+    blocking_period_ids: list[int] = field(default_factory=list)

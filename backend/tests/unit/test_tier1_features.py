@@ -1,6 +1,6 @@
 """Unit tests for third-party fuel CSV adapters, tire wear, and webhook fuel commands."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -154,6 +154,387 @@ def test_project_wear_is_suppressed_without_a_bounded_mount_history():
     )
     assert result.status is WearStatus.UNVERIFIED_MOUNT_HISTORY
     assert result.km_remaining is None
+
+
+def test_a_worn_tire_says_replace_now_even_with_no_mount_history():
+    """C7. The safety statement needs no distance to be true.
+
+    Before this fix this returned UNVERIFIED_MOUNT_HISTORY, so the card asked
+    for an odometer while the low-tread reminder was already raised against
+    the same tire.
+    """
+    readings = [
+        _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+    ]
+    tire = _tire_with(readings, Decimal("2.0"), bounded=False)
+    tire.tread_depth_mm = Decimal("1.5")
+    result = project_wear(tire, Decimal("12000"), readings)
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+    assert result.wear_date == date(2026, 6, 1)
+
+
+@pytest.mark.parametrize(
+    "readings",
+    [
+        pytest.param(
+            [_Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5"))], id="one_reading"
+        ),
+        pytest.param(
+            [
+                _Reading(date(2026, 6, 1), None, Decimal("1.5")),
+                _Reading(date(2026, 1, 1), None, Decimal("6.0")),
+            ],
+            id="no_reading_odometers",
+        ),
+        pytest.param(
+            [
+                _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+                _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("1.5")),
+            ],
+            id="flat_tread",
+        ),
+        pytest.param(
+            [
+                _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+                _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("1.4")),
+            ],
+            id="rising_tread",
+        ),
+    ],
+)
+def test_the_threshold_beats_every_rate_prerequisite(readings):
+    """C7. None of these prerequisites make a worn tire un-worn."""
+    tire = _tire_with(readings, Decimal("2.0"))
+    tire.tread_depth_mm = Decimal("1.5")
+    result = project_wear(tire, Decimal("12000"), readings)
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+
+
+def test_a_worn_tire_with_no_readings_invents_no_date():
+    """C8. The threshold reads the tire's own tread, the same scalar the
+    card shows and the reminder tests, so all three agree by construction.
+    With no reading there is no date, and `utc_now()` is not a substitute."""
+    tire = _tire_with([], Decimal("2.0"))
+    tire.tread_depth_mm = Decimal("1.5")
+    result = project_wear(tire, Decimal("12000"), [])
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+    assert result.wear_date is None
+
+
+def test_a_cleared_tread_scalar_still_replaces_now_from_the_reading():
+    """C8's fallback. The task-5 brief said to delete this as unreachable
+    once the hoisted C7 check landed. It is not: the hoisted check reads
+    `tire.tread_depth_mm`, the tire's own scalar, and that field is nullable.
+    `TireUpdate` accepts an explicit null for it and `update_tire` uses
+    `exclude_unset`, so a user who clears the tire's scalar tread in the
+    editor leaves the scalar None while readings below the minimum still
+    exist. The hoisted check cannot see that case; it must fall through to
+    the reading-derived `remaining_tread <= 0` branch further down. Deleting
+    that branch turns this into a PROJECTED result with a negative
+    `km_remaining` instead of AT_OR_BELOW_MINIMUM.
+    """
+    readings = [
+        _Reading(date(2026, 7, 1), Decimal("15000"), Decimal("1.0")),
+        _Reading(date(2026, 2, 1), Decimal("11000"), Decimal("5.0")),
+    ]
+    tire = _tire_with(readings, Decimal("2.0"))
+    tire.tread_depth_mm = None
+    result = project_wear(tire, Decimal("15000"), readings)
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+
+
+def test_a_scalar_below_minimum_with_a_healthy_newest_reading_has_no_date():
+    """PR #161 review, finding 3. `tire.tread_depth_mm` can be set directly
+    through `TireUpdate` with no reading logged, so the newest reading on
+    file can still be healthy and months old when the scalar crosses the
+    minimum. Reusing that reading's date would date the crossing from a
+    measurement that never crossed it -- the same "reads as a measurement
+    that never happened" failure the missing `utc_now()` fallback already
+    guards against, just applied to the wrong half of the sentence.
+    `wear_date` must stay None so the reminder falls back to today instead
+    of a stale calendar date.
+    """
+    readings = [
+        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+        _Reading(date(2025, 6, 1), Decimal("5000"), Decimal("7.0")),
+    ]
+    tire = _tire_with(readings, Decimal("2.0"))
+    tire.tread_depth_mm = Decimal("1.5")
+    result = project_wear(tire, Decimal("12000"), readings)
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+    assert result.wear_date is None
+
+
+def _seasonal_tire(min_tread):
+    """Two mount periods with a storage gap between them.
+
+    The existing `_tire_with` builds ONE continuous period, where the
+    interval intersection and the raw odometer delta are equal BY
+    CONSTRUCTION. No assertion on that fixture can distinguish the correct
+    implementation from the broken one, which is why the defect shipped.
+    """
+    from app.models.tire import Tire, TireMountPeriod
+
+    tire = Tire(vin="V" * 17, position="FL", min_tread_mm=min_tread)
+    tire.mount_periods = [
+        TireMountPeriod(
+            id=1,
+            position="FL",
+            mounted_on=date(2026, 1, 1),
+            dismounted_on=date(2026, 3, 31),
+            mounted_odometer_km=Decimal("0"),
+            dismounted_odometer_km=Decimal("12000"),
+        ),
+        TireMountPeriod(
+            id=2,
+            position="FL",
+            mounted_on=date(2026, 7, 1),
+            dismounted_on=date(2026, 10, 31),
+            mounted_odometer_km=Decimal("20000"),
+            dismounted_odometer_km=Decimal("26000"),
+        ),
+    ]
+    return tire
+
+
+def test_project_wear_excludes_distance_driven_on_the_other_set():
+    """The seasonal regression. Spec A promised this test and never wrote it.
+
+    Readings at 10,000 and 22,000, tread 6.0 to 4.0 mm, minimum 2.0. Driven
+    on THIS tire between them: 2,000 + 2,000 = 4,000 km, so 2.0 mm of usable
+    tread remains at 2.0 mm per 4,000 km, which is 4,000 km of life. The raw
+    odometer span is 12,000 km and yields 12,000.
+    """
+    readings = [
+        _Reading(date(2026, 8, 1), Decimal("22000"), Decimal("4.0")),
+        _Reading(date(2026, 3, 1), Decimal("10000"), Decimal("6.0")),
+    ]
+    result = project_wear(_seasonal_tire(Decimal("2.0")), Decimal("26000"), readings)
+    assert result.status is WearStatus.PROJECTED
+    assert result.km_remaining == Decimal("4000.0")
+
+
+def _migrated_then_remounted_tire():
+    """A migrated assumed period, later bounded by a real dismount, followed
+    by a fresh open period whose bounds cover both readings.
+
+    Shared by the recovery test and the blocking-list test below: both need
+    this exact migrated-then-remounted shape, and the blocking-list test
+    additionally needs the readings attached to `tire.readings` (not just
+    passed to `project_wear`), because `_to_response` reads that relationship
+    directly rather than taking an override. `TireReading` instances (not the
+    lightweight `_Reading` stand-in) are required here: `_to_response`
+    serialises `tire.readings` through `TireReadingResponse.model_validate`,
+    which needs `id`/`tire_id`/`vin`/`created_at` that `_Reading` does not
+    carry.
+    """
+    from app.models.tire import Tire, TireMountPeriod, TireReading
+
+    tire = Tire(
+        id=1,
+        vin="V" * 17,
+        position="FL",
+        min_tread_mm=Decimal("2.0"),
+        created_at=datetime(2026, 1, 1),
+    )
+    tire.mount_periods = [
+        TireMountPeriod(
+            id=1,
+            position="FL",
+            mounted_on=None,
+            dismounted_on=date(2026, 3, 31),
+            mounted_odometer_km=None,
+            dismounted_odometer_km=Decimal("10000"),
+            is_assumed=True,
+        ),
+        TireMountPeriod(
+            id=2,
+            position="FL",
+            mounted_on=date(2026, 4, 1),
+            dismounted_on=None,
+            mounted_odometer_km=Decimal("10000"),
+            is_assumed=False,
+        ),
+    ]
+    tire.readings = [
+        TireReading(
+            id=1,
+            tire_id=1,
+            vin=tire.vin,
+            recorded_at=date(2026, 5, 1),
+            odometer_km=Decimal("12000"),
+            tread_depth_mm=Decimal("4.0"),
+            created_at=datetime(2026, 5, 1),
+        ),
+        TireReading(
+            id=2,
+            tire_id=1,
+            vin=tire.vin,
+            recorded_at=date(2026, 4, 2),
+            odometer_km=Decimal("10000"),
+            tread_depth_mm=Decimal("6.0"),
+            created_at=datetime(2026, 4, 2),
+        ),
+    ]
+    return tire
+
+
+def test_a_migrated_tire_recovers_once_a_dismount_bounds_its_assumed_period():
+    """Spec A promised this one too. Today the projection is suppressed
+    because LIFETIME distance is incomplete, even though both readings sit
+    inside a fully known later mount."""
+    tire = _migrated_then_remounted_tire()
+    result = project_wear(tire, Decimal("12000"), tire.readings)
+    assert result.status is WearStatus.PROJECTED
+    assert result.km_remaining == Decimal("2000.0")
+    assert result.blocking_period_ids == []
+
+
+def test_a_clean_projection_still_reports_its_lifetime_blocker():
+    """A clean projection does not erase the lifetime figure's own blocker.
+
+    NOTE: this does NOT, by itself, prove `_to_response` unions the two
+    blocking lists rather than `or`-ing them. On this fixture
+    `wear.blocking_period_ids` is empty, so `[1] or []` and
+    `sorted({1} | set())` both evaluate to `[1]` -- there is nothing on the
+    wear side for `or` to mask. See
+    `test_wear_blockers_are_not_masked_by_lifetime_blockers` below for the
+    fixture that actually distinguishes the two.
+    """
+    from app.services.tire_service import TireService
+
+    tire = _migrated_then_remounted_tire()
+    # `_to_response` is a pure formatting method: it reads the tire and the
+    # two calculations and touches no session. Constructed without __init__
+    # so the test needs no database.
+    service = TireService.__new__(TireService)
+    payload = service._to_response(tire, current_odometer=Decimal("12000"))
+
+    assert payload.wear_status == "projected"
+    assert payload.distance_status == "incomplete"
+    # The assumed period still blocks the LIFETIME figure, and must still be
+    # named, but it must not be the only thing the field can ever say.
+    assert payload.blocking_period_ids == [1]
+
+
+def _overlapping_periods_tire():
+    """Three periods shaped so the lifetime and interval blocker lists
+    genuinely diverge, which `_migrated_then_remounted_tire()` cannot do.
+
+    `distance_between` only ever blocks on a MISSING bound when the period
+    cannot be proven disjoint from the reading interval -- and any period
+    missing a bound blocks the LIFETIME figure unconditionally, so that kind
+    of block is always a subset of the lifetime blockers. `or` and union
+    agree whenever the wear side can only ever be a subset of the distance
+    side.
+
+    The two lists can only diverge when the interval helper blocks for a
+    reason `distance_on_tire` does not check at all: overlapping,
+    FULLY-BOUNDED periods. `distance_on_tire` sums every bounded period
+    unconditionally and never checks for overlap between them, so periods
+    2 and 3 below never appear in its blocking list, only in the interval
+    helper's.
+
+    - Period 1: missing its start odometer, and dismounted at 8,000 km --
+      at or below the older reading's 10,000 km, so `distance_between`'s
+      near-bound proof (C2) correctly excludes it from the interval. It
+      still blocks the LIFETIME figure, since `distance_on_tire` has no
+      such exclusion.
+    - Periods 2 and 3: both fully bounded, both inside the [10000, 12000]
+      reading interval, and overlapping each other by 500 km
+      (11000-11500), so the interval helper reports `OVERLAPPING_HISTORY`
+      naming them. Neither is missing a bound, so neither ever reaches
+      `distance_on_tire`'s blocking list.
+    """
+    from app.models.tire import Tire, TireMountPeriod, TireReading
+
+    tire = Tire(
+        id=1,
+        vin="V" * 17,
+        position="FL",
+        min_tread_mm=Decimal("2.0"),
+        created_at=datetime(2026, 1, 1),
+    )
+    tire.mount_periods = [
+        TireMountPeriod(
+            id=1,
+            position="FL",
+            mounted_on=None,
+            dismounted_on=date(2026, 3, 31),
+            mounted_odometer_km=None,
+            dismounted_odometer_km=Decimal("8000"),
+            is_assumed=True,
+        ),
+        TireMountPeriod(
+            id=2,
+            position="FL",
+            mounted_on=date(2026, 4, 1),
+            dismounted_on=date(2026, 4, 20),
+            mounted_odometer_km=Decimal("10000"),
+            dismounted_odometer_km=Decimal("11500"),
+            is_assumed=False,
+        ),
+        TireMountPeriod(
+            id=3,
+            position="FL",
+            mounted_on=date(2026, 4, 10),
+            dismounted_on=date(2026, 4, 30),
+            mounted_odometer_km=Decimal("11000"),
+            dismounted_odometer_km=Decimal("12000"),
+            is_assumed=False,
+        ),
+    ]
+    tire.readings = [
+        TireReading(
+            id=1,
+            tire_id=1,
+            vin=tire.vin,
+            recorded_at=date(2026, 5, 1),
+            odometer_km=Decimal("12000"),
+            tread_depth_mm=Decimal("4.0"),
+            created_at=datetime(2026, 5, 1),
+        ),
+        TireReading(
+            id=2,
+            tire_id=1,
+            vin=tire.vin,
+            recorded_at=date(2026, 4, 2),
+            odometer_km=Decimal("10000"),
+            tread_depth_mm=Decimal("6.0"),
+            created_at=datetime(2026, 4, 2),
+        ),
+    ]
+    return tire
+
+
+def test_wear_blockers_are_not_masked_by_lifetime_blockers():
+    """The response boundary used to `or` these two lists together, so any
+    lifetime blocker hid the wear blockers completely.
+
+    The overlapping-periods tire is the fixture that actually forces the two
+    lists apart: the lifetime figure is blocked by period 1 alone (a missing
+    bound, correctly excluded from the interval by C2), while the projection
+    is separately blocked by periods 2 and 3 (a fully-bounded overlap
+    `distance_on_tire` never checks for). `or` would report only `[1]`,
+    silently dropping the periods the projection actually needs repaired.
+    """
+    from app.services.tire_service import TireService
+
+    tire = _overlapping_periods_tire()
+    service = TireService.__new__(TireService)
+    payload = service._to_response(tire, current_odometer=Decimal("12000"))
+
+    assert payload.wear_status == "no_distance_on_tire"
+    assert payload.distance_status == "incomplete"
+    # Union of {1} (lifetime) and {2, 3} (interval). `or` would have produced
+    # [1] alone, since {1} is non-empty and therefore short-circuits it.
+    assert payload.blocking_period_ids == [1, 2, 3]
 
 
 def test_parse_fuel_command_metric():

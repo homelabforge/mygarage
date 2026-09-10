@@ -34,6 +34,8 @@ from app.schemas.tire import (
 from app.services.tire_results import (
     DistanceResult,
     DistanceStatus,
+    IntervalResult,
+    IntervalStatus,
     WearResult,
     WearStatus,
 )
@@ -207,6 +209,230 @@ def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceRe
     )
 
 
+def _overlapping_period_ids(contributions: list[tuple[Decimal, Decimal, int]]) -> list[int]:
+    """Ids of contributing spans that claim the same kilometres.
+
+    Touching endpoints are not an overlap: a dismount at 12,000 and a
+    remount at 12,000 is what a rotation looks like. Only a strict
+    intersection counts.
+
+    Tracks the running maximum end rather than comparing neighbours, so a
+    period nested wholly inside an earlier one is caught even though the
+    span between them in sorted order does not intersect.
+    """
+    clashing: set[int] = set()
+    running_hi: Decimal | None = None
+    running_id: int | None = None
+    for lo, hi, period_id in sorted(contributions, key=lambda c: c[0]):
+        if running_hi is not None and running_id is not None and lo < running_hi:
+            clashing.update({running_id, period_id})
+        if running_hi is None or hi > running_hi:
+            running_hi, running_id = hi, period_id
+    return sorted(clashing)
+
+
+def _odometer_goes_backwards(
+    periods: list[TireMountPeriod], readings: tuple[TireReading, ...]
+) -> list[int]:
+    """C5: periods whose odometer bounds contradict a reading's date.
+
+    The invariant is that a vehicle's odometer does not run backwards in
+    time. Relating a reading to a period's mount and dismount, that
+    invariant yields four implications, all enforced here:
+
+    1. A reading dated AFTER `dismounted_on` cannot read BELOW
+       `dismounted_odometer_km` (the odometer would have to have gone down
+       since the dismount).
+    2. A reading dated BEFORE `mounted_on` cannot read ABOVE
+       `mounted_odometer_km` (the odometer would have to go down between the
+       reading and the mount).
+    3. A reading dated AFTER `mounted_on` cannot read BELOW
+       `mounted_odometer_km` (the odometer would have to have gone down
+       since the mount).
+    4. A reading dated BEFORE `dismounted_on` cannot read ABOVE
+       `dismounted_odometer_km` (the odometer would have to go down between
+       the reading and the dismount).
+
+    A violation of any of the four means the dates and the odometers
+    describe two different histories, which is what an odometer reset looks
+    like.
+
+    Every comparison is STRICT on the date, never `>=`/`<=`. These dates are
+    day-granular, so two events recorded on the same calendar day cannot be
+    ordered: a tire legitimately measured on the morning of its mount day can
+    read slightly below the mount odometer, because the vehicle was driven
+    between the measurement and the mount later that day. On the boundary
+    day the true order is unknowable, so it must not be judged. The same
+    applies symmetrically to a reading taken on the day of a dismount.
+
+    Stated as monotonicity, NOT as range membership. An earlier revision
+    asked whether a reading's odometer fell inside a period's odometer range
+    while its date fell outside that period's dates, which assumes an
+    odometer value identifies a date. It does not: a parked vehicle holds one
+    odometer reading across many days, so a tire dismounted at 12,000 and
+    measured in storage two days later at 12,000 was rejected as corrupt, and
+    two periods sharing an endpoint odometer rejected each other's boundary
+    readings.
+
+    Only bounds that are actually known take part. A null is unknown, not
+    wrong, which is what keeps the migrated assumed period out of this.
+    """
+    clashing: set[int] = set()
+    for period in periods:
+        for reading in readings:
+            if reading.odometer_km is None:
+                continue
+            if period.dismounted_on is not None and period.dismounted_odometer_km is not None:
+                if (
+                    reading.recorded_at > period.dismounted_on
+                    and reading.odometer_km < period.dismounted_odometer_km
+                ):
+                    clashing.add(period.id)
+                if (
+                    reading.recorded_at < period.dismounted_on
+                    and reading.odometer_km > period.dismounted_odometer_km
+                ):
+                    clashing.add(period.id)
+            if period.mounted_on is not None and period.mounted_odometer_km is not None:
+                if (
+                    reading.recorded_at < period.mounted_on
+                    and reading.odometer_km > period.mounted_odometer_km
+                ):
+                    clashing.add(period.id)
+                if (
+                    reading.recorded_at > period.mounted_on
+                    and reading.odometer_km < period.mounted_odometer_km
+                ):
+                    clashing.add(period.id)
+    return sorted(clashing)
+
+
+def distance_between(
+    tire: Tire,
+    older: TireReading,
+    newer: TireReading,
+    current_odometer: Decimal | None,
+) -> IntervalResult:
+    """Distance driven on this tire BETWEEN two readings.
+
+    Not the same question as `distance_on_tire`, which totals a lifetime.
+    A wear RATE needs the distance over which the tread actually fell, and
+    for anyone running a second set those two numbers differ by everything
+    driven on the other set.
+
+    The intersection is proved from the NEAR bound only (C2): a period whose
+    end is at or below the older reading, or whose start is at or above the
+    newer one, contributes nothing and blocks nothing, whatever the bound on
+    its far side is. That single rule is what lets a tire migrated by 097
+    recover: its assumed period has a null START, and a recorded dismount
+    gives it an END that puts it outside the interval.
+
+    Args:
+        tire: The tire, with `mount_periods` loaded.
+        older: The earlier tread-bearing reading. Its `odometer_km` is the
+            lower bound of the interval.
+        newer: The later tread-bearing reading, and the upper bound.
+        current_odometer: The vehicle's latest odometer, used for a period
+            still open. May be None on a vehicle with no readings.
+
+    Returns:
+        An `IntervalResult`. `km` is populated only for COMPLETE; every
+        other status withholds the figure rather than publishing a subtotal,
+        because this number is the DENOMINATOR of a wear rate and a wrong
+        one is wrong in both directions: too small understates remaining
+        life, and too large overstates it, which is the dangerous direction
+        and is exactly the defect this replaces.
+    """
+    a_odo, b_odo = older.odometer_km, newer.odometer_km
+    if a_odo is None or b_odo is None or a_odo >= b_odo:
+        return IntervalResult(status=IntervalStatus.NO_DISTANCE)
+
+    periods = list(tire.mount_periods or [])
+    if not periods:
+        return IntervalResult(status=IntervalStatus.NO_PERIODS)
+    rolling = [p for p in periods if p.position != "SPARE"]
+    if not rolling:
+        return IntervalResult(status=IntervalStatus.SPARE_ONLY)
+
+    blocking: list[int] = []
+    faulted: list[int] = []
+    contributions: list[tuple[Decimal, Decimal, int]] = []
+
+    for period in rolling:
+        start = period.mounted_odometer_km
+        if period.dismounted_on is not None:
+            end = period.dismounted_odometer_km
+        elif current_odometer is not None:
+            # C4. An open period has no recorded dismount, so a reading at
+            # `b_odo` is itself evidence the tire was mounted at `b_odo`.
+            # Clipping to `current_odometer` alone loses real distance
+            # whenever a reading outruns the vehicle's latest record.
+            end = max(current_odometer, b_odo)
+        else:
+            end = b_odo
+
+        # C3, checked BEFORE C2's disjointness proof. A bound cannot be used
+        # to prove a period disjoint when the bounds are known-corrupt: a
+        # period mounted at 20,000 and dismounted at 5,000 has `end <= a_odo`
+        # for almost any interval, so C2 would wave it through as "outside"
+        # instead of flagging it, and a second, genuine contributor would
+        # then publish a confident figure over a history already known to be
+        # faulted. Both bounds must be non-null for "reversed" to mean
+        # anything; a period missing one still falls through to C2 and then
+        # to the null-bound handling below, unchanged.
+        if start is not None and end is not None and end < start:
+            # NOT `max(0, hi - lo)`: clamping contributes a silent zero for a
+            # faulted period while another period supplies a positive total,
+            # publishing a confident figure over known-corrupt data.
+            faulted.append(period.id)
+            continue
+
+        # C2. Provable disjointness, from the near bound only.
+        if end is not None and end <= a_odo:
+            continue
+        if start is not None and start >= b_odo:
+            continue
+
+        # Past here the period may overlap, so both bounds are load-bearing.
+        # A reversed pair of non-null bounds was already caught above, so
+        # reaching here with both bounds known means end >= start.
+        if start is None or end is None:
+            blocking.append(period.id)
+            continue
+
+        lo, hi = max(a_odo, start), min(b_odo, end)
+        if hi > lo:
+            contributions.append((lo, hi, period.id))
+
+    overlapping = _overlapping_period_ids(contributions)
+    if overlapping:
+        return IntervalResult(
+            status=IntervalStatus.OVERLAPPING_HISTORY, blocking_period_ids=overlapping
+        )
+    if faulted:
+        return IntervalResult(
+            status=IntervalStatus.ODOMETER_ROLLBACK, blocking_period_ids=sorted(faulted)
+        )
+    # C5, here and not earlier. Overlapping periods and reversed bounds are
+    # monotonicity violations too, so running this first would answer
+    # HISTORY_CONTRADICTS for both and swallow the specific diagnosis. All
+    # three suppress, so precedence changes no number, only the repair the
+    # user is pointed at.
+    contradicting = _odometer_goes_backwards(rolling, (older, newer))
+    if contradicting:
+        return IntervalResult(
+            status=IntervalStatus.HISTORY_CONTRADICTS, blocking_period_ids=contradicting
+        )
+    if blocking:
+        return IntervalResult(
+            status=IntervalStatus.UNVERIFIED, blocking_period_ids=sorted(blocking)
+        )
+    total = sum((hi - lo for lo, hi, _ in contributions), Decimal("0"))
+    if total <= 0:
+        return IntervalResult(status=IntervalStatus.NO_DISTANCE)
+    return IntervalResult(status=IntervalStatus.COMPLETE, km=total)
+
+
 def project_wear(
     tire: Tire,
     current_odometer: Decimal | None,
@@ -254,6 +480,36 @@ def project_wear(
         return WearResult(status=WearStatus.NO_MINIMUM_SET)
 
     with_tread = [r for r in candidates if r.tread_depth_mm is not None]
+
+    # C7. The threshold is a SAFETY statement and needs no distance to be
+    # true, so it is decided before every rate prerequisite. It used to sit
+    # below the distance gate, which meant a tire measured at 1.5 mm against
+    # a 2.0 mm minimum reported "add an odometer" while the low-tread
+    # reminder was already raised against it. C8: the tread read here is
+    # `tire.tread_depth_mm`, the same scalar the card renders and
+    # `_sync_low_tread_reminder` tests, so the three cannot disagree.
+    tread_now = tire.tread_depth_mm
+    if tread_now is not None and tread_now <= min_tread:
+        # Only a reading that ITSELF measured at or below the minimum may
+        # date this result. `tire.tread_depth_mm` can be set directly
+        # through `TireUpdate` with no reading logged at all, so the newest
+        # reading on file may still be healthy and months old; reusing its
+        # date would attribute the threshold crossing to a measurement that
+        # never crossed it, which reads as a measurement that never
+        # happened -- the same failure the missing `utc_now()` fallback
+        # below already guards against.
+        newest = with_tread[0] if with_tread else None
+        dating_reading = (
+            newest if newest is not None and newest.tread_depth_mm <= min_tread else None
+        )
+        return WearResult(
+            status=WearStatus.AT_OR_BELOW_MINIMUM,
+            km_remaining=Decimal("0"),
+            # No `utc_now()` fallback either: an invented date would read as
+            # a measurement that never happened.
+            wear_date=dating_reading.recorded_at if dating_reading is not None else None,
+        )
+
     if len(with_tread) < 2:
         return WearResult(status=WearStatus.INSUFFICIENT_READINGS)
 
@@ -272,21 +528,28 @@ def project_wear(
         # which of the two had happened.
         return WearResult(status=WearStatus.TREAD_NOT_DECREASING)
 
-    # The distance is the tire's own, not the vehicle's odometer span.
-    distance = distance_on_tire(tire, current_odometer)
-    if distance.status is DistanceStatus.COMPLETE:
-        km_delta = newer.odometer_km - older.odometer_km
-    elif distance.status is DistanceStatus.NOTHING_BOUNDED:
-        # The migrated shape. The raw delta is exactly the legacy calculation
-        # this release exists to stop publishing.
+    # The distance driven on THIS TIRE between THESE TWO READINGS.
+    #
+    # The pre-v3.3.1 code called `distance_on_tire`, read its STATUS as a
+    # gate, discarded its VALUE, and then took the raw odometer span. That
+    # is period-GATED, not period-aware: `DistanceStatus.COMPLETE` is a
+    # LIFETIME predicate, not "both readings fall in one period", so the
+    # guard admitted exactly the two-set owner it was built to exclude.
+    interval = distance_between(tire, older, newer, current_odometer)
+    if interval.status is IntervalStatus.COMPLETE and interval.km is not None:
+        km_delta = interval.km
+    elif interval.status is IntervalStatus.UNVERIFIED:
         return WearResult(
             status=WearStatus.UNVERIFIED_MOUNT_HISTORY,
-            blocking_period_ids=distance.blocking_period_ids,
+            blocking_period_ids=interval.blocking_period_ids,
         )
     else:
+        # Every remaining status is a fault, a contradiction or an empty
+        # intersection. All of them withhold the number and the card already
+        # renders one string for both wear statuses, so no copy is needed.
         return WearResult(
             status=WearStatus.NO_DISTANCE_ON_TIRE,
-            blocking_period_ids=distance.blocking_period_ids,
+            blocking_period_ids=interval.blocking_period_ids,
         )
 
     if km_delta <= 0:
@@ -296,6 +559,15 @@ def project_wear(
     if remaining_tread <= 0:
         # At or past the threshold. This is the SAFETY case: it carries a
         # number and a date, and the reminder fires on it.
+        #
+        # NOT dead code despite the hoisted check above: that check reads
+        # `tire.tread_depth_mm` (the tire's own scalar), this reads
+        # `newer_tread` (the newest READING's tread), and the two can
+        # disagree. `tread_depth_mm` is nullable and `TireUpdate` accepts an
+        # explicit null (`update_tire` uses `exclude_unset`, so sending null
+        # clears it), so a user who clears the tire's scalar tread while
+        # readings below the minimum remain gets a None `tread_now` above,
+        # which skips the hoisted check, and lands here instead.
         return WearResult(
             status=WearStatus.AT_OR_BELOW_MINIMUM,
             km_remaining=Decimal("0"),
@@ -318,6 +590,18 @@ def project_wear(
         km_remaining=km_left.quantize(Decimal("0.1")),
         wear_date=wear_date,
     )
+
+
+def _low_tread_title(position: str | None) -> str:
+    """Title for a low-tread reminder.
+
+    Never renders `None` as a corner. `Tire.position` became nullable in
+    migration 097, and the f-string produced the literal "Tire tread low
+    (None)" for a stored tire, which two stored tires then collided on.
+    Identity is `tire_id` now, so the title is display text only, but it is
+    still read by a human in the calendar and the notification.
+    """
+    return f"Tire tread low ({position})" if position else "Tire tread low (in storage)"
 
 
 class TireService:
@@ -415,9 +699,16 @@ class TireService:
         payload.known_distance_km = distance.known_value
         payload.known_distance_since = distance.known_since
         payload.distance_status = distance.status.value
-        # Whichever result is blocked names the periods to act on. Distance
-        # wins when both are: it is the more specific repair.
-        payload.blocking_period_ids = distance.blocking_period_ids or wear.blocking_period_ids
+        # Union, not `or`. These are blockers for two DIFFERENT figures:
+        # `distance_status` is the tire's lifetime, `wear_status` is the
+        # interval between the two readings. `or` masked the wear blockers
+        # whenever any lifetime blocker existed, so a tire whose projection
+        # was fine still reported a period to repair, and a tire whose
+        # projection was blocked pointed at the wrong period. Deduplicated
+        # and sorted so the field is stable across requests.
+        payload.blocking_period_ids = sorted(
+            {*distance.blocking_period_ids, *wear.blocking_period_ids}
+        )
         payload.installed_date = self._derived_installed_date(tire)
         payload.below_threshold = below
         payload.mount_periods = [
@@ -1036,7 +1327,7 @@ class TireService:
         notifications scheduler, and HA bridge all see low tread without a
         separate notification channel.
         """
-        title = f"Tire tread low ({tire.position})"
+        title = _low_tread_title(tire.position)
         # THREE states, not two. `not below` used to conflate "measured, and it
         # is fine" with "we do not know", which was safe only while a tread was
         # mandatory everywhere. It is not: `Tire.tread_depth_mm` has been
@@ -1059,14 +1350,63 @@ class TireService:
         else:
             known = True
             below = tread <= limit
-        result = await self.db.execute(
-            select(Reminder).where(
-                Reminder.vin == tire.vin,
-                Reminder.title == title,
-                Reminder.status == "pending",
+        # Identity is the TIRE, not the title. Titles are arbitrary user
+        # input, so matching on one adopts a reminder a human wrote and
+        # completes it on their behalf. `scalars().all()` rather than
+        # `scalar_one_or_none()`: rows created before this fix can leave more
+        # than one pending row per tire, and raising on that would make the
+        # bug unfixable from inside the app.
+        owned = (
+            (
+                await self.db.execute(
+                    select(Reminder)
+                    .where(
+                        Reminder.tire_id == tire.id,
+                        Reminder.source == "low_tread",
+                        Reminder.status == "pending",
+                    )
+                    .order_by(Reminder.id)
+                )
             )
+            .scalars()
+            .all()
         )
-        existing = result.scalar_one_or_none()
+        existing = owned[0] if owned else None
+        # A pre-fix row could have left more than one pending reminder on the
+        # same tire (matched by title back then, not by identity). Collapse
+        # every extra one now rather than leaving it to keep firing.
+        dirty = False
+        for duplicate in owned[1:]:
+            duplicate.status = "done"
+            dirty = True
+
+        # C10 predates some rows still pending on an upgraded instance. A
+        # reminder created by a pre-C10 release carries `reminder_type="both"`
+        # with `due_mileage_km=None`, which `ReminderCreate` rejects -- so
+        # this release's editability fix never reached an owner's EXISTING
+        # low-tread reminder, only ones created from here on. Repaired
+        # unconditionally, before the branches below, so it runs whichever
+        # of them fires this sync, including the case where the tire is
+        # still below threshold and nothing else about the row changes.
+        #
+        # The predicate is deliberately exact, not "anything not date-typed
+        # with no mileage". A user can take this reminder and add a real
+        # mileage target, which makes it `reminder_type="both"` with a
+        # genuine `due_mileage_km` -- a valid, user-authored edit, not a
+        # corrupt row. Matching on `reminder_type != "date"` alone would
+        # revert that edit and null their mileage on the next sync, silently.
+        # `both` with a NULL mileage is precisely what the pre-C10
+        # constructor wrote and precisely what the write schema rejects; any
+        # other combination is either already valid or was never ours to
+        # begin with, and is left alone.
+        if (
+            existing is not None
+            and existing.reminder_type == "both"
+            and existing.due_mileage_km is None
+        ):
+            existing.reminder_type = "date"
+            existing.due_mileage_km = None
+            dirty = True
 
         if below and existing is None:
             due = utc_now().date()
@@ -1080,16 +1420,21 @@ class TireService:
                 vin=tire.vin,
                 # Which tire, and that WE made this. The sync never adopts a
                 # row whose `source` or `tire_id` is null, so a reminder a
-                # human wrote with the same title is left alone, and a reminder
-                # whose tire has been deleted becomes inert rather than
-                # attaching itself to the next tire at that corner.
+                # human wrote is left alone, and a reminder whose tire has
+                # been deleted becomes inert rather than attaching itself to
+                # the next tire at that corner.
                 tire_id=tire.id,
                 source="low_tread",
                 tread_depth_mm=tire.tread_depth_mm,
                 tread_threshold_mm=tire.min_tread_mm,
                 projected_distance_km=km_left,
                 title=title,
-                reminder_type="date" if wear_date is None else "both",
+                # Always "date". `km_remaining` is a distance REMAINING, not
+                # an absolute odometer target, so there is nothing to put in
+                # `due_mileage_km` -- and `ReminderCreate` requires a mileage
+                # for "both". The ORM insert bypasses that validator, so the
+                # old row landed and then rejected every ordinary edit.
+                reminder_type="date",
                 due_date=wear_date or due,
                 due_mileage_km=None,
                 status="pending",
@@ -1099,7 +1444,16 @@ class TireService:
                 ),
             )
             self.db.add(reminder)
-            await self.db.commit()
+            dirty = True
         elif known and not below and existing is not None:
             existing.status = "done"
+            dirty = True
+        elif below and existing is not None and existing.title != title:
+            # A rotation or a dismount renames the corner. The row is the
+            # same warning about the same tire, so it is renamed rather than
+            # left beside a new duplicate.
+            existing.title = title
+            dirty = True
+
+        if dirty:
             await self.db.commit()

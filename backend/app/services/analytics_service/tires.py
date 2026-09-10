@@ -74,7 +74,16 @@ def tire_readiness(tires: Sequence[TireResponse]) -> TireReadiness:
     for tire in live:
         readings = _tread_bearing(tire)
         if len(readings) < 2:
-            needs_second_reading += 1
+            # C7 (v3.3.1) can resolve `at_or_below_minimum` straight from the
+            # tire's own scalar tread, with zero or one readings: a worn tire
+            # already has its answer and a second reading would change
+            # nothing about it. Counting it here too would both prompt for
+            # data that answers nothing AND double-count it against
+            # `can_project`, so a tire that already carries a figure is
+            # excluded from this prompt instead of unconditionally landing in
+            # it.
+            if tire.wear_status not in _WEAR_HAS_FIGURE:
+                needs_second_reading += 1
             continue
         can_trend += 1
         # The newest two are the pair `project_wear` differences, so those are
