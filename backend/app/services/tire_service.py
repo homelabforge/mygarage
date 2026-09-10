@@ -240,8 +240,10 @@ def distance_between(
     Returns:
         An `IntervalResult`. `km` is populated only for COMPLETE; every
         other status withholds the figure rather than publishing a subtotal,
-        because a subtotal here understates the denominator of a wear rate
-        and so OVERSTATES remaining life.
+        because this number is the DENOMINATOR of a wear rate and a wrong
+        one is wrong in both directions: too small understates remaining
+        life, and too large overstates it, which is the dangerous direction
+        and is exactly the defect this replaces.
     """
     a_odo, b_odo = older.odometer_km, newer.odometer_km
     if a_odo is None or b_odo is None or a_odo >= b_odo:

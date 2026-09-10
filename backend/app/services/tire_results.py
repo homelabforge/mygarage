@@ -153,9 +153,10 @@ class IntervalResult:
     """Distance driven on one tire between two readings.
 
     `km` is non-null only for COMPLETE. Every other status withholds the
-    figure rather than publishing a subtotal, because a partial answer here
-    feeds a wear RATE, and a rate computed over too little distance
-    over-states remaining life, which is the dangerous direction for a tire.
+    figure rather than publishing a subtotal, because this number is the
+    DENOMINATOR of a wear rate and a wrong one is wrong in both directions:
+    too small understates remaining life, and too large overstates it, which
+    is the dangerous direction and is exactly the defect this replaces.
     """
 
     status: IntervalStatus
