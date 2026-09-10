@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Behaviour note
+
+Wear estimates change with this release, some sharply downward. The distance
+they are computed over no longer includes kilometres driven on another set,
+so a projection that read 12,000 km of remaining life on a seasonal set may
+now read 4,000. Nothing about your tires changed; the earlier figure was
+wrong, and wrong in the direction that says a worn tire is fine.
+
+Two related changes: an estimate that was blank on a tire carried through
+migration 097 can start appearing once a recorded dismount bounds its assumed
+mount period, and a tire measured below its minimum now says to replace it
+even when its mount history is incomplete, where the card previously asked
+for an odometer instead.
+
+No backup is needed. This release changes no data and adds no migration.
+
+### Fixed
+
+- Tire wear is projected over the distance driven on that tire between its two tread readings, not the vehicle's odometer span between them, which counted distance driven on the other seasonal set and over-stated remaining life (#153).
+- A tire measured at or below its minimum tread says to replace it whatever its mount history, instead of asking for a mount odometer while the low-tread reminder was already raised.
+- A low-tread reminder belongs to its tire rather than to its title, so one a user wrote with the same name is no longer adopted or completed by the app.
+- A tire in storage no longer produces a reminder titled "Tire tread low (None)", and two stored tires no longer collide on that one title.
+- Low-tread reminders can be edited. They were created as combined date and mileage reminders with no mileage, which every later edit rejected.
+
 ## [3.3.0] - 2026-09-04
 
 ### Upgrade note
