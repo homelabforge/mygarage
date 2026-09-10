@@ -539,6 +539,18 @@ def project_wear(
     )
 
 
+def _low_tread_title(position: str | None) -> str:
+    """Title for a low-tread reminder.
+
+    Never renders `None` as a corner. `Tire.position` became nullable in
+    migration 097, and the f-string produced the literal "Tire tread low
+    (None)" for a stored tire, which two stored tires then collided on.
+    Identity is `tire_id` now, so the title is display text only, but it is
+    still read by a human in the calendar and the notification.
+    """
+    return f"Tire tread low ({position})" if position else "Tire tread low (in storage)"
+
+
 class TireService:
     """CRUD + wear projection + low-tread reminder hooks."""
 
@@ -1262,7 +1274,7 @@ class TireService:
         notifications scheduler, and HA bridge all see low tread without a
         separate notification channel.
         """
-        title = f"Tire tread low ({tire.position})"
+        title = _low_tread_title(tire.position)
         # THREE states, not two. `not below` used to conflate "measured, and it
         # is fine" with "we do not know", which was safe only while a tread was
         # mandatory everywhere. It is not: `Tire.tread_depth_mm` has been
@@ -1285,14 +1297,35 @@ class TireService:
         else:
             known = True
             below = tread <= limit
-        result = await self.db.execute(
-            select(Reminder).where(
-                Reminder.vin == tire.vin,
-                Reminder.title == title,
-                Reminder.status == "pending",
+        # Identity is the TIRE, not the title. Titles are arbitrary user
+        # input, so matching on one adopts a reminder a human wrote and
+        # completes it on their behalf. `scalars().all()` rather than
+        # `scalar_one_or_none()`: rows created before this fix can leave more
+        # than one pending row per tire, and raising on that would make the
+        # bug unfixable from inside the app.
+        owned = (
+            (
+                await self.db.execute(
+                    select(Reminder)
+                    .where(
+                        Reminder.tire_id == tire.id,
+                        Reminder.source == "low_tread",
+                        Reminder.status == "pending",
+                    )
+                    .order_by(Reminder.id)
+                )
             )
+            .scalars()
+            .all()
         )
-        existing = result.scalar_one_or_none()
+        existing = owned[0] if owned else None
+        # A pre-fix row could have left more than one pending reminder on the
+        # same tire (matched by title back then, not by identity). Collapse
+        # every extra one now rather than leaving it to keep firing.
+        dirty = False
+        for duplicate in owned[1:]:
+            duplicate.status = "done"
+            dirty = True
 
         if below and existing is None:
             due = utc_now().date()
@@ -1306,16 +1339,21 @@ class TireService:
                 vin=tire.vin,
                 # Which tire, and that WE made this. The sync never adopts a
                 # row whose `source` or `tire_id` is null, so a reminder a
-                # human wrote with the same title is left alone, and a reminder
-                # whose tire has been deleted becomes inert rather than
-                # attaching itself to the next tire at that corner.
+                # human wrote is left alone, and a reminder whose tire has
+                # been deleted becomes inert rather than attaching itself to
+                # the next tire at that corner.
                 tire_id=tire.id,
                 source="low_tread",
                 tread_depth_mm=tire.tread_depth_mm,
                 tread_threshold_mm=tire.min_tread_mm,
                 projected_distance_km=km_left,
                 title=title,
-                reminder_type="date" if wear_date is None else "both",
+                # Always "date". `km_remaining` is a distance REMAINING, not
+                # an absolute odometer target, so there is nothing to put in
+                # `due_mileage_km` -- and `ReminderCreate` requires a mileage
+                # for "both". The ORM insert bypasses that validator, so the
+                # old row landed and then rejected every ordinary edit.
+                reminder_type="date",
                 due_date=wear_date or due,
                 due_mileage_km=None,
                 status="pending",
@@ -1325,7 +1363,16 @@ class TireService:
                 ),
             )
             self.db.add(reminder)
-            await self.db.commit()
+            dirty = True
         elif known and not below and existing is not None:
             existing.status = "done"
+            dirty = True
+        elif below and existing is not None and existing.title != title:
+            # A rotation or a dismount renames the corner. The row is the
+            # same warning about the same tire, so it is renamed rather than
+            # left beside a new duplicate.
+            existing.title = title
+            dirty = True
+
+        if dirty:
             await self.db.commit()
