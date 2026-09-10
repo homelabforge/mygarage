@@ -439,6 +439,24 @@ def project_wear(
         return WearResult(status=WearStatus.NO_MINIMUM_SET)
 
     with_tread = [r for r in candidates if r.tread_depth_mm is not None]
+
+    # C7. The threshold is a SAFETY statement and needs no distance to be
+    # true, so it is decided before every rate prerequisite. It used to sit
+    # below the distance gate, which meant a tire measured at 1.5 mm against
+    # a 2.0 mm minimum reported "add an odometer" while the low-tread
+    # reminder was already raised against it. C8: the tread read here is
+    # `tire.tread_depth_mm`, the same scalar the card renders and
+    # `_sync_low_tread_reminder` tests, so the three cannot disagree.
+    tread_now = tire.tread_depth_mm
+    if tread_now is not None and tread_now <= min_tread:
+        return WearResult(
+            status=WearStatus.AT_OR_BELOW_MINIMUM,
+            km_remaining=Decimal("0"),
+            # Only a reading can date this. There is no `utc_now()` fallback:
+            # an invented date would read as a measurement that never happened.
+            wear_date=with_tread[0].recorded_at if with_tread else None,
+        )
+
     if len(with_tread) < 2:
         return WearResult(status=WearStatus.INSUFFICIENT_READINGS)
 
@@ -488,6 +506,15 @@ def project_wear(
     if remaining_tread <= 0:
         # At or past the threshold. This is the SAFETY case: it carries a
         # number and a date, and the reminder fires on it.
+        #
+        # NOT dead code despite the hoisted check above: that check reads
+        # `tire.tread_depth_mm` (the tire's own scalar), this reads
+        # `newer_tread` (the newest READING's tread), and the two can
+        # disagree. `tread_depth_mm` is nullable and `TireUpdate` accepts an
+        # explicit null (`update_tire` uses `exclude_unset`, so sending null
+        # clears it), so a user who clears the tire's scalar tread while
+        # readings below the minimum remain gets a None `tread_now` above,
+        # which skips the hoisted check, and lands here instead.
         return WearResult(
             status=WearStatus.AT_OR_BELOW_MINIMUM,
             km_remaining=Decimal("0"),

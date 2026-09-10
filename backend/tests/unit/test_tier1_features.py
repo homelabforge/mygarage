@@ -156,6 +156,98 @@ def test_project_wear_is_suppressed_without_a_bounded_mount_history():
     assert result.km_remaining is None
 
 
+def test_a_worn_tire_says_replace_now_even_with_no_mount_history():
+    """C7. The safety statement needs no distance to be true.
+
+    Before this fix this returned UNVERIFIED_MOUNT_HISTORY, so the card asked
+    for an odometer while the low-tread reminder was already raised against
+    the same tire.
+    """
+    readings = [
+        _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+    ]
+    tire = _tire_with(readings, Decimal("2.0"), bounded=False)
+    tire.tread_depth_mm = Decimal("1.5")
+    result = project_wear(tire, Decimal("12000"), readings)
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+    assert result.wear_date == date(2026, 6, 1)
+
+
+@pytest.mark.parametrize(
+    "readings",
+    [
+        pytest.param(
+            [_Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5"))], id="one_reading"
+        ),
+        pytest.param(
+            [
+                _Reading(date(2026, 6, 1), None, Decimal("1.5")),
+                _Reading(date(2026, 1, 1), None, Decimal("6.0")),
+            ],
+            id="no_reading_odometers",
+        ),
+        pytest.param(
+            [
+                _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+                _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("1.5")),
+            ],
+            id="flat_tread",
+        ),
+        pytest.param(
+            [
+                _Reading(date(2026, 6, 1), Decimal("12000"), Decimal("1.5")),
+                _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("1.4")),
+            ],
+            id="rising_tread",
+        ),
+    ],
+)
+def test_the_threshold_beats_every_rate_prerequisite(readings):
+    """C7. None of these prerequisites make a worn tire un-worn."""
+    tire = _tire_with(readings, Decimal("2.0"))
+    tire.tread_depth_mm = Decimal("1.5")
+    result = project_wear(tire, Decimal("12000"), readings)
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+
+
+def test_a_worn_tire_with_no_readings_invents_no_date():
+    """C8. The threshold reads the tire's own tread, the same scalar the
+    card shows and the reminder tests, so all three agree by construction.
+    With no reading there is no date, and `utc_now()` is not a substitute."""
+    tire = _tire_with([], Decimal("2.0"))
+    tire.tread_depth_mm = Decimal("1.5")
+    result = project_wear(tire, Decimal("12000"), [])
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+    assert result.wear_date is None
+
+
+def test_a_cleared_tread_scalar_still_replaces_now_from_the_reading():
+    """C8's fallback. The task-5 brief said to delete this as unreachable
+    once the hoisted C7 check landed. It is not: the hoisted check reads
+    `tire.tread_depth_mm`, the tire's own scalar, and that field is nullable.
+    `TireUpdate` accepts an explicit null for it and `update_tire` uses
+    `exclude_unset`, so a user who clears the tire's scalar tread in the
+    editor leaves the scalar None while readings below the minimum still
+    exist. The hoisted check cannot see that case; it must fall through to
+    the reading-derived `remaining_tread <= 0` branch further down. Deleting
+    that branch turns this into a PROJECTED result with a negative
+    `km_remaining` instead of AT_OR_BELOW_MINIMUM.
+    """
+    readings = [
+        _Reading(date(2026, 7, 1), Decimal("15000"), Decimal("1.0")),
+        _Reading(date(2026, 2, 1), Decimal("11000"), Decimal("5.0")),
+    ]
+    tire = _tire_with(readings, Decimal("2.0"))
+    tire.tread_depth_mm = None
+    result = project_wear(tire, Decimal("15000"), readings)
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+
+
 def _seasonal_tire(min_tread):
     """Two mount periods with a storage gap between them.
 
