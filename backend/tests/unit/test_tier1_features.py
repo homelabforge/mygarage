@@ -248,6 +248,29 @@ def test_a_cleared_tread_scalar_still_replaces_now_from_the_reading():
     assert result.km_remaining == Decimal("0")
 
 
+def test_a_scalar_below_minimum_with_a_healthy_newest_reading_has_no_date():
+    """PR #161 review, finding 3. `tire.tread_depth_mm` can be set directly
+    through `TireUpdate` with no reading logged, so the newest reading on
+    file can still be healthy and months old when the scalar crosses the
+    minimum. Reusing that reading's date would date the crossing from a
+    measurement that never crossed it -- the same "reads as a measurement
+    that never happened" failure the missing `utc_now()` fallback already
+    guards against, just applied to the wrong half of the sentence.
+    `wear_date` must stay None so the reminder falls back to today instead
+    of a stale calendar date.
+    """
+    readings = [
+        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+        _Reading(date(2025, 6, 1), Decimal("5000"), Decimal("7.0")),
+    ]
+    tire = _tire_with(readings, Decimal("2.0"))
+    tire.tread_depth_mm = Decimal("1.5")
+    result = project_wear(tire, Decimal("12000"), readings)
+    assert result.status is WearStatus.AT_OR_BELOW_MINIMUM
+    assert result.km_remaining == Decimal("0")
+    assert result.wear_date is None
+
+
 def _seasonal_tire(min_tread):
     """Two mount periods with a storage gap between them.
 

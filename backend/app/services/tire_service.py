@@ -341,6 +341,22 @@ def distance_between(
         else:
             end = b_odo
 
+        # C3, checked BEFORE C2's disjointness proof. A bound cannot be used
+        # to prove a period disjoint when the bounds are known-corrupt: a
+        # period mounted at 20,000 and dismounted at 5,000 has `end <= a_odo`
+        # for almost any interval, so C2 would wave it through as "outside"
+        # instead of flagging it, and a second, genuine contributor would
+        # then publish a confident figure over a history already known to be
+        # faulted. Both bounds must be non-null for "reversed" to mean
+        # anything; a period missing one still falls through to C2 and then
+        # to the null-bound handling below, unchanged.
+        if start is not None and end is not None and end < start:
+            # NOT `max(0, hi - lo)`: clamping contributes a silent zero for a
+            # faulted period while another period supplies a positive total,
+            # publishing a confident figure over known-corrupt data.
+            faulted.append(period.id)
+            continue
+
         # C2. Provable disjointness, from the near bound only.
         if end is not None and end <= a_odo:
             continue
@@ -348,15 +364,10 @@ def distance_between(
             continue
 
         # Past here the period may overlap, so both bounds are load-bearing.
+        # A reversed pair of non-null bounds was already caught above, so
+        # reaching here with both bounds known means end >= start.
         if start is None or end is None:
             blocking.append(period.id)
-            continue
-
-        if end < start:
-            # C3. NOT `max(0, hi - lo)`: clamping contributes a silent zero
-            # for a faulted period while another period supplies a positive
-            # total, publishing a confident figure over known-corrupt data.
-            faulted.append(period.id)
             continue
 
         lo, hi = max(a_odo, start), min(b_odo, end)
@@ -449,12 +460,24 @@ def project_wear(
     # `_sync_low_tread_reminder` tests, so the three cannot disagree.
     tread_now = tire.tread_depth_mm
     if tread_now is not None and tread_now <= min_tread:
+        # Only a reading that ITSELF measured at or below the minimum may
+        # date this result. `tire.tread_depth_mm` can be set directly
+        # through `TireUpdate` with no reading logged at all, so the newest
+        # reading on file may still be healthy and months old; reusing its
+        # date would attribute the threshold crossing to a measurement that
+        # never crossed it, which reads as a measurement that never
+        # happened -- the same failure the missing `utc_now()` fallback
+        # below already guards against.
+        newest = with_tread[0] if with_tread else None
+        dating_reading = (
+            newest if newest is not None and newest.tread_depth_mm <= min_tread else None
+        )
         return WearResult(
             status=WearStatus.AT_OR_BELOW_MINIMUM,
             km_remaining=Decimal("0"),
-            # Only a reading can date this. There is no `utc_now()` fallback:
-            # an invented date would read as a measurement that never happened.
-            wear_date=with_tread[0].recorded_at if with_tread else None,
+            # No `utc_now()` fallback either: an invented date would read as
+            # a measurement that never happened.
+            wear_date=dating_reading.recorded_at if dating_reading is not None else None,
         )
 
     if len(with_tread) < 2:
@@ -1325,6 +1348,21 @@ class TireService:
         dirty = False
         for duplicate in owned[1:]:
             duplicate.status = "done"
+            dirty = True
+
+        # C10 predates some rows still pending on an upgraded instance. A
+        # reminder created by a pre-C10 release carries `reminder_type="both"`
+        # with `due_mileage_km=None`, which `ReminderCreate` rejects -- so
+        # this release's editability fix never reached an owner's EXISTING
+        # low-tread reminder, only ones created from here on. Repaired
+        # unconditionally, before the branches below, so it runs whichever
+        # of them fires this sync, including the case where the tire is
+        # still below threshold and nothing else about the row changes.
+        if existing is not None and (
+            existing.reminder_type != "date" or existing.due_mileage_km is not None
+        ):
+            existing.reminder_type = "date"
+            existing.due_mileage_km = None
             dirty = True
 
         if below and existing is None:

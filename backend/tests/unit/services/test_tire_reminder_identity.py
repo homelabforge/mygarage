@@ -285,3 +285,57 @@ class TestTheReminderIsEditableAfterwards:
                 "due_mileage_km": reminder.due_mileage_km,
             }
         )
+
+
+class TestPreExistingInvalidRowsAreRepaired:
+    """PR #161 review, finding 2. `test_a_low_tread_reminder_is_a_date_reminder`
+    above only proves a NEWLY created row comes out correct: the constructor
+    that sets `reminder_type="date"` and `due_mileage_km=None` runs in the
+    CREATE branch (`below and existing is None`) alone. A pending row left
+    over from a pre-C10 release still carries `reminder_type="both"` with a
+    null `due_mileage_km`, which `ReminderCreate` rejects, and because that
+    row already exists this release's editability fix never touches it --
+    every later branch only sets `status` or `title`. So an upgrading owner
+    with an existing low-tread reminder still gets a 422 on an ordinary
+    edit, even though the CHANGELOG says this is fixed.
+    """
+
+    async def test_a_pending_both_type_reminder_is_normalized_on_sync(self, db_session, vin):
+        tire = await _tire(db_session, vin, position="FL", tread="1.5")
+        db_session.add(
+            Reminder(
+                vin=vin,
+                tire_id=tire.id,
+                source="low_tread",
+                title="Tire tread low (FL)",
+                reminder_type="both",
+                due_date=date(2026, 12, 1),
+                due_mileage_km=None,
+                status="pending",
+            )
+        )
+        await db_session.commit()
+
+        # The tire stays below threshold across this sync and the title
+        # already matches, so neither the create nor the rename branch
+        # would touch this row on its own -- the normalization has to run
+        # independently of both.
+        await _sync(db_session, tire)
+
+        rows = await _pending(db_session, vin)
+        assert len(rows) == 1
+        reminder = rows[0]
+        assert reminder.reminder_type == "date"
+        assert reminder.due_mileage_km is None
+
+        # Proves editability, not just field values: the row must survive
+        # the same write schema an ordinary user PUT goes through.
+        ReminderCreate.model_validate(
+            {
+                "vin": reminder.vin,
+                "title": reminder.title,
+                "reminder_type": reminder.reminder_type,
+                "due_date": reminder.due_date,
+                "due_mileage_km": reminder.due_mileage_km,
+            }
+        )

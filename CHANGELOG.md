@@ -29,7 +29,9 @@ No backup is needed. This release changes no data and adds no migration.
 - A tire measured at or below its minimum tread says to replace it whatever its mount history, instead of asking for a mount odometer while the low-tread reminder was already raised.
 - A low-tread reminder belongs to its tire rather than to its title, so one a user wrote with the same name is no longer adopted or completed by the app.
 - A tire in storage no longer produces a reminder titled "Tire tread low (None)", and two stored tires no longer collide on that one title.
-- Low-tread reminders can be edited. They were created as combined date and mileage reminders with no mileage, which every later edit rejected.
+- Low-tread reminders can be edited, including ones a pending upgrade left behind: they were created (or, before this fix, still stayed) as combined date and mileage reminders with no mileage, which every edit rejected, and are now repaired the next time their tire syncs.
+- A reversed mount period is no longer skipped as unrelated before it is checked for being reversed, which could let it through silently while a second period still published a wear projection over the corrupt history.
+- A tire's tread scalar set below its minimum with no matching reading no longer dates the replace-now result from an older, healthy reading; the date is withheld instead of misattributed.
 
 ## [3.3.0] - 2026-09-04
 

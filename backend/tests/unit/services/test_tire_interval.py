@@ -562,6 +562,94 @@ class TestFaultsSuppressRatherThanClamp:
         assert result.blocking_period_ids == [1]
 
 
+class TestReversedBoundsAreCaughtBeforeDisjointness:
+    """PR #161 review, finding 1. `test_a_reversed_period_is_not_clamped_away`
+    above pins C3's clamp-vs-suppress behaviour for a period C2 never skips
+    in the first place (its bounds sit inside the interval). It does not pin
+    the ORDER of the two checks, because a reversed period whose corrupt
+    bound also happens to prove it disjoint was never exercised: C2 ran
+    first and swallowed it via `continue` before the fault check ever saw
+    it, so a genuinely corrupt period was silently treated as "not here" and
+    a second, real contributor published a confident total over it.
+
+    Both cases below fail if the C3 check is moved back below C2 (the
+    pre-fix order): the reversed period is skipped as disjoint instead of
+    faulted, and the second period's real distance makes it through alone,
+    returning COMPLETE where ODOMETER_ROLLBACK is required.
+    """
+
+    def test_a_reversed_period_whose_corrupt_end_falls_below_the_interval(self):
+        """The near bound (`end`) alone would prove this period disjoint
+        from the older side, exactly the shape the finding's own repro used:
+        mounted at 20,000, dismounted at 5,000, against an interval starting
+        at 10,000. `end <= a_odo` is true, so C2-first skips it and never
+        asks whether it is reversed.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="20000",
+                    end_odo="5000",
+                    start_day=dt.date(2026, 6, 1),
+                    end_day=dt.date(2026, 10, 31),
+                ),
+                _period(
+                    2,
+                    start_odo="10000",
+                    end_odo="15000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 4, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 2), "10000"),
+            _reading(dt.date(2026, 4, 29), "15000"),
+            Decimal("15000"),
+        )
+        assert result.status is IntervalStatus.ODOMETER_ROLLBACK
+        assert result.km is None
+        assert result.blocking_period_ids == [1]
+
+    def test_a_reversed_period_whose_corrupt_start_falls_above_the_interval(self):
+        """Mirror case: the near bound (`start`) alone proves this period
+        disjoint from the newer side. Mounted at 25,000, dismounted at
+        20,000 (reversed), against an interval ending at 15,000.
+        `start >= b_odo` is true, so C2-first skips it via the SECOND
+        disjointness rule instead of the first, and never asks whether it is
+        reversed either.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="25000",
+                    end_odo="20000",
+                    start_day=dt.date(2026, 6, 1),
+                    end_day=dt.date(2026, 10, 31),
+                ),
+                _period(
+                    2,
+                    start_odo="10000",
+                    end_odo="15000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 4, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 2), "10000"),
+            _reading(dt.date(2026, 4, 29), "15000"),
+            Decimal("15000"),
+        )
+        assert result.status is IntervalStatus.ODOMETER_ROLLBACK
+        assert result.km is None
+        assert result.blocking_period_ids == [1]
+
+
 class TestContradictoryHistory:
     def test_a_single_period_in_a_different_odometer_epoch(self):
         """Case 9. A January period, an odometer reset, then April readings at
