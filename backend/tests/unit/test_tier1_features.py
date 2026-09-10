@@ -1,6 +1,6 @@
 """Unit tests for third-party fuel CSV adapters, tire wear, and webhook fuel commands."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -154,6 +154,155 @@ def test_project_wear_is_suppressed_without_a_bounded_mount_history():
     )
     assert result.status is WearStatus.UNVERIFIED_MOUNT_HISTORY
     assert result.km_remaining is None
+
+
+def _seasonal_tire(min_tread):
+    """Two mount periods with a storage gap between them.
+
+    The existing `_tire_with` builds ONE continuous period, where the
+    interval intersection and the raw odometer delta are equal BY
+    CONSTRUCTION. No assertion on that fixture can distinguish the correct
+    implementation from the broken one, which is why the defect shipped.
+    """
+    from app.models.tire import Tire, TireMountPeriod
+
+    tire = Tire(vin="V" * 17, position="FL", min_tread_mm=min_tread)
+    tire.mount_periods = [
+        TireMountPeriod(
+            id=1,
+            position="FL",
+            mounted_on=date(2026, 1, 1),
+            dismounted_on=date(2026, 3, 31),
+            mounted_odometer_km=Decimal("0"),
+            dismounted_odometer_km=Decimal("12000"),
+        ),
+        TireMountPeriod(
+            id=2,
+            position="FL",
+            mounted_on=date(2026, 7, 1),
+            dismounted_on=date(2026, 10, 31),
+            mounted_odometer_km=Decimal("20000"),
+            dismounted_odometer_km=Decimal("26000"),
+        ),
+    ]
+    return tire
+
+
+def test_project_wear_excludes_distance_driven_on_the_other_set():
+    """The seasonal regression. Spec A promised this test and never wrote it.
+
+    Readings at 10,000 and 22,000, tread 6.0 to 4.0 mm, minimum 2.0. Driven
+    on THIS tire between them: 2,000 + 2,000 = 4,000 km, so 2.0 mm of usable
+    tread remains at 2.0 mm per 4,000 km, which is 4,000 km of life. The raw
+    odometer span is 12,000 km and yields 12,000.
+    """
+    readings = [
+        _Reading(date(2026, 8, 1), Decimal("22000"), Decimal("4.0")),
+        _Reading(date(2026, 3, 1), Decimal("10000"), Decimal("6.0")),
+    ]
+    result = project_wear(_seasonal_tire(Decimal("2.0")), Decimal("26000"), readings)
+    assert result.status is WearStatus.PROJECTED
+    assert result.km_remaining == Decimal("4000.0")
+
+
+def _migrated_then_remounted_tire():
+    """A migrated assumed period, later bounded by a real dismount, followed
+    by a fresh open period whose bounds cover both readings.
+
+    Shared by the recovery test and the blocking-list test below: both need
+    this exact migrated-then-remounted shape, and the blocking-list test
+    additionally needs the readings attached to `tire.readings` (not just
+    passed to `project_wear`), because `_to_response` reads that relationship
+    directly rather than taking an override. `TireReading` instances (not the
+    lightweight `_Reading` stand-in) are required here: `_to_response`
+    serialises `tire.readings` through `TireReadingResponse.model_validate`,
+    which needs `id`/`tire_id`/`vin`/`created_at` that `_Reading` does not
+    carry.
+    """
+    from app.models.tire import Tire, TireMountPeriod, TireReading
+
+    tire = Tire(
+        id=1,
+        vin="V" * 17,
+        position="FL",
+        min_tread_mm=Decimal("2.0"),
+        created_at=datetime(2026, 1, 1),
+    )
+    tire.mount_periods = [
+        TireMountPeriod(
+            id=1,
+            position="FL",
+            mounted_on=None,
+            dismounted_on=date(2026, 3, 31),
+            mounted_odometer_km=None,
+            dismounted_odometer_km=Decimal("10000"),
+            is_assumed=True,
+        ),
+        TireMountPeriod(
+            id=2,
+            position="FL",
+            mounted_on=date(2026, 4, 1),
+            dismounted_on=None,
+            mounted_odometer_km=Decimal("10000"),
+            is_assumed=False,
+        ),
+    ]
+    tire.readings = [
+        TireReading(
+            id=1,
+            tire_id=1,
+            vin=tire.vin,
+            recorded_at=date(2026, 5, 1),
+            odometer_km=Decimal("12000"),
+            tread_depth_mm=Decimal("4.0"),
+            created_at=datetime(2026, 5, 1),
+        ),
+        TireReading(
+            id=2,
+            tire_id=1,
+            vin=tire.vin,
+            recorded_at=date(2026, 4, 2),
+            odometer_km=Decimal("10000"),
+            tread_depth_mm=Decimal("6.0"),
+            created_at=datetime(2026, 4, 2),
+        ),
+    ]
+    return tire
+
+
+def test_a_migrated_tire_recovers_once_a_dismount_bounds_its_assumed_period():
+    """Spec A promised this one too. Today the projection is suppressed
+    because LIFETIME distance is incomplete, even though both readings sit
+    inside a fully known later mount."""
+    tire = _migrated_then_remounted_tire()
+    result = project_wear(tire, Decimal("12000"), tire.readings)
+    assert result.status is WearStatus.PROJECTED
+    assert result.km_remaining == Decimal("2000.0")
+    assert result.blocking_period_ids == []
+
+
+def test_wear_blockers_are_not_masked_by_lifetime_blockers():
+    """The response boundary used to `or` these two lists together, so any
+    lifetime blocker hid the wear blockers completely.
+
+    The migrated-then-remounted tire is the shape that exposes it: its
+    lifetime distance is blocked by the assumed period, while its projection
+    resolves cleanly and blocks nothing.
+    """
+    from app.services.tire_service import TireService
+
+    tire = _migrated_then_remounted_tire()
+    # `_to_response` is a pure formatting method: it reads the tire and the
+    # two calculations and touches no session. Constructed without __init__
+    # so the test needs no database.
+    service = TireService.__new__(TireService)
+    payload = service._to_response(tire, current_odometer=Decimal("12000"))
+
+    assert payload.wear_status == "projected"
+    assert payload.distance_status == "incomplete"
+    # The assumed period still blocks the LIFETIME figure, and must still be
+    # named, but it must not be the only thing the field can ever say.
+    assert payload.blocking_period_ids == [1]
 
 
 def test_parse_fuel_command_metric():

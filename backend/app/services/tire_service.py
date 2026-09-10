@@ -457,21 +457,28 @@ def project_wear(
         # which of the two had happened.
         return WearResult(status=WearStatus.TREAD_NOT_DECREASING)
 
-    # The distance is the tire's own, not the vehicle's odometer span.
-    distance = distance_on_tire(tire, current_odometer)
-    if distance.status is DistanceStatus.COMPLETE:
-        km_delta = newer.odometer_km - older.odometer_km
-    elif distance.status is DistanceStatus.NOTHING_BOUNDED:
-        # The migrated shape. The raw delta is exactly the legacy calculation
-        # this release exists to stop publishing.
+    # The distance driven on THIS TIRE between THESE TWO READINGS.
+    #
+    # The pre-v3.3.1 code called `distance_on_tire`, read its STATUS as a
+    # gate, discarded its VALUE, and then took the raw odometer span. That
+    # is period-GATED, not period-aware: `DistanceStatus.COMPLETE` is a
+    # LIFETIME predicate, not "both readings fall in one period", so the
+    # guard admitted exactly the two-set owner it was built to exclude.
+    interval = distance_between(tire, older, newer, current_odometer)
+    if interval.status is IntervalStatus.COMPLETE and interval.km is not None:
+        km_delta = interval.km
+    elif interval.status is IntervalStatus.UNVERIFIED:
         return WearResult(
             status=WearStatus.UNVERIFIED_MOUNT_HISTORY,
-            blocking_period_ids=distance.blocking_period_ids,
+            blocking_period_ids=interval.blocking_period_ids,
         )
     else:
+        # Every remaining status is a fault, a contradiction or an empty
+        # intersection. All of them withhold the number and the card already
+        # renders one string for both wear statuses, so no copy is needed.
         return WearResult(
             status=WearStatus.NO_DISTANCE_ON_TIRE,
-            blocking_period_ids=distance.blocking_period_ids,
+            blocking_period_ids=interval.blocking_period_ids,
         )
 
     if km_delta <= 0:
@@ -600,9 +607,16 @@ class TireService:
         payload.known_distance_km = distance.known_value
         payload.known_distance_since = distance.known_since
         payload.distance_status = distance.status.value
-        # Whichever result is blocked names the periods to act on. Distance
-        # wins when both are: it is the more specific repair.
-        payload.blocking_period_ids = distance.blocking_period_ids or wear.blocking_period_ids
+        # Union, not `or`. These are blockers for two DIFFERENT figures:
+        # `distance_status` is the tire's lifetime, `wear_status` is the
+        # interval between the two readings. `or` masked the wear blockers
+        # whenever any lifetime blocker existed, so a tire whose projection
+        # was fine still reported a period to repair, and a tire whose
+        # projection was blocked pointed at the wrong period. Deduplicated
+        # and sorted so the field is stable across requests.
+        payload.blocking_period_ids = sorted(
+            {*distance.blocking_period_ids, *wear.blocking_period_ids}
+        )
         payload.installed_date = self._derived_installed_date(tire)
         payload.below_threshold = below
         payload.mount_periods = [

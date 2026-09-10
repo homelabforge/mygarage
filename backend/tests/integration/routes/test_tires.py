@@ -144,12 +144,16 @@ class TestTireRoutes:
                 "brand": "Continental",
                 "tread_depth_mm": "6.0",
                 "min_tread_mm": "2.0",
-                # v3.3.0: the projection is period-aware. Without an odometer
-                # on the mount there is no bounded distance for this tire, and
-                # the raw odometer delta between two readings -- which is what
-                # the old code used -- is exactly the figure this release
-                # exists to stop publishing. The status in that case is
-                # `unverified_mount_history`, asserted separately below.
+                # v3.3.1: the projection is period-AWARE, not just period-gated
+                # (see distance_between). It now also checks the mount's date
+                # against each reading's date (C5), so `mounted_on` has to sit
+                # at or before the first reading below -- otherwise a reading
+                # predating the mount looks like the odometer ran backwards in
+                # time and the projection is withheld as
+                # `history_contradicts`. Explicit rather than left to default
+                # to "today", which drifts out from under the fixed reading
+                # dates below as real time passes.
+                "mounted_on": "2026-01-01",
                 "mounted_odometer_km": "10000",
             },
         )
