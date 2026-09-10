@@ -201,6 +201,34 @@ class TestWhatAMountOdometerCannotFix:
         assert result.needs_mount_odometer == 0
 
 
+class TestAWornTireNeedsNoSecondReading:
+    """C7 (v3.3.1) can resolve `at_or_below_minimum` straight from the tire's
+    own scalar tread, with zero or one tread-bearing readings: a worn tire
+    already has its answer, and a second reading would not change it. Before
+    C7 was hoisted, `at_or_below_minimum` was reachable only after the rate
+    prerequisites, which required two readings, so `can_project` and
+    `needs_second_reading` never overlapped. This pins that they still do
+    not, now that a worn tire can resolve with fewer than two.
+    """
+
+    def test_a_worn_tire_with_no_readings_only_counts_as_projectable(self):
+        result = tire_readiness([tire(readings=[], wear_status="at_or_below_minimum")])
+        assert result.can_project == 1
+        assert result.needs_second_reading == 0
+
+    def test_a_worn_tire_with_one_reading_only_counts_as_projectable(self):
+        result = tire_readiness([tire(readings=[reading(1)], wear_status="at_or_below_minimum")])
+        assert result.can_project == 1
+        assert result.needs_second_reading == 0
+
+    def test_a_tire_that_is_merely_short_a_reading_still_prompts(self):
+        """The exclusion is specific to a tire that already has a figure, not
+        to every tire with fewer than two readings."""
+        result = tire_readiness([tire(readings=[reading(1)], wear_status="insufficient_readings")])
+        assert result.can_project == 0
+        assert result.needs_second_reading == 1
+
+
 class TestRetiredTires:
     """B10: they belong in the history blocks and in none of these counts."""
 

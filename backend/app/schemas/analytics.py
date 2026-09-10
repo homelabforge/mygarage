@@ -480,7 +480,10 @@ class TireReadiness(BaseModel):
     #: Below `min_tread_mm` today. Surfaced as an action rather than a chart.
     under_minimum: int = 0
 
-    #: Fewer than two tread-bearing readings. One reading is a point.
+    #: Fewer than two tread-bearing readings, unless the tire already carries
+    #: a wear figure regardless (a worn tire resolved by `at_or_below_minimum`
+    #: needs no second reading to answer the question, and counting it here
+    #: too would double it against `can_project`). One reading is a point.
     needs_second_reading: int = 0
     #: Two readings, but one of the newest pair carries no odometer.
     needs_reading_odometer: int = 0
