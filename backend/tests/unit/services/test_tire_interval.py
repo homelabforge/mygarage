@@ -740,12 +740,15 @@ class TestTheMonotonicityCheckDoesNotOverFire:
         )
         assert result.status is IntervalStatus.COMPLETE
 
-    def test_the_overlap_and_rollback_diagnoses_still_win(self):
-        """Ordering guard. Overlapping periods and reversed bounds are ALSO
-        monotonicity violations, so a C5 placed before them would answer
-        HISTORY_CONTRADICTS for both and swallow the specific diagnosis. All
-        three suppress, so this changes no number, only the repair the user
-        is pointed at."""
+    def test_the_overlap_diagnosis_wins_over_a_simultaneous_c5_violation(self):
+        """Ordering guard, overlap half. Same two periods as
+        `test_overlapping_periods_are_not_summed`, but the readings are moved
+        past BOTH dismounts: each is after both periods' dismount dates and
+        below both dismount odometers, so C5 would name both periods too if it
+        ran first. Overlap must still be the diagnosis that wins, because a
+        C5-first implementation answers HISTORY_CONTRADICTS here and swallows
+        the more specific overlap.
+        """
         overlapping = _tire(
             [
                 _period(
@@ -764,15 +767,50 @@ class TestTheMonotonicityCheckDoesNotOverFire:
                 ),
             ]
         )
-        assert (
-            distance_between(
-                overlapping,
-                _reading(dt.date(2026, 1, 2), "10000"),
-                _reading(dt.date(2026, 9, 29), "20000"),
-                Decimal("20000"),
-            ).status
-            is IntervalStatus.OVERLAPPING_HISTORY
+        result = distance_between(
+            overlapping,
+            _reading(dt.date(2026, 10, 5), "10000"),
+            _reading(dt.date(2026, 10, 10), "20000"),
+            Decimal("20000"),
         )
+        assert result.status is IntervalStatus.OVERLAPPING_HISTORY
+        assert result.blocking_period_ids == [1, 2]
+
+    def test_the_rollback_diagnosis_wins_over_a_simultaneous_c5_violation(self):
+        """Ordering guard, rollback half. Same two periods as
+        `test_a_reversed_period_is_not_clamped_away`, but the older reading is
+        moved past period 2's dismount and below its 12,000, which makes C5
+        fire on both periods (period 1 via its own reversed dismount bound,
+        period 2 via the same reading). Only period 1 is actually reversed, so
+        ODOMETER_ROLLBACK naming just period 1 must still win over a
+        C5-first HISTORY_CONTRADICTS naming both.
+        """
+        reversed_tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="13000",
+                    end_odo="11000",
+                    start_day=dt.date(2026, 5, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+                _period(
+                    2,
+                    start_odo="10000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 4, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            reversed_tire,
+            _reading(dt.date(2026, 10, 5), "10000"),
+            _reading(dt.date(2026, 10, 10), "14000"),
+            Decimal("14000"),
+        )
+        assert result.status is IntervalStatus.ODOMETER_ROLLBACK
+        assert result.blocking_period_ids == [1]
 
 
 class TestEveryStatusIsReachable:
