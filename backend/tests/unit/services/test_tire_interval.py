@@ -8,10 +8,13 @@ span. For a two-set owner that counts distance driven on the OTHER set.
 
 Every test here fails against 95b65b7 unless its docstring says otherwise.
 
-Dates matter even in the tests that are about odometers. C5b compares a
-reading's date against the period whose odometer range contains it, so the
-fixtures below keep the two coordinates coherent: periods run in sequence
-through 2026 and readings sit inside the period they belong to.
+Dates matter even in the tests that are about odometers. C5 checks that a
+reading's date and odometer agree with the direction a period's own bounds
+already moved (a reading after a dismount cannot read below the dismount
+odometer, and one before a mount cannot read above the mount odometer), not
+whether the reading falls inside a period's odometer range. So the fixtures
+below keep the two coordinates coherent: periods run in sequence through
+2026 and readings sit inside the period they belong to.
 """
 
 from __future__ import annotations
@@ -557,3 +560,321 @@ class TestFaultsSuppressRatherThanClamp:
         assert result.status is IntervalStatus.ODOMETER_ROLLBACK
         assert result.km is None
         assert result.blocking_period_ids == [1]
+
+
+class TestContradictoryHistory:
+    def test_a_single_period_in_a_different_odometer_epoch(self):
+        """Case 9. A January period, an odometer reset, then April readings at
+        those same two values while the tire sits in storage.
+
+        The April reading is AFTER the dismount and reads BELOW the dismount
+        odometer, so the odometer went backwards in time. Without this the
+        intersection returns a confident 2,000 km never driven on this tire.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 1, 31),
+                )
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 4, 1), "10000"),
+            _reading(dt.date(2026, 4, 15), "12000"),
+            Decimal("12000"),
+        )
+        assert result.status is IntervalStatus.HISTORY_CONTRADICTS
+        assert result.km is None
+        assert result.blocking_period_ids == [1]
+
+    def test_a_reading_predating_a_period_that_reads_lower(self):
+        """Case 9b. A period mounted in May carrying bounds BELOW readings
+        taken in February. The February reading predates the mount and reads
+        above the mount odometer."""
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="20000",
+                    end_odo="26000",
+                    start_day=dt.date(2026, 5, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+                _period(
+                    2,
+                    start_odo="10000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 4, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 2, 1), "21000"),
+            _reading(dt.date(2026, 3, 1), "25000"),
+            Decimal("26000"),
+        )
+        assert result.status is IntervalStatus.HISTORY_CONTRADICTS
+
+
+class TestTheMonotonicityCheckDoesNotOverFire:
+    """The withdrawn range-membership form rejected all of these. They are
+    ordinary histories, and a suppression here is a user watching a correct
+    wear estimate disappear."""
+
+    def test_a_tire_measured_in_storage_while_the_vehicle_is_parked(self):
+        """Case 9c. Dismounted 31 Jan at 12,000, measured 2 Feb at 12,000.
+        The vehicle did not move in between, so one odometer value spans both
+        dates. That is not a contradiction."""
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 1, 31),
+                ),
+                _open_period(2, start_odo="12000", start_day=dt.date(2026, 2, 10)),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 1, 20), "11000"),
+            _reading(dt.date(2026, 2, 2), "12000"),
+            Decimal("12000"),
+        )
+        assert result.status is IntervalStatus.COMPLETE
+        assert result.km == Decimal("1000")
+
+    def test_two_periods_sharing_an_endpoint_odometer(self):
+        """Case 9d. Dismount 31 Jan at 12,000, remount 1 Feb at 12,000, and a
+        reading on 1 Feb at 12,000. The reading is inside BOTH periods'
+        odometer ranges and outside one period's dates, which the withdrawn
+        form read as corrupt."""
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 1, 31),
+                ),
+                _period(
+                    2,
+                    start_odo="12000",
+                    end_odo="14000",
+                    start_day=dt.date(2026, 2, 1),
+                    end_day=dt.date(2026, 5, 31),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 2, 1), "12000"),
+            _reading(dt.date(2026, 5, 1), "14000"),
+            Decimal("14000"),
+        )
+        assert result.status is IntervalStatus.COMPLETE
+        assert result.km == Decimal("2000")
+
+    def test_a_zero_distance_period_rejects_nothing(self):
+        """A mount and dismount at the same odometer contributes no distance
+        and must not suppress readings it had no part in."""
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="12000",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 1, 1),
+                ),
+                _period(
+                    2,
+                    start_odo="12000",
+                    end_odo="14000",
+                    start_day=dt.date(2026, 2, 1),
+                    end_day=dt.date(2026, 5, 31),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 2, 2), "12000"),
+            _reading(dt.date(2026, 5, 1), "14000"),
+            Decimal("14000"),
+        )
+        assert result.status is IntervalStatus.COMPLETE
+        assert result.km == Decimal("2000")
+
+    def test_an_assumed_period_with_no_dates_is_not_a_contradiction(self):
+        """The migrated shape must not be mistaken for a corrupt one: a null
+        `mounted_on` means unknown, not wrong."""
+        tire = _tire(
+            [
+                _period(
+                    1, start_odo=None, end_odo="10000", start_day=None, end_day=dt.date(2026, 3, 31)
+                ),
+                _period(
+                    2,
+                    start_odo="10000",
+                    end_odo="16000",
+                    start_day=dt.date(2026, 4, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 4, 2), "10000"),
+            _reading(dt.date(2026, 5, 1), "12000"),
+            Decimal("16000"),
+        )
+        assert result.status is IntervalStatus.COMPLETE
+
+    def test_the_overlap_and_rollback_diagnoses_still_win(self):
+        """Ordering guard. Overlapping periods and reversed bounds are ALSO
+        monotonicity violations, so a C5 placed before them would answer
+        HISTORY_CONTRADICTS for both and swallow the specific diagnosis. All
+        three suppress, so this changes no number, only the repair the user
+        is pointed at."""
+        overlapping = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="10000",
+                    end_odo="17000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 4, 30),
+                ),
+                _period(
+                    2,
+                    start_odo="15000",
+                    end_odo="20000",
+                    start_day=dt.date(2026, 5, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+            ]
+        )
+        assert (
+            distance_between(
+                overlapping,
+                _reading(dt.date(2026, 1, 2), "10000"),
+                _reading(dt.date(2026, 9, 29), "20000"),
+                Decimal("20000"),
+            ).status
+            is IntervalStatus.OVERLAPPING_HISTORY
+        )
+
+
+class TestEveryStatusIsReachable:
+    """Guards the guard. A status nothing produces is a status no caller is
+    ever tested against, and the fall-through gets found by a user."""
+
+    PRODUCERS = {
+        IntervalStatus.NO_PERIODS: lambda: distance_between(
+            _tire([]), _reading(dt.date(2026, 2, 1), "1"), _reading(dt.date(2026, 3, 1), "2"), None
+        ),
+        IntervalStatus.SPARE_ONLY: lambda: distance_between(
+            _tire([_period(1, start_odo="0", end_odo="1", position="SPARE")]),
+            _reading(dt.date(2026, 2, 1), "1"),
+            _reading(dt.date(2026, 3, 1), "2"),
+            None,
+        ),
+        IntervalStatus.NO_DISTANCE: lambda: distance_between(
+            _tire([_open_period(1, start_odo="0")]),
+            _reading(dt.date(2026, 3, 1), "2"),
+            _reading(dt.date(2026, 2, 1), "1"),
+            None,
+        ),
+        IntervalStatus.COMPLETE: lambda: distance_between(
+            _tire([_open_period(1, start_odo="9000")]),
+            _reading(dt.date(2026, 2, 1), "10000"),
+            _reading(dt.date(2026, 3, 1), "12000"),
+            Decimal("12000"),
+        ),
+        IntervalStatus.UNVERIFIED: lambda: distance_between(
+            _tire([_open_period(1, start_odo=None)]),
+            _reading(dt.date(2026, 2, 1), "10000"),
+            _reading(dt.date(2026, 3, 1), "12000"),
+            Decimal("12000"),
+        ),
+        IntervalStatus.ODOMETER_ROLLBACK: lambda: distance_between(
+            _tire(
+                [
+                    _period(
+                        1,
+                        start_odo="13000",
+                        end_odo="11000",
+                        start_day=dt.date(2026, 5, 1),
+                        end_day=dt.date(2026, 9, 30),
+                    ),
+                    _period(
+                        2,
+                        start_odo="10000",
+                        end_odo="12000",
+                        start_day=dt.date(2026, 1, 1),
+                        end_day=dt.date(2026, 4, 30),
+                    ),
+                ]
+            ),
+            _reading(dt.date(2026, 1, 2), "10000"),
+            _reading(dt.date(2026, 9, 29), "14000"),
+            Decimal("14000"),
+        ),
+        IntervalStatus.OVERLAPPING_HISTORY: lambda: distance_between(
+            _tire(
+                [
+                    _period(
+                        1,
+                        start_odo="10000",
+                        end_odo="17000",
+                        start_day=dt.date(2026, 1, 1),
+                        end_day=dt.date(2026, 4, 30),
+                    ),
+                    _period(
+                        2,
+                        start_odo="15000",
+                        end_odo="20000",
+                        start_day=dt.date(2026, 5, 1),
+                        end_day=dt.date(2026, 9, 30),
+                    ),
+                ]
+            ),
+            _reading(dt.date(2026, 1, 2), "10000"),
+            _reading(dt.date(2026, 9, 29), "20000"),
+            Decimal("20000"),
+        ),
+        IntervalStatus.HISTORY_CONTRADICTS: lambda: distance_between(
+            _tire(
+                [
+                    _period(
+                        1,
+                        start_odo="10000",
+                        end_odo="12000",
+                        start_day=dt.date(2026, 1, 1),
+                        end_day=dt.date(2026, 1, 31),
+                    )
+                ]
+            ),
+            _reading(dt.date(2026, 4, 1), "10000"),
+            _reading(dt.date(2026, 4, 15), "12000"),
+            Decimal("12000"),
+        ),
+    }
+
+    @pytest.mark.parametrize("status", list(IntervalStatus), ids=lambda s: s.value)
+    def test_status_has_a_producer(self, status: IntervalStatus):
+        assert status in self.PRODUCERS, (
+            f"{status} has no producer here, so nothing proves the calculation "
+            f"can emit it and no caller test can be written against it"
+        )
+        assert self.PRODUCERS[status]().status is status

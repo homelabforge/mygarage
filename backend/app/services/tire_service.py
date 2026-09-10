@@ -231,6 +231,52 @@ def _overlapping_period_ids(contributions: list[tuple[Decimal, Decimal, int]]) -
     return sorted(clashing)
 
 
+def _odometer_goes_backwards(
+    periods: list[TireMountPeriod], readings: tuple[TireReading, ...]
+) -> list[int]:
+    """C5: periods whose odometer bounds contradict a reading's date.
+
+    The invariant is that a vehicle's odometer does not run backwards in
+    time. So a reading taken AFTER a period was dismounted cannot read below
+    that period's dismount odometer, and a reading taken BEFORE a period was
+    mounted cannot read above its mount odometer. A violation means the dates
+    and the odometers describe two different histories, which is what an
+    odometer reset looks like.
+
+    Stated as monotonicity, NOT as range membership. An earlier revision
+    asked whether a reading's odometer fell inside a period's odometer range
+    while its date fell outside that period's dates, which assumes an
+    odometer value identifies a date. It does not: a parked vehicle holds one
+    odometer reading across many days, so a tire dismounted at 12,000 and
+    measured in storage two days later at 12,000 was rejected as corrupt, and
+    two periods sharing an endpoint odometer rejected each other's boundary
+    readings.
+
+    Only bounds that are actually known take part. A null is unknown, not
+    wrong, which is what keeps the migrated assumed period out of this.
+    """
+    clashing: set[int] = set()
+    for period in periods:
+        for reading in readings:
+            if reading.odometer_km is None:
+                continue
+            if (
+                period.dismounted_on is not None
+                and period.dismounted_odometer_km is not None
+                and reading.recorded_at > period.dismounted_on
+                and reading.odometer_km < period.dismounted_odometer_km
+            ):
+                clashing.add(period.id)
+            if (
+                period.mounted_on is not None
+                and period.mounted_odometer_km is not None
+                and reading.recorded_at < period.mounted_on
+                and reading.odometer_km > period.mounted_odometer_km
+            ):
+                clashing.add(period.id)
+    return sorted(clashing)
+
+
 def distance_between(
     tire: Tire,
     older: TireReading,
@@ -325,6 +371,16 @@ def distance_between(
     if faulted:
         return IntervalResult(
             status=IntervalStatus.ODOMETER_ROLLBACK, blocking_period_ids=sorted(faulted)
+        )
+    # C5, here and not earlier. Overlapping periods and reversed bounds are
+    # monotonicity violations too, so running this first would answer
+    # HISTORY_CONTRADICTS for both and swallow the specific diagnosis. All
+    # three suppress, so precedence changes no number, only the repair the
+    # user is pointed at.
+    contradicting = _odometer_goes_backwards(rolling, (older, newer))
+    if contradicting:
+        return IntervalResult(
+            status=IntervalStatus.HISTORY_CONTRADICTS, blocking_period_ids=contradicting
         )
     if blocking:
         return IntervalResult(
