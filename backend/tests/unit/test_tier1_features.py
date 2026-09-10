@@ -281,13 +281,16 @@ def test_a_migrated_tire_recovers_once_a_dismount_bounds_its_assumed_period():
     assert result.blocking_period_ids == []
 
 
-def test_wear_blockers_are_not_masked_by_lifetime_blockers():
-    """The response boundary used to `or` these two lists together, so any
-    lifetime blocker hid the wear blockers completely.
+def test_a_clean_projection_still_reports_its_lifetime_blocker():
+    """A clean projection does not erase the lifetime figure's own blocker.
 
-    The migrated-then-remounted tire is the shape that exposes it: its
-    lifetime distance is blocked by the assumed period, while its projection
-    resolves cleanly and blocks nothing.
+    NOTE: this does NOT, by itself, prove `_to_response` unions the two
+    blocking lists rather than `or`-ing them. On this fixture
+    `wear.blocking_period_ids` is empty, so `[1] or []` and
+    `sorted({1} | set())` both evaluate to `[1]` -- there is nothing on the
+    wear side for `or` to mask. See
+    `test_wear_blockers_are_not_masked_by_lifetime_blockers` below for the
+    fixture that actually distinguishes the two.
     """
     from app.services.tire_service import TireService
 
@@ -303,6 +306,120 @@ def test_wear_blockers_are_not_masked_by_lifetime_blockers():
     # The assumed period still blocks the LIFETIME figure, and must still be
     # named, but it must not be the only thing the field can ever say.
     assert payload.blocking_period_ids == [1]
+
+
+def _overlapping_periods_tire():
+    """Three periods shaped so the lifetime and interval blocker lists
+    genuinely diverge, which `_migrated_then_remounted_tire()` cannot do.
+
+    `distance_between` only ever blocks on a MISSING bound when the period
+    cannot be proven disjoint from the reading interval -- and any period
+    missing a bound blocks the LIFETIME figure unconditionally, so that kind
+    of block is always a subset of the lifetime blockers. `or` and union
+    agree whenever the wear side can only ever be a subset of the distance
+    side.
+
+    The two lists can only diverge when the interval helper blocks for a
+    reason `distance_on_tire` does not check at all: overlapping,
+    FULLY-BOUNDED periods. `distance_on_tire` sums every bounded period
+    unconditionally and never checks for overlap between them, so periods
+    2 and 3 below never appear in its blocking list, only in the interval
+    helper's.
+
+    - Period 1: missing its start odometer, and dismounted at 8,000 km --
+      at or below the older reading's 10,000 km, so `distance_between`'s
+      near-bound proof (C2) correctly excludes it from the interval. It
+      still blocks the LIFETIME figure, since `distance_on_tire` has no
+      such exclusion.
+    - Periods 2 and 3: both fully bounded, both inside the [10000, 12000]
+      reading interval, and overlapping each other by 500 km
+      (11000-11500), so the interval helper reports `OVERLAPPING_HISTORY`
+      naming them. Neither is missing a bound, so neither ever reaches
+      `distance_on_tire`'s blocking list.
+    """
+    from app.models.tire import Tire, TireMountPeriod, TireReading
+
+    tire = Tire(
+        id=1,
+        vin="V" * 17,
+        position="FL",
+        min_tread_mm=Decimal("2.0"),
+        created_at=datetime(2026, 1, 1),
+    )
+    tire.mount_periods = [
+        TireMountPeriod(
+            id=1,
+            position="FL",
+            mounted_on=None,
+            dismounted_on=date(2026, 3, 31),
+            mounted_odometer_km=None,
+            dismounted_odometer_km=Decimal("8000"),
+            is_assumed=True,
+        ),
+        TireMountPeriod(
+            id=2,
+            position="FL",
+            mounted_on=date(2026, 4, 1),
+            dismounted_on=date(2026, 4, 20),
+            mounted_odometer_km=Decimal("10000"),
+            dismounted_odometer_km=Decimal("11500"),
+            is_assumed=False,
+        ),
+        TireMountPeriod(
+            id=3,
+            position="FL",
+            mounted_on=date(2026, 4, 10),
+            dismounted_on=date(2026, 4, 30),
+            mounted_odometer_km=Decimal("11000"),
+            dismounted_odometer_km=Decimal("12000"),
+            is_assumed=False,
+        ),
+    ]
+    tire.readings = [
+        TireReading(
+            id=1,
+            tire_id=1,
+            vin=tire.vin,
+            recorded_at=date(2026, 5, 1),
+            odometer_km=Decimal("12000"),
+            tread_depth_mm=Decimal("4.0"),
+            created_at=datetime(2026, 5, 1),
+        ),
+        TireReading(
+            id=2,
+            tire_id=1,
+            vin=tire.vin,
+            recorded_at=date(2026, 4, 2),
+            odometer_km=Decimal("10000"),
+            tread_depth_mm=Decimal("6.0"),
+            created_at=datetime(2026, 4, 2),
+        ),
+    ]
+    return tire
+
+
+def test_wear_blockers_are_not_masked_by_lifetime_blockers():
+    """The response boundary used to `or` these two lists together, so any
+    lifetime blocker hid the wear blockers completely.
+
+    The overlapping-periods tire is the fixture that actually forces the two
+    lists apart: the lifetime figure is blocked by period 1 alone (a missing
+    bound, correctly excluded from the interval by C2), while the projection
+    is separately blocked by periods 2 and 3 (a fully-bounded overlap
+    `distance_on_tire` never checks for). `or` would report only `[1]`,
+    silently dropping the periods the projection actually needs repaired.
+    """
+    from app.services.tire_service import TireService
+
+    tire = _overlapping_periods_tire()
+    service = TireService.__new__(TireService)
+    payload = service._to_response(tire, current_odometer=Decimal("12000"))
+
+    assert payload.wear_status == "no_distance_on_tire"
+    assert payload.distance_status == "incomplete"
+    # Union of {1} (lifetime) and {2, 3} (interval). `or` would have produced
+    # [1] alone, since {1} is non-empty and therefore short-circuits it.
+    assert payload.blocking_period_ids == [1, 2, 3]
 
 
 def test_parse_fuel_command_metric():
