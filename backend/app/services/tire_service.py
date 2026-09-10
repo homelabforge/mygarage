@@ -34,6 +34,8 @@ from app.schemas.tire import (
 from app.services.tire_results import (
     DistanceResult,
     DistanceStatus,
+    IntervalResult,
+    IntervalStatus,
     WearResult,
     WearStatus,
 )
@@ -205,6 +207,92 @@ def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceRe
         known_value=known,
         known_since=earliest,
     )
+
+
+def distance_between(
+    tire: Tire,
+    older: TireReading,
+    newer: TireReading,
+    current_odometer: Decimal | None,
+) -> IntervalResult:
+    """Distance driven on this tire BETWEEN two readings.
+
+    Not the same question as `distance_on_tire`, which totals a lifetime.
+    A wear RATE needs the distance over which the tread actually fell, and
+    for anyone running a second set those two numbers differ by everything
+    driven on the other set.
+
+    The intersection is proved from the NEAR bound only (C2): a period whose
+    end is at or below the older reading, or whose start is at or above the
+    newer one, contributes nothing and blocks nothing, whatever the bound on
+    its far side is. That single rule is what lets a tire migrated by 097
+    recover: its assumed period has a null START, and a recorded dismount
+    gives it an END that puts it outside the interval.
+
+    Args:
+        tire: The tire, with `mount_periods` loaded.
+        older: The earlier tread-bearing reading. Its `odometer_km` is the
+            lower bound of the interval.
+        newer: The later tread-bearing reading, and the upper bound.
+        current_odometer: The vehicle's latest odometer, used for a period
+            still open. May be None on a vehicle with no readings.
+
+    Returns:
+        An `IntervalResult`. `km` is populated only for COMPLETE; every
+        other status withholds the figure rather than publishing a subtotal,
+        because a subtotal here understates the denominator of a wear rate
+        and so OVERSTATES remaining life.
+    """
+    a_odo, b_odo = older.odometer_km, newer.odometer_km
+    if a_odo is None or b_odo is None or a_odo >= b_odo:
+        return IntervalResult(status=IntervalStatus.NO_DISTANCE)
+
+    periods = list(tire.mount_periods or [])
+    if not periods:
+        return IntervalResult(status=IntervalStatus.NO_PERIODS)
+    rolling = [p for p in periods if p.position != "SPARE"]
+    if not rolling:
+        return IntervalResult(status=IntervalStatus.SPARE_ONLY)
+
+    blocking: list[int] = []
+    contributions: list[tuple[Decimal, Decimal, int]] = []
+
+    for period in rolling:
+        start = period.mounted_odometer_km
+        if period.dismounted_on is not None:
+            end = period.dismounted_odometer_km
+        elif current_odometer is not None:
+            # C4. An open period has no recorded dismount, so a reading at
+            # `b_odo` is itself evidence the tire was mounted at `b_odo`.
+            # Clipping to `current_odometer` alone loses real distance
+            # whenever a reading outruns the vehicle's latest record.
+            end = max(current_odometer, b_odo)
+        else:
+            end = b_odo
+
+        # C2. Provable disjointness, from the near bound only.
+        if end is not None and end <= a_odo:
+            continue
+        if start is not None and start >= b_odo:
+            continue
+
+        # Past here the period may overlap, so both bounds are load-bearing.
+        if start is None or end is None:
+            blocking.append(period.id)
+            continue
+
+        lo, hi = max(a_odo, start), min(b_odo, end)
+        if hi > lo:
+            contributions.append((lo, hi, period.id))
+
+    if blocking:
+        return IntervalResult(
+            status=IntervalStatus.UNVERIFIED, blocking_period_ids=sorted(blocking)
+        )
+    total = sum((hi - lo for lo, hi, _ in contributions), Decimal("0"))
+    if total <= 0:
+        return IntervalResult(status=IntervalStatus.NO_DISTANCE)
+    return IntervalResult(status=IntervalStatus.COMPLETE, km=total)
 
 
 def project_wear(
