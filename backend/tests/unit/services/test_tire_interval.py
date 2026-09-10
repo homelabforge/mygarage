@@ -132,8 +132,13 @@ class TestTheMigratedTireRecovers:
         assert result.km == Decimal("2000")
         assert result.blocking_period_ids == []
 
-    def test_a_later_period_starting_at_or_after_the_newer_reading_does_not_block(self):
-        """Case 3. Same proof from the other side, with a null END."""
+    def test_an_open_period_with_a_synthesized_end_does_not_block_via_its_start(self):
+        """Case 3. An OPEN period has no dismount, so with no current
+        odometer its end SYNTHESIZES to `b_odo` rather than being null: the
+        far bound is never actually missing here. The skip is proved by the
+        START bound alone. See the next test for a period whose end is
+        genuinely null, which this one does not exercise.
+        """
         tire = _tire(
             [
                 _period(
@@ -154,6 +159,42 @@ class TestTheMigratedTireRecovers:
         )
         assert result.status is IntervalStatus.COMPLETE
         assert result.km == Decimal("2000")
+
+    def test_a_closed_period_with_a_null_end_does_not_block_via_its_start(self):
+        """Case 3b, C2 with a genuine null far bound. `dismounted_odometer_km`
+        is nullable independently of `dismounted_on`: a period can be CLOSED
+        (a real dismount date recorded) with no odometer ever captured for
+        that dismount. Its START alone proves disjointness, so the missing
+        END is never examined, and the period neither contributes nor
+        blocks.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo="0",
+                    end_odo="12000",
+                    start_day=dt.date(2026, 1, 1),
+                    end_day=dt.date(2026, 3, 31),
+                ),
+                _period(
+                    2,
+                    start_odo="12000",
+                    end_odo=None,
+                    start_day=dt.date(2026, 4, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 2, 1), "10000"),
+            _reading(dt.date(2026, 3, 30), "12000"),
+            None,
+        )
+        assert result.status is IntervalStatus.COMPLETE
+        assert result.km == Decimal("2000")
+        assert result.blocking_period_ids == []
 
     def test_only_a_period_that_may_overlap_is_reported_as_blocking(self):
         """Case 4, C6. Naming a period whose repair changes nothing is the
@@ -180,6 +221,33 @@ class TestTheMigratedTireRecovers:
         )
         assert result.status is IntervalStatus.UNVERIFIED
         assert result.blocking_period_ids == [2]
+
+    def test_a_period_with_both_bounds_null_that_may_overlap_blocks(self):
+        """`mounted_odometer_km` and `dismounted_odometer_km` are
+        independently nullable columns, so a closed period can carry
+        neither. With no bound at all to test disjointness from, it cannot
+        be proven safe to skip, so it is UNVERIFIED rather than silently
+        dropped.
+        """
+        tire = _tire(
+            [
+                _period(
+                    1,
+                    start_odo=None,
+                    end_odo=None,
+                    start_day=dt.date(2026, 4, 1),
+                    end_day=dt.date(2026, 9, 30),
+                ),
+            ]
+        )
+        result = distance_between(
+            tire,
+            _reading(dt.date(2026, 4, 2), "10000"),
+            _reading(dt.date(2026, 5, 1), "12000"),
+            Decimal("16000"),
+        )
+        assert result.status is IntervalStatus.UNVERIFIED
+        assert result.blocking_period_ids == [1]
 
 
 class TestReadingsTakenInStorage:
