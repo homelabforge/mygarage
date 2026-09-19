@@ -330,6 +330,9 @@ class GarageVehicleCost(BaseModel):
     # Other costs
     total_fuel: Decimal = Field(default=Decimal("0.00"))
     total_def: Decimal = Field(default=Decimal("0.00"))
+    # This vehicle's share of the household's insurance, accrued to date. Shown
+    # beside the running costs, not folded into them.
+    total_insurance: Decimal = Field(default=Decimal("0.00"))
     # Running costs = all service categories + fuel + DEF (excludes purchase price)
     total_cost: Decimal = Field(default=Decimal("0.00"))
 
@@ -343,6 +346,7 @@ class GarageMonthlyTrend(BaseModel):
     service: Decimal = Field(default=Decimal("0.00"))
     fuel: Decimal = Field(default=Decimal("0.00"))
     def_cost: Decimal = Field(default=Decimal("0.00"))
+    insurance: Decimal = Field(default=Decimal("0.00"))
     total: Decimal = Field(default=Decimal("0.00"))
 
     model_config = {"from_attributes": True}

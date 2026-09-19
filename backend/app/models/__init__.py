@@ -11,7 +11,11 @@ from app.models.dtc_definition import DTCDefinition
 from app.models.external_vehicle import ExternalVehicle
 from app.models.fuel import FuelRecord
 from app.models.hours import HoursRecord
-from app.models.insurance import InsurancePolicy
+from app.models.insurance import (
+    InsurancePolicy,
+    InsurancePolicyField,
+    InsurancePolicyVehicle,
+)
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_firmware_cache import LiveLinkFirmwareCache
 from app.models.livelink_parameter import LiveLinkParameter
@@ -67,6 +71,8 @@ __all__ = [
     "Document",
     "WarrantyRecord",
     "InsurancePolicy",
+    "InsurancePolicyField",
+    "InsurancePolicyVehicle",
     "Supply",
     "SupplyPurchase",
     "SupplyUsage",

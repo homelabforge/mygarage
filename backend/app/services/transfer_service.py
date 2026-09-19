@@ -21,6 +21,7 @@ from app.schemas.family import (
     VehicleTransferRequest,
     VehicleTransferResponse,
 )
+from app.services.insurance_service import InsuranceService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 
@@ -117,6 +118,11 @@ class TransferService:
                 )
             )
 
+            # Insurance is a household record whose access derives from the
+            # vehicles it covers, so the vehicle leaves the old owner's policies
+            # with the transfer; they keep the policy and its other vehicles.
+            released = await InsuranceService(self.db).release_vehicle(vin)
+
             # Create audit record
             transfer = VehicleTransfer(
                 vehicle_vin=vin,
@@ -133,11 +139,13 @@ class TransferService:
             await self.db.refresh(transfer)
 
             logger.info(
-                "Vehicle %s transferred from user %s to user %s by admin %s",
+                "Vehicle %s transferred from user %s to user %s by admin %s "
+                "(removed from %d insurance policy(ies))",
                 vin,
                 from_user_id,
                 to_user.id,
                 current_user.username,
+                released,
             )
 
             # Build response

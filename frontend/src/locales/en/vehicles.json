@@ -1686,8 +1686,11 @@
     "title": "Import Insurance Policy from PDF",
     "uploadDifferent": "Upload Different PDF",
     "useThisData": "Use This Data",
-    "vehiclesFound": "Found {{count}} vehicle(s): {{vehicles}}",
-    "warnings": "Warnings:"
+    "warnings": "Warnings:",
+    "readBy": "{{parser}} parser, {{score}}% confidence",
+    "vehiclesOnPolicy": "Vehicles on this document",
+    "vehicleMatched": "Will be added",
+    "vehicleNotInGarage": "Not in your garage"
   },
   "odometerRecordList": {
     "autoTrackedByLiveLink": "Auto-tracked by LiveLink",
@@ -1877,5 +1880,26 @@
     "resolved": "Duplicate reminders resolved",
     "recurring": "Repeats on a maintenance rule",
     "oneOff": "One-time reminder"
+  },
+  "insurancePolicies": {
+    "statusActive": "Active",
+    "statusUpcoming": "Upcoming",
+    "statusExpired": "Expired",
+    "viewHistory": "View history",
+    "policyPremium": "Policy premium",
+    "coveredVehicles": "Covered vehicles",
+    "noVehicles": "No vehicles on this policy",
+    "alsoCovers": "Also covers: {{vehicles}}",
+    "otherVehicles": "+{{count}} other vehicle(s) you do not have access to",
+    "renew": "Renew",
+    "switchInsurer": "Switch insurer",
+    "alreadyRenewed": "The next term or a replacement policy is already entered.",
+    "removedOn": "Removed on",
+    "historyTitle": "Policy history",
+    "historyLoadAction": "load the policy history",
+    "premiumChange": "{{amount}} {{percent}} vs the prior term",
+    "showHistory": "Show past policies",
+    "hideHistory": "Hide past policies",
+    "addToExisting": "Add to existing policy"
   }
 }

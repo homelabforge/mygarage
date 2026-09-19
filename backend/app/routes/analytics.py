@@ -31,6 +31,7 @@ from app.models import (
     SpotRentalBilling,
     Vehicle,
 )
+from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.service_line_item import ServiceLineItem
 from app.models.spot_rental import SpotRental
 from app.models.user import User
@@ -73,6 +74,8 @@ from app.services.service_visit_service import service_visit_cost_load_options
 from app.services.tire_service import TireService
 from app.utils.cache import cached
 from app.utils.household_time import household_today
+from app.utils.insurance_cost import accrued_cost, monthly_costs
+from app.utils.insurance_shares import effective_shares
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.render_context import render_context_for_request
 
@@ -983,7 +986,6 @@ async def get_garage_analytics(
         selectinload(Vehicle.service_visits).selectinload(ServiceVisit.vendor),
         selectinload(Vehicle.fuel_records),
         selectinload(Vehicle.def_records),
-        selectinload(Vehicle.insurance_policies),
         selectinload(Vehicle.tax_records),
     )
 
@@ -1028,8 +1030,46 @@ async def get_garage_analytics(
             "service": Decimal("0.00"),
             "fuel": Decimal("0.00"),
             "def": Decimal("0.00"),
+            "insurance": Decimal("0.00"),
         }
     )
+
+    # Insurance is a household record: a policy's premium divides among ALL the
+    # vehicles it covers, so the shares are computed over every link, and only
+    # then narrowed to the vehicles this caller may see.
+    today = household_today()
+    garage_vins = {v.vin for v in vehicles}
+    insurance_by_vin: dict[str, Decimal] = defaultdict(lambda: Decimal("0.00"))
+    policies = (
+        (
+            await db.execute(
+                select(InsurancePolicy)
+                .join(InsurancePolicyVehicle)
+                .where(InsurancePolicyVehicle.vin.in_(garage_vins))
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    for policy in policies:
+        shares = effective_shares(
+            policy.premium_amount, [(link.id, link.premium_share) for link in policy.vehicle_links]
+        )
+        for link in policy.vehicle_links:
+            if link.vin not in garage_vins:
+                continue
+            args = (
+                shares.get(link.id),
+                policy.premium_frequency,
+                policy.start_date,
+                policy.end_date,
+            )
+            insurance_by_vin[link.vin] += accrued_cost(*args, today, link.effective_to)
+            for month_key, amount in monthly_costs(
+                *args, today + timedelta(days=1), link.effective_to
+            ).items():
+                monthly_data[month_key]["insurance"] += amount
 
     for vehicle in vehicles:
         vin = vehicle.vin
@@ -1038,9 +1078,8 @@ async def get_garage_analytics(
         purchase_price = vehicle.purchase_price or Decimal("0.00")
         total_garage_value += purchase_price
 
-        for policy in vehicle.insurance_policies:
-            if policy.premium_amount:
-                total_insurance += policy.premium_amount
+        vehicle_insurance = insurance_by_vin[vin]
+        total_insurance += vehicle_insurance
 
         for tax_record in vehicle.tax_records:
             if tax_record.amount:
@@ -1115,6 +1154,7 @@ async def get_garage_analytics(
                 total_detailing=vehicle_detailing,
                 total_fuel=vehicle_fuel,
                 total_def=vehicle_def,
+                total_insurance=vehicle_insurance,
                 total_cost=vehicle_total,
             )
         )
@@ -1172,7 +1212,8 @@ async def get_garage_analytics(
                 service=data["service"],
                 fuel=data["fuel"],
                 def_cost=data["def"],
-                total=data["service"] + data["fuel"] + data["def"],
+                insurance=data["insurance"],
+                total=data["service"] + data["fuel"] + data["def"] + data["insurance"],
             )
         )
 

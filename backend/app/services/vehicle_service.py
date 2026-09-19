@@ -330,6 +330,14 @@ class VehicleService:
             if attachment_ids:
                 await self.db.execute(delete(Attachment).where(Attachment.id.in_(attachment_ids)))
 
+            # Insurance is a household record: the cascade below would remove
+            # this vehicle's LINK but leave the policy's premium counting it, so
+            # the remaining vehicles' shares would no longer add up. Release it
+            # properly first (the premium drops by this vehicle's share).
+            from app.services.insurance_service import InsuranceService
+
+            await InsuranceService(self.db).release_vehicle(vin)
+
             # ORM delete, not a bulk DELETE statement: bulk deletes bypass ORM
             # relationship cascades, and on SQLite the DB-level ON DELETE
             # CASCADE clauses only fire because the engine now enforces FKs

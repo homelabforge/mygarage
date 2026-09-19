@@ -120,7 +120,9 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
             navigate(`/vehicles/${original.vehicle_vin}?tab=maintenance`)
             break
           case 'insurance':
-            navigate(`/vehicles/${original.vehicle_vin}?tab=insurance`)
+            // A policy is a household record covering several vehicles, so its
+            // renewal opens the Insurance page rather than one vehicle's tab.
+            navigate(`/insurance?policy=${original.id.slice('insurance-'.length)}`)
             break
           case 'warranty':
             navigate(`/vehicles/${original.vehicle_vin}?tab=warranties`)
@@ -671,7 +673,11 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                         toggleEventSelection(event.id)
                       } else {
                         const [type] = event.id.split('-')
-                        const tab = type === 'maintenance' ? 'maintenance' : type === 'insurance' ? 'insurance' : type === 'warranty' ? 'warranties' : 'service'
+                        if (type === 'insurance') {
+                          navigate(`/insurance?policy=${event.id.slice('insurance-'.length)}`)
+                          return
+                        }
+                        const tab = type === 'maintenance' ? 'maintenance' : type === 'warranty' ? 'warranties' : 'service'
                         navigate(`/vehicles/${event.vehicle_vin}?tab=${tab}`)
                       }
                     }}

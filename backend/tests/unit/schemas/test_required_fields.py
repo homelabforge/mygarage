@@ -91,7 +91,6 @@ REQUIRED_FIELD_CASES: list[RequiredFieldsCase] = [
         expected_required={
             "end_date",
             "policy_number",
-            "policy_type",
             "provider",
             "start_date",
         },

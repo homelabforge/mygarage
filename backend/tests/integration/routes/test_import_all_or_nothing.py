@@ -37,6 +37,7 @@ from app.models import (
     FuelRecord,
     HoursRecord,
     InsurancePolicy,
+    InsurancePolicyVehicle,
     Note,
     OdometerRecord,
     Reminder,
@@ -58,7 +59,9 @@ _VIN_TABLES = (
     OdometerRecord,
     HoursRecord,
     WarrantyRecord,
-    InsurancePolicy,
+    # Insurance is a household record since migration 107: the vin-bearing row
+    # an import writes is the vehicle's LINK to a policy.
+    InsurancePolicyVehicle,
     TaxRecord,
     Note,
     Reminder,
@@ -247,6 +250,16 @@ async def vin(db_session: AsyncSession, test_user, test_sessionmaker) -> AsyncIt
             delete(ServiceLineItem).where(ServiceLineItem.visit_id.in_(visit_ids))
         )
         # Rows that point at a fuel record or a service visit go first.
+        # The policies first, while their links still say which they are.
+        await cleanup.execute(
+            delete(InsurancePolicy).where(
+                InsurancePolicy.id.in_(
+                    select(InsurancePolicyVehicle.policy_id).where(
+                        InsurancePolicyVehicle.vin == value
+                    )
+                )
+            )
+        )
         for model in (
             OdometerRecord,
             HoursRecord,
@@ -255,7 +268,7 @@ async def vin(db_session: AsyncSession, test_user, test_sessionmaker) -> AsyncIt
             ServiceVisit,
             FuelRecord,
             WarrantyRecord,
-            InsurancePolicy,
+            InsurancePolicyVehicle,
             TaxRecord,
             Note,
         ):

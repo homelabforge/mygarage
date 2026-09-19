@@ -205,38 +205,54 @@ async def get_calendar_events(
                 )
             )
 
-    # Fetch insurance policies
+    # Fetch insurance policies. A policy is a household record covering several
+    # vehicles, so it is ONE event, anchored on the first covered vehicle the
+    # caller may see that is still in service.
     if "insurance" in type_list:
-        insurance_query = select(InsurancePolicy).where(
-            InsurancePolicy.end_date >= start_date,
-            InsurancePolicy.end_date <= end_date,
+        insurance_result = await db.execute(
+            select(InsurancePolicy).where(
+                InsurancePolicy.end_date >= start_date,
+                InsurancePolicy.end_date <= end_date,
+            )
+        )
+        renewed = set(
+            (
+                await db.execute(
+                    select(InsurancePolicy.previous_policy_id).where(
+                        InsurancePolicy.previous_policy_id.is_not(None)
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
 
-        if allowed_vins:
-            insurance_query = insurance_query.where(InsurancePolicy.vin.in_(allowed_vins))
-        else:
-            insurance_query = insurance_query.where(InsurancePolicy.vin.in_([]))
-
-        insurance_result = await db.execute(insurance_query)
-        insurance_policies = insurance_result.scalars().all()
-
-        for policy in insurance_policies:
-            vehicle = vehicles_dict.get(policy.vin)
+        for policy in insurance_result.scalars().unique().all():
+            covered = [
+                vehicles_dict[link.vin]
+                for link in policy.vehicle_links
+                if link.vin in allowed_vins and vehicles_dict[link.vin].archived_at is None
+            ]
+            if not covered:
+                continue
+            vehicle = covered[0]
+            names = ", ".join(v.nickname or v.vin for v in covered)
             is_overdue = policy.end_date < today
 
             events.append(
                 CalendarEvent(
                     id=f"insurance-{policy.id}",
                     type="insurance",
-                    title=f"{policy.provider} - {policy.policy_type} Renewal",
-                    description=f"Policy #{policy.policy_number}",
+                    title=f"{policy.provider} Renewal",
+                    description=f"Policy #{policy.policy_number} ({names})",
                     date=policy.end_date,
-                    vehicle_vin=policy.vin,
-                    vehicle_nickname=vehicle.nickname if vehicle else None,
+                    vehicle_vin=vehicle.vin,
+                    vehicle_nickname=vehicle.nickname,
                     vehicle_color=None,
                     urgency=calculate_urgency(policy.end_date, is_overdue),
                     is_recurring=True,  # Insurance typically renews annually
-                    is_completed=False,
+                    # The next term or a new insurer is already entered.
+                    is_completed=policy.id in renewed,
                     is_estimated=False,
                     category="legal",
                     notes=None,

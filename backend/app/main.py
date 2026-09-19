@@ -354,6 +354,7 @@ from app.routes import (
     tires_router,
     toll_tags_router,
     toll_transactions_router,
+    vehicle_insurance_router,
     vehicle_supplies_router,
     vehicles_router,
     vendors_router,
@@ -397,6 +398,7 @@ app.include_router(import_router)
 app.include_router(analytics_router)
 app.include_router(warranty_router)
 app.include_router(insurance_router)
+app.include_router(vehicle_insurance_router)
 app.include_router(reports_router)
 app.include_router(toll_tags_router)
 app.include_router(toll_transactions_router)

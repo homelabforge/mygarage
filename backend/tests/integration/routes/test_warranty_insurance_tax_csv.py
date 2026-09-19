@@ -30,7 +30,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.insurance import InsurancePolicy
+from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.tax import TaxRecord
 from app.models.warranty import WarrantyRecord
 
@@ -180,78 +180,40 @@ class TestWarrantyCsv:
 
 @pytest.mark.asyncio
 class TestInsuranceCsv:
+    """The household-policy round trips live in `test_insurance_import_export.py`;
+    this keeps the original guard: the export must not 500 and must name the
+    real premium columns."""
+
     async def test_export_does_not_500(
         self, client: AsyncClient, db_session: AsyncSession, test_vehicle, auth_headers
     ):
         vin = str(test_vehicle["vin"])
-        db_session.add(
-            InsurancePolicy(
-                vin=vin,
-                provider="Ins",
-                policy_number="P-1",
-                policy_type="Full Coverage",
-                start_date=date(2026, 1, 1),
-                end_date=date(2027, 1, 1),
-                premium_amount=Decimal("123.45"),
-                premium_frequency="Monthly",
-                deductible=Decimal("500"),
-            )
+        policy = InsurancePolicy(
+            provider="Ins",
+            policy_number="P-1",
+            start_date=date(2026, 1, 1),
+            end_date=date(2027, 1, 1),
+            premium_amount=Decimal("123.45"),
+            premium_frequency="Monthly",
         )
+        policy.vehicle_links.append(
+            InsurancePolicyVehicle(vin=vin, policy_type="Full Coverage", deductible=Decimal("500"))
+        )
+        db_session.add(policy)
         await db_session.commit()
-
-        r = await client.get(f"/api/export/vehicles/{vin}/insurance/csv", headers=auth_headers)
-        assert r.status_code == 200, r.text
-        headers, rows = _csv_rows(r.text)
-        assert "Premium" in headers and "Premium Frequency" in headers
-        row = next(x for x in rows if x[headers.index("Policy Number")] == "P-1")
-        assert row[headers.index("Premium")] == "123.45"
-        assert row[headers.index("Premium Frequency")] == "Monthly"
-
-    async def test_round_trip(
-        self, client: AsyncClient, db_session: AsyncSession, test_vehicle, auth_headers
-    ):
-        vin = str(test_vehicle["vin"])
-        db_session.add(
-            InsurancePolicy(
-                vin=vin,
-                provider="InsRT",
-                policy_number="P-RT",
-                policy_type="Liability",
-                start_date=date(2026, 4, 1),
-                end_date=date(2027, 4, 1),
-                premium_amount=Decimal("99.00"),
-                premium_frequency="Annual",
-                deductible=Decimal("250"),
-                coverage_limits="100/300",
-            )
-        )
-        await db_session.commit()
-
-        exported = await client.get(
-            f"/api/export/vehicles/{vin}/insurance/csv", headers=auth_headers
-        )
-        assert exported.status_code == 200
-        await db_session.execute(
-            InsurancePolicy.__table__.delete().where(InsurancePolicy.vin == vin)
-        )
-        await db_session.commit()
-
-        r = await client.post(
-            f"/api/import/vehicles/{vin}/insurance/csv",
-            files={"file": ("i.csv", exported.text, "text/csv")},
-            headers=auth_headers,
-        )
-        assert r.status_code == 200, r.text
-        assert r.json()["error_count"] == 0, r.json()
-
-        back = (
-            await db_session.execute(
-                select(InsurancePolicy).where(InsurancePolicy.provider == "InsRT")
-            )
-        ).scalar_one()
-        assert back.premium_amount == Decimal("99.00")
-        assert back.premium_frequency == "Annual"
-        assert back.deductible == Decimal("250")
+        try:
+            r = await client.get(f"/api/export/vehicles/{vin}/insurance/csv", headers=auth_headers)
+            assert r.status_code == 200, r.text
+            headers, rows = _csv_rows(r.text)
+            assert "Premium" in headers and "Premium Frequency" in headers
+            row = next(x for x in rows if x[headers.index("Policy Number")] == "P-1")
+            assert row[headers.index("Premium")] == "123.45"
+            assert row[headers.index("Premium Frequency")] == "Monthly"
+            assert row[headers.index("Type")] == "Full Coverage"
+            assert row[headers.index("Deductible")] == "500.00"
+        finally:
+            await db_session.delete(policy)
+            await db_session.commit()
 
 
 @pytest.mark.asyncio

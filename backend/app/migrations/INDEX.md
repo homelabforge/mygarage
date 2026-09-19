@@ -117,3 +117,4 @@ migrations must swallow their own operational errors.
 | `104_add_device_firmware_notification_state` | **FATAL** — Add firmware notification state to ``livelink_devices``. |
 | `105_add_fuel_octane_grade` | **FATAL** — Add ``fuel_records.octane`` and ``fuel_records.diesel_grade`` (#164). |
 | `106_repair_odometer_sync_duplicates` | Repair odometer rows duplicated by pre-fix auto-sync date edits (issue #171). |
+| `107_household_insurance_policies` | **FATAL** — Make an insurance policy a household record that covers many vehicles. |

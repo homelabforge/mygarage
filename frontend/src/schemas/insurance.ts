@@ -46,34 +46,87 @@ export const PREMIUM_FREQUENCIES = [
  * premium) the API accepts. Bespoke min:0/max:Infinity via the exported
  * `makeNumericField`, same technique as `warranty.mileage_limit_km`.
  */
-export const makeInsuranceSchema = (t: TFunction) =>
-  z.object({
-    provider: z.string().min(1, t('common:validation.provider.required')),
-    policy_number: z.string().min(1, t('common:validation.policyNumber.required')),
-    policy_type: z.string().min(1, t('common:validation.policyType.required')),
-    start_date: z.string().min(1, t('common:validation.date.required')),
-    end_date: z.string().min(1, t('common:validation.date.required')),
-    premium_amount: makeNumericField(t, {
-      min: 0,
-      max: Infinity,
-      negativeKey: 'common:validation.amount.negative',
-      tooLargeKey: 'common:validation.amount.tooLarge',
-      invalidKey: 'common:validation.amount.invalid',
-    }),
-    premium_frequency: z.string().optional(),
-    deductible: makeNumericField(t, {
-      min: 0,
-      max: Infinity,
-      negativeKey: 'common:validation.amount.negative',
-      tooLargeKey: 'common:validation.amount.tooLarge',
-      invalidKey: 'common:validation.amount.invalid',
-    }),
-    coverage_limits: z.string().optional(),
-    notes: z.string().optional(),
+/** Labels offered as one-tap chips in the named-fields editor. Suggestions
+ *  only: the stored label is whatever text the user keeps, so these are
+ *  translated for display and never persisted as keys. */
+export const SUGGESTED_POLICY_FIELDS = [
+  'forms:insuranceFieldLabels.agentName',
+  'forms:insuranceFieldLabels.agentPhone',
+  'forms:insuranceFieldLabels.claimsPhone',
+  'forms:insuranceFieldLabels.roadsideAssistance',
+] as const
+
+export const SUGGESTED_VEHICLE_FIELDS = [
+  'forms:insuranceFieldLabels.bodilyInjury',
+  'forms:insuranceFieldLabels.propertyDamage',
+  'forms:insuranceFieldLabels.collisionDeductible',
+  'forms:insuranceFieldLabels.comprehensiveDeductible',
+  'forms:insuranceFieldLabels.uninsuredMotorist',
+  'forms:insuranceFieldLabels.rentalReimbursement',
+] as const
+
+const amountField = (t: TFunction) =>
+  makeNumericField(t, {
+    min: 0,
+    max: Infinity,
+    negativeKey: 'common:validation.amount.negative',
+    tooLargeKey: 'common:validation.amount.tooLarge',
+    invalidKey: 'common:validation.amount.invalid',
   })
 
-// premium_amount/deductible are `unknown` going in (raw NumberInput text or a
-// number from defaultValues) and `number | undefined` coming out — the
-// resolver is cast to the output type at the call site (see InsuranceForm),
-// matching the sibling record forms built on the same shared.ts factories.
+const namedFieldSchema = (t: TFunction) =>
+  z.object({
+    label: z.string().trim().min(1, t('common:required')).max(60),
+    value: z.string().trim().min(1, t('common:required')).max(255),
+  })
+
+const policyVehicleSchema = (t: TFunction) =>
+  z.object({
+    vin: z.string().min(1),
+    policy_type: z.string().min(1, t('common:validation.policyType.required')),
+    premium_share: amountField(t),
+    deductible: amountField(t),
+    coverage_limits: z.string().optional(),
+    notes: z.string().optional(),
+    effective_to: z.string().optional(),
+    fields: z.array(namedFieldSchema(t)),
+  })
+
+export const makeInsuranceSchema = (t: TFunction) =>
+  z
+    .object({
+      provider: z.string().min(1, t('common:validation.provider.required')),
+      policy_number: z.string().min(1, t('common:validation.policyNumber.required')),
+      start_date: z.string().min(1, t('common:validation.date.required')),
+      end_date: z.string().min(1, t('common:validation.date.required')),
+      premium_amount: amountField(t),
+      premium_frequency: z.string().optional(),
+      notes: z.string().optional(),
+      fields: z.array(namedFieldSchema(t)),
+      vehicles: z.array(policyVehicleSchema(t)),
+    })
+    .refine((data) => !data.start_date || !data.end_date || data.end_date >= data.start_date, {
+      path: ['end_date'],
+      message: t('forms:insurance.endBeforeStart'),
+    })
+
+// Amounts are `unknown` going in (raw NumberInput text or a number from
+// defaultValues) and `number | undefined` coming out: the resolver is cast to
+// the output type at the call site, like the sibling record forms built on
+// the same shared.ts factories.
 export type InsuranceFormData = z.output<ReturnType<typeof makeInsuranceSchema>>
+export type PolicyVehicleFormData = InsuranceFormData['vehicles'][number]
+
+export const makeRenewSchema = (t: TFunction) =>
+  z
+    .object({
+      start_date: z.string().min(1, t('common:validation.date.required')),
+      end_date: z.string().min(1, t('common:validation.date.required')),
+      premium_amount: amountField(t),
+    })
+    .refine((data) => data.end_date >= data.start_date, {
+      path: ['end_date'],
+      message: t('forms:insurance.endBeforeStart'),
+    })
+
+export type RenewFormData = z.output<ReturnType<typeof makeRenewSchema>>

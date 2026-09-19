@@ -1930,7 +1930,7 @@
         "title": "Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post",
         "type": "object"
       },
-      "Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post": {
+      "Body_parse_insurance_pdf_api_insurance_parse_pdf_post": {
         "properties": {
           "file": {
             "contentMediaType": "application/octet-stream",
@@ -1941,10 +1941,10 @@
         "required": [
           "file"
         ],
-        "title": "Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post",
+        "title": "Body_parse_insurance_pdf_api_insurance_parse_pdf_post",
         "type": "object"
       },
-      "Body_test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post": {
+      "Body_test_parse_insurance_pdf_api_insurance_test_parse_post": {
         "properties": {
           "file": {
             "contentMediaType": "application/octet-stream",
@@ -1955,7 +1955,7 @@
         "required": [
           "file"
         ],
-        "title": "Body_test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post",
+        "title": "Body_test_parse_insurance_pdf_api_insurance_test_parse_post",
         "type": "object"
       },
       "Body_test_window_sticker_extraction_api_vehicles__vin__window_sticker_test_post": {
@@ -7542,6 +7542,12 @@
             "title": "Fuel",
             "type": "string"
           },
+          "insurance": {
+            "default": "0.00",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Insurance",
+            "type": "string"
+          },
           "month": {
             "title": "Month",
             "type": "string"
@@ -7616,6 +7622,12 @@
             "default": "0.00",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Inspection",
+            "type": "string"
+          },
+          "total_insurance": {
+            "default": "0.00",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Insurance",
             "type": "string"
           },
           "total_maintenance": {
@@ -8242,44 +8254,346 @@
         "title": "InboxResponse",
         "type": "object"
       },
-      "InsurancePolicy": {
-        "description": "Schema for insurance policy response.",
+      "InsurancePolicyCreate": {
+        "description": "Create a household policy, optionally with its vehicles.",
         "properties": {
-          "coverage_limits": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Coverage limits details",
-            "title": "Coverage Limits"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "deductible": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Deductible amount",
-            "title": "Deductible"
-          },
           "end_date": {
-            "description": "Policy end date",
             "format": "date",
             "title": "End Date",
             "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/NamedField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "policy_number": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Policy Number",
+            "type": "string"
+          },
+          "premium_amount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whole-policy amount per premium_frequency period",
+            "title": "Premium Amount"
+          },
+          "premium_frequency": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Monthly",
+                  "Quarterly",
+                  "Semi-Annual",
+                  "Annual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Frequency"
+          },
+          "provider": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyVehicleCreate"
+            },
+            "title": "Vehicles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "provider",
+          "policy_number",
+          "start_date",
+          "end_date"
+        ],
+        "title": "InsurancePolicyCreate",
+        "type": "object"
+      },
+      "InsurancePolicyRenew": {
+        "description": "Enter the next term. Allowed any time, so a renewal notice can be\nrecorded the day it arrives; the new term reads `upcoming` until it starts.",
+        "properties": {
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: the same term length",
+            "title": "End Date"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "premium_amount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Amount"
+          },
+          "premium_frequency": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Monthly",
+                  "Quarterly",
+                  "Semi-Annual",
+                  "Annual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Frequency"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: the current end_date",
+            "title": "Start Date"
+          }
+        },
+        "title": "InsurancePolicyRenew",
+        "type": "object"
+      },
+      "InsurancePolicyReplace": {
+        "description": "Switch insurers: a new policy succeeds this one and takes its vehicles.",
+        "properties": {
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "end_old_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shorten the old policy to this date for a mid-term switch",
+            "title": "End Old On"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "policy_number": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Policy Number",
+            "type": "string"
+          },
+          "premium_amount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Amount"
+          },
+          "premium_frequency": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Monthly",
+                  "Quarterly",
+                  "Semi-Annual",
+                  "Annual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Frequency"
+          },
+          "provider": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "vehicles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PolicyVehicleCreate"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The new policy's vehicles WITH the new insurer's coverages. When present it replaces `vins`; omit both to carry every vehicle over by type only",
+            "title": "Vehicles"
+          },
+          "vins": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Vehicles to carry over; omit to carry every vehicle",
+            "title": "Vins"
+          }
+        },
+        "required": [
+          "provider",
+          "policy_number",
+          "start_date",
+          "end_date"
+        ],
+        "title": "InsurancePolicyReplace",
+        "type": "object"
+      },
+      "InsurancePolicyResponse": {
+        "description": "A policy with the vehicles the caller may see beneath it.",
+        "properties": {
+          "can_edit": {
+            "default": false,
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "created_by_user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By User Id"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/NamedField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "has_successor": {
+            "default": false,
+            "title": "Has Successor",
+            "type": "boolean"
           },
           "id": {
             "title": "Id",
@@ -8294,17 +8608,16 @@
                 "type": "null"
               }
             ],
-            "description": "Additional notes",
             "title": "Notes"
           },
-          "policy_number": {
-            "description": "Policy number",
-            "title": "Policy Number",
-            "type": "string"
+          "other_vehicle_count": {
+            "default": 0,
+            "description": "Covered vehicles the caller has no access to see",
+            "title": "Other Vehicle Count",
+            "type": "integer"
           },
-          "policy_type": {
-            "description": "Type of insurance coverage",
-            "title": "Policy Type",
+          "policy_number": {
+            "title": "Policy Number",
             "type": "string"
           },
           "premium_amount": {
@@ -8317,7 +8630,6 @@
                 "type": "null"
               }
             ],
-            "description": "Premium amount",
             "title": "Premium Amount"
           },
           "premium_frequency": {
@@ -8329,179 +8641,59 @@
                 "type": "null"
               }
             ],
-            "description": "How often premium is paid",
             "title": "Premium Frequency"
           },
+          "previous_policy_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Policy Id"
+          },
           "provider": {
-            "description": "Insurance provider name",
             "title": "Provider",
             "type": "string"
           },
           "start_date": {
-            "description": "Policy start date",
             "format": "date",
             "title": "Start Date",
             "type": "string"
           },
-          "vin": {
-            "title": "Vin",
+          "status": {
+            "enum": [
+              "upcoming",
+              "active",
+              "expired"
+            ],
+            "title": "Status",
             "type": "string"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyVehicleResponse"
+            },
+            "title": "Vehicles",
+            "type": "array"
           }
         },
         "required": [
+          "id",
           "provider",
           "policy_number",
-          "policy_type",
           "start_date",
           "end_date",
-          "id",
-          "vin",
-          "created_at"
+          "status"
         ],
-        "title": "InsurancePolicy",
-        "type": "object"
-      },
-      "InsurancePolicyCreate": {
-        "description": "Schema for creating an insurance policy.",
-        "properties": {
-          "coverage_limits": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Coverage limits details",
-            "title": "Coverage Limits"
-          },
-          "deductible": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Deductible amount",
-            "title": "Deductible"
-          },
-          "end_date": {
-            "description": "Policy end date",
-            "format": "date",
-            "title": "End Date",
-            "type": "string"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Additional notes",
-            "title": "Notes"
-          },
-          "policy_number": {
-            "description": "Policy number",
-            "title": "Policy Number",
-            "type": "string"
-          },
-          "policy_type": {
-            "description": "Type of insurance coverage",
-            "title": "Policy Type",
-            "type": "string"
-          },
-          "premium_amount": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Premium amount",
-            "title": "Premium Amount"
-          },
-          "premium_frequency": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "How often premium is paid",
-            "title": "Premium Frequency"
-          },
-          "provider": {
-            "description": "Insurance provider name",
-            "title": "Provider",
-            "type": "string"
-          },
-          "start_date": {
-            "description": "Policy start date",
-            "format": "date",
-            "title": "Start Date",
-            "type": "string"
-          }
-        },
-        "required": [
-          "provider",
-          "policy_number",
-          "policy_type",
-          "start_date",
-          "end_date"
-        ],
-        "title": "InsurancePolicyCreate",
+        "title": "InsurancePolicyResponse",
         "type": "object"
       },
       "InsurancePolicyUpdate": {
-        "description": "Schema for updating an insurance policy.",
+        "description": "Edit the policy-level details. Vehicles are edited through their links.",
         "properties": {
-          "coverage_limits": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Coverage Limits"
-          },
-          "deductible": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deductible"
-          },
           "end_date": {
             "anyOf": [
               {
@@ -8514,6 +8706,20 @@
             ],
             "title": "End Date"
           },
+          "fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NamedField"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields"
+          },
           "notes": {
             "anyOf": [
               {
@@ -8528,6 +8734,8 @@
           "policy_number": {
             "anyOf": [
               {
+                "maxLength": 50,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -8536,17 +8744,6 @@
             ],
             "title": "Policy Number"
           },
-          "policy_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Policy Type"
-          },
           "premium_amount": {
             "anyOf": [
               {
@@ -8554,7 +8751,7 @@
                 "type": "number"
               },
               {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
                 "type": "string"
               },
               {
@@ -8566,6 +8763,12 @@
           "premium_frequency": {
             "anyOf": [
               {
+                "enum": [
+                  "Monthly",
+                  "Quarterly",
+                  "Semi-Annual",
+                  "Annual"
+                ],
                 "type": "string"
               },
               {
@@ -8577,6 +8780,8 @@
           "provider": {
             "anyOf": [
               {
+                "maxLength": 100,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -8584,6 +8789,22 @@
               }
             ],
             "title": "Provider"
+          },
+          "share_strategy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rescale",
+                  "reset_even"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required when the premium changes on a policy whose vehicle shares are all explicit: rescale them proportionally, or reset to an even split",
+            "title": "Share Strategy"
           },
           "start_date": {
             "anyOf": [
@@ -8596,6 +8817,21 @@
               }
             ],
             "title": "Start Date"
+          },
+          "vehicles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PolicyVehicleUpsert"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The policy's COMPLETE vehicle list. Omit to leave the vehicles alone; when present, vehicles not listed are removed. Sending the premium and every share together is how a vehicle is added and the premium raised in one valid step",
+            "title": "Vehicles"
           }
         },
         "title": "InsurancePolicyUpdate",
@@ -10803,6 +11039,29 @@
         "title": "MountPeriodUpdate",
         "type": "object"
       },
+      "NamedField": {
+        "description": "A user-named field: a suggested label or anything the user typed.",
+        "properties": {
+          "label": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "NamedField",
+        "type": "object"
+      },
       "NearestOdometerResponse": {
         "description": "The reading closest to a requested day, for the tire dialogs' suggestion.",
         "properties": {
@@ -12424,6 +12683,521 @@
           "source"
         ],
         "title": "PlaceResult",
+        "type": "object"
+      },
+      "PolicyHistoryEntry": {
+        "description": "One term in a policy's chain, for review.",
+        "properties": {
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_current": {
+            "default": false,
+            "description": "The policy the history was requested for",
+            "title": "Is Current",
+            "type": "boolean"
+          },
+          "policy_number": {
+            "title": "Policy Number",
+            "type": "string"
+          },
+          "premium_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Amount"
+          },
+          "premium_change": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This term's premium minus the prior term's, same frequency only",
+            "title": "Premium Change"
+          },
+          "premium_frequency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Frequency"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "upcoming",
+              "active",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyVehicleResponse"
+            },
+            "title": "Vehicles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "policy_number",
+          "start_date",
+          "end_date",
+          "status"
+        ],
+        "title": "PolicyHistoryEntry",
+        "type": "object"
+      },
+      "PolicyVehicleCreate": {
+        "description": "Attach one vehicle to a policy.",
+        "properties": {
+          "coverage_limits": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Limits"
+          },
+          "deductible": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deductible"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/NamedField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "policy_type": {
+            "enum": [
+              "Liability",
+              "Comprehensive",
+              "Collision",
+              "Full Coverage",
+              "Minimum",
+              "Other"
+            ],
+            "title": "Policy Type",
+            "type": "string"
+          },
+          "premium_share": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per-period share; omit for an even split",
+            "title": "Premium Share"
+          },
+          "vin": {
+            "maxLength": 17,
+            "minLength": 17,
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vin",
+          "policy_type"
+        ],
+        "title": "PolicyVehicleCreate",
+        "type": "object"
+      },
+      "PolicyVehicleResponse": {
+        "description": "One vehicle beneath a policy.",
+        "properties": {
+          "can_edit": {
+            "default": false,
+            "title": "Can Edit",
+            "type": "boolean"
+          },
+          "coverage_limits": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Limits"
+          },
+          "deductible": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deductible"
+          },
+          "effective_share": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What this vehicle costs per period: explicit, or the even split",
+            "title": "Effective Share"
+          },
+          "effective_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/NamedField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "policy_type": {
+            "title": "Policy Type",
+            "type": "string"
+          },
+          "premium_share": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explicit share, if the user set one",
+            "title": "Premium Share"
+          },
+          "vehicle_name": {
+            "title": "Vehicle Name",
+            "type": "string"
+          },
+          "vin": {
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "vin",
+          "vehicle_name",
+          "policy_type"
+        ],
+        "title": "PolicyVehicleResponse",
+        "type": "object"
+      },
+      "PolicyVehicleUpdate": {
+        "description": "Edit one vehicle's place on a policy.\n\n`fields` omitted leaves the named fields alone; present (even empty)\nreplaces them. `premium_share` and `effective_to` move money between\nvehicles, so the route demands write access to the whole policy for them.",
+        "properties": {
+          "coverage_limits": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Limits"
+          },
+          "deductible": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deductible"
+          },
+          "effective_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NamedField"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "policy_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Liability",
+                  "Comprehensive",
+                  "Collision",
+                  "Full Coverage",
+                  "Minimum",
+                  "Other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Type"
+          },
+          "premium_share": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Share"
+          }
+        },
+        "title": "PolicyVehicleUpdate",
+        "type": "object"
+      },
+      "PolicyVehicleUpsert": {
+        "description": "One vehicle in the policy form's FULL vehicle list (see\n`InsurancePolicyUpdate.vehicles`). Matched to an existing link by VIN.",
+        "properties": {
+          "coverage_limits": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Limits"
+          },
+          "deductible": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deductible"
+          },
+          "effective_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NamedField"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Omit to leave an existing vehicle's named fields alone",
+            "title": "Fields"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "policy_type": {
+            "enum": [
+              "Liability",
+              "Comprehensive",
+              "Collision",
+              "Full Coverage",
+              "Minimum",
+              "Other"
+            ],
+            "title": "Policy Type",
+            "type": "string"
+          },
+          "premium_share": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Share"
+          },
+          "vin": {
+            "maxLength": 17,
+            "minLength": 17,
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vin",
+          "policy_type"
+        ],
+        "title": "PolicyVehicleUpsert",
         "type": "object"
       },
       "QuickEntryVehicle": {
@@ -32700,6 +33474,75 @@
         ]
       }
     },
+    "/api/insurance/parse-pdf": {
+      "post": {
+        "description": "Read a declarations page and return what it says, persisting nothing.\n\n`vehicles` lists every VIN on the document with its own premium and\ndeductible where the parser finds a per-vehicle section. `matched` marks\nthe ones the caller has WRITE access to, which is what attaching one takes.",
+        "operationId": "parse_insurance_pdf_api_insurance_parse_pdf_post",
+        "parameters": [
+          {
+            "description": "Optional provider hint (progressive, statefarm, geico, allstate)",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional provider hint (progressive, statefarm, geico, allstate)",
+              "title": "Provider"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_parse_insurance_pdf_api_insurance_parse_pdf_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Parse Insurance Pdf Api Insurance Parse Pdf Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Parse Insurance Pdf",
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
     "/api/insurance/parsers": {
       "get": {
         "description": "List available insurance document parsers.",
@@ -32724,6 +33567,685 @@
           }
         ],
         "summary": "List Insurance Parsers",
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/api/insurance/policies": {
+      "get": {
+        "description": "Household policies the caller may see, each with its vehicles beneath it.",
+        "operationId": "list_policies_api_insurance_policies_get",
+        "parameters": [
+          {
+            "description": "Only policies covering this vehicle",
+            "in": "query",
+            "name": "vin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only policies covering this vehicle",
+              "title": "Vin"
+            }
+          },
+          {
+            "description": "current = active + upcoming",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "current",
+              "description": "current = active + upcoming",
+              "enum": [
+                "current",
+                "active",
+                "upcoming",
+                "expired",
+                "all"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InsurancePolicyResponse"
+                  },
+                  "title": "Response List Policies Api Insurance Policies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Policies",
+        "tags": [
+          "Insurance"
+        ]
+      },
+      "post": {
+        "description": "Create a policy, optionally with the vehicles it covers.",
+        "operationId": "create_policy_api_insurance_policies_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsurancePolicyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Policy",
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/api/insurance/policies/{policy_id}": {
+      "delete": {
+        "operationId": "delete_policy_api_insurance_policies__policy_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Policy",
+        "tags": [
+          "Insurance"
+        ]
+      },
+      "get": {
+        "operationId": "read_policy_api_insurance_policies__policy_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read Policy",
+        "tags": [
+          "Insurance"
+        ]
+      },
+      "put": {
+        "operationId": "update_policy_api_insurance_policies__policy_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsurancePolicyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Policy",
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/api/insurance/policies/{policy_id}/history": {
+      "get": {
+        "description": "Every term and insurer in this policy's chain, oldest first.",
+        "operationId": "policy_history_api_insurance_policies__policy_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PolicyHistoryEntry"
+                  },
+                  "title": "Response Policy History Api Insurance Policies  Policy Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Policy History",
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/api/insurance/policies/{policy_id}/renew": {
+      "post": {
+        "description": "Enter the next term. Allowed before the current one ends.",
+        "operationId": "renew_policy_api_insurance_policies__policy_id__renew_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsurancePolicyRenew"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Renew Policy",
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/api/insurance/policies/{policy_id}/replace": {
+      "post": {
+        "description": "Switch insurers: a new policy takes over this one's vehicles.",
+        "operationId": "replace_policy_api_insurance_policies__policy_id__replace_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsurancePolicyReplace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Replace Policy",
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/api/insurance/policies/{policy_id}/vehicles": {
+      "post": {
+        "operationId": "attach_vehicle_api_insurance_policies__policy_id__vehicles_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyVehicleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Attach Vehicle",
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/api/insurance/policies/{policy_id}/vehicles/{link_id}": {
+      "delete": {
+        "operationId": "detach_vehicle_api_insurance_policies__policy_id__vehicles__link_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Detach Vehicle",
+        "tags": [
+          "Insurance"
+        ]
+      },
+      "patch": {
+        "operationId": "update_policy_vehicle_api_insurance_policies__policy_id__vehicles__link_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policy_id",
+            "required": true,
+            "schema": {
+              "title": "Policy Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyVehicleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsurancePolicyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Policy Vehicle",
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/api/insurance/test-parse": {
+      "post": {
+        "description": "Debug parse, returning the document's full raw text.\n\nADMIN only: a declarations page names every driver, address and VIN in the\nhousehold, and this endpoint returns all of it verbatim.",
+        "operationId": "test_parse_insurance_pdf_api_insurance_test_parse_post",
+        "parameters": [
+          {
+            "description": "Optional provider hint",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional provider hint",
+              "title": "Provider"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_test_parse_insurance_pdf_api_insurance_test_parse_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Test Parse Insurance Pdf Api Insurance Test Parse Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Test Parse Insurance Pdf",
         "tags": [
           "Insurance"
         ]
@@ -38594,8 +40116,8 @@
     },
     "/api/vehicles/{vin}/insurance": {
       "get": {
-        "description": "Get all insurance policies for a vehicle.",
-        "operationId": "get_insurance_policies_api_vehicles__vin__insurance_get",
+        "description": "Every policy, past and present, covering one vehicle.",
+        "operationId": "list_vehicle_insurance_api_vehicles__vin__insurance_get",
         "parameters": [
           {
             "in": "path",
@@ -38613,9 +40135,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/InsurancePolicy"
+                    "$ref": "#/components/schemas/InsurancePolicyResponse"
                   },
-                  "title": "Response Get Insurance Policies Api Vehicles  Vin  Insurance Get",
+                  "title": "Response List Vehicle Insurance Api Vehicles  Vin  Insurance Get",
                   "type": "array"
                 }
               }
@@ -38638,389 +40160,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Get Insurance Policies",
-        "tags": [
-          "Insurance"
-        ]
-      },
-      "post": {
-        "description": "Create a new insurance policy.",
-        "operationId": "create_insurance_policy_api_vehicles__vin__insurance_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "vin",
-            "required": true,
-            "schema": {
-              "title": "Vin",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InsurancePolicyCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InsurancePolicy"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Insurance Policy",
-        "tags": [
-          "Insurance"
-        ]
-      }
-    },
-    "/api/vehicles/{vin}/insurance/parse-pdf": {
-      "post": {
-        "description": "Parse an insurance PDF and extract policy data.\n\nUses OCR and auto-detection to identify the insurance provider and extract\nrelevant policy information. Supports Progressive, State Farm, GEICO, Allstate,\nand other providers via generic parsing.\n\nReturns extracted data without saving to database.\nUser can review and edit before creating the policy.",
-        "operationId": "parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "vin",
-            "required": true,
-            "schema": {
-              "title": "Vin",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Optional provider hint (progressive, statefarm, geico, allstate)",
-            "in": "query",
-            "name": "provider",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional provider hint (progressive, statefarm, geico, allstate)",
-              "title": "Provider"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Parse Insurance Pdf Api Vehicles  Vin  Insurance Parse Pdf Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Parse Insurance Pdf",
-        "tags": [
-          "Insurance"
-        ]
-      }
-    },
-    "/api/vehicles/{vin}/insurance/test-parse": {
-      "post": {
-        "description": "Test parse an insurance document - returns full debug info including raw text.\n\nUseful for troubleshooting parsing issues.",
-        "operationId": "test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "vin",
-            "required": true,
-            "schema": {
-              "title": "Vin",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Optional provider hint",
-            "in": "query",
-            "name": "provider",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional provider hint",
-              "title": "Provider"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Test Parse Insurance Pdf Api Vehicles  Vin  Insurance Test Parse Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Test Parse Insurance Pdf",
-        "tags": [
-          "Insurance"
-        ]
-      }
-    },
-    "/api/vehicles/{vin}/insurance/{policy_id}": {
-      "delete": {
-        "description": "Delete an insurance policy.",
-        "operationId": "delete_insurance_policy_api_vehicles__vin__insurance__policy_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "vin",
-            "required": true,
-            "schema": {
-              "title": "Vin",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "policy_id",
-            "required": true,
-            "schema": {
-              "title": "Policy Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Delete Insurance Policy",
-        "tags": [
-          "Insurance"
-        ]
-      },
-      "get": {
-        "description": "Get a specific insurance policy.",
-        "operationId": "get_insurance_policy_api_vehicles__vin__insurance__policy_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "vin",
-            "required": true,
-            "schema": {
-              "title": "Vin",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "policy_id",
-            "required": true,
-            "schema": {
-              "title": "Policy Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InsurancePolicy"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Get Insurance Policy",
-        "tags": [
-          "Insurance"
-        ]
-      },
-      "put": {
-        "description": "Update an insurance policy.",
-        "operationId": "update_insurance_policy_api_vehicles__vin__insurance__policy_id__put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "vin",
-            "required": true,
-            "schema": {
-              "title": "Vin",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "policy_id",
-            "required": true,
-            "schema": {
-              "title": "Policy Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InsurancePolicyUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InsurancePolicy"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Update Insurance Policy",
+        "summary": "List Vehicle Insurance",
         "tags": [
           "Insurance"
         ]

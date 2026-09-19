@@ -121,25 +121,47 @@ async def check_expiring_documents() -> None:
                     InsurancePolicy.end_date <= insurance_cutoff,
                 )
             )
-            for policy in insurance_result.scalars().all():
-                # Dedup check
+            # A policy that already has a successor (the next term, or a new
+            # insurer) has been dealt with: entering the renewal early is how
+            # the user tells us to stop asking.
+            renewed = set(
+                (
+                    await db.execute(
+                        select(InsurancePolicy.previous_policy_id).where(
+                            InsurancePolicy.previous_policy_id.is_not(None)
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            # ONE notification per policy, however many vehicles it covers.
+            for policy in insurance_result.scalars().unique().all():
+                if policy.id in renewed:
+                    continue
                 if (
                     policy.last_notified_at
                     and (now - policy.last_notified_at) < NOTIFICATION_COOLDOWN
                 ):
                     continue
 
-                vehicle = vehicles_dict.get(policy.vin)
-                vehicle_name = (
-                    vehicle.nickname or f"{vehicle.year} {vehicle.make} {vehicle.model}"
-                    if vehicle
-                    else policy.vin
-                )
+                covered = [vehicles_dict.get(link.vin) for link in policy.vehicle_links]
+                # Skip only when the policy covers vehicles and EVERY one of them
+                # is archived. A policy with no vehicles (an umbrella policy)
+                # still expires and still matters.
+                if covered and all(v is not None and v.archived_at is not None for v in covered):
+                    continue
+
+                names = [
+                    (v.nickname or f"{v.year} {v.make} {v.model}")
+                    for v in covered
+                    if v is not None and v.archived_at is None
+                ]
                 days_until = (policy.end_date - today).days
 
                 await dispatcher.notify_insurance_expiring(
-                    vehicle_name=vehicle_name,
-                    policy_name=f"{policy.provider} - {policy.policy_type}",
+                    vehicle_name=", ".join(names) if names else policy.provider,
+                    policy_name=f"{policy.provider} #{policy.policy_number}",
                     days_until_expiry=days_until,
                 )
 

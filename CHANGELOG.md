@@ -7,11 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Household insurance: one policy covers many vehicles, each listed beneath it with its own coverage type, premium share and deductible.
+- Insurance page for the whole garage; a vehicle's Insurance tab shows the same policies with that vehicle in full.
+- Renew a policy as soon as the notice arrives (it stays Upcoming until it starts), switch insurers, and review the history of prior terms with the premium change.
+- Named fields on a policy or on one vehicle's coverage, with common labels one tap away.
+- PDF import attaches every vehicle on the declarations page that is in the garage.
+- JSON backups include insurance.
+
+### Changed
+- **BREAKING:** the insurance API moved to `/api/insurance/policies`; `POST`/`PUT`/`DELETE /api/vehicles/{vin}/insurance` and the per-vehicle `parse-pdf` are gone. `GET /api/vehicles/{vin}/insurance` remains with a new shape.
+- Existing policies are merged at upgrade: rows sharing owner, provider, policy number, dates and frequency become one policy. Every vehicle keeps the numbers it had; if the full premium was typed on each vehicle, correct the policy total once.
+- Insurance expiry sends one notification per policy, not per vehicle, skips policies covering only archived vehicles, and stops once the renewal is entered.
+- Garage analytics counts insurance by billing frequency and date, per vehicle and per month.
+- A transferred vehicle leaves the previous owner's policies.
+- Insurance `test-parse` is admin only.
+
 ### Fixed
 - Production images now install from `uv.lock`, so they no longer resolve a different dependency set on every build.
 - Registered the four models missing from `app.models`, which left the ORM registry incomplete for anything importing it directly.
 
 ### Build
+- Migration 107: household insurance policies (FATAL; back up first).
 - Backend dependencies bumped, including granian 2.8.3, starlette 1.6.0, sqlalchemy 2.0.54, numpy 2.5.3, ruff 0.16.8 and pyright 1.1.414.
 
 ## [3.5.0] - 2026-09-18

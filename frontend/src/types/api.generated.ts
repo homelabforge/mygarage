@@ -1978,6 +1978,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/insurance/parse-pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse Insurance Pdf
+         * @description Read a declarations page and return what it says, persisting nothing.
+         *
+         *     `vehicles` lists every VIN on the document with its own premium and
+         *     deductible where the parser finds a per-vehicle section. `matched` marks
+         *     the ones the caller has WRITE access to, which is what attaching one takes.
+         */
+        post: operations["parse_insurance_pdf_api_insurance_parse_pdf_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/insurance/parsers": {
         parameters: {
             query?: never;
@@ -1992,6 +2016,167 @@ export interface paths {
         get: operations["list_insurance_parsers_api_insurance_parsers_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/insurance/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Policies
+         * @description Household policies the caller may see, each with its vehicles beneath it.
+         */
+        get: operations["list_policies_api_insurance_policies_get"];
+        put?: never;
+        /**
+         * Create Policy
+         * @description Create a policy, optionally with the vehicles it covers.
+         */
+        post: operations["create_policy_api_insurance_policies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/insurance/policies/{policy_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Policy */
+        get: operations["read_policy_api_insurance_policies__policy_id__get"];
+        /** Update Policy */
+        put: operations["update_policy_api_insurance_policies__policy_id__put"];
+        post?: never;
+        /** Delete Policy */
+        delete: operations["delete_policy_api_insurance_policies__policy_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/insurance/policies/{policy_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Policy History
+         * @description Every term and insurer in this policy's chain, oldest first.
+         */
+        get: operations["policy_history_api_insurance_policies__policy_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/insurance/policies/{policy_id}/renew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew Policy
+         * @description Enter the next term. Allowed before the current one ends.
+         */
+        post: operations["renew_policy_api_insurance_policies__policy_id__renew_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/insurance/policies/{policy_id}/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace Policy
+         * @description Switch insurers: a new policy takes over this one's vehicles.
+         */
+        post: operations["replace_policy_api_insurance_policies__policy_id__replace_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/insurance/policies/{policy_id}/vehicles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attach Vehicle */
+        post: operations["attach_vehicle_api_insurance_policies__policy_id__vehicles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/insurance/policies/{policy_id}/vehicles/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Detach Vehicle */
+        delete: operations["detach_vehicle_api_insurance_policies__policy_id__vehicles__link_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Policy Vehicle */
+        patch: operations["update_policy_vehicle_api_insurance_policies__policy_id__vehicles__link_id__patch"];
+        trace?: never;
+    };
+    "/api/insurance/test-parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Parse Insurance Pdf
+         * @description Debug parse, returning the document's full raw text.
+         *
+         *     ADMIN only: a declarations page names every driver, address and VIN in the
+         *     household, and this endpoint returns all of it verbatim.
+         */
+        post: operations["test_parse_insurance_pdf_api_insurance_test_parse_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4498,94 +4683,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Insurance Policies
-         * @description Get all insurance policies for a vehicle.
+         * List Vehicle Insurance
+         * @description Every policy, past and present, covering one vehicle.
          */
-        get: operations["get_insurance_policies_api_vehicles__vin__insurance_get"];
+        get: operations["list_vehicle_insurance_api_vehicles__vin__insurance_get"];
         put?: never;
-        /**
-         * Create Insurance Policy
-         * @description Create a new insurance policy.
-         */
-        post: operations["create_insurance_policy_api_vehicles__vin__insurance_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/vehicles/{vin}/insurance/parse-pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Parse Insurance Pdf
-         * @description Parse an insurance PDF and extract policy data.
-         *
-         *     Uses OCR and auto-detection to identify the insurance provider and extract
-         *     relevant policy information. Supports Progressive, State Farm, GEICO, Allstate,
-         *     and other providers via generic parsing.
-         *
-         *     Returns extracted data without saving to database.
-         *     User can review and edit before creating the policy.
-         */
-        post: operations["parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/vehicles/{vin}/insurance/test-parse": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Test Parse Insurance Pdf
-         * @description Test parse an insurance document - returns full debug info including raw text.
-         *
-         *     Useful for troubleshooting parsing issues.
-         */
-        post: operations["test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/vehicles/{vin}/insurance/{policy_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Insurance Policy
-         * @description Get a specific insurance policy.
-         */
-        get: operations["get_insurance_policy_api_vehicles__vin__insurance__policy_id__get"];
-        /**
-         * Update Insurance Policy
-         * @description Update an insurance policy.
-         */
-        put: operations["update_insurance_policy_api_vehicles__vin__insurance__policy_id__put"];
         post?: never;
-        /**
-         * Delete Insurance Policy
-         * @description Delete an insurance policy.
-         */
-        delete: operations["delete_insurance_policy_api_vehicles__vin__insurance__policy_id__delete"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -7956,13 +8060,13 @@ export interface components {
             /** Text */
             text?: string | null;
         };
-        /** Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post */
-        Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post: {
+        /** Body_parse_insurance_pdf_api_insurance_parse_pdf_post */
+        Body_parse_insurance_pdf_api_insurance_parse_pdf_post: {
             /** File */
             file: string;
         };
-        /** Body_test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post */
-        Body_test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post: {
+        /** Body_test_parse_insurance_pdf_api_insurance_test_parse_post */
+        Body_test_parse_insurance_pdf_api_insurance_test_parse_post: {
             /** File */
             file: string;
         };
@@ -10297,6 +10401,11 @@ export interface components {
              * @default 0.00
              */
             fuel: string;
+            /**
+             * Insurance
+             * @default 0.00
+             */
+            insurance: string;
             /** Month */
             month: string;
             /**
@@ -10354,6 +10463,11 @@ export interface components {
              * @default 0.00
              */
             total_inspection: string;
+            /**
+             * Total Insurance
+             * @default 0.00
+             */
+            total_insurance: string;
             /**
              * Total Maintenance
              * @default 0.00
@@ -10680,155 +10794,192 @@ export interface components {
             unread_count: number;
         };
         /**
-         * InsurancePolicy
-         * @description Schema for insurance policy response.
-         */
-        InsurancePolicy: {
-            /**
-             * Coverage Limits
-             * @description Coverage limits details
-             */
-            coverage_limits?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Deductible
-             * @description Deductible amount
-             */
-            deductible?: string | null;
-            /**
-             * End Date
-             * Format: date
-             * @description Policy end date
-             */
-            end_date: string;
-            /** Id */
-            id: number;
-            /**
-             * Notes
-             * @description Additional notes
-             */
-            notes?: string | null;
-            /**
-             * Policy Number
-             * @description Policy number
-             */
-            policy_number: string;
-            /**
-             * Policy Type
-             * @description Type of insurance coverage
-             */
-            policy_type: string;
-            /**
-             * Premium Amount
-             * @description Premium amount
-             */
-            premium_amount?: string | null;
-            /**
-             * Premium Frequency
-             * @description How often premium is paid
-             */
-            premium_frequency?: string | null;
-            /**
-             * Provider
-             * @description Insurance provider name
-             */
-            provider: string;
-            /**
-             * Start Date
-             * Format: date
-             * @description Policy start date
-             */
-            start_date: string;
-            /** Vin */
-            vin: string;
-        };
-        /**
          * InsurancePolicyCreate
-         * @description Schema for creating an insurance policy.
+         * @description Create a household policy, optionally with its vehicles.
          */
         InsurancePolicyCreate: {
             /**
-             * Coverage Limits
-             * @description Coverage limits details
-             */
-            coverage_limits?: string | null;
-            /**
-             * Deductible
-             * @description Deductible amount
-             */
-            deductible?: number | string | null;
-            /**
              * End Date
              * Format: date
-             * @description Policy end date
              */
             end_date: string;
-            /**
-             * Notes
-             * @description Additional notes
-             */
+            /** Fields */
+            fields?: components["schemas"]["NamedField"][];
+            /** Notes */
             notes?: string | null;
-            /**
-             * Policy Number
-             * @description Policy number
-             */
+            /** Policy Number */
             policy_number: string;
             /**
-             * Policy Type
-             * @description Type of insurance coverage
-             */
-            policy_type: string;
-            /**
              * Premium Amount
-             * @description Premium amount
+             * @description Whole-policy amount per premium_frequency period
              */
             premium_amount?: number | string | null;
-            /**
-             * Premium Frequency
-             * @description How often premium is paid
-             */
-            premium_frequency?: string | null;
-            /**
-             * Provider
-             * @description Insurance provider name
-             */
+            /** Premium Frequency */
+            premium_frequency?: ("Monthly" | "Quarterly" | "Semi-Annual" | "Annual") | null;
+            /** Provider */
             provider: string;
             /**
              * Start Date
              * Format: date
-             * @description Policy start date
              */
             start_date: string;
+            /** Vehicles */
+            vehicles?: components["schemas"]["PolicyVehicleCreate"][];
+        };
+        /**
+         * InsurancePolicyRenew
+         * @description Enter the next term. Allowed any time, so a renewal notice can be
+         *     recorded the day it arrives; the new term reads `upcoming` until it starts.
+         */
+        InsurancePolicyRenew: {
+            /**
+             * End Date
+             * @description Default: the same term length
+             */
+            end_date?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Premium Amount */
+            premium_amount?: number | string | null;
+            /** Premium Frequency */
+            premium_frequency?: ("Monthly" | "Quarterly" | "Semi-Annual" | "Annual") | null;
+            /**
+             * Start Date
+             * @description Default: the current end_date
+             */
+            start_date?: string | null;
+        };
+        /**
+         * InsurancePolicyReplace
+         * @description Switch insurers: a new policy succeeds this one and takes its vehicles.
+         */
+        InsurancePolicyReplace: {
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /**
+             * End Old On
+             * @description Shorten the old policy to this date for a mid-term switch
+             */
+            end_old_on?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Policy Number */
+            policy_number: string;
+            /** Premium Amount */
+            premium_amount?: number | string | null;
+            /** Premium Frequency */
+            premium_frequency?: ("Monthly" | "Quarterly" | "Semi-Annual" | "Annual") | null;
+            /** Provider */
+            provider: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * Vehicles
+             * @description The new policy's vehicles WITH the new insurer's coverages. When present it replaces `vins`; omit both to carry every vehicle over by type only
+             */
+            vehicles?: components["schemas"]["PolicyVehicleCreate"][] | null;
+            /**
+             * Vins
+             * @description Vehicles to carry over; omit to carry every vehicle
+             */
+            vins?: string[] | null;
+        };
+        /**
+         * InsurancePolicyResponse
+         * @description A policy with the vehicles the caller may see beneath it.
+         */
+        InsurancePolicyResponse: {
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By User Id */
+            created_by_user_id?: number | null;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Fields */
+            fields?: components["schemas"]["NamedField"][];
+            /**
+             * Has Successor
+             * @default false
+             */
+            has_successor: boolean;
+            /** Id */
+            id: number;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Other Vehicle Count
+             * @description Covered vehicles the caller has no access to see
+             * @default 0
+             */
+            other_vehicle_count: number;
+            /** Policy Number */
+            policy_number: string;
+            /** Premium Amount */
+            premium_amount?: string | null;
+            /** Premium Frequency */
+            premium_frequency?: string | null;
+            /** Previous Policy Id */
+            previous_policy_id?: number | null;
+            /** Provider */
+            provider: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "upcoming" | "active" | "expired";
+            /** Vehicles */
+            vehicles?: components["schemas"]["PolicyVehicleResponse"][];
         };
         /**
          * InsurancePolicyUpdate
-         * @description Schema for updating an insurance policy.
+         * @description Edit the policy-level details. Vehicles are edited through their links.
          */
         InsurancePolicyUpdate: {
-            /** Coverage Limits */
-            coverage_limits?: string | null;
-            /** Deductible */
-            deductible?: number | string | null;
             /** End Date */
             end_date?: string | null;
+            /** Fields */
+            fields?: components["schemas"]["NamedField"][] | null;
             /** Notes */
             notes?: string | null;
             /** Policy Number */
             policy_number?: string | null;
-            /** Policy Type */
-            policy_type?: string | null;
             /** Premium Amount */
             premium_amount?: number | string | null;
             /** Premium Frequency */
-            premium_frequency?: string | null;
+            premium_frequency?: ("Monthly" | "Quarterly" | "Semi-Annual" | "Annual") | null;
             /** Provider */
             provider?: string | null;
+            /**
+             * Share Strategy
+             * @description Required when the premium changes on a policy whose vehicle shares are all explicit: rescale them proportionally, or reset to an even split
+             */
+            share_strategy?: ("rescale" | "reset_even") | null;
             /** Start Date */
             start_date?: string | null;
+            /**
+             * Vehicles
+             * @description The policy's COMPLETE vehicle list. Omit to leave the vehicles alone; when present, vehicles not listed are removed. Sending the premium and every share together is how a vehicle is added and the premium raised in one valid step
+             */
+            vehicles?: components["schemas"]["PolicyVehicleUpsert"][] | null;
         };
         /**
          * LastLocationResponse
@@ -11767,6 +11918,16 @@ export interface components {
             notes?: string | null;
         };
         /**
+         * NamedField
+         * @description A user-named field: a suggested label or anything the user typed.
+         */
+        NamedField: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /**
          * NearestOdometerResponse
          * @description The reading closest to a requested day, for the tire dialogs' suggestion.
          */
@@ -12454,6 +12615,168 @@ export interface components {
             website?: string | null;
             /** Zip Code */
             zip_code?: string | null;
+        };
+        /**
+         * PolicyHistoryEntry
+         * @description One term in a policy's chain, for review.
+         */
+        PolicyHistoryEntry: {
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Id */
+            id: number;
+            /**
+             * Is Current
+             * @description The policy the history was requested for
+             * @default false
+             */
+            is_current: boolean;
+            /** Policy Number */
+            policy_number: string;
+            /** Premium Amount */
+            premium_amount?: string | null;
+            /**
+             * Premium Change
+             * @description This term's premium minus the prior term's, same frequency only
+             */
+            premium_change?: string | null;
+            /** Premium Frequency */
+            premium_frequency?: string | null;
+            /** Provider */
+            provider: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "upcoming" | "active" | "expired";
+            /** Vehicles */
+            vehicles?: components["schemas"]["PolicyVehicleResponse"][];
+        };
+        /**
+         * PolicyVehicleCreate
+         * @description Attach one vehicle to a policy.
+         */
+        PolicyVehicleCreate: {
+            /** Coverage Limits */
+            coverage_limits?: string | null;
+            /** Deductible */
+            deductible?: number | string | null;
+            /** Fields */
+            fields?: components["schemas"]["NamedField"][];
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Policy Type
+             * @enum {string}
+             */
+            policy_type: "Liability" | "Comprehensive" | "Collision" | "Full Coverage" | "Minimum" | "Other";
+            /**
+             * Premium Share
+             * @description Per-period share; omit for an even split
+             */
+            premium_share?: number | string | null;
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * PolicyVehicleResponse
+         * @description One vehicle beneath a policy.
+         */
+        PolicyVehicleResponse: {
+            /**
+             * Can Edit
+             * @default false
+             */
+            can_edit: boolean;
+            /** Coverage Limits */
+            coverage_limits?: string | null;
+            /** Deductible */
+            deductible?: string | null;
+            /**
+             * Effective Share
+             * @description What this vehicle costs per period: explicit, or the even split
+             */
+            effective_share?: string | null;
+            /** Effective To */
+            effective_to?: string | null;
+            /** Fields */
+            fields?: components["schemas"]["NamedField"][];
+            /** Id */
+            id: number;
+            /** Notes */
+            notes?: string | null;
+            /** Policy Type */
+            policy_type: string;
+            /**
+             * Premium Share
+             * @description Explicit share, if the user set one
+             */
+            premium_share?: string | null;
+            /** Vehicle Name */
+            vehicle_name: string;
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * PolicyVehicleUpdate
+         * @description Edit one vehicle's place on a policy.
+         *
+         *     `fields` omitted leaves the named fields alone; present (even empty)
+         *     replaces them. `premium_share` and `effective_to` move money between
+         *     vehicles, so the route demands write access to the whole policy for them.
+         */
+        PolicyVehicleUpdate: {
+            /** Coverage Limits */
+            coverage_limits?: string | null;
+            /** Deductible */
+            deductible?: number | string | null;
+            /** Effective To */
+            effective_to?: string | null;
+            /** Fields */
+            fields?: components["schemas"]["NamedField"][] | null;
+            /** Notes */
+            notes?: string | null;
+            /** Policy Type */
+            policy_type?: ("Liability" | "Comprehensive" | "Collision" | "Full Coverage" | "Minimum" | "Other") | null;
+            /** Premium Share */
+            premium_share?: number | string | null;
+        };
+        /**
+         * PolicyVehicleUpsert
+         * @description One vehicle in the policy form's FULL vehicle list (see
+         *     `InsurancePolicyUpdate.vehicles`). Matched to an existing link by VIN.
+         */
+        PolicyVehicleUpsert: {
+            /** Coverage Limits */
+            coverage_limits?: string | null;
+            /** Deductible */
+            deductible?: number | string | null;
+            /** Effective To */
+            effective_to?: string | null;
+            /**
+             * Fields
+             * @description Omit to leave an existing vehicle's named fields alone
+             */
+            fields?: components["schemas"]["NamedField"][] | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Policy Type
+             * @enum {string}
+             */
+            policy_type: "Liability" | "Comprehensive" | "Collision" | "Full Coverage" | "Minimum" | "Other";
+            /** Premium Share */
+            premium_share?: number | string | null;
+            /** Vin */
+            vin: string;
         };
         /**
          * QuickEntryVehicle
@@ -21306,6 +21629,44 @@ export interface operations {
             };
         };
     };
+    parse_insurance_pdf_api_insurance_parse_pdf_post: {
+        parameters: {
+            query?: {
+                /** @description Optional provider hint (progressive, statefarm, geico, allstate) */
+                provider?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_parse_insurance_pdf_api_insurance_parse_pdf_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_insurance_parsers_api_insurance_parsers_get: {
         parameters: {
             query?: never;
@@ -21324,6 +21685,410 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    list_policies_api_insurance_policies_get: {
+        parameters: {
+            query?: {
+                /** @description Only policies covering this vehicle */
+                vin?: string | null;
+                /** @description current = active + upcoming */
+                status?: "current" | "active" | "upcoming" | "expired" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_policy_api_insurance_policies_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsurancePolicyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_policy_api_insurance_policies__policy_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_policy_api_insurance_policies__policy_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsurancePolicyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_policy_api_insurance_policies__policy_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    policy_history_api_insurance_policies__policy_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyHistoryEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    renew_policy_api_insurance_policies__policy_id__renew_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsurancePolicyRenew"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_policy_api_insurance_policies__policy_id__replace_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsurancePolicyReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attach_vehicle_api_insurance_policies__policy_id__vehicles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyVehicleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detach_vehicle_api_insurance_policies__policy_id__vehicles__link_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: number;
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_policy_vehicle_api_insurance_policies__policy_id__vehicles__link_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_id: number;
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyVehicleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_parse_insurance_pdf_api_insurance_test_parse_post: {
+        parameters: {
+            query?: {
+                /** @description Optional provider hint */
+                provider?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_test_parse_insurance_pdf_api_insurance_test_parse_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -25072,7 +25837,7 @@ export interface operations {
             };
         };
     };
-    get_insurance_policies_api_vehicles__vin__insurance_get: {
+    list_vehicle_insurance_api_vehicles__vin__insurance_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -25089,221 +25854,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InsurancePolicy"][];
+                    "application/json": components["schemas"]["InsurancePolicyResponse"][];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_insurance_policy_api_vehicles__vin__insurance_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                vin: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InsurancePolicyCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InsurancePolicy"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post: {
-        parameters: {
-            query?: {
-                /** @description Optional provider hint (progressive, statefarm, geico, allstate) */
-                provider?: string | null;
-            };
-            header?: never;
-            path: {
-                vin: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post: {
-        parameters: {
-            query?: {
-                /** @description Optional provider hint */
-                provider?: string | null;
-            };
-            header?: never;
-            path: {
-                vin: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_insurance_policy_api_vehicles__vin__insurance__policy_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                vin: string;
-                policy_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InsurancePolicy"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_insurance_policy_api_vehicles__vin__insurance__policy_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                vin: string;
-                policy_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InsurancePolicyUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InsurancePolicy"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_insurance_policy_api_vehicles__vin__insurance__policy_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                vin: string;
-                policy_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {

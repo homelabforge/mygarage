@@ -50,6 +50,8 @@ from app.models import (
     FuelRecord,
     HoursRecord,
     InsurancePolicy,
+    InsurancePolicyField,
+    InsurancePolicyVehicle,
     Note,
     OdometerRecord,
     Reminder,
@@ -59,6 +61,7 @@ from app.models import (
     WarrantyRecord,
 )
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.models.vendor import Vendor
 from app.schemas.fuel import _validate_diesel_grade, _validate_octane
 from app.services import maintenance_service
@@ -67,6 +70,7 @@ from app.services.fuel_side_effects import (
     apply_fuel_record_side_effects,
     invalidate_cache_for_vehicle,
 )
+from app.services.insurance_service import InsuranceService
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.csv_units import (
     CONSUMPTION,
@@ -233,11 +237,180 @@ _JSON_IMPORT_SECTIONS = (
     "odometer_records",
     "reminders",
     "notes",
+    "insurance_policies",
 )
 
 # Valid service categories matching the ServiceVisit check constraint
 VALID_SERVICE_CATEGORIES = {"Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"}
 limiter = Limiter(key_func=get_remote_address)
+
+
+class _InsuranceRowError(ValueError):
+    """An insurance row that cannot be imported, with a user-facing reason."""
+
+
+def _whole_cents(value: Decimal | None, column: str) -> Decimal | None:
+    """The amount, or a row error when it has a fraction of a cent."""
+    if value is None:
+        return None
+    if value != value.quantize(Decimal("0.01")):
+        raise _InsuranceRowError(f"{column} must be a whole number of cents")
+    if value < 0:
+        raise _InsuranceRowError(f"{column} must not be negative")
+    return value
+
+
+async def _import_insurance_row(
+    db: AsyncSession,
+    access: Any,
+    vin: str,
+    row: dict[str, Any],
+    created_in_run: set[int],
+    skip_duplicates: bool,
+) -> bool:
+    """Put one vehicle's insurance row onto a household policy.
+
+    Returns False when the row was skipped as a duplicate. The policy is found
+    by the same key migration 107 merges on, so importing two vehicles' files
+    rebuilds ONE household policy.
+
+    THE IMPORTER NEVER REWRITES EXISTING MONEY. A policy created earlier in this
+    same import accumulates its total from the rows; a PRE-EXISTING policy only
+    ever grows by the imported vehicle's own premium, which by construction
+    leaves every existing effective share unchanged. An unknown (blank) premium
+    is never attached to a priced pre-existing policy, because an unset share
+    would dilute every sibling; it gets a policy of its own.
+    """
+    provider = (row["provider"] or "").strip()
+    number = (row["policy_number"] or "").strip()
+    # Importers build ORM rows directly, so the API schema's whole-cents rule
+    # does not reach them: 0.005 + 0.005 adds up to a 0.01 premium here and is
+    # then STORED as two 0.01 shares, which no longer fit it.
+    premium: Decimal | None = _whole_cents(row["premium"], "Premium")
+    row["deductible"] = _whole_cents(row["deductible"], "Deductible")
+    frequency = row["premium_frequency"]
+
+    candidates = (
+        (
+            await db.execute(
+                select(InsurancePolicy)
+                .where(
+                    func.lower(func.trim(InsurancePolicy.provider)) == provider.lower(),
+                    func.trim(InsurancePolicy.policy_number) == number,
+                    InsurancePolicy.start_date == row["start_date"],
+                    InsurancePolicy.end_date == row["end_date"],
+                    InsurancePolicy.premium_frequency.is_(None)
+                    if frequency is None
+                    else InsurancePolicy.premium_frequency == frequency,
+                )
+                .order_by(InsurancePolicy.id)
+                # Two imports for DIFFERENT vehicles hold different vehicle locks
+                # on PostgreSQL yet can target the same policy, and both add to
+                # its premium: lock the policy rows before reading their money.
+                # (SQLite imports already hold the database write lock, and
+                # `with_for_update` compiles away there.)
+                .with_for_update(of=InsurancePolicy)
+                .execution_options(populate_existing=True)
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    # THE OWNER BOUNDARY, same as migration 107's merge key: a row joins a
+    # policy only when every vehicle already on it belongs to this vehicle's
+    # owner (an empty policy counts by its creator). Without it an admin
+    # importing two owners' look-alike files would weld them into one policy,
+    # and each owner would gain a window into, and a say over, the other's.
+    owner_id = await db.scalar(select(Vehicle.user_id).where(Vehicle.vin == vin))
+    linked_vins = {link.vin for p in candidates for link in p.vehicle_links}
+    owners = (
+        dict(
+            (
+                await db.execute(
+                    select(Vehicle.vin, Vehicle.user_id).where(Vehicle.vin.in_(linked_vins))
+                )
+            ).all()
+        )
+        if linked_vins
+        else {}
+    )
+
+    def _same_owner(policy: InsurancePolicy) -> bool:
+        if not policy.vehicle_links:
+            return policy.created_by_user_id == owner_id
+        return all(owners.get(link.vin) == owner_id for link in policy.vehicle_links)
+
+    readable = [p for p in candidates if access.can_read(p) and _same_owner(p)]
+    if skip_duplicates and any(link.vin == vin for p in readable for link in p.vehicle_links):
+        return False
+
+    target: InsurancePolicy | None = None
+    for policy in readable:
+        if any(link.vin == vin for link in policy.vehicle_links):
+            continue
+        if policy.id in created_in_run:
+            target = policy
+            break
+        if premium is None and policy.premium_amount is not None:
+            continue
+        if not access.can_write(policy):
+            raise _InsuranceRowError(
+                "this policy already exists and adding a vehicle to it needs write "
+                "access to every vehicle it covers"
+            )
+        target = policy
+        break
+
+    # Children are appended while a new policy is still PENDING: once flushed,
+    # touching its unloaded collections would be an async lazy load.
+    async with db.begin_nested():
+        is_new = target is None
+        if target is None:
+            target = InsurancePolicy(
+                provider=provider,
+                policy_number=number,
+                start_date=row["start_date"],
+                end_date=row["end_date"],
+                premium_amount=premium,
+                premium_frequency=frequency,
+                notes=row.get("policy_notes"),
+                created_by_user_id=access.user_id,
+            )
+            db.add(target)
+            for order, item in enumerate(row.get("policy_fields") or []):
+                target.all_fields.append(
+                    InsurancePolicyField(label=item["label"], value=item["value"], sort_order=order)
+                )
+        elif target.id in created_in_run:
+            target.premium_amount = (
+                target.premium_amount + premium
+                if target.premium_amount is not None and premium is not None
+                else None
+            )
+        elif target.premium_amount is not None and premium is not None:
+            target.premium_amount = target.premium_amount + premium
+
+        link = InsurancePolicyVehicle(
+            vin=vin,
+            policy_type=row["policy_type"],
+            premium_share=premium,
+            deductible=row["deductible"],
+            coverage_limits=row["coverage_limits"],
+            notes=row["notes"],
+            effective_to=row.get("effective_to"),
+        )
+        target.vehicle_links.append(link)
+        for order, item in enumerate(row.get("fields") or []):
+            target.all_fields.append(
+                InsurancePolicyField(
+                    policy_vehicle=link, label=item["label"], value=item["value"], sort_order=order
+                )
+            )
+        await db.flush()
+    if is_new:
+        created_in_run.add(target.id)
+    return True
 
 
 class ImportResult:
@@ -1028,53 +1201,36 @@ async def import_insurance_csv(
 
     import_result = ImportResult()
 
+    access = await InsuranceService(db).access_for(current_user)
+    created_in_run: set[int] = set()
+
     for row_num, row in enumerate(csv_reader, start=2):
         try:
-            provider = row.get("Provider", "").strip() or None
-            policy_number = row.get("Policy Number", "").strip() or None
-            policy_type = row.get("Type", "").strip() or None
-            start_date = parse_date(row.get("Start Date", ""))
-            end_date = parse_date(row.get("End Date", ""))
-            premium_amount = parse_decimal(row.get("Premium", ""))
-            premium_frequency = row.get("Premium Frequency", "").strip() or None
-            deductible = parse_decimal(row.get("Deductible", ""))
-            coverage_limits = row.get("Coverage Limits", "").strip() or None
-            notes = row.get("Notes", "").strip() or None
-
-            # Check for duplicates if requested
-            if skip_duplicates and policy_number:
-                existing = await db.execute(
-                    select(InsurancePolicy).where(
-                        InsurancePolicy.vin == vin,
-                        InsurancePolicy.policy_number == policy_number,
-                    )
-                )
-                if existing.scalar_one_or_none():
-                    import_result.add_skip()
-                    continue
-
-            # Create record
-            record = InsurancePolicy(
-                vin=vin,
-                provider=provider,
-                policy_number=policy_number,
-                policy_type=policy_type,
-                start_date=start_date,
-                end_date=end_date,
-                premium_amount=premium_amount,
-                premium_frequency=premium_frequency,
-                deductible=deductible,
-                coverage_limits=coverage_limits,
-                notes=notes,
+            imported = await _import_insurance_row(
+                db,
+                access,
+                vin,
+                {
+                    "provider": row.get("Provider", ""),
+                    "policy_number": row.get("Policy Number", ""),
+                    "policy_type": row.get("Type", "").strip() or None,
+                    "start_date": parse_date(row.get("Start Date", "")),
+                    "end_date": parse_date(row.get("End Date", "")),
+                    "premium": parse_decimal(row.get("Premium", "")),
+                    "premium_frequency": row.get("Premium Frequency", "").strip() or None,
+                    "deductible": parse_decimal(row.get("Deductible", "")),
+                    "coverage_limits": row.get("Coverage Limits", "").strip() or None,
+                    "notes": row.get("Notes", "").strip() or None,
+                },
+                created_in_run,
+                skip_duplicates,
             )
-            # A savepoint per row. Without it the INSERT is only attempted at
-            # the commit below, which is outside this handler: a CHECK
-            # violation would escape the route as a 500 and discard every
-            # valid row in the file along with the bad one.
-            async with db.begin_nested():
-                db.add(record)
-            import_result.add_success()
-
+            if imported:
+                import_result.add_success()
+            else:
+                import_result.add_skip()
+        except _InsuranceRowError as e:
+            import_result.add_error(row_num, str(e))
         except Exception as e:
             logger.error("Import row %d failed: %s", row_num, e)
             import_result.add_error(row_num, "Invalid record data")
@@ -1309,6 +1465,7 @@ async def import_vehicle_json(
         "odometer_records": {"success": 0, "errors": 0, "skipped": 0},
         "reminders": {"success": 0, "errors": 0, "skipped": 0},
         "notes": {"success": 0, "errors": 0, "skipped": 0},
+        "insurance_policies": {"success": 0, "errors": 0, "skipped": 0},
         "errors": [],
     }
 
@@ -1674,6 +1831,46 @@ async def import_vehicle_json(
             logger.warning("Import: note %s failed: %s", idx, sanitize_for_log(e))
             results["errors"].append(f"Note {idx}: could not be imported")
 
+    # Import insurance: each entry is THIS vehicle's place on a household policy.
+    insurance_access = await InsuranceService(db).access_for(current_user)
+    insurance_created: set[int] = set()
+    for idx, entry in enumerate(sections["insurance_policies"]):
+        try:
+            premium = entry.get("premium_share")
+            deductible = entry.get("deductible")
+            imported = await _import_insurance_row(
+                db,
+                insurance_access,
+                vin,
+                {
+                    "provider": entry["provider"],
+                    "policy_number": entry["policy_number"],
+                    "policy_type": entry.get("policy_type"),
+                    "start_date": datetime.fromisoformat(entry["start_date"]).date(),
+                    "end_date": datetime.fromisoformat(entry["end_date"]).date(),
+                    "premium": Decimal(str(premium)) if premium is not None else None,
+                    "premium_frequency": entry.get("premium_frequency"),
+                    "deductible": Decimal(str(deductible)) if deductible is not None else None,
+                    "coverage_limits": entry.get("coverage_limits"),
+                    "notes": entry.get("notes"),
+                    "fields": entry.get("fields") or [],
+                    "policy_fields": entry.get("policy_fields") or [],
+                    "policy_notes": entry.get("policy_notes"),
+                    "effective_to": (
+                        datetime.fromisoformat(entry["effective_to"]).date()
+                        if entry.get("effective_to")
+                        else None
+                    ),
+                },
+                insurance_created,
+                skip_duplicates=True,
+            )
+            results["insurance_policies"]["success" if imported else "skipped"] += 1
+        except Exception as e:
+            results["insurance_policies"]["errors"] += 1
+            logger.warning("Import: insurance policy %s failed: %s", idx, sanitize_for_log(e))
+            results["errors"].append(f"Insurance policy {idx}: could not be imported")
+
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once.
     await maintenance_service.reconcile_vehicle(db, vin)
@@ -1685,6 +1882,7 @@ async def import_vehicle_json(
         "odometer_records",
         "reminders",
         "notes",
+        "insurance_policies",
     )
     for key in metric_keys:
         bucket = results[key]

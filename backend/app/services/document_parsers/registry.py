@@ -78,12 +78,15 @@ class DocumentParserRegistry:
     def list_insurance_parsers(cls) -> list[dict[str, Any]]:
         """List all registered insurance parsers."""
         cls._ensure_initialized()
+        # One entry per PARSER: "statefarm" and "state farm" are two hint
+        # spellings of one class, and listing both showed State Farm twice.
+        unique = dict.fromkeys(cls._insurance_parsers.values())
         return [
             {
                 "provider": parser_class.PROVIDER_NAME,
                 "parser_name": parser_class.PARSER_NAME,
             }
-            for _name, parser_class in cls._insurance_parsers.items()
+            for parser_class in unique
         ]
 
     @classmethod

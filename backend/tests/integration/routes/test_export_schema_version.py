@@ -232,20 +232,18 @@ class TestWarrantyInsuranceCSVSchemaVersion:
     async def test_insurance_csv_emits_the_schema_version(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
-        from app.models.insurance import InsurancePolicy
+        from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 
         vin = "SCHVERINS00000001"
         await _make_vehicle(db_session, test_user, vin, "InsuranceSchemaVer")
-        db_session.add(
-            InsurancePolicy(
-                vin=vin,
-                provider="Acme",
-                policy_number="P123",
-                policy_type="Liability",
-                start_date=date(2026, 1, 1),
-                end_date=date(2027, 1, 1),
-            )
+        policy = InsurancePolicy(
+            provider="Acme",
+            policy_number="P123",
+            start_date=date(2026, 1, 1),
+            end_date=date(2027, 1, 1),
         )
+        policy.vehicle_links.append(InsurancePolicyVehicle(vin=vin, policy_type="Liability"))
+        db_session.add(policy)
         await db_session.commit()
 
         response = await client.get(
@@ -302,12 +300,13 @@ class TestCSVSchemaVersionAlsoAppliesToUnitBearingPairs:
 
 
 class TestJSONExportVersionUnchanged:
-    """The JSON backup's `export_version` is the current JSON literal ("6" since the #164 fuel-grade keys).
+    """The JSON backup's `export_version` is the current JSON literal ("7" since
+    the household `insurance_policies` list; "6" was the #164 fuel-grade keys).
 
     Proves JSON_SCHEMA_VERSION did not silently move alongside CSV_SCHEMA_VERSION.
     """
 
-    async def test_json_export_emits_schema_version_6(
+    async def test_json_export_emits_schema_version_7(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
         from app.models.hours import HoursRecord
@@ -329,7 +328,7 @@ class TestJSONExportVersionUnchanged:
         assert response.status_code == 200, response.text
 
         data = response.json()
-        assert data["export_version"] == "6"
+        assert data["export_version"] == "7"
         assert data["units"] == "metric"
         matching = [r for r in data["hours_records"] if r["date"] == "2026-05-05"]
         assert len(matching) == 1

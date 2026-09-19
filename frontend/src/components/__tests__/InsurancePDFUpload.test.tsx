@@ -37,7 +37,7 @@ const fileInput = () => screen.getByLabelText('insurancePdfUpload.chooseFile') a
 describe('InsurancePDFUpload — portal (coupled contract, keep green)', () => {
   it('portals its overlay to document.body, escaping any ancestor container (e.g. an inert #root while the insurance drawer is open)', () => {
     const { container } = render(
-      <InsurancePDFUpload vin="1HGCM82633A004352" onDataExtracted={vi.fn()} onClose={vi.fn()} />,
+      <InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />,
     )
     const heading = screen.getByRole('heading', { name: 'insurancePdfUpload.title' })
     expect(document.body).toContainElement(heading)
@@ -51,7 +51,7 @@ describe('InsurancePDFUpload — labelled dropzone: upload guard + parse + confi
     // per-call options arg), so the component's OWN guard — not userEvent's accept filter — is
     // what rejects the .txt. Mirrors the P6b ServiceVisitAttachmentUpload precedent exactly.
     const user = userEvent.setup({ applyAccept: false })
-    render(<InsurancePDFUpload vin="V1" onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
     await user.upload(fileInput(), new File(['x'], 'notes.txt', { type: 'text/plain' }))
     expect(screen.getByText('insurancePdfUpload.errorInvalidType')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'insurancePdfUpload.parse' })).not.toBeInTheDocument()
@@ -60,7 +60,7 @@ describe('InsurancePDFUpload — labelled dropzone: upload guard + parse + confi
 
   it('the Choose-File affordance is KEYBOARD-operable: it is a focusable control that, on Enter, triggers the hidden file input (fails if the trigger is a non-focusable element or its ref-click handler is dropped — the B3→M6 keyboard regression this restores)', async () => {
     const user = userEvent.setup()
-    render(<InsurancePDFUpload vin="V1" onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
     // Spy on the exact input instance the visible <Button> is wired to (via fileInputRef); mock the
     // impl so calling through does not dispatch a spurious change in jsdom. getByLabelText resolves
     // the input through the sr-only <label htmlFor>, proving that same input is the ref target.
@@ -76,9 +76,9 @@ describe('InsurancePDFUpload — labelled dropzone: upload guard + parse + confi
   it('uploads a PDF via the labelled dropzone, then Parse POSTs the EXACT File to the exact endpoint/options and renders the extracted value + confidence label (fails if the input is unassociated, the file is dropped/mis-fielded, or the endpoint/options are wrong)', async () => {
     const user = userEvent.setup()
     postMock.mockResolvedValue({
-      data: { success: true, data: { ...emptyData, provider: 'Geico' }, confidence: { provider: 'high' }, vehicles_found: [], warnings: [] },
+      data: { success: true, data: { ...emptyData, provider: 'Geico' }, confidence: { provider: 'high' }, vehicles: [], confidence_score: 80, parser_used: 'generic', warnings: [] },
     })
-    render(<InsurancePDFUpload vin="1HGCM82633A004352" onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
     const input = fileInput()
     const file = new File(['%PDF-1.4'], 'policy.pdf', { type: 'application/pdf' })
     await user.upload(input, file)
@@ -89,7 +89,7 @@ describe('InsurancePDFUpload — labelled dropzone: upload guard + parse + confi
     // B4: assert object identity + field name + endpoint + the exact multipart options — NOT
     // merely toBeInstanceOf(File), which any substituted File would satisfy (P6b precedent).
     const [url, body, opts] = postMock.mock.calls[0] as [string, FormData, Record<string, unknown>]
-    expect(url).toBe('/vehicles/1HGCM82633A004352/insurance/parse-pdf')
+    expect(url).toBe('/insurance/parse-pdf') // household-level: a declarations page is not one vehicle's
     expect(body).toBeInstanceOf(FormData)
     expect(body.get('file')).toBe(file) // the exact File, under the exact field name 'file'
     expect(opts).toEqual({ headers: { 'Content-Type': 'multipart/form-data' } })
@@ -104,10 +104,10 @@ describe('InsurancePDFUpload — labelled dropzone: upload guard + parse + confi
         success: true,
         data: { ...emptyData, provider: 'Geico', policy_number: 'POL-1', deductible: '500' },
         confidence: { provider: 'high', policy_number: 'medium', deductible: 'low' },
-        vehicles_found: [], warnings: [],
+        vehicles: [], confidence_score: 80, parser_used: 'generic', warnings: [],
       },
     })
-    render(<InsurancePDFUpload vin="V1" onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
     await user.upload(fileInput(), new File(['%PDF-1.4'], 'policy.pdf', { type: 'application/pdf' }))
     await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
     await screen.findByText('insurancePdfUpload.parseSuccess')
@@ -117,18 +117,63 @@ describe('InsurancePDFUpload — labelled dropzone: upload guard + parse + confi
     expect(screen.getByText('insurancePdfUpload.confidenceLow')).toHaveAttribute('data-tone', 'danger')
   })
 
+  it('shows a confidence badge for the DATES, which every parser reports under one `dates` key (fails if the start_date/end_date alias is dropped: the badge then never renders)', async () => {
+    const user = userEvent.setup()
+    postMock.mockResolvedValue({
+      data: {
+        success: true,
+        data: { ...emptyData, start_date: '2026-01-01' },
+        confidence: { dates: 'medium' },
+        vehicles: [], confidence_score: 60, parser_used: 'progressive', warnings: [],
+      },
+    })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'policy.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    await screen.findByText('insurancePdfUpload.parseSuccess')
+    expect(screen.getByText('insurancePdfUpload.confidenceMedium')).toHaveAttribute('data-tone', 'warning')
+  })
+
+  it('lists every vehicle on the document and marks which ones are in the garage', async () => {
+    const user = userEvent.setup()
+    postMock.mockResolvedValue({
+      data: {
+        success: true,
+        data: { ...emptyData, provider: 'Progressive' },
+        confidence: {},
+        vehicles: [
+          { vin: 'VINMATCHED0000001', matched: true, vehicle_name: 'Ram', premium_share: '320.00', deductible: '500.00' },
+          { vin: 'VINUNKNOWN0000002', matched: false, vehicle_name: null, premium_share: null, deductible: null },
+        ],
+        confidence_score: 90, parser_used: 'progressive', warnings: [],
+      },
+    })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'policy.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    await screen.findByText('insurancePdfUpload.parseSuccess')
+    expect(screen.getByText('Ram')).toBeInTheDocument()
+    expect(screen.getByText('insurancePdfUpload.vehicleMatched')).toHaveAttribute('data-tone', 'success')
+    expect(screen.getByText('VINUNKNOWN0000002')).toBeInTheDocument()
+    expect(screen.getByText('insurancePdfUpload.vehicleNotInGarage')).toHaveAttribute('data-tone', 'muted')
+  })
+
   it('after a parse, "Use This Data" hands the extracted fields back and closes (fails if the apply-to-form wiring breaks)', async () => {
     const user = userEvent.setup()
     const onDataExtracted = vi.fn()
     const onClose = vi.fn()
     postMock.mockResolvedValue({
-      data: { success: true, data: { ...emptyData, provider: 'Geico', policy_number: 'POL-9' }, confidence: { provider: 'high' }, vehicles_found: [], warnings: [] },
+      data: { success: true, data: { ...emptyData, provider: 'Geico', policy_number: 'POL-9' }, confidence: { provider: 'high' }, vehicles: [], confidence_score: 80, parser_used: 'generic', warnings: [] },
     })
-    render(<InsurancePDFUpload vin="V1" onDataExtracted={onDataExtracted} onClose={onClose} />)
+    render(<InsurancePDFUpload onDataExtracted={onDataExtracted} onClose={onClose} />)
     await user.upload(fileInput(), new File(['%PDF-1.4'], 'policy.pdf', { type: 'application/pdf' }))
     await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
     await user.click(await screen.findByRole('button', { name: 'insurancePdfUpload.useThisData' }))
-    expect(onDataExtracted).toHaveBeenCalledWith({ provider: 'Geico', policy_number: 'POL-9' })
+    // The WHOLE parse goes back, so the form can attach the document's vehicles too.
+    expect(onDataExtracted).toHaveBeenCalledTimes(1)
+    const handed = onDataExtracted.mock.calls[0][0]
+    expect(handed.data).toMatchObject({ provider: 'Geico', policy_number: 'POL-9' })
+    expect(handed.vehicles).toEqual([])
     expect(onClose).toHaveBeenCalled()
   })
 })

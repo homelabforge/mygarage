@@ -36,6 +36,10 @@ class InsuranceData(DocumentData):
 
     # Vehicle info
     vehicles_found: list[str] = field(default_factory=list)
+    #: Per-VIN figures for EVERY vehicle on the document, where the parser can
+    #: find a per-vehicle section. A household policy covers several vehicles,
+    #: so the target VIN's figures alone discard most of the declarations page.
+    vehicle_details: dict[str, dict[str, Decimal]] = field(default_factory=dict)
 
     # Notes
     notes: str | None = None
@@ -61,6 +65,10 @@ class InsuranceData(DocumentData):
                 "deductible": str(self.deductible) if self.deductible else None,
                 "coverage_limits": self.coverage_limits,
                 "vehicles_found": self.vehicles_found,
+                "vehicle_details": {
+                    vin: {name: str(amount) for name, amount in figures.items()}
+                    for vin, figures in self.vehicle_details.items()
+                },
                 "notes": self.notes,
                 "field_confidence": self.field_confidence,
             }
@@ -249,6 +257,10 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
 
         # Extract all VINs
         data.vehicles_found = self._extract_all_vins(text)
+        for found_vin in data.vehicles_found:
+            figures = self._extract_vehicle_specific_data(text, found_vin)
+            if figures:
+                data.vehicle_details[found_vin.upper()] = figures
 
         # If target VIN specified, extract vehicle-specific data
         if target_vin and target_vin.upper() in [v.upper() for v in data.vehicles_found]:
