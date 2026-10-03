@@ -45,6 +45,7 @@ const VOLUME_UNIT_NAMES: Record<string, RegExp> = {
   'pt-BR': /\b(litros?|gal[ãa]o|gal[õo]es)\b/iu,
   ru: /(литр|галлон)/iu,
   uk: /(літр|галон)/iu,
+  it: /\b(litr[io]|galloni?)\b/iu,
 }
 
 /** Which caption lives where: the component that renders it, and its bundle. */

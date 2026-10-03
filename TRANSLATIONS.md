@@ -6,15 +6,16 @@ MyGarage supports multiple languages through community contributions.
 
 | | Language | Code | Progress | Keys |
 |---|----------|------|----------|------|
-| 🇺🇸 | English | `en` | `████████████████████` 100% | 4349/4349 |
-| 🇩🇪 | German | `de` | `████████████████░░░░` 81% | 3526/4349 |
-| 🇫🇷 | French | `fr` | `██████████████░░░░░░` 71% | 3067/4349 |
-| 🇷🇺 | Russian | `ru` | `███████░░░░░░░░░░░░░` 36% | 1553/4349 |
-| 🇺🇦 | Ukrainian | `uk` | `███████░░░░░░░░░░░░░` 36% | 1552/4349 |
-| 🇵🇱 | Polish | `pl` | `███████░░░░░░░░░░░░░` 35% | 1535/4349 |
-| 🇧🇷 | Brazilian Portuguese | `pt-BR` | `███████░░░░░░░░░░░░░` 35% | 1528/4349 |
+| 🇺🇸 | English | `en` | `████████████████████` 100% | 4412/4412 |
+| 🇮🇹 | Italian | `it` | `████████████████████` 98% | 4320/4412 |
+| 🇩🇪 | German | `de` | `████████████████░░░░` 80% | 3512/4412 |
+| 🇫🇷 | French | `fr` | `██████████████░░░░░░` 69% | 3058/4412 |
+| 🇵🇱 | Polish | `pl` | `███████░░░░░░░░░░░░░` 35% | 1533/4412 |
+| 🇧🇷 | Brazilian Portuguese | `pt-BR` | `███████░░░░░░░░░░░░░` 35% | 1526/4412 |
+| 🇷🇺 | Russian | `ru` | `███████░░░░░░░░░░░░░` 35% | 1551/4412 |
+| 🇺🇦 | Ukrainian | `uk` | `███████░░░░░░░░░░░░░` 35% | 1550/4412 |
 
-**Overall: 49%** average completion across 6 translated languages — English is the source (100%)
+**Overall: 55%** average completion across 7 translated languages — English is the source (100%)
 
 ---
 
