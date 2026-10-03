@@ -441,7 +441,7 @@
     {
       "path": "public/sw.js",
       "disposition": "no unit behaviour",
-      "digest": "2315de290a850cc3a9a2f217fac916cb6d6404b835588e34d67a6c0d61f1f695",
+      "digest": "fbe59f92d58b44805a69c6c5d79c5d46b7cd5a3df66300827f1853213d2d8545",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
     },
     {
