@@ -12,7 +12,7 @@ interface BrandLogoProps {
 export default function BrandLogo({
   make,
   logoSlug,
-  className = 'w-5 h-5',
+  className = 'w-7 h-7',
   imgClassName = 'w-full h-full object-contain',
 }: BrandLogoProps) {
   const [error, setError] = useState(false)
@@ -28,17 +28,17 @@ export default function BrandLogo({
   if (!url) {
     return (
       <div
-        className={`flex items-center justify-center rounded bg-surface-2 text-text-mute shrink-0 ${className}`}
+        className={`flex items-center justify-center rounded-md bg-surface-2 text-text-mute shrink-0 ${className}`}
         aria-hidden="true"
       >
-        <Car className="w-3.5 h-3.5" />
+        <Car className="w-1/2 h-1/2 opacity-70" />
       </div>
     )
   }
 
   return (
     <div
-      className={`flex items-center justify-center rounded bg-white/10 dark:bg-white/10 p-0.5 shrink-0 ${className}`}
+      className={`flex items-center justify-center rounded-md bg-white dark:bg-white/10 p-1 shadow-xs border border-border/50 shrink-0 ${className}`}
     >
       <img
         src={url}

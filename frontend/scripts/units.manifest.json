@@ -2198,13 +2198,13 @@
     {
       "path": "src/components/vehicles/BrandLogo.tsx",
       "disposition": "no unit behaviour",
-      "digest": "a4de14724fb5ef29f3cc1f7454114bb8505ba01b038dc8e4ff0f872e29f429ed",
+      "digest": "18a93217755037dc0c8be3f6f00492eab69a287f276abcabefa23fd11acd3991",
       "reason": "no unit behaviour: brand logo display component, no unit calculations or conversions."
     },
     {
       "path": "src/components/vehicles/MakeSelect.tsx",
       "disposition": "no unit behaviour",
-      "digest": "263e7d0954f2a4057e55aaca3d6f0c778b35ce61fedde8ee330237f65c27348d",
+      "digest": "be2a8ce00883f82c4f37cd40e866bc91fbf57cf3b6751be4b85fbfe7f22b5b2f",
       "reason": "no unit behaviour: make dropdown selection combobox, no unit calculations or conversions."
     },
     {
