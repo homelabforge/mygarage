@@ -125,6 +125,7 @@ ever reads 100%, even when complete: shared terms like `VIN`, `MyGarage` and
 | en | English (canonical source) |
 | de | German |
 | fr | French |
+| it | Italian |
 | pl | Polish |
 | pt-BR | Brazilian Portuguese |
 | ru | Russian |

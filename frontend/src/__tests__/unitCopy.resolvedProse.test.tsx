@@ -213,7 +213,7 @@ describe('the fixed copy, across every locale bundle on disk', () => {
     // Seven: `en` under src/locales plus six lazy-loaded under public/locales.
     // Asserted so a walk that lost the lazy half fails HERE, rather than
     // reporting six languages of unconditional copy as clean.
-    expect(found).toStrictEqual(['en', 'de', 'fr', 'pl', 'pt-BR', 'ru', 'uk'])
+    expect(found).toStrictEqual(['en', 'de', 'fr', 'it', 'pl', 'pt-BR', 'ru', 'uk'])
   })
 
   it('still has every fixed key in en, so the guard below has a subject', () => {
@@ -247,9 +247,10 @@ describe('the fixed copy, across every locale bundle on disk', () => {
     // of these and carry none, which is stated here rather than hidden behind a
     // total. If a restoration is ever removed, this list shrinks and the test
     // fails before the emptiness below can go vacuous.
-    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr'])
+    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it'])
     expect(readsByBundle.get('de')).toBeGreaterThan(0)
     expect(readsByBundle.get('fr')).toBeGreaterThan(0)
+    expect(readsByBundle.get('it')).toBeGreaterThan(0)
 
     expect(offenders).toStrictEqual([])
   })

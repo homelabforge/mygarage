@@ -147,6 +147,7 @@ const DISTANCE_UNIT_NAMES: Record<string, RegExp> = {
   'pt-BR': /\b(milhas?|quil[oô]metros?|km|mi)\b/iu,
   ru: /(мил[яеиь]|километр|\bкм\b)/iu,
   uk: /(мил[яеіь]|кілометр|\bкм\b)/iu,
+  it: /\b(migli[ao]|chilometr[io]|km|mi)\b/iu,
 }
 
 /**
