@@ -123,6 +123,57 @@
       ]
     },
     {
+      "path": "public/locales/ms/analytics.json",
+      "disposition": "audited",
+      "digest": "1b8513590409506e24de9f11d4dd5ee4ea8def64765ddfb83a51acd542a192e0",
+      "reason": "Malay analytics locale reviewed for unit-sensitive copy. Existing {{unit}} and {{currency}} placeholders are preserved and unit-bearing labels remain parameterized rather than hardcoding a display-unit choice. No new unit conversion or unit-selection behaviour is introduced.",
+      "tests": [
+        "__tests__/volumeTotalLabelLocales.test.ts"
+      ]
+    },
+    {
+      "path": "public/locales/ms/common.json",
+      "disposition": "no unit behaviour",
+      "digest": "3212c3e29bc91cf7131ec2155173161a22767d2480b76e119ac2039cc1bffe7a",
+      "reason": "Malay common locale contains shared UI, validation, account, address-book and error copy only; no unit-bearing quantity or display-unit choice is introduced."
+    },
+    {
+      "path": "public/locales/ms/forms.json",
+      "disposition": "audited",
+      "digest": "89b2d37cb12a6315fdd36219930a5c45a94db07ee1e6b7dcd331360a7fc084fb",
+      "reason": "Malay forms locale reviewed for unit-sensitive copy. Existing {{unit}} and other interpolation placeholders are preserved; explicit unit names occur only where the form is asking for or describing the unit itself. No display-unit decision is hardcoded by the translation.",
+      "tests": [
+        "components/__tests__/ReminderForm.distanceCopy.test.tsx",
+        "__tests__/unitCopy.resolvedProse.test.tsx"
+      ]
+    },
+    {
+      "path": "public/locales/ms/nav.json",
+      "disposition": "no unit behaviour",
+      "digest": "65696051e457b4780aa35144fb27a71bb8e163d875b204dfbfe92cc7bafd4fb8",
+      "reason": "Malay navigation locale contains navigation and menu labels only; no unit-bearing quantity or display-unit choice is introduced."
+    },
+    {
+      "path": "public/locales/ms/settings.json",
+      "disposition": "audited",
+      "digest": "44062453d1db2c50687b809449971e8cd216d319212f3a0153a9f8908954391f",
+      "reason": "Malay settings locale reviewed for unit-sensitive copy. Unit names and symbols appear in the unit-preference UI as selectable choices and retain the source symbols; resolved quantities remain driven by the application's unit settings. No independent display-unit decision is introduced.",
+      "tests": [
+        "__tests__/unitDescriptionLocales.test.ts",
+        "components/settings/__tests__/UnitPreferencesCard.resolved.test.tsx",
+        "__tests__/unitCopy.resolvedProse.test.tsx"
+      ]
+    },
+    {
+      "path": "public/locales/ms/vehicles.json",
+      "disposition": "audited",
+      "digest": "926bae5fc531eb051ce887be2fe833742c14d6d18bd42b7b611d52212a40f8bd",
+      "reason": "Malay vehicles locale reviewed for unit-sensitive copy. Existing {{unit}}, {{value}} and related placeholders and canonical unit symbols are preserved; translated vehicle and service labels do not replace the application's resolved unit formatting. No new unit conversion or display-unit decision is introduced.",
+      "tests": [
+        "__tests__/volumeTotalLabelLocales.test.ts"
+      ]
+    },
+    {
       "path": "public/locales/pl/analytics.json",
       "disposition": "audited",
       "digest": "05dbb3548fd7786a015a73001a8e9e83662c05a02d77d8a97ee0cf976113591d",
@@ -2111,7 +2162,7 @@
     {
       "path": "src/constants/i18n.ts",
       "disposition": "no unit behaviour",
-      "digest": "c0d7cfd7907fcf55b896e1d22b8010b97a1481067b00a635ceed3497513b4539",
+      "digest": "1fa8e13523f6bb040a0eabf0d2c07f4b6813e62eceef836c8462c49cb094d4a9",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-09-18: re-reviewed for the household-timezone change: date defaults, the zone store and copy only; no unit-bearing value, conversion or label touched. 2026-10-01 (plan-ab-leftovers E5): adds supportedCurrencyCode, which returns a code only when it is in SUPPORTED_CURRENCIES. No quantity, unit or conversion code."
     },
     {
@@ -2438,7 +2489,7 @@
     {
       "path": "src/i18n.ts",
       "disposition": "no unit behaviour",
-      "digest": "33e55bf26ec517cd53395f7a4c2e6e867bd810ce80ad2d1cc4872bd9029735bc",
+      "digest": "ffb279423169a4664abec8cb037448f9ae850342b40b2bcaaad885b58d21fc88",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
     },
     {
