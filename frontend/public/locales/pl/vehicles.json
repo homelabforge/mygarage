@@ -742,7 +742,18 @@
     "title": "Dodaj nowy pojazd",
     "trim": "Wersja wyposażenia",
     "vin": "VIN",
-    "year": "Rok produkcji"
+    "year": "Rok produkcji",
+    "misc": {
+      "makePlaceholder": "Szukaj lub wybierz markę...",
+      "useCustomMake": "Użyj",
+      "noMakesFound": "Nie znaleziono marek",
+      "useCustomModel": "Użyj",
+      "noModelsFound": "Nie znaleziono modeli dla tej marki",
+      "selectMakePrompt": "Wybierz markę, aby zobaczyć dostępne modele",
+      "selectMakeFirst": "Wybierz najpierw markę lub wpisz model",
+      "loadingOnlineModels": "Wyszukiwanie modeli online...",
+      "fetchMoreModelsOnline": "Szukaj modeli online w NHTSA"
+    }
   },
   "hoursList": {
     "actions": "Akcje",

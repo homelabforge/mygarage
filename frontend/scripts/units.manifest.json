@@ -64,7 +64,7 @@
     {
       "path": "public/locales/de/vehicles.json",
       "disposition": "audited",
-      "digest": "43a2d7b138e1b9c5e5b1dae29ff931c370a31d65b757a9e385ec9838ceb861fb",
+      "digest": "d2a0e45a32960173908e2bf13fb09a8d868daea04a4d473b474856323dde5884",
       "reason": "windowSticker.misc.fuelEconomyMpg and the warranty placeholders reproduce a US Monroney label verbatim and are exempt for the same reason as WindowStickerUpload. defList.gallons and propaneList.gallons still EXIST in `en` and in these bundles; what changed is that no code reads them any more (both list headers moved to the `volumeUnit` interpolation, and their tests assert the old key is absent from the rendered header). Unreferenced keys, not stale translations: verified by grep, because the first version of this sentence said `en` had dropped them and `en` had not. Task 6 replaced the raw `units.volume === 'L'` prose selection with the same `{{unit}}` interpolation the volume COLUMN already used, so the two cannot disagree: totalLiters / totalGallons are gone and totalVolume takes getVolumeUnit(units). Task 7 added the cost-per-distance card's label as `{{unit}}` interpolation (`fuelList.costPerDistance` / `vehicle.costPerDistance`): it used to be two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel`, which bypassed i18n entirely, so every reader of every language was shown 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own. Re-reviewed for the codex round-1 fixes (2026-09-17): the unused lineItemEditor.misc.reminderTypeMileage key was removed (its select was replaced in v3.5.0); no other change. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the strings this change touches name coverages, their limit slots and a count of days; no unit-bearing quantity is named, read, converted or displayed. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the removed strings named an insurance coverage text box; no unit-bearing quantity is affected. 2026-09-24 (#181 towing economy): vehicleStats.recent removed (the card now reads vehicleStats.lastTanks); no unit word involved. 2026-09-24 (dashboard sort label): dashboard.sortByName now names the order (\"Name\" and its translations) because the trigger already says \"Sort:\"; fr also gains a translated sortTrigger. No unit word involved. 2026-09-25 (due-soon badge): vehicleStats.upcoming replaced by vehicleStats.dueSoon in en (removed from the translations, which fall back) and the fleet caption reworded; a count of reminders, no unit word.",
       "tests": [
         "__tests__/volumeTotalLabelLocales.test.ts"
@@ -116,7 +116,7 @@
     {
       "path": "public/locales/fr/vehicles.json",
       "disposition": "audited",
-      "digest": "16bcebcc1364d308308aecade639edcb650386a4319fa5314fa4bfee9fdd15b7",
+      "digest": "b72ce607a76c9a4121ab97a2f37a9fd1f8b9eafa3eb7f6f8929c0d9b77f8df5f",
       "reason": "windowSticker.misc.fuelEconomyMpg and the warranty placeholders reproduce a US Monroney label verbatim and are exempt for the same reason as WindowStickerUpload. defList.gallons and propaneList.gallons still EXIST in `en` and in these bundles; what changed is that no code reads them any more (both list headers moved to the `volumeUnit` interpolation, and their tests assert the old key is absent from the rendered header). Unreferenced keys, not stale translations: verified by grep, because the first version of this sentence said `en` had dropped them and `en` had not. Task 6 replaced the raw `units.volume === 'L'` prose selection with the same `{{unit}}` interpolation the volume COLUMN already used, so the two cannot disagree: totalLiters / totalGallons are gone and totalVolume takes getVolumeUnit(units). Task 7 added the cost-per-distance card's label as `{{unit}}` interpolation (`fuelList.costPerDistance` / `vehicle.costPerDistance`): it used to be two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel`, which bypassed i18n entirely, so every reader of every language was shown 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own. Re-reviewed for the codex round-1 fixes (2026-09-17): the unused lineItemEditor.misc.reminderTypeMileage key was removed (its select was replaced in v3.5.0); no other change. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the strings this change touches name coverages, their limit slots and a count of days; no unit-bearing quantity is named, read, converted or displayed. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the removed strings named an insurance coverage text box; no unit-bearing quantity is affected. 2026-09-24 (#181 towing economy): vehicleStats.recent removed (the card now reads vehicleStats.lastTanks); no unit word involved. 2026-09-24 (dashboard sort label): dashboard.sortByName now names the order (\"Name\" and its translations) because the trigger already says \"Sort:\"; fr also gains a translated sortTrigger. No unit word involved. 2026-09-25 (due-soon badge): vehicleStats.upcoming replaced by vehicleStats.dueSoon in en (removed from the translations, which fall back) and the fleet caption reworded; a count of reminders, no unit word.",
       "tests": [
         "__tests__/volumeTotalLabelLocales.test.ts"
@@ -209,6 +209,7 @@
     {
       "path": "public/locales/it/vehicles.json",
       "disposition": "audited",
+<<<<<<< HEAD
       "digest": "dd1f38db39bd1f335aada478fd4843bdb06a520379b2be39b6c3f09ceecbfbc5",
       "reason": "Italian locale (#201, marcomatrella). Reviewed 2026-10-04 against the Italian itself; the row had been submitted with the de row's reason copied verbatim, which describes German history (stale copies removed, keys falling back) that never happened here. A scan of every value for unit words and symbols (km, mi, L, gal, MPG, kPa, PSI, kg, lb, Nm and their Italian names) finds none that the English for the same key does not name, except windowSticker.misc.warrantyBasicPlaceholder / warrantyPowertrainPlaceholder, which are localized EXAMPLES in km (no canonical value behind them). List headers interpolate the volume unit as en does; volumeTotalLabelLocales.test.ts reads this bundle.",
       "tests": [
@@ -220,6 +221,10 @@
       "disposition": "audited",
       "digest": "eaa6e0920cb8da80c64030032e3d4ec5810e66ad4f41721269476f9e28e8e04e",
       "reason": "Malay vehicles locale reviewed for unit-sensitive copy. Existing {{unit}}, {{value}} and related placeholders and canonical unit symbols are preserved; translated vehicle and service labels do not replace the application's resolved unit formatting. No new unit conversion or display-unit decision is introduced. 2026-10-04 (maintainer fixes on #198): 98 strings that were English with Malay words swapped in are rewritten as Malay (action fragments, empty states, DEF record order). Placeholders unchanged; no unit word added or changed.",
+=======
+      "digest": "092359af14a97384c79a1491960ed6f4449925dd487c72bd22df7984fe4093a1",
+      "reason": "windowSticker.misc.fuelEconomyMpg and the warranty placeholders reproduce a US Monroney label verbatim and are exempt for the same reason as WindowStickerUpload. defList.gallons and propaneList.gallons still EXIST in `en` and in these bundles; what changed is that no code reads them any more (both list headers moved to the `volumeUnit` interpolation, and their tests assert the old key is absent from the rendered header). Unreferenced keys, not stale translations: verified by grep, because the first version of this sentence said `en` had dropped them and `en` had not. Task 6 replaced the raw `units.volume === 'L'` prose selection with the same `{{unit}}` interpolation the volume COLUMN already used, so the two cannot disagree: totalLiters / totalGallons are gone and totalVolume takes getVolumeUnit(units). Task 7 added the cost-per-distance card's label as `{{unit}}` interpolation (`fuelList.costPerDistance` / `vehicle.costPerDistance`): it used to be two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel`, which bypassed i18n entirely, so every reader of every language was shown 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own. Re-reviewed for the codex round-1 fixes (2026-09-17): the unused lineItemEditor.misc.reminderTypeMileage key was removed (its select was replaced in v3.5.0); no other change. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the strings this change touches name coverages, their limit slots and a count of days; no unit-bearing quantity is named, read, converted or displayed. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the removed strings named an insurance coverage text box; no unit-bearing quantity is affected. 2026-09-24 (#181 towing economy): vehicleStats.recent removed (the card now reads vehicleStats.lastTanks); no unit word involved. 2026-09-24 (dashboard sort label): dashboard.sortByName now names the order (\"Name\" and its translations) because the trigger already says \"Sort:\"; fr also gains a translated sortTrigger. No unit word involved. 2026-09-25 (due-soon badge): vehicleStats.upcoming replaced by vehicleStats.dueSoon in en (removed from the translations, which fall back) and the fleet caption reworded; a count of reminders, no unit word.",
+>>>>>>> a1c6d244 (feat: auto-resolve vehicle make and model with brand logos and comboboxes)
       "tests": [
         "__tests__/volumeTotalLabelLocales.test.ts"
       ]
@@ -265,7 +270,7 @@
     {
       "path": "public/locales/pl/vehicles.json",
       "disposition": "audited",
-      "digest": "4aa9e4cb581b6f8cc7cfc73c71cba808612b8836186b63de0ef1474e2f3f3284",
+      "digest": "290f43a91e3f8f0bc3b499dc5187eebed228aabe76e241404ecb1babc38c4a4a",
       "reason": "audited for task 7: this bundle gained `fuelList.costPerDistance` / `vehicle.costPerDistance`, the cost-per-distance card's label, as a `{{unit}}` interpolation. It replaces two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel` which bypassed i18n entirely, so every reader of every language saw 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. The rest of the file is unchanged and was dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary; every hit was read in context and none is a unit decision. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the removed strings named an insurance coverage text box; no unit-bearing quantity is affected. 2026-09-24 (#181 towing economy): vehicleStats.recent removed (the card now reads vehicleStats.lastTanks); no unit word involved. 2026-09-24 (dashboard sort label): dashboard.sortByName now names the order (\"Name\" and its translations) because the trigger already says \"Sort:\"; fr also gains a translated sortTrigger. No unit word involved. 2026-09-25 (due-soon badge): vehicleStats.upcoming replaced by vehicleStats.dueSoon in en (removed from the translations, which fall back) and the fleet caption reworded; a count of reminders, no unit word.",
       "tests": [
         "components/__tests__/FuelRecordList.test.tsx"
@@ -315,7 +320,7 @@
     {
       "path": "public/locales/pt-BR/vehicles.json",
       "disposition": "audited",
-      "digest": "ebd738c3099557f3eeda9e2748bc8ddb36237f1b49ce04fa35572fc44df0541d",
+      "digest": "1a9d37d0f60aab2875e389dc2478e5594d109fe0ee8379eaa93def31cadaf89e",
       "reason": "windowSticker.misc.fuelEconomyMpg and the warranty placeholders reproduce a US Monroney label verbatim and are exempt for the same reason as WindowStickerUpload. defList.gallons and propaneList.gallons still EXIST in `en` and in these bundles; what changed is that no code reads them any more (both list headers moved to the `volumeUnit` interpolation, and their tests assert the old key is absent from the rendered header). Unreferenced keys, not stale translations: verified by grep, because the first version of this sentence said `en` had dropped them and `en` had not. Task 6 replaced the raw `units.volume === 'L'` prose selection with the same `{{unit}}` interpolation the volume COLUMN already used, so the two cannot disagree: totalLiters / totalGallons are gone and totalVolume takes getVolumeUnit(units). Task 7 added the cost-per-distance card's label as `{{unit}}` interpolation (`fuelList.costPerDistance` / `vehicle.costPerDistance`): it used to be two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel`, which bypassed i18n entirely, so every reader of every language was shown 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the removed strings named an insurance coverage text box; no unit-bearing quantity is affected. 2026-09-24 (#181 towing economy): vehicleStats.recent removed (the card now reads vehicleStats.lastTanks); no unit word involved. 2026-09-24 (dashboard sort label): dashboard.sortByName now names the order (\"Name\" and its translations) because the trigger already says \"Sort:\"; fr also gains a translated sortTrigger. No unit word involved. 2026-09-25 (due-soon badge): vehicleStats.upcoming replaced by vehicleStats.dueSoon in en (removed from the translations, which fall back) and the fleet caption reworded; a count of reminders, no unit word.",
       "tests": [
         "__tests__/volumeTotalLabelLocales.test.ts"
@@ -365,7 +370,7 @@
     {
       "path": "public/locales/ru/vehicles.json",
       "disposition": "audited",
-      "digest": "ee37f2d0d2d137c2c9c6c2d44908cfe13ad95225d0cde420cd152b0306738eb5",
+      "digest": "e85a38644fc50b6684a84f9e3ff0cec77edc1397216c58e845b1774b832f854f",
       "reason": "audited for task 7: this bundle gained `fuelList.costPerDistance` / `vehicle.costPerDistance`, the cost-per-distance card's label, as a `{{unit}}` interpolation. It replaces two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel` which bypassed i18n entirely, so every reader of every language saw 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. The rest of the file is unchanged and was dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary; every hit was read in context and none is a unit decision. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the removed strings named an insurance coverage text box; no unit-bearing quantity is affected. 2026-09-24 (#181 towing economy): vehicleStats.recent removed (the card now reads vehicleStats.lastTanks); no unit word involved. 2026-09-24 (dashboard sort label): dashboard.sortByName now names the order (\"Name\" and its translations) because the trigger already says \"Sort:\"; fr also gains a translated sortTrigger. No unit word involved. 2026-09-25 (due-soon badge): vehicleStats.upcoming replaced by vehicleStats.dueSoon in en (removed from the translations, which fall back) and the fleet caption reworded; a count of reminders, no unit word.",
       "tests": [
         "components/__tests__/FuelRecordList.test.tsx"
@@ -415,7 +420,7 @@
     {
       "path": "public/locales/uk/vehicles.json",
       "disposition": "audited",
-      "digest": "367fa8bb92b1a473c6ae175f2d7fa9f4fbc8e13f1391fc8058254ec1469dc61a",
+      "digest": "20ee729fb3c00ea9e5741a71e722a2751d447ea50c7cd8c87e7f54661da0a006",
       "reason": "audited for task 7: this bundle gained `fuelList.costPerDistance` / `vehicle.costPerDistance`, the cost-per-distance card's label, as a `{{unit}}` interpolation. It replaces two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel` which bypassed i18n entirely, so every reader of every language saw 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. The rest of the file is unchanged and was dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary; every hit was read in context and none is a unit decision. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own. Re-reviewed 2026-09-19 (standard coverage catalogue, migration 108): the removed strings named an insurance coverage text box; no unit-bearing quantity is affected. 2026-09-24 (#181 towing economy): vehicleStats.recent removed (the card now reads vehicleStats.lastTanks); no unit word involved. 2026-09-24 (dashboard sort label): dashboard.sortByName now names the order (\"Name\" and its translations) because the trigger already says \"Sort:\"; fr also gains a translated sortTrigger. No unit word involved. 2026-09-25 (due-soon badge): vehicleStats.upcoming replaced by vehicleStats.dueSoon in en (removed from the translations, which fall back) and the fleet caption reworded; a count of reminders, no unit word.",
       "tests": [
         "components/__tests__/FuelRecordList.test.tsx"
@@ -1082,7 +1087,7 @@
     {
       "path": "src/components/VehicleWizard.tsx",
       "disposition": "no unit behaviour",
-      "digest": "fa55f4e6d0de563f988c0b005519f01312bffc3d58f177ed46ef669972a61f99",
+      "digest": "2bc9513aa5a78856d9bb8082fbcf44ca0c25000abe937b3e84d3cd7ea3e60247",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 5 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
     },
     {
@@ -1403,7 +1408,7 @@
     {
       "path": "src/components/modals/ExternalVehicleModal.tsx",
       "disposition": "no unit behaviour",
-      "digest": "200b3a9a718d249adaeba81f337add6401bf5445ff11d3a5187dec8f6473f84c",
+      "digest": "286a8b5f49abbf3b7706784e2c15c0d5f5839460c13f8e83224efc30496c2c4e",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
     },
     {
@@ -2191,10 +2196,40 @@
       ]
     },
     {
+      "path": "src/components/vehicles/BrandLogo.tsx",
+      "disposition": "no unit behaviour",
+      "digest": "c6bee208a6a9c34228ef84912acd1cb9c777737f0a52cb2d0478df679d583c45",
+      "reason": "no unit behaviour: brand logo display component, no unit calculations or conversions."
+    },
+    {
+      "path": "src/components/vehicles/MakeSelect.tsx",
+      "disposition": "no unit behaviour",
+      "digest": "263e7d0954f2a4057e55aaca3d6f0c778b35ce61fedde8ee330237f65c27348d",
+      "reason": "no unit behaviour: make dropdown selection combobox, no unit calculations or conversions."
+    },
+    {
+      "path": "src/components/vehicles/ModelSelect.tsx",
+      "disposition": "no unit behaviour",
+      "digest": "ee0cbbb0366c0b1a2dc271ac2145194d7a1c16892aab810e80d6e2580db9a2cc",
+      "reason": "no unit behaviour: model dropdown selection combobox, no unit calculations or conversions."
+    },
+    {
+      "path": "src/components/vehicles/index.ts",
+      "disposition": "no unit behaviour",
+      "digest": "50f423a46e926b59efc60452e8c3c76c86a7ef81da8bc79ed4d28ebe421ec722",
+      "reason": "no unit behaviour: barrel file exporting vehicle components."
+    },
+    {
       "path": "src/constants/accents.ts",
       "disposition": "no unit behaviour",
       "digest": "22e0e3921c2ff0a89d7354d99064d8c2065b2681222e6287879036f4e35696b4",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 3 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
+    },
+    {
+      "path": "src/constants/carCatalog.json",
+      "disposition": "no unit behaviour",
+      "digest": "8d7d89e514c9c5cf149fef59366027428b67e958b50c654a4ad4b1f790018b27",
+      "reason": "no unit behaviour: static JSON catalog of car makes and models."
     },
     {
       "path": "src/constants/dashboardSort.ts",
@@ -2950,6 +2985,12 @@
       "disposition": "no unit behaviour",
       "digest": "5fe7fd32703f302bdfbd5a2390b2ee47c54f75bd0fcacce3f7c176a9adefef01",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
+    },
+    {
+      "path": "src/services/carCatalogService.ts",
+      "disposition": "no unit behaviour",
+      "digest": "5a916c3af592e8316a7d2239dba006a4e8884ebe7112532b0c6f99ea9be5c1c9",
+      "reason": "no unit behaviour: car catalog lookup service, no unit calculations or conversions."
     },
     {
       "path": "src/services/externalVehicleService.ts",

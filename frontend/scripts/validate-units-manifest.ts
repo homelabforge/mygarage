@@ -105,7 +105,7 @@
 
 import { createHash } from 'crypto'
 import { execFileSync } from 'child_process'
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'fs'
 import { dirname, join, relative, sep } from 'path'
 import { ROOT } from './translation-utils'
 import { walkGraph } from './validate-reachability'
@@ -480,12 +480,12 @@ function previousManifest(
   if (ref === null) return null
   const dir = dirname(manifestPath)
   try {
-    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+    const top = realpathSync(execFileSync('git', ['rev-parse', '--show-toplevel'], {
       cwd: dir,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim()
-    const relPath = relative(top, manifestPath).split(sep).join('/')
+    }).trim())
+    const relPath = relative(top, realpathSync(manifestPath)).split(sep).join('/')
     const text = execFileSync('git', ['show', `${ref}:${relPath}`], {
       cwd: dir,
       encoding: 'utf-8',

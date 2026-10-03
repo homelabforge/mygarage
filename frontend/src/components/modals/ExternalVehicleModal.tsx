@@ -12,6 +12,8 @@ import {
   updateExternalVehicle,
   deleteExternalVehicle,
 } from '@/services/externalVehicleService'
+import { MakeSelect, ModelSelect } from '@/components/vehicles'
+import { findMake } from '@/services/carCatalogService'
 
 interface ExternalVehicleModalProps {
   isOpen: boolean
@@ -74,13 +76,24 @@ export default function ExternalVehicleModal({
   }
 
   const handleVinDecode = (data: VINDecodeResponse) => {
+    const matchedMake = data.make ? findMake(data.make) : undefined
+    const resolvedMake = matchedMake ? matchedMake.name : (data.make || '')
+
+    let resolvedModel = data.model || ''
+    if (matchedMake && data.model) {
+      const foundModel = matchedMake.models.find(m => m.toLowerCase() === data.model!.toLowerCase())
+      if (foundModel) {
+        resolvedModel = foundModel
+      }
+    }
+
     setForm((prev) => {
-      const generatedNickname = `${data.year || ''} ${data.make || ''} ${data.model || ''}`.trim()
+      const generatedNickname = `${data.year || ''} ${resolvedMake} ${resolvedModel}`.trim()
       return {
         ...prev,
         year: data.year ?? prev.year ?? null,
-        make: data.make || prev.make || '',
-        model: data.model || prev.model || '',
+        make: resolvedMake || prev.make || '',
+        model: resolvedModel || prev.model || '',
         nickname: prev.nickname?.trim() ? prev.nickname : generatedNickname,
       }
     })
@@ -181,17 +194,18 @@ export default function ExternalVehicleModal({
             />
           </Field>
           <Field id="ext-make" label={t('externalVehicles.make')}>
-            <Input
+            <MakeSelect
               id="ext-make"
               value={form.make ?? ''}
-              onChange={(e) => setField('make', e.target.value)}
+              onChange={(val) => setField('make', val)}
             />
           </Field>
           <Field id="ext-model" label={t('externalVehicles.model')}>
-            <Input
+            <ModelSelect
               id="ext-model"
+              make={form.make}
               value={form.model ?? ''}
-              onChange={(e) => setField('model', e.target.value)}
+              onChange={(val) => setField('model', val)}
             />
           </Field>
         </div>

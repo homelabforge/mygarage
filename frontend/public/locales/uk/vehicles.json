@@ -742,7 +742,18 @@
     "title": "Додати транспортний засіб",
     "trim": "Комплектація",
     "vin": "VIN",
-    "year": "Рік"
+    "year": "Рік",
+    "misc": {
+      "makePlaceholder": "Пошук або вибір марки...",
+      "useCustomMake": "Використати",
+      "noMakesFound": "Марки не знайдено",
+      "useCustomModel": "Використати",
+      "noModelsFound": "Моделей для цієї марки не знайдено",
+      "selectMakePrompt": "Оберіть марку, щоб побачити доступні моделі",
+      "selectMakeFirst": "Спочатку оберіть марку або введіть модель",
+      "loadingOnlineModels": "Пошук моделей онлайн...",
+      "fetchMoreModelsOnline": "Пошук моделей онлайн у NHTSA"
+    }
   },
   "hoursList": {
     "actions": "Дії",

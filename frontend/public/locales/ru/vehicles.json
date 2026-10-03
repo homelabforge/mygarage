@@ -742,7 +742,18 @@
     "title": "Добавить автомобиль",
     "trim": "Комплектация",
     "vin": "VIN",
-    "year": "Год"
+    "year": "Год",
+    "misc": {
+      "makePlaceholder": "Поиск или выбор марки...",
+      "useCustomMake": "Использовать",
+      "noMakesFound": "Марки не найдены",
+      "useCustomModel": "Использовать",
+      "noModelsFound": "Модели для этой марки не найдены",
+      "selectMakePrompt": "Выберите марку, чтобы увидеть доступные модели",
+      "selectMakeFirst": "Сначала выберите марку или введите модель",
+      "loadingOnlineModels": "Поиск моделей онлайн...",
+      "fetchMoreModelsOnline": "Поиск моделей онлайн в NHTSA"
+    }
   },
   "hoursList": {
     "actions": "Действия",

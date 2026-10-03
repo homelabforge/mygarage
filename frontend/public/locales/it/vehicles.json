@@ -1682,7 +1682,16 @@
       "creating": "Creazione in corso...",
       "createVehicle": "Crea veicolo",
       "createFailed": "Impossibile creare il veicolo",
-      "createAction": "creare il veicolo"
+      "createAction": "creare il veicolo",
+      "makePlaceholder": "Cerca o seleziona la marca...",
+      "useCustomMake": "Usa",
+      "noMakesFound": "Nessuna marca trovata",
+      "useCustomModel": "Usa",
+      "noModelsFound": "Nessun modello trovato per questa marca",
+      "selectMakePrompt": "Seleziona una marca per vedere i modelli disponibili",
+      "selectMakeFirst": "Seleziona prima una marca o inserisci il modello",
+      "loadingOnlineModels": "Ricerca modelli online in corso...",
+      "fetchMoreModelsOnline": "Cerca modelli online su NHTSA"
     }
   },
   "serviceVisitAttachments": {

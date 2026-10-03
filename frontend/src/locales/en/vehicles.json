@@ -1696,7 +1696,16 @@
       "creating": "Creating...",
       "createVehicle": "Create Vehicle",
       "createFailed": "Failed to create vehicle",
-      "createAction": "create the vehicle"
+      "createAction": "create the vehicle",
+      "makePlaceholder": "Search or select make...",
+      "useCustomMake": "Use",
+      "noMakesFound": "No makes found",
+      "useCustomModel": "Use",
+      "noModelsFound": "No models found for this make",
+      "selectMakePrompt": "Select a make to see available models",
+      "selectMakeFirst": "Select make first or enter model",
+      "loadingOnlineModels": "Searching online models...",
+      "fetchMoreModelsOnline": "Search NHTSA online models"
     }
   },
   "serviceVisitAttachments": {
