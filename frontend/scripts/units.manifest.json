@@ -2198,7 +2198,7 @@
     {
       "path": "src/components/vehicles/BrandLogo.tsx",
       "disposition": "no unit behaviour",
-      "digest": "c6bee208a6a9c34228ef84912acd1cb9c777737f0a52cb2d0478df679d583c45",
+      "digest": "a4de14724fb5ef29f3cc1f7454114bb8505ba01b038dc8e4ff0f872e29f429ed",
       "reason": "no unit behaviour: brand logo display component, no unit calculations or conversions."
     },
     {

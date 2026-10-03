@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Car } from 'lucide-react'
 import { getLogoUrl, findMake } from '../../services/carCatalogService'
 
@@ -18,6 +18,11 @@ export default function BrandLogo({
   const [error, setError] = useState(false)
 
   const resolvedSlug = logoSlug || (make ? findMake(make)?.logo : null)
+
+  useEffect(() => {
+    setError(false)
+  }, [resolvedSlug])
+
   const url = resolvedSlug && !error ? getLogoUrl(resolvedSlug) : null
 
   if (!url) {

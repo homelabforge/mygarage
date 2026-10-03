@@ -23,4 +23,15 @@ describe('BrandLogo', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
     expect(container.querySelector('svg')).toBeInTheDocument()
   })
+
+  it('resets error state when make changes', () => {
+    const { rerender } = render(<BrandLogo make="Ford" />)
+    const img = screen.getByRole('img')
+    fireEvent.error(img)
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+
+    rerender(<BrandLogo make="Toyota" />)
+    const newImg = screen.getByRole('img')
+    expect(newImg).toHaveAttribute('src', expect.stringContaining('toyota.png'))
+  })
 })
