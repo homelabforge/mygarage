@@ -33,6 +33,9 @@ export const TOLL_SYSTEMS = [
   'NTTA TollTag',
   'FasTrak',
   'I-PASS',
+  'Touch \'n Go Card',
+  'Touch \'n Go RFID',
+  'SmartTAG',
   'Other',
 ] as const
 

@@ -1024,6 +1024,9 @@
     "nttaTollTag": "NTTA TollTag",
     "fasTrak": "FasTrak",
     "iPass": "I-PASS",
+    "touchNGoCard": "Touch 'n Go Card",
+    "touchNGoRfid": "Touch 'n Go RFID",
+    "smartTag": "SmartTAG",
     "other": "Other"
   },
   "recurrence": {

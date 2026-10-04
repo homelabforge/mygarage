@@ -22,6 +22,9 @@ export const TOLL_SYSTEMS = [
   'NTTA TollTag',
   'FasTrak',
   'I-PASS',
+  'Touch \'n Go Card',
+  'Touch \'n Go RFID',
+  'SmartTAG',
   'Other',
 ] as const
 
@@ -43,6 +46,9 @@ export const TOLL_SYSTEM_OPTIONS = [
   { value: 'NTTA TollTag', labelKey: 'forms:tollSystems.nttaTollTag' },
   { value: 'FasTrak', labelKey: 'forms:tollSystems.fasTrak' },
   { value: 'I-PASS', labelKey: 'forms:tollSystems.iPass' },
+  { value: 'Touch \'n Go Card', labelKey: 'forms:tollSystems.touchNGoCard' },
+  { value: 'Touch \'n Go RFID', labelKey: 'forms:tollSystems.touchNGoRfid' },
+  { value: 'SmartTAG', labelKey: 'forms:tollSystems.smartTag' },
   { value: 'Other', labelKey: 'forms:tollSystems.other' },
 ] as const satisfies readonly { value: TollSystemValue; labelKey: string }[]
 
