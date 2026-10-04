@@ -25,5 +25,29 @@ jobs:
       # pg_migration_path_test.py doesn't match python_files, so it's named
       # outright. It drops the public schema, so it runs before integration
       # builds its session schema, same as tests/migrations/.
-      pg-migrations-pytest-path: "tests/migrations/ tests/pg_migration_path_test.py tests/integration/"
+      # Everything else runs on PG too: SQLite ignores VARCHAR widths, so a
+      # SQLite-only test can be green and wrong (#200). Every dir and top-level
+      # file is listed by name, because pytest folds an overlapping `tests/` into
+      # one walk that runs integration first and drops pg_migration_path_test.py.
+      # tests/unit/test_pg_ci_path.py fails CI if a new test file isn't listed.
+      pg-migrations-pytest-path: >-
+        tests/migrations/
+        tests/pg_migration_path_test.py
+        tests/integration/
+        tests/routes/
+        tests/services/
+        tests/tasks/
+        tests/unit/
+        tests/utils/
+        tests/test_address_book_update_poi.py
+        tests/test_address_book_vendor_sync.py
+        tests/test_analytics_routes.py
+        tests/test_analytics_service.py
+        tests/test_config_root_path.py
+        tests/test_currency.py
+        tests/test_fuel_enums.py
+        tests/test_html_base.py
+        tests/test_oidc_issuer_trailing_slash.py
+        tests/test_oidc_prefix_urls.py
+        tests/test_units.py
       security-tripwire-script: .github/scripts/security-tripwire.sh
