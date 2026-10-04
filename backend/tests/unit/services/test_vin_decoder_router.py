@@ -190,6 +190,7 @@ class TestVINDecoderRouterRouting:
 
     async def test_extensibility_adding_third_custom_decoder(self):
         """Verify that registering a 3rd/4th/Nth decoder integrates seamlessly into the router."""
+
         class CustomAsianVINDecoder(BaseVINDecoder):
             name = "custom_asian"
 

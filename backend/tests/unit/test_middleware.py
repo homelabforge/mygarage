@@ -126,7 +126,10 @@ class TestSecurityHeadersMiddleware:
         assert "object-src 'none'" in csp
         assert "https://cdn.jsdelivr.net" in csp
         assert "https://vpic.nhtsa.dot.gov" in csp
-        assert "connect-src 'self' https://vpic.nhtsa.dot.gov https://cdn.jsdelivr.net https://raw.githubusercontent.com; " in csp
+        assert (
+            "connect-src 'self' https://vpic.nhtsa.dot.gov https://cdn.jsdelivr.net https://raw.githubusercontent.com; "
+            in csp
+        )
 
     @pytest.mark.asyncio
     async def test_csp_allows_the_shell_inline_scripts_by_hash(self):

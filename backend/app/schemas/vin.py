@@ -81,8 +81,12 @@ class VINDecodeResponse(BaseModel):
     entertainment_system: str | None = Field(None, description="Entertainment system")
     error_code: str | None = Field(None, description="NHTSA error code (if any)")
     error_text: str | None = Field(None, description="NHTSA error text (if any)")
-    decoder_source: str | None = Field(None, description="Provider that decoded the VIN (nhtsa, european, autoref, etc.)")
-    market_region: str | None = Field(None, description="Vehicle market region (north_america, europe, other)")
+    decoder_source: str | None = Field(
+        None, description="Provider that decoded the VIN (nhtsa, european, autoref, etc.)"
+    )
+    market_region: str | None = Field(
+        None, description="Vehicle market region (north_america, europe, other)"
+    )
 
     model_config = {
         "json_schema_extra": {

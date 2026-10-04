@@ -184,12 +184,20 @@ WMI_DATABASE: dict[str, dict[str, str]] = {
     "TMB": {"make": "Škoda", "manufacturer": "Škoda Auto a.s.", "country": "Czech Republic"},
     "VSS": {"make": "SEAT", "manufacturer": "SEAT S.A.", "country": "Spain"},
     # Italy
-    "ZAR": {"make": "Alfa Romeo", "manufacturer": "Alfa Romeo Automobiles S.p.A.", "country": "Italy"},
+    "ZAR": {
+        "make": "Alfa Romeo",
+        "manufacturer": "Alfa Romeo Automobiles S.p.A.",
+        "country": "Italy",
+    },
     "ZFA": {"make": "Fiat", "manufacturer": "Fiat Chrysler Automobiles", "country": "Italy"},
     "ZFC": {"make": "Fiat", "manufacturer": "Fiat V.I.", "country": "Italy"},
     "ZFF": {"make": "Ferrari", "manufacturer": "Ferrari S.p.A.", "country": "Italy"},
     "ZAM": {"make": "Maserati", "manufacturer": "Maserati S.p.A.", "country": "Italy"},
-    "ZHW": {"make": "Lamborghini", "manufacturer": "Automobili Lamborghini S.p.A.", "country": "Italy"},
+    "ZHW": {
+        "make": "Lamborghini",
+        "manufacturer": "Automobili Lamborghini S.p.A.",
+        "country": "Italy",
+    },
     # France
     "VF1": {"make": "Renault", "manufacturer": "Renault S.A.", "country": "France"},
     "VF3": {"make": "Peugeot", "manufacturer": "Peugeot S.A.", "country": "France"},
@@ -198,10 +206,18 @@ WMI_DATABASE: dict[str, dict[str, str]] = {
     "VR3": {"make": "Peugeot", "manufacturer": "Peugeot S.A.", "country": "France"},
     # United Kingdom
     "SAJ": {"make": "Jaguar", "manufacturer": "Jaguar Land Rover Ltd", "country": "United Kingdom"},
-    "SAL": {"make": "Land Rover", "manufacturer": "Jaguar Land Rover Ltd", "country": "United Kingdom"},
+    "SAL": {
+        "make": "Land Rover",
+        "manufacturer": "Jaguar Land Rover Ltd",
+        "country": "United Kingdom",
+    },
     "SAR": {"make": "Rover", "manufacturer": "Rover Group", "country": "United Kingdom"},
     "SCC": {"make": "Lotus", "manufacturer": "Lotus Cars Ltd", "country": "United Kingdom"},
-    "SHS": {"make": "Honda", "manufacturer": "Honda UK Manufacturing Ltd", "country": "United Kingdom"},
+    "SHS": {
+        "make": "Honda",
+        "manufacturer": "Honda UK Manufacturing Ltd",
+        "country": "United Kingdom",
+    },
     # Sweden
     "YV1": {"make": "Volvo", "manufacturer": "Volvo Car Corporation", "country": "Sweden"},
     "YV2": {"make": "Volvo", "manufacturer": "Volvo Trucks", "country": "Sweden"},
@@ -215,19 +231,35 @@ WMI_DATABASE: dict[str, dict[str, str]] = {
     "1FT": {"make": "Ford", "manufacturer": "Ford Motor Company", "country": "United States"},
     "1G1": {"make": "Chevrolet", "manufacturer": "General Motors", "country": "United States"},
     "1GC": {"make": "Chevrolet", "manufacturer": "General Motors", "country": "United States"},
-    "1HD": {"make": "Harley-Davidson", "manufacturer": "Harley-Davidson", "country": "United States"},
+    "1HD": {
+        "make": "Harley-Davidson",
+        "manufacturer": "Harley-Davidson",
+        "country": "United States",
+    },
     "1HG": {"make": "Honda", "manufacturer": "Honda of America Mfg.", "country": "United States"},
     "1J4": {"make": "Jeep", "manufacturer": "FCA US LLC", "country": "United States"},
     "1C4": {"make": "Chrysler", "manufacturer": "FCA US LLC", "country": "United States"},
-    "4T1": {"make": "Toyota", "manufacturer": "Toyota Motor Manufacturing USA", "country": "United States"},
+    "4T1": {
+        "make": "Toyota",
+        "manufacturer": "Toyota Motor Manufacturing USA",
+        "country": "United States",
+    },
     "5YJ": {"make": "Tesla", "manufacturer": "Tesla, Inc.", "country": "United States"},
     "7SA": {"make": "Tesla", "manufacturer": "Tesla, Inc.", "country": "United States"},
     # North America - Canada
     "2FA": {"make": "Ford", "manufacturer": "Ford Motor Company of Canada", "country": "Canada"},
     "2G1": {"make": "Chevrolet", "manufacturer": "General Motors of Canada", "country": "Canada"},
     "2HG": {"make": "Honda", "manufacturer": "Honda of Canada Mfg.", "country": "Canada"},
-    "2T1": {"make": "Toyota", "manufacturer": "Toyota Motor Manufacturing Canada", "country": "Canada"},
-    "2T2": {"make": "Lexus", "manufacturer": "Toyota Motor Manufacturing Canada", "country": "Canada"},
+    "2T1": {
+        "make": "Toyota",
+        "manufacturer": "Toyota Motor Manufacturing Canada",
+        "country": "Canada",
+    },
+    "2T2": {
+        "make": "Lexus",
+        "manufacturer": "Toyota Motor Manufacturing Canada",
+        "country": "Canada",
+    },
     # North America - Mexico
     "3FA": {"make": "Ford", "manufacturer": "Ford Motor Company Mexico", "country": "Mexico"},
     "3FT": {"make": "Ford", "manufacturer": "Ford Motor Company Mexico", "country": "Mexico"},

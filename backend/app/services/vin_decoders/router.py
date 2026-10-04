@@ -73,7 +73,9 @@ class VINDecoderRouter:
 
         # Collect any other custom registered decoders
         other_decoders = [
-            d for name, d in self._decoders.items() if name not in ("nhtsa", "european") and d.is_available()
+            d
+            for name, d in self._decoders.items()
+            if name not in ("nhtsa", "european") and d.is_available()
         ]
 
         chain: list[BaseVINDecoder] = []

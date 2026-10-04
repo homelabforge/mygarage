@@ -16,6 +16,7 @@ from app.utils.wmi import MarketRegion, detect_market_region, lookup_wmi
 
 logger = logging.getLogger(__name__)
 
+
 class EuropeanVINDecoder(BaseVINDecoder):
     """VIN Decoder for European vehicles using AutoRef API with catalog fallback.
 
@@ -31,7 +32,9 @@ class EuropeanVINDecoder(BaseVINDecoder):
         api_key: str | None = None,
         timeout: float = 15.0,
     ) -> None:
-        raw_url = base_url or getattr(settings, "european_vin_api_base_url", "https://api.autoref.eu")
+        raw_url = base_url or getattr(
+            settings, "european_vin_api_base_url", "https://api.autoref.eu"
+        )
         try:
             validate_european_vin_url(raw_url)
             self.base_url = raw_url.rstrip("/")
@@ -43,7 +46,9 @@ class EuropeanVINDecoder(BaseVINDecoder):
             )
             self.base_url = "https://api.autoref.eu"
 
-        self.api_key = api_key if api_key is not None else getattr(settings, "european_vin_api_key", "")
+        self.api_key = (
+            api_key if api_key is not None else getattr(settings, "european_vin_api_key", "")
+        )
         self.timeout = timeout
 
     def can_handle(self, vin: str, region: MarketRegion) -> bool:
@@ -141,13 +146,22 @@ class EuropeanVINDecoder(BaseVINDecoder):
         if not record:
             return None
 
-        make = record.get("BRAND") or record.get("brand") or record.get("Make") or record.get("make")
+        make = (
+            record.get("BRAND") or record.get("brand") or record.get("Make") or record.get("make")
+        )
         model = record.get("MODEL") or record.get("model") or record.get("Model")
         series = record.get("MODEL2") or record.get("series") or record.get("Series")
-        trim = record.get("MODEL3") or record.get("trim") or record.get("Trim") or record.get("VARIANT")
+        trim = (
+            record.get("MODEL3")
+            or record.get("trim")
+            or record.get("Trim")
+            or record.get("VARIANT")
+        )
 
         # Parse year
-        date_circ = record.get("DATE_FIRST_CIRCULATION") or record.get("year") or record.get("ModelYear")
+        date_circ = (
+            record.get("DATE_FIRST_CIRCULATION") or record.get("year") or record.get("ModelYear")
+        )
         year: int | None = None
         if date_circ:
             year_match = re.search(r"\b(19\d\d|20\d\d)\b", str(date_circ))
@@ -214,11 +228,32 @@ class EuropeanVINDecoder(BaseVINDecoder):
         # Extract year from ISO 3779 position 10 if standard code
         # A=2010 .. N=2022, P=2023, R=2024, S=2025, T=2026
         year_codes: dict[str, int] = {
-            "A": 2010, "B": 2011, "C": 2012, "D": 2013, "E": 2014, "F": 2015,
-            "G": 2016, "H": 2017, "J": 2018, "K": 2019, "L": 2020, "M": 2021,
-            "N": 2022, "P": 2023, "R": 2024, "S": 2025, "T": 2026,
-            "1": 2001, "2": 2002, "3": 2003, "4": 2004, "5": 2005,
-            "6": 2006, "7": 2007, "8": 2008, "9": 2009,
+            "A": 2010,
+            "B": 2011,
+            "C": 2012,
+            "D": 2013,
+            "E": 2014,
+            "F": 2015,
+            "G": 2016,
+            "H": 2017,
+            "J": 2018,
+            "K": 2019,
+            "L": 2020,
+            "M": 2021,
+            "N": 2022,
+            "P": 2023,
+            "R": 2024,
+            "S": 2025,
+            "T": 2026,
+            "1": 2001,
+            "2": 2002,
+            "3": 2003,
+            "4": 2004,
+            "5": 2005,
+            "6": 2006,
+            "7": 2007,
+            "8": 2008,
+            "9": 2009,
         }
         year = None
         if len(vin) >= 10:
