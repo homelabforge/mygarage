@@ -57,9 +57,7 @@ async def _decode_vin_helper(vin: str, db: AsyncSession | None = None) -> VINDec
                         european_decoder.set_api_key(api_key_setting.value)
                     european_decoder.enabled = enabled_setting
             except Exception as e:
-                logger.warning(
-                    "Failed to load VIN settings from database: %s", sanitize_for_log(e)
-                )
+                logger.warning("Failed to load VIN settings from database: %s", sanitize_for_log(e))
 
         vehicle_info = await vin_router.decode_vin(vin)
         return VINDecodeResponse(**vehicle_info)
