@@ -1017,13 +1017,6 @@
     "upfrontFee": "Spese anticipate / Anticipo"
   },
   "tollSystems": {
-    "ezTag": "EZ TAG",
-    "txTag": "TxTag",
-    "ezPass": "E-ZPass",
-    "sunPass": "SunPass",
-    "nttaTollTag": "NTTA TollTag",
-    "fasTrak": "FasTrak",
-    "iPass": "I-PASS",
     "other": "Altro"
   },
   "recurrence": {

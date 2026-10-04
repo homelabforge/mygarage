@@ -824,6 +824,8 @@
   "toll": {
     "addTag": "Add Tag",
     "addTransaction": "Add Transaction",
+    "chooseCountryFirst": "Choose a country first",
+    "country": "Country",
     "createTagTitle": "Add Toll Tag",
     "createTransactionTitle": "Add Toll Transaction",
     "editTagTitle": "Edit Toll Tag",
@@ -834,10 +836,15 @@
     "noneManualPayment": "None / Manual Payment",
     "saveTagAction": "save the toll tag",
     "saveTransactionAction": "save the toll transaction",
+    "selectCountry": "Select country...",
     "selectTollSystem": "Select toll system...",
     "tagNotesPlaceholder": "Additional notes about this toll tag...",
     "tagNumber": "Tag Number",
     "tollSystem": "Toll System",
+    "tollSystemName": "Toll system name",
+    "tollSystemNameHint": "Up to 50 characters.",
+    "tollSystemNamePlaceholder": "Name on your tag or account",
+    "tollSystemSavesAs": "Saves as {{name}}, which is on the list.",
     "tollTag": "Toll Tag",
     "transactionNotesPlaceholder": "Additional notes about this toll transaction...",
     "updateTag": "Update Tag",
@@ -1018,16 +1025,6 @@
     "upfrontFee": "Upfront Fee"
   },
   "tollSystems": {
-    "ezTag": "EZ TAG",
-    "txTag": "TxTag",
-    "ezPass": "E-ZPass",
-    "sunPass": "SunPass",
-    "nttaTollTag": "NTTA TollTag",
-    "fasTrak": "FasTrak",
-    "iPass": "I-PASS",
-    "touchNGoCard": "Touch 'n Go Card",
-    "touchNGoRfid": "Touch 'n Go RFID",
-    "smartTag": "SmartTAG",
     "other": "Other"
   },
   "recurrence": {

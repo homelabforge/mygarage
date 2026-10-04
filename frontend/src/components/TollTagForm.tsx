@@ -1,16 +1,25 @@
 import { useTranslation } from 'react-i18next'
-import { useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useForm, type UseFormSetError } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import { Button, Field, Input, Select, Textarea } from './ui'
 import type { TollTag, TollTagCreate, TollTagUpdate } from '../types/toll'
+import { makeTollTagSchema, type TollTagFormData, TOLL_SYSTEM_MAX } from '../schemas/tollTag'
 import {
-  makeTollTagSchema,
-  type TollTagFormData,
-  TOLL_SYSTEM_OPTIONS,
-} from '../schemas/tollTag'
+  TOLL_OTHER,
+  choiceForCountry,
+  guessTollCountry,
+  initialTollSelection,
+  listedTollSystem,
+  selectedTollSystem,
+  tollCountryOptions,
+  tollSystemsFor,
+  usesOtherName,
+} from '../utils/tollSystems'
+import { languageToLocale } from '../constants/i18n'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useCreateTollTag, useUpdateTollTag } from '../hooks/queries/useTollRecords'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
@@ -23,39 +32,73 @@ interface TollTagFormProps {
 }
 
 export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFormProps) {
-  const { t } = useTranslation('forms')
+  const { t, i18n } = useTranslation('forms')
   const isEdit = !!tag
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateTollTag(vin)
   const updateMutation = useUpdateTollTag(vin)
+  const { currencyCode } = useCurrencyPreference()
+  const locale = languageToLocale(i18n.language)
 
   // Zod bakes its messages in at construction, so the schema is rebuilt when
-  // the language changes. Only the resolver depends on it — no fetch, no
-  // reset() — so a rebuild can't discard what the user typed.
-  const storedSystem = tag?.toll_system
-  const schema = useMemo(() => makeTollTagSchema(t, storedSystem), [t, storedSystem])
+  // the language changes. Only the resolver depends on it (no fetch, no
+  // reset()), so a rebuild can't discard what the user typed.
+  const schema = useMemo(() => makeTollTagSchema(t), [t])
+
+  // useForm reads defaultValues once, so only the first render's guess counts.
+  const initial = initialTollSelection(tag?.toll_system, guessTollCountry(currencyCode, i18n.language))
 
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
+    getValues,
+    setFocus,
+    clearErrors,
     formState: { errors, isSubmitting },
     setError: setFieldError,
   } = useForm<TollTagFormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      toll_system: tag?.toll_system ?? 'EZ TAG',
+      toll_country: initial.country,
+      toll_system: initial.choice,
+      // Seeded even while hidden. The name field mounts later, and an
+      // unseeded field would submit nothing instead of the saved name.
+      toll_system_other: initial.otherName,
       tag_number: tag?.tag_number || '',
       status: (tag?.status as 'active' | 'inactive') || 'active',
       notes: tag?.notes || '',
     },
   })
 
+  const country = watch('toll_country')
+  const choice = watch('toll_system')
+  const otherName = watch('toll_system_other')
+  const showName = usesOtherName({ country, choice })
+  const listedName = showName ? listedTollSystem(otherName) : null
+  const countryOptions = useMemo(() => tollCountryOptions(locale), [locale])
+  const systems = useMemo(() => tollSystemsFor(country, locale), [country, locale])
+  const otherOption = { value: TOLL_OTHER, label: t('tollSystems.other') }
+  const systemLocked = country === '' || country === TOLL_OTHER
+
+  // Focus the name field when the user picks Other, not when an edit opens on it.
+  const focusName = useRef(false)
+  useEffect(() => {
+    if (showName && focusName.current) {
+      focusName.current = false
+      setFocus('toll_system_other')
+    }
+  }, [showName, setFocus])
+
   const onSubmit = async (data: TollTagFormData) => {
     setError(null)
+    const selection = { country: data.toll_country, choice: data.toll_system, otherName: data.toll_system_other }
 
     try {
       const payload: TollTagCreate | TollTagUpdate = {
-        toll_system: data.toll_system,
+        // Country only filters the list. The system is what's saved.
+        toll_system: selectedTollSystem(selection),
         tag_number: data.tag_number,
         status: data.status,
         notes: data.notes,
@@ -74,10 +117,13 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
       onSuccess()
       onClose()
     } catch (err) {
+      // The API only knows toll_system. If the user typed it, the error goes under the name field.
+      const setServerError: UseFormSetError<TollTagFormData> = (name, fieldError, options) =>
+        setFieldError(name === 'toll_system' && usesOtherName(selection) ? 'toll_system_other' : name, fieldError, options)
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
       // empty and this banner would never show.
-      const { attached, unhandled } = applyServerErrors<TollTagFormData>(setFieldError, err, [
+      const { attached, unhandled } = applyServerErrors<TollTagFormData>(setServerError, err, [
         'toll_system',
         'tag_number',
         'status',
@@ -112,42 +158,91 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field id="toll_system" label={t('toll.tollSystem')} required error={errors.toll_system}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field id="toll_country" label={t('toll.country')} required error={errors.toll_country}>
               <Select
-                id="toll_system"
-                {...register('toll_system')}
+                id="toll_country"
+                {...register('toll_country', {
+                  onChange: (e: ChangeEvent<HTMLSelectElement>) => {
+                    const kept = choiceForCountry(getValues('toll_system'), e.target.value)
+                    setValue('toll_system', kept)
+                    clearErrors(['toll_country', 'toll_system', 'toll_system_other'])
+                    focusName.current = !showName && usesOtherName({ country: e.target.value, choice: kept })
+                  },
+                })}
                 disabled={isSubmitting}
-                invalid={!!errors.toll_system}
-                placeholder={t('toll.selectTollSystem')}
-                options={[
-                  // A stored system outside the list stays selectable, or an
-                  // untouched save of that tag couldn't go through.
-                  ...(storedSystem && !TOLL_SYSTEM_OPTIONS.some((s) => s.value === storedSystem)
-                    ? [{ value: storedSystem, label: storedSystem }]
-                    : []),
-                  ...TOLL_SYSTEM_OPTIONS.map((system) => ({ value: system.value, label: t(system.labelKey) })),
-                ]}
+                invalid={!!errors.toll_country}
+                placeholder={t('toll.selectCountry')}
+                options={[...countryOptions, otherOption]}
               />
             </Field>
 
-            <Field id="tag_number" label={t('toll.tagNumber')} required error={errors.tag_number}>
-              <Input id="tag_number" type="text" mono {...register('tag_number')} placeholder="e.g., 0012345678" invalid={!!errors.tag_number} disabled={isSubmitting} />
+            <Field id="toll_system" label={t('toll.tollSystem')} required error={errors.toll_system}>
+              <Select
+                // A new country is a new list. Remounting lets react-hook-form
+                // put the kept choice back instead of the browser picking one.
+                key={country}
+                id="toll_system"
+                {...register('toll_system', {
+                  onChange: (e: ChangeEvent<HTMLSelectElement>) => {
+                    clearErrors(['toll_system', 'toll_system_other'])
+                    focusName.current = !showName && e.target.value === TOLL_OTHER
+                  },
+                })}
+                disabled={isSubmitting || systemLocked}
+                invalid={!!errors.toll_system}
+                placeholder={
+                  country === '' ? t('toll.chooseCountryFirst') : country === TOLL_OTHER ? undefined : t('toll.selectTollSystem')
+                }
+                options={
+                  country === ''
+                    ? []
+                    : country === TOLL_OTHER
+                      ? [otherOption]
+                      : [...systems.map((s) => ({ value: s, label: s })), otherOption]
+                }
+              />
             </Field>
           </div>
 
-          <Field id="status" label={t('common:status')} error={errors.status}>
-            <Select
-              id="status"
-              {...register('status')}
-              disabled={isSubmitting}
-              invalid={!!errors.status}
-              options={[
-                { value: 'active', label: t('common:active') },
-                { value: 'inactive', label: t('common:inactive') },
-              ]}
-            />
-          </Field>
+          {showName && (
+            <Field
+              id="toll_system_other"
+              label={t('toll.tollSystemName')}
+              required
+              error={errors.toll_system_other}
+              hint={listedName ? t('toll.tollSystemSavesAs', { name: listedName }) : t('toll.tollSystemNameHint')}
+            >
+              <Input
+                id="toll_system_other"
+                type="text"
+                maxLength={TOLL_SYSTEM_MAX}
+                {...register('toll_system_other')}
+                placeholder={t('toll.tollSystemNamePlaceholder')}
+                invalid={!!errors.toll_system_other}
+                disabled={isSubmitting}
+              />
+            </Field>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field id="tag_number" label={t('toll.tagNumber')} required error={errors.tag_number}>
+              <Input id="tag_number" type="text" mono {...register('tag_number')} placeholder="e.g., 0012345678" invalid={!!errors.tag_number} disabled={isSubmitting} />
+            </Field>
+
+            <Field id="status" label={t('common:status')} error={errors.status}>
+              <Select
+                id="status"
+                {...register('status')}
+                disabled={isSubmitting}
+                invalid={!!errors.status}
+                options={[
+                  { value: 'active', label: t('common:active') },
+                  { value: 'inactive', label: t('common:inactive') },
+                ]}
+              />
+            </Field>
+          </div>
 
           <Field id="notes" label={t('common:notes')} error={errors.notes}>
             <Textarea id="notes" rows={3} {...register('notes')} placeholder={t('toll.tagNotesPlaceholder')} invalid={!!errors.notes} disabled={isSubmitting} />

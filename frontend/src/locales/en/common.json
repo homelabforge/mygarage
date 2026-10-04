@@ -546,6 +546,9 @@
       "notesTooLong": "Notes too long"
     },
     "tollTag": {
+      "countryRequired": "Choose a country, or Other if yours isn't listed",
+      "systemNameRequired": "Enter the toll system name",
+      "systemNameTooLong": "Toll system name too long (max 50 characters)",
       "systemRequired": "Toll system is required",
       "tagNumberRequired": "Tag number is required",
       "tagNumberTooLong": "Tag number too long (max 50 characters)"
