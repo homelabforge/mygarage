@@ -81,21 +81,13 @@ class VINDecoderRouter:
         chain: list[BaseVINDecoder] = []
 
         if region == MarketRegion.EUROPE:
-            # European vehicle:
-            # If european decoder has an API key configured, use it first (rich European catalog data).
-            # If no API key is configured, use NHTSA first (free, public, no key), then fallback to WMI.
-            has_euro_api = getattr(european, "has_api_key", False)
-            if european and european.is_available() and has_euro_api:
+            # European vehicle: bypass US NHTSA and call European decoder directly
+            if european and european.is_available():
                 chain.append(european)
-                chain.extend(other_decoders)
-                if nhtsa and nhtsa.is_available():
-                    chain.append(nhtsa)
-            else:
-                if nhtsa and nhtsa.is_available():
-                    chain.append(nhtsa)
-                chain.extend(other_decoders)
-                if european and european.is_available():
-                    chain.append(european)
+            # Add other decoders before NHTSA fallback
+            chain.extend(other_decoders)
+            if nhtsa and nhtsa.is_available():
+                chain.append(nhtsa)
 
         elif region == MarketRegion.NORTH_AMERICA:
             # North American vehicle: call NHTSA first, fallback to European decoder if error code 1
