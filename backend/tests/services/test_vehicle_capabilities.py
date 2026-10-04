@@ -112,7 +112,7 @@ async def test_unregistered_kind_contributes_nothing(db_session: AsyncSession):
     """Fail closed: an unknown source hides gated tabs rather than showing all."""
     vin = await _make_vehicle(db_session)
     device = _device(vin, "generic_mqtt")
-    device.kind = "not_a_registered_kind"
+    device.kind = "unregistered_kind"
     db_session.add(device)
     await db_session.commit()
 
