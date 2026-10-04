@@ -116,7 +116,7 @@
       "csvLabel": "Esportazione CSV:",
       "csvDesc": "Scarica i dati del garage in formato foglio di calcolo per ulteriori analisi, bilanci o report.",
       "pdfLabel": "Esportazione PDF:",
-      "pdfDesc": "Genera un report professionale con tabelle riepilogative e totali per documentazione o archivio.",
+      "pdfDesc": "Genera un report professionale con tabelle riepilogative e totali per le parti interessate o per l'archivio.",
       "includesIntro": "I dati esportati includono:",
       "item1": "Riepilogo dei costi del garage",
       "item2": "Ripartizione per categoria",
@@ -156,7 +156,7 @@
       "item1": "Aggiungi tutti i veicoli al garage indicando il relativo prezzo d'acquisto",
       "item2": "Inserisci le registrazioni di manutenzione per tutti i veicoli",
       "item3": "Registra i rifornimenti per monitorare le spese del carburante",
-      "item4": "Includi le spese assicurative e fiscali nei registri di spesa",
+      "item4": "Includi le spese assicurative e fiscali nelle registrazioni di manutenzione",
       "item5": "Mantieni almeno 3-6 mesi di storico per visualizzare trend significativi",
       "item6": "Mantieni registrazioni costanti per tutti i veicoli per garantire confronti equi"
     }
@@ -411,7 +411,7 @@
       "averageEconomyDesc": "Carburante totale rispetto alla distanza totale per tutti i pieni. I rifornimenti anomali vengono esclusi.",
       "recentEconomyLabel": "Ultimo {{unit}}:",
       "recentEconomyDesc": "Il pieno effettuato più di recente.",
-      "note": "Un calo nell'efficienza del carburante può indicare necessità di manutenzione (filtro dell'aria, candele, pressione pneumatici) o un cambiamento nello stile di guida."
+      "note": "Un calo nell'efficienza del carburante può indicare necessità di manutenzione (filtro dell'aria, candele, pressione pneumatici) o un cambiamento nello stile di guida. I cali significativi vanno verificati."
     },
     "gotIt": "Ho capito",
     "overview": {
@@ -420,7 +420,7 @@
     },
     "periodComparison": {
       "title": "Confronto tra periodi",
-      "body": "Confronta i costi tra due intervalli di date personalizzati per valutare come le spese siano variate anno su anno o tra stagioni diverse. Utile per validare il rispetto del budget."
+      "body": "Confronta i costi tra due intervalli di date personalizzati per valutare come le spese siano variate anno su anno o tra periodi diversi. Utile per individuare tendenze e validare le variazioni di budget."
     },
     "predictions": {
       "title": "Previsioni di manutenzione",
@@ -441,7 +441,7 @@
       "sixMonthDesc": "Costo medio mensile calcolato sugli ultimi 6 mesi.",
       "twelveMonthLabel": "Media a 12 mesi:",
       "twelveMonthDesc": "Costo medio mensile calcolato sugli ultimi 12 mesi.",
-      "note": "Le medie mobili smussano i picchi temporanei e aiutano a identificare i trend di lungo periodo."
+      "note": "Le medie mobili smussano i picchi temporanei e aiutano a identificare i trend di lungo periodo. Confronta questi valori per capire se i costi tendono a salire o a scendere."
     },
     "seasonal": {
       "title": "Andamenti stagionali",
@@ -466,11 +466,11 @@
     },
     "tires": {
       "title": "Pneumatici",
-      "body": "Battistrada, vita residua e distanza effettivamente percorsa da ciascuno pneumatico. La percorrenza è calcolata esclusivamente nei periodi in cui lo pneumatico è stato montato, così un treno invernale non accumula i chilometri percorsi con quello estivo.",
+      "body": "Battistrada, vita residua e distanza effettivamente percorsa da ciascuno pneumatico. La percorrenza è calcolata esclusivamente nei periodi in cui lo pneumatico è stato montato, così un treno invernale non accumula la distanza percorsa con quello estivo.",
       "readinessLabel": "Completamento dati:",
       "readinessDesc": "quanti pneumatici possono rispondere a ciascuna domanda e quale dato registrare successivamente. Scompare quando tutti i dati sono completi.",
       "independentLabel": "Perché tre richieste separate:",
-      "independentDesc": "un andamento necessita di due misurazioni del battistrada, una proiezione richiede il contachilometri associato alle letture, e la distanza richiede il contachilometri al montaggio. Sono metriche indipendenti.",
+      "independentDesc": "un andamento necessita di due misurazioni del battistrada, una proiezione richiede il contachilometri associato alle letture, e la distanza richiede il contachilometri al montaggio. Sono metriche indipendenti, quindi uno pneumatico può avere una distanza valida ma nessuna proiezione.",
       "notExportedLabel": "Non inclusi nel PDF:",
       "notExportedDesc": "le statistiche sugli pneumatici sono attualmente disponibili solo in questa pagina. Non sono ancora incluse nel report né nell'esportazione generale."
     },
@@ -486,7 +486,7 @@
     },
     "vendorSpending": {
       "title": "Spesa per fornitore",
-      "body": "Mostra con quali fornitori o officine hai effettuato la spesa maggiore. Utilizzalo per identificare i tuoi fornitori principali e confrontare i costi tra diverse officine."
+      "body": "Mostra con quali fornitori o officine hai effettuato la spesa maggiore. Utilizzalo per identificare i tuoi fornitori principali e confrontare i costi tra diverse officine per interventi simili."
     }
   },
   "reports": {

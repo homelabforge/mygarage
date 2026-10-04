@@ -51,9 +51,9 @@
     "ssoError": {
       "account_disabled": "L'account utente è disabilitato",
       "email_linked_elsewhere": "Questa email appartiene a un account collegato a un accesso diverso. Chiedi a un amministratore di autorizzare un ricollegamento SSO.",
-      "email_no_password": "Esiste un account con questa email ma non ha password impostata. Chiedi a un amministratore di autorizzare un ricollegamento SSO.",
+      "email_no_password": "Esiste un account con questa email ma non ha una password con cui confermarlo. Chiedi a un amministratore di autorizzare un ricollegamento SSO.",
       "username_linked_elsewhere": "Questo nome utente appartiene a un account collegato a un accesso diverso. Chiedi a un amministratore di autorizzare un ricollegamento SSO.",
-      "username_no_password": "Esiste un account con questo nome utente ma non ha password impostata. Chiedi a un amministratore di autorizzare un ricollegamento SSO.",
+      "username_no_password": "Esiste un account con questo nome utente ma non ha una password con cui confermarlo. Chiedi a un amministratore di autorizzare un ricollegamento SSO.",
       "no_account": "Nessun account MyGarage corrisponde a questo accesso e la creazione automatica degli account è disattivata. Chiedi a un amministratore di creare il tuo account.",
       "cancelled": "Accesso annullato.",
       "expired": "Questo accesso ha richiesto troppo tempo o è già stato utilizzato. Riprova.",

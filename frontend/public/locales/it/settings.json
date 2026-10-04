@@ -15,7 +15,7 @@
   },
   "timezone": {
     "label": "Fuso orario",
-    "description": "Il giorno di calendario utilizzato da MyGarage per le scadenze, i badge, le notifiche e la compilazione delle date. I timestamp dei log rimangono in UTC.",
+    "description": "Il giorno di calendario utilizzato da MyGarage per le scadenze, i badge \"Scaduto\", le notifiche e la compilazione delle date. I timestamp dei log rimangono in UTC.",
     "serverDefault": "Predefinito del server",
     "serverDefaultZone": "Predefinito del server ({{zone}})"
   },
@@ -168,7 +168,7 @@
     "title": "Veicoli archiviati",
     "description": "Visualizza e gestisci i veicoli archiviati (venduti, rottamati, ceduti, ecc.). I veicoli archiviati rimangono nelle statistiche ma possono essere nascosti dall'elenco principale.",
     "autoArchiveLabel": "Archiviazione automatica veicoli inattivi",
-    "autoArchiveDescription": "Archivia i veicoli senza attività di carburante, manutenzione o contachilometri dopo N giorni. 0 disabilita. Viene eseguito ogni giorno quando lo scheduler è abilitato e si applica a tutti i veicoli dell'istanza.",
+    "autoArchiveDescription": "Archivia i veicoli senza attività di carburante, manutenzione, contachilometri o ore motore dopo N giorni. 0 disabilita. Viene eseguito ogni giorno quando lo scheduler è abilitato e si applica a tutti i veicoli dell'istanza, compresi quelli degli altri utenti.",
     "autoArchiveDays": "Giorni di inattività",
     "autoArchiveSaved": "Impostazione archiviazione automatica salvata",
     "autoArchiveError": "Impossibile salvare l'impostazione di archiviazione automatica"
@@ -211,7 +211,7 @@
     "photosDirectory": "Cartella foto",
     "documentsDirectory": "Cartella documenti",
     "windowSticker": "Scheda informativa veicolo",
-    "windowStickerDesc": "Configura il caricamento della scheda tecnica d'acquisto e l'elaborazione OCR.",
+    "windowStickerDesc": "Configura il caricamento della scheda tecnica d'acquisto (etichetta Monroney) e l'elaborazione OCR.",
     "enableWindowSticker": "Abilita caricamento scheda veicolo",
     "enableWindowStickerDesc": "Consenti agli utenti di caricare la scheda del veicolo per l'estrazione automatica dei dati.",
     "enableOCR": "Abilita elaborazione OCR",
@@ -269,7 +269,7 @@
     "configureDesc": "Gestisci i dispositivi WiCAN, le impostazioni MQTT e i parametri di telemetria.",
     "aboutLiveLink": "Informazioni su LiveLink",
     "webhooks": "Webhook in entrata",
-    "webhooksDesc": "Consenti a Home Assistant, n8n o Comandi Rapidi di registrare rifornimenti, contachilometri e scadenze.",
+    "webhooksDesc": "Consenti a Home Assistant, n8n o Comandi Rapidi di registrare rifornimenti, contachilometri e promemoria completati.",
     "webhookToken": "Token ricezione webhook",
     "webhookTokenPlaceholder": "Genera un token casuale lungo",
     "webhookTokenDesc": "Richiesto per ogni richiesta webhook in entrata. Lascia vuoto per disabilitare la ricezione.",
@@ -330,7 +330,7 @@
     "brokerSaveFirst": "Salva prima le modifiche. I test e il riavvio usano le impostazioni salvate.",
     "discoverFailed": "Impossibile raggiungere il broker per l'ascolto.",
     "wicanTopicPrefix": "Prefisso topic MQTT WiCAN",
-    "wicanTopicPrefixHint": "La parte iniziale di ogni topic pubblicato dai dispositivi WiCAN. Il salvataggio riavvia il sottoscrittore MQTT.",
+    "wicanTopicPrefixHint": "La parte iniziale di ogni topic pubblicato dai dispositivi WiCAN. Il salvataggio riavvia il sottoscrittore MQTT, se è in esecuzione.",
     "noSourceDevices": "Nessun dispositivo di questo tipo presente.",
     "deviceNotLinked": "Non collegato a un veicolo. I dati pubblicati non vengono registrati finché non viene associato.",
     "readingsHeading": "Letture",
@@ -425,7 +425,7 @@
       "apiTokenHint": "Crea un'applicazione su pushover.net per ottenere un token",
       "sending": "Invio in corso...",
       "testConnection": "Test connessione",
-      "setupNote": "Pushover richiede un acquisto una tantum per piattaforma. Visita pushover.net per configurare il tuo account e creare un'applicazione.",
+      "setupNote": "Pushover richiede un acquisto una tantum di 5 $ per piattaforma (iOS, Android, Desktop). Visita pushover.net per configurare il tuo account e creare un'applicazione.",
       "apiTokenLabel": "Token API / Token app"
     }
   },
@@ -717,11 +717,11 @@
     "postgresRestoreMessage": "Il ripristino completo tramite interfaccia non è disponibile per PostgreSQL. Ferma l'applicazione ed esegui: pg_restore --clean --if-exists --no-owner --no-privileges -d <dbname> mygarage.pgdump"
   },
   "filesTab": {
-    "aboutWindowStickersBody": "La scheda tecnica d'acquisto riporta prezzo di listino, consumi dichiarati, equipaggiamento di serie e optional. Carica la scheda del tuo veicolo per popolare automaticamente i dati tecnici ed economici.",
+    "aboutWindowStickersBody": "La scheda tecnica d'acquisto (Monroney label) è l'etichetta che la legge federale degli Stati Uniti impone sui veicoli nuovi, con prezzo di listino (MSRP), consumi dichiarati, equipaggiamento di serie e optional. Carica la scheda del tuo veicolo per popolare automaticamente i dati tecnici ed economici.",
     "supportedFormatsLabel": "Formati supportati:",
     "supportedFormatsValue": "PDF, JPG, PNG (fino a 10MB)",
     "noteLabel": "Nota:",
-    "windowStickerVehicleNote": "Le schede informative sono disponibili principalmente per autovetture e furgoni, non per camper o rimorchi."
+    "windowStickerVehicleNote": "Le schede informative sono disponibili solo per autovetture e furgoni, non per camper, rimorchi o ralle (fifth wheel)."
   },
   "fuel": {
     "title": "Valori predefiniti carburante",

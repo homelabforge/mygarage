@@ -36,7 +36,7 @@
   "searchLoading": "Ricerca in corso…",
   "searchHint": "Digita un soprannome, VIN, targa, marca o titolo del promemoria.",
   "searchNoResultsTitle": "Nessun risultato",
-  "searchNoResultsBody": "Prova con un soprannome, VIN, targa o titolo diverso.",
+  "searchNoResultsBody": "Prova con un soprannome, VIN, targa o titolo del promemoria diverso.",
   "searchTypeVehicle": "Veicolo",
   "searchTypeReminder": "Promemoria",
   "notifications": "Notifiche",
