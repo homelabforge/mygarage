@@ -9,6 +9,29 @@ from pydantic import BaseModel, Field, field_validator
 from app.schemas._money import Money, OptionalMoney
 from app.schemas._nullability import reject_null
 
+# Spellings people type for the US systems, mapped to the names the app lists.
+_TOLL_SYSTEM_ALIASES = {
+    "eztag": "EZ TAG",
+    "ez tag": "EZ TAG",
+    "txtag": "TxTag",
+    "tx tag": "TxTag",
+    "ezpass": "E-ZPass",
+    "e-zpass": "E-ZPass",
+    "sunpass": "SunPass",
+    "ntta": "NTTA TollTag",
+    "tolltag": "NTTA TollTag",
+}
+
+
+def _tidy_toll_system(value: Any) -> Any:
+    """Trim and collapse whitespace so the length checks see the real name."""
+    return " ".join(value.split()) if isinstance(value, str) else value
+
+
+def _normalize_toll_system(value: str) -> str:
+    """Map a known spelling to the listed name, e.g. "eztag" to "EZ TAG"."""
+    return _TOLL_SYSTEM_ALIASES.get(value.lower(), value)
+
 
 class TollTagBase(BaseModel):
     """Base toll tag schema with common fields."""
@@ -21,26 +44,22 @@ class TollTagBase(BaseModel):
     @field_validator("toll_system")
     @classmethod
     def validate_toll_system(cls, v: str) -> str:
-        """Validate and suggest common toll systems."""
-        # Allow any toll system but normalize common ones
-        common_systems = {
-            "eztag": "EZ TAG",
-            "ez tag": "EZ TAG",
-            "txtag": "TxTag",
-            "tx tag": "TxTag",
-            "ezpass": "E-ZPass",
-            "e-zpass": "E-ZPass",
-            "sunpass": "SunPass",
-            "ntta": "NTTA TollTag",
-            "tolltag": "NTTA TollTag",
-        }
-        return common_systems.get(v.lower(), v)
+        """Normalize common toll system spellings. Runs on reads too, so it never rejects."""
+        return _normalize_toll_system(v)
 
 
 class TollTagCreate(TollTagBase):
     """Schema for creating a new toll tag."""
 
     vin: str = Field(..., description="VIN of the vehicle", min_length=17, max_length=17)
+
+    # A blank name has to fail here, on input. On the base it would 500 a
+    # stored row on read, same as status.
+    @field_validator("toll_system", mode="before")
+    @classmethod
+    def tidy_toll_system(cls, v: Any) -> Any:
+        """Trim and collapse whitespace before min_length runs."""
+        return _tidy_toll_system(v)
 
     # Here and not on the base: the status column has no CHECK, and the
     # response shares the base, so a stored "lost" would 500 the tag list.
@@ -82,6 +101,18 @@ class TollTagUpdate(BaseModel):
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("tag_number", "toll_system", "status")
+
+    @field_validator("toll_system", mode="before")
+    @classmethod
+    def tidy_toll_system(cls, v: Any) -> Any:
+        """Trim and collapse whitespace before min_length runs. None passes through to reject_null."""
+        return _tidy_toll_system(v)
+
+    @field_validator("toll_system")
+    @classmethod
+    def normalize_toll_system(cls, v: str | None) -> str | None:
+        """Same spellings create normalizes."""
+        return None if v is None else _normalize_toll_system(v)
 
     @field_validator("status")
     @classmethod
