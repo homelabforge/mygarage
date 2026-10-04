@@ -134,7 +134,7 @@
     {
       "path": "public/locales/it/common.json",
       "disposition": "no unit behaviour",
-      "digest": "0cf467074e482cdb6c8fe0f1f77c6e05cf92a54adb055349beb65ffd4e9ec81f",
+      "digest": "8d2aa1514c015ba1a88dfdf5ebe404148a2dc3e7c11318e9db6e0f5d784b3789",
       "reason": "Italian locale (#201, marcomatrella). Reviewed 2026-10-04 against the Italian itself; the row had been submitted with the de row's reason copied verbatim, which describes German history (stale copies removed, keys falling back) that never happened here. A scan of every value for unit words and symbols (km, mi, L, gal, MPG, kPa, PSI, kg, lb, Nm and their Italian names) finds none that the English for the same key does not name. Shared UI, auth, validation and error copy only."
     },
     {
@@ -150,7 +150,7 @@
     {
       "path": "public/locales/it/nav.json",
       "disposition": "no unit behaviour",
-      "digest": "de44b170c8b91473bab8752f8c37f008ace3cb443f511b387444709e164b2ae5",
+      "digest": "6d04fcc052263618685c6e3d2a1c7ccb89f210f775eb074e73ddd4c45a34e347",
       "reason": "Italian locale (#201, marcomatrella). Reviewed 2026-10-04 against the Italian itself; the row had been submitted with the de row's reason copied verbatim, which describes German history (stale copies removed, keys falling back) that never happened here. A scan of every value for unit words and symbols (km, mi, L, gal, MPG, kPa, PSI, kg, lb, Nm and their Italian names) finds none that the English for the same key does not name. Navigation labels only."
     },
     {
@@ -613,7 +613,7 @@
     {
       "path": "src/components/FuelRecordForm.tsx",
       "disposition": "audited",
-      "digest": "1839a99a736a54162f9d970143f77892b55540f15478a31d338e959b28041c57",
+      "digest": "da16fc12f61a121d58b37b7d7d4329ab0a51556c2cf28d906f99b830dff67b16",
       "reason": "gate-detectable unit decisions, recorded not asserted clean (plan 3b task 1 ordering). R7 CLOSED: the receipt preview rendered the draft's CANONICAL litres with a hardcoded \"L\" beside it, so a gallons account read one number and then watched the field it accepted into show another. It goes through u.volume.formatPrimary, the same adapter the field is seeded from. Task 6b interpolated the resolved consumption label into fuel.mpgTip, which told every reader \"MPG is only calculated for full tank fill-ups\" beside a figure they may read in L/100km, and dropped the kWh/100mi claim from fuel.electricTip: no code in this repo computes that figure in any unit. Task 7 closed ruling R4's entry-grid shift on this file: the volume and price fields are seeded WITH their canonical origins and read back through them, so a save that touched neither posts the stored values instead of a re-conversion of the two- and three-decimal displays they are shown at. The price origin is separate from the quantity ones because it carries the basis: `price_basis` is a <select> on this very form, so moving per_volume -> per_weight leaves the number alone and changes what it means. `acceptUnitField` grew `liters` and `propane_liters` and gained a price sibling, `acceptPriceField`, because the parsed-receipt path was landing both with a value and no fresh origin, which is the same unguarded seed beside a guarded one that the odometer had. The two volume/price placeholders moved off `units.volume === 'L'` onto a `Record` over the token: the branch named the right QUANTITY and still could not name the right UNIT, so a gal_uk account read a US-gallon example. Mutation also found this form's SECOND volume field, propane_liters, untested (PropaneRecordForm has a field of the same name and its own cases); FuelRecordForm.gallonUnits.test.tsx now drives it on a propane vehicle. Re-reviewed for the exact-factor comment sweep: the only change is the VOLUME_EXAMPLES docstring, whose worked arithmetic now divides by the exact US gallon (3.785411784) and states that each example agrees with it to within a thousandth (47.318 / 3.785411784 = 12.5001 against '12.500'; 0.924 x 3.785411784 = 3.4977 against '3.498'). The example strings and every conversion path are unchanged. Re-reviewed for octane + diesel grade (#164, 2026-09-18): the octane NumberInput is dimensionless (an AKI/RON label, registerDecimal with no adapter) and the grade is an enum select; visibility follows the effective fuel type; the prefill effect copies both raw from the newest record; the payload sends them null-on-clear. No unit adapter, conversion or unit-bearing seed touched. Re-reviewed for the codex code-review fixes (2026-09-18): a touched-fields guard on the octane/diesel-grade prefill and a visibility-flip effect that clears a hidden grade field; both move dimensionless values, no unit adapter or conversion touched. 2026-09-24 (money fields): the currency prefix is now CurrencyInput or Input's prefix, padded to the symbol's drawn width; no quantity, unit or conversion code changed. Re-read 2026-09-29: on edit an emptied field posts null instead of being left out (def_fill_level excepted, unseeded); every unit field still goes back through the same seeded origin, so no unit change. 2026-09-30 (money-fits B6): the schema memo depends on `units` too, because the price cap now converts the typed price through the unit the price_basis select names before comparing (see schemas/fuel.ts). Every unit field still posts through its seeded origin, so the write is unchanged; FuelRecordForm.gallonUnits.test.tsx covers the per-pound cap and the same number per gallon.",
       "tests": [
         "components/__tests__/FuelRecordForm.mixedUnits.test.tsx",
@@ -2829,7 +2829,7 @@
     {
       "path": "src/schemas/fuel.ts",
       "disposition": "audited",
-      "digest": "19fe7d9784f3d553c9bffdd1fb2e5296444806b059628c94ac1fb4e329c0afc1",
+      "digest": "2da93d074a0f46007730ebfc6bf77ba3486086cf26e03f1ec9271d4129fab33d",
       "reason": "as schemas/shared.ts Re-reviewed for octane + diesel grade (#164, 2026-09-18): octane via makeNumericField(50-150, dimensionless, no adapter) and diesel_grade via optionalEnum(DIESEL_GRADE_VALUES); no unit-bearing bound or conversion. 2026-09-30 (money-fits B6): the unit-price cap is an object-level check that reads price_basis off the parse: checkUnitPriceCap converts the typed price to $/L or $/kg through the user's volume or mass unit and compares it with UNIT_PRICE_MAX. That is a conversion in this schema, for a bound only; fuel.schema.test.ts covers per gallon, per pound, per_kwh and per_tank. cost and rebate cap at MONEY_MAX.",
       "tests": [
         "schemas/__tests__/fuel.test.ts",
