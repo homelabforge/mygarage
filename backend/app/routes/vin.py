@@ -6,11 +6,15 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
 from app.models.user import User
 from app.schemas.vin import VINDecodeRequest, VINDecodeResponse
 from app.services.auth import require_auth
 from app.services.nhtsa import NHTSAService
 from app.services.vin_decoders import NHTSAVINDecoder, get_vin_decoder_router
+from app.services.vin_decoders.european import EuropeanVINDecoder
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -18,12 +22,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vin", tags=["VIN"])
 
 
-async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
+async def _decode_vin_helper(vin: str, db: AsyncSession | None = None) -> VINDecodeResponse:
     """
     Shared helper for VIN decoding logic with multi-provider routing.
 
     Args:
         vin: 17-character Vehicle Identification Number
+        db: Optional database session to load user/system settings
 
     Returns:
         VINDecodeResponse with decoded vehicle information
@@ -36,6 +41,26 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
         nhtsa = NHTSAService()
         vin_router = get_vin_decoder_router()
         vin_router.register_decoder(NHTSAVINDecoder(nhtsa_service=nhtsa))
+
+        # Check DB settings for European VIN decoder if database session is provided
+        if db is not None:
+            try:
+                from app.services.settings_service import SettingsService
+
+                api_key_setting = await SettingsService.get(db, "european_vin_api_key")
+                enabled_setting = await SettingsService.get_bool(
+                    db, "european_vin_enabled", default=True
+                )
+
+                european_decoder = vin_router.get_decoder("european")
+                if european_decoder and isinstance(european_decoder, EuropeanVINDecoder):
+                    if api_key_setting and api_key_setting.value:
+                        european_decoder.set_api_key(api_key_setting.value)
+                    european_decoder.enabled = enabled_setting
+            except Exception as e:
+                logger.warning(
+                    "Failed to load VIN settings from database: %s", sanitize_for_log(e)
+                )
 
         vehicle_info = await vin_router.decode_vin(vin)
         return VINDecodeResponse(**vehicle_info)
@@ -61,7 +86,11 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
 
 
 @router.post("/decode", response_model=VINDecodeResponse)
-async def decode_vin(request: VINDecodeRequest, current_user: User | None = Depends(require_auth)):
+async def decode_vin(
+    request: VINDecodeRequest,
+    current_user: User | None = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Decode a VIN using the NHTSA vPIC API.
 
@@ -79,11 +108,15 @@ async def decode_vin(request: VINDecodeRequest, current_user: User | None = Depe
     - **400**: Invalid VIN format
     - **500**: NHTSA API error or service unavailable
     """
-    return await _decode_vin_helper(request.vin)
+    return await _decode_vin_helper(request.vin, db=db)
 
 
 @router.get("/decode/{vin}", response_model=VINDecodeResponse)
-async def decode_vin_get(vin: str, current_user: User | None = Depends(require_auth)):
+async def decode_vin_get(
+    vin: str,
+    current_user: User | None = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Decode a VIN using the NHTSA vPIC API (GET endpoint).
 
@@ -100,7 +133,7 @@ async def decode_vin_get(vin: str, current_user: User | None = Depends(require_a
     - **400**: Invalid VIN format
     - **500**: NHTSA API error or service unavailable
     """
-    return await _decode_vin_helper(vin)
+    return await _decode_vin_helper(vin, db=db)
 
 
 @router.get("/validate/{vin}")

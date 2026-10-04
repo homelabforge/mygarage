@@ -210,6 +210,7 @@ class Settings(BaseSettings):
     nhtsa_api_base_url: str = "https://vpic.nhtsa.dot.gov/api"
 
     # European VIN API (AutoRef / European VIN decoders)
+    european_vin_enabled: bool = True
     european_vin_api_base_url: str = "https://api.autoref.eu"
     european_vin_api_key: str = ""  # Empty by default (supports free tier or configured API key)
 

@@ -30,6 +30,7 @@ class EuropeanVINDecoder(BaseVINDecoder):
         self,
         base_url: str | None = None,
         api_key: str | None = None,
+        enabled: bool = True,
         timeout: float = 15.0,
     ) -> None:
         raw_url = base_url or getattr(
@@ -49,11 +50,25 @@ class EuropeanVINDecoder(BaseVINDecoder):
         self.api_key = (
             api_key if api_key is not None else getattr(settings, "european_vin_api_key", "")
         )
+        self.enabled = enabled
         self.timeout = timeout
+
+    @property
+    def has_api_key(self) -> bool:
+        """Whether a valid API key is configured."""
+        return bool(self.api_key and self.api_key.strip())
+
+    def set_api_key(self, api_key: str | None) -> None:
+        """Set or update the API key dynamically."""
+        self.api_key = api_key.strip() if api_key else ""
+
+    def is_available(self) -> bool:
+        """European decoder is available if enabled."""
+        return self.enabled
 
     def can_handle(self, vin: str, region: MarketRegion) -> bool:
         """European decoder can handle European VINs as primary and all VINs as fallback."""
-        return True
+        return self.enabled
 
     async def decode(self, vin: str) -> dict[str, Any] | None:
         """Decode a VIN using AutoRef European API, falling back to WMI database.
@@ -64,13 +79,17 @@ class EuropeanVINDecoder(BaseVINDecoder):
         Returns:
             Dictionary matching VINDecodeResponse, or None if decoding failed
         """
+        if not self.enabled:
+            return None
+
         cleaned_vin = vin.strip().upper()
 
-        # 1. Query external AutoRef European API
-        api_result = await self._decode_from_api(cleaned_vin)
-        if api_result:
-            api_result["decoder_source"] = "autoref"
-            return api_result
+        # 1. Query external AutoRef European API only if API key is configured
+        if self.has_api_key:
+            api_result = await self._decode_from_api(cleaned_vin)
+            if api_result:
+                api_result["decoder_source"] = "autoref"
+                return api_result
 
         # 2. WMI-based fallback if known manufacturer (restricted to European market)
         if detect_market_region(cleaned_vin) == MarketRegion.EUROPE:
@@ -83,13 +102,15 @@ class EuropeanVINDecoder(BaseVINDecoder):
 
     async def _decode_from_api(self, vin: str) -> dict[str, Any] | None:
         """Query the AutoRef European VIN API."""
+        if not self.has_api_key:
+            return None
+
         url = f"{self.base_url}/vehicles/{vin}?lang=en"
         headers: dict[str, str] = {
             "Accept": "application/json",
             "User-Agent": "MyGarage-EuropeanVINDecoder/1.0",
+            "X-API-Key": self.api_key,
         }
-        if self.api_key:
-            headers["X-API-Key"] = self.api_key
 
         logger.info("Querying European VIN API (AutoRef) for VIN: %s", sanitize_for_log(vin))
 

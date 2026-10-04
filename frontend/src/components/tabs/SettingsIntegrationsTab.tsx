@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, AlertCircle, Plug, Shield, Radio, HelpCircle, Webhook, Sparkles, Settings } from 'lucide-react'
+import { CheckCircle, AlertCircle, Plug, Shield, Radio, HelpCircle, Webhook, Sparkles, Settings, Globe } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useCanManageInstance } from '@/hooks/useCanManageInstance'
 import api from '@/services/api'
@@ -104,7 +104,7 @@ function IntegrationsAdminView(): React.ReactElement {
   const [testing, setTesting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   // Which card's "About" help sidecar is open (null = closed).
-  const [helpDrawer, setHelpDrawer] = useState<'carcomplaints' | 'livelink' | null>(null)
+  const [helpDrawer, setHelpDrawer] = useState<'carcomplaints' | 'livelink' | 'european_vin' | null>(null)
 
   // Bumped whenever something that can change the integrations strip closes,
   // so the card refetches instead of showing the state from before the edit.
@@ -119,6 +119,8 @@ function IntegrationsAdminView(): React.ReactElement {
     nhtsa_auto_check: 'true',
     nhtsa_recall_check_interval: '7',
     nhtsa_recalls_api_url: NHTSA_RECALLS_BASE_URL,
+    european_vin_enabled: 'true',
+    european_vin_api_key: '',
     carcomplaints_enabled: 'true',
     tomtom_api_key: '',
     tomtom_enabled: 'false',
@@ -146,6 +148,8 @@ function IntegrationsAdminView(): React.ReactElement {
         nhtsa_auto_check: settingsMap['nhtsa_auto_check'] || 'true',
         nhtsa_recall_check_interval: settingsMap['nhtsa_recall_check_interval'] || '7',
         nhtsa_recalls_api_url: settingsMap['nhtsa_recalls_api_url'] || NHTSA_RECALLS_BASE_URL,
+        european_vin_enabled: settingsMap['european_vin_enabled'] || 'true',
+        european_vin_api_key: settingsMap['european_vin_api_key'] || '',
         carcomplaints_enabled: settingsMap['carcomplaints_enabled'] || 'true',
         tomtom_api_key: settingsMap['tomtom_api_key'] || '',
         tomtom_enabled: settingsMap['tomtom_enabled'] || 'false',
@@ -177,6 +181,8 @@ function IntegrationsAdminView(): React.ReactElement {
         nhtsa_auto_check: formData.nhtsa_auto_check,
         nhtsa_recall_check_interval: formData.nhtsa_recall_check_interval,
         nhtsa_recalls_api_url: formData.nhtsa_recalls_api_url,
+        european_vin_enabled: formData.european_vin_enabled,
+        european_vin_api_key: formData.european_vin_api_key,
         carcomplaints_enabled: formData.carcomplaints_enabled,
         tomtom_api_key: formData.tomtom_api_key,
         tomtom_enabled: formData.tomtom_enabled,
@@ -440,6 +446,54 @@ function IntegrationsAdminView(): React.ReactElement {
         </IntegrationCard>
 
         <IntegrationCard
+          icon={Globe}
+          title={t('integrations.europeanVin')}
+          description={t('integrations.europeanVinDesc')}
+          actions={
+            <IconButton
+              icon={HelpCircle}
+              label={t('integrations.aboutEuropeanVin')}
+              variant="surface"
+              onClick={() => setHelpDrawer('european_vin')}
+            />
+          }
+        >
+          <div className="space-y-6">
+            {/* Enable European VIN Integration */}
+            <div>
+              <Toggle
+                label={t('integrations.enableEuropeanVin')}
+                checked={formData.european_vin_enabled === 'true'}
+                onChange={(next) => setFormData({ ...formData, european_vin_enabled: next ? 'true' : 'false' })}
+              />
+              <p className="mt-1 ml-14 text-sm text-garage-text-muted">
+                {t('integrations.enableEuropeanVinDesc')}
+              </p>
+            </div>
+
+            {/* API Key */}
+            <div>
+              <label htmlFor="european_vin_api_key" className="block text-sm font-medium text-garage-text mb-2">
+                {t('integrations.europeanVinApiKey')}
+              </label>
+              <input
+                type="password"
+                id="european_vin_api_key"
+                value={formData.european_vin_api_key}
+                disabled={formData.european_vin_enabled === 'false'}
+                onChange={(e) => setFormData({ ...formData, european_vin_api_key: e.target.value })}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono text-sm"
+                placeholder={t('integrations.europeanVinApiKeyPlaceholder')}
+                autoComplete="off"
+              />
+              <p className="mt-1 text-sm text-garage-text-muted">
+                {t('integrations.europeanVinApiKeyHint')}
+              </p>
+            </div>
+          </div>
+        </IntegrationCard>
+
+        <IntegrationCard
           icon={Webhook}
           title={t('integrations.webhooks')}
           description={t('integrations.webhooksDesc')}
@@ -556,6 +610,8 @@ function IntegrationsAdminView(): React.ReactElement {
         title={
           helpDrawer === 'livelink'
             ? t('integrations.aboutLiveLink')
+            : helpDrawer === 'european_vin'
+            ? t('integrations.aboutEuropeanVin')
             : t('integrations.aboutCarComplaints')
         }
         icon={HelpCircle}
@@ -579,6 +635,43 @@ function IntegrationsAdminView(): React.ReactElement {
             </p>
             <p className="text-sm text-garage-text-muted">
               <strong>{t('integrationsTab.requiresLabel')}</strong> {t('integrationsTab.livelinkFirmwareRequirement')}
+            </p>
+          </div>
+        )}
+        {helpDrawer === 'european_vin' && (
+          <div className="space-y-4">
+            <p className="text-sm text-garage-text-muted">
+              {t('integrations.europeanVinHelpIntro')}
+            </p>
+            <div className="p-3 bg-garage-bg/50 border border-garage-border rounded-lg">
+              <h4 className="text-sm font-semibold text-garage-text mb-1">
+                {t('integrations.europeanVinHelpFreeTierTitle')}
+              </h4>
+              <p className="text-xs text-garage-text-muted">
+                {t('integrations.europeanVinHelpFreeTierDesc')}
+              </p>
+            </div>
+            <div className="space-y-2 text-sm text-garage-text-muted">
+              <p>
+                <strong>1.</strong> {t('integrations.europeanVinStep1')}{' '}
+                <a
+                  href="https://www.autoref.eu"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline font-medium inline-flex items-center gap-1"
+                >
+                  autoref.eu
+                </a>
+              </p>
+              <p>
+                <strong>2.</strong> {t('integrations.europeanVinStep2')}
+              </p>
+              <p>
+                <strong>3.</strong> {t('integrations.europeanVinStep3')}
+              </p>
+            </div>
+            <p className="text-xs text-garage-text-muted pt-2 border-t border-garage-border">
+              {t('integrations.europeanVinHelpNote')}
             </p>
           </div>
         )}
