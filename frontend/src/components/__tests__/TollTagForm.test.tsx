@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useTranslation } from 'react-i18next'
 import { render } from '../../__tests__/test-utils'
 import type { TollTag } from '../../types/toll'
 
@@ -17,11 +16,34 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: currency.code, locale: 'en-US', formatCurrency: vi.fn() }),
 }))
 
+// Real react-i18next hands out a new t when the language changes, and the form
+// rebuilds its schema off that. The global mock's t never changes, so this file
+// keeps one t per language: English echoes the key, others prefix it. Each t is
+// memoized, for the same reason setup.ts hoists its own.
+const i18nMock = vi.hoisted(() => {
+  const ts = new Map<string, (key: string) => string>()
+  const tFor = (lang: string): ((key: string) => string) => {
+    let t = ts.get(lang)
+    if (!t) {
+      t = (key: string) => (lang === 'en' ? key : `[${lang}] ${key}`)
+      ts.set(lang, t)
+    }
+    return t
+  }
+  return { i18n: { language: 'en', changeLanguage: () => Promise.resolve() }, tFor }
+})
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: i18nMock.tFor(i18nMock.i18n.language), i18n: i18nMock.i18n }),
+  Trans: ({ children }: { children: React.ReactNode }) => children,
+  initReactI18next: { type: '3rdParty', init: () => {} },
+}))
+
 import TollTagForm from '../TollTagForm'
 
 beforeEach(() => {
   vi.clearAllMocks()
   currency.code = 'USD'
+  i18nMock.i18n.language = 'en'
 })
 
 const OTHER = '__other__'
@@ -237,29 +259,29 @@ describe('TollTagForm: tags saved off the list', () => {
 })
 
 describe('TollTagForm: review focus', () => {
-  it('a language change while open keeps the country, system and typed values, and renames the options', async () => {
+  it('a language change while open keeps what was entered and rebuilds the messages in the new language', async () => {
     const user = userEvent.setup()
     const { rerender } = render(<TollTagForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
     await user.selectOptions(countrySelect(), 'MY')
     await user.selectOptions(systemSelect(), 'Touch \'n Go RFID')
-    await fillTagNumber(user)
-    // The global mock hands every caller the same i18n object.
-    const { i18n } = useTranslation()
-    // Malay, because its order differs from English (Italian's doesn't).
-    i18n.language = 'ms'
-    try {
-      rerender(<TollTagForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
-      expect(control<HTMLSelectElement>('toll_country').value).toBe('MY')
-      expect(control<HTMLSelectElement>('toll_system').value).toBe('Touch \'n Go RFID')
-      expect(control<HTMLInputElement>('tag_number').value).toBe('0012345678')
-      const countries = [...control<HTMLSelectElement>('toll_country').options].filter((o) => o.value !== '' && o.value !== OTHER)
-      expect(countries.map((o) => o.text)).toEqual(['Amerika Syarikat', 'Itali', 'Malaysia'])
-      await user.click(screen.getByRole('button', { name: 'toll.addTag' }))
-      await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
-      expect(createMutateAsync.mock.calls[0][0]).toMatchObject({ toll_system: 'Touch \'n Go RFID', tag_number: '0012345678' })
-    } finally {
-      i18n.language = 'en'
-    }
+    await user.type(screen.getByLabelText('toll.tagNumber *'), '0012345678')
+    // Malay, because its country order differs from English (Italian's doesn't).
+    i18nMock.i18n.language = 'ms'
+    rerender(<TollTagForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    expect(control<HTMLSelectElement>('toll_country').value).toBe('MY')
+    expect(control<HTMLSelectElement>('toll_system').value).toBe('Touch \'n Go RFID')
+    expect(control<HTMLInputElement>('tag_number').value).toBe('0012345678')
+    const countries = [...control<HTMLSelectElement>('toll_country').options].filter((o) => o.value !== '' && o.value !== OTHER)
+    expect(countries.map((o) => o.text)).toEqual(['Amerika Syarikat', 'Itali', 'Malaysia'])
+    // The schema was rebuilt with the Malay t, so its messages are Malay too.
+    await user.clear(control('tag_number'))
+    await user.click(screen.getByRole('button', { name: '[ms] toll.addTag' }))
+    expect(await screen.findByText('[ms] common:validation.tollTag.tagNumberRequired')).toBeInTheDocument()
+    expect(createMutateAsync).not.toHaveBeenCalled()
+    await user.type(control('tag_number'), '0012345678')
+    await user.click(screen.getByRole('button', { name: '[ms] toll.addTag' }))
+    await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
+    expect(createMutateAsync.mock.calls[0][0]).toMatchObject({ toll_system: 'Touch \'n Go RFID', tag_number: '0012345678' })
   })
 
   it('a server error on the toll system shows under the name field when the name is in use', async () => {
