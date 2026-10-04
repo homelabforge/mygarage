@@ -3131,8 +3131,8 @@
     {
       "path": "src/utils/dateUtils.ts",
       "disposition": "no unit behaviour",
-      "digest": "5d30d50d24b3325a15b1e78435cdab40339fbdb4cbb74f7b91a0afbbd2484fdb",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-18: re-reviewed for the household-timezone change: date defaults, the zone store and copy only; no unit-bearing value, conversion or label touched. 2026-09-18: re-reviewed for the snooze frontend: addDaysToIsoDate and addMonthsToIsoDate do calendar arithmetic on ISO date strings; dates, not unit-bearing quantities, and no conversion or label touched."
+      "digest": "65c58416a3ff2cf31dbb4eb6f7f75102f6c1d63aca02cd8e6df63d31c53b0ec9",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-18: re-reviewed for the household-timezone change: date defaults, the zone store and copy only; no unit-bearing value, conversion or label touched. 2026-09-18: re-reviewed for the snooze frontend: addDaysToIsoDate and addMonthsToIsoDate do calendar arithmetic on ISO date strings; dates, not unit-bearing quantities, and no conversion or label touched. 2026-10-04 (date-fns locales): adds fr and ms to the date-fns locale table. Locale objects only; no unit word, quantity or conversion."
     },
     {
       "path": "src/utils/decimalInput.ts",

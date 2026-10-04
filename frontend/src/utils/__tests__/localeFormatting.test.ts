@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { getActiveLocale, setActiveLocale } from '@/constants/i18n'
+import { SUPPORTED_LANGUAGES, getActiveLocale, setActiveLocale } from '@/constants/i18n'
 import { formatAtPrecision, makeUnitFormat } from '@/utils/unitFormat'
 import { presetUnitsFor } from '@/types/units'
 import { formatDateForDisplay, getDateFnsLocale } from '@/utils/dateUtils'
@@ -100,5 +100,12 @@ describe('locale-aware number formatting', () => {
     expect(getDateFnsLocale().code).toBe('de')
     setActiveLocale('en')
     expect(getDateFnsLocale().code).toBe('en-US')
+  })
+
+  it.each(SUPPORTED_LANGUAGES.map((l) => l.code))('has a date-fns locale for %s', (code) => {
+    // French shipped without one and silently got English relative times.
+    // Walking the real list means a new language can't skip this table.
+    setActiveLocale(code)
+    expect(getDateFnsLocale().code.split('-')[0]).toBe(code.split('-')[0])
   })
 })
