@@ -43,15 +43,10 @@ describe('TOLL_COUNTRIES', () => {
   })
 
   it('spells a system the same everywhere, so no two spellings share a match key', () => {
-    const seen = new Map<string, string>()
-    for (const c of TOLL_COUNTRIES) {
-      for (const s of c.systems) {
-        const key = tollSystemMatchKey(s)
-        const earlier = seen.get(key)
-        if (earlier !== undefined) expect(s, `"${s}" vs "${earlier}"`).toBe(earlier)
-        seen.set(key, s)
-      }
-    }
+    // The same spelling under two countries is fine; two spellings of one name aren't.
+    const spellings = [...new Set(TOLL_COUNTRIES.flatMap((c) => c.systems))]
+    const keys = new Set(spellings.map(tollSystemMatchKey))
+    expect(keys.size, spellings.join(' | ')).toBe(spellings.length)
   })
 
   it('keeps the old literal "Other" and the select sentinel off the list', () => {

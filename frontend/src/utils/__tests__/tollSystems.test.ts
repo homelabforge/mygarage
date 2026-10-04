@@ -33,6 +33,11 @@ describe('matching a typed name', () => {
     expect(tidyTollSystem('  Via   Verde \t')).toBe('Via Verde')
   })
 
+  // The backend tidies with Python's str.split(), which also splits on these.
+  it('treats the whitespace Python splits on as whitespace', () => {
+    expect(tidyTollSystem('\u0085Pike\u001fPass\u001c')).toBe('Pike Pass')
+  })
+
   it('finds the listed spelling, or null', () => {
     expect(listedTollSystem('ezpass')).toBe('E-ZPass')
     expect(listedTollSystem('  TOUCH N GO RFID ')).toBe('Touch \'n Go RFID')

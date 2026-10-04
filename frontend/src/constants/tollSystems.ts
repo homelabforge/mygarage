@@ -12,8 +12,10 @@
  *   from SUPPORTED_CURRENCIES and SUPPORTED_LANGUAGES in constants/i18n.ts.
  *   Leave out a language spoken in lots of countries (en).
  *
- * Order doesn't matter, the form sorts by name. Renaming a system doesn't
- * touch tags already saved with the old spelling.
+ * The form sorts by name, so order only matters for a system listed under
+ * several countries: with no better guess, editing a tag opens on the first
+ * row that lists it. Renaming a system doesn't touch tags already saved with
+ * the old spelling.
  */
 export interface TollCountry {
   country: string

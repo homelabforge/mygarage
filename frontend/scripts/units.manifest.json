@@ -2223,8 +2223,8 @@
     {
       "path": "src/constants/tollSystems.ts",
       "disposition": "no unit behaviour",
-      "digest": "8ba907eecded378774ce3a97084bc241211fc1f07ba1b2e0db0c8281aa35c614",
-      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Toll systems by country: ISO country codes, currency and language codes, and brand names. Read in full; no quantity, unit or conversion."
+      "digest": "f432904aff626c0bc0500494531a489ecc7db9604f77778ce43ba3e75bff65bd",
+      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Toll systems by country: ISO country codes, currency and language codes, and brand names. Read in full; no quantity, unit or conversion. 2026-10-04 (toll picker review): header comment now says row order matters for a system listed in several countries. Comment only; no quantity, unit or conversion."
     },
     {
       "path": "src/constants/livelink.ts",
@@ -3488,8 +3488,8 @@
     {
       "path": "src/utils/tollSystems.ts",
       "disposition": "no unit behaviour",
-      "digest": "c1077875eb5756a5aba201d2843b356d2226794a9cf181dfa5b3b9b7536ba410",
-      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Matches typed toll system names to the list, guesses a country from currency and language, and builds the dropdown options. Read in full; strings and codes only, no quantity, unit or conversion."
+      "digest": "8d6731e54d793bad70b54968c7dc7075d4f92a669a3b511683193f6dde433d90",
+      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Matches typed toll system names to the list, guesses a country from currency and language, and builds the dropdown options. Read in full; strings and codes only, no quantity, unit or conversion. 2026-10-04 (toll picker review): tidyTollSystem also splits on NEL and the four separator controls, matching the backend's str.split(). Strings only; no quantity, unit or conversion."
     }
   ]
 }

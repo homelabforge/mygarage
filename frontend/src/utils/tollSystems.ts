@@ -8,9 +8,13 @@ export function tollSystemMatchKey(name: string): string {
   return name.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
 }
 
+// What Python's str.split() splits on: JS \s plus NEL and the four separator controls.
+// eslint-disable-next-line no-control-regex
+const TOLL_SPACE = /[\s\u0085\u001c-\u001f]+/
+
 /** Trim and collapse whitespace. The backend does the same before it stores the name. */
 export function tidyTollSystem(name: string): string {
-  return name.trim().replace(/\s+/g, ' ')
+  return name.split(TOLL_SPACE).filter(Boolean).join(' ')
 }
 
 /** The listed spelling of a system name, or null when no country lists it. */

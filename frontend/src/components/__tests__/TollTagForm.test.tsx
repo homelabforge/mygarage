@@ -122,12 +122,16 @@ describe('TollTagForm: country, then toll system', () => {
     const offered = [...control<HTMLSelectElement>('toll_system').options].map((o) => o.value)
     expect(offered).toContain('Touch \'n Go RFID')
     expect(offered).not.toContain('E-ZPass')
-    // Cleared in form state, not just hidden: going back doesn't bring E-ZPass back.
+    // Cleared in form state, not just in the DOM: back on US, a save must not
+    // quietly send the E-ZPass the select no longer shows.
     await user.selectOptions(countrySelect(), 'US')
     expect(control<HTMLSelectElement>('toll_system').value).toBe('')
+    await fillTagNumber(user)
+    await user.click(screen.getByRole('button', { name: 'toll.addTag' }))
+    expect(await screen.findByText('common:validation.tollTag.systemRequired')).toBeInTheDocument()
+    expect(createMutateAsync).not.toHaveBeenCalled()
     await user.selectOptions(countrySelect(), 'MY')
     await user.selectOptions(systemSelect(), 'Touch \'n Go RFID')
-    await fillTagNumber(user)
     await user.click(screen.getByRole('button', { name: 'toll.addTag' }))
     await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
     expect(createMutateAsync.mock.calls[0][0]).toMatchObject({ toll_system: 'Touch \'n Go RFID' })
