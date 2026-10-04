@@ -179,9 +179,6 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
 
             <Field id="toll_system" label={t('toll.tollSystem')} required error={errors.toll_system}>
               <Select
-                // A new country is a new list. Remounting lets react-hook-form
-                // put the kept choice back instead of the browser picking one.
-                key={country}
                 id="toll_system"
                 {...register('toll_system', {
                   onChange: (e: ChangeEvent<HTMLSelectElement>) => {
