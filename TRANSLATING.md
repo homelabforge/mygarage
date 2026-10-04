@@ -140,6 +140,16 @@ that isn't registered in **all three** allowlists is never loaded, and
 - `frontend/src/constants/i18n.ts` — add to the `SUPPORTED_LANGUAGES` array **and** `languageToLocale()`
 - `frontend/src/i18n.ts` — add to the `supportedLngs` array
 
+Two more tables need the language, or parts of the app stay English:
+
+- `frontend/src/utils/dateUtils.ts`: import the date-fns locale and add it to
+  `DATE_FNS_LOCALES`, keyed by what `languageToLocale()` returns. Without it,
+  relative dates ("3 months ago") stay English. A test fails if it's missing.
+- `frontend/scripts/translation-utils.ts`: the name and flag in
+  `LANGUAGE_NAMES` / `LANGUAGE_FLAGS`, used by `TRANSLATIONS.md`. Add yourself to
+  the contributor table in `frontend/scripts/generate-translation-status.ts`, then
+  run `bun run generate:translation-status`, and add a row to the table above.
+
 Use the full region tag (`pt-BR`) only when the language ships as a region
 variant; `load: 'currentOnly'` means a base tag like `pt` will not serve `pt-BR`
 users, and vice versa.

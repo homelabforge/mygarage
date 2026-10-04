@@ -273,7 +273,7 @@ class TestIssue49FuelEditNulls:
             date=date(2026, 3, 1),
             liters=Decimal("47.318"),
             cost=Decimal("45.00"),
-            fuel_type="gasoline",
+            fuel_type_used="gasoline",
             # All optional numerics explicitly NULL
             propane_liters=None,
             kwh=None,
@@ -308,7 +308,7 @@ class TestIssue49FuelEditNulls:
                 date=date(2026, 3, 2),
                 liters=Decimal("30.283"),
                 cost=Decimal("28.00"),
-                fuel_type="gasoline",
+                fuel_type_used="gasoline",
                 propane_liters=None,
                 kwh=None,
                 price_per_unit=None,
@@ -346,7 +346,7 @@ class TestIssue49FuelEditNulls:
             date=date(2026, 3, 5),
             liters=Decimal("37.854"),
             cost=Decimal("35.00"),
-            fuel_type="gasoline",
+            fuel_type_used="gasoline",
             price_per_unit=Decimal("0.924"),
         )
         pg_session.add(record)
