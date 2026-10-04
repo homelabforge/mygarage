@@ -39,6 +39,8 @@ class Supply(Base):
     barcode: Mapped[str | None] = mapped_column(String(64))  # UPC/EAN/QR product code
     category: Mapped[str | None] = mapped_column(String(40))
     unit_type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'volume' | 'count'
+    # Display token (e.g. 'qt_us', 'mL'). NULL means the legacy binary pick.
+    volume_unit: Mapped[str | None] = mapped_column(String(8))
     vin: Mapped[str | None] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE")
     )  # NULL = shared across all vehicles; set = pinned to one

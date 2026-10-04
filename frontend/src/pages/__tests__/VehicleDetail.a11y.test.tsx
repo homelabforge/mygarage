@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
  * Regression coverage for the two-tablists-one-name defect (P1 task 18).
@@ -131,12 +132,14 @@ const mockVehicle: Vehicle = {
 
 function renderVehicleDetail(initialPath = '/vehicles/TEST12345678901234') {
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="/vehicles/:vin" element={<VehicleDetail />} />
-        <Route path="/" element={<div>Dashboard</div>} />
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/vehicles/:vin" element={<VehicleDetail />} />
+          <Route path="/" element={<div>Dashboard</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 

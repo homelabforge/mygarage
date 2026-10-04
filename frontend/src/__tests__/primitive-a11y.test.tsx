@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from './test-utils'
 import {
   Avatar, Badge, Button, Card, CardHeader, Checkbox, Chip, DataTable, Drawer,
   Dropdown, EmptyState, Field, IconButton, Input, ListRow, Mono, PageContainer,
-  PageHeader, SearchField, Select, ShareBar, Stepper, Tabs, Textarea, Tile,
+  PageHeader, ProgressMeter, SearchField, Select, ShareBar, Stepper, Tabs, Textarea, Tile,
   Toggle,
 } from '../components/ui'
 
@@ -174,6 +174,7 @@ describe('primitive semantics', () => {
           rows={[{ id: '1' }]}
         />
         <ShareBar label="Maintenance" value="$1,284.00" percent={42} color="#f0a53a" />
+        <ProgressMeter label="Oil change" percent={60} tone="warning" />
       </>,
     )
     // Scan document.body rather than the render container: Drawer portals to

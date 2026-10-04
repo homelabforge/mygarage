@@ -58,7 +58,12 @@ export function useUpdateSupply() {
       const { data } = await api.patch<Supply>(`/supplies/${id}`, payload)
       return data
     },
-    onSuccess: () => invalidateSupplies(queryClient),
+    onSuccess: () => {
+      invalidateSupplies(queryClient)
+      // A unit change also shows in the usage tab and the visits, both keyed per vin.
+      queryClient.invalidateQueries({ queryKey: ['vehicle-supply-usages'] })
+      queryClient.invalidateQueries({ queryKey: ['serviceVisits'] })
+    },
   })
 }
 

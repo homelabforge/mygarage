@@ -572,6 +572,14 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.insurance_service.InsuranceService.history",
         "copies the computed InsurancePolicyResponse.status",
     ),
+    ("ReminderResponse", "due_status"): (
+        "app.services.reminder_service.reminder_due_status",
+        "every branch returns a constant",
+    ),
+    ("ReminderResponse", "progress_basis"): (
+        "app.services.reminder_service.leading_progress",
+        "returns a key of _BASIS_ORDER, which holds the Literal's values",
+    ),
     ("SearchHit", "type"): (
         "app.routes.search.global_search",
         "a constant per kind of hit",

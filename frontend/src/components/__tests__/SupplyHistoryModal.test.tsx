@@ -9,12 +9,15 @@ import type { Supply } from '../../types/supplies'
 // mocks axios), so any hook we don't mock here still resolves harmlessly.
 const useSupplyHistoryMock = vi.fn()
 const mutationStub = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, variables: undefined })
+// Stable across renders so a test can read back what the form posted.
+const addPurchaseMock = vi.fn()
+const addAdjustmentMock = vi.fn()
 
 vi.mock('../../hooks/queries/useSupplies', () => ({
   useSupplyHistory: () => useSupplyHistoryMock(),
-  useAddPurchase: () => mutationStub(),
+  useAddPurchase: () => ({ ...mutationStub(), mutateAsync: addPurchaseMock }),
   useDeletePurchase: () => mutationStub(),
-  useAddAdjustment: () => mutationStub(),
+  useAddAdjustment: () => ({ ...mutationStub(), mutateAsync: addAdjustmentMock }),
   useDeleteAdjustment: () => mutationStub(),
   useUploadReceipt: () => mutationStub(),
   useDeleteReceipt: () => mutationStub(),
@@ -22,8 +25,9 @@ vi.mock('../../hooks/queries/useSupplies', () => ({
 
 // Same mock pattern as Supplies.test.tsx — these hooks need AuthProvider
 // otherwise, and it's not under test here.
+const unitMock = vi.hoisted(() => ({ system: 'metric' as 'metric' | 'imperial' }))
 vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'metric', showBoth: false }),
+  useUnitPreference: () => ({ system: unitMock.system, showBoth: false }),
 }))
 // The REAL currency hook runs, so a rate option has to survive it. Only the
 // signed-in user is faked, and the rate-digits test flips them to yen.
@@ -91,15 +95,38 @@ const mockEntries = [
 beforeEach(() => {
   vi.clearAllMocks()
   currencyMock.code = 'USD'
+  unitMock.system = 'metric'
   useSupplyHistoryMock.mockReturnValue({
     data: { supply_id: 1, on_hand: '3.500', avg_unit_cost: '5.25', entries: mockEntries },
     isLoading: false,
     error: null,
   })
+  addPurchaseMock.mockResolvedValue({ id: 99 })
+  addAdjustmentMock.mockResolvedValue({ id: 98 })
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
+})
+
+describe('SupplyHistoryModal initialForm', () => {
+  // The Drawer under FormModalWrapper portals the dialog out of `container`,
+  // so these go through document, like the page tests do.
+  it('initialForm="purchase" shows the purchase form immediately', () => {
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} initialForm="purchase" />)
+    expect(document.getElementById('purchase-date')).not.toBeNull()
+  })
+
+  it('initialForm="adjustment" shows the adjustment form immediately', () => {
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} initialForm="adjustment" />)
+    expect(document.getElementById('adjustment-quantity')).not.toBeNull()
+  })
+
+  it('omitted keeps both forms closed', () => {
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
+    expect(document.getElementById('purchase-date')).toBeNull()
+    expect(document.getElementById('adjustment-quantity')).toBeNull()
+  })
 })
 
 describe('SupplyHistoryModal', () => {
@@ -165,6 +192,22 @@ describe('SupplyHistoryModal', () => {
     expect(screen.getByText('¥170.50')).toBeInTheDocument()
     expect(screen.queryByText('¥171')).not.toBeInTheDocument()
     expect(screen.getByRole('dialog').textContent ?? '').toContain('¥25')
+  })
+
+  it('prices a quart in the header for an imperial user', () => {
+    // 5 qt for $25 is stored as 4.732 L, so the API's average is $5.2832 per litre.
+    unitMock.system = 'imperial'
+    useSupplyHistoryMock.mockReturnValue({
+      data: { supply_id: 1, on_hand: '4.732', avg_unit_cost: String(25 / 4.732), entries: mockEntries },
+      isLoading: false,
+      error: null,
+    })
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
+
+    expect(screen.getByText('5.00 qt')).toBeInTheDocument()
+    expect(screen.getByText('$5.00')).toBeInTheDocument()
+    expect(screen.queryByText('$5.28')).not.toBeInTheDocument()
+    expect(screen.getByText('supplies.avgCostPerUnit')).toBeInTheDocument()
   })
 
   it('shows the loading state while history is fetching', () => {
@@ -278,5 +321,90 @@ describe('SupplyHistoryModal', () => {
     await waitFor(() => {
       expect(screen.getByText('common:validation.amount.invalid')).toBeInTheDocument()
     })
+  })
+})
+
+describe('SupplyHistoryModal: the supply keeps its own unit', () => {
+  // The metric mock alone would give L, so every mL below comes from the token.
+  const mlSupply = { ...mockSupply, volume_unit: 'mL' } as Supply
+
+  it('the purchase quantity label carries the supply unit', () => {
+    render(<SupplyHistoryModal supply={mlSupply} onClose={vi.fn()} initialForm="purchase" />)
+
+    expect(screen.getByLabelText(/supplies\.history\.quantity \(mL\)/)).toBe(
+      document.getElementById('purchase-quantity'),
+    )
+  })
+
+  it('the header and ledger rows read in whole mL', () => {
+    render(<SupplyHistoryModal supply={mlSupply} onClose={vi.fn()} />)
+    const dialogText = screen.getByRole('dialog').textContent ?? ''
+
+    expect(screen.getByText('3500 mL')).toBeInTheDocument()
+    expect(dialogText).toContain('+5000 mL')
+    expect(dialogText).toContain('-1000 mL')
+    expect(dialogText).toContain('-500 mL')
+    expect(dialogText).not.toContain('+5.00 L')
+  })
+
+  it('the header prices per mL to four places', () => {
+    // History says $5.25/L, which is $0.00525/mL.
+    render(<SupplyHistoryModal supply={mlSupply} onClose={vi.fn()} />)
+
+    expect(screen.getByText('$0.0053')).toBeInTheDocument()
+    expect(screen.queryByText('$0.01')).not.toBeInTheDocument()
+  })
+
+  it('a purchase under 1 mL is refused as too small to store', async () => {
+    const user = userEvent.setup()
+    render(<SupplyHistoryModal supply={mlSupply} onClose={vi.fn()} initialForm="purchase" />)
+
+    await user.type(screen.getByLabelText(/supplies\.history\.quantity/), '0.4')
+    await user.click(screen.getByRole('button', { name: 'save' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('supplies.history.quantityTooSmall')).toBeInTheDocument()
+    })
+    expect(addPurchaseMock).not.toHaveBeenCalled()
+  })
+
+  it('zero still asks for a quantity above 0, not the too-small message', async () => {
+    const user = userEvent.setup()
+    render(<SupplyHistoryModal supply={mlSupply} onClose={vi.fn()} initialForm="purchase" />)
+
+    await user.type(screen.getByLabelText(/supplies\.history\.quantity/), '0')
+    await user.click(screen.getByRole('button', { name: 'save' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('supplies.history.quantityRequired')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('supplies.history.quantityTooSmall')).not.toBeInTheDocument()
+    expect(addPurchaseMock).not.toHaveBeenCalled()
+  })
+
+  it('250 mL posts 0.25 L', async () => {
+    const user = userEvent.setup()
+    render(<SupplyHistoryModal supply={mlSupply} onClose={vi.fn()} initialForm="purchase" />)
+
+    await user.type(screen.getByLabelText(/supplies\.history\.quantity/), '250')
+    await user.click(screen.getByRole('button', { name: 'save' }))
+
+    await waitFor(() => {
+      expect(addPurchaseMock).toHaveBeenCalledTimes(1)
+    })
+    expect(addPurchaseMock.mock.calls[0][0].quantity).toBeCloseTo(0.25, 9)
+  })
+
+  it('a 500 mL adjustment posts 0.5 L', async () => {
+    const user = userEvent.setup()
+    render(<SupplyHistoryModal supply={mlSupply} onClose={vi.fn()} initialForm="adjustment" />)
+
+    await user.type(screen.getByLabelText(/supplies\.history\.quantity/), '500')
+    await user.click(screen.getByRole('button', { name: 'save' }))
+
+    await waitFor(() => {
+      expect(addAdjustmentMock).toHaveBeenCalledTimes(1)
+    })
+    expect(addAdjustmentMock.mock.calls[0][0].quantity).toBeCloseTo(0.5, 9)
   })
 })

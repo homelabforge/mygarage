@@ -11,7 +11,7 @@ which remain naive UTC.
 import logging
 import os
 from contextvars import ContextVar
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
 import tzlocal
@@ -87,6 +87,20 @@ def household_zone() -> ZoneInfo:
     """
     zone = household_zone_var.get()
     return zone if zone is not None else resolve_zone(None)
+
+
+def household_date(timestamp: datetime) -> date:
+    """The household day of a stored timestamp. A naive one is UTC, which is how
+    every timestamp column here is written.
+
+    One exception: on PostgreSQL a ``server_default=func.now()`` column is
+    written in the session's time zone. That is UTC unless the server's
+    ``timezone`` setting says otherwise (CI's is UTC). On a non-UTC server an
+    evening-created row can land on the next day here.
+    """
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=UTC)
+    return timestamp.astimezone(household_zone()).date()
 
 
 def household_today() -> date:

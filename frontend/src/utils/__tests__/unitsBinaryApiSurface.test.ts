@@ -484,27 +484,20 @@ describe('what the units gate is silent about (plan 3b task 8, fix round 1)', ()
    */
   it('★ suppresses exactly these binary declarations, and one line silences many files', () => {
     // A `// units-exempt(binary-conversion):` on a DECLARATION removes it from
-    // the vocabulary, and with it every reference to it in every module: 29
-    // sites for the twelve below, which `--suppressions` prints as
+    // the vocabulary, and with it every reference to it in every module: 5
+    // sites for the one below, which `--suppressions` prints as
     // HIDDEN_BY_DECLARATION. That is the right shape for one deferred ruling
-    // (R3, pending the D8 amendment that would give supplies a resolved token)
-    // and the wrong shape to let grow unnoticed.
+    // (R3) and the wrong shape to let grow unnoticed.
     //
-    // A thirteenth entry is a thirteenth binary API somebody exempted. Read the
+    // Supplies now convert through toDisplay/toCanonical with a resolved
+    // SupplyUnit, so the nine component helpers and the old supplyUnits.ts
+    // trio are gone. supplyDisplayUnit is what's left: it reads the legacy
+    // qt/L choice off `system` for a row with a NULL volume_unit (#191).
+    //
+    // A second entry is a second binary API somebody exempted. Read the
     // pragma's reason before widening this list.
     expect(gateSuppressions('EXEMPT_BINARY_DECLARATIONS')).toEqual([
-      'src/components/ServiceVisitForm.tsx::convertSupplyUsages',
-      'src/components/SuppliesUsedTab.tsx::formatQuantity',
-      'src/components/SupplyHistoryModal.tsx::AdjustmentForm',
-      'src/components/SupplyHistoryModal.tsx::PurchaseForm',
-      'src/components/SupplyHistoryModal.tsx::PurchaseRow',
-      'src/components/SupplyHistoryModal.tsx::UsageRow',
-      'src/components/SupplyHistoryModal.tsx::formatMagnitude',
-      'src/components/SupplyHistoryModal.tsx::formatQuantity',
-      'src/components/SupplyHistoryModal.tsx::formatSignedQuantity',
-      'src/utils/supplyUnits.ts::canonicalToDisplay',
-      'src/utils/supplyUnits.ts::displayToCanonical',
-      'src/utils/supplyUnits.ts::supplyUnitLabel',
+      'src/utils/supplyUnits.ts::supplyDisplayUnit',
     ])
   })
 
@@ -539,7 +532,7 @@ describe('what the units gate is silent about (plan 3b task 8, fix round 1)', ()
       // that read now, and the pragma travelled with the two comparisons it
       // excuses. Same reason, same count, different file.
       'src/utils/publicUnitDefaults.ts::token-branch x2',
-      'src/utils/supplyUnits.ts::compare x3',
+      'src/utils/supplyUnits.ts::compare x1',
       'src/utils/unitPrefsStore.ts::compare x2',
       'src/utils/units.ts::token-branch x5',
     ])

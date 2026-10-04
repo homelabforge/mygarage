@@ -61,8 +61,9 @@ class VehicleStatistics(BaseModel):
     latest_odometer_date: date_type | None = None
 
     # Reminders: upcoming is pending-not-overdue; due_soon is its subset expected
-    # within DUE_SOON_WINDOW (the photo badge, the fleet strip); see
-    # reminder_service.classify_pending_reminders.
+    # within DUE_SOON_WINDOW, or, when the rates can't project a date, at least
+    # DUE_SOON_PROGRESS along its usage span (#192 D2). The photo badge and the
+    # fleet strip read it; see reminder_service.reminder_due_status.
     upcoming_maintenance_count: int
     due_soon_maintenance_count: int
     overdue_maintenance_count: int

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
+import { invalidateReadingViews } from '@/hooks/useReminders'
 import type { FuelRecord, FuelRecordListResponse, FuelRecordCreate, FuelRecordUpdate } from '@/types/fuel'
 
 export function usePropaneRecords(vin: string) {
@@ -30,6 +31,7 @@ export function useCreatePropaneRecord(vin: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['propaneRecords', vin] })
       queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }
@@ -44,6 +46,7 @@ export function useUpdatePropaneRecord(vin: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['propaneRecords', vin] })
       queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }
@@ -57,6 +60,7 @@ export function useDeletePropaneRecord(vin: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['propaneRecords', vin] })
       queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }

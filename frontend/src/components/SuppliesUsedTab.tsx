@@ -8,29 +8,30 @@ import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useDateLocale } from '@/hooks/useDateLocale'
 import { formatDateForDisplay } from '@/utils/dateUtils'
-import { canonicalToDisplay, supplyUnitLabel, type SupplyUnitType } from '@/utils/supplyUnits'
-import type { UnitSystem } from '@/utils/units'
+import {
+  displayDecimals,
+  supplyDisplayUnit,
+  toDisplay,
+  unitLabel,
+  type SupplyUnit,
+} from '@/utils/supplyUnits'
 import type { SupplyUsage } from '@/types/supplies'
 
 interface SuppliesUsedTabProps {
   vin: string
 }
 
-// Quantity is stored canonically (L for volume, count for count); convert to the
-// user's display units and append the unit label (SupplyUsageResponse carries the
-// owning supply's unit_type).
-// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A local binary helper on the same supplies path. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
-function formatQuantity(
-  raw: string,
-  unitType: SupplyUnitType,
-  system: UnitSystem,
-  locale: string,
-): string {
+// Quantity is stored canonically (L for volume, count for count). Show it in
+// the supply's own unit, at that unit's decimals.
+function formatQuantity(raw: string, unit: SupplyUnit, locale: string): string {
   const canonical = Number(raw)
   if (Number.isNaN(canonical)) return raw
-  const value = canonicalToDisplay(canonical, unitType, system)
-  const text = value.toLocaleString(locale, { maximumFractionDigits: 3 })
-  const label = supplyUnitLabel(unitType, system)
+  const decimals = displayDecimals(unit)
+  const text = toDisplay(canonical, unit).toLocaleString(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+  const label = unitLabel(unit)
   return label ? `${text} ${label}` : text
 }
 
@@ -84,7 +85,7 @@ export default function SuppliesUsedTab({ vin }: SuppliesUsedTabProps) {
                 <h3 className="text-sm font-semibold text-text">{usage.supply_name}</h3>
                 <p className="text-xs text-text-mute mt-0.5">
                   {t('supplies.usedTab.quantity')}:{' '}
-                  <Mono size="xs" tone="muted">{formatQuantity(usage.quantity, usage.unit_type, system, dateLocale)}</Mono>
+                  <Mono size="xs" tone="muted">{formatQuantity(usage.quantity, supplyDisplayUnit(usage, system), dateLocale)}</Mono>
                 </p>
                 {usage.service_visit_date && (
                   <p className="text-xs text-text-mute mt-0.5">

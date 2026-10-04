@@ -23,6 +23,7 @@ import {
   Mono,
   PageContainer,
   PageHeader,
+  ProgressMeter,
   SearchField,
   Select,
   ShareBar,
@@ -444,6 +445,15 @@ export default function Gallery() {
           <ShareBar label="Fuel" value="$903.20" percent={30} color="#22d3ee" />
           <ShareBar label="Insurance" value="$612.00" percent={20} color="#a78bfa" />
           <ShareBar label="Taxes" value="$240.00" percent={8} color="#34d399" />
+        </div>
+      </Section>
+
+      <Section title="ProgressMeter" note="A bare bar in a status tone. The words go beside it and reach assistive tech through valueText. Clamps past 100 and below 0.">
+        <div className="w-full max-w-md space-y-3">
+          <ProgressMeter label="On track" percent={40} valueText="12 days left" />
+          <ProgressMeter label="Due soon" percent={92} tone="warning" valueText="1,240 mi left" />
+          <ProgressMeter label="Overdue" percent={125} tone="danger" valueText="300 mi over" />
+          <ProgressMeter label="Snoozed" percent={60} tone="muted" />
         </div>
       </Section>
     </div>

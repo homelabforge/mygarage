@@ -18,19 +18,17 @@
  * Because `UnitToken` is `UnitSet[UnitQuantity]`, so a quart token means
  * amending the vocabulary: the settings UI, the presets,
  * `unit_resolution.py`, and every exhaustive `Record` over the union. That is
- * the D8 amendment `utils/supplyUnits.ts` has been waiting on, and it is a spec
- * decision rather than a refactor. This is deliberately smaller: one derived
+ * a spec decision rather than a refactor (supplies got its own stored token
+ * instead, see `supplyDisplayUnit` in `utils/supplyUnits.ts`). This is deliberately smaller: one derived
  * adapter for one quantity, no new vocabulary, nothing else re-interpreted.
  *
  * THE QUART IS DERIVED, NOT CONSTANTED
  * ------------------------------------
- * `supplyUnits.ts` hardcodes `L_PER_QUART = 0.946352946`, the US liquid quart,
- * and its own docstring records the 20.1% defect that leaves on UK instances
- * along with the fix: `LITERS_PER_VOLUME_UNIT[gal_x] / 4`, derivable today. So
- * that is what this does, and the UK reader is right on day one. Supplies is
- * deliberately NOT changed here: its factor re-interprets quantities already
- * stored, and no column records which quart a row was written in, which is a
- * data decision that belongs with the amendment.
+ * Supplies used to hardcode the US liquid quart (0.946352946), which left UK
+ * instances 20.1% out. It now derives its quarts the same way, and the legacy
+ * branch of `supplyDisplayUnit` keeps the US quart for rows with no stored
+ * token. Here the quart is `LITERS_PER_VOLUME_UNIT[gal_x] / 4`, so the UK
+ * reader is right on day one. Supplies stores a per-row `volume_unit` token now, so the amendment landed there.
  */
 
 import { UnitConverter } from '@/utils/units'
@@ -55,8 +53,8 @@ const OIL_CAPACITY_PRECISION = 1
  *
  * Each quart is a quarter of the gallon the reader already resolved to, so the
  * UK reader gets the Imperial quart (1.1365 L) rather than the US one. That is
- * the 20.1% defect `utils/supplyUnits.ts` records against its hardcoded
- * `L_PER_QUART`, avoided here by the derivation its own docstring recommends.
+ * the 20.1% defect supplies had with a hardcoded US quart (its legacy branch,
+ * `supplyDisplayUnit`, still has it), avoided here by deriving from the gallon.
  */
 const OIL_UNIT_BY_VOLUME: Readonly<
   Record<UnitSet['volume'], { readonly label: string; readonly litres: number }>

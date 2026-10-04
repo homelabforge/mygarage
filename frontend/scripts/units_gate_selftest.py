@@ -577,6 +577,8 @@ MUTATIONS = [
             "S-N18-binary-inside-a-generic-argument",
             "S-N8-local-format-distance",
             "S-N9-set-conversion-helper",
+            "S-P31-formatter-label-selector",
+            "S-P35-aliased-formatter-receiver",
             "S-P44-binary-helper-as-a-value",
         ],
         "a resolved-set helper sits in the same file as the binary ones did: the "
@@ -596,7 +598,13 @@ MUTATIONS = [
         "round 1, and the two that joined say what the widening did: S-N8's "
         "module-local `formatDistance` and S-P44's `apply` are both local "
         "declarations, which the vocabulary could not see at all before and which "
-        "a predicate that stops reading the annotation now admits.",
+        "a predicate that stops reading the annotation now admits. ★ SIX since "
+        "#191 Part B (2026-10-03): `supplyUnits.ts` exports the one-parameter "
+        "`unitLabel(unit: SupplyUnit)`, which the real predicate excludes by its "
+        "annotation, so a predicate that stops reading the annotation admits the "
+        "name tree-wide, and S-P31 and S-P35, whose fixtures call "
+        "`UnitFormatter.unitLabel(system)`, flip with it. Measured, same two "
+        "cases locally and in CI.",
     ),
     Mutation(
         "M47-drop-token-branch-leg",

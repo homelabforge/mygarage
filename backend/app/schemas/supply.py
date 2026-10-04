@@ -4,15 +4,23 @@ from __future__ import annotations
 
 from datetime import date as date_type
 from datetime import datetime
-from decimal import Decimal
-from typing import Literal
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
 
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
+from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
 SupplyUnitType = Literal["volume", "count"]
+SupplyVolumeUnit = Literal["mL", "L", "fl_oz_us", "fl_oz_uk", "qt_us", "qt_uk", "gal_us", "gal_uk"]
+
+# Responses only: the column has no CHECK, so an odd stored token reads as null
+# (the legacy binary pick) instead of 500ing the list.
+LenientSupplyVolumeUnit = Annotated[
+    SupplyVolumeUnit | None, BeforeValidator(lenient_reader(SupplyVolumeUnit)), LenientVocab(None)
+]
 
 #: The largest quantity a Numeric(12,3) supply ledger column holds (purchases
 #: and usages alike). What the column holds and no tighter: a household cap
@@ -37,6 +45,17 @@ class SupplyBase(BaseModel):
 class SupplyCreate(SupplyBase):
     """Create a catalog supply."""
 
+    volume_unit: SupplyVolumeUnit | None = Field(
+        None, description="Per-supply display unit for a volume supply; null = legacy binary pick"
+    )
+
+    @model_validator(mode="after")
+    def _count_has_no_volume_unit(self) -> SupplyCreate:
+        """A count supply has nothing to measure in a volume unit."""
+        if self.unit_type == "count" and self.volume_unit is not None:
+            raise ValueError("A count supply cannot carry a volume unit")
+        return self
+
 
 class SupplyUpdate(BaseModel):
     """Patch a catalog supply. unit_type is intentionally immutable (ledger interpretation)."""
@@ -48,6 +67,9 @@ class SupplyUpdate(BaseModel):
     vin: str | None = Field(None, max_length=17)
     notes: str | None = Field(None, max_length=5000)
     is_active: bool | None = Field(None, description="false = archive, true = restore")
+    volume_unit: SupplyVolumeUnit | None = Field(
+        None, description="Omitted keeps the stored unit; null clears back to the legacy pick"
+    )
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("name", "is_active")
@@ -73,6 +95,9 @@ class SupplyResponse(SupplyBase):
     is_negative: bool = Field(description="on_hand < 0 (logged usage exceeds recorded purchases)")
     created_at: datetime
     updated_at: datetime | None = None
+    volume_unit: LenientSupplyVolumeUnit = Field(
+        None, description="Per-supply display unit; null means the legacy binary pick"
+    )
 
     model_config = {"from_attributes": True}
 
@@ -89,6 +114,16 @@ class SupplyReceiptSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+def _storable_quantity(value: Decimal) -> Decimal:
+    """Numeric(12,3) rounds on write on PG but not on SQLite, so quantize here:
+    both dialects then store the same number, and a sub-0.0005 quantity that
+    would round to a stored zero is refused instead."""
+    quantized = value.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+    if quantized == 0:
+        raise ValueError("quantity is below the smallest storable amount (0.001)")
+    return quantized
+
+
 class SupplyPurchaseCreate(BaseModel):
     date: date_type
     quantity: Decimal = Field(
@@ -98,6 +133,8 @@ class SupplyPurchaseCreate(BaseModel):
     supplier_id: int | None = None
     part_number: str | None = Field(None, max_length=60)
     notes: str | None = Field(None, max_length=5000)
+
+    _quantity_grain = field_validator("quantity")(_storable_quantity)
 
 
 class SupplyPurchaseResponse(BaseModel):
@@ -120,6 +157,8 @@ class SupplyAdjustmentCreate(BaseModel):
 
     quantity: Decimal = Field(..., gt=0, le=SUPPLY_QUANTITY_MAX, description="Canonical units")
 
+    _quantity_grain = field_validator("quantity")(_storable_quantity)
+
 
 class SupplyUsageInput(BaseModel):
     """Consume-picker input carried on a service line item."""
@@ -128,6 +167,8 @@ class SupplyUsageInput(BaseModel):
     quantity: Decimal = Field(
         ..., gt=0, le=SUPPLY_QUANTITY_MAX, description="Canonical units (L or count)"
     )
+
+    _quantity_grain = field_validator("quantity")(_storable_quantity)
 
 
 class SupplyUsageResponse(BaseModel):
@@ -149,6 +190,9 @@ class SupplyUsageResponse(BaseModel):
         None, description="Owning visit's date; the real consumption date (not created_at)"
     )
     created_at: datetime
+    volume_unit: LenientSupplyVolumeUnit = Field(
+        None, description="Per-supply display unit; null means the legacy binary pick"
+    )
 
     model_config = {"from_attributes": True}
 

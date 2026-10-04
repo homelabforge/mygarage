@@ -590,8 +590,9 @@ class VehicleDetailStats(BaseModel):
 
     overdue_count: int
     upcoming_count: int
-    # The subset of upcoming expected within DUE_SOON_WINDOW: the hero badge
-    # (reminder_service.classify_pending_reminders, as on the dashboard).
+    # The subset of upcoming that is due soon: expected within DUE_SOON_WINDOW,
+    # or DUE_SOON_PROGRESS along a usage span no rate can project (#192 D2).
+    # The hero badge (reminder_service.reminder_due_status, as on the dashboard).
     due_soon_count: int
     usage_unit: LenientUsageUnit  # drives the odometer/hours relabel
     # Kept for API compat only — NO LONGER the display source (R2-H1). The

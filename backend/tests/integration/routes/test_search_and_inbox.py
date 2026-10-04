@@ -101,6 +101,14 @@ class TestGlobalSearch:
         assert should_not_match not in titles
 
 
+def _own_items(response, vin: str) -> dict:
+    """The inbox items for ``vin``, by title. The inbox spans every vehicle the
+    user has, and other tests' reminders persist on PostgreSQL (one titled
+    "Tire rotation" among them), so a lookup by title alone picks whichever
+    row the database returns last."""
+    return {item["title"]: item for item in response.json()["items"] if item["vin"] == vin}
+
+
 class TestNotificationInbox:
     async def test_upcoming_and_overdue_have_distinct_ids(
         self, client: AsyncClient, auth_headers, test_user, db_session
@@ -136,7 +144,7 @@ class TestNotificationInbox:
         response = await client.get("/api/notifications/inbox", headers=auth_headers)
 
         assert response.status_code == 200
-        items = {item["title"]: item for item in response.json()["items"]}
+        items = _own_items(response, vin)
         assert items["Brake fluid"]["kind"] == "reminder_upcoming"
         assert items["Oil change"]["kind"] == "reminder_overdue"
         # The id must carry the kind, not just the reminder's row id.
@@ -226,7 +234,7 @@ class TestNotificationInbox:
         response = await client.get("/api/notifications/inbox", headers=auth_headers)
 
         assert response.status_code == 200
-        items = {item["title"]: item for item in response.json()["items"]}
+        items = _own_items(response, vin)
         assert items["Oil in 1,000 km"]["kind"] == "reminder_upcoming"
         assert "Belt in 14,000 km" not in items
 
@@ -260,7 +268,7 @@ class TestNotificationInbox:
         response = await client.get("/api/notifications/inbox", headers=auth_headers)
 
         assert response.status_code == 200
-        items = {item["title"]: item for item in response.json()["items"]}
+        items = _own_items(response, vin)
         item = items["Brake inspection"]
         assert item["kind"] == "reminder_overdue"
         assert f"due {future.isoformat()}" in item["body"]
@@ -292,7 +300,7 @@ class TestNotificationInbox:
         response = await client.get("/api/notifications/inbox", headers=auth_headers)
 
         assert response.status_code == 200
-        items = {item["title"]: item for item in response.json()["items"]}
+        items = _own_items(response, vin)
         item = items["Tire rotation"]
         assert item["kind"] == "reminder_overdue"
         assert "due at 5,000 km (now 6,100 km)" in item["body"]
@@ -324,7 +332,7 @@ class TestNotificationInbox:
         response = await client.get("/api/notifications/inbox", headers=auth_headers)
 
         assert response.status_code == 200
-        items = {item["title"]: item for item in response.json()["items"]}
+        items = _own_items(response, vin)
         item = items["Hydraulic service"]
         assert item["kind"] == "reminder_overdue"
         assert "due at 512.0 hr (now 520.0 hr)" in item["body"]

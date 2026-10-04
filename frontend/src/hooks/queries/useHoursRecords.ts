@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
+import { invalidateReadingViews } from '@/hooks/useReminders'
 import type { HoursRecordListResponse, HoursRecordCreate, HoursRecordUpdate } from '@/types/hours'
 
 /**
@@ -28,7 +29,7 @@ export function useCreateHoursRecord(vin: string) {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hoursRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }
@@ -41,7 +42,7 @@ export function useUpdateHoursRecord(vin: string) {
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hoursRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }
@@ -53,7 +54,7 @@ export function useDeleteHoursRecord(vin: string) {
       await api.delete(`/vehicles/${vin}/hours/${recordId}`)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hoursRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }

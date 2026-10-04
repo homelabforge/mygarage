@@ -17,7 +17,16 @@ import {
 import { useAddressBookEntries } from '@/hooks/queries/useAddressBook'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
-import { canonicalToDisplay, displayToCanonical, supplyUnitLabel } from '@/utils/supplyUnits'
+import {
+  costDecimals,
+  displayDecimals,
+  supplyDisplayUnit,
+  toCanonical,
+  toDisplay,
+  unitCostToDisplay,
+  unitLabel,
+  type SupplyUnit,
+} from '@/utils/supplyUnits'
 import { formatDateForDisplay, formatDateForInput } from '@/utils/dateUtils'
 import { FormError } from '@/components/FormError'
 import FormModalWrapper from '@/components/FormModalWrapper'
@@ -25,43 +34,40 @@ import CurrencyInput from '@/components/common/CurrencyInput'
 import { NumberInput, Select, registerDecimal } from '@/components/ui'
 import type { Supply } from '@/types/supplies'
 import type { AddressBookEntry } from '@/types/addressBook'
-import type { UnitSystem } from '@/utils/units'
 import type { components } from '@/types/api.generated'
 import { getActiveLocale } from '@/constants/i18n'
 import { applyServerErrors } from '@/hooks/useApiFormErrors'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { moneyError } from '@/schemas/shared'
-import { RATE_DIGITS } from '@/utils/formatUtils'
 
 type SupplyLedgerEntry = components['schemas']['SupplyLedgerEntry']
 
 interface SupplyHistoryModalProps {
   supply: Supply
   onClose: () => void
+  /** Opens the modal with that log form already expanded (card quick actions). */
+  initialForm?: 'purchase' | 'adjustment'
 }
 
 const RECEIPT_ACCEPT = '.jpg,.jpeg,.png,.gif,.pdf'
 
 
-/** Canonical → display magnitude, formatted per unit type (whole numbers for count). */
-// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A local binary helper: fix round 1 widened the leg to module-local declarations, which is where five of these lived. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
-function formatMagnitude(value: number, supply: Supply, system: UnitSystem): string {
-  const display = canonicalToDisplay(value, supply.unit_type, system)
-  return supply.unit_type === 'count' ? Math.round(display).toLocaleString(getActiveLocale()) : display.toFixed(2)
+/** Canonical to display magnitude in the supply's unit: whole numbers for count, displayDecimals otherwise. */
+function formatMagnitude(value: number, unit: SupplyUnit): string {
+  const display = toDisplay(value, unit)
+  return unit === 'count' ? Math.round(display).toLocaleString(getActiveLocale()) : display.toFixed(displayDecimals(unit))
 }
 
-// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A local binary helper, delegating to formatMagnitude. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
-function formatQuantity(raw: string, supply: Supply, system: UnitSystem): string {
-  const label = supplyUnitLabel(supply.unit_type, system)
-  const formatted = formatMagnitude(Number(raw), supply, system)
+function formatQuantity(raw: string, unit: SupplyUnit): string {
+  const label = unitLabel(unit)
+  const formatted = formatMagnitude(Number(raw), unit)
   return label ? `${formatted} ${label}` : formatted
 }
 
-// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A local binary helper, delegating to formatMagnitude. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
-function formatSignedQuantity(raw: string, supply: Supply, system: UnitSystem): string {
+function formatSignedQuantity(raw: string, unit: SupplyUnit): string {
   const value = Number(raw)
-  const label = supplyUnitLabel(supply.unit_type, system)
-  const magnitude = formatMagnitude(Math.abs(value), supply, system)
+  const label = unitLabel(unit)
+  const magnitude = formatMagnitude(Math.abs(value), unit)
   const sign = value < 0 ? '-' : '+'
   return `${sign}${magnitude}${label ? ` ${label}` : ''}`
 }
@@ -70,19 +76,22 @@ function formatEntryDate(at: string): string {
   return formatDateForDisplay(at.includes('T') ? at.split('T')[0] : at)
 }
 
-export default function SupplyHistoryModal({ supply, onClose }: SupplyHistoryModalProps) {
+export default function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModalProps) {
   const { t } = useTranslation('common')
   const { system } = useUnitPreference()
+  // Resolve once; everything below reads the token, never `system`.
+  const unit = supplyDisplayUnit(supply, system)
   const { formatCurrency } = useCurrencyPreference()
   const { data, isLoading, error } = useSupplyHistory(supply.id)
 
   // Which inline "log" form is expanded — a single field instead of two
   // independent booleans so only one can be open at a time.
-  const [activeForm, setActiveForm] = useState<'purchase' | 'adjustment' | null>(null)
+  const [activeForm, setActiveForm] = useState<'purchase' | 'adjustment' | null>(initialForm ?? null)
 
   const entries = data?.entries ?? []
   const onHand = data?.on_hand ?? supply.on_hand
-  const avgUnitCost = data?.avg_unit_cost ?? supply.avg_unit_cost
+  const avgUnitCost = unitCostToDisplay(data?.avg_unit_cost ?? supply.avg_unit_cost, unit)
+  const costUnit = unitLabel(unit)
 
   return (
     <FormModalWrapper
@@ -95,11 +104,13 @@ export default function SupplyHistoryModal({ supply, onClose }: SupplyHistoryMod
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-garage-bg border border-garage-border rounded-lg p-3">
             <div className="text-xs text-garage-text-muted">{t('supplies.onHand')}</div>
-            <div className="text-lg font-semibold text-garage-text">{formatQuantity(onHand, supply, system)}</div>
+            <div className="text-lg font-semibold text-garage-text">{formatQuantity(onHand, unit)}</div>
           </div>
           <div className="bg-garage-bg border border-garage-border rounded-lg p-3">
-            <div className="text-xs text-garage-text-muted">{t('supplies.avgUnitCost')}</div>
-            <div className="text-lg font-semibold text-garage-text">{formatCurrency(avgUnitCost, { fractionDigits: RATE_DIGITS })}</div>
+            <div className="text-xs text-garage-text-muted">
+              {costUnit ? t('supplies.avgCostPerUnit', { unit: costUnit }) : t('supplies.avgUnitCost')}
+            </div>
+            <div className="text-lg font-semibold text-garage-text">{formatCurrency(avgUnitCost, { fractionDigits: costDecimals(unit) })}</div>
           </div>
         </div>
 
@@ -122,9 +133,9 @@ export default function SupplyHistoryModal({ supply, onClose }: SupplyHistoryMod
             <div className="space-y-2">
               {entries.map((entry) =>
                 entry.entry_type === 'purchase' ? (
-                  <PurchaseRow key={`purchase-${entry.id}`} entry={entry} supply={supply} system={system} />
+                  <PurchaseRow key={`purchase-${entry.id}`} entry={entry} supply={supply} unit={unit} />
                 ) : (
-                  <UsageRow key={`usage-${entry.id}`} entry={entry} supply={supply} system={system} />
+                  <UsageRow key={`usage-${entry.id}`} entry={entry} supply={supply} unit={unit} />
                 )
               )}
             </div>
@@ -151,10 +162,10 @@ export default function SupplyHistoryModal({ supply, onClose }: SupplyHistoryMod
         </div>
 
         {activeForm === 'purchase' && (
-          <PurchaseForm supply={supply} system={system} onDone={() => setActiveForm(null)} />
+          <PurchaseForm supply={supply} unit={unit} onDone={() => setActiveForm(null)} />
         )}
         {activeForm === 'adjustment' && (
-          <AdjustmentForm supply={supply} system={system} onDone={() => setActiveForm(null)} />
+          <AdjustmentForm supply={supply} unit={unit} onDone={() => setActiveForm(null)} />
         )}
       </div>
     </FormModalWrapper>
@@ -170,11 +181,10 @@ export default function SupplyHistoryModal({ supply, onClose }: SupplyHistoryMod
 interface LedgerRowProps {
   entry: SupplyLedgerEntry
   supply: Supply
-  system: UnitSystem
+  unit: SupplyUnit
 }
 
-// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A component whose props carry the binary system, which the precondition ruled IS a binary API; its JSX render site is where the collapse crosses the boundary. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
-function PurchaseRow({ entry, supply, system }: LedgerRowProps) {
+function PurchaseRow({ entry, supply, unit }: LedgerRowProps) {
   const { t } = useTranslation('common')
   const { formatCurrency } = useCurrencyPreference()
   const deletePurchase = useDeletePurchase(supply.id)
@@ -248,9 +258,9 @@ function PurchaseRow({ entry, supply, system }: LedgerRowProps) {
           </span>
         </div>
         <div className="text-xs text-garage-text-muted mt-0.5">
-          {formatSignedQuantity(entry.quantity, supply, system)}
+          {formatSignedQuantity(entry.quantity, unit)}
           {' · '}
-          {t('supplies.history.balance')}: {formatQuantity(entry.running_balance, supply, system)}
+          {t('supplies.history.balance')}: {formatQuantity(entry.running_balance, unit)}
           {' · '}
           {formatCurrency(entry.cost)}
         </div>
@@ -325,8 +335,7 @@ function PurchaseRow({ entry, supply, system }: LedgerRowProps) {
   )
 }
 
-// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A component whose props carry the binary system, same shape as PurchaseRow. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
-function UsageRow({ entry, supply, system }: LedgerRowProps) {
+function UsageRow({ entry, supply, unit }: LedgerRowProps) {
   const { t } = useTranslation('common')
   const { formatCurrency } = useCurrencyPreference()
   const deleteAdjustment = useDeleteAdjustment(supply.id)
@@ -354,9 +363,9 @@ function UsageRow({ entry, supply, system }: LedgerRowProps) {
           </span>
         </div>
         <div className="text-xs text-garage-text-muted mt-0.5">
-          {formatSignedQuantity(entry.quantity, supply, system)}
+          {formatSignedQuantity(entry.quantity, unit)}
           {' · '}
-          {t('supplies.history.balance')}: {formatQuantity(entry.running_balance, supply, system)}
+          {t('supplies.history.balance')}: {formatQuantity(entry.running_balance, unit)}
           {' · '}
           {formatCurrency(entry.cost)}
           {isJob && entry.service_visit_date && (
@@ -396,9 +405,18 @@ function UsageRow({ entry, supply, system }: LedgerRowProps) {
  * emits for unparseable text (e.g. typing "abc"). A `validate` function
  * receives the raw value without that coercion, so it can reject the same
  * cases (empty, too small, and now also non-numeric) with the same message.
+ *
+ * A positive volume that converts below 1 mL gets its own message, since the
+ * API can't store it and "enter a quantity greater than 0" would be a lie.
  */
-function validateSupplyQuantity(value: unknown, message: string): true | string {
-  return typeof value === 'number' && !Number.isNaN(value) && value >= 0.001 ? true : message
+function validateSupplyQuantity(value: unknown, unit: SupplyUnit, t: TFunction): true | string {
+  if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) {
+    return t('supplies.history.quantityRequired')
+  }
+  if (unit === 'count') {
+    return value >= 0.001 ? true : t('supplies.history.quantityRequired')
+  }
+  return toCanonical(value, unit) >= 0.001 ? true : t('supplies.history.quantityTooSmall')
 }
 
 /**
@@ -421,14 +439,13 @@ interface PurchaseFormValues {
   part_number: string
 }
 
-// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A component whose inline props type carries the binary system. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function PurchaseForm({
   supply,
-  system,
+  unit,
   onDone,
 }: {
   supply: Supply
-  system: UnitSystem
+  unit: SupplyUnit
   onDone: () => void
 }) {
   const { t } = useTranslation('common')
@@ -438,7 +455,7 @@ function PurchaseForm({
   const addPurchase = useAddPurchase(supply.id)
   const uploadReceipt = useUploadReceipt(supply.id)
   const { data: addressBookEntries = [] } = useAddressBookEntries()
-  const unitLabel = supplyUnitLabel(supply.unit_type, system)
+  const quantityUnit = unitLabel(unit)
 
   const {
     register,
@@ -462,7 +479,7 @@ function PurchaseForm({
   const onSubmit = async (values: PurchaseFormValues) => {
     setError(null)
     try {
-      const quantity = displayToCanonical(Number(values.quantity), supply.unit_type, system)
+      const quantity = toCanonical(Number(values.quantity), unit)
       const totalCost =
         values.total_cost === undefined || Number.isNaN(values.total_cost) ? undefined : values.total_cost
       const purchase = await addPurchase.mutateAsync({
@@ -532,13 +549,13 @@ function PurchaseForm({
         </div>
         <div>
           <label htmlFor="purchase-quantity" className="block text-xs font-medium text-garage-text mb-1">
-            {t('supplies.history.quantity')} {unitLabel && `(${unitLabel})`} <span className="text-danger">*</span>
+            {t('supplies.history.quantity')} {quantityUnit && `(${quantityUnit})`} <span className="text-danger">*</span>
           </label>
           <NumberInput
             id="purchase-quantity"
             {...registerDecimal(register, 'quantity', {
               required: t('supplies.history.quantityRequired'),
-              validate: (val) => validateSupplyQuantity(val, t('supplies.history.quantityRequired')),
+              validate: (val) => validateSupplyQuantity(val, unit, t),
             })}
             invalid={!!errors.quantity}
             disabled={isSubmitting}
@@ -634,20 +651,19 @@ interface AdjustmentFormValues {
   quantity: number
 }
 
-// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A component whose inline props type carries the binary system. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function AdjustmentForm({
   supply,
-  system,
+  unit,
   onDone,
 }: {
   supply: Supply
-  system: UnitSystem
+  unit: SupplyUnit
   onDone: () => void
 }) {
   const { t } = useTranslation('common')
   const [error, setError] = useState<string | null>(null)
   const addAdjustment = useAddAdjustment(supply.id)
-  const unitLabel = supplyUnitLabel(supply.unit_type, system)
+  const quantityUnit = unitLabel(unit)
 
   const {
     register,
@@ -660,7 +676,7 @@ function AdjustmentForm({
   const onSubmit = async (values: AdjustmentFormValues) => {
     setError(null)
     try {
-      const quantity = displayToCanonical(Number(values.quantity), supply.unit_type, system)
+      const quantity = toCanonical(Number(values.quantity), unit)
       await addAdjustment.mutateAsync({ quantity })
       toast.success(t('supplies.history.adjustmentLogged'))
       reset({ quantity: undefined })
@@ -690,13 +706,13 @@ function AdjustmentForm({
 
       <div>
         <label htmlFor="adjustment-quantity" className="block text-xs font-medium text-garage-text mb-1">
-          {t('supplies.history.quantity')} {unitLabel && `(${unitLabel})`} <span className="text-danger">*</span>
+          {t('supplies.history.quantity')} {quantityUnit && `(${quantityUnit})`} <span className="text-danger">*</span>
         </label>
         <NumberInput
           id="adjustment-quantity"
           {...registerDecimal(register, 'quantity', {
             required: t('supplies.history.quantityRequired'),
-            validate: (val) => validateSupplyQuantity(val, t('supplies.history.quantityRequired')),
+            validate: (val) => validateSupplyQuantity(val, unit, t),
           })}
           invalid={!!errors.quantity}
           disabled={isSubmitting}

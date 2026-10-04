@@ -210,10 +210,10 @@ beforeEach(() => {
 describe('the fixed copy, across every locale bundle on disk', () => {
   it('enumerates the bundles rather than assuming them', () => {
     const found = bundles().map((b) => b.lang)
-    // Seven: `en` under src/locales plus six lazy-loaded under public/locales.
+    // Nine: `en` under src/locales plus eight lazy-loaded under public/locales.
     // Asserted so a walk that lost the lazy half fails HERE, rather than
-    // reporting six languages of unconditional copy as clean.
-    expect(found).toStrictEqual(['en', 'de', 'fr', 'it', 'pl', 'pt-BR', 'ru', 'uk'])
+    // reporting eight languages of unconditional copy as clean.
+    expect(found).toStrictEqual(['en', 'de', 'fr', 'it', 'ms', 'pl', 'pt-BR', 'ru', 'uk'])
   })
 
   it('still has every fixed key in en, so the guard below has a subject', () => {
@@ -245,12 +245,14 @@ describe('the fixed copy, across every locale bundle on disk', () => {
     // `de` and `fr` carry keys again because fix round 1 restored the ones whose
     // meaning never changed; `pl`, `pt-BR`, `ru` and `uk` never translated any
     // of these and carry none, which is stated here rather than hidden behind a
-    // total. If a restoration is ever removed, this list shrinks and the test
-    // fails before the emptiness below can go vacuous.
-    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it'])
+    // total. `it` and `ms` were translated later and carry them too. If a
+    // restoration is ever removed, this list shrinks and the test fails before
+    // the emptiness below can go vacuous.
+    expect([...readsByBundle.keys()].sort()).toStrictEqual(['de', 'en', 'fr', 'it', 'ms'])
     expect(readsByBundle.get('de')).toBeGreaterThan(0)
     expect(readsByBundle.get('fr')).toBeGreaterThan(0)
     expect(readsByBundle.get('it')).toBeGreaterThan(0)
+    expect(readsByBundle.get('ms')).toBeGreaterThan(0)
 
     expect(offenders).toStrictEqual([])
   })

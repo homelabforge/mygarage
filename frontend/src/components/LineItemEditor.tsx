@@ -4,6 +4,7 @@ import { Trash2, ChevronDown, ChevronUp, Clipboard, Wrench, Bell } from 'lucide-
 import type { ServiceVisitFormLineItem } from '../types/serviceVisit'
 import type { RecurrenceDraft, ReminderDraft, ReminderDraftMode } from '../types/reminder'
 import type { Supply } from '../types/supplies'
+import type { SupplyUnit } from '../utils/supplyUnits'
 import InspectionResult from './InspectionResult'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import SupplyUsedPicker from './SupplyUsedPicker'
@@ -35,6 +36,8 @@ interface LineItemEditorProps {
   // isn't fetched here. Unfiltered so existing usages of an archived/repinned
   // supply still resolve their name.
   supplies: Supply[]
+  /** ServiceVisitForm's pinned unit per supply, passed straight to the picker. */
+  unitsBySupplyId: Map<number, SupplyUnit>
   failedInspections: { refId: number; description: string }[]
   onChange: (index: number, field: keyof ServiceVisitFormLineItem, value: unknown) => void
   onRemove: (index: number) => void
@@ -51,6 +54,7 @@ export default function LineItemEditor({
   index,
   vin,
   supplies,
+  unitsBySupplyId,
   failedInspections,
   onChange,
   onRemove,
@@ -301,6 +305,7 @@ export default function LineItemEditor({
             <SupplyUsedPicker
               vin={vin}
               supplies={supplies}
+              unitsBySupplyId={unitsBySupplyId}
               value={item.supplies_used ?? []}
               onChange={(next) => onChange(index, 'supplies_used', next)}
               disabled={disabled}

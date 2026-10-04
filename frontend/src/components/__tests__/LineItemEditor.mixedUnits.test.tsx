@@ -96,6 +96,7 @@ function renderEditor(item: ServiceVisitFormLineItem): void {
       index={0}
       vin="V1"
       supplies={[]}
+      unitsBySupplyId={new Map()}
       failedInspections={[]}
       onChange={onChange}
       onRemove={vi.fn()}

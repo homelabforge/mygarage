@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
 import ServiceVisitForm from '../ServiceVisitForm'
 import { useSupplies } from '../../hooks/queries/useSupplies'
-import { displayToCanonical, canonicalToDisplay } from '../../utils/supplyUnits'
+import { toCanonical, toDisplay } from '../../utils/supplyUnits'
 import { formatCurrency } from '../../utils/formatUtils'
 import type { Supply } from '../../types/supplies'
 import type { ServiceVisit } from '../../types/serviceVisit'
@@ -132,7 +132,8 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     // hardcoded `$`+toFixed. USD/en-US (the mocked currency prefs) → "$18.93"; the
     // value is still derived from the canonical quantity, so it discriminates the
     // parts+supplies cost (a dropped canonical conversion or a wrong unit-cost fails).
-    const expectedCanonicalQty = displayToCanonical(2, 'volume', 'imperial')
+    // MOCK_SUPPLY has no stored token, so under the imperial mock it falls back to US quarts.
+    const expectedCanonicalQty = toCanonical(2, 'qt_us')
     const expectedPartsSuppliesCost = formatCurrency(10 * expectedCanonicalQty, { currencyCode: 'USD', locale: 'en-US' })
     const partsSuppliesRow = screen.getByText('service.partsSupplies:').closest('div')
     expect(partsSuppliesRow).toHaveTextContent(expectedPartsSuppliesCost)
@@ -229,7 +230,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     it('hydrates the picker from supply_usages in DISPLAY units', async () => {
       render(<ServiceVisitForm {...DEFAULT_PROPS} visit={MOCK_VISIT} />)
 
-      const expectedDisplayQty = canonicalToDisplay(1, 'volume', 'imperial')
+      const expectedDisplayQty = toDisplay(1, 'qt_us')
       await waitFor(() => {
         const quantityInput = screen.getByRole('spinbutton', {
           name: 'service.suppliesQuantity',
@@ -335,6 +336,200 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       const lineItem = body.line_items.find((li) => li.id === 501)
       expect(lineItem?.supplies_used.map((u) => u.supply_id)).toContain(2)
     })
+  })
+})
+
+describe('ServiceVisitForm: each supply converts in its own unit', () => {
+  // One US fl oz is 3.785411784 / 128 L, so 12 fl oz is 0.35488235475 L.
+  const FL_OZ: Supply = { ...MOCK_SUPPLY, id: 3, name: 'Gear Oil', volume_unit: 'fl_oz_us' }
+  const LITRES: Supply = { ...MOCK_SUPPLY, id: 4, name: 'Coolant', volume_unit: 'L' }
+  const MILLILITRES: Supply = { ...MOCK_SUPPLY, id: 5, name: 'Additive', volume_unit: 'mL' }
+
+  const serveSupplies = (supplies: Supply[]) =>
+    vi.mocked(useSupplies).mockReturnValue({
+      data: { supplies, total: supplies.length },
+      isSuccess: true,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useSupplies>)
+
+  const visitUsing = (supply: Supply, quantity: string): ServiceVisit => ({
+    id: 900,
+    vin: 'TEST123',
+    date: '2026-07-01',
+    created_at: '2026-07-01T00:00:00',
+    calculated_total_cost: '45.00',
+    has_failed_inspections: false,
+    line_item_count: 1,
+    subtotal: '45.00',
+    parts_supplies_cost: '0.00',
+    vendor_id: null,
+    odometer_km: null,
+    notes: null,
+    insurance_claim_number: null,
+    tax_amount: null,
+    shop_supplies: null,
+    misc_fees: null,
+    service_category: null,
+    total_cost: '45.00',
+    updated_at: null,
+    vendor: null,
+    line_items: [
+      {
+        id: 501,
+        visit_id: 900,
+        description: 'Oil change',
+        category: 'Maintenance',
+        cost: '45.00',
+        created_at: '2026-07-01T00:00:00',
+        is_failed_inspection: false,
+        is_inspection: false,
+        needs_followup: false,
+        notes: null,
+        triggered_by_inspection_id: null,
+        supply_usages: [
+          {
+            id: 1,
+            supply_id: supply.id,
+            supply_name: supply.name,
+            unit_type: 'volume',
+            volume_unit: supply.volume_unit,
+            quantity,
+            created_at: '2026-07-01T00:00:00',
+            service_line_item_id: 501,
+            service_visit_id: 900,
+            cost_snapshot: '0.00',
+            unit_cost_snapshot: '10.00',
+            service_visit_date: '2026-07-01',
+          },
+        ],
+      },
+    ],
+  })
+
+  const quantityInputs = (): HTMLInputElement[] =>
+    screen.getAllByRole('spinbutton', { name: 'service.suppliesQuantity' }) as HTMLInputElement[]
+
+  // The unit label sits beside its quantity input, in the same wrapper.
+  const rowOf = (input: HTMLInputElement): HTMLElement => input.parentElement as HTMLElement
+
+  const putLineItem = () => {
+    const body = mockedApiPut.mock.calls.at(-1)?.[1] as {
+      line_items: { id?: number; supplies_used: { supply_id: number; quantity: number }[] }[]
+    }
+    return body.line_items.find((li) => li.id === 501)
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('labels a fl oz supply in fl oz and posts 12 fl oz as litres', async () => {
+    serveSupplies([FL_OZ])
+    render(<ServiceVisitForm {...DEFAULT_PROPS} />)
+    fillRequiredDescription()
+    fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
+
+    const [input] = quantityInputs()
+    expect(within(rowOf(input)).getByText('fl oz')).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: '12' } })
+    fireEvent.submit(drawerForm())
+
+    await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
+    const body = mockedApiPost.mock.calls.at(-1)?.[1] as {
+      line_items: { supplies_used: { supply_id: number; quantity: number }[] }[]
+    }
+    expect(body.line_items[0].supplies_used).toHaveLength(1)
+    expect(body.line_items[0].supplies_used[0].supply_id).toBe(3)
+    expect(body.line_items[0].supplies_used[0].quantity).toBeCloseTo(0.35488235475, 9)
+  })
+
+  it('hydrates a canonical 0.355 L back to about 12 fl oz', async () => {
+    serveSupplies([FL_OZ])
+    render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visitUsing(FL_OZ, '0.355')} />)
+
+    await waitFor(() => {
+      const [input] = quantityInputs()
+      expect(Math.abs(Number(input.value) - 12)).toBeLessThan(0.01)
+    })
+    expect(within(rowOf(quantityInputs()[0])).getByText('fl oz')).toBeInTheDocument()
+  })
+
+  it('refuses 0.02 fl oz, which converts to less than 1 mL', async () => {
+    serveSupplies([FL_OZ])
+    render(<ServiceVisitForm {...DEFAULT_PROPS} />)
+    fillRequiredDescription()
+    fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
+    fireEvent.change(quantityInputs()[0], { target: { value: '0.02' } })
+
+    fireEvent.submit(drawerForm())
+
+    expect(await screen.findByText('service.supplyQuantityTooSmall')).toBeInTheDocument()
+    await waitFor(() => expect(mockedApiPost).not.toHaveBeenCalled())
+  })
+
+  it('lets exactly 1 mL through', async () => {
+    // The floor is the storable grain itself, so it has to be allowed.
+    serveSupplies([MILLILITRES])
+    render(<ServiceVisitForm {...DEFAULT_PROPS} />)
+    fillRequiredDescription()
+    fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
+    fireEvent.change(quantityInputs()[0], { target: { value: '1' } })
+
+    fireEvent.submit(drawerForm())
+
+    await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
+    const body = mockedApiPost.mock.calls.at(-1)?.[1] as {
+      line_items: { supplies_used: { quantity: number }[] }[]
+    }
+    expect(body.line_items[0].supplies_used[0].quantity).toBeCloseTo(0.001, 9)
+    expect(screen.queryByText('service.supplyQuantityTooSmall')).not.toBeInTheDocument()
+  })
+
+  it('keeps the unit it hydrated with when the supply switches L to mL mid-edit', async () => {
+    serveSupplies([LITRES])
+    const visit = visitUsing(LITRES, '1')
+    const { rerender } = render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+    await waitFor(() => expect(Number(quantityInputs()[0].value)).toBeCloseTo(1, 9))
+    expect(within(rowOf(quantityInputs()[0])).getByText('L')).toBeInTheDocument()
+
+    // Another tab changed the unit and the supplies query refetched under the open form.
+    serveSupplies([{ ...LITRES, volume_unit: 'mL' }])
+    rerender(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+
+    const row = rowOf(quantityInputs()[0])
+    expect(within(row).getByText('L')).toBeInTheDocument()
+    expect(within(row).queryByText('mL')).not.toBeInTheDocument()
+
+    fireEvent.submit(drawerForm())
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    const lineItem = putLineItem()
+    expect(lineItem?.supplies_used).toHaveLength(1)
+    expect(lineItem?.supplies_used[0].supply_id).toBe(4)
+    expect(lineItem?.supplies_used[0].quantity).toBeCloseTo(1, 9)
+  })
+
+  it('admits a supply that shows up after hydration and posts it at the fl oz factor', async () => {
+    serveSupplies([MOCK_SUPPLY])
+    const visit = visitUsing(MOCK_SUPPLY, '1')
+    const { rerender } = render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+    await waitFor(() => expect(quantityInputs()).toHaveLength(1))
+
+    // Created in another tab; the refetch hands the open form a supply it has never seen.
+    serveSupplies([MOCK_SUPPLY, FL_OZ])
+    rerender(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
+    const added = quantityInputs()[1]
+    expect(within(rowOf(added)).getByText('fl oz')).toBeInTheDocument()
+    fireEvent.change(added, { target: { value: '12' } })
+
+    fireEvent.submit(drawerForm())
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    const used = putLineItem()?.supplies_used ?? []
+    expect(used.map((u) => u.supply_id)).toEqual([1, 3])
+    expect(used[0].quantity).toBeCloseTo(1, 9)
+    expect(used[1].quantity).toBeCloseTo(0.35488235475, 9)
   })
 })
 

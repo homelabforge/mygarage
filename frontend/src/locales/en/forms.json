@@ -759,6 +759,7 @@
     "suppliesRemoveRow": "Remove supply",
     "suppliesUsed": "Supplies Used",
     "supplyQuantityInvalid": "Line item {{number}}: supply quantity cannot be negative",
+    "supplyQuantityTooSmall": "Line item {{number}}: a supply amount is too small to store (less than 1 mL)",
     "supplyQuantityWholeNumber": "Line item {{number}}: this supply is counted, so the quantity must be a whole number",
     "tax": "Tax",
     "taxAndFees": "Tax & Fees",
@@ -1024,6 +1025,9 @@
     "nttaTollTag": "NTTA TollTag",
     "fasTrak": "FasTrak",
     "iPass": "I-PASS",
+    "touchNGoCard": "Touch 'n Go Card",
+    "touchNGoRfid": "Touch 'n Go RFID",
+    "smartTag": "SmartTAG",
     "other": "Other"
   },
   "recurrence": {

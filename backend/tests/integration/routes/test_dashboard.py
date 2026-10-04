@@ -763,7 +763,8 @@ class TestDashboardRoutes:
         self, client: AsyncClient, db_session: AsyncSession
     ):
         """One odometer reading gives no rate, so a mileage-only reminder has no
-        expected date and is pending, not due soon, however close it sits."""
+        expected date. Created beside today's reading, it is 0% along its span, so
+        the D2 fallback doesn't make it due soon either."""
         vin, headers = await _isolated_fleet(db_session)
         db_session.add_all(
             [

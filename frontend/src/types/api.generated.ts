@@ -14249,18 +14249,26 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Days Until Due */
+            days_until_due?: number | null;
             /** Due Date */
             due_date: string | null;
             /** Due Hours */
             due_hours: string | null;
             /** Due Mileage Km */
             due_mileage_km: string | null;
+            /** Due Status */
+            due_status?: ("overdue" | "due_soon" | "on_track" | "snoozed") | null;
             /** Duplicate Of */
             duplicate_of?: number[];
             /** Estimated Due Date */
             estimated_due_date?: string | null;
+            /** Hours Until Due */
+            hours_until_due?: string | null;
             /** Id */
             id: number;
+            /** Km Until Due */
+            km_until_due?: string | null;
             /** Last Notified At */
             last_notified_at: string | null;
             /** Line Item Id */
@@ -14269,6 +14277,10 @@ export interface components {
             maintenance_type?: string | null;
             /** Notes */
             notes: string | null;
+            /** Progress */
+            progress?: number | null;
+            /** Progress Basis */
+            progress_basis?: ("date" | "distance" | "hours") | null;
             /** Projected Usage Date */
             projected_usage_date?: string | null;
             /** Reminder Type */
@@ -15535,6 +15547,11 @@ export interface components {
              * @description Pin to a vehicle; null = shared across all
              */
             vin?: string | null;
+            /**
+             * Volume Unit
+             * @description Per-supply display unit for a volume supply; null = legacy binary pick
+             */
+            volume_unit?: ("mL" | "L" | "fl_oz_us" | "fl_oz_uk" | "qt_us" | "qt_uk" | "gal_us" | "gal_uk") | null;
         };
         /** SupplyHistoryResponse */
         SupplyHistoryResponse: {
@@ -15706,6 +15723,11 @@ export interface components {
              * @description Pin to a vehicle; null = shared across all
              */
             vin?: string | null;
+            /**
+             * Volume Unit
+             * @description Per-supply display unit; null means the legacy binary pick
+             */
+            volume_unit?: ("mL" | "L" | "fl_oz_us" | "fl_oz_uk" | "qt_us" | "qt_uk" | "gal_us" | "gal_uk") | null;
         };
         /**
          * SupplyUpdate
@@ -15729,6 +15751,11 @@ export interface components {
             part_number?: string | null;
             /** Vin */
             vin?: string | null;
+            /**
+             * Volume Unit
+             * @description Omitted keeps the stored unit; null clears back to the legacy pick
+             */
+            volume_unit?: ("mL" | "L" | "fl_oz_us" | "fl_oz_uk" | "qt_us" | "qt_uk" | "gal_us" | "gal_uk") | null;
         };
         /**
          * SupplyUsageInput
@@ -15780,6 +15807,11 @@ export interface components {
              * @enum {string}
              */
             unit_type: "volume" | "count";
+            /**
+             * Volume Unit
+             * @description Per-supply display unit; null means the legacy binary pick
+             */
+            volume_unit?: ("mL" | "L" | "fl_oz_us" | "fl_oz_uk" | "qt_us" | "qt_uk" | "gal_us" | "gal_uk") | null;
         };
         /**
          * SystemInfoResponse

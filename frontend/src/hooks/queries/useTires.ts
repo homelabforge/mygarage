@@ -6,6 +6,7 @@ import {
   type UseMutationResult,
 } from '@tanstack/react-query'
 import api from '@/services/api'
+import { invalidateReadingViews } from '@/hooks/useReminders'
 import type {
   MountPeriodCreate,
   MountPeriodUpdate,
@@ -74,13 +75,12 @@ export function useTires(vin: string, includeRetired = false) {
  */
 function invalidateTireViews(queryClient: ReturnType<typeof useQueryClient>, vin: string) {
   queryClient.invalidateQueries({ queryKey: ['tires', vin] })
-  queryClient.invalidateQueries({ queryKey: ['reminders', vin] })
   queryClient.invalidateQueries({ queryKey: ['tire-sets', vin] })
-  // Every tire write publishes, moves or deletes a vehicle odometer record,
-  // and the nearest-reading suggestion lives under this prefix too. Missing
-  // from here until v3.4.0, which is why the Odometer tab showed a stale
-  // reading for thirty seconds after every mount.
-  queryClient.invalidateQueries({ queryKey: ['odometerRecords', vin] })
+  // Every tire write publishes, moves or deletes a vehicle odometer record
+  // (the nearest-reading suggestion lives under that prefix too), which moves
+  // the reminders and the hero. Missing odometerRecords until v3.4.0 is why
+  // the Odometer tab showed a stale reading for thirty seconds after a mount.
+  invalidateReadingViews(queryClient, vin)
 }
 
 /**

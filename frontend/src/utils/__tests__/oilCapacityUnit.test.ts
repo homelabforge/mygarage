@@ -11,12 +11,10 @@
  *
  * THE QUART IS DERIVED, NOT CONSTANTED
  * ------------------------------------
- * `utils/supplyUnits.ts` solves the same problem with a hardcoded
- * `L_PER_QUART = 0.946352946`, which is the US liquid quart, and its own
- * docstring records the resulting 20.1% defect for UK instances. It also
- * records the fix: `LITERS_PER_VOLUME_UNIT[gal_x] / 4`, derivable today with no
- * new vocabulary. That is what this does, so the UK case is right on day one
- * rather than deferred.
+ * Supplies used to hardcode the US liquid quart (0.946352946), a 20.1% defect
+ * for UK instances; `supplyDisplayUnit`'s legacy branch still resolves to it
+ * for rows with no stored token. Here the quart is
+ * `LITERS_PER_VOLUME_UNIT[gal_x] / 4`, so the UK case is right on day one.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -35,9 +33,9 @@ describe('oilCapacityFormat', () => {
     expect(f.toDisplay(4.7)).toBeCloseTo(4.967, 2)
   })
 
-  it('uses the IMPERIAL quart for a UK reader, which supplies gets wrong', () => {
-    // The defect supplyUnits.ts documents: one UK quart is 1.1365225 L, not the
-    // US 0.946352946. Reading a UK entry with the US constant is 20.1% out.
+  it('uses the IMPERIAL quart for a UK reader, unlike the legacy no-token supplies branch', () => {
+    // The defect supplies' legacy branch (supplyDisplayUnit) still has: one UK
+    // quart is 1.1365225 L, not the US 0.946352946. Reading a UK entry with the US constant is 20.1% out.
     const f = oilCapacityFormat(UK)
     expect(f.label).toBe('qt')
     expect(f.toCanonical(1)).toBeCloseTo(1.1365225, 6)

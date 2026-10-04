@@ -1082,7 +1082,21 @@
     "duplicatesFound_other": "{{count}} maintenance items have more than one pending reminder.",
     "duplicateCount": "{{count}} reminders",
     "duplicateCount_one": "{{count}} reminder",
-    "duplicateCount_other": "{{count}} reminders"
+    "duplicateCount_other": "{{count}} reminders",
+    "statusOverdue": "Overdue",
+    "statusDueSoon": "Due soon",
+    "progressLabel": "Progress toward {{title}}",
+    "distanceLeft": "{{distance}} left",
+    "distanceOver": "{{distance}} over",
+    "hoursLeft": "{{n}} hr left",
+    "hoursOver": "{{n}} hr over",
+    "dueToday": "Due today",
+    "daysLeft": "{{count}} days left",
+    "daysLeft_one": "{{count}} day left",
+    "daysLeft_other": "{{count}} days left",
+    "daysOverdue": "{{count}} days overdue",
+    "daysOverdue_one": "{{count}} day overdue",
+    "daysOverdue_other": "{{count}} days overdue"
   },
   "serviceList": {
     "attachments": "Attachments",

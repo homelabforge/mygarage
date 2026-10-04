@@ -214,7 +214,7 @@ async def reconcile_duplicates(
     vin = vin.upper().strip()
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
     reminders = await maintenance_service.reconcile_duplicates(db, vin, body)
-    return [await reminder_service.enrich_with_estimate(r, db) for r in reminders]
+    return await reminder_service.enrich_reminders(reminders, db)
 
 
 @router.put("/{reminder_id}", response_model=ReminderResponse)

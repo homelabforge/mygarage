@@ -21,21 +21,6 @@ export type TollTransactionSummary = components['schemas']['TollTransactionSumma
 // Section B: Hand-maintained frontend-only types
 // ============================================================================
 
-/** Backend uses plain str for toll_system; narrow it for dropdown UIs */
-export type TollSystem = (typeof TOLL_SYSTEMS)[number]
-
-/** Common toll systems for dropdown */
-export const TOLL_SYSTEMS = [
-  'EZ TAG',
-  'TxTag',
-  'E-ZPass',
-  'SunPass',
-  'NTTA TollTag',
-  'FasTrak',
-  'I-PASS',
-  'Other',
-] as const
-
 /** Frontend-only type for monthly aggregation in summary views */
 export interface MonthlyTotal {
   month: string

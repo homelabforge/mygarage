@@ -9,7 +9,7 @@
 import asyncio
 import logging
 import os
-from datetime import UTC, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -41,8 +41,8 @@ from app.tasks.livelink_tasks import (
 )
 from app.utils.datetime_utils import utc_now
 from app.utils.household_time import (
+    household_date,
     household_today,
-    household_zone,
     load_household_zone,
 )
 from app.utils.render_context import render_context_for_vehicle, render_context_for_vehicle_row
@@ -625,7 +625,7 @@ async def auto_archive_inactive_vehicles() -> None:
                         continue
                     # Stored naive UTC; the comparison is between calendar
                     # dates, so convert into the household zone first.
-                    latest_dates.append(ts.replace(tzinfo=UTC).astimezone(household_zone()).date())
+                    latest_dates.append(household_date(ts))
 
                 if not latest_dates or max(latest_dates) >= cutoff_date:
                     continue

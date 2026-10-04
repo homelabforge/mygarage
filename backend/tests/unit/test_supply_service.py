@@ -2,15 +2,23 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
+from app.schemas.supply import SupplyCreate, SupplyUpdate
 from app.services.supply_service import SupplyService
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.supplies]
 
 
 async def _make_supply(db, **kw):
-    s = Supply(name=kw.get("name", "Oil"), unit_type=kw.get("unit_type", "volume"))
+    s = Supply(
+        name=kw.get("name", "Oil"),
+        unit_type=kw.get("unit_type", "volume"),
+        volume_unit=kw.get("volume_unit"),
+    )
     db.add(s)
     await db.flush()
     return s
@@ -92,3 +100,45 @@ async def test_delete_hard_deletes_when_no_history(db_session):
     assert archived is False
     with pytest.raises(HTTPException):
         await svc.get_supply(s.id)
+
+
+async def test_create_and_response_carry_the_unit(db_session):
+    svc = SupplyService(db_session)
+    created = await svc.create_supply(
+        SupplyCreate(name="Brake fluid", unit_type="volume", volume_unit="fl_oz_us"), None
+    )
+    assert created.volume_unit == "fl_oz_us"
+
+
+async def test_patch_sets_and_clears_the_unit(db_session):
+    svc = SupplyService(db_session)
+    s = await _make_supply(db_session)
+    updated = await svc.update_supply(s.id, SupplyUpdate(volume_unit="qt_uk"), None)
+    assert updated.volume_unit == "qt_uk"
+    cleared = await svc.update_supply(s.id, SupplyUpdate(volume_unit=None), None)
+    assert cleared.volume_unit is None
+
+
+async def test_patch_unit_onto_a_count_supply_is_422(db_session):
+    svc = SupplyService(db_session)
+    s = await _make_supply(db_session, unit_type="count")
+    with pytest.raises(HTTPException) as e:
+        await svc.update_supply(s.id, SupplyUpdate(volume_unit="qt_us"), None)
+    assert e.value.status_code == 422
+    assert e.value.detail == "A count supply cannot carry a volume unit"
+
+
+async def test_usage_response_carries_the_owning_supplys_unit(db_session):
+    svc = SupplyService(db_session)
+    s = await _make_supply(db_session, volume_unit="mL")
+    db_session.add(SupplyUsage(supply_id=s.id, quantity=Decimal("2")))
+    await db_session.flush()
+    usage = (
+        await db_session.execute(
+            select(SupplyUsage)
+            .where(SupplyUsage.supply_id == s.id)
+            .options(selectinload(SupplyUsage.supply))
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+    assert svc.to_usage_response(usage).volume_unit == "mL"

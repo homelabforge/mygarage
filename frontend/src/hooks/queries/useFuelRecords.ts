@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
+import { invalidateReadingViews } from '@/hooks/useReminders'
 import type { FuelRecordListResponse, FuelRecordCreate, FuelRecordUpdate } from '@/types/fuel'
 
 export interface UseFuelRecordsOptions {
@@ -44,6 +45,7 @@ export function useDeleteFuelRecord(vin: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }
@@ -64,6 +66,7 @@ export function useCreateFuelRecord(vin: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }
@@ -77,6 +80,7 @@ export function useUpdateFuelRecord(vin: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }
@@ -104,6 +108,7 @@ export function useImportFuelCSV(vin: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }

@@ -10,9 +10,11 @@ import '@schedule-x/theme-default/dist/index.css'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, startOfDay, endOfDay, addDays, differenceInDays, isBefore, isAfter } from 'date-fns'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import type { CalendarEvent, CalendarResponse } from '../types/calendar'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
+import { invalidateMaintenanceQueries } from '../hooks/useReminders'
 import { useUnitFormatFor } from '../hooks/useUnitFormat'
 import { useTimeFormat } from '../hooks/useTimeFormat'
 import { useDateLocale } from '../hooks/useDateLocale'
@@ -79,6 +81,7 @@ export default function CalendarPage() {
 function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null }) {
   const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   // One formatter per event: each reads its own vehicle's odometer unit over
   // the account's (#172), since one calendar mixes vehicles.
   const formatFor = useUnitFormatFor()
@@ -303,6 +306,8 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
 
     try {
       await api.post(`/vehicles/${event.vehicle_vin}/reminders/${id}/done`)
+      // The vehicle page's reminders list and hero read this reminder (#192).
+      invalidateMaintenanceQueries(queryClient, event.vehicle_vin)
       toast.success(t('calendar.reminderDone'))
       loadEvents()
     } catch {
@@ -352,6 +357,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
       let completed = 0
       let failed = 0
       const errors: string[] = []
+      const completedVins = new Set<string>()
 
       for (const id of reminderIds) {
         const event = events.find(e => e.id === `reminder-${id}`)
@@ -359,6 +365,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
 
         try {
           await api.post(`/vehicles/${event.vehicle_vin}/reminders/${id}/done`)
+          completedVins.add(event.vehicle_vin)
           completed++
         } catch (err: unknown) {
           failed++
@@ -366,6 +373,8 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
           errors.push(`${event.title}: ${errorMessage}`)
         }
       }
+
+      for (const vin of completedVins) invalidateMaintenanceQueries(queryClient, vin)
 
       // Clear selection and exit bulk mode
       setSelectedEvents([])

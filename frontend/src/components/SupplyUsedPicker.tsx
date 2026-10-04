@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2 } from 'lucide-react'
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { supplyUnitLabel } from '../utils/supplyUnits'
+import { unitLabel, type SupplyUnit } from '../utils/supplyUnits'
 import type { SupplyUsedEntry } from '../types/serviceVisit'
 import type { Supply } from '../types/supplies'
 import { Select } from './ui'
@@ -19,24 +18,27 @@ interface SupplyUsedPickerProps {
   // the parent's own lookup hasn't resolved yet would silently vanish from the
   // submit payload (mapSuppliesUsedForSubmit can't convert what it can't find).
   supplies: Supply[]
+  // ServiceVisitForm's pinned unit per supply. Labels read the same map submit
+  // converts with, so they can't disagree.
+  unitsBySupplyId: Map<number, SupplyUnit>
   disabled?: boolean
 }
 
 /**
  * Consume-picker for a service line item: which supplies (fluids, filters,
- * parts) were used, and how much, in the user's DISPLAY units. The caller
- * (LineItemEditor -> ServiceVisitForm) owns display<->canonical conversion —
- * this component only ever reads/writes display-unit quantities.
+ * parts) were used, and how much, each in its supply's display unit. The
+ * caller (LineItemEditor -> ServiceVisitForm) owns display<->canonical
+ * conversion; this component only ever reads/writes display-unit quantities.
  */
 export default function SupplyUsedPicker({
   value,
   onChange,
   vin,
   supplies,
+  unitsBySupplyId,
   disabled = false,
 }: SupplyUsedPickerProps) {
   const { t } = useTranslation('forms')
-  const { system } = useUnitPreference()
   const suppliesById = new Map(supplies.map((s) => [s.id, s]))
   const usedSupplyIds = new Set(value.map((row) => row.supply_id))
   // Only ACTIVE supplies can be picked for a NEW usage row. An archived supply
@@ -90,8 +92,7 @@ export default function SupplyUsedPicker({
         <div className="space-y-2">
           {value.map((row, rowIndex) => {
             const supply = suppliesById.get(row.supply_id)
-            const unitType = supply?.unit_type ?? 'count'
-            const unitLabel = supplyUnitLabel(unitType, system)
+            const quantityUnit = unitLabel(unitsBySupplyId.get(row.supply_id) ?? 'count')
             // Row's own select keeps its current supply as an option even if it's
             // archived (not in addableSupplies) or — defensively — also picked by
             // another row (shouldn't happen via handleAddRow, but a hydrated or
@@ -123,7 +124,7 @@ export default function SupplyUsedPicker({
                     aria-label={t('service.suppliesQuantity')}
                     className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
                   />
-                  {unitLabel && <span className="text-xs text-garage-text-muted flex-shrink-0">{unitLabel}</span>}
+                  {quantityUnit && <span className="text-xs text-garage-text-muted flex-shrink-0">{quantityUnit}</span>}
                 </div>
                 <button
                   type="button"

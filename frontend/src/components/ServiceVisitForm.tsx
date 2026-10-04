@@ -9,7 +9,6 @@ import { reminderDraftToCreate } from '../types/reminder'
 import type { Vehicle, VehicleType } from '../types/vehicle'
 import { NON_MOTORIZED_TYPES } from '../schemas/vehicle'
 import type { Supply } from '../types/supplies'
-import type { UnitSystem } from '../utils/units'
 import { SERVICE_CATEGORIES } from '../schemas/serviceVisit'
 import { MONEY_MAX } from '../schemas/shared'
 import VendorSearch from './VendorSearch'
@@ -23,7 +22,7 @@ import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useLatestMileage } from '../hooks/useLatestMileage'
 import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
 import { readNumber } from '../utils/decimalSafe'
-import { canonicalToDisplay, displayToCanonical } from '../utils/supplyUnits'
+import { supplyDisplayUnit, toCanonical, toDisplay, type SupplyUnit } from '../utils/supplyUnits'
 import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
@@ -33,26 +32,23 @@ import { formatCurrency, formatCurrencyZero } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { formatDateForInput } from '@/utils/dateUtils'
 
-// Shared by the edit-hydration effect (canonical -> display, via
-// canonicalToDisplay) and mapSuppliesUsedForSubmit (display -> canonical, via
-// displayToCanonical) — same shape, same "drop what can't be resolved"
-// fallback, opposite direction. A miss here almost never means the supply was
-// hard-deleted (delete_supply only allows that for supplies with zero usage
-// history); it's far more likely a vin-repin moved it out of this vehicle's
-// scope. Either way, dropping silently is the least-bad option available
-// without turning a units-conversion helper into a place that also owns
-// user-facing warnings.
-// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. ★ THE ONE TASK 8's REPORT CELEBRATED HALF OF: the gate saw the fourth ARGUMENT of this function (`canonicalToDisplay` / `displayToCanonical` passed as values) and could not see this function, which is the local binary helper that consumes it. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
+// Shared by the edit-hydration effect (canonical -> display, via toDisplay),
+// the parts estimate and mapSuppliesUsedForSubmit (display -> canonical, via
+// toCanonical): same shape, same "drop what can't be resolved" fallback. A
+// miss here almost never means the supply was hard-deleted (delete_supply only
+// allows that for supplies with zero usage history); it's far more likely a
+// vin-repin moved it out of this vehicle's scope. Either way, dropping
+// silently is the least-bad option available without turning a
+// units-conversion helper into a place that also owns user-facing warnings.
 function convertSupplyUsages(
   usages: { supply_id: number; quantity: number | string }[],
-  suppliesById: Map<number, Supply>,
-  system: UnitSystem,
-  convert: (value: number, unitType: Supply['unit_type'], system: UnitSystem) => number,
+  unitsBySupplyId: Map<number, SupplyUnit>,
+  convert: (value: number, unit: SupplyUnit) => number,
 ): SupplyUsedEntry[] {
   return usages.reduce<SupplyUsedEntry[]>((acc, usage) => {
-    const supply = suppliesById.get(usage.supply_id)
-    if (!supply) return acc
-    acc.push({ supply_id: usage.supply_id, quantity: convert(Number(usage.quantity), supply.unit_type, system) })
+    const unit = unitsBySupplyId.get(usage.supply_id)
+    if (unit === undefined) return acc
+    acc.push({ supply_id: usage.supply_id, quantity: convert(Number(usage.quantity), unit) })
     return acc
   }, [])
 }
@@ -91,16 +87,9 @@ export default function ServiceVisitForm({
 }: ServiceVisitFormProps) {
   const { t } = useTranslation('forms')
   const isEdit = !!visit
-  // ★ `system` survives here for the SUPPLY quantities only. Spec D8 exempts
-  // supplies from the resolved set (a quart is not one of the ten quantities),
-  // and `canonicalToDisplay` / `displayToCanonical` still take the binary
-  // answer. Plan 3b ruling R3 gave that decision to task 5, which RULED IT:
-  // all three legs of `utils/supplyUnits.ts` are exempt, because D8's qt/L
-  // vocabulary is not in `UnitSet` and so `units` holds nothing they could
-  // read. They track `unit_preference` deliberately and move together. Read
-  // that file's header before changing this line; the exemption is owned by a
-  // D8 amendment now, not by a task. The odometer below reads `u.distance`
-  // instead, which is what this form was getting wrong.
+  // `system` only feeds the supply unit pin below, and only matters there for a
+  // supply with no stored unit yet (supplyDisplayUnit's legacy qt/L pick). The
+  // odometer reads `u.distance`.
   const { system } = useUnitPreference()
   const u = useUnitFormat()
   const { currencyCode, locale } = useCurrencyPreference()
@@ -151,6 +140,18 @@ export default function ServiceVisitForm({
     for (const s of supplies) map.set(s.id, s)
     return map
   }, [supplies])
+  // Each supply's unit is pinned the first time this form sees it and never
+  // rebuilt, so a unit change from another tab can't relabel what's already
+  // typed. New ids still get in, or a supply created mid-edit would drop on submit.
+  // Grown during render (copied, so memos notice) so hydration never reads it empty.
+  const supplyUnitsRef = useRef(new Map<number, SupplyUnit>())
+  const unseen = supplies.filter((s) => !supplyUnitsRef.current.has(s.id))
+  if (unseen.length > 0) {
+    const grown = new Map(supplyUnitsRef.current)
+    for (const s of unseen) grown.set(s.id, supplyDisplayUnit(s, system))
+    supplyUnitsRef.current = grown
+  }
+  const unitsBySupplyId = supplyUnitsRef.current
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -209,8 +210,8 @@ export default function ServiceVisitForm({
           inspection_severity: item.inspection_severity || '',
           triggered_by_inspection_id: item.triggered_by_inspection_id ?? undefined,
           // Hydrated from visit.line_items[*].supply_usages once the supplies
-          // list loads (see the hydration effect below) — supply_usages carries
-          // canonical quantities and needs each supply's unit_type to convert.
+          // list loads (see the hydration effect below). supply_usages carries
+          // canonical quantities and needs each supply's pinned unit to convert.
           supplies_used: [],
         })),
       }
@@ -235,8 +236,8 @@ export default function ServiceVisitForm({
   // Hydrate supplies_used from visit.line_items[*].supply_usages once the
   // supplies list has loaded. This can't happen in the formData initializer
   // above because useSupplies() resolves asynchronously and supply_usages
-  // carries canonical quantities — converting to the user's display units
-  // needs each supply's unit_type, which only the loaded list provides.
+  // carries canonical quantities. Converting to display needs each supply's
+  // pinned unit, which only exists once the loaded list has filled the pin.
   //
   // MANDATORY: the backend replaces a line item's usages with whatever
   // supplies_used is submitted (diffed by supply_id). If this hydration is
@@ -253,11 +254,11 @@ export default function ServiceVisitForm({
         const responseItem = visit.line_items.find((li) => li.id === item.id)
         const usages = responseItem?.supply_usages
         if (!usages || usages.length === 0) return item
-        return { ...item, supplies_used: convertSupplyUsages(usages, suppliesById, system, canonicalToDisplay) }
+        return { ...item, supplies_used: convertSupplyUsages(usages, unitsBySupplyId, toDisplay) }
       }),
     }))
     setEditHydrated(true)
-  }, [isEdit, visit, suppliesLoaded, suppliesById, system])
+  }, [isEdit, visit, suppliesLoaded, unitsBySupplyId])
 
   // Calculate subtotal and total cost
   const subtotal = useMemo(() => {
@@ -269,16 +270,14 @@ export default function ServiceVisitForm({
   const partsSupplies = useMemo(() => {
     let total = 0
     for (const item of formData.line_items) {
-      for (const usage of item.supplies_used ?? []) {
-        const supply = suppliesById.get(usage.supply_id)
-        if (!supply) continue
-        const unitCost = supply.avg_unit_cost != null ? Number(supply.avg_unit_cost) : 0
-        const canonicalQty = displayToCanonical(usage.quantity, supply.unit_type, system)
-        total += unitCost * canonicalQty
+      // Same conversion as submit, so the estimate prices exactly what gets sent.
+      for (const usage of convertSupplyUsages(item.supplies_used ?? [], unitsBySupplyId, toCanonical)) {
+        const avgCost = suppliesById.get(usage.supply_id)?.avg_unit_cost
+        total += (avgCost != null ? Number(avgCost) : 0) * usage.quantity
       }
     }
     return total
-  }, [formData.line_items, suppliesById, system])
+  }, [formData.line_items, suppliesById, unitsBySupplyId])
 
   const totalCost = useMemo(() => {
     return (
@@ -350,7 +349,7 @@ export default function ServiceVisitForm({
 
   // Display -> canonical for the wire payload.
   const mapSuppliesUsedForSubmit = (item: ServiceVisitFormLineItem): SupplyUsedEntry[] =>
-    convertSupplyUsages(item.supplies_used ?? [], suppliesById, system, displayToCanonical)
+    convertSupplyUsages(item.supplies_used ?? [], unitsBySupplyId, toCanonical)
 
   /**
    * The replacement for the form's native constraints.
@@ -473,12 +472,17 @@ export default function ServiceVisitForm({
         if (Number.isNaN(usage.quantity) || usage.quantity < 0) {
           return t('service.supplyQuantityInvalid', { number: n })
         }
+        const unit = unitsBySupplyId.get(usage.supply_id)
         // The replaced `step` was `'1'` for count-type supplies and `'0.01'`
         // otherwise, so a count could not take a fraction. The backend only
         // enforces `gt=0` (schemas/supply.py:75), so dropping this check
         // rather than moving it would let "2.5 oil filters" through.
-        if (suppliesById.get(usage.supply_id)?.unit_type === 'count' && !Number.isInteger(usage.quantity)) {
+        if (unit === 'count' && !Number.isInteger(usage.quantity)) {
           return t('service.supplyQuantityWholeNumber', { number: n })
+        }
+        // Litres are stored to 0.001, so anything under 1 mL can't be kept.
+        if (unit !== undefined && unit !== 'count' && toCanonical(usage.quantity, unit) < 0.001) {
+          return t('service.supplyQuantityTooSmall', { number: n })
         }
       }
     }
@@ -798,6 +802,7 @@ export default function ServiceVisitForm({
                     index={index}
                     vin={vin}
                     supplies={supplies}
+                    unitsBySupplyId={unitsBySupplyId}
                     failedInspections={failedInspections.filter((fi) => fi.refId !== (item.id ?? item.tempId ?? 0))}
                     onChange={handleLineItemChange}
                     onRemove={handleRemoveLineItem}

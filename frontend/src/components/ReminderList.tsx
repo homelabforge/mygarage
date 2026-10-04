@@ -8,6 +8,10 @@
  * real date and reading anchor the next cycle. Applying a pack previews
  * first. Pending reminders of one maintenance type are flagged as possible
  * duplicates with a Review action.
+ *
+ * A pending row says where it stands (#192): a status chip and stripe when
+ * overdue or due soon, and a bar from its start to due with what's left, all
+ * computed by the server.
  */
 
 import { useState, useEffect } from 'react'
@@ -40,18 +44,11 @@ import type { DuplicateGroup, Reminder, ReminderStatus } from '../types/reminder
 import type { Vehicle } from '../types/vehicle'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { getUsageTracking } from '../utils/usageTracking'
-import { Button, IconButton, Card, Chip, Mono, EmptyState, Select } from './ui'
+import { Button, IconButton, Card, Chip, Mono, EmptyState, ProgressMeter, Select, type ProgressMeterTone } from './ui'
 import api from '../services/api'
 
 interface ReminderListProps {
   vin: string
-  /**
-   * Fired after any write that moves the vehicle's overdue/upcoming counts
-   * (complete, dismiss, delete, snooze, unsnooze, pack apply, reconcile).
-   * VehicleDetail holds those stats in local state, not react-query, so the
-   * mutation invalidation above cannot refresh them.
-   */
-  onStatsChanged?: () => void
 }
 
 const STATUS_TABS: { id: ReminderStatus | 'all'; labelKey: string }[] = [
@@ -68,7 +65,27 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
   smart: Zap,
 }
 
-export default function ReminderList({ vin, onStatsChanged }: ReminderListProps) {
+type DueStatus = NonNullable<Reminder['due_status']>
+
+/** The bar's fill per status, the same colour as the row's stripe and chip. */
+const METER_TONE: Record<DueStatus, ProgressMeterTone> = {
+  overdue: 'danger',
+  due_soon: 'warning',
+  on_track: 'accent',
+  snoozed: 'muted',
+}
+
+/**
+ * A left stripe rather than a recoloured border: Card's base sets
+ * `border-border`, and two utilities on one property resolve by stylesheet
+ * order, not class order. `border-left-color` is its own property.
+ */
+const ROW_STRIPE: Partial<Record<DueStatus, string>> = {
+  overdue: 'border-l-4 border-l-danger',
+  due_soon: 'border-l-4 border-l-warning',
+}
+
+export default function ReminderList({ vin }: ReminderListProps) {
   const { t } = useTranslation('vehicles')
   const { t: tForms } = useTranslation('forms')
   const dateLocale = useDateLocale()
@@ -128,7 +145,6 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
     try {
       await dismissMutation.mutateAsync(id)
       toast.success(t('reminderList.dismissed'))
-      onStatsChanged?.()
     } catch {
       toast.error(t('reminderList.dismissError'))
     }
@@ -138,7 +154,6 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
     try {
       await deleteMutation.mutateAsync(id)
       toast.success(t('reminderList.deleted'))
-      onStatsChanged?.()
     } catch {
       toast.error(t('reminderList.deleteError'))
     }
@@ -187,6 +202,36 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
       return t('reminderList.countingFrom', { date: formatDate(reminder.anchor_date), reading: reading ?? '' })
     }
     return t('reminderList.lastDone', { date: formatDate(reminder.anchor_date), reading: reading ?? '' })
+  }
+
+  /** What is left along the dimension the bar measures, in the vehicle's units. */
+  const remainingText = (reminder: Reminder): string | null => {
+    switch (reminder.progress_basis) {
+      case 'distance': {
+        if (reminder.km_until_due == null) return null
+        const km = Number(reminder.km_until_due)
+        const distance = u.distance.format(Math.abs(km))
+        return km < 0
+          ? t('reminderList.distanceOver', { distance })
+          : t('reminderList.distanceLeft', { distance })
+      }
+      case 'hours': {
+        if (reminder.hours_until_due == null) return null
+        const hours = Number(reminder.hours_until_due)
+        const n = Math.abs(hours).toFixed(1)
+        return hours < 0 ? t('reminderList.hoursOver', { n }) : t('reminderList.hoursLeft', { n })
+      }
+      case 'date': {
+        const days = reminder.days_until_due
+        if (days == null) return null
+        if (days === 0) return t('reminderList.dueToday')
+        return days < 0
+          ? t('reminderList.daysOverdue', { count: -days })
+          : t('reminderList.daysLeft', { count: days })
+      }
+      default:
+        return null
+    }
   }
 
   const rulesById = new Map<number, Reminder>()
@@ -337,15 +382,20 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
             )
             const isDuplicate = (reminder.duplicate_of?.length ?? 0) > 0
             const anchor = anchorText(reminder)
+            // Only a pending row says where it stands; a closed one keeps its history look.
+            const status = reminder.status === 'pending' ? reminder.due_status ?? null : null
+            const remaining = status ? remainingText(reminder) : null
             const supersededBy = reminder.superseded_by_id != null ? rulesById.get(reminder.superseded_by_id) : undefined
             return (
-              <Card key={reminder.id} padding="sm">
+              <Card key={reminder.id} padding="sm" className={status ? ROW_STRIPE[status] ?? '' : ''}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     <TypeIcon aria-hidden="true" className="w-5 h-5 text-(--accent-fg) mt-0.5 shrink-0" />
                     <div className="min-w-0">
                       <h4 className="text-sm font-medium text-text">{reminder.title}</h4>
                       <div className="flex flex-wrap gap-2 mt-1 items-center">
+                        {status === 'overdue' && <Chip tone="danger">{t('reminderList.statusOverdue')}</Chip>}
+                        {status === 'due_soon' && <Chip tone="warning">{t('reminderList.statusDueSoon')}</Chip>}
                         <Chip>{reminder.reminder_type}</Chip>
                         {recurrence && reminder.rule?.is_active && (
                           <Chip tone="accent">
@@ -385,6 +435,20 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
                           </span>
                         )}
                       </div>
+                      {status && reminder.progress != null && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <ProgressMeter
+                            className="max-w-48 flex-1"
+                            label={t('reminderList.progressLabel', { title: reminder.title })}
+                            percent={reminder.progress * 100}
+                            tone={METER_TONE[status]}
+                            valueText={remaining ?? undefined}
+                          />
+                          {remaining && (
+                            <span className="text-xs text-text-mute whitespace-nowrap">{remaining}</span>
+                          )}
+                        </div>
+                      )}
                       {reminder.projected_usage_date && reminder.status === 'pending' && (
                         <p className="text-xs text-text-mute mt-1">
                           {t('reminderList.projected', { date: formatDate(reminder.projected_usage_date) })}
@@ -437,7 +501,7 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
           currentMileage={currentMileage}
           currentHours={currentHours}
           onClose={handleFormClose}
-          onSuccess={() => { handleFormClose(); onStatsChanged?.() }}
+          onSuccess={handleFormClose}
         />
       )}
 
@@ -450,7 +514,7 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
           tracksDistance={tracksDistance}
           tracksHours={tracksHours}
           onClose={() => setCompleting(undefined)}
-          onSuccess={() => { setCompleting(undefined); onStatsChanged?.() }}
+          onSuccess={() => setCompleting(undefined)}
         />
       )}
 
@@ -459,7 +523,7 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
           vin={vin}
           reminder={snoozing}
           onClose={() => setSnoozing(undefined)}
-          onSuccess={() => { setSnoozing(undefined); onStatsChanged?.() }}
+          onSuccess={() => setSnoozing(undefined)}
         />
       )}
 
@@ -488,7 +552,7 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
           packId={previewingPack.id}
           packName={previewingPack.name}
           onClose={() => setPreviewingPack(undefined)}
-          onApplied={() => { setPreviewingPack(undefined); setSelectedPack(''); onStatsChanged?.() }}
+          onApplied={() => { setPreviewingPack(undefined); setSelectedPack('') }}
         />
       )}
 
@@ -497,7 +561,7 @@ export default function ReminderList({ vin, onStatsChanged }: ReminderListProps)
           vin={vin}
           group={reviewingGroup}
           onClose={() => setReviewingGroup(undefined)}
-          onDone={() => { setReviewingGroup(undefined); onStatsChanged?.() }}
+          onDone={() => setReviewingGroup(undefined)}
         />
       )}
     </div>

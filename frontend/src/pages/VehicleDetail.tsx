@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
@@ -35,7 +36,7 @@ import vehicleService from '../services/vehicleService'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { withBase } from '../utils/basePath'
-import type { Vehicle, VehicleDetailStats } from '../types/vehicle'
+import type { Vehicle } from '../types/vehicle'
 import type { LastLocation } from '../types/trips'
 import ServiceTab from '../components/tabs/ServiceTab'
 import FuelTab from '../components/tabs/FuelTab'
@@ -85,6 +86,7 @@ import { fillUpKind, vehicleLogKinds } from '../utils/vehicleLogKinds'
 import { VehicleUnitScope } from '../contexts/VehicleUnitScope'
 import { forgetCachedVehicle, readCachedVehicle, rememberVehicle } from '../utils/vehicleCache'
 import { useSyncQuickEntryVehicle } from '../hooks/queries/useQuickEntryVehicles'
+import { useVehicleDetailStats } from '../hooks/queries/useVehicleDetailStats'
 
 /** Per-record-type tallies returned by the JSON import endpoint. */
 type ImportSectionResult = {
@@ -119,7 +121,6 @@ export default function VehicleDetail() {
   // declares nothing, which is a different (and loggable) condition.
   const [liveLinkCaps, setLiveLinkCaps] = useState<string[] | null>(null)
   const [lastLocation, setLastLocation] = useState<LastLocation | null>(null)
-  const [detailStats, setDetailStats] = useState<VehicleDetailStats | null>(null)
   const [equipmentDrawer, setEquipmentDrawer] = useState<'standard' | 'optional' | null>(null)
   const [pricingDrawerOpen, setPricingDrawerOpen] = useState(false)
   const [editDrawerOpen, setEditDrawerOpen] = useState(false)
@@ -235,46 +236,21 @@ export default function VehicleDetail() {
     fetchLastLocation()
   }, [vin])
 
-  // Fetch the hero/key-facts read-aggregation (overdue/upcoming/reading/last-service/
-  // last-fill-up/spent-YTD). Independent secondary fetch — the detail page never
-  // blocks on it (the hero renders without the reading/badge and the key-facts
-  // strip is omitted entirely until it resolves; no layout is reserved).
+  // The hero/key-facts read-aggregation (overdue/upcoming/reading/last-service/
+  // last-fill-up/spent-YTD). Independent secondary fetch: the page never blocks
+  // on it (the hero renders without the reading/badge, and the key-facts strip
+  // is omitted until it resolves; no layout is reserved).
   //
-  // Every load goes through one generation counter: only the NEWEST request
-  // may write. That covers B3 (a stale A response after navigating to B —
-  // the vin effect bumps the generation) and the refresh race (two rapid
-  // writes whose responses resolve out of order must not leave the older
-  // counts displayed; codex code review R1-M2). The active-vin check on top
-  // covers the third shape (R2-M1): a mutation for A that finishes AFTER
-  // navigating to B still holds A's callback, and without the check it would
-  // START a fresh A request carrying the newest generation.
-  const statsGenRef = useRef(0)
-  const activeStatsVinRef = useRef(vin)
-  const refreshDetailStats = useCallback(() => {
-    if (!vin || activeStatsVinRef.current !== vin) return
-    const gen = ++statsGenRef.current
-    vehicleService
-      .getDetailStats(vin)
-      .then((stats) => {
-        if (statsGenRef.current === gen && activeStatsVinRef.current === vin) {
-          setDetailStats(stats)
-        }
-      })
-      .catch(() => {
-        // Keep what is shown; a failed refresh is not worth blanking the strip.
-      })
-  }, [vin])
-
-  // The stats are local state, not react-query, so a reminder write inside
-  // ReminderList cannot invalidate them — the child calls refreshDetailStats
-  // back up through onStatsChanged.
-  useEffect(() => {
-    if (!vin) return
-    activeStatsVinRef.current = vin
-    // B3: never show A's numbers on B, even for the moment the fetch takes.
-    setDetailStats(null)
-    refreshDetailStats()
-  }, [vin, refreshDetailStats])
+  // On the query cache, keyed by vin, so any write refreshes it by key (#192):
+  // the reminder, service-visit and tire invalidation helpers and every reading
+  // write. The cache also covers the races the old generation counter did: a
+  // late A response lands in A's entry and never shows on B (B3); a refresh
+  // cancels the one in flight, so an older response can't overwrite a newer
+  // one (codex R1-M2); and a write for A that finishes after navigating to B
+  // only marks A stale, since A has no observer left to refetch for (codex
+  // R2-M1). A failed refresh keeps the last good stats.
+  const queryClient = useQueryClient()
+  const { data: detailStats = null } = useVehicleDetailStats(vin ?? '')
 
   // Handle URL tab parameter from calendar navigation
   useEffect(() => {
@@ -408,6 +384,11 @@ export default function VehicleDetail() {
 
       // Reload the vehicle data
       await loadVehicle()
+      // An import can write every record type, reminders and readings
+      // included, and vehicle-scoped query keys don't share one shape (the
+      // insurance key puts the VIN third), so mark everything stale. Only
+      // what's on screen refetches (#192).
+      void queryClient.invalidateQueries()
     } catch (err) {
       toast.error(t('detail.importError'), {
         description: getActionErrorMessage(err, t('detail.importAction'))
@@ -750,7 +731,7 @@ export default function VehicleDetail() {
 
         {/* Tracking Sub-tabs */}
         {activePrimaryTab === 'tracking' && activeSubTab === 'notes' && vin && <NotesTab vin={vin} />}
-        {activePrimaryTab === 'tracking' && activeSubTab === 'reminders' && vin && <ReminderList vin={vin} onStatsChanged={refreshDetailStats} />}
+        {activePrimaryTab === 'tracking' && activeSubTab === 'reminders' && vin && <ReminderList vin={vin} />}
         {activePrimaryTab === 'tracking' && activeSubTab === 'reports' && vin && <ReportsTab vin={vin} />}
 
         {/* Financial Sub-tabs */}

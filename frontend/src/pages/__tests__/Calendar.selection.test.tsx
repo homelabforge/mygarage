@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient } from '@tanstack/react-query'
 import { render } from '../../__tests__/test-utils'
 import { setHouseholdTimeZone } from '../../constants/i18n'
 
@@ -180,6 +181,36 @@ describe('Calendar upcoming event: selecting its text (#179)', () => {
     expect(apiPost).toHaveBeenCalledTimes(2)
 
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+})
+
+describe('Calendar completes refresh the vehicle page (#192)', () => {
+  // The calendar posts reminder completions itself, so the vehicle page's
+  // reminders list and hero must be refreshed by key, or they show the row as
+  // pending until their cache goes stale.
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('a quick complete refreshes the reminders list and the hero for its vehicle', async () => {
+    const invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries')
+    render(<CalendarPage />)
+    await screen.findByText('Oil change')
+    fireEvent.click(screen.getByRole('button', { name: 'calendar.misc.markComplete' }))
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['reminders', 'V1'] }))
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['vehicleDetailStats', 'V1'] })
+  })
+
+  it('a bulk complete refreshes them too', async () => {
+    const invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries')
+    render(<CalendarPage />)
+    await screen.findByText('Oil change')
+    fireEvent.click(screen.getByRole('button', { name: 'calendar.bulkMode' }))
+    fireEvent.click(screen.getByRole('button', { name: 'calendar.selectEvent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'calendar.completeSelected' }))
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith('/vehicles/V1/reminders/1/done'))
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['reminders', 'V1'] }))
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['vehicleDetailStats', 'V1'] })
   })
 })
 

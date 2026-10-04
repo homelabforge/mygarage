@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
+import { invalidateReadingViews } from '@/hooks/useReminders'
 import type { DEFRecordListResponse, DEFAnalytics, DEFRecordCreate, DEFRecordUpdate } from '@/types/def'
 
 export function useDEFRecords(vin: string) {
@@ -38,6 +39,7 @@ export function useCreateDEFRecord(vin: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['defRecords', vin] })
       queryClient.invalidateQueries({ queryKey: ['defAnalytics', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }
@@ -52,6 +54,7 @@ export function useUpdateDEFRecord(vin: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['defRecords', vin] })
       queryClient.invalidateQueries({ queryKey: ['defAnalytics', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }
@@ -65,6 +68,7 @@ export function useDeleteDEFRecord(vin: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['defRecords', vin] })
       queryClient.invalidateQueries({ queryKey: ['defAnalytics', vin] })
+      invalidateReadingViews(queryClient, vin)
     },
   })
 }

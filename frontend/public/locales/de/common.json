@@ -128,6 +128,7 @@
     "sharedAcrossVehicles": "Für alle Fahrzeuge freigegeben",
     "onHand": "Vorrätig",
     "avgUnitCost": "Durchschn. Stückkosten",
+    "avgCostPerUnit": "Ø Kosten/{{unit}}",
     "negativeWarning": "Der erfasste Verbrauch übersteigt die aufgezeichneten Einkäufe",
     "activeToggle": "Aktiv (Abwählen zum Archivieren)",
     "viewHistory": "Verlauf anzeigen",

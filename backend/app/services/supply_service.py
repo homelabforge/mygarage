@@ -114,6 +114,7 @@ class SupplyService:
             barcode=supply.barcode,
             category=supply.category,
             unit_type=supply.unit_type,
+            volume_unit=supply.volume_unit,
             vin=supply.vin,
             notes=supply.notes,
             is_active=supply.is_active,
@@ -174,6 +175,7 @@ class SupplyService:
             barcode=data.barcode,
             category=data.category,
             unit_type=data.unit_type,
+            volume_unit=data.volume_unit,
             vin=data.vin.upper().strip() if data.vin else None,
             notes=data.notes,
             created_by_user_id=current_user.id if current_user else None,
@@ -190,6 +192,11 @@ class SupplyService:
         payload = data.model_dump(exclude_unset=True)
         if "vin" in payload and payload["vin"]:
             payload["vin"] = payload["vin"].upper().strip()
+        # unit_type isn't patchable, so only the stored supply knows if it's a count.
+        # Checked before the setattr loop so a 422 leaves nothing dirty in the session.
+        merged_unit = payload["volume_unit"] if "volume_unit" in payload else supply.volume_unit
+        if supply.unit_type == "count" and merged_unit is not None:
+            raise HTTPException(status_code=422, detail="A count supply cannot carry a volume unit")
         for field, value in payload.items():
             setattr(supply, field, value)
         await self.db.commit()
@@ -380,6 +387,7 @@ class SupplyService:
             supply_id=usage.supply_id,
             supply_name=usage.supply.name,
             unit_type=usage.supply.unit_type,
+            volume_unit=usage.supply.volume_unit,
             quantity=usage.quantity,
             unit_cost_snapshot=usage.unit_cost_snapshot,
             cost_snapshot=usage.cost_snapshot,

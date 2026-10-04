@@ -1,10 +1,12 @@
 """Reminder business logic service layer."""
 
 import logging
-from collections.abc import Sequence
-from dataclasses import dataclass
+import math
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import cast
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -15,11 +17,18 @@ from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
-from app.schemas.reminder import ReminderCreate, ReminderResponse, ReminderUpdate
-from app.services.hours_service import latest_engine_hours_and_date
+from app.schemas.reminder import (
+    DueStatus,
+    ProgressBasis,
+    ReminderCreate,
+    ReminderResponse,
+    ReminderUpdate,
+)
+from app.services.hours_service import latest_engine_hours_and_date, nearest_hours
 from app.services.maintenance_recurrence import project_usage_date
+from app.services.odometer_service import nearest_odometer
 from app.utils.hours_formatting import format_hours
-from app.utils.household_time import household_today
+from app.utils.household_time import household_date, household_today
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.maintenance_types import classify
 from app.utils.render_context import RenderContext, render_context_for_vehicle
@@ -32,6 +41,8 @@ NOTIFICATION_COOLDOWN = timedelta(hours=24)
 
 # A pending reminder expected within this window is "due soon" (card/hero badge, fleet strip).
 DUE_SOON_WINDOW = timedelta(days=30)
+# A usage target the rates can't project is due soon this far along its span (#192 D2).
+DUE_SOON_PROGRESS = 0.9
 
 
 def validate_reminder_state(
@@ -267,13 +278,172 @@ def expected_due_date(
     return reminder.due_date or projected
 
 
+#: Ties between dimensions go to the first: a distance or hours figure tells a
+#: row more than a day count does.
+_BASIS_ORDER: tuple[ProgressBasis, ...] = ("distance", "hours", "date")
+
+
+@dataclass(frozen=True)
+class ReminderStart:
+    """What a pending reminder counts from (#192 D4): its anchor, or for an
+    unanchored reminder the household day it was created and the readings
+    nearest that day."""
+
+    day: date | None
+    km: Decimal | None
+    hours: Decimal | None
+
+
+@dataclass(frozen=True)
+class DueContext:
+    """One vehicle's readings and rates on one day, plus the derived starts of
+    its unanchored reminders by id. Built once per list or count, so every row
+    reads the same values the badges count with."""
+
+    today: date
+    current_km: Decimal | None
+    current_hours: Decimal | None
+    km_per_day: float | None
+    hours_per_day: float | None
+    starts: Mapping[int, ReminderStart] = field(default_factory=dict[int, ReminderStart])
+
+
+def anchor_start(reminder: Reminder) -> ReminderStart | None:
+    """The reminder's anchor as its start, or ``None`` when it has none on record.
+
+    Read through ``maintenance_service.anchor_of``, so "unanchored" here is
+    exactly what rule adoption and reconciliation treat as unanchored: a
+    hand-made one-off, or a legacy reminder from before anchors.
+    """
+    # Imported here: maintenance_service imports this module.
+    from app.services.maintenance_service import anchor_of
+
+    anchor = anchor_of(reminder)
+    if anchor is None:
+        return None
+    return ReminderStart(day=anchor.date, km=anchor.odometer_km, hours=anchor.hours)
+
+
+def reminder_start(reminder: Reminder, ctx: DueContext) -> ReminderStart | None:
+    """The reminder's anchor, else the start ``ctx`` derived for it."""
+    return anchor_start(reminder) or ctx.starts.get(reminder.id)
+
+
+def progress_fractions(reminder: Reminder, ctx: DueContext) -> dict[ProgressBasis, float]:
+    """Elapsed over span for each dimension the reminder has (#192 D3), counted
+    from ``reminder_start``.
+
+    A dimension is left out when its start, its current reading or a positive
+    span is missing. Unclamped both ways: past due reads above 1, and a reading
+    below the start (a typo, or a nearest reading taken after creation) reads
+    below 0. The bar clamps; the sort doesn't need to.
+    """
+    start = reminder_start(reminder, ctx)
+    if start is None:
+        return {}
+    fractions: dict[ProgressBasis, float] = {}
+    if reminder.due_date is not None and start.day is not None:
+        span_days = (reminder.due_date - start.day).days
+        if span_days > 0:
+            fractions["date"] = (ctx.today - start.day).days / span_days
+    if reminder.due_mileage_km is not None and start.km is not None and ctx.current_km is not None:
+        span_km = reminder.due_mileage_km - start.km
+        if span_km > 0:
+            fractions["distance"] = float((ctx.current_km - start.km) / span_km)
+    if reminder.due_hours is not None and start.hours is not None and ctx.current_hours is not None:
+        span_hours = reminder.due_hours - start.hours
+        if span_hours > 0:
+            fractions["hours"] = float((ctx.current_hours - start.hours) / span_hours)
+    return fractions
+
+
+def leading_progress(
+    fractions: Mapping[ProgressBasis, float],
+) -> tuple[ProgressBasis, float] | None:
+    """The dimension closest to due and its fraction, or ``None`` with none."""
+    leading: tuple[ProgressBasis, float] | None = None
+    for basis in _BASIS_ORDER:
+        value = fractions.get(basis)
+        if value is not None and (leading is None or value > leading[1]):
+            leading = (basis, value)
+    return leading
+
+
+def _projected(reminder: Reminder, ctx: DueContext) -> date | None:
+    """``projected_usage_date`` on the context's readings and rates."""
+    return projected_usage_date(
+        reminder, ctx.current_km, ctx.current_hours, ctx.km_per_day, ctx.hours_per_day, ctx.today
+    )
+
+
+def _expected(reminder: Reminder, ctx: DueContext) -> date | None:
+    """``expected_due_date`` on the context's readings and rates."""
+    return expected_due_date(
+        reminder, ctx.current_km, ctx.current_hours, ctx.km_per_day, ctx.hours_per_day, ctx.today
+    )
+
+
+def _usage_basis(reminder: Reminder) -> ProgressBasis | None:
+    """The usage dimension ``projected_usage_date`` projects: mileage first, else hours."""
+    if reminder.due_mileage_km is not None:
+        return "distance"
+    if reminder.due_hours is not None:
+        return "hours"
+    return None
+
+
+def reminder_due_status(reminder: Reminder, ctx: DueContext) -> DueStatus:
+    """Where a pending reminder stands (#192 D1).
+
+    The hero, dashboard-card and fleet-strip counts tally these, so a row's
+    colour and the badge beside it agree. Snoozed wins, then overdue, then due
+    soon: expected within ``DUE_SOON_WINDOW``, or, for a usage target the rates
+    can't project, ``DUE_SOON_PROGRESS`` of the way there (D2). The fallback
+    reads the usage dimension's own fraction, never the date's, and never fires
+    when a projection exists, so it can't contradict one.
+    """
+    if is_reminder_snoozed(reminder, ctx.today):
+        return "snoozed"
+    if is_reminder_overdue(reminder, ctx.current_km, ctx.current_hours, ctx.today):
+        return "overdue"
+    expected = _expected(reminder, ctx)
+    if expected is not None and expected <= ctx.today + DUE_SOON_WINDOW:
+        return "due_soon"
+    basis = _usage_basis(reminder)
+    if basis is not None and _projected(reminder, ctx) is None:
+        share = progress_fractions(reminder, ctx).get(basis)
+        if share is not None and share >= DUE_SOON_PROGRESS:
+            return "due_soon"
+    return "on_track"
+
+
 @dataclass(frozen=True)
 class ReminderCounts:
-    """Per-vehicle counts; ``due_soon`` is the subset of ``upcoming`` expected within ``DUE_SOON_WINDOW``."""
+    """Per-vehicle counts; ``due_soon`` is the subset of ``upcoming`` that ``reminder_due_status`` calls due soon: expected within ``DUE_SOON_WINDOW``, or the D2 progress fallback."""
 
     overdue: int
     upcoming: int
     due_soon: int
+
+
+def tally_due_statuses(pending: Sequence[Reminder], ctx: DueContext) -> ReminderCounts:
+    """Count a vehicle's pending reminders by ``reminder_due_status``.
+
+    Upcoming is pending and not overdue; due soon is its subset. A snoozed
+    reminder is in no count until its date passes.
+    """
+    overdue = upcoming = due_soon = 0
+    for reminder in pending:
+        status = reminder_due_status(reminder, ctx)
+        if status == "snoozed":
+            continue
+        if status == "overdue":
+            overdue += 1
+            continue
+        upcoming += 1
+        if status == "due_soon":
+            due_soon += 1
+    return ReminderCounts(overdue=overdue, upcoming=upcoming, due_soon=due_soon)
 
 
 def classify_pending_reminders(
@@ -284,27 +454,126 @@ def classify_pending_reminders(
     hours_per_day: float | None,
     today: date,
 ) -> ReminderCounts:
-    """Sort a vehicle's pending reminders into overdue, upcoming (pending, not
-    overdue) and due soon (upcoming, expected within ``DUE_SOON_WINDOW``).
+    """``tally_due_statuses`` from loose readings, for callers that hold them.
 
-    A snoozed reminder is in no count until its date passes. ``None`` rates
-    skip the usage projection, so a usage-only reminder is then never due
-    soon: the widget and family dashboard count that way, needing no rates.
+    ``None`` rates skip the usage projection, and an unanchored reminder gets no
+    derived start here, so a usage reminder is then due soon only through its
+    anchor (D2). The widget and the family dashboard call this without rates and
+    read only overdue and upcoming, which D2 never moves.
     """
-    overdue = upcoming = due_soon = 0
-    for reminder in pending:
-        if is_reminder_snoozed(reminder, today):
+    ctx = DueContext(
+        today=today,
+        current_km=current_km,
+        current_hours=current_hours,
+        km_per_day=km_per_day,
+        hours_per_day=hours_per_day,
+    )
+    return tally_due_statuses(pending, ctx)
+
+
+def created_on(reminder: Reminder) -> date | None:
+    """The household day the reminder was created.
+
+    ``None`` for a reminder not yet flushed, whose server default hasn't run.
+    """
+    # The column is NOT NULL but an unflushed object's attribute is still None.
+    # A cast, not an annotation: pyright narrows an annotated assignment to the
+    # mapped type and would call the check below always false.
+    created = cast("datetime | None", reminder.created_at)
+    if created is None:
+        return None
+    return household_date(created)
+
+
+async def load_reminder_starts(
+    db: AsyncSession, vin: str, reminders: Sequence[Reminder]
+) -> dict[int, ReminderStart]:
+    """Derived starts for the unanchored reminders among ``reminders``, by id (#192 D4).
+
+    Such a reminder counts from the household day it was created, with the
+    odometer and hours readings nearest that day. Each reading is looked up
+    only for a target the reminder has, and once per day, so these lookups
+    (two queries each) grow with the number of distinct creation days, not
+    with the rows; the rates and current readings are once per list. Nothing is stored:
+    loose pending reminders are adoption candidates, and a stored anchor would
+    change what rule adoption (``_pick_keeper``) and ``reconcile_rule`` do.
+    """
+    km_on: dict[date, Decimal | None] = {}
+    hours_on: dict[date, Decimal | None] = {}
+    starts: dict[int, ReminderStart] = {}
+    for reminder in reminders:
+        if anchor_start(reminder) is not None:
             continue
-        if is_reminder_overdue(reminder, current_km, current_hours, today):
-            overdue += 1
+        day = created_on(reminder)
+        if day is None:
             continue
-        upcoming += 1
-        expected = expected_due_date(
-            reminder, current_km, current_hours, km_per_day, hours_per_day, today
-        )
-        if expected is not None and expected <= today + DUE_SOON_WINDOW:
-            due_soon += 1
-    return ReminderCounts(overdue=overdue, upcoming=upcoming, due_soon=due_soon)
+        km: Decimal | None = None
+        if reminder.due_mileage_km is not None:
+            if day not in km_on:
+                record = await nearest_odometer(db, vin, day)
+                km_on[day] = record.odometer_km if record is not None else None
+            km = km_on[day]
+        hours: Decimal | None = None
+        if reminder.due_hours is not None:
+            if day not in hours_on:
+                hours_on[day] = await nearest_hours(db, vin, day)
+            hours = hours_on[day]
+        starts[reminder.id] = ReminderStart(day=day, km=km, hours=hours)
+    return starts
+
+
+async def due_context_for_readings(
+    db: AsyncSession,
+    vin: str,
+    pending: Sequence[Reminder],
+    current_km: Decimal | None,
+    current_hours: Decimal | None,
+    today: date,
+) -> DueContext:
+    """The rates and starts for ``pending``, around readings the caller holds.
+
+    A rate is fetched only when a reminder can use it (a usage target and a
+    reading to project from), the gating ``count_pending_reminders`` always had.
+    """
+    km_per_day = (
+        await calculate_driving_rate(vin, db)
+        if current_km is not None and any(r.due_mileage_km is not None for r in pending)
+        else None
+    )
+    hours_per_day = (
+        await calculate_hours_driving_rate(vin, db)
+        if current_hours is not None and any(r.due_hours is not None for r in pending)
+        else None
+    )
+    return DueContext(
+        today=today,
+        current_km=current_km,
+        current_hours=current_hours,
+        km_per_day=km_per_day,
+        hours_per_day=hours_per_day,
+        starts=await load_reminder_starts(db, vin, pending),
+    )
+
+
+async def load_due_context(
+    db: AsyncSession, vin: str, pending: Sequence[Reminder], today: date
+) -> DueContext:
+    """``due_context_for_readings`` with the current readings fetched here.
+
+    Each reading is fetched only when a reminder has that target. They are the
+    readings the hero shows (``get_current_mileage`` orders like
+    ``latest_odometer_km_and_date``; ``get_current_hours`` delegates to the
+    canonical hours helper), so the list and the badges see the same numbers.
+    """
+    current_km = (
+        await get_current_mileage(vin, db)
+        if any(r.due_mileage_km is not None for r in pending)
+        else None
+    )
+    current_hours = (
+        await get_current_hours(vin, db) if any(r.due_hours is not None for r in pending) else None
+    )
+    return await due_context_for_readings(db, vin, pending, current_km, current_hours, today)
 
 
 async def count_pending_reminders(
@@ -320,7 +589,8 @@ async def count_pending_reminders(
     target and a reading to project from). The dashboard card, the fleet
     strip and the detail hero all count through here, so their badges agree;
     callers pass the readings they display, so a reading and the counts
-    beside it never disagree.
+    beside it never disagree. Unanchored reminders get derived starts, so the
+    D2 fallback counts here exactly as the list row shows it.
     """
     if today is None:
         today = household_today()
@@ -333,19 +603,8 @@ async def count_pending_reminders(
         .scalars()
         .all()
     )
-    km_per_day = (
-        await calculate_driving_rate(vin, db)
-        if current_km is not None and any(r.due_mileage_km is not None for r in pending)
-        else None
-    )
-    hours_per_day = (
-        await calculate_hours_driving_rate(vin, db)
-        if current_hours is not None and any(r.due_hours is not None for r in pending)
-        else None
-    )
-    return classify_pending_reminders(
-        pending, current_km, current_hours, km_per_day, hours_per_day, today
-    )
+    ctx = await due_context_for_readings(db, vin, pending, current_km, current_hours, today)
+    return tally_due_statuses(pending, ctx)
 
 
 def calculate_smart_estimated_date(
@@ -485,8 +744,10 @@ async def update_reminder(reminder: Reminder, data: ReminderUpdate, db: AsyncSes
     return reminder
 
 
-async def enrich_with_estimate(reminder: Reminder, db: AsyncSession) -> ReminderResponse:
-    """Build ReminderResponse with the usage projection for a pending reminder.
+async def enrich_with_estimate(
+    reminder: Reminder, db: AsyncSession, ctx: DueContext | None = None
+) -> ReminderResponse:
+    """Build ReminderResponse with the projection and due status of a pending reminder.
 
     Any pending reminder with a mileage or hours target and a usage rate gets
     ``projected_usage_date``, the uncapped date the target is reached at the
@@ -498,63 +759,117 @@ async def enrich_with_estimate(reminder: Reminder, db: AsyncSession) -> Reminder
 
     A reminder with both targets (legacy ``both``-typed rows can only carry
     mileage; a rule never produces both) projects from the mileage.
+
+    #192 adds where it stands: ``due_status``, ``progress`` and its basis, and
+    what is left by date, distance and hours. ``list_reminders`` passes one
+    ``ctx`` for the whole vehicle. Any other caller leaves it out, and the
+    readings, rates and start are fetched for this reminder alone, so a row a
+    write returns keeps its colour until the list refetches.
     """
     response = ReminderResponse.model_validate(reminder)
     if reminder.status != "pending":
         return response
-    today = household_today()
-    km_per_day: float | None = None
-    hours_per_day: float | None = None
-    current_km: Decimal | None = None
-    current_hours: Decimal | None = None
-    if reminder.due_mileage_km is not None:
-        km_per_day = await calculate_driving_rate(reminder.vin, db)
-        current_km = await get_current_mileage(reminder.vin, db)
-    elif reminder.due_hours is not None:
-        hours_per_day = await calculate_hours_driving_rate(reminder.vin, db)
-        current_hours = await get_current_hours(reminder.vin, db)
-    projected = projected_usage_date(
-        reminder, current_km, current_hours, km_per_day, hours_per_day, today
-    )
+    if ctx is None:
+        ctx = await load_due_context(db, reminder.vin, [reminder], household_today())
+    projected = _projected(reminder, ctx)
     if projected is not None:
         response.projected_usage_date = projected
-        response.estimated_due_date = expected_due_date(
-            reminder, current_km, current_hours, km_per_day, hours_per_day, today
-        )
+        response.estimated_due_date = _expected(reminder, ctx)
+    response.due_status = reminder_due_status(reminder, ctx)
+    leading = leading_progress(progress_fractions(reminder, ctx))
+    if leading is not None:
+        response.progress_basis, response.progress = leading
+    if reminder.due_date is not None:
+        response.days_until_due = (reminder.due_date - ctx.today).days
+    if reminder.due_mileage_km is not None and ctx.current_km is not None:
+        response.km_until_due = reminder.due_mileage_km - ctx.current_km
+    if reminder.due_hours is not None and ctx.current_hours is not None:
+        response.hours_until_due = reminder.due_hours - ctx.current_hours
     return response
+
+
+async def enrich_reminders(
+    reminders: Sequence[Reminder], db: AsyncSession
+) -> list[ReminderResponse]:
+    """``enrich_with_estimate`` over several reminders, in their order, on one
+    context per vehicle (#192 D6).
+
+    The readings, rates and starts are fetched once for each vehicle's pending
+    reminders, not once per row, and every row reads the same ``today``.
+    """
+    today = household_today()
+    contexts: dict[str, DueContext] = {}
+    for vin in dict.fromkeys(r.vin for r in reminders):
+        pending = [r for r in reminders if r.vin == vin and r.status == "pending"]
+        contexts[vin] = await load_due_context(db, vin, pending, today)
+    return [await enrich_with_estimate(r, db, contexts[r.vin]) for r in reminders]
+
+
+#: Pending rows sort by this rank first (#192 D5).
+_STATUS_RANK: dict[DueStatus, int] = {"overdue": 0, "due_soon": 1, "on_track": 2, "snoozed": 3}
+
+
+def _due_order_key(response: ReminderResponse) -> tuple[int, date, float, int]:
+    """Status rank, then the expected date (undated last), then progress (most
+    first, none last), then id. ``estimated_due_date`` is set only when a
+    projection exists, and is then the earlier of it and ``due_date``, so this
+    pair is exactly ``expected_due_date``."""
+    expected = response.estimated_due_date or response.due_date
+    progress = response.progress
+    return (
+        _STATUS_RANK[response.due_status or "on_track"],
+        expected or date.max,
+        -progress if progress is not None else math.inf,
+        response.id,
+    )
+
+
+def _history_key(response: ReminderResponse) -> tuple[date, datetime, int]:
+    """When a closed reminder was closed: its completion date, else its last update.
+
+    ``completed_date`` is a household day, so the fallback is converted to one
+    too; a raw UTC date would put a row updated late in the evening west of UTC
+    on the next day (Codex R1-M1).
+    """
+    return (
+        response.completed_date or household_date(response.updated_at),
+        response.updated_at,
+        response.id,
+    )
+
+
+def order_reminders(responses: Sequence[ReminderResponse]) -> list[ReminderResponse]:
+    """Pending first, by how soon each is due; then done and dismissed, newest first (#192 D5)."""
+    pending = sorted((r for r in responses if r.status == "pending"), key=_due_order_key)
+    closed = sorted((r for r in responses if r.status != "pending"), key=_history_key, reverse=True)
+    return [*pending, *closed]
 
 
 async def list_reminders(
     vin: str, db: AsyncSession, status: str | None = None
 ) -> list[ReminderResponse]:
-    """List reminders for a vehicle, optionally filtered by status."""
+    """List a vehicle's reminders, optionally filtered by status, in ``order_reminders`` order.
+
+    The readings, rates and starts are fetched once for the vehicle's pending
+    reminders (#192 D6), not once per row.
+    """
     query = select(Reminder).where(Reminder.vin == vin)
     if status and status != "all":
         query = query.where(Reminder.status == status)
+    # The response order is order_reminders'. This one is for duplicate_map, which
+    # lists each row's siblings in the order it meets them.
     query = query.order_by(Reminder.created_at.desc())
+    reminders = list((await db.execute(query)).scalars().all())
 
-    result = await db.execute(query)
-    reminders = list(result.scalars().all())
-
-    # Duplicates are judged over the vehicle's PENDING reminders whatever the
-    # filter, so a done-tab listing still carries no flags and a pending-tab
-    # listing sees every sibling.
+    # Duplicates are judged over PENDING reminders only, so a done-tab listing
+    # carries no flags and a pending-tab listing sees every sibling.
     from app.services.maintenance_service import duplicate_map
 
-    if status and status != "all" and status != "pending":
-        duplicates: dict[int, list[int]] = {}
-    else:
-        pending = (
-            reminders if status == "pending" else [r for r in reminders if r.status == "pending"]
-        )
-        duplicates = duplicate_map(pending)
-
-    responses = []
-    for r in reminders:
-        response = await enrich_with_estimate(r, db)
-        response.duplicate_of = duplicates.get(r.id, [])
-        responses.append(response)
-    return responses
+    duplicates = duplicate_map([r for r in reminders if r.status == "pending"])
+    responses = await enrich_reminders(reminders, db)
+    for response in responses:
+        response.duplicate_of = duplicates.get(response.id, [])
+    return order_reminders(responses)
 
 
 async def check_due_reminders(db: AsyncSession) -> None:

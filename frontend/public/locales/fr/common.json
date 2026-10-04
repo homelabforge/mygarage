@@ -125,6 +125,7 @@
     "sharedAcrossVehicles": "Partagée entre tous les véhicules",
     "onHand": "En stock",
     "avgUnitCost": "Coût unitaire moyen",
+    "avgCostPerUnit": "Coût moy./{{unit}}",
     "negativeWarning": "L'utilisation enregistrée dépasse les achats enregistrés",
     "activeToggle": "Active (décochez pour archiver)",
     "viewHistory": "Voir l'historique",

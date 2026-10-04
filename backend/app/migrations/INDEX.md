@@ -133,3 +133,4 @@ migrations must swallow their own operational errors.
 | `121_add_financing_records` | Create financing_records table for lease, loan, and upfront-fee costs. |
 | `122_widen_money_columns` | **FATAL** — Widen every money column to its policy type on PostgreSQL. |
 | `123_add_user_oidc_relink_until` | **FATAL** — Add users.oidc_relink_until: when an admin-approved SSO relink closes. |
+| `124_supply_volume_unit` | **FATAL** — Add supplies.volume_unit, the per-supply display unit token (#191). |

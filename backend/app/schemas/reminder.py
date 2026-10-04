@@ -21,6 +21,10 @@ from app.schemas.maintenance import (
 )
 
 ReminderType = Literal["date", "mileage", "both", "smart", "hours"]
+#: Where a pending reminder stands (#192 D1). Computed, never stored.
+DueStatus = Literal["overdue", "due_soon", "on_track", "snoozed"]
+#: The dimension a reminder's progress is measured along (#192 D3).
+ProgressBasis = Literal["date", "distance", "hours"]
 
 
 class ReminderCreate(BaseModel):
@@ -141,6 +145,20 @@ class ReminderResponse(BaseModel):
     #: ``due_date``; the two are shown apart so a slow driver still sees the
     #: calendar threshold.
     projected_usage_date: date | None = None
+    # --- Where it stands (#192). Pending only; null on done and dismissed. ----
+    #: reminder_service.reminder_due_status: the row's colour, and what the
+    #: hero, card and fleet-strip counts tally.
+    due_status: DueStatus | None = None
+    #: Share of the way from the start (the anchor, else creation) to due, along
+    #: the dimension closest to due. Unclamped: 1.25 is a quarter past due.
+    progress: float | None = None
+    progress_basis: ProgressBasis | None = None
+    #: due_date minus household today; negative once past.
+    days_until_due: int | None = None
+    #: due_mileage_km minus the current odometer, canonical km; negative once over.
+    km_until_due: Decimal | None = None
+    #: due_hours minus the current engine hours; negative once over.
+    hours_until_due: Decimal | None = None
     last_notified_at: datetime | None
     created_at: datetime
     updated_at: datetime

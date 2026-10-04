@@ -233,7 +233,7 @@ async def apply_pack(
     """
     pack = await get_pack(db, pack_id)
     reminders = await maintenance_service.apply_pack(db, vin, pack, anchors, overrides)
-    return [await reminder_service.enrich_with_estimate(r, db) for r in reminders]
+    return await reminder_service.enrich_reminders(reminders, db)
 
 
 async def preview_pack(

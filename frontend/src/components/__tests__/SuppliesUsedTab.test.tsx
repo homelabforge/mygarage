@@ -17,8 +17,11 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
   }),
 }))
 
+// Switchable, so a legacy row can be shown to follow the system and a tokened row not to.
+const unitPref = vi.hoisted(() => ({ system: 'metric' as 'metric' | 'imperial' }))
+
 vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'metric' }),
+  useUnitPreference: () => ({ system: unitPref.system }),
 }))
 
 vi.mock('../../hooks/useDateLocale', () => ({
@@ -58,6 +61,7 @@ const mockUsages: SupplyUsage[] = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  unitPref.system = 'metric'
   useVehicleSupplyUsagesMock.mockReturnValue({
     data: { usages: mockUsages, total: mockUsages.length },
     isLoading: false,
@@ -123,5 +127,47 @@ describe('SuppliesUsedTab', () => {
     // this suite's i18next singleton isn't initialized outside a rendered
     // component (see ReminderForm.test.tsx:114 for the same pattern).
     expect(screen.getByText('Failed to {{action}}. {{message}}')).toBeInTheDocument()
+  })
+
+  describe('each usage shows its own supply unit', () => {
+    const ADDITIVE: SupplyUsage = {
+      id: 3,
+      supply_id: 12,
+      supply_name: 'Fuel Additive',
+      unit_type: 'volume',
+      volume_unit: 'mL',
+      quantity: '0.250',
+      cost_snapshot: '3.00',
+      unit_cost_snapshot: '12.00',
+      service_line_item_id: 5,
+      service_visit_id: 8,
+      service_visit_date: '2026-02-01',
+      created_at: '2026-02-01T00:00:00',
+    }
+
+    beforeEach(() => {
+      const usages = [ADDITIVE, ...mockUsages]
+      useVehicleSupplyUsagesMock.mockReturnValue({
+        data: { usages, total: usages.length },
+        isLoading: false,
+        error: null,
+      })
+    })
+
+    it('renders a mL usage in whole mL, and a legacy usage in the metric pick', () => {
+      render(<SuppliesUsedTab vin="1HGCM82633A004352" />)
+
+      expect(screen.getByText('250 mL')).toBeInTheDocument()
+      expect(screen.getByText('4.50 L')).toBeInTheDocument()
+    })
+
+    it('moves only the legacy usage to quarts under imperial', () => {
+      unitPref.system = 'imperial'
+      render(<SuppliesUsedTab vin="1HGCM82633A004352" />)
+
+      // 4.5 L is 4.755 US qt; the stored mL token ignores the system.
+      expect(screen.getByText('4.76 qt')).toBeInTheDocument()
+      expect(screen.getByText('250 mL')).toBeInTheDocument()
+    })
   })
 })

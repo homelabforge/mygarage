@@ -1,9 +1,8 @@
 /**
  * Reminder snooze (v3.5.0, hide-until-date): the pending-row Snooze action,
- * the SnoozeReminderDialog presets, the "snoozed until" chip, and the
- * onStatsChanged callback. The callback exists because VehicleDetail's
- * detail-stats are local useState, not react-query — a snooze moves the
- * overdue/upcoming counts server-side and no invalidation can reach them.
+ * the SnoozeReminderDialog presets and the "snoozed until" chip. The hero's
+ * counts refresh through the snooze hooks' invalidation (#192), tested in
+ * hooks/queries/__tests__/writesRefreshReminderViews.test.ts.
  *
  * The dialog is mounted REAL (only its mutation hooks are mocked) so the
  * preset date arithmetic is exercised, not stubbed.
@@ -74,9 +73,8 @@ beforeEach(() => {
 })
 
 describe('ReminderList — snooze action + dialog', () => {
-  it('the 1-week preset snoozes to household today + 7 and reports a stats change', async () => {
-    const statsChanged = vi.fn()
-    render(<ReminderList vin="V1" onStatsChanged={statsChanged} />)
+  it('the 1-week preset snoozes to household today + 7', async () => {
+    render(<ReminderList vin="V1" />)
     fireEvent.click(screen.getByRole('button', { name: 'reminderList.snooze' }))
     await screen.findByText('reminderList.snoozeExplain')
     fireEvent.click(screen.getByRole('button', { name: 'reminderList.snoozeWeek' }))
@@ -86,7 +84,6 @@ describe('ReminderList — snooze action + dialog', () => {
         until: addDaysToIsoDate(todayInHousehold(), 7),
       }),
     )
-    expect(statsChanged).toHaveBeenCalled()
   })
 
   it('a custom date snoozes to exactly that date', async () => {
@@ -128,34 +125,12 @@ describe('ReminderList — snoozed chip + unsnooze', () => {
     expect(screen.queryByText('reminderList.snoozedUntil')).not.toBeInTheDocument()
   })
 
-  it('unsnoozing from the dialog calls the mutation and reports a stats change', async () => {
+  it('unsnoozing from the dialog calls the mutation', async () => {
     useRemindersMock.mockReturnValue({ data: [snoozedFuture], isLoading: false })
-    const statsChanged = vi.fn()
-    render(<ReminderList vin="V1" onStatsChanged={statsChanged} />)
+    render(<ReminderList vin="V1" />)
     fireEvent.click(screen.getByRole('button', { name: 'reminderList.editSnooze' }))
     await screen.findByText('reminderList.snoozeExplain')
     fireEvent.click(screen.getByRole('button', { name: 'reminderList.unsnooze' }))
     await waitFor(() => expect(unsnoozeMock).toHaveBeenCalledWith(8))
-    expect(statsChanged).toHaveBeenCalled()
-  })
-})
-
-describe('ReminderList — other stat-moving writes also notify', () => {
-  it('a reminder-form save reports a stats change (codex R1-M1: creating an overdue reminder moves the counts too)', async () => {
-    const statsChanged = vi.fn()
-    render(<ReminderList vin="V1" onStatsChanged={statsChanged} />)
-    fireEvent.click(screen.getByRole('button', { name: 'reminderList.addReminder' }))
-    await screen.findByText('reminder-form-open')
-    expect(reminderFormProps.onSuccess).toBeDefined()
-    reminderFormProps.onSuccess?.()
-    expect(statsChanged).toHaveBeenCalled()
-  })
-
-  it('a dismiss reports a stats change (the counts move server-side)', async () => {
-    const statsChanged = vi.fn()
-    render(<ReminderList vin="V1" onStatsChanged={statsChanged} />)
-    fireEvent.click(screen.getByRole('button', { name: 'reminderList.dismiss' }))
-    await waitFor(() => expect(dismissMock).toHaveBeenCalledWith(8))
-    await waitFor(() => expect(statsChanged).toHaveBeenCalled())
   })
 })

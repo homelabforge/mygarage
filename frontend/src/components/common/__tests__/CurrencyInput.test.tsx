@@ -78,6 +78,7 @@ describe("the line item's cost field", () => {
         index={0}
         vin="V1"
         supplies={[]}
+        unitsBySupplyId={new Map()}
         failedInspections={[]}
         onChange={vi.fn()}
         onRemove={vi.fn()}

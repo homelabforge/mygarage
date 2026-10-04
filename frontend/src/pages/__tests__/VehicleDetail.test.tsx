@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Mock all tab components to avoid deep dependency trees
 vi.mock('../../components/tabs/ServiceTab', () => ({ default: () => <div>ServiceTab</div> }))
@@ -18,17 +19,7 @@ vi.mock('../../components/tabs/SafetyTab', () => ({ default: () => <div>SafetyTa
 vi.mock('../../components/tabs/SpotRentalsTab', () => ({ default: () => <div>SpotRentalsTab</div> }))
 vi.mock('../../components/tabs/PropaneTab', () => ({ default: () => <div>PropaneTab</div> }))
 vi.mock('../../components/tabs/DEFTab', () => ({ default: () => <div>DEFTab</div> }))
-// Capture onStatsChanged so a test can invoke it like a real reminder write
-// would (vi.hoisted holder — the house idiom for hoisted mock factories).
-const reminderListProps = vi.hoisted(() => ({
-  onStatsChanged: undefined as (() => void) | undefined,
-}))
-vi.mock('../../components/ReminderList', () => ({
-  default: (props: { onStatsChanged?: () => void }) => {
-    reminderListProps.onStatsChanged = props.onStatsChanged
-    return <div>ReminderList</div>
-  },
-}))
+vi.mock('../../components/ReminderList', () => ({ default: () => <div>ReminderList</div> }))
 vi.mock('../../components/tabs/LiveLinkLiveTab', () => ({ default: () => <div>LiveLinkLiveTab</div> }))
 vi.mock('../../components/tabs/LiveLinkDTCsTab', () => ({ default: () => <div>LiveLinkDTCsTab</div> }))
 vi.mock('../../components/tabs/LiveLinkSessionsTab', () => ({ default: () => <div>LiveLinkSessionsTab</div> }))
@@ -134,6 +125,7 @@ vi.mock('../../contexts/AuthContext', () => ({
 }))
 
 // Import after mocks
+import api from '../../services/api'
 import vehicleService from '../../services/vehicleService'
 import { livelinkService } from '../../services/livelinkService'
 import { useAuth } from '../../contexts/AuthContext'
@@ -165,15 +157,26 @@ const mockVehicle: Vehicle = {
   location_tracking_enabled: true,
 }
 
-function renderVehicleDetail(initialPath = '/vehicles/TEST12345678901234') {
-  return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="/vehicles/:vin" element={<VehicleDetail />} />
-        <Route path="/" element={<div>Dashboard</div>} />
-      </Routes>
-    </MemoryRouter>
-  )
+// The hero's detail-stats live on the query cache (#192), so every render needs
+// a client. A fresh one per render keeps tests from sharing cached stats.
+function makeQueryClient(): QueryClient {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } })
+}
+
+function renderVehicleDetail(initialPath = '/vehicles/TEST12345678901234', client = makeQueryClient()) {
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="/vehicles/:vin" element={<VehicleDetail />} />
+            <Route path="/" element={<div>Dashboard</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ),
+  }
 }
 
 // The LiveLink tab strip is driven entirely by the status endpoint: a null
@@ -196,7 +199,6 @@ describe('VehicleDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
-    reminderListProps.onStatsChanged = undefined
     mockedVehicleService.get.mockResolvedValue(mockVehicle)
     mockedVehicleService.getDetailStats.mockRejectedValue(new Error('no stats'))
     mockedLivelinkService.getVehicleStatus.mockResolvedValue(noDevice)
@@ -602,12 +604,14 @@ describe('VehicleDetail', () => {
         : Promise.resolve(B_STATS),
     )
     render(
-      <MemoryRouter initialEntries={['/vehicles/AAAAAAAAAAAAAAAAA']}>
-        <Routes>
-          <Route path="/vehicles/:vin" element={<VehicleDetail />} />
-        </Routes>
-        <Link to="/vehicles/BBBBBBBBBBBBBBBBB">go B</Link>
-      </MemoryRouter>,
+      <QueryClientProvider client={makeQueryClient()}>
+        <MemoryRouter initialEntries={['/vehicles/AAAAAAAAAAAAAAAAA']}>
+          <Routes>
+            <Route path="/vehicles/:vin" element={<VehicleDetail />} />
+          </Routes>
+          <Link to="/vehicles/BBBBBBBBBBBBBBBBB">go B</Link>
+        </MemoryRouter>
+      </QueryClientProvider>,
     )
     await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
     // Navigate A -> B (same route element, useParams changes -> [vin] effect re-runs).
@@ -694,19 +698,37 @@ describe('VehicleDetail', () => {
     expect(screen.queryByText('PropaneTab')).not.toBeInTheDocument()
   })
 
-  it('a reminder write refetches the detail stats through onStatsChanged (the stats are local state, not react-query — nothing else can reach them)', async () => {
-    renderVehicleDetail('/vehicles/TEST12345678901234?tab=reminders')
-    await waitFor(() => expect(screen.getByText('ReminderList')).toBeInTheDocument())
-    expect(reminderListProps.onStatsChanged).toBeDefined()
+  it('an invalidation of the detail-stats key from anywhere refetches the hero (#192: a new reading must move the badge with the list)', async () => {
+    const { client } = renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    await waitFor(() => expect(mockedVehicleService.getDetailStats).toHaveBeenCalled())
     const baseline = mockedVehicleService.getDetailStats.mock.calls.length
-    act(() => reminderListProps.onStatsChanged?.())
-    await waitFor(() =>
-      expect(mockedVehicleService.getDetailStats.mock.calls.length).toBe(baseline + 1),
-    )
-    expect(mockedVehicleService.getDetailStats).toHaveBeenLastCalledWith('TEST12345678901234')
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['vehicleDetailStats', 'TEST12345678901234'] })
+    })
+    expect(mockedVehicleService.getDetailStats.mock.calls.length).toBe(baseline + 1)
   })
 
-  it('an older stats response never overwrites a newer one (codex R1-M2: every load carries a generation)', async () => {
+  it('a vehicle JSON import refreshes every query for that vehicle (#192: it writes reminders and readings)', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: {} } as { data: unknown })
+    const { client, container } = renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    // Vehicle-scoped keys don't share one shape: insurance puts the VIN third.
+    const keys = [
+      ['reminders', 'TEST12345678901234', 'pending'],
+      ['insurance', 'vehicle', 'TEST12345678901234'],
+    ]
+    for (const key of keys) client.setQueryData(key, [])
+    const input = container.querySelector('input[type="file"][accept=".json"]') as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['{}'], 'vehicle.json', { type: 'application/json' })] },
+    })
+    for (const key of keys) {
+      await waitFor(() => expect(client.getQueryState(key)?.isInvalidated).toBe(true))
+    }
+  })
+
+  it('an older stats response never overwrites a newer one (codex R1-M2: a refresh cancels the one in flight)', async () => {
     const deferred: Array<(stats: VehicleDetailStats) => void> = []
     mockedVehicleService.getDetailStats.mockImplementation(
       () =>
@@ -714,37 +736,44 @@ describe('VehicleDetail', () => {
           deferred.push(resolve)
         }),
     )
-    renderVehicleDetail('/vehicles/TEST12345678901234?tab=reminders')
-    await waitFor(() => expect(reminderListProps.onStatsChanged).toBeDefined())
+    const { client } = renderVehicleDetail()
     await waitFor(() => expect(deferred.length).toBe(1)) // the initial load
+    await act(async () => deferred[0]({ overdue_count: 0 } as unknown as VehicleDetailStats))
 
-    act(() => reminderListProps.onStatsChanged?.()) // older refresh
-    act(() => reminderListProps.onStatsChanged?.()) // newest refresh
+    // Two writes in a row, each refreshing the stats by key.
+    const refresh = (): void => {
+      void client.invalidateQueries({ queryKey: ['vehicleDetailStats', 'TEST12345678901234'] })
+    }
+    act(() => refresh()) // older refresh
+    act(() => refresh()) // newest refresh
     await waitFor(() => expect(deferred.length).toBe(3))
 
-    // Newest resolves FIRST with an overdue count; the two stale responses
-    // then land with zero. The hero badge must survive them.
+    // Newest resolves FIRST with an overdue count; the older refresh then lands
+    // with zero. The hero badge must survive it.
     await act(async () => deferred[2]({ overdue_count: 2 } as unknown as VehicleDetailStats))
     await screen.findByText('vehicleStats.overdue')
     await act(async () => deferred[1]({ overdue_count: 0 } as unknown as VehicleDetailStats))
-    await act(async () => deferred[0]({ overdue_count: 0 } as unknown as VehicleDetailStats))
     expect(screen.getByText('vehicleStats.overdue')).toBeInTheDocument()
   })
 
-  it('a mutation callback for A landing after navigation to B cannot start an A request (codex R2-M1)', async () => {
+  it('a write for A that finishes after navigation to B cannot start an A request (codex R2-M1)', async () => {
     mockedVehicleService.getDetailStats.mockResolvedValue(
       { overdue_count: 0 } as unknown as VehicleDetailStats,
     )
+    const client = makeQueryClient()
     render(
-      <MemoryRouter initialEntries={['/vehicles/TEST12345678901234?tab=reminders']}>
-        <Link to="/vehicles/OTHERV123456789012">go-other</Link>
-        <Routes>
-          <Route path="/vehicles/:vin" element={<VehicleDetail />} />
-        </Routes>
-      </MemoryRouter>,
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/vehicles/TEST12345678901234']}>
+          <Link to="/vehicles/OTHERV123456789012">go-other</Link>
+          <Routes>
+            <Route path="/vehicles/:vin" element={<VehicleDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
     )
-    await waitFor(() => expect(reminderListProps.onStatsChanged).toBeDefined())
-    const capturedForA = reminderListProps.onStatsChanged!
+    await waitFor(() =>
+      expect(mockedVehicleService.getDetailStats).toHaveBeenCalledWith('TEST12345678901234'),
+    )
 
     fireEvent.click(screen.getByText('go-other'))
     await waitFor(() =>
@@ -756,8 +785,10 @@ describe('VehicleDetail', () => {
         ([v]) => v === 'TEST12345678901234',
       ).length
     const before = callsForA()
-    act(() => capturedForA())
-    await new Promise((r) => setTimeout(r, 0))
+    // A's write lands now and refreshes A's stats by key.
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['vehicleDetailStats', 'TEST12345678901234'] })
+    })
     expect(callsForA()).toBe(before)
   })
 
