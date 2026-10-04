@@ -159,6 +159,7 @@ Thank you to everyone who has contributed translations!
 | [Antonio (f0rZzZ)](https://github.com/f0rZzZ) | 🇵🇱 Polish, 🇷🇺 Russian, 🇺🇦 Ukrainian |
 | [FabioCastilho](https://github.com/FabioCastilho) | 🇧🇷 Brazilian Portuguese |
 | [Faizi2k](https://github.com/Faizi2k) | 🇲🇾 Malay |
+| [marcomatrella](https://github.com/marcomatrella) | 🇮🇹 Italian |
 | [roondar](https://github.com/roondar) | 🇫🇷 French |
 | [SCDT95](https://github.com/SCDT95) | 🇩🇪 German |
 `
