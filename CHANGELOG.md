@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supplies: search, filters, sort, grouping, a list view, out of stock highlights, and log purchase and adjustment from the card (#191)
 - Supplies: category suggestions in the supply form (#191)
 - Supplies: pick a volume unit per supply (mL, fl oz, qt, gal, in US or UK flavour); changing it affects display only (#191)
+- Toll tags: pick a country, then its toll system (United States, Malaysia and now Italy); Other saves the name you type
 
 ### Changed
 - Vehicle cards and the vehicle hero flag reminders due within 30 days, by date or by projected mileage and hours, instead of every pending reminder; the fleet strip's count is the sum of those badges
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A full backup restore finishes when MyGarage restarts: it checks and stages the backup, and the next start saves a safety backup of the data it replaces, then swaps the backup in before opening the database, so an older backup is migrated on that start
 - A mileage or hours reminder with no recent driving rate to project from counts as due soon once it's 90% of the way to its target (#192)
 - Note: volumes UK users logged as quarts were stored as US quarts and stay as stored; a picked unit applies from now on (#191)
+- A new toll tag no longer starts on EZ TAG; the country is preselected from your currency or language when only one fits
 
 ### Deprecated
 - The spending-anomaly `message` field in the analytics API is deprecated; the app builds its own sentence from `amount`, `baseline` and `deviation_percent`
@@ -117,6 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An NHTSA API URL setting saved with spaces around it is used without them, instead of breaking recall and TSB checks
 - Recall checks work again where the stored NHTSA recalls URL is the full endpoint (an install from before v2.19.0, or the Integrations tab saved with the field blank); it's read as its base
 - The vehicle page's header counts, reminders, and odometer and hours readings now refresh after a new reading, fill-up, service visit, tire change, vehicle import or a reminder completed on the calendar, instead of waiting for a reload
+- A toll system name of only spaces is refused, and editing a tag normalizes known spellings like creating one does
 
 ### Security
 - An SSO sign-in whose email matches an existing account asks for that account's password instead of linking it automatically

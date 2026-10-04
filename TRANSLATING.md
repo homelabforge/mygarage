@@ -105,6 +105,33 @@ bun run validate:translations
 - **Unit abbreviations**: gal, L, mi, km, MPG, L/100km, PSI, bar, lbs, kg, Nm, lb-ft
 - **Technical terms**: VIN, OIDC, MQTT, API, CSV, JSON, PDF
 - **Brand names**: MyGarage, NHTSA, Authentik, WiCAN
+- **Toll system names**: E-ZPass, Touch 'n Go, Telepass. They're saved exactly as listed and shown as-is in every language, so don't relabel them in a locale file. To add your country's systems, see the next section.
+
+## Adding Your Country's Toll Systems
+
+The toll tag form asks for a country, then lists that country's toll systems. The list lives in one file, `frontend/src/constants/tollSystems.ts`, and adding a country is one row. Malaysia's looks like this:
+
+```ts
+{
+  country: 'MY',
+  currencies: ['MYR'],
+  languages: ['ms'],
+  systems: ['SmartTAG', 'Touch \'n Go Card', 'Touch \'n Go RFID'],
+},
+```
+
+- `country`: the two-letter ISO 3166-1 code. The app shows the country's name in each user's language by itself, so there's nothing to translate.
+- `systems`: each name exactly as the brand writes it. That's what gets saved and shown, in every language. A system sold in several countries goes under each of them, spelled the same.
+- `currencies` and `languages`: only used to preselect the country on a new tag. Use codes from `SUPPORTED_CURRENCIES` and `SUPPORTED_LANGUAGES` in `frontend/src/constants/i18n.ts`, and leave out a language spoken in lots of countries (English).
+
+Don't rename a system that's already listed: tags saved with the old spelling keep it. Then check your row:
+
+```bash
+cd frontend
+bun run test:run src/constants/__tests__/tollSystems.test.ts
+```
+
+The file is listed in `frontend/scripts/units.manifest.json`, so the Unit Manifest check fails on your PR until its digest is re-stamped. A maintainer does that when merging.
 
 ## Submitting Translations
 
