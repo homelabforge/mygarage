@@ -24812,6 +24812,18 @@
             "description": "Body class/style",
             "title": "Body Class"
           },
+          "decoder_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provider that decoded the VIN (nhtsa, european, autoref, etc.)",
+            "title": "Decoder Source"
+          },
           "doors": {
             "anyOf": [
               {
@@ -24918,6 +24930,18 @@
             ],
             "description": "Manufacturer name",
             "title": "Manufacturer"
+          },
+          "market_region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Vehicle market region (north_america, europe, other)",
+            "title": "Market Region"
           },
           "model": {
             "anyOf": [

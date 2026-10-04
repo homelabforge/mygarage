@@ -17756,6 +17756,11 @@ export interface components {
              */
             body_class?: string | null;
             /**
+             * Decoder Source
+             * @description Provider that decoded the VIN (nhtsa, european, autoref, etc.)
+             */
+            decoder_source?: string | null;
+            /**
              * Doors
              * @description Number of doors
              */
@@ -17797,6 +17802,11 @@ export interface components {
              * @description Manufacturer name
              */
             manufacturer?: string | null;
+            /**
+             * Market Region
+             * @description Vehicle market region (north_america, europe, other)
+             */
+            market_region?: string | null;
             /**
              * Model
              * @description Vehicle model

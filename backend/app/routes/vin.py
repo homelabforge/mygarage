@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.vin import VINDecodeRequest, VINDecodeResponse
 from app.services.auth import require_auth
 from app.services.nhtsa import NHTSAService
+from app.services.vin_decoders import NHTSAVINDecoder, get_vin_decoder_router
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/api/vin", tags=["VIN"])
 
 async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
     """
-    Shared helper for VIN decoding logic.
+    Shared helper for VIN decoding logic with multi-provider routing.
 
     Args:
         vin: 17-character Vehicle Identification Number
@@ -28,27 +29,31 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
         VINDecodeResponse with decoded vehicle information
 
     Raises:
-        HTTPException: For invalid VIN format or NHTSA API errors
+        HTTPException: For invalid VIN format or upstream API errors
     """
     try:
+        # Instantiate NHTSAService so tests patching app.routes.vin.NHTSAService remain effective
         nhtsa = NHTSAService()
-        vehicle_info = await nhtsa.decode_vin(vin)
+        vin_router = get_vin_decoder_router()
+        vin_router.register_decoder(NHTSAVINDecoder(nhtsa_service=nhtsa))
+
+        vehicle_info = await vin_router.decode_vin(vin)
         return VINDecodeResponse(**vehicle_info)
 
     except ValueError as e:
-        # Invalid VIN format
-        logger.warning("Invalid VIN format: %s", sanitize_for_log(str(e)))
+        # Invalid VIN format or no vehicle found
+        logger.warning("VIN decode error: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=400, detail=str(e))
 
     except httpx.TimeoutException:
-        logger.error("NHTSA API timeout for VIN %s", sanitize_for_log(vin))
+        logger.error("VIN API timeout for VIN %s", sanitize_for_log(vin))
         raise HTTPException(status_code=504, detail="NHTSA API request timed out")
     except httpx.ConnectError:
-        logger.error("Cannot connect to NHTSA API for VIN %s", sanitize_for_log(vin))
+        logger.error("Cannot connect to VIN API for VIN %s", sanitize_for_log(vin))
         raise HTTPException(status_code=503, detail="Cannot connect to NHTSA API")
     except httpx.HTTPStatusError as e:
         logger.error(
-            "NHTSA API error for VIN %s: %s",
+            "VIN API error for VIN %s: %s",
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
