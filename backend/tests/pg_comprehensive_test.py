@@ -544,7 +544,7 @@ class TestCrudOperations:
             liters=Decimal("46.732"),
             cost=Decimal("45.67"),
             odometer_km=Decimal("80467.20"),
-            fuel_type="gasoline",
+            fuel_type_used="gasoline",
         )
         pg_session.add(record)
         await pg_session.flush()
@@ -589,7 +589,7 @@ class TestCrudOperations:
             liters=Decimal("37.854"),
             cost=Decimal("35.00"),
             odometer_km=Decimal("81271.00"),
-            fuel_type="gasoline",
+            fuel_type_used="gasoline",
             notes=None,
         )
         pg_session.add(record)

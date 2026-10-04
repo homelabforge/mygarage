@@ -5,6 +5,9 @@ and still wrong on PG (#200 was one). ci.yml names the PG paths one by one, and
 these tests keep that list from going stale.
 """
 
+import ast
+import configparser
+import fnmatch
 import os
 from pathlib import Path
 
@@ -31,14 +34,48 @@ def _pg_paths() -> list[str]:
     return workflow["jobs"]["ci"]["with"]["pg-migrations-pytest-path"].split()
 
 
+def _ini_patterns(key: str) -> list[str]:
+    """A pytest.ini naming option, e.g. python_files."""
+    ini = configparser.ConfigParser(interpolation=None)
+    ini.read(BACKEND / "pytest.ini", encoding="utf-8")
+    return ini["pytest"][key].split()
+
+
+def _matches(name: str, key: str) -> bool:
+    return any(fnmatch.fnmatch(name, pattern) for pattern in _ini_patterns(key))
+
+
+def _defines_tests(module: Path) -> bool:
+    """Whether the module has a top-level test function or class pytest would run."""
+    tree = ast.parse(module.read_text(encoding="utf-8"))
+    return any(
+        (
+            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            and _matches(node.name, "python_functions")
+        )
+        or (isinstance(node, ast.ClassDef) and _matches(node.name, "python_classes"))
+        for node in tree.body
+    )
+
+
 def _test_roots() -> set[str]:
-    """Each top-level test dir and file, spelled the way ci.yml lists them."""
-    roots = {"tests/pg_migration_path_test.py"}
-    for child in TESTS.iterdir():
-        if child.is_dir() and any(child.rglob("test_*.py")):
-            roots.add(f"tests/{child.name}/")
-        elif child.is_file() and child.name.startswith("test_") and child.suffix == ".py":
-            roots.add(f"tests/{child.name}")
+    """Where each test module has to be named for the PG job to run it.
+
+    Going by what a module defines, not its name: the pg_*_test.py suites don't
+    match python_files, so walking a directory never collects them and only
+    their own path runs them. Everything else rides in on its top-level dir.
+    """
+    roots: set[str] = set()
+    for module in TESTS.rglob("*.py"):
+        # Pytest never collects tests from a conftest, and its test_engine
+        # fixture would otherwise read as a test.
+        if module.name == "conftest.py" or not _defines_tests(module):
+            continue
+        rel = module.relative_to(TESTS)
+        if len(rel.parts) == 1 or not _matches(module.name, "python_files"):
+            roots.add(f"tests/{rel.as_posix()}")
+        else:
+            roots.add(f"tests/{rel.parts[0]}/")
     return roots
 
 
@@ -61,7 +98,7 @@ def test_schema_droppers_run_first() -> None:
 
 def test_no_path_sits_inside_another() -> None:
     """Pytest folds nested paths into one walk, which reorders the run and
-    drops the explicitly named pg_migration_path_test.py."""
+    drops an explicitly named file like pg_migration_path_test.py."""
     paths = _pg_paths()
     nested = [
         (a, b) for a in paths for b in paths if a != b and a.endswith("/") and b.startswith(a)

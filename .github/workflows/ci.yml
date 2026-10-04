@@ -22,9 +22,9 @@ jobs:
       # Closes #77: run both migration and integration tests against the PG
       # sidecar so the asyncpg loop-binding regression that gated this work
       # can't reappear. Pytest accepts multiple positional paths.
-      # pg_migration_path_test.py doesn't match python_files, so it's named
-      # outright. It drops the public schema, so it runs before integration
-      # builds its session schema, same as tests/migrations/.
+      # The pg_*_test.py suites don't match python_files, so they're named
+      # outright. pg_migration_path_test.py drops the public schema, so it runs
+      # right after tests/migrations/, ahead of anything that builds tables.
       # Everything else runs on PG too: SQLite ignores VARCHAR widths, so a
       # SQLite-only test can be green and wrong (#200). Every dir and top-level
       # file is listed by name, because pytest folds an overlapping `tests/` into
@@ -33,6 +33,9 @@ jobs:
       pg-migrations-pytest-path: >-
         tests/migrations/
         tests/pg_migration_path_test.py
+        tests/pg_comprehensive_test.py
+        tests/pg_issue_regression_test.py
+        tests/pg_smoke_test.py
         tests/integration/
         tests/routes/
         tests/services/
