@@ -32,7 +32,7 @@ Self-hosted vehicle maintenance tracking for the whole household: service histor
 - **Insurance** - Household policies spanning vehicles, standard coverages, renewals, and import from a declarations page.
 - **Documents and places** - Registration, insurance and manuals with OCR, plus a map of nearby shops, fuel and charging.
 - **Household** - Separate accounts, vehicle sharing and transfers, and a family dashboard. Run with no auth, local accounts, or any OIDC provider.
-- **Units and languages** - Imperial, metric or any mix per quantity, a per-vehicle odometer unit, seven languages and 16 currencies.
+- **Units and languages** - Imperial, metric or any mix per quantity, a per-vehicle odometer unit, nine languages and 17 currencies.
 - **Also** - Analytics and PDF reports, calendar, global search, a [gethomepage](https://gethomepage.dev) widget API, inbound webhooks and Telegram fuel commands, JSON and CSV backup and export, an installable PWA, and an opt-in [Ask My Garage](docs/tier2-features.md) assistant.
 
 ---
