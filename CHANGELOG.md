@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- Toasts now show bottom-left, so they no longer cover a drawer's Cancel and Save buttons (hovering one to reach them kept it open)
+- Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
 
 ## [3.8.0] - 2026-10-04
 

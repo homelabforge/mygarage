@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import type { IconType } from './types'
+import { markDrawerClosed, markDrawerOpen } from './openDrawers'
 
 /** Design §5.3. `2xs` stays separate from `xs` on purpose: folding them would
  *  widen the equipment drawer by 40px and loosen its clamp. */
@@ -36,11 +37,10 @@ const TRANSITION_FALLBACK_BUFFER_MS = 50
 /** Background inertness (design §4.6, deferred from P1). Ref-counted so the app
  *  root stays inert while ANY drawer — including a nested stack — is open, and
  *  clears only when the last one closes. Portalled drawers live in <body>,
- *  siblings of #root, so #root going inert never disables the drawer itself. */
-let openDrawerCount = 0
+ *  siblings of #root, so #root going inert never disables the drawer itself.
+ *  The count lives in openDrawers.ts so AppToaster can watch it too. */
 function acquireBackgroundInert(): void {
-  openDrawerCount += 1
-  if (openDrawerCount === 1) {
+  if (markDrawerOpen() === 1) {
     const root = document.getElementById('root')
     if (root) {
       root.setAttribute('inert', '')
@@ -49,8 +49,7 @@ function acquireBackgroundInert(): void {
   }
 }
 function releaseBackgroundInert(): void {
-  openDrawerCount = Math.max(0, openDrawerCount - 1)
-  if (openDrawerCount === 0) {
+  if (markDrawerClosed() === 0) {
     const root = document.getElementById('root')
     if (root) {
       root.removeAttribute('inert')
