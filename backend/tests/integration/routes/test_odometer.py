@@ -4,7 +4,7 @@ Integration tests for odometer record routes.
 Tests odometer record CRUD operations and mileage tracking.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 from httpx import AsyncClient
@@ -163,31 +163,30 @@ class TestOdometerRecordRoutes:
 
         assert response.status_code == 422  # Validation error
 
-    async def test_odometer_record_pagination(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
-        """Test odometer record pagination."""
-        # Create multiple odometer records
-        for i in range(10):
-            await client.post(
-                f"/api/vehicles/{test_vehicle['vin']}/odometer",
-                json={
-                    "vin": test_vehicle["vin"],
-                    "date": (datetime.now() - timedelta(days=i * 30)).date().isoformat(),
-                    "odometer_km": 96560.4 + (i * 1000),
-                },
+    async def test_odometer_record_pagination(self, client: AsyncClient, auth_headers, own_vehicle):
+        """Two pages of five split ten readings newest-first, no overlap."""
+        vin = own_vehicle.vin
+        dates = [f"2025-{m:02d}-15" for m in range(1, 11)]
+        for i, on in enumerate(dates):
+            created = await client.post(
+                f"/api/vehicles/{vin}/odometer",
+                json={"vin": vin, "date": on, "odometer_km": 10000 + i * 1000},
                 headers=auth_headers,
             )
+            assert created.status_code == 201, created.text
 
-        # Test pagination with limit
-        response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/odometer?skip=0&limit=5",
-            headers=auth_headers,
+        first = await client.get(
+            f"/api/vehicles/{vin}/odometer?skip=0&limit=5", headers=auth_headers
         )
+        assert first.status_code == 200, first.text
+        second = await client.get(
+            f"/api/vehicles/{vin}/odometer?skip=5&limit=5", headers=auth_headers
+        )
+        assert second.status_code == 200, second.text
 
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["records"]) <= 5
+        page1, page2 = first.json(), second.json()
+        assert page1["total"] == 10
+        assert [x["date"] for x in page1["records"] + page2["records"]] == dates[::-1]
 
     async def test_odometer_record_vehicle_not_found(self, client: AsyncClient, auth_headers):
         """Test odometer record with non-existent vehicle."""
@@ -199,7 +198,7 @@ class TestOdometerRecordRoutes:
         assert response.status_code == 404
 
     async def test_odometer_latest_mileage_tracking(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """Test that latest_mileage is correctly tracked."""
         # Use far-future dates to ensure this is the latest record
@@ -212,9 +211,9 @@ class TestOdometerRecordRoutes:
 
         for record in records:
             await client.post(
-                f"/api/vehicles/{test_vehicle['vin']}/odometer",
+                f"/api/vehicles/{own_vehicle.vin}/odometer",
                 json={
-                    "vin": test_vehicle["vin"],
+                    "vin": own_vehicle.vin,
                     "date": record["date"],
                     "odometer_km": record["odometer_km"],
                 },
@@ -223,7 +222,7 @@ class TestOdometerRecordRoutes:
 
         # Get list and check latest_mileage
         response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/odometer",
+            f"/api/vehicles/{own_vehicle.vin}/odometer",
             headers=auth_headers,
         )
 

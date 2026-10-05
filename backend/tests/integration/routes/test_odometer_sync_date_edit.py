@@ -53,10 +53,10 @@ async def _fuel(
 
 class TestFuelDateEdit:
     async def test_editing_the_date_moves_the_synced_row(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """The report's exact reproduction: 08-06 -> 08-03, one row, moved."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         record = await _fuel(client, auth_headers, vin, on="2026-08-06", odometer_km=166111)
 
         rows = _marked(await _odometer_rows(client, auth_headers, vin), "fuel", record["id"])
@@ -75,10 +75,10 @@ class TestFuelDateEdit:
         assert float(rows[0]["odometer_km"]) == 166111
 
     async def test_moving_onto_an_occupied_date_does_not_hijack_the_residents_row(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """The report's side effect: the 08-03 fill-up must keep its reading."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         resident = await _fuel(client, auth_headers, vin, on="2026-08-03", odometer_km=166059)
         mover = await _fuel(client, auth_headers, vin, on="2026-08-06", odometer_km=166111)
 
@@ -107,7 +107,7 @@ class TestFuelDateEdit:
         assert _marked(rows, "fuel", mover["id"]) == [], rows
 
     async def test_an_update_after_losing_its_row_never_claims_a_third_records(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """R1-H1: ownership loss is a designed same-day outcome.
 
@@ -116,7 +116,7 @@ class TestFuelDateEdit:
         a later edit of A must CREATE a fresh row, never claim whatever
         automatic row happens to live on the destination date (here C's).
         """
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         rec_a = await _fuel(client, auth_headers, vin, on="2026-08-03", odometer_km=1000)
         await _fuel(client, auth_headers, vin, on="2026-08-03", odometer_km=1010)
         rec_c = await _fuel(client, auth_headers, vin, on="2026-08-10", odometer_km=2000)
@@ -143,10 +143,10 @@ class TestFuelDateEdit:
         assert len(_marked(rows, "fuel", rec_c["id"])) == 1, rows
 
     async def test_a_mileage_only_edit_still_updates_in_place(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """Regression guard: the pre-fix same-day path already handled this."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         record = await _fuel(client, auth_headers, vin, on="2026-08-06", odometer_km=166111)
         r = await client.put(
             f"/api/vehicles/{vin}/fuel/{record['id']}",
@@ -161,9 +161,9 @@ class TestFuelDateEdit:
 
 class TestServiceVisitDateEdit:
     async def test_editing_the_date_moves_the_synced_row(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         r = await client.post(
             f"/api/vehicles/{vin}/service-visits",
             json={
@@ -192,7 +192,7 @@ class TestServiceVisitDateEdit:
 
 class TestLegacyServiceMarkerDateEdit:
     async def test_a_legacy_marked_row_moves_instead_of_duplicating(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session
     ):
         """Codex PR review P1: databases predating the service_visit marker
         rename hold rows marked ``[AUTO-SYNC from service #N]`` (the delete
@@ -204,7 +204,7 @@ class TestLegacyServiceMarkerDateEdit:
 
         from app.models.odometer import OdometerRecord
 
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         r = await client.post(
             f"/api/vehicles/{vin}/service-visits",
             json={
