@@ -398,6 +398,28 @@ test.describe('Tires', () => {
     ).toBeVisible({
       timeout: 10000,
     })
+    // The toast has to clear the drawer's footer. When toasts sat bottom-right
+    // this one covered Cancel, and the mouse resting on it paused the dismiss
+    // timer, so the click below waited out the 4s timer at best and timed out
+    // at worst. Checked again at 720px, where this 440px drawer reaches under
+    // the toast's left corner too, so bottom-left alone would still cover it.
+    const toastClearsFooter = async (): Promise<void> => {
+      // Wait out the slide-in. Mid-animation the toast is half off-screen and
+      // clears the footer whichever corner it is headed for.
+      const toast = page.locator('[data-sonner-toast]').first()
+      await expect(toast).toBeInViewport({ ratio: 1 })
+      const t = await toast.boundingBox()
+      const f = await refusedDrawer.locator('footer').boundingBox()
+      expect(t && f, 'toast and footer both laid out').toBeTruthy()
+      const overlaps =
+        t!.x < f!.x + f!.width && t!.x + t!.width > f!.x && t!.y < f!.y + f!.height && t!.y + t!.height > f!.y
+      expect(overlaps, `toast ${JSON.stringify(t)} over footer ${JSON.stringify(f)}`).toBe(false)
+    }
+    await toastClearsFooter()
+    const viewport = page.viewportSize()!
+    await page.setViewportSize({ width: 720, height: viewport.height })
+    await toastClearsFooter()
+    await page.setViewportSize(viewport)
     await refusedDrawer.getByRole('button', { name: 'Cancel' }).click()
     await expect(refusedDrawer).toBeHidden({ timeout: 10000 })
 

@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   publish:
-    uses: homelabforge/shared-workflows/.github/workflows/python-react-publish.yml@v1.6.0-rc1
+    uses: homelabforge/shared-workflows/.github/workflows/python-react-publish.yml@v1.6.0
     with:
       enable-translations: true
       security-tripwire-script: .github/scripts/security-tripwire.sh

@@ -15,7 +15,7 @@ Self-hosted vehicle maintenance tracking for the whole household: service histor
 [![Bun](https://img.shields.io/badge/dynamic/regex?url=https://raw.githubusercontent.com/homelabforge/mygarage/main/.bun-version&search=^([\d.]%2B)&label=Bun&color=000000&logo=bun&logoColor=white&prefix=v)](https://bun.sh)
 [![Node](https://img.shields.io/badge/dynamic/regex?url=https://raw.githubusercontent.com/homelabforge/mygarage/main/.nvmrc&search=^([\d.]%2B)&label=Node&color=5FA04E&logo=nodedotjs&logoColor=white&prefix=v)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Discord](https://img.shields.io/badge/Discord-Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/6XttnVgG)
+[![Discord](https://img.shields.io/badge/Discord-Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/YG2vV32NBg)
 
 </div>
 
@@ -50,7 +50,7 @@ MyGarage starts without authentication so you can look around. Turn on local acc
 - **Documentation**: [GitHub Wiki](https://github.com/homelabforge/mygarage/wiki)
 - **Website**: [homelabforge.io/builds/mygarage](https://homelabforge.io/builds/mygarage/)
 - **Bug reports**: [GitHub Issues](https://github.com/homelabforge/mygarage/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/homelabforge/mygarage/discussions) or [Discord](https://discord.gg/6XttnVgG)
+- **Discussions**: [GitHub Discussions](https://github.com/homelabforge/mygarage/discussions) or [Discord](https://discord.gg/YG2vV32NBg)
 
 ---
 

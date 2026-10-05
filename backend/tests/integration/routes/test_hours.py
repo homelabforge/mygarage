@@ -8,7 +8,7 @@ Tests hours record CRUD operations and authorization, mirroring
 recent date -- a physical hour meter is monotonic).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 from httpx import AsyncClient
@@ -163,27 +163,26 @@ class TestHoursRecordRoutes:
 
         assert response.status_code == 422
 
-    async def test_hours_record_pagination(self, client: AsyncClient, auth_headers, test_vehicle):
-        """Test hours record pagination."""
-        for i in range(10):
-            await client.post(
-                f"/api/vehicles/{test_vehicle['vin']}/hours",
-                json={
-                    "vin": test_vehicle["vin"],
-                    "date": (datetime.now() - timedelta(days=i * 30)).date().isoformat(),
-                    "engine_hours": 100.0 + i,
-                },
+    async def test_hours_record_pagination(self, client: AsyncClient, auth_headers, own_vehicle):
+        """Two pages of five split ten readings newest-first, no overlap."""
+        vin = own_vehicle.vin
+        dates = [f"2025-{m:02d}-15" for m in range(1, 11)]
+        for i, on in enumerate(dates):
+            created = await client.post(
+                f"/api/vehicles/{vin}/hours",
+                json={"vin": vin, "date": on, "engine_hours": 100.0 + i * 1},
                 headers=auth_headers,
             )
+            assert created.status_code == 201, created.text
 
-        response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/hours?skip=0&limit=5",
-            headers=auth_headers,
-        )
+        first = await client.get(f"/api/vehicles/{vin}/hours?skip=0&limit=5", headers=auth_headers)
+        assert first.status_code == 200, first.text
+        second = await client.get(f"/api/vehicles/{vin}/hours?skip=5&limit=5", headers=auth_headers)
+        assert second.status_code == 200, second.text
 
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["records"]) <= 5
+        page1, page2 = first.json(), second.json()
+        assert page1["total"] == 10
+        assert [x["date"] for x in page1["records"] + page2["records"]] == dates[::-1]
 
     async def test_hours_record_vehicle_not_found(self, client: AsyncClient, auth_headers):
         """Test hours record with non-existent vehicle."""
@@ -195,7 +194,7 @@ class TestHoursRecordRoutes:
         assert response.status_code == 404
 
     async def test_hours_latest_tracking_is_max_reading_not_latest_date(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """Latest hours = the highest reading on record, not the most recent date.
 
@@ -205,7 +204,7 @@ class TestHoursRecordRoutes:
         "most recent date" list semantics -- hours uses the canonical
         ``latest_engine_hours_and_date`` helper (ORDER BY engine_hours DESC).
         """
-        # Sentinel values well above anything else this shared test_vehicle
+        # Sentinel values well above anything else this shared own_vehicle
         # accumulates elsewhere in the module (mirrors odometer's
         # far-future-date trick, but on the value axis since "latest" here is
         # max-reading, not max-date).
@@ -216,9 +215,9 @@ class TestHoursRecordRoutes:
 
         for record in records:
             await client.post(
-                f"/api/vehicles/{test_vehicle['vin']}/hours",
+                f"/api/vehicles/{own_vehicle.vin}/hours",
                 json={
-                    "vin": test_vehicle["vin"],
+                    "vin": own_vehicle.vin,
                     "date": record["date"],
                     "engine_hours": record["engine_hours"],
                 },
@@ -226,7 +225,7 @@ class TestHoursRecordRoutes:
             )
 
         response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/hours",
+            f"/api/vehicles/{own_vehicle.vin}/hours",
             headers=auth_headers,
         )
 

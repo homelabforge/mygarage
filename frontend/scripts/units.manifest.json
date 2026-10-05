@@ -469,7 +469,7 @@
     {
       "path": "src/components/AppToaster.tsx",
       "disposition": "no unit behaviour",
-      "digest": "4fffecf63daf6fbb890be0322a820784bfe4a34e235aac457addc7134eef3010",
+      "digest": "f1536213abf5a8bde19a8ce599150d8e669c9aef38525e80d3c66d0118aec74a",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
     },
     {
@@ -1632,7 +1632,7 @@
     {
       "path": "src/components/shell/MobileTabBar.tsx",
       "disposition": "no unit behaviour",
-      "digest": "9a755b421bd4b27b4fd22de232fdf273d977cb031a4a22287697a1aa80d64862",
+      "digest": "c76f77492552645e470cbb19400c93488cb080cbe2f01db5aeb141fb779885ad",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
     },
     {
@@ -1937,7 +1937,7 @@
     {
       "path": "src/components/ui/Drawer.tsx",
       "disposition": "no unit behaviour",
-      "digest": "5a027fea03b057097ac04192339e317205326b0ba452e59ed18d90adcb65cecd",
+      "digest": "0ce22adbc9c6e331fe8cef19dca1a56b9e98afbcb291a29942c18b7208a8ce18",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 3 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
     },
     {
@@ -2077,6 +2077,12 @@
       "disposition": "no unit behaviour",
       "digest": "872abe769d05bf0c633f60319ddbb70f372eb0073b6535bb9e2f62d1cc420b6e",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-24: exports useAffixWidth and affixStyle. No unit behaviour."
+    },
+    {
+      "path": "src/components/ui/openDrawers.ts",
+      "disposition": "no unit behaviour",
+      "digest": "2e0060469b19889dc30ecff0bcd5bae5f8958426de5f3f31e08241b8a9a747ad",
+      "reason": "no unit behaviour: a count of open drawers and a subscribe hook so AppToaster can move out of their way. Read in full; it holds no quantity, unit, conversion or formatting."
     },
     {
       "path": "src/components/ui/types.ts",
@@ -2583,7 +2589,7 @@
     {
       "path": "src/index.css",
       "disposition": "no unit behaviour",
-      "digest": "94684c6bb0aa2760801b08506a6c44a3542b323e289489718c17b48e538cbdb6",
+      "digest": "4837ae9f9d8d882f5d0cb5665981ce0d8dcb4d97e477f33318db60efe6cde47f",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-09-23 (cleanup): adds the ui-eyebrow label utility. No unit content. 2026-09-24: pl-affix / pr-affix utilities (room for an input's prefix or suffix). No unit behaviour."
     },
     {

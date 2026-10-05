@@ -195,6 +195,15 @@
 @layer base {
   :root {
     --radius: 0.5rem;
+    /* Lifts toasts over the phone tab bar (MobileTabBar: h-16 + hairline,
+       md:hidden). AppToaster adds it to sonner's bottom offsets. Keyed on the
+       bar itself, so login and the other Layout-less pages don't get it. */
+    --toast-lift: 0px;
+  }
+  @media (width < 48rem) {
+    :root:has([data-tab-bar]) {
+      --toast-lift: 65px;
+    }
   }
 }
 

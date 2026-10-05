@@ -61,7 +61,7 @@ representative at an online or offline event.
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported privately to the community leaders responsible for enforcement by
 direct message to a maintainer on our
-[Discord community](https://discord.gg/6XttnVgG).
+[Discord community](https://discord.gg/YG2vV32NBg).
 
 All complaints will be reviewed and investigated promptly and fairly.
 
