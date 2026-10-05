@@ -184,4 +184,4 @@ users, and vice versa.
 ## Questions?
 
 Open a [GitHub Discussion](https://github.com/homelabforge/mygarage/discussions)
-or ask in our [Discord community](https://discord.gg/6XttnVgG).
+or ask in our [Discord community](https://discord.gg/YG2vV32NBg).

@@ -89,4 +89,4 @@ environment details (OS, Docker version, browser).
 
 Open a [GitHub Discussion](https://github.com/homelabforge/mygarage/discussions)
 to propose a feature before building it, or ask in our
-[Discord community](https://discord.gg/6XttnVgG).
+[Discord community](https://discord.gg/YG2vV32NBg).
