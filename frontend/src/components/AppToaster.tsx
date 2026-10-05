@@ -19,7 +19,7 @@ type Corner = 'top-left' | 'bottom-left'
  * the button. Bottom-left alone isn't enough: narrower than the drawer + 380px
  * (up to ~1200px for xl) the drawer reaches the left corner too, and some
  * footers keep Save, Back or Delete on the left. Top-left sits on the drawer's
- * header. A two-line toast can clip the first field's left edge, and on phones
+ * header. A longer toast reaches into the top of the drawer body, and on phones
  * (sonner's full-width layout under 600px) it covers Close. That's the leftover.
  *
  * The corner only moves while nothing is showing. Changing position remounts

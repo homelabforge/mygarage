@@ -404,7 +404,11 @@ test.describe('Tires', () => {
     // at worst. Checked again at 720px, where this 440px drawer reaches under
     // the toast's left corner too, so bottom-left alone would still cover it.
     const toastClearsFooter = async (): Promise<void> => {
-      const t = await page.locator('[data-sonner-toast]').first().boundingBox()
+      // Wait out the slide-in. Mid-animation the toast is half off-screen and
+      // clears the footer whichever corner it is headed for.
+      const toast = page.locator('[data-sonner-toast]').first()
+      await expect(toast).toBeInViewport({ ratio: 1 })
+      const t = await toast.boundingBox()
       const f = await refusedDrawer.locator('footer').boundingBox()
       expect(t && f, 'toast and footer both laid out').toBeTruthy()
       const overlaps =
