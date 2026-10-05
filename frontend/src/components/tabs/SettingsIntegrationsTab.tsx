@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { CheckCircle, AlertCircle, Plug, Shield, Radio, HelpCircle, Webhook, Sparkles, Settings, Globe } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useCanManageInstance } from '@/hooks/useCanManageInstance'
-import api from '@/services/api'
+import api, { getErrorMessage } from '@/services/api'
 import WidgetKeysPanel from '../settings/WidgetKeysPanel'
 import { Card, IconButton, Select, Toggle, Drawer } from '../ui'
 import type { IconType } from '../ui/types'
@@ -102,6 +102,7 @@ function IntegrationsAdminView(): React.ReactElement {
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [testing, setTesting] = useState(false)
+  const [testingAutoRef, setTestingAutoRef] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   // Which card's "About" help sidecar is open (null = closed).
   const [helpDrawer, setHelpDrawer] = useState<'carcomplaints' | 'livelink' | 'european_vin' | null>(null)
@@ -226,6 +227,33 @@ function IntegrationsAdminView(): React.ReactElement {
       setMessage({ type: 'error', text: t('integrations.nhtsaTestFailed') })
     } finally {
       setTesting(false)
+    }
+  }
+
+  const handleTestAutoRef = async () => {
+    setTestingAutoRef(true)
+    setMessage(null)
+
+    try {
+      const response = await api.post('/vin/test-european', {
+        api_key: formData.european_vin_api_key.trim() || undefined,
+      })
+
+      const { plan, remaining, limit } = response.data
+      let successMsg = t('integrations.europeanVinTestSuccess')
+      if (remaining !== undefined && limit !== undefined) {
+        successMsg += ` (${t('integrations.europeanVinQuota')}: ${remaining}/${limit})`
+      } else if (plan) {
+        successMsg += ` (${plan})`
+      }
+
+      setMessage({ type: 'success', text: successMsg })
+      setTimeout(() => setMessage(null), 5000)
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err, t('integrations.europeanVinTestFailed'))
+      setMessage({ type: 'error', text: errMsg })
+    } finally {
+      setTestingAutoRef(false)
     }
   }
 
@@ -488,6 +516,26 @@ function IntegrationsAdminView(): React.ReactElement {
               />
               <p className="mt-1 text-sm text-garage-text-muted">
                 {t('integrations.europeanVinApiKeyHint')}
+              </p>
+            </div>
+
+            {/* Test Connection */}
+            <div className="pt-4 border-t border-garage-border">
+              <button
+                type="button"
+                onClick={handleTestAutoRef}
+                disabled={
+                  testingAutoRef ||
+                  formData.european_vin_enabled === 'false' ||
+                  !formData.european_vin_api_key.trim()
+                }
+                className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
+              >
+                <CheckCircle size={16} />
+                {testingAutoRef ? t('integrations.testingConnection') : t('integrations.testEuropeanVin')}
+              </button>
+              <p className="mt-2 text-sm text-garage-text-muted">
+                {t('integrations.testEuropeanVinDesc')}
               </p>
             </div>
           </div>

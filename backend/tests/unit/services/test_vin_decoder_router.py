@@ -1,7 +1,7 @@
 """Unit tests for multi-provider VIN decoding router, WMI analysis, and market routing."""
 
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -276,3 +276,93 @@ class TestEuropeanVINDecoderParsing:
         assert parsed["engine"]["kw"] == 225
         assert parsed["engine"]["fuel_type_normalized"] == "gasoline"
         assert parsed["transmission"]["type"] == "Automatic"
+
+    def test_parse_real_autoref_api_payload(self):
+        """Test parsing of actual AutoRef European API response with MODEL_RESOLVED and MOTORIZATION."""
+        decoder = EuropeanVINDecoder()
+        payload = [
+            {
+                "id": 130694,
+                "VIN": "WF0FXXWPMH",
+                "BRAND": "FORD",
+                "BRAND_MODEL": "FORD KUGA 2.5 FHEV 4X4",
+                "MODEL_FULL": "Kuga 2.5 FHEV 4x4",
+                "MODEL_RESOLVED": "Kuga",
+                "MODEL_LINE": "Kuga",
+                "MOTORIZATION": "2.5 FHEV 4x4",
+                "MODEL": None,
+                "MODEL2": None,
+                "MODEL3": None,
+                "POWER_KW": 112.0,
+                "POWER_DIN": 152.0,
+                "FUEL": "Gasoline / Electric",
+                "GEARBOX": "Continuously Variable",
+                "CODE_GEARBOX": "S",
+                "DATE_FIRST_CIRCULATION": 2022,
+                "RECORD_TYPE": "TG",
+                "DISPLACEMENT": 2488.0,
+                "DOORS": "4+1",
+                "DRIVETRAIN": "A (Front=Engageable)",
+                "MOTOR_DETAILS": "4-stroke / 4 / inline-DI",
+                "MANUFACTURER": "FORD-WERKE GmbH, D-50735 KOELN",
+                "BODY": "Limousine",
+            }
+        ]
+
+        parsed = decoder._parse_autoref_response("WF0FXXWPMHRC20114", payload)
+        assert parsed is not None
+        assert parsed["make"] == "FORD"
+        assert parsed["model"] == "Kuga"
+        assert parsed["trim"] == "2.5 FHEV 4x4"
+        assert parsed["year"] == 2022
+        assert parsed["doors"] == 4
+        assert parsed["drive_type"] == "AWD"
+        assert parsed["engine"]["hp"] == 152
+        assert parsed["engine"]["kw"] == 112
+        assert parsed["engine"]["displacement_l"] == "2.5"
+        assert parsed["engine"]["cylinders"] == 4
+        assert parsed["engine"]["fuel_type_secondary"] == "electric"
+        assert parsed["transmission"]["type"] == "Continuously Variable"
+
+    @pytest.mark.asyncio
+    async def test_test_connection_no_key(self):
+        decoder = EuropeanVINDecoder(api_key="")
+        success, msg, data = await decoder.test_connection()
+        assert success is False
+        assert "required" in msg.lower()
+        assert data is None
+
+    @pytest.mark.asyncio
+    async def test_test_connection_success(self):
+        decoder = EuropeanVINDecoder(api_key="valid-test-key")
+        usage_data = {
+            "api_key_name": "user@example.com",
+            "plan": "Test",
+            "limit": 50,
+            "remaining": 48,
+            "used": 2,
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = usage_data
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_resp):
+            success, msg, data = await decoder.test_connection()
+            assert success is True
+            assert "Test" in msg
+            assert "48/50" in msg
+            assert data["remaining"] == 48
+
+    @pytest.mark.asyncio
+    async def test_test_connection_unauthorized(self):
+        decoder = EuropeanVINDecoder(api_key="bad-key")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_resp):
+            success, msg, data = await decoder.test_connection()
+            assert success is False
+            assert "unauthorized" in msg.lower() or "invalid" in msg.lower()
+            assert data is None

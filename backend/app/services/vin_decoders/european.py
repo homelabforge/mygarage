@@ -34,7 +34,7 @@ class EuropeanVINDecoder(BaseVINDecoder):
         timeout: float = 15.0,
     ) -> None:
         raw_url = base_url or getattr(
-            settings, "european_vin_api_base_url", "https://api.autoref.eu"
+            settings, "european_vin_api_base_url", "https://api-gateway.autoref.eu"
         )
         try:
             validate_european_vin_url(raw_url)
@@ -45,7 +45,7 @@ class EuropeanVINDecoder(BaseVINDecoder):
                 sanitize_for_log(raw_url),
                 sanitize_for_log(e),
             )
-            self.base_url = "https://api.autoref.eu"
+            self.base_url = "https://api-gateway.autoref.eu"
 
         self.api_key = (
             api_key if api_key is not None else getattr(settings, "european_vin_api_key", "")
@@ -69,6 +69,49 @@ class EuropeanVINDecoder(BaseVINDecoder):
     def can_handle(self, vin: str, region: MarketRegion) -> bool:
         """European decoder can handle European VINs as primary and all VINs as fallback."""
         return self.enabled
+
+    async def test_connection(
+        self, api_key: str | None = None
+    ) -> tuple[bool, str, dict[str, Any] | None]:
+        """Test connection to AutoRef API using the /usage endpoint.
+
+        Does not consume monthly decoding quota.
+
+        Returns:
+            Tuple of (success, message, data)
+        """
+        key_to_test = (api_key if api_key is not None else self.api_key).strip()
+        if not key_to_test:
+            return False, "AutoRef API key is required", None
+
+        url = f"{self.base_url}/usage?api_key={key_to_test}"
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                res = await client.get(url)
+                if res.status_code == 200:
+                    data = res.json()
+                    plan = data.get("plan", "Unknown")
+                    rem = data.get("remaining")
+                    limit = data.get("limit")
+                    quota_str = (
+                        f" ({rem}/{limit} remaining)"
+                        if rem is not None and limit is not None
+                        else ""
+                    )
+                    return (
+                        True,
+                        f"Connected to AutoRef successfully! Plan: {plan}{quota_str}",
+                        data,
+                    )
+                if res.status_code in (401, 403):
+                    return False, "Invalid API key or unauthorized by AutoRef", None
+                return False, f"AutoRef returned HTTP {res.status_code}", None
+        except httpx.TimeoutException:
+            return False, "AutoRef API request timed out", None
+        except httpx.ConnectError:
+            return False, "Cannot connect to AutoRef API", None
+        except Exception as e:
+            return False, f"Connection to AutoRef failed: {e}", None
 
     async def decode(self, vin: str) -> dict[str, Any] | None:
         """Decode a VIN using AutoRef European API, falling back to WMI database.
@@ -109,7 +152,7 @@ class EuropeanVINDecoder(BaseVINDecoder):
         headers: dict[str, str] = {
             "Accept": "application/json",
             "User-Agent": "MyGarage-EuropeanVINDecoder/1.0",
-            "X-API-Key": self.api_key,
+            "x-api-key": self.api_key,
         }
 
         logger.info("Querying European VIN API (AutoRef) for VIN: %s", sanitize_for_log(vin))
@@ -130,7 +173,42 @@ class EuropeanVINDecoder(BaseVINDecoder):
 
                 response.raise_for_status()
                 data = response.json()
-                return self._parse_autoref_response(vin, data)
+
+                # If matches were found, try to enrich top match with full vehicle specs
+                record: dict[str, Any] | None = None
+                if isinstance(data, list) and data:
+                    record = dict(data[0])
+                elif isinstance(data, dict):
+                    if "data" in data and isinstance(data["data"], list) and data["data"]:
+                        record = dict(data["data"][0])
+                    else:
+                        record = dict(data)
+
+                if record:
+                    rec_type = record.get("RECORD_TYPE") or record.get("record_type")
+                    rec_id = record.get("id") or record.get("ID")
+                    if rec_type and rec_id:
+                        try:
+                            specs_url = f"{self.base_url}/vehicle/{rec_type}/{rec_id}?lang=en"
+                            specs_res = await client.get(specs_url, headers=headers)
+                            if specs_res.status_code == 200:
+                                specs_data = specs_res.json()
+                                if isinstance(specs_data, dict):
+                                    if "SPECS" in specs_data and isinstance(
+                                        specs_data["SPECS"], dict
+                                    ):
+                                        record.update(specs_data["SPECS"])
+                                    if "VIN_INFO" in specs_data and isinstance(
+                                        specs_data["VIN_INFO"], dict
+                                    ):
+                                        record.update(specs_data["VIN_INFO"])
+                        except Exception as e:
+                            logger.debug(
+                                "Failed to fetch detailed vehicle specs from AutoRef: %s",
+                                sanitize_for_log(e),
+                            )
+
+                return self._parse_autoref_response(vin, record or data)
 
         except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPError) as e:
             logger.warning(
@@ -161,27 +239,49 @@ class EuropeanVINDecoder(BaseVINDecoder):
                 # Merge SPECS if present
                 if "SPECS" in data and isinstance(data["SPECS"], dict):
                     record.update(data["SPECS"])
-            elif "BRAND" in data or "make" in data:
+            elif "BRAND" in data or "make" in data or "MODEL_RESOLVED" in data:
                 record = data
 
         if not record:
             return None
 
         make = (
-            record.get("BRAND") or record.get("brand") or record.get("Make") or record.get("make")
+            record.get("BRAND")
+            or record.get("brand")
+            or record.get("Make")
+            or record.get("make")
+            or record.get("MANUFACTURER_MOTOR")
         )
-        model = record.get("MODEL") or record.get("model") or record.get("Model")
-        series = record.get("MODEL2") or record.get("series") or record.get("Series")
+        model = (
+            record.get("MODEL_RESOLVED")
+            or record.get("MODEL_LINE")
+            or record.get("MODEL")
+            or record.get("model")
+            or record.get("Model")
+            or record.get("MODEL_FULL")
+            or record.get("BRAND_MODEL")
+        )
+        series = (
+            record.get("MODEL2")
+            or record.get("series")
+            or record.get("Series")
+            or record.get("SUBTYPE_VEHICLE")
+        )
         trim = (
-            record.get("MODEL3")
+            record.get("MOTORIZATION")
+            or record.get("MODEL3")
             or record.get("trim")
             or record.get("Trim")
             or record.get("VARIANT")
+            or record.get("VERSION")
         )
 
         # Parse year
         date_circ = (
-            record.get("DATE_FIRST_CIRCULATION") or record.get("year") or record.get("ModelYear")
+            record.get("DATE_FIRST_CIRCULATION")
+            or record.get("year")
+            or record.get("ModelYear")
+            or record.get("DATE_REGISTRAR_START")
         )
         year: int | None = None
         if date_circ:
@@ -195,12 +295,40 @@ class EuropeanVINDecoder(BaseVINDecoder):
         hp = int(round(float(hp_val))) if hp_val is not None else None
         kw = int(round(float(kw_val))) if kw_val is not None else None
 
+        # Displacement in liters
+        displacement_l: str | None = None
+        disp = record.get("DISPLACEMENT") or record.get("displacement")
+        if disp is not None:
+            try:
+                displacement_l = f"{float(disp) / 1000:.1f}"
+            except ValueError, TypeError:
+                pass
+
+        # Cylinders
+        cylinders: int | None = None
+        cyl_val = record.get("CYLINDERS") or record.get("cylinders")
+        if cyl_val is not None:
+            try:
+                cylinders = int(cyl_val)
+            except ValueError, TypeError:
+                pass
+        elif "MOTOR_DETAILS" in record and record["MOTOR_DETAILS"]:
+            cyl_match = re.search(r"/\s*(\d+)\s*/", str(record["MOTOR_DETAILS"]))
+            if cyl_match:
+                cylinders = int(cyl_match.group(1))
+
         raw_fuel = record.get("FUEL") or record.get("fuel_type") or record.get("FuelTypePrimary")
         normalized_fuel = normalize_fuel_type(str(raw_fuel)) if raw_fuel else None
 
-        # Check secondary fuel for PHEVs/hybrids
+        # Check secondary fuel for PHEVs/hybrids or combined fuels (e.g. Gasoline / Electric)
         fuel_secondary: str | None = None
         if normalized_fuel and "hybrid" in normalized_fuel.value:
+            fuel_secondary = "electric"
+        elif (
+            raw_fuel
+            and "electric" in str(raw_fuel).lower()
+            and any(k in str(raw_fuel).lower() for k in ("gas", "petrol", "benzin", "diesel"))
+        ):
             fuel_secondary = "electric"
 
         gearbox = record.get("GEARBOX") or record.get("transmission")
@@ -210,8 +338,32 @@ class EuropeanVINDecoder(BaseVINDecoder):
         elif gearbox:
             transmission_type = str(gearbox)
 
+        # Parse doors (handles "4+1" or "5")
+        doors: int | None = None
         doors_val = record.get("DOORS") or record.get("doors")
-        doors = int(doors_val) if doors_val is not None and str(doors_val).isdigit() else None
+        if doors_val is not None:
+            doors_match = re.search(r"\d+", str(doors_val))
+            if doors_match:
+                doors = int(doors_match.group(0))
+
+        # Drivetrain
+        drivetrain = record.get("DRIVETRAIN") or record.get("drive_type")
+        drive_type: str | None = None
+        if drivetrain:
+            dt_str = str(drivetrain).upper()
+            if any(k in dt_str for k in ("4X4", "AWD", "ALL", "ENGAGEABLE")):
+                drive_type = "AWD"
+            elif any(k in dt_str for k in ("FRONT", "FWD")):
+                drive_type = "FWD"
+            elif any(k in dt_str for k in ("REAR", "RWD")):
+                drive_type = "RWD"
+            else:
+                drive_type = str(drivetrain)
+        elif any(
+            "4X4" in str(record.get(k, "")).upper()
+            for k in ("BRAND_MODEL", "MODEL_FULL", "MODEL_LINE")
+        ):
+            drive_type = "AWD"
 
         result: dict[str, Any] = {
             "vin": vin,
@@ -222,10 +374,12 @@ class EuropeanVINDecoder(BaseVINDecoder):
             "year": year,
             "vehicle_type": record.get("TYPE_VEHICLE") or "PASSENGER CAR",
             "body_class": record.get("BODY") or record.get("body_class"),
-            "drive_type": record.get("DRIVETRAIN") or record.get("drive_type"),
+            "drive_type": drive_type,
             "doors": doors,
-            "manufacturer": record.get("MANUFACTURER") or record.get("manufacturer"),
+            "manufacturer": record.get("MANUFACTURER") or record.get("manufacturer") or make,
             "engine": {
+                "displacement_l": displacement_l,
+                "cylinders": cylinders,
                 "hp": hp,
                 "kw": kw,
                 "fuel_type": raw_fuel,

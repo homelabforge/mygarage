@@ -211,7 +211,7 @@ class Settings(BaseSettings):
 
     # European VIN API (AutoRef / European VIN decoders)
     european_vin_enabled: bool = True
-    european_vin_api_base_url: str = "https://api.autoref.eu"
+    european_vin_api_base_url: str = "https://api-gateway.autoref.eu"
     european_vin_api_key: str = ""  # Empty by default (supports free tier or configured API key)
 
     # TomTom Places API (optional - falls back to OSM if not configured)

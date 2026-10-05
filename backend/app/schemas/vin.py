@@ -115,3 +115,19 @@ class VINDecodeResponse(BaseModel):
             ]
         }
     }
+
+
+class EuropeanVINTestRequest(BaseModel):
+    """Request schema for European VIN test connection endpoint."""
+
+    api_key: str | None = Field(None, description="Optional AutoRef API key to test")
+
+
+class EuropeanVINTestResponse(BaseModel):
+    """Response schema for European VIN test connection endpoint."""
+
+    success: bool = Field(..., description="Whether the connection test succeeded")
+    message: str = Field(..., description="Human-readable result message")
+    plan: str | None = Field(None, description="Current subscription plan")
+    remaining: int | None = Field(None, description="Remaining decodes in quota")
+    limit: int | None = Field(None, description="Total decode limit for plan")

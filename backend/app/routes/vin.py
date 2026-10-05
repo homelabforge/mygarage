@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
-from app.schemas.vin import VINDecodeRequest, VINDecodeResponse
+from app.schemas.vin import (
+    EuropeanVINTestRequest,
+    EuropeanVINTestResponse,
+    VINDecodeRequest,
+    VINDecodeResponse,
+)
 from app.services.auth import require_auth
 from app.services.nhtsa import NHTSAService
 from app.services.vin_decoders import NHTSAVINDecoder, get_vin_decoder_router
@@ -167,3 +172,45 @@ async def validate_vin_endpoint(vin: str, current_user: User | None = Depends(re
             status_code=400,
             content={"valid": False, "vin": vin.strip().upper(), "error": error_msg},
         )
+
+
+@router.post("/test-european", response_model=EuropeanVINTestResponse)
+async def test_european_vin_connection(
+    request: EuropeanVINTestRequest | None = None,
+    current_user: User | None = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Test connection to the European VIN API (AutoRef) and check quota.
+    Does not consume monthly decoding quota.
+    """
+    api_key = request.api_key.strip() if request and request.api_key else None
+    if not api_key:
+        from app.services.settings_service import SettingsService
+
+        api_key_setting = await SettingsService.get(db, "european_vin_api_key")
+        if api_key_setting and api_key_setting.value:
+            api_key = api_key_setting.value.strip()
+
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Chiave API mancante. Inserisci la tua API key di AutoRef.",
+        )
+
+    vin_router = get_vin_decoder_router()
+    european_decoder = vin_router.get_decoder("european")
+    if not european_decoder or not isinstance(european_decoder, EuropeanVINDecoder):
+        european_decoder = EuropeanVINDecoder()
+
+    success, msg, data = await european_decoder.test_connection(api_key=api_key)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+
+    return EuropeanVINTestResponse(
+        success=True,
+        message=msg,
+        plan=data.get("plan") if data else None,
+        remaining=data.get("remaining") if data else None,
+        limit=data.get("limit") if data else None,
+    )
