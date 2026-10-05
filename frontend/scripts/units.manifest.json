@@ -469,7 +469,7 @@
     {
       "path": "src/components/AppToaster.tsx",
       "disposition": "no unit behaviour",
-      "digest": "4fffecf63daf6fbb890be0322a820784bfe4a34e235aac457addc7134eef3010",
+      "digest": "062abd957d60e3b1590c61a3a4ddacdc1d09574d4358db6d3b0595f1a6d72125",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
     },
     {

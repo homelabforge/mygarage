@@ -13,7 +13,7 @@ describe('AppToaster', () => {
     vi.spyOn(ThemeContext, 'useTheme').mockReturnValue({ theme: 'dark', toggleTheme: vi.fn(), setTheme: vi.fn() })
     render(<AppToaster />)
     expect(captured?.theme).toBe('dark')
-    expect(captured?.position).toBe('bottom-right')
+    expect(captured?.position).toBe('bottom-left')
     expect(captured?.richColors).toBeUndefined()
     const classNames = (captured?.toastOptions as { classNames: Record<string, string> }).classNames
     expect(classNames.error).toContain('bg-danger')

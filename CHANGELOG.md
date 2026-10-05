@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Toasts now show bottom-left, so they no longer cover a drawer's Cancel and Save buttons (hovering one to reach them kept it open)
+
 ## [3.8.0] - 2026-10-04
 
 ### Added

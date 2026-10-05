@@ -398,6 +398,13 @@ test.describe('Tires', () => {
     ).toBeVisible({
       timeout: 10000,
     })
+    // The toast has to clear the drawer. When toasts sat bottom-right this one
+    // covered Cancel, and the mouse resting on it paused the dismiss timer, so
+    // the click below waited out the 4s timer at best and timed out at worst.
+    const toastBox = await page.locator('[data-sonner-toast]').first().boundingBox()
+    const drawerBox = await refusedDrawer.boundingBox()
+    expect(toastBox && drawerBox, 'toast and drawer both laid out').toBeTruthy()
+    expect(toastBox!.x + toastBox!.width).toBeLessThanOrEqual(drawerBox!.x)
     await refusedDrawer.getByRole('button', { name: 'Cancel' }).click()
     await expect(refusedDrawer).toBeHidden({ timeout: 10000 })
 
