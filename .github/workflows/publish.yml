@@ -12,10 +12,14 @@ permissions:
 
 jobs:
   publish:
-    uses: homelabforge/shared-workflows/.github/workflows/python-react-publish.yml@v1.6.0
+    uses: homelabforge/shared-workflows/.github/workflows/python-react-publish.yml@v1.7.0-rc1
     with:
       enable-translations: true
       security-tripwire-script: .github/scripts/security-tripwire.sh
+      # Same splits as ci.yml; publish has no PG job.
+      backend-test-shards: 2
+      frontend-test-shards: 3
+      e2e-test-shards: 2
       image-name: homelabforge/mygarage
       release-name-prefix: 'MyGarage v'
     secrets:
