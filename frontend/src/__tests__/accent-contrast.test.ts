@@ -197,9 +197,3 @@ describe('pre-React inline script', () => {
     },
   )
 })
-
-describe('shard negative control', () => {
-  it('always fails, reverted next commit', () => {
-    expect(1).toBe(2)
-  })
-})
