@@ -114,22 +114,25 @@ async def owned_vehicle(
 
     Cleans any prior shares so the read/write split is deterministic.
     """
+    # Reset these on a reused row too. A rename test elsewhere left
+    # "Renamed" behind and search for "Authz" came back empty.
+    fields = {
+        "user_id": owner_user.id,
+        "nickname": "Authz Test Vehicle",
+        "vehicle_type": "Car",
+        "year": 2010,
+        "make": "Audi",
+        "model": "A4",
+        "archived_at": None,
+    }
     result = await db_session.execute(select(Vehicle).where(Vehicle.vin == AUTHZ_VIN))
     vehicle = result.scalar_one_or_none()
     if vehicle is None:
-        vehicle = Vehicle(
-            vin=AUTHZ_VIN,
-            user_id=owner_user.id,
-            nickname="Authz Test Vehicle",
-            vehicle_type="Car",
-            year=2010,
-            make="Audi",
-            model="A4",
-        )
+        vehicle = Vehicle(vin=AUTHZ_VIN, **fields)
         db_session.add(vehicle)
     else:
-        vehicle.user_id = owner_user.id
-        vehicle.archived_at = None
+        for name, value in fields.items():
+            setattr(vehicle, name, value)
     await db_session.execute(delete(VehicleShare).where(VehicleShare.vehicle_vin == AUTHZ_VIN))
     db_session.add(
         VehicleShare(
