@@ -535,6 +535,9 @@ describe('Supplies page: each supply shows its own unit', () => {
 
     expect(screen.getByText('0.003 L')).toBeInTheDocument()
     expect(screen.queryByText('0.00 L')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'supplies.listView' }))
+    expect(within(screen.getByRole('table')).getByText('0.003 L')).toBeInTheDocument()
   })
 
   it('on-hand follows the picked language, not toFixed', () => {

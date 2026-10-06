@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
+- Small supply amounts (a few mL in L, qt or gal) no longer show as 0.00, and supply amounts follow the selected language
 
 ## [3.8.0] - 2026-10-04
 

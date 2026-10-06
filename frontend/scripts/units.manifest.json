@@ -2754,7 +2754,7 @@
       "path": "src/pages/Supplies.tsx",
       "disposition": "audited",
       "digest": "f57f487c16ce8e7d77af2a42c14d517a69dc273763eefa189134584725414d2a",
-      "reason": "Per-supply token design (#191 Part B): the page and its supply form resolve one SupplyUnit per supply and convert through toDisplay/toCanonical with it, so on-hand, reorder level and unit cost all share the unit the label shows. On-hand renders through formatSupplyQuantity in the active locale. supplyDisplayUnit is the one binary reader left, for the NULL legacy token only; the page uses it to resolve a row's unit and the form uses it for the edit default. A new supply's default comes from the NEW_SUPPLY_UNIT lookup keyed on units.volume (the resolved token), not on `system`. The unit picker offers the account's flavour of each unit. Earlier: the average unit cost passes fractionDigits so it keeps its decimals in every currency (money-fits B7 fix 1); search, filters, sort, grouping, list view and quick actions are display composition only (#191 page tools).",
+      "reason": "Per-supply token design (#191 Part B): the page and its supply form resolve one SupplyUnit per supply. On-hand renders through formatSupplyQuantity in the active locale and unit cost through unitCostToDisplay, so both share the unit the label shows. supplyDisplayUnit is the one binary reader left, for the NULL legacy token only; the page uses it to resolve a row's unit and the form uses it for the edit default. A new supply's default comes from the NEW_SUPPLY_UNIT lookup keyed on units.volume (the resolved token), not on `system`. The unit picker offers the account's flavour of each unit. Earlier: the average unit cost passes fractionDigits so it keeps its decimals in every currency (money-fits B7 fix 1); search, filters, sort, grouping, list view and quick actions are display composition only (#191 page tools).",
       "tests": [
         "pages/__tests__/Supplies.test.tsx",
         "utils/__tests__/supplyUnits.test.ts"
@@ -3376,7 +3376,7 @@
     {
       "path": "src/utils/supplyUnits.ts",
       "disposition": "audited",
-      "digest": "76da5027ea4b5e9d2fbfb8315ffaa5ac8d6b9cfc37b5ef22a875dbd1e432da9f",
+      "digest": "88a02fdee6d1b015eabcc48a468caa807160026f33efc7e8358336d137cdc3d2",
       "reason": "Per-supply token design (#191 Part B): every supply carries its own volume_unit token (mL, L, fl oz, qt, gal, US and UK flavours), and conversion goes through toDisplay/toCanonical with a resolved SupplyUnit, so a round trip is exact and nothing here follows the collapsed `system`. supplyDisplayUnit is the one remaining binary reader: for a row with a NULL (or unknown) token it picks qt_us or L off `system`, the legacy guess. It carries one declaration pragma and one `units-exempt(compare)` on that legacy branch, nothing else. unitCostToDisplay is tokenized now (cost per litre times toCanonical(1, unit)) and needs no pragma. formatSupplyAmount/formatSupplyQuantity format through toDisplay with a SupplyUnit and a locale; a volume that would round to zero gets up to four decimals. Owner: deferred, until the stored token exists on every row.",
       "tests": [
         "utils/__tests__/supplyUnits.test.ts"

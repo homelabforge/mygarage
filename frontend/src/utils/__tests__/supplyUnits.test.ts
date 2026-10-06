@@ -83,11 +83,14 @@ describe('formatSupplyAmount', () => {
 
   it('a true zero stays at the unit decimals, and a count stays whole', () => {
     expect(formatSupplyAmount(0, 'L', 'en-US')).toBe('0.00')
+    expect(formatSupplyAmount(-0, 'L', 'en-US')).toBe('0.00')
     expect(formatSupplyAmount(0.4, 'count', 'en-US')).toBe('0')
+    // Halves round away from zero both ways (Math.round used to give -2).
+    expect(formatSupplyAmount(-2.5, 'count', 'en-US')).toBe('-3')
   })
 
   it('never goes past four decimals', () => {
-    // Pre-3.8 SQLite rows were not rounded on write, so a stray 1e-9 L can exist.
+    // Four is the cap: gallons need it for 0.001 L, and nothing needs more.
     expect(formatSupplyAmount(1e-9, 'L', 'en-US')).toBe('0.0000')
   })
 

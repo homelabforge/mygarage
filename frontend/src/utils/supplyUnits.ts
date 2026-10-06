@@ -108,9 +108,10 @@ const MAX_AMOUNT_DECIMALS = 4
  * Counts stay whole.
  */
 export function formatSupplyAmount(canonical: number, unit: SupplyUnit, locale: string): string {
-  const value = toDisplay(canonical, unit)
+  // + 0 turns -0 into 0 so it never prints a sign; NaN stays NaN.
+  const value = toDisplay(canonical, unit) + 0
   let decimals = displayDecimals(unit)
-  while (unit !== 'count' && decimals < MAX_AMOUNT_DECIMALS && value !== 0 && Number(Math.abs(value).toFixed(decimals)) === 0) {
+  while (unit !== 'count' && decimals < MAX_AMOUNT_DECIMALS && value !== 0 && Number(value.toFixed(decimals)) === 0) {
     decimals++
   }
   return value.toLocaleString(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
