@@ -48,8 +48,28 @@ def _pg_sync_url() -> str | None:
 def _reset_pg_schema(engine: Engine) -> None:
     """Drop and recreate the public schema on PG (clean slate per test)."""
     with engine.begin() as conn:
+        # An open transaction elsewhere would block the drop with no error.
+        conn.execute(text("SET LOCAL lock_timeout = '30s'"))
         conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
         conn.execute(text("CREATE SCHEMA public"))
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _leave_pg_schema_empty() -> Generator[None]:
+    """Hand the next module an empty PG schema.
+
+    Which module runs next depends on the CI shard, and the tests here only
+    reset before they run.
+    """
+    yield
+    pg_url = _pg_sync_url()
+    if pg_url is None:
+        return
+    engine = create_engine(pg_url)
+    try:
+        _reset_pg_schema(engine)
+    finally:
+        engine.dispose()
 
 
 @pytest.fixture(params=["sqlite", "pg"])

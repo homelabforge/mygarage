@@ -21,6 +21,7 @@ sqlalchemy and pytest_asyncio, so a host pytest run fails at import.
 
 import json
 import os
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -42,9 +43,18 @@ def _reset_schema():
     """Drop and recreate public schema (clean slate)."""
     engine = create_engine(PG_SYNC_URL)
     with engine.begin() as conn:
+        # An open transaction elsewhere would block the drop with no error.
+        conn.execute(text("SET LOCAL lock_timeout = '30s'"))
         conn.execute(text("DROP SCHEMA public CASCADE"))
         conn.execute(text("CREATE SCHEMA public"))
     engine.dispose()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _leave_schema_empty() -> Generator[None]:
+    """Leave an empty schema for the next module, whichever CI shard this lands in."""
+    yield
+    _reset_schema()
 
 
 def _get_all_columns(engine, table_name: str) -> set[str]:
