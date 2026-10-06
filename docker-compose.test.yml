@@ -20,6 +20,11 @@ services:
       POSTGRES_USER: mygarage
       POSTGRES_PASSWORD: testpass
       POSTGRES_DB: mygarage_test
+      # Trust, not SCRAM. The NullPool test engine reconnects on every
+      # transaction (~15k a run) and asyncpg does SCRAM's hashing in Python,
+      # ~15ms a connect vs ~2ms. No published port and a tmpfs data dir, so
+      # there's nothing here to protect.
+      POSTGRES_HOST_AUTH_METHOD: trust
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
