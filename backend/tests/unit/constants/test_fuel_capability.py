@@ -56,3 +56,7 @@ class TestEnsureDefCapable:
             ensure_def_capable(vehicle)
         assert exc_info.value.status_code == 400
         assert exc_info.value.detail == "DEF tracking applies only to diesel vehicles"
+
+
+def test_shard_negative_control() -> None:
+    pytest.fail("shard negative control, reverted next commit")
