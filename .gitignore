@@ -32,6 +32,7 @@ pip-delete-this-directory.txt
 
 # Testing
 .pytest_cache/
+backend/pytest-shard-report*.json
 .coverage
 htmlcov/
 frontend/coverage/
