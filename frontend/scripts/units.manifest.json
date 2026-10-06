@@ -132,15 +132,6 @@
       ]
     },
     {
-      "path": "public/locales/ms/analytics.json",
-      "disposition": "audited",
-      "digest": "1b8513590409506e24de9f11d4dd5ee4ea8def64765ddfb83a51acd542a192e0",
-      "reason": "Malay analytics locale reviewed for unit-sensitive copy. Existing {{unit}} and {{currency}} placeholders are preserved and unit-bearing labels remain parameterized rather than hardcoding a display-unit choice. No new unit conversion or unit-selection behaviour is introduced.",
-      "tests": [
-        "__tests__/volumeTotalLabelLocales.test.ts"
-      ]
-    },
-    {
       "path": "public/locales/it/common.json",
       "disposition": "no unit behaviour",
       "digest": "0cf467074e482cdb6c8fe0f1f77c6e05cf92a54adb055349beb65ffd4e9ec81f",
@@ -151,22 +142,6 @@
       "disposition": "audited",
       "digest": "396a945ebfd20911c7a6709f55412e6121f4cd30d57932166aa967634d08d7cb",
       "reason": "Italian locale (#201, marcomatrella). Reviewed 2026-10-04 against the Italian itself; the row had been submitted with the de row's reason copied verbatim, which describes German history (stale copies removed, keys falling back) that never happened here. A scan of every value for unit words and symbols (km, mi, L, gal, MPG, kPa, PSI, kg, lb, Nm and their Italian names) finds none that the English for the same key does not name, except fuel.receiptTextPlaceholder, a plausible Italian EXAMPLE receipt (45 L, EUR per litre; ruling R5's exempt class, no canonical value behind it). reminder.distanceUntilDue / distanceRequired name no unit; ReminderForm.distanceCopy.test.tsx resolves this bundle and unitCopy.resolvedProse.test.tsx reads its FIXED keys. 2026-10-04 (toll system picker): removes the brand keys under tollSystems (identical to English); keeps tollSystems.other. No unit copy touched.",
-      "tests": [
-        "components/__tests__/ReminderForm.distanceCopy.test.tsx",
-        "__tests__/unitCopy.resolvedProse.test.tsx"
-      ]
-    },
-    {
-      "path": "public/locales/ms/common.json",
-      "disposition": "no unit behaviour",
-      "digest": "3212c3e29bc91cf7131ec2155173161a22767d2480b76e119ac2039cc1bffe7a",
-      "reason": "Malay common locale contains shared UI, validation, account, address-book and error copy only; no unit-bearing quantity or display-unit choice is introduced."
-    },
-    {
-      "path": "public/locales/ms/forms.json",
-      "disposition": "audited",
-      "digest": "f593d2f259b144a9a02b039f65ddbefb8d184d396076c2ad84bd6749529a5dbd",
-      "reason": "Malay forms locale reviewed for unit-sensitive copy. Existing {{unit}} and other interpolation placeholders are preserved; explicit unit names occur only where the form is asking for or describing the unit itself. No display-unit decision is hardcoded by the translation. 2026-10-04 (maintainer fixes on #198): modal.updateStatusAction takes the verb form its siblings use. No unit word. 2026-10-04 (toll system picker): removes the brand keys under tollSystems (identical to English); keeps tollSystems.other. No unit copy touched.",
       "tests": [
         "components/__tests__/ReminderForm.distanceCopy.test.tsx",
         "__tests__/unitCopy.resolvedProse.test.tsx"
@@ -190,6 +165,40 @@
       ]
     },
     {
+      "path": "public/locales/it/vehicles.json",
+      "disposition": "audited",
+      "digest": "dd1f38db39bd1f335aada478fd4843bdb06a520379b2be39b6c3f09ceecbfbc5",
+      "reason": "Italian locale (#201, marcomatrella). Reviewed 2026-10-04 against the Italian itself; the row had been submitted with the de row's reason copied verbatim, which describes German history (stale copies removed, keys falling back) that never happened here. A scan of every value for unit words and symbols (km, mi, L, gal, MPG, kPa, PSI, kg, lb, Nm and their Italian names) finds none that the English for the same key does not name, except windowSticker.misc.warrantyBasicPlaceholder / warrantyPowertrainPlaceholder, which are localized EXAMPLES in km (no canonical value behind them). List headers interpolate the volume unit as en does; volumeTotalLabelLocales.test.ts reads this bundle.",
+      "tests": [
+        "__tests__/volumeTotalLabelLocales.test.ts"
+      ]
+    },
+    {
+      "path": "public/locales/ms/analytics.json",
+      "disposition": "audited",
+      "digest": "1b8513590409506e24de9f11d4dd5ee4ea8def64765ddfb83a51acd542a192e0",
+      "reason": "Malay analytics locale reviewed for unit-sensitive copy. Existing {{unit}} and {{currency}} placeholders are preserved and unit-bearing labels remain parameterized rather than hardcoding a display-unit choice. No new unit conversion or unit-selection behaviour is introduced.",
+      "tests": [
+        "__tests__/volumeTotalLabelLocales.test.ts"
+      ]
+    },
+    {
+      "path": "public/locales/ms/common.json",
+      "disposition": "no unit behaviour",
+      "digest": "3212c3e29bc91cf7131ec2155173161a22767d2480b76e119ac2039cc1bffe7a",
+      "reason": "Malay common locale contains shared UI, validation, account, address-book and error copy only; no unit-bearing quantity or display-unit choice is introduced."
+    },
+    {
+      "path": "public/locales/ms/forms.json",
+      "disposition": "audited",
+      "digest": "f593d2f259b144a9a02b039f65ddbefb8d184d396076c2ad84bd6749529a5dbd",
+      "reason": "Malay forms locale reviewed for unit-sensitive copy. Existing {{unit}} and other interpolation placeholders are preserved; explicit unit names occur only where the form is asking for or describing the unit itself. No display-unit decision is hardcoded by the translation. 2026-10-04 (maintainer fixes on #198): modal.updateStatusAction takes the verb form its siblings use. No unit word. 2026-10-04 (toll system picker): removes the brand keys under tollSystems (identical to English); keeps tollSystems.other. No unit copy touched.",
+      "tests": [
+        "components/__tests__/ReminderForm.distanceCopy.test.tsx",
+        "__tests__/unitCopy.resolvedProse.test.tsx"
+      ]
+    },
+    {
       "path": "public/locales/ms/nav.json",
       "disposition": "no unit behaviour",
       "digest": "65696051e457b4780aa35144fb27a71bb8e163d875b204dfbfe92cc7bafd4fb8",
@@ -204,15 +213,6 @@
         "__tests__/unitDescriptionLocales.test.ts",
         "components/settings/__tests__/UnitPreferencesCard.resolved.test.tsx",
         "__tests__/unitCopy.resolvedProse.test.tsx"
-      ]
-    },
-    {
-      "path": "public/locales/it/vehicles.json",
-      "disposition": "audited",
-      "digest": "dd1f38db39bd1f335aada478fd4843bdb06a520379b2be39b6c3f09ceecbfbc5",
-      "reason": "Italian locale (#201, marcomatrella). Reviewed 2026-10-04 against the Italian itself; the row had been submitted with the de row's reason copied verbatim, which describes German history (stale copies removed, keys falling back) that never happened here. A scan of every value for unit words and symbols (km, mi, L, gal, MPG, kPa, PSI, kg, lb, Nm and their Italian names) finds none that the English for the same key does not name, except windowSticker.misc.warrantyBasicPlaceholder / warrantyPowertrainPlaceholder, which are localized EXAMPLES in km (no canonical value behind them). List headers interpolate the volume unit as en does; volumeTotalLabelLocales.test.ts reads this bundle.",
-      "tests": [
-        "__tests__/volumeTotalLabelLocales.test.ts"
       ]
     },
     {
@@ -964,24 +964,22 @@
     {
       "path": "src/components/SuppliesUsedTab.tsx",
       "disposition": "audited",
-      "digest": "c64afb3ce729600a60850e2e0a138f17929ed329a157125af45505316d312a6d",
-      "reason": "Per-supply token design (#191 Part B): usage quantities go through toDisplay with the supply's resolved SupplyUnit; formatQuantity takes the unit and a locale and no longer takes a UnitSystem. supplyDisplayUnit is the one binary reader left, for the NULL legacy token. The old formatQuantity pragma is gone.",
+      "digest": "7cf1bad293400db15fe3d485bd63c364be9f343b58b87c0a4f20fb0f5a545dcc",
+      "reason": "Per-supply token design (#191 Part B): usage quantities go through formatSupplyQuantity (toDisplay inside) with the supply's resolved SupplyUnit; formatQuantity takes the unit and a locale and no longer takes a UnitSystem. supplyDisplayUnit is the one binary reader left, for the NULL legacy token. The old formatQuantity pragma is gone.",
       "tests": [
         "components/__tests__/SuppliesUsedTab.test.tsx",
         "utils/__tests__/supplyUnits.test.ts"
-      ],
-      "findings": []
+      ]
     },
     {
       "path": "src/components/SupplyHistoryModal.tsx",
       "disposition": "audited",
-      "digest": "f51b4b75ba7984bf8c00fb161ff39efd2ebf45eed7f1cfb4e294ecc3f10d98f1",
-      "reason": "Per-supply token design (#191 Part B): the modal resolves the supply's unit once with supplyDisplayUnit and every display, validation and write goes through toDisplay/toCanonical with that SupplyUnit, so the purchase and adjustment forms read and write in the unit their labels show. The helpers (formatMagnitude, formatQuantity, formatSignedQuantity, the row and form components) take a SupplyUnit and not the collapsed `system`, and all seven pragmas are gone. supplyDisplayUnit is the only binary reader left, for the NULL legacy token. The average unit cost header goes through unitCostToDisplay with costDecimals for the unit; the purchase total keeps the money cap and moneyError. Optional initialForm prop preseeds which log form opens (#191 page tools).",
+      "digest": "39f28795b9d11d5f36afe5d61a8cf635669ddaef7819a532b402e813a06d52c3",
+      "reason": "Per-supply token design (#191 Part B): the modal resolves the supply's unit once with supplyDisplayUnit and every display, validation and write goes through toDisplay/toCanonical with that SupplyUnit, so the purchase and adjustment forms read and write in the unit their labels show. The helpers (formatQuantity, formatSignedQuantity, the row and form components) take a SupplyUnit and not the collapsed `system`, and all seven pragmas are gone; amounts render through formatSupplyAmount/formatSupplyQuantity in the active locale. supplyDisplayUnit is the only binary reader left, for the NULL legacy token. The average unit cost header goes through unitCostToDisplay with costDecimals for the unit; the purchase total keeps the money cap and moneyError. Optional initialForm prop preseeds which log form opens (#191 page tools).",
       "tests": [
         "components/__tests__/SupplyHistoryModal.test.tsx",
         "utils/__tests__/supplyUnits.test.ts"
-      ],
-      "findings": []
+      ]
     },
     {
       "path": "src/components/SupplyUsedPicker.tsx",
@@ -990,8 +988,7 @@
       "reason": "Per-supply token design (#191 Part B): renders unitLabel(unit) for each supply from a unitsBySupplyId map the parent resolved, so the label names the same unit the quantity field is in. No conversion or `system` read here.",
       "tests": [
         "utils/__tests__/supplyUnits.test.ts"
-      ],
-      "findings": []
+      ]
     },
     {
       "path": "src/components/TaxRecordForm.tsx",
@@ -2227,16 +2224,16 @@
       "reason": "no unit behaviour: standard coverage catalogue (2026-09-19, migration 108), the catalogue itself plus the form/API mapping. Reviewed by reading it: it names coverages and their amount slots and marks each slot money or count; the only non-money slot is a number of DAYS, which is not one of the eleven unit-preference quantities. Nothing here reads, converts or displays a distance, volume, mass, pressure, temperature or consumption value. Re-reviewed 2026-09-19 after the coverage-catalogue cleanup (slots became one list, the card and form render from it): still currency amounts, a count of days, dates and text; no unit-bearing quantity."
     },
     {
-      "path": "src/constants/tollSystems.ts",
-      "disposition": "no unit behaviour",
-      "digest": "f432904aff626c0bc0500494531a489ecc7db9604f77778ce43ba3e75bff65bd",
-      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Toll systems by country: ISO country codes, currency and language codes, and brand names. Read in full; no quantity, unit or conversion. 2026-10-04 (toll picker review): header comment now says row order matters for a system listed in several countries. Comment only; no quantity, unit or conversion."
-    },
-    {
       "path": "src/constants/livelink.ts",
       "disposition": "no unit behaviour",
       "digest": "4607fc606cafc2ac6d73ae5e873b8c78b7da72ed02a5d9db72cf67643aad2773",
       "reason": "no unit behaviour: read in full (2026-09-22). A device-id regex and the device-id max length (20 characters, mirroring the backend's max_length). No quantity. 2026-09-22 (sidecars Task 5): adds SETTINGS_LIMITS (integer bounds of four duration settings, mirrored from the backend schema) and parseWholeInRange. Durations in fixed units; no unit conversion or user-unit quantity."
+    },
+    {
+      "path": "src/constants/tollSystems.ts",
+      "disposition": "no unit behaviour",
+      "digest": "f432904aff626c0bc0500494531a489ecc7db9604f77778ce43ba3e75bff65bd",
+      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Toll systems by country: ISO country codes, currency and language codes, and brand names. Read in full; no quantity, unit or conversion. 2026-10-04 (toll picker review): header comment now says row order matters for a system listed in several countries. Comment only; no quantity, unit or conversion."
     },
     {
       "path": "src/contexts/AccentContext.tsx",
@@ -2756,13 +2753,12 @@
     {
       "path": "src/pages/Supplies.tsx",
       "disposition": "audited",
-      "digest": "abfa2d1f0e1eb1564dbc84e9cac4dad44cfdd40d03fdf29cfb34995b11b16cea",
-      "reason": "Per-supply token design (#191 Part B): the page and its supply form resolve one SupplyUnit per supply and convert through toDisplay/toCanonical with it, so on-hand, reorder level and unit cost all share the unit the label shows. supplyDisplayUnit is the one binary reader left, for the NULL legacy token only; the page uses it to resolve a row's unit and the form uses it for the edit default. A new supply's default comes from the NEW_SUPPLY_UNIT lookup keyed on units.volume (the resolved token), not on `system`. The unit picker offers the account's flavour of each unit. Earlier: the average unit cost passes fractionDigits so it keeps its decimals in every currency (money-fits B7 fix 1); search, filters, sort, grouping, list view and quick actions are display composition only (#191 page tools).",
+      "digest": "f57f487c16ce8e7d77af2a42c14d517a69dc273763eefa189134584725414d2a",
+      "reason": "Per-supply token design (#191 Part B): the page and its supply form resolve one SupplyUnit per supply and convert through toDisplay/toCanonical with it, so on-hand, reorder level and unit cost all share the unit the label shows. On-hand renders through formatSupplyQuantity in the active locale. supplyDisplayUnit is the one binary reader left, for the NULL legacy token only; the page uses it to resolve a row's unit and the form uses it for the edit default. A new supply's default comes from the NEW_SUPPLY_UNIT lookup keyed on units.volume (the resolved token), not on `system`. The unit picker offers the account's flavour of each unit. Earlier: the average unit cost passes fractionDigits so it keeps its decimals in every currency (money-fits B7 fix 1); search, filters, sort, grouping, list view and quick actions are display composition only (#191 page tools).",
       "tests": [
         "pages/__tests__/Supplies.test.tsx",
         "utils/__tests__/supplyUnits.test.ts"
-      ],
-      "findings": []
+      ]
     },
     {
       "path": "src/pages/VehicleDetail.tsx",
@@ -3380,8 +3376,8 @@
     {
       "path": "src/utils/supplyUnits.ts",
       "disposition": "audited",
-      "digest": "7451aa8986095ee48f50c8cb76d353fe9224d78490dbac3ac20babe806463cb7",
-      "reason": "Per-supply token design (#191 Part B): every supply carries its own volume_unit token (mL, L, fl oz, qt, gal, US and UK flavours), and conversion goes through toDisplay/toCanonical with a resolved SupplyUnit, so a round trip is exact and nothing here follows the collapsed `system`. supplyDisplayUnit is the one remaining binary reader: for a row with a NULL (or unknown) token it picks qt_us or L off `system`, the legacy guess. It carries one declaration pragma and one `units-exempt(compare)` on that legacy branch, nothing else. unitCostToDisplay is tokenized now (cost per litre times toCanonical(1, unit)) and needs no pragma. Owner: deferred, until the stored token exists on every row.",
+      "digest": "76da5027ea4b5e9d2fbfb8315ffaa5ac8d6b9cfc37b5ef22a875dbd1e432da9f",
+      "reason": "Per-supply token design (#191 Part B): every supply carries its own volume_unit token (mL, L, fl oz, qt, gal, US and UK flavours), and conversion goes through toDisplay/toCanonical with a resolved SupplyUnit, so a round trip is exact and nothing here follows the collapsed `system`. supplyDisplayUnit is the one remaining binary reader: for a row with a NULL (or unknown) token it picks qt_us or L off `system`, the legacy guess. It carries one declaration pragma and one `units-exempt(compare)` on that legacy branch, nothing else. unitCostToDisplay is tokenized now (cost per litre times toCanonical(1, unit)) and needs no pragma. formatSupplyAmount/formatSupplyQuantity format through toDisplay with a SupplyUnit and a locale; a volume that would round to zero gets up to four decimals. Owner: deferred, until the stored token exists on every row.",
       "tests": [
         "utils/__tests__/supplyUnits.test.ts"
       ],
@@ -3408,6 +3404,12 @@
       "disposition": "no unit behaviour",
       "digest": "625bd7bb8f50a8b16094504e640ff9c050cb47acf755c062546e307bf8c71c77",
       "reason": "NEW 2026-09-21 (issue #179). Two functions, no rendering and no value of any kind: `isSelectingText` asks the browser whether a non-empty selection exists, and `unlessSelectingText` wraps a click handler so it does nothing while one does. It exists because every card that is one big click target needs the same guard: once nothing covers the text so a VIN can be highlighted, the click that ENDS the highlight lands on the card. Shared rather than copied so the three cards cannot drift on what counts as a selection. No unit, quantity or user-visible string."
+    },
+    {
+      "path": "src/utils/tollSystems.ts",
+      "disposition": "no unit behaviour",
+      "digest": "8d6731e54d793bad70b54968c7dc7075d4f92a669a3b511683193f6dde433d90",
+      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Matches typed toll system names to the list, guesses a country from currency and language, and builds the dropdown options. Read in full; strings and codes only, no quantity, unit or conversion. 2026-10-04 (toll picker review): tidyTollSystem also splits on NEL and the four separator controls, matching the backend's str.split(). Strings only; no quantity, unit or conversion."
     },
     {
       "path": "src/utils/unitAdapters.ts",
@@ -3490,12 +3492,6 @@
       "disposition": "no unit behaviour",
       "digest": "c71ae8a3f2ec9840ee68d508be2d727c6d872c113a63a0230f6dde148d87f996",
       "reason": "no unit behaviour: which records a vehicle can log (2026-09-24, Quick Entry parity). It reads def_tank_capacity_liters only as a presence test (> 0, a DEF tank is set); no value is converted, formatted or shown. 2026-10-02 (lenient-vocabulary-reads H3): a loaded vehicle with a null vehicle_type (a stored type the app doesn't know) gets the motorized set, while a missing vehicle still gets nothing. def_tank_capacity_liters is still only a presence test; no value is converted, formatted or shown."
-    },
-    {
-      "path": "src/utils/tollSystems.ts",
-      "disposition": "no unit behaviour",
-      "digest": "8d6731e54d793bad70b54968c7dc7075d4f92a669a3b511683193f6dde433d90",
-      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Matches typed toll system names to the list, guesses a country from currency and language, and builds the dropdown options. Read in full; strings and codes only, no quantity, unit or conversion. 2026-10-04 (toll picker review): tidyTollSystem also splits on NEL and the four separator controls, matching the backend's str.split(). Strings only; no quantity, unit or conversion."
     }
   ]
 }

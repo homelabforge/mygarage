@@ -169,5 +169,18 @@ describe('SuppliesUsedTab', () => {
       expect(screen.getByText('4.76 qt')).toBeInTheDocument()
       expect(screen.getByText('250 mL')).toBeInTheDocument()
     })
+
+    it('a 3 mL legacy usage reads 0.003 L, not 0.00 L', () => {
+      const tiny = { ...mockUsages[0], id: 9, quantity: '0.003' }
+      useVehicleSupplyUsagesMock.mockReturnValue({
+        data: { usages: [tiny], total: 1 },
+        isLoading: false,
+        error: null,
+      })
+      render(<SuppliesUsedTab vin="1HGCM82633A004352" />)
+
+      expect(screen.getByText('0.003 L')).toBeInTheDocument()
+      expect(screen.queryByText('0.00 L')).not.toBeInTheDocument()
+    })
   })
 })

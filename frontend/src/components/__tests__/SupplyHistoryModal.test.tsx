@@ -340,11 +340,34 @@ describe('SupplyHistoryModal: the supply keeps its own unit', () => {
     render(<SupplyHistoryModal supply={mlSupply} onClose={vi.fn()} />)
     const dialogText = screen.getByRole('dialog').textContent ?? ''
 
-    expect(screen.getByText('3500 mL')).toBeInTheDocument()
-    expect(dialogText).toContain('+5000 mL')
-    expect(dialogText).toContain('-1000 mL')
+    expect(screen.getByText('3,500 mL')).toBeInTheDocument()
+    expect(dialogText).toContain('+5,000 mL')
+    expect(dialogText).toContain('-1,000 mL')
     expect(dialogText).toContain('-500 mL')
     expect(dialogText).not.toContain('+5.00 L')
+  })
+
+  it('a few mL in litres read as 0.00x L, header and ledger', () => {
+    useSupplyHistoryMock.mockReturnValue({
+      data: {
+        supply_id: 1,
+        on_hand: '0.003',
+        avg_unit_cost: '5.25',
+        entries: [
+          { ...mockEntries[0], quantity: '0.004', running_balance: '0.004' },
+          { ...mockEntries[2], quantity: '-0.001', running_balance: '0.003' },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    })
+    render(<SupplyHistoryModal supply={{ ...mockSupply, on_hand: '0.003' }} onClose={vi.fn()} />)
+    const dialogText = screen.getByRole('dialog').textContent ?? ''
+
+    expect(dialogText).toContain('+0.004 L')
+    expect(dialogText).toContain('-0.001 L')
+    expect(dialogText).toContain('0.003 L')
+    expect(dialogText).not.toContain('0.00 L')
   })
 
   it('the header prices per mL to four places', () => {

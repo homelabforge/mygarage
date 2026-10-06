@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   costDecimals,
   displayDecimals,
+  formatSupplyAmount,
+  formatSupplyQuantity,
   supplyDisplayUnit,
   toCanonical,
   toDisplay,
@@ -59,4 +61,44 @@ it.each([
   ['L', 2], ['count', 2], ['fl_oz_us', 2], ['fl_oz_uk', 2], ['qt_us', 2], ['qt_uk', 2], ['gal_us', 2], ['gal_uk', 2],
 ] as [SupplyUnit, number][])('costDecimals(%s) is %i', (unit, digits) => {
   expect(costDecimals(unit)).toBe(digits)
+})
+
+describe('formatSupplyAmount', () => {
+  it('uses the unit decimals for an ordinary amount', () => {
+    expect(formatSupplyAmount(4.5, 'L', 'en-US')).toBe('4.50')
+    expect(formatSupplyAmount(0.25, 'mL', 'en-US')).toBe('250')
+    expect(formatSupplyAmount(4, 'count', 'en-US')).toBe('4')
+  })
+
+  // Smallest storable amount is 0.001 L; at two decimals every unit but mL reads it as 0.00.
+  it.each([
+    [0.003, 'L', '0.003'],
+    [0.001, 'qt_us', '0.001'],
+    [0.001, 'gal_us', '0.0003'],
+    [0.001, 'gal_uk', '0.0002'],
+    [-0.003, 'L', '-0.003'],
+  ] as [number, SupplyUnit, string][])('%f L in %s reads %s, not zero', (litres, unit, text) => {
+    expect(formatSupplyAmount(litres, unit, 'en-US')).toBe(text)
+  })
+
+  it('a true zero stays at the unit decimals, and a count stays whole', () => {
+    expect(formatSupplyAmount(0, 'L', 'en-US')).toBe('0.00')
+    expect(formatSupplyAmount(0.4, 'count', 'en-US')).toBe('0')
+  })
+
+  it('never goes past four decimals', () => {
+    // Pre-3.8 SQLite rows were not rounded on write, so a stray 1e-9 L can exist.
+    expect(formatSupplyAmount(1e-9, 'L', 'en-US')).toBe('0.0000')
+  })
+
+  it('follows the locale, separators and grouping included', () => {
+    expect(formatSupplyAmount(4.5, 'L', 'de-DE')).toBe('4,50')
+    expect(formatSupplyAmount(0.003, 'L', 'de-DE')).toBe('0,003')
+    expect(formatSupplyAmount(3.5, 'mL', 'en-US')).toBe('3,500')
+  })
+})
+
+it('formatSupplyQuantity adds the label, and none for count', () => {
+  expect(formatSupplyQuantity(0.003, 'L', 'en-US')).toBe('0.003 L')
+  expect(formatSupplyQuantity(4, 'count', 'en-US')).toBe('4')
 })
