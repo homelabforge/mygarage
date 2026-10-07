@@ -64,6 +64,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Number fields say how they read a value like 1,234: "Read as 1,234" shows under the field
 
 ### Changed
+<<<<<<< HEAD
 - An engine-off stop shorter than the drive gap no longer splits a drive
 - The NHTSA recalls switch in Settings > Integrations is honoured. Off, the scheduled recall check skips, Check NHTSA on the Recalls tab is disabled with a line saying where to switch it on, and the API answers 409
 - The Recall Check Interval is honoured. The scheduled check runs daily at 2 AM UTC and checks your vehicles once the interval has passed since the last check. If NHTSA fails to answer for any vehicle (no connection, an error status, or a response that can't be read), the last check time stays put and the next day's run tries again
@@ -129,6 +130,10 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - The `MYGARAGE_RECALL_CHECK_INTERVAL_DAYS` environment variable, which nothing read. The interval is the Recall Check Interval setting
 - `duplicate_of` on the reminder API response. `GET /api/vehicles/{vin}/reminders/duplicates` returns the same groups, and is what the app reads
 - `mount_period_id` on tire readings in the API, which only older readings carried
+=======
+- French translation completed (69% → 96%; the rest is identical to English on purpose) and revised: French typography (’, no-break spaces before : ; ? !, …), vouvoiement, « compteur » for the odometer, « rappel constructeur » for safety recalls, « badge de péage » for toll tags, « Réglages » for the settings screen
+- CI splits the test suites across parallel runners (shared-workflows v1.7.0)
+>>>>>>> f77e21d8 (i18n(fr): complete the French translation and harmonise typography (#1))
 
 ### Fixed
 - DTCs from a WiCAN are recorded over MQTT as well as HTTPS, and only codes shaped like a DTC are kept

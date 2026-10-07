@@ -5,7 +5,7 @@
   "delete": "Supprimer",
   "edit": "Modifier",
   "add": "Ajouter",
-  "loading": "Chargement...",
+  "loading": "Chargement…",
   "error": "Erreur",
   "success": "Succès",
   "confirm": "Confirmer",
@@ -18,20 +18,21 @@
   "yes": "Oui",
   "no": "Non",
   "ok": "OK",
+  "unknown": "Inconnu",
   "signIn": "Se connecter",
   "signOut": "Se déconnecter",
   "register": {
     "title": "Créer un compte",
     "subtitle": "Configurez votre compte MyGarage",
-    "username": "Nom d'utilisateur",
+    "username": "Nom d’utilisateur",
     "email": "E-mail",
     "password": "Mot de passe",
     "submit": "Créer un compte",
-    "hasAccount": "Vous avez déjà un compte ?",
+    "hasAccount": "Vous avez déjà un compte ?",
     "loginLink": "Se connecter",
-    "success": "Compte créé avec succès !"
+    "success": "Compte créé avec succès !"
   },
-  "username": "Nom d'utilisateur",
+  "username": "Nom d’utilisateur",
   "password": "Mot de passe",
   "email": "E-mail",
   "fullName": "Nom complet",
@@ -41,27 +42,40 @@
     "usernameOrEmail": "Nom d’utilisateur ou adresse e-mail",
     "password": "Mot de passe",
     "submit": "Se connecter",
-    "noAccount": "Vous n'avez pas de compte ?",
+    "noAccount": "Vous n’avez pas de compte ?",
     "registerLink": "Inscrivez-vous ici",
     "oidcSignIn": "Se connecter avec {{provider}}",
     "continueWithPassword": "Ou continuer avec un mot de passe",
-    "error": "Nom d'utilisateur ou mot de passe invalide"
+    "error": "Nom d’utilisateur ou mot de passe invalide",
+    "signInAction": "de se connecter",
+    "ssoError": {
+      "account_disabled": "Le compte utilisateur est désactivé",
+      "email_linked_elsewhere": "Cette adresse e-mail appartient à un compte lié à une autre identité de connexion. Demandez à un administrateur d’autoriser une nouvelle liaison SSO pour ce compte.",
+      "email_no_password": "Un compte existe avec cette adresse e-mail, mais il n’a pas de mot de passe pour le confirmer. Demandez à un administrateur d’autoriser une nouvelle liaison SSO pour ce compte.",
+      "username_linked_elsewhere": "Ce nom d’utilisateur appartient à un compte lié à une autre identité de connexion. Demandez à un administrateur d’autoriser une nouvelle liaison SSO pour ce compte.",
+      "username_no_password": "Un compte existe avec ce nom d’utilisateur, mais il n’a pas de mot de passe pour le confirmer. Demandez à un administrateur d’autoriser une nouvelle liaison SSO pour ce compte.",
+      "no_account": "Aucun compte MyGarage ne correspond à cette connexion et la création automatique de compte est désactivée. Demandez à un administrateur de créer votre compte.",
+      "cancelled": "La connexion a été annulée.",
+      "expired": "Cette connexion a pris trop de temps ou a déjà été utilisée. Veuillez réessayer.",
+      "failed": "L’authentification unique n’a pas fonctionné. Veuillez réessayer ou demander à un administrateur de vérifier les réglages SSO.",
+      "rate_limited": "Trop de tentatives de connexion. Patientez une minute, puis réessayez."
+    }
   },
   "oidc": {
-    "signingIn": "Connexion en cours...",
-    "success": "Authentification réussie !",
-    "redirecting": "Redirection vers votre garage...",
-    "error": "Échec de l'authentification",
+    "signingIn": "Connexion en cours…",
+    "success": "Authentification réussie !",
+    "redirecting": "Redirection vers votre garage…",
+    "error": "Échec de l’authentification",
     "linkAccount": "Lier le compte",
     "linkDescription": "Liez votre compte existant à votre identité SSO"
   },
   "auth": {
-    "tagline": "Suivi auto-hébergé de l'entretien des véhicules"
+    "tagline": "Suivi auto-hébergé de l’entretien des véhicules"
   },
   "addressBook": {
-    "title": "Carnet d'adresses",
-    "subtitle": "Ateliers de service, fournisseurs de pièces, concessionnaires et contacts d'assurance",
-    "searchPlaceholder": "Rechercher des contacts...",
+    "title": "Carnet d’adresses",
+    "subtitle": "Ateliers de service, fournisseurs de pièces, concessionnaires et contacts d’assurance",
+    "searchPlaceholder": "Rechercher des contacts…",
     "allCategories": "Toutes les catégories",
     "categoryService": "Service",
     "categoryParts": "Pièces",
@@ -71,15 +85,15 @@
     "addContact": "Ajouter un contact",
     "addFirstContact": "Ajoutez votre premier contact",
     "editContact": "Modifier le contact",
-    "loading": "Chargement des contacts...",
+    "loading": "Chargement des contacts…",
     "noContacts": "Aucun contact pour le moment.",
     "noMatchingContacts": "Aucun contact ne correspond à vos filtres.",
-    "confirmDelete": "Supprimer ce contact ?",
+    "confirmDelete": "Supprimer ce contact ?",
     "deleteError": "Échec de la suppression du contact",
-    "businessName": "Nom de l'entreprise",
+    "businessName": "Nom de l’entreprise",
     "contactName": "Nom du contact",
     "category": "Catégorie",
-    "selectCategory": "Sélectionnez une catégorie...",
+    "selectCategory": "Sélectionnez une catégorie…",
     "email": "E-mail",
     "phone": "Téléphone",
     "website": "Site web",
@@ -89,16 +103,18 @@
     "statePlaceholder": "État / région",
     "zipCode": "Code postal",
     "notes": "Notes",
-    "notesPlaceholder": "Notes supplémentaires sur ce contact...",
+    "notesPlaceholder": "Notes supplémentaires sur ce contact…",
     "gasStationFlag": "Station-service",
     "gasStations": "Stations-service",
     "gasStationsFilterHint": "Afficher uniquement les stations-service créées à partir des enregistrements de carburant",
     "categoryRvPark": "Aire de camping-cars",
-    "categoryAll": "Tous",
     "categoryGasStation": "Station-service",
-    "editContactNamed": "Modifier {{name}}",
+    "categoryAll": "Tous",
     "filterByCategory": "Filtrer par catégorie",
-    "saveChanges": "Enregistrer les modifications"
+    "editContactNamed": "Modifier {{name}}",
+    "saveChanges": "Enregistrer les modifications",
+    "saveAction": "d’enregistrer le contact",
+    "deleteAction": "de supprimer le contact"
   },
   "supplies": {
     "title": "Fournitures",
@@ -106,33 +122,72 @@
     "addSupply": "Ajouter une fourniture",
     "addFirstSupply": "Ajoutez votre première fourniture",
     "editSupply": "Modifier la fourniture",
-    "loading": "Chargement des fournitures...",
+    "loading": "Chargement des fournitures…",
     "loadError": "Échec du chargement des fournitures",
     "noSupplies": "Aucune fourniture pour le moment.",
     "showArchived": "Afficher les archivées",
     "archived": "Archivée",
-    "confirmDelete": "Supprimer cette fourniture ?",
+    "searchSupplies": "Rechercher des fournitures…",
+    "showingResults": "Affichage de {{shown}} fournitures sur {{total}}",
+    "clearFilters": "Effacer les filtres",
+    "filterByCategory": "Filtrer par catégorie",
+    "allCategories": "Toutes les catégories",
+    "filterByVehicle": "Filtrer par véhicule",
+    "allVehicles": "Tous les véhicules",
+    "sharedVehicle": "Partagée",
+    "outOfStock": "Rupture de stock",
+    "noMatches": "Aucune fourniture ne correspond aux filtres actuels",
+    "sortSupplies": "Trier les fournitures",
+    "sortTrigger": "Tri : {{label}}",
+    "sortByName": "Nom",
+    "sortByLowestStock": "Stock le plus bas en premier",
+    "sortByCategory": "Catégorie",
+    "groupSupplies": "Regrouper les fournitures",
+    "groupTrigger": "Regroupement : {{label}}",
+    "groupNone": "Aucun",
+    "groupByCategory": "Catégorie",
+    "groupByVehicle": "Véhicule",
+    "noCategory": "Sans catégorie",
+    "gridView": "Vue en grille",
+    "listView": "Vue en liste",
+    "tableCaption": "Inventaire des fournitures",
+    "confirmDelete": "Supprimer cette fourniture ?",
     "deleted": "Fourniture supprimée",
     "deleteError": "Échec de la suppression de la fourniture",
     "name": "Nom",
-    "unitType": "Type d'unité",
+    "unitType": "Type d’unité",
     "unitTypeVolume": "Volume",
     "unitTypeCount": "Nombre",
-    "unitTypeImmutable": "Le type d'unité ne peut pas être modifié après la création d'une fourniture.",
+    "unitTypeImmutable": "Le type d’unité ne peut pas être modifié après la création d’une fourniture.",
+    "volumeUnit": "Unité",
+    "volumeUnitHint": "Changer l’unité ne modifie pas la quantité en stock.",
+    "volumeUnits": {
+      "mL": "Millilitres (mL)",
+      "fl_oz_us": "Onces liquides américaines (fl oz)",
+      "fl_oz_uk": "Onces liquides impériales (fl oz)",
+      "qt_us": "Quarts américains (qt)",
+      "qt_uk": "Quarts impériaux (qt)"
+    },
     "partNumber": "Numéro de pièce",
+    "barcode": "Code-barres",
+    "scanBarcode": "Scanner",
+    "barcodeManualPrompt": "La lecture de codes-barres n’est pas prise en charge par ce navigateur. Saisissez le code-barres manuellement :",
+    "barcodeNotFound": "Aucun code-barres trouvé dans cette image",
+    "barcodeScanError": "Échec de la lecture du code-barres",
     "category": "Catégorie",
     "vehicle": "Véhicule",
     "sharedAcrossVehicles": "Partagée entre tous les véhicules",
     "onHand": "En stock",
     "avgUnitCost": "Coût unitaire moyen",
     "avgCostPerUnit": "Coût moy./{{unit}}",
-    "negativeWarning": "L'utilisation enregistrée dépasse les achats enregistrés",
+    "negativeWarning": "L’utilisation enregistrée dépasse les achats enregistrés",
     "activeToggle": "Active (décochez pour archiver)",
-    "viewHistory": "Voir l'historique",
+    "viewHistory": "Voir l’historique",
+    "saveAction": "d’enregistrer la fourniture",
     "history": {
-      "title": "Historique : {{name}}",
-      "loading": "Chargement de l'historique...",
-      "loadError": "Échec du chargement de l'historique",
+      "title": "Historique : {{name}}",
+      "loading": "Chargement de l’historique…",
+      "loadError": "Échec du chargement de l’historique",
       "empty": "Aucun achat ou aucune utilisation enregistrée pour le moment.",
       "ledger": "Registre",
       "purchase": "Achat",
@@ -143,54 +198,66 @@
       "downloadReceipt": "Télécharger le reçu",
       "downloadError": "Échec du téléchargement du reçu",
       "deleteReceipt": "Supprimer le reçu",
-      "confirmDeleteReceipt": "Supprimer ce reçu ?",
+      "confirmDeleteReceipt": "Supprimer ce reçu ?",
       "receiptDeleted": "Reçu supprimé",
       "receiptDeleteError": "Échec de la suppression du reçu",
       "chooseReceipt": "Joindre un reçu",
       "uploadReceipt": "Téléverser",
       "receiptUploaded": "Reçu téléversé",
       "receiptUploadError": "Échec du téléversement du reçu",
-      "deletePurchase": "Supprimer l'achat",
-      "confirmDeletePurchase": "Supprimer cet achat ? Cela supprimera également son reçu.",
+      "deletePurchase": "Supprimer l’achat",
+      "confirmDeletePurchase": "Supprimer cet achat ? Cela supprimera également son reçu.",
       "purchaseDeleted": "Achat supprimé",
-      "purchaseDeleteError": "Échec de la suppression de l'achat",
-      "deleteAdjustment": "Supprimer l'ajustement",
-      "confirmDeleteAdjustment": "Supprimer cet ajustement ?",
+      "purchaseDeleteError": "Échec de la suppression de l’achat",
+      "deleteAdjustment": "Supprimer l’ajustement",
+      "confirmDeleteAdjustment": "Supprimer cet ajustement ?",
       "adjustmentDeleted": "Ajustement supprimé",
-      "adjustmentDeleteError": "Échec de la suppression de l'ajustement",
+      "adjustmentDeleteError": "Échec de la suppression de l’ajustement",
       "logPurchase": "Enregistrer un achat",
       "logAdjustment": "Enregistrer un ajustement",
       "quantity": "Quantité",
       "quantityRequired": "Saisissez une quantité supérieure à 0",
+      "quantityTooSmall": "Quantité trop faible pour être enregistrée : moins de 1 mL après conversion",
       "supplier": "Fournisseur",
       "noSupplier": "Aucun fournisseur",
       "receipt": "Reçu (facultatif)",
       "purchaseLogged": "Achat enregistré",
       "adjustmentLogged": "Ajustement enregistré",
-      "adjustmentHint": "Enregistre le stock retiré en dehors d'une intervention d'entretien (ex. déversement, don, mise au rebut)."
+      "adjustmentHint": "Enregistre le stock retiré en dehors d’une intervention d’entretien (ex. déversement, don, mise au rebut).",
+      "logPurchaseAction": "d’enregistrer l’achat",
+      "logAdjustmentAction": "d’enregistrer l’ajustement",
+      "downloadAction": "de télécharger le reçu",
+      "purchaseDeleteAction": "de supprimer l’achat",
+      "receiptDeleteAction": "de supprimer le reçu",
+      "receiptUploadAction": "de téléverser le reçu",
+      "adjustmentDeleteAction": "de supprimer l’ajustement",
+      "loadAction": "de charger l’historique"
     },
     "usedTab": {
       "title": "Fournitures utilisées",
       "count": "{{count}} utilisation(s) de fourniture enregistrée(s)",
-      "loading": "Chargement des fournitures utilisées...",
+      "loading": "Chargement des fournitures utilisées…",
       "loadError": "Échec du chargement des fournitures utilisées",
       "empty": "Aucune fourniture enregistrée pour ce véhicule pour le moment.",
       "quantity": "Quantité",
-      "viewVisit": "Voir la visite d'entretien"
-    }
+      "viewVisit": "Voir la visite d’entretien",
+      "loadAction": "de charger les fournitures utilisées"
+    },
+    "deleteAction": "de supprimer la fourniture",
+    "loadAction": "de charger les fournitures"
   },
   "poiFinder": {
-    "title": "Trouver des points d'intérêt",
+    "title": "Trouver des points d’intérêt",
     "subtitle": "Découvrez des ateliers automobiles, des bornes de recharge pour véhicules électriques, des stations-service et des services pour camping-cars à proximité",
     "categories": "Catégories",
     "searchRadius": "Rayon de recherche",
     "recentlyUsed": "Récemment utilisés",
     "useMyLocation": "Utiliser ma position",
     "enableCategory": "Activez au moins une catégorie à rechercher",
-    "searching": "Recherche à proximité...",
+    "searching": "Recherche à proximité…",
     "searchingHint": "Cela peut prendre quelques secondes selon votre fournisseur.",
     "newSearch": "Nouvelle recherche",
-    "noPOIsFound": "Aucun point d'intérêt trouvé",
+    "noPOIsFound": "Aucun point d’intérêt trouvé",
     "noPOIsHint": "Essayez un rayon plus large ou activez plus de catégories.",
     "or": "ou",
     "addressPlaceholder": "Rechercher par adresse (ville, code postal, etc.)",
@@ -198,47 +265,50 @@
     "addressTooShort": "Saisissez une adresse (≥2 caractères)",
     "addressNotFound": "Aucun résultat pour cette adresse",
     "geocodeFailed": "Échec du géocodage",
+    "geocodeAction": "de géocoder l’adresse",
     "categoryAutoShops": "Ateliers auto",
     "categoryEvCharging": "Recharge de véhicules électriques",
     "categoryGasStations": "Stations-service",
     "categoryPropane": "Propane",
     "categoryRvShops": "Ateliers pour camping-cars",
     "usedTimes": "Utilisé {{count}} fois",
-    "foundCount": "{{count}} point(s) d'intérêt trouvé(s)",
+    "foundCount": "{{count}} point(s) d’intérêt trouvé(s)",
     "source": "Source",
-    "geolocationUnsupported": "La géolocalisation n'est pas prise en charge par votre navigateur",
-    "locationFailed": "Impossible d'obtenir votre position",
-    "locationDenied": "Autorisation de localisation refusée. Veuillez activer l'accès à la localisation dans les paramètres de votre navigateur.",
+    "geolocationUnsupported": "La géolocalisation n’est pas prise en charge par votre navigateur",
+    "locationFailed": "Impossible d’obtenir votre position",
+    "locationDenied": "Autorisation de localisation refusée. Veuillez activer l’accès à la localisation dans les paramètres de votre navigateur.",
     "locationUnavailable": "Les informations de localisation ne sont pas disponibles.",
     "locationTimeout": "La demande de localisation a expiré.",
-    "searchFailed": "Échec de la recherche de points d'intérêt",
-    "saveFailed": "Échec de l'enregistrement du point d'intérêt",
-    "savedToAddressBook": "{{name}} a été enregistré dans le carnet d'adresses !"
+    "searchFailed": "Échec de la recherche de points d’intérêt",
+    "searchAction": "de rechercher des points d’intérêt",
+    "saveFailed": "Échec de l’enregistrement du point d’intérêt",
+    "saveAction": "d’enregistrer le point d’intérêt",
+    "savedToAddressBook": "{{name}} a été enregistré dans le carnet d’adresses !"
   },
   "about": {
     "title": "À propos",
     "subtitle": "En savoir plus sur MyGarage",
-    "tagline": "Suivi auto-hébergé de l'entretien des véhicules pour la communauté homelab",
-    "whatIsTitle": "Qu'est-ce que MyGarage ?",
-    "whatIsDescription1": "MyGarage est un outil auto-hébergé de suivi de l'entretien des véhicules qui conserve chaque détail de votre flotte — pleins de carburant, visites d'entretien, fluides, immatriculations, garanties, rappels et notes — en un seul endroit sous votre contrôle.",
+    "tagline": "Suivi auto-hébergé de l’entretien des véhicules pour la communauté homelab",
+    "whatIsTitle": "Qu’est-ce que MyGarage ?",
+    "whatIsDescription1": "MyGarage est un outil auto-hébergé de suivi de l’entretien des véhicules qui conserve chaque détail de votre flotte — pleins de carburant, visites d’entretien, fluides, immatriculations, garanties, rappels et notes — en un seul endroit sous votre contrôle.",
     "whatIsDescription2": "Conçu pour la communauté homelab, MyGarage fonctionne sur votre propre infrastructure sans partage de données avec des tiers ni télémétrie. Vos données véhicule restent les vôtres.",
-    "whyTitle": "Pourquoi MyGarage ?",
+    "whyTitle": "Pourquoi MyGarage ?",
     "privacyFirst": "Confidentialité avant tout",
     "privacyFirstDesc": "Vos données résident sur votre matériel. Aucun serveur externe, aucune analyse, aucune intégration surprise.",
     "databaseSettings": "Paramètres de base de données",
-    "databaseSettingsDesc": "Choisissez SQLite (par défaut) pour un usage homelab simple ou PostgreSQL pour des déploiements multi-utilisateurs. Les migrations s'appliquent automatiquement au démarrage.",
+    "databaseSettingsDesc": "Choisissez SQLite (par défaut) pour un usage homelab simple ou PostgreSQL pour des déploiements multi-utilisateurs. Les migrations s’appliquent automatiquement au démarrage.",
     "multiNotifications": "Notifications multicanales",
-    "multiNotificationsDesc": "Recevez des rappels d'entretien via Ntfy, Apprise, e-mail ou webhook — là où cela convient à votre homelab.",
+    "multiNotificationsDesc": "Recevez des rappels d’entretien via Ntfy, Apprise, e-mail ou webhook — là où cela convient à votre homelab.",
     "comprehensiveTracking": "Suivi complet",
     "comprehensiveTrackingDesc": "Consommation de carburant, utilisation de DEF, historique de pression des pneus, entretien planifié, photos, documents et télémétrie OBD-II en direct — tout est couvert.",
-    "builtWithAI": "Conçu avec l'IA",
-    "builtWithAIDesc": "MyGarage est le résultat d'une collaboration humain-dans-la-boucle entre Jamey et une équipe d'assistants IA. Chaque agent est spécialisé dans une partie différente du flux de travail.",
+    "builtWithAI": "Conçu avec l’IA",
+    "builtWithAIDesc": "MyGarage est le résultat d’une collaboration humain-dans-la-boucle entre Jamey et une équipe d’assistants IA. Chaque agent est spécialisé dans une partie différente du flux de travail.",
     "claudeRole": "conception, planification, revue de code et implémentation",
-    "operatorRole": "automatisation du navigateur et vérification de l'interface utilisateur",
+    "operatorRole": "automatisation du navigateur et vérification de l’interface utilisateur",
     "codexRole": "revue de code et validation en second avis",
     "poweredByNHTSA": "Fourni par NHTSA",
     "nhtsaDesc1": "Le décodage VIN, les recherches de rappels et les données de sécurité proviennent tous des API publiques de la National Highway Traffic Safety Administration des États-Unis — gratuites, officielles et faisant autorité.",
-    "nhtsaDesc2": "Remarque : les données NHTSA sont les plus complètes pour les véhicules vendus aux États-Unis.",
+    "nhtsaDesc2": "Remarque : les données NHTSA sont les plus complètes pour les véhicules vendus aux États-Unis.",
     "learnMore": "En savoir plus",
     "projectWebsite": "Site web du projet",
     "githubRepo": "Dépôt GitHub",
@@ -248,14 +318,14 @@
     "forCommunity": "pour la communauté homelab"
   },
   "errors": {
-    "generic": "Une erreur s'est produite. Veuillez réessayer.",
+    "generic": "Une erreur s’est produite. Veuillez réessayer.",
     "network": "Erreur réseau. Veuillez vérifier votre connexion.",
     "unauthorized": "Veuillez vous connecter pour continuer.",
-    "forbidden": "Vous n'avez pas l'autorisation de faire cela.",
+    "forbidden": "Vous n’avez pas l’autorisation de faire cela.",
     "notFound": "La ressource demandée est introuvable.",
     "validation": "Veuillez vérifier votre saisie et réessayer."
   },
-  "footer": "MyGarage v{{version}} - Suivi auto-hébergé de l'entretien des véhicules",
+  "footer": "MyGarage v{{version}} - Suivi auto-hébergé de l’entretien des véhicules",
   "active": "Actif",
   "additionalNotes": "Notes supplémentaires",
   "admin": "Admin",
@@ -263,28 +333,29 @@
   "appName": "MyGarage",
   "autoCalculated": "Calculé automatiquement",
   "characters": "caractères",
-  "checkFields": "Veuillez vérifier ces champs : {{fields}}",
+  "checkFields": "Veuillez vérifier ces champs : {{fields}}",
   "clear": "Effacer",
   "create": "Créer",
   "dashboard": "Tableau de bord",
   "date": "Date",
-  "deleting": "Suppression...",
+  "deleting": "Suppression…",
   "enabled": "Activé",
   "endDate": "Date de fin",
+  "engineHours": "Heures moteur",
   "inactive": "Inactif",
   "installPrompt": {
     "title": "Installer MyGarage",
-    "description": "Ajoutez MyGarage à votre écran d'accueil pour un accès rapide.",
+    "description": "Ajoutez MyGarage à votre écran d’accueil pour un accès rapide.",
     "install": "Installer"
   },
   "mileage": "Kilométrage",
   "none": "Aucun",
   "notes": "Notes",
   "previous": "Précédent",
-  "processing": "Traitement...",
+  "processing": "Traitement…",
   "remove": "Retirer",
   "retry": "Réessayer",
-  "saving": "Enregistrement...",
+  "saving": "Enregistrement…",
   "select": "Sélectionner",
   "selectType": "Sélectionner le type",
   "startDate": "Date de début",
@@ -307,38 +378,42 @@
     "other": "Autre"
   },
   "familyCard": {
+    "allowSsoRelink": "Autoriser une nouvelle liaison SSO pendant 30 minutes",
+    "cancelSsoRelink": "Annuler la nouvelle liaison SSO",
     "columnLastService": "Dernier entretien",
     "columnNextMaintenance": "Prochain entretien",
     "columnVehicle": "Véhicule",
-    "deleteUser": "Supprimer l'utilisateur",
-    "disableUser": "Désactiver l'utilisateur",
-    "editUser": "Modifier l'utilisateur",
-    "enableUser": "Activer l'utilisateur",
+    "deleteUser": "Supprimer l’utilisateur",
+    "disableUser": "Désactiver l’utilisateur",
+    "editUser": "Modifier l’utilisateur",
+    "enableUser": "Activer l’utilisateur",
     "hideFromDashboard": "Masquer du tableau de bord",
     "moveDown": "Descendre",
     "moveUp": "Monter",
     "noMaintenanceScheduled": "Aucun entretien planifié",
-    "noServiceRecords": "Aucun historique d'entretien",
+    "noServiceRecords": "Aucun historique d’entretien",
     "noVehicles": "Aucun véhicule",
+    "relinkOpenUntil": "Nouvelle liaison possible jusqu’à {{time}}",
     "resetPassword": "Réinitialiser le mot de passe",
     "showOnDashboard": "Afficher sur le tableau de bord"
   },
   "registerPage": {
-    "successTitle": "Inscription réussie !",
-    "successAdminRedirect": "Vous êtes l'admin ! Redirection vers la connexion...",
-    "successRedirect": "Votre compte a été créé. Redirection vers la connexion...",
-    "adminBadge": "Vous serez l'admin !",
-    "usernamePlaceholder": "Choisissez un nom d'utilisateur",
+    "successTitle": "Inscription réussie !",
+    "successAdminRedirect": "Vous êtes l’admin ! Redirection vers la connexion…",
+    "successRedirect": "Votre compte a été créé. Redirection vers la connexion…",
+    "adminBadge": "Vous serez l’admin !",
+    "usernamePlaceholder": "Choisissez un nom d’utilisateur",
     "usernameHint": "Au moins 3 caractères, lettres, chiffres, _ et - uniquement",
     "passwordPlaceholder": "Créez un mot de passe robuste",
     "confirmPasswordLabel": "Confirmer le mot de passe",
     "confirmPasswordPlaceholder": "Confirmez votre mot de passe",
     "showPassword": "Afficher le mot de passe",
     "hidePassword": "Masquer le mot de passe",
-    "passwordStrength": "Solidité du mot de passe : {{strength}}",
-    "passwordRequirements": "Doit contenir : 8+ caractères, majuscule, minuscule, chiffre, caractère spécial (!@#$...)",
-    "submitting": "Création du compte...",
-    "failed": "Échec de l'inscription. Veuillez réessayer.",
+    "passwordStrength": "Solidité du mot de passe : {{strength}}",
+    "passwordRequirements": "Doit contenir : 8+ caractères, majuscule, minuscule, chiffre, caractère spécial (!@#$…)",
+    "submitting": "Création du compte…",
+    "failed": "Échec de l’inscription. Veuillez réessayer.",
+    "createAccountAction": "de créer votre compte",
     "strength": {
       "weak": "Faible",
       "medium": "Moyen",
@@ -346,21 +421,22 @@
     }
   },
   "loginPage": {
-    "usernamePlaceholder": "Saisissez votre nom d'utilisateur ou e-mail",
+    "usernamePlaceholder": "Saisissez votre nom d’utilisateur ou e-mail",
     "passwordPlaceholder": "Saisissez votre mot de passe",
     "showPassword": "Afficher le mot de passe",
     "hidePassword": "Masquer le mot de passe",
-    "submitting": "Connexion en cours..."
+    "submitting": "Connexion en cours…"
   },
   "linkAccountPage": {
     "passwordPlaceholder": "Saisissez votre mot de passe",
     "cancel": "Annuler",
-    "linking": "Association en cours...",
-    "forgotPassword": "Mot de passe oublié ?",
+    "linking": "Association en cours…",
+    "forgotPassword": "Mot de passe oublié ?",
     "returnToLogin": "Retour à la connexion",
     "missingToken": "Le jeton de liaison est manquant. Veuillez redémarrer le processus de connexion.",
     "passwordRequired": "Le mot de passe est requis",
-    "failed": "Échec de la liaison du compte. Veuillez réessayer."
+    "failed": "Échec de la liaison du compte. Veuillez réessayer.",
+    "linkAction": "de lier le compte"
   },
   "protectedRoute": {
     "loadingAriaLabel": "Chargement"
@@ -381,12 +457,12 @@
     "categoryPropane": "Propane",
     "connectors": "Connecteurs",
     "network": "Réseau",
-    "saveToAddressBook": "Enregistrer dans le carnet d'adresses",
-    "savedToAddressBook": "Enregistré dans le carnet d'adresses",
+    "saveToAddressBook": "Enregistrer dans le carnet d’adresses",
+    "savedToAddressBook": "Enregistré dans le carnet d’adresses",
     "source": "Source"
   },
   "addressBookQuickAdd": {
-    "title": "Ajouter une entrée au carnet d'adresses",
+    "title": "Ajouter une entrée au carnet d’adresses",
     "close": "Fermer",
     "name": "Nom",
     "address": "Adresse (facultatif)",
@@ -394,16 +470,17 @@
     "state": "État",
     "cancel": "Annuler",
     "add": "Ajouter",
-    "adding": "Ajout...",
-    "addFailed": "Échec de l'ajout de l'entrée"
+    "adding": "Ajout…",
+    "addFailed": "Échec de l’ajout de l’entrée",
+    "addAction": "d’ajouter l’entrée"
   },
   "addressBookAutocomplete": {
-    "placeholder": "Saisissez pour rechercher...",
+    "placeholder": "Saisissez pour rechercher…",
     "clear": "Effacer la station",
-    "helperText": "Saisissez au moins 2 caractères pour rechercher dans le carnet d'adresses",
+    "helperText": "Saisissez au moins 2 caractères pour rechercher dans le carnet d’adresses",
     "noMatches": "Aucun contact trouvé correspondant à \"{{query}}\"",
     "noMatchesInCategory": "Aucun contact trouvé correspondant à \"{{query}}\" dans la catégorie {{category}}",
-    "addToAddressBook": "Ajouter \"{{query}}\" au carnet d'adresses"
+    "addToAddressBook": "Ajouter \"{{query}}\" au carnet d’adresses"
   },
   "exportMenu": {
     "export": "Exporter"
@@ -413,8 +490,8 @@
     "categoryPlaceholder": "Fluides"
   },
   "errorBoundary": {
-    "title": "Quelque chose s'est mal passé",
-    "description": "Une erreur inattendue s'est produite. Veuillez essayer d'actualiser la page ou contacter le support si le problème persiste.",
+    "title": "Quelque chose s’est mal passé",
+    "description": "Une erreur inattendue s’est produite. Veuillez essayer d’actualiser la page ou contacter le support si le problème persiste.",
     "tryAgain": "Réessayer",
     "goToDashboard": "Aller au tableau de bord"
   },
@@ -426,10 +503,10 @@
   },
   "validation": {
     "username": {
-      "required": "Le nom d'utilisateur est requis",
-      "minLength": "Le nom d'utilisateur doit comporter au moins 3 caractères",
-      "maxLength": "Le nom d'utilisateur doit contenir moins de 100 caractères",
-      "pattern": "Le nom d'utilisateur ne peut contenir que des lettres, chiffres, tirets bas et traits d'union"
+      "required": "Le nom d’utilisateur est requis",
+      "minLength": "Le nom d’utilisateur doit comporter au moins 3 caractères",
+      "maxLength": "Le nom d’utilisateur doit contenir moins de 100 caractères",
+      "pattern": "Le nom d’utilisateur ne peut contenir que des lettres, chiffres, tirets bas et traits d’union"
     },
     "password": {
       "required": "Le mot de passe est requis",
@@ -444,57 +521,88 @@
       "invalid": "Mot de passe invalide"
     },
     "email": {
-      "required": "L'e-mail est requis",
+      "required": "L’e-mail est requis",
       "invalid": "Adresse e-mail invalide",
-      "maxLength": "L'e-mail doit contenir moins de 255 caractères"
+      "maxLength": "L’e-mail doit contenir moins de 255 caractères"
     },
     "serviceVisit": {
       "descriptionRequired": "La description est requise",
       "descriptionTooLong": "Description trop longue (max. 200 caractères)",
       "lineItemNotesTooLong": "Notes trop longues (max. 1000 caractères)",
-      "inspectionResultInvalid": "Résultat d'inspection invalide",
-      "inspectionSeverityInvalid": "Niveau de gravité d'inspection invalide",
+      "inspectionResultInvalid": "Résultat d’inspection invalide",
+      "inspectionSeverityInvalid": "Niveau de gravité d’inspection invalide",
       "notesTooLong": "Notes trop longues (max. 5000 caractères)",
-      "insuranceClaimNumberTooLong": "Numéro de réclamation d'assurance trop long (max. 50 caractères)",
-      "lineItemsRequired": "Au moins une ligne d'article est requise",
-      "inspectionResultRequired": "Le résultat d'inspection est requis pour les éléments d'inspection"
+      "insuranceClaimNumberTooLong": "Numéro de réclamation d’assurance trop long (max. 50 caractères)",
+      "lineItemsRequired": "Au moins une ligne d’article est requise",
+      "inspectionResultRequired": "Le résultat d’inspection est requis pour les éléments d’inspection"
     },
     "supply": {
       "nameRequired": "Le nom est requis",
       "nameTooLong": "Nom trop long",
-      "unitTypeRequired": "Le type d'unité est requis",
+      "unitTypeRequired": "Le type d’unité est requis",
       "partNumberTooLong": "Numéro de pièce trop long",
+      "barcodeTooLong": "Code-barres trop long (max. 64 caractères)",
       "categoryTooLong": "Catégorie trop longue",
       "notesTooLong": "Notes trop longues"
     },
     "tollTag": {
+      "countryRequired": "Choisissez un pays, ou « Autre » si le vôtre n’est pas dans la liste",
+      "systemNameRequired": "Saisissez le nom du système de péage",
+      "systemNameTooLong": "Nom du système de péage trop long (max. 50 caractères)",
       "systemRequired": "Le système de péage est requis",
-      "tagNumberRequired": "Le numéro d'étiquette est requis",
-      "tagNumberTooLong": "Numéro d'étiquette trop long (max. 50 caractères)"
+      "tagNumberRequired": "Le numéro d’étiquette est requis",
+      "tagNumberTooLong": "Numéro d’étiquette trop long (max. 50 caractères)"
+    },
+    "financing": {
+      "categoryRequired": "La catégorie est requise"
     },
     "odometer": {
       "negative": "Le compteur kilométrique ne peut pas être négatif",
-      "tooLarge": "Valeur du compteur kilométrique trop grande"
+      "tooLarge": "Valeur du compteur kilométrique trop grande",
+      "invalid": "Saisissez un nombre valide",
+      "required": "Le compteur kilométrique est requis"
+    },
+    "engineHours": {
+      "negative": "Les heures moteur ne peuvent pas être négatives",
+      "tooLarge": "Valeur des heures moteur trop élevée",
+      "invalid": "Saisissez un nombre valide",
+      "required": "Les heures moteur sont requises"
     },
     "amount": {
       "negative": "Le montant ne peut pas être négatif",
-      "tooLarge": "Montant trop élevé"
+      "tooLarge": "Montant trop élevé",
+      "invalid": "Saisissez un nombre valide",
+      "required": "Le montant est requis"
     },
     "volume": {
       "negative": "Le volume ne peut pas être négatif",
-      "tooLarge": "Volume trop élevé"
+      "tooLarge": "Volume trop élevé",
+      "invalid": "Saisissez un nombre valide",
+      "required": "Le volume est requis"
     },
     "price": {
       "negative": "Le prix ne peut pas être négatif",
-      "tooLarge": "Prix trop élevé"
+      "tooLarge": "Prix trop élevé",
+      "invalid": "Saisissez un nombre valide",
+      "required": "Le prix est requis"
     },
     "kwh": {
       "negative": "Le kWh ne peut pas être négatif",
-      "tooLarge": "kWh trop élevé"
+      "tooLarge": "kWh trop élevé",
+      "invalid": "Saisissez un nombre valide"
     },
     "date": {
       "required": "La date est requise",
       "invalidFormat": "Format de date invalide"
+    },
+    "provider": {
+      "required": "L’assureur est requis"
+    },
+    "policyNumber": {
+      "required": "Le numéro de police est requis"
+    },
+    "policyType": {
+      "required": "Le type de police est requis"
     },
     "description": {
       "required": "La description est requise",
@@ -520,7 +628,32 @@
     },
     "def": {
       "fillLevelNegative": "Le niveau de remplissage ne peut pas être négatif",
-      "fillLevelTooLarge": "Le niveau de remplissage ne peut pas dépasser 100 %"
+      "fillLevelTooLarge": "Le niveau de remplissage ne peut pas dépasser 100 %",
+      "fillLevelInvalid": "Saisissez un nombre valide"
+    },
+    "tankPair": {
+      "bothOrNeither": "Saisissez à la fois la taille de la bouteille et le nombre de bouteilles, ou aucun des deux"
+    },
+    "tankQuantity": {
+      "negative": "Le nombre de bouteilles doit être supérieur à 0",
+      "tooLarge": "Nombre de bouteilles trop élevé",
+      "invalid": "Saisissez un nombre valide",
+      "notWhole": "Le nombre de bouteilles doit être un nombre entier"
+    },
+    "vehicle": {
+      "yearNotWhole": "L’année doit être un nombre entier",
+      "yearTooEarly": "L’année doit être supérieure ou égale à 1900",
+      "yearTooLate": "L’année doit être inférieure ou égale à 2100",
+      "yearInvalid": "Saisissez un nombre valide",
+      "doorsNotWhole": "Le nombre de portes doit être un nombre entier",
+      "doorsNegative": "Le nombre de portes ne peut pas être négatif",
+      "doorsTooLarge": "Nombre de portes trop élevé",
+      "doorsInvalid": "Saisissez un nombre valide",
+      "cylindersNotWhole": "Le nombre de cylindres doit être un nombre entier",
+      "cylindersNegative": "Le nombre de cylindres ne peut pas être négatif",
+      "cylindersTooLarge": "Nombre de cylindres trop élevé",
+      "cylindersInvalid": "Saisissez un nombre valide",
+      "purchasePriceInvalid": "Saisissez un nombre valide"
     },
     "recall": {
       "campaignNumberTooLong": "Numéro de campagne trop long (max. 20 caractères)",
@@ -533,22 +666,30 @@
     },
     "fuel": {
       "fuelTypeTooLong": "Type de carburant trop long",
-      "obcTripDurationFormat": "Utilisez des secondes (ex. 8100), HH:MM (ex. 2:15) ou HH:MM:SS"
+      "octaneTooSmall": "L’indice d’octane doit être d’au moins 50",
+      "octaneTooLarge": "L’indice d’octane ne peut pas dépasser 150",
+      "octaneInvalid": "Saisissez un indice d’octane en nombre entier",
+      "obcTripDurationFormat": "Utilisez des secondes (ex. 8100), HH:MM (ex. 2:15) ou HH:MM:SS",
+      "obcNegative": "La valeur de l’ordinateur de bord ne peut pas être négative",
+      "obcTooLarge": "Valeur de l’ordinateur de bord trop élevée",
+      "obcInvalid": "Saisissez un nombre valide"
     },
-    "engineHours": {
-      "negative": "Les heures moteur ne peuvent pas être négatives",
-      "tooLarge": "Valeur des heures moteur trop élevée"
+    "tireSet": {
+      "nameRequired": "Le nom est requis"
+    },
+    "document": {
+      "titleRequired": "Le titre est requis"
     }
   },
   "httpError": {
     "status": {
       "badRequest": "Requête invalide. Veuillez vérifier votre saisie.",
       "unauthorized": "Session expirée. Veuillez vous reconnecter.",
-      "forbidden": "Vous n'avez pas l'autorisation d'effectuer cette action.",
+      "forbidden": "Vous n’avez pas l’autorisation d’effectuer cette action.",
       "notFound": "La ressource demandée est introuvable.",
       "conflict": "Cette action entre en conflit avec des données existantes.",
-      "unprocessable": "Les données envoyées n'ont pas pu être traitées.",
-      "serverError": "Une erreur serveur inattendue s'est produite.",
+      "unprocessable": "Les données envoyées n’ont pas pu être traitées.",
+      "serverError": "Une erreur serveur inattendue s’est produite.",
       "badGateway": "Le serveur est temporairement indisponible. Veuillez réessayer.",
       "serviceUnavailable": "Service temporairement indisponible. Veuillez réessayer dans un instant.",
       "gatewayTimeout": "La requête a expiré. Veuillez réessayer."
@@ -558,20 +699,23 @@
       "unavailable": "Base de données temporairement indisponible. Veuillez réessayer."
     },
     "file": {
-      "forbidden": "Permission refusée. Impossible d'accéder au fichier.",
+      "forbidden": "Permission refusée. Impossible d’accéder au fichier.",
       "notFound": "Fichier introuvable.",
-      "serverError": "Erreur lors de l'accès au fichier."
+      "serverError": "Erreur lors de l’accès au fichier."
     },
     "externalApi": {
       "unavailable": "Service externe indisponible. Veuillez réessayer plus tard.",
       "timeout": "Le service externe a expiré. Veuillez réessayer."
     },
     "network": "Erreur réseau. Veuillez vérifier votre connexion.",
-    "generic": "Une erreur s'est produite.",
-    "unexpected": "Une erreur inattendue s'est produite.",
-    "formSubmitFallback": "Une erreur s'est produite",
-    "actionFailed": "Échec de {{action}}. {{message}}",
-    "actionFailedCheckInput": "Échec de {{action}}. Veuillez vérifier votre saisie."
+    "generic": "Une erreur s’est produite.",
+    "unexpected": "Une erreur inattendue s’est produite.",
+    "formSubmitFallback": "Une erreur s’est produite",
+    "actionFailed": "Impossible {{action}}. {{message}}",
+    "actionFailedCheckInput": "Impossible {{action}}. Veuillez vérifier votre saisie."
   },
-  "engineHours": "Heures moteur"
+  "mustNotBeNegative": "Ne peut pas être négatif",
+  "mustBeANumber": "Saisissez un nombre",
+  "tooManyDecimals": "{{count}} décimales maximum",
+  "ofMax": "{{value}} sur {{max}}"
 }
