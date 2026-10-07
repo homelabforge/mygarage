@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Info, FileText, Gauge, Shield, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import FormModalWrapper from '../FormModalWrapper'
-import { Button, Field, Input, NumberInput, Textarea } from '../ui'
+import { Button, Field, Input, NumberInput, Select, Textarea } from '../ui'
 import vehicleService from '../../services/vehicleService'
+import { countryOptions } from '../../constants/countries'
+import { useDateLocale } from '../../hooks/useDateLocale'
 import { str, emptyToNull } from '../../utils/formUtils'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
 import { getActiveLocale } from '../../constants/i18n'
@@ -15,7 +17,7 @@ import { makeVehicleWholeNumberFields } from '../../schemas/vehicle'
 /** The four Overview info cards that open this shared editor sidecar. */
 export type VehicleCardKey = 'basic' | 'details' | 'powertrain' | 'warranty'
 
-type FieldKind = 'text' | 'number' | 'multiline'
+type FieldKind = 'text' | 'number' | 'multiline' | 'date' | 'country'
 
 /** The number fields here, each checked by the edit form's own rule. */
 type WholeNumberKey = keyof ReturnType<typeof makeVehicleWholeNumberFields>
@@ -49,6 +51,8 @@ function getCardConfig(card: VehicleCardKey): CardConfig {
           { key: 'make', label: 'edit.make', kind: 'text' },
           { key: 'model', label: 'edit.model', kind: 'text' },
           { key: 'license_plate', label: 'edit.licensePlate', kind: 'text' },
+          { key: 'registration_country', label: 'edit.registrationCountry', kind: 'country' },
+          { key: 'first_registration_date', label: 'edit.firstRegistrationDate', kind: 'date' },
           {
             key: 'exterior_color',
             label: 'detail.misc.exteriorColor',
@@ -156,6 +160,11 @@ export default function VehicleFieldsDrawer({
   onUpdated,
 }: VehicleFieldsDrawerProps) {
   const { t } = useTranslation('vehicles')
+  const locale = useDateLocale()
+  const countryChoices = useMemo(
+    () => [{ value: '', label: t('edit.registrationCountryNone') }, ...countryOptions(locale)],
+    [locale, t]
+  )
   const [form, setForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -256,8 +265,10 @@ export default function VehicleFieldsDrawer({
                     <Textarea id={id} rows={2} value={value} onChange={set(f.key)} />
                   ) : f.kind === 'number' ? (
                     <NumberInput id={id} value={value} onChange={set(f.key)} invalid={!!errors[f.key]} />
+                  ) : f.kind === 'country' ? (
+                    <Select id={id} value={value} onChange={set(f.key)} options={countryChoices} />
                   ) : (
-                    <Input id={id} type="text" value={value} onChange={set(f.key)} />
+                    <Input id={id} type={f.kind === 'date' ? 'date' : 'text'} value={value} onChange={set(f.key)} />
                   )}
                 </Field>
               </div>

@@ -44,6 +44,11 @@ export function usePersonalPreference<T>(
     return () => window.removeEventListener('storage', onStorage)
   }, [storageKey, narrow])
 
-  if (isAuthenticated && user) return narrow(user[field])
+  if (isAuthenticated && user) {
+    // A boolean preference (inspection_auto_schedule) travels as 'true' /
+    // 'false', the same shape localStorage hands back for it.
+    const raw = user[field]
+    return narrow(typeof raw === 'boolean' ? String(raw) : raw)
+  }
   return stored
 }

@@ -270,6 +270,11 @@ export const makeVehicleEditSchema = (t: TFunction) =>
     // Basic Information
     nickname: nicknameSchema,
     license_plate: optionalStringSchema,
+    // Where the vehicle is registered (ISO 3166-1 alpha-2) when that differs
+    // from the owner's country, and field B of its EU registration
+    // certificate (#211). '' is "not set" and is sent as null.
+    registration_country: optionalStringSchema,
+    first_registration_date: optionalDateSchema,
     vehicle_type: vehicleTypeSchema,
     // Usage tracking: distance (odometer) or hours (hour meter). Defaulted so a
     // payload that omits it (older forms / tests) is treated as distance; the edit

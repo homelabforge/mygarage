@@ -1,0 +1,79 @@
+{
+  "country": "LU",
+  "extends": "EU",
+  "names": {
+    "inspection": "Contrôle technique (SNCT)",
+    "registration_certificate": "Certificat d'immatriculation"
+  },
+  "currency": "EUR",
+  "inspection": {
+    "name": "Contrôle technique (SNCT)",
+    "lead_window_months": 0,
+    "retest_window_months": null,
+    "schedules": [
+      {
+        "vehicle_types": ["Car", "SUV", "Truck", "Electric", "Hybrid", "RV"],
+        "steps": [{ "first_after_years": 4 }, { "every_years": 2, "until_age_years": 6 }, { "every_years": 1 }],
+        "note": "Voitures particulières : premier contrôle au plus tard quatre ans après la première mise en circulation, deuxième au plus tard deux ans plus tard, puis tous les ans. La SNCT envoie une convocation environ deux mois avant l'échéance."
+      }
+    ]
+  },
+  "fuel": {
+    "octane_scale": "RON",
+    "diesel_dyed_distinction": false,
+    "grades": [
+      { "id": "super95_e10", "label": "Super 95 (E10)", "grade": "E10", "octane": 95, "fuel_type": "gasoline" },
+      { "id": "super95_e5", "label": "Super 95 (E5)", "grade": "E5", "octane": 95, "fuel_type": "gasoline" },
+      { "id": "super98", "label": "Super 98", "grade": "E5", "octane": 98, "fuel_type": "gasoline" },
+      { "id": "diesel", "label": "Diesel (B7)", "grade": "B7", "octane": null, "fuel_type": "diesel" },
+      { "id": "hvo", "label": "HVO (XTL)", "grade": "XTL", "octane": null, "fuel_type": "diesel" },
+      { "id": "lpg", "label": "LPG", "grade": "LPG", "octane": null, "fuel_type": "propane_lpg" },
+      { "id": "cng", "label": "CNG", "grade": "CNG", "octane": null, "fuel_type": "cng" }
+    ]
+  },
+  "taxes": {
+    "types": ["circulation_tax", "registration", "inspection", "tolls", "vignette", "parking_permit", "lez_sticker", "other"],
+    "names": {
+      "circulation_tax": "Taxe annuelle sur les véhicules automoteurs",
+      "inspection": "Contrôle technique"
+    }
+  },
+  "lez": { "scheme": null, "name": null, "url": null },
+  "insurance": {
+    "policy_types": ["Third Party", "Third Party Extended", "Full Coverage", "Other"],
+    "coverage_keys": [
+      "third_party_liability",
+      "driver_protection",
+      "glass",
+      "theft",
+      "fire",
+      "natural_disasters",
+      "all_accidents_damage",
+      "legal_protection",
+      "assistance",
+      "replacement_vehicle"
+    ],
+    "no_claims": {
+      "scheme": "bonus_malus",
+      "name": "Bonus-malus (degré)",
+      "pattern": "^-?\\d{1,2}$",
+      "example": "-3"
+    }
+  },
+  "tolls": { "systems": [] },
+  "default_reminder_packs": [],
+  "data_sources": { "recalls": [], "fuel_prices": null },
+  "registration_certificate": {
+    "markers": ["GRAND-DUCHÉ DE LUXEMBOURG", "SOCIÉTÉ NATIONALE DE CIRCULATION AUTOMOBILE", "SNCA"],
+    "plate_patterns": ["^[A-Z]{2} ?\\d{4}$", "^\\d{4,5}$"],
+    "energy_codes": {},
+    "national_categories": []
+  },
+  "sources": [
+    {
+      "title": "Guichet.lu : Contrôle technique périodique pour véhicule",
+      "url": "https://guichet.public.lu/fr/citoyens/transport/transports-individuels/vehicule-motorise/controle-technique-pneumatiques/controle-technique-obligatoire-vehicule.html",
+      "retrieved": "2026-10-07"
+    }
+  ]
+}

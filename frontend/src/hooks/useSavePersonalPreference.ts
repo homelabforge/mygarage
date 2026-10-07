@@ -16,7 +16,13 @@ import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
 
 /** The `PUT /auth/me` fields a display preference is saved as. */
-export type PersonalPreferenceField = 'time_format' | 'language' | 'currency_code' | 'dashboard_sort'
+export type PersonalPreferenceField =
+  | 'time_format'
+  | 'language'
+  | 'currency_code'
+  | 'dashboard_sort'
+  | 'country'
+  | 'inspection_auto_schedule'
 
 export function useSavePersonalPreference(): (
   field: PersonalPreferenceField,

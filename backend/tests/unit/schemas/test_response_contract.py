@@ -397,12 +397,24 @@ CHECK_BACKED_VALIDATORS: dict[tuple[str, str], tuple[str, str | None, tuple[str,
     ),
 }
 #: Input models a response reuses on purpose: model -> why its own rules stay.
+_COUNTRY_PROFILE_SHIPPED_DATA = (
+    "the country profile format, read from the JSON files shipped in "
+    "app/data/country_profiles and validated when they load; never a stored row, "
+    "so nothing a user writes can reach these rules (test_country_profile_service "
+    "loads every shipped file)"
+)
 INPUT_MODELS_REUSED: dict[str, str] = {
     "ReminderPackItem": (
         "the pack format the apply pipeline consumes, reused as the response. Apply "
         "must fail closed on a bad type, and a saved pack copies its type from a rule "
         "that only validated schemas write"
     ),
+    "CountryProfile": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "InspectionStep": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "InspectionSchedule": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "InspectionRules": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "FuelGradePreset": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "RegistrationCertificateRules": _COUNTRY_PROFILE_SHIPPED_DATA,
 }
 
 
@@ -514,10 +526,20 @@ CHECK_BACKED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
 }
 #: Vocabulary fields the app works out rather than reads: (model, field) ->
 #: (the producer's dotted path, why every branch lands in the vocabulary).
+_COUNTRY_PROFILE_LOADER = "app.services.country_profile_service.load_profile"
 COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
     ("AnchorProposal", "origin"): (
         "app.services.maintenance_service._plan_item",
         "every branch sets a constant",
+    ),
+    # Country profiles are shipped JSON validated at load time, never a stored
+    # row: a value outside the vocabulary fails the profile test, not a read.
+    ("FuelRules", "octane_scale"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
+    ("LezRules", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
+    ("NoClaimsScheme", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
+    ("InspectionSchedule", "vehicle_types"): (
+        _COUNTRY_PROFILE_LOADER,
+        "shipped data, validated on load",
     ),
     ("AnomalyAlert", "severity"): (
         "app.routes.analytics.build_anomalies_from_monthly_df",

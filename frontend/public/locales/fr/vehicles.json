@@ -486,7 +486,12 @@
     "usageDistance": "Distance (compteur)",
     "usageHours": "Heures (compteur horaire)",
     "currentHours": "Heures actuelles",
-    "year": "Année"
+    "year": "Année",
+    "registrationCountry": "Pays d’immatriculation",
+    "registrationCountryNone": "Non défini",
+    "registrationCountryHint": "Pays où le véhicule est immatriculé. Détermine la périodicité du contrôle technique, les carburants à la pompe et les types de taxes.",
+    "firstRegistrationDate": "Date de première immatriculation",
+    "firstRegistrationDateHint": "Rubrique B du certificat d’immatriculation (carte grise)."
   },
   "fuelList": {
     "octane": "Octane",

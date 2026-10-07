@@ -6,7 +6,7 @@
  * Step 4: Review & Create
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
@@ -22,6 +22,9 @@ import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import vehicleService from '../services/vehicleService'
 import { makeVehicleEditSchema, vehicleTypeOptions, defaultUsageUnitForType, type VehicleEditFormData } from '../schemas/vehicle'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { useDateLocale } from '../hooks/useDateLocale'
+import { useResolvedCountry } from '../hooks/useResolvedCountry'
+import { countryOptions } from '../constants/countries'
 
 interface VehicleWizardProps {
   onClose: () => void
@@ -62,6 +65,21 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   // Wizard state
   const [vin, setVin] = useState('')
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
+
+  // The registration country opens on the one this person's settings resolve
+  // (their own country, else the instance default): a one-country household
+  // never picks it. The select keeps "Not set" so it can still be cleared.
+  const resolvedCountry = useResolvedCountry()
+  const locale = useDateLocale()
+  const registrationCountryOptions = useMemo(
+    () => [{ value: '', label: t('edit.registrationCountryNone') }, ...countryOptions(locale)],
+    [locale, t]
+  )
+  useEffect(() => {
+    if (resolvedCountry && !getValues('registration_country')) {
+      setValue('registration_country', resolvedCountry)
+    }
+  }, [resolvedCountry, getValues, setValue])
 
   // Watch form values for display
   const formData = watch()
@@ -157,6 +175,8 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
         make: validatedData.make,
         model: validatedData.model,
         license_plate: validatedData.license_plate,
+        registration_country: validatedData.registration_country,
+        first_registration_date: validatedData.first_registration_date,
         color: validatedData.color,
         purchase_date: validatedData.purchase_date,
         purchase_price: validatedData.purchase_price,
@@ -440,6 +460,42 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   placeholder="15 000,00"
                 />
                 <FormError error={errors.purchase_price} />
+              </div>
+            </div>
+
+            {/* Registration country and first registration date (#211). The
+                country opens on the one Quick Settings resolves, so a French
+                household never has to pick it; the date drives the technical
+                inspection cadence of the country's profile. */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-mid mb-2">
+                  {t('edit.registrationCountry')}
+                </label>
+                <Select
+                  {...register('registration_country')}
+                  invalid={!!errors.registration_country}
+                  options={registrationCountryOptions}
+                />
+                <p className="mt-1 text-xs text-garage-text-muted">
+                  {t('edit.registrationCountryHint')}
+                </p>
+                <FormError error={errors.registration_country} />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-mid mb-2">
+                  {t('edit.firstRegistrationDate')}
+                </label>
+                <input
+                  type="date"
+                  {...register('first_registration_date')}
+                  className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
+                />
+                <p className="mt-1 text-xs text-garage-text-muted">
+                  {t('edit.firstRegistrationDateHint')}
+                </p>
+                <FormError error={errors.first_registration_date} />
               </div>
             </div>
 

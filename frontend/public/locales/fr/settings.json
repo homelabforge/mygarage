@@ -11,7 +11,11 @@
   },
   "systemConfig": {
     "title": "Configuration du système",
-    "description": "Configurez les réglages essentiels du système, comme le fuseau horaire et les sections du garage."
+    "description": "Configurez les réglages essentiels du système, comme le fuseau horaire et les sections du garage.",
+    "defaultCountry": "Pays par défaut",
+    "defaultCountryDesc": "S’applique à toute personne n’ayant pas choisi de pays, et aux véhicules qui n’en ont pas.",
+    "defaultCountrySaved": "Pays par défaut enregistré",
+    "defaultCountryError": "Impossible d’enregistrer le pays par défaut"
   },
   "timezone": {
     "label": "Fuseau horaire",
@@ -731,5 +735,12 @@
       "testConnection": "Tester la connexion",
       "setupHint": "Créez un utilisateur Matrix dédié, invitez-le dans un salon et collez son jeton d’accès ici."
     }
+  },
+  "country": {
+    "label": "Pays",
+    "none": "Non défini",
+    "saved": "Pays enregistré",
+    "error": "Impossible d’enregistrer le pays",
+    "description": "Détermine les valeurs par défaut nationales de vos véhicules : périodicité du contrôle technique, noms des carburants à la pompe, types de taxes. Un véhicule immatriculé ailleurs peut avoir son propre pays."
   }
 }

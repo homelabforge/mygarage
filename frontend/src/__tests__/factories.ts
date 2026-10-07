@@ -88,6 +88,8 @@ export function makeUser(overrides: Partial<User> = {}): User {
     email: 'test@test.com',
     is_active: true,
     is_admin: false,
+    country: null,
+    inspection_auto_schedule: true,
     auth_method: 'local',
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',

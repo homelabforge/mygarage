@@ -69,6 +69,12 @@ class Vehicle(Base):
     make: Mapped[str | None] = mapped_column(String(50))
     model: Mapped[str | None] = mapped_column(String(50))
     license_plate: Mapped[str | None] = mapped_column(String(20))
+    # Where the vehicle is registered when that differs from the owner's
+    # country (ISO 3166-1 alpha-2, validated by Pydantic), and field B of its
+    # EU registration certificate, which inspection cadences count from
+    # (migration 143, #211). NULL = not set.
+    registration_country: Mapped[str | None] = mapped_column(String(2))
+    first_registration_date: Mapped[date | None] = mapped_column(Date)
     color: Mapped[str | None] = mapped_column(String(30))
     purchase_date: Mapped[date | None] = mapped_column(Date)
     purchase_price: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))

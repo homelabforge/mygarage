@@ -13,6 +13,11 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as app_settings
+from app.constants.countries import (
+    DEFAULT_COUNTRY_SETTING_KEY,
+    is_country_code,
+    normalize_country_code,
+)
 from app.database import engine, get_db, is_sqlite, sqlite_database_path
 from app.models.settings import Setting
 from app.models.user import User
@@ -243,6 +248,14 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
                 status_code=422,
                 detail=f"Setting '{key}' must be blank or an absolute http(s) URL with no #fragment",
             ) from exc
+    if key == DEFAULT_COUNTRY_SETTING_KEY and value:
+        # Blank clears it; anything else must be a code the profile loader
+        # and the frontend's Intl.DisplayNames both know.
+        if not is_country_code(normalize_country_code(value)):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Setting '{key}' must be an ISO 3166-1 alpha-2 country code",
+            )
     if key != DEFAULT_UNIT_PREFS_KEY:
         return
     try:
@@ -299,6 +312,9 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
         "carcomplaints_enabled",
         "window_sticker_enabled",
         "window_sticker_ocr_enabled",
+        # Same reasoning: the country a client without a user resolves its
+        # national defaults from (#211).
+        "default_country",
     }
 
     result = await db.execute(

@@ -3806,6 +3806,141 @@
         "title": "CostProjection",
         "type": "object"
       },
+      "CountryProfile": {
+        "additionalProperties": false,
+        "description": "A country's profile after ``extends`` has been resolved.",
+        "properties": {
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "data_sources": {
+            "$ref": "#/components/schemas/DataSources"
+          },
+          "default_reminder_packs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Default Reminder Packs",
+            "type": "array"
+          },
+          "extends": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extends"
+          },
+          "fuel": {
+            "$ref": "#/components/schemas/FuelRules"
+          },
+          "inspection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InspectionRules"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "insurance": {
+            "$ref": "#/components/schemas/InsuranceRules"
+          },
+          "lez": {
+            "$ref": "#/components/schemas/LezRules"
+          },
+          "names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "object"
+          },
+          "registration_certificate": {
+            "$ref": "#/components/schemas/RegistrationCertificateRules"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileSource"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "taxes": {
+            "$ref": "#/components/schemas/TaxRules"
+          },
+          "tolls": {
+            "$ref": "#/components/schemas/TollRules"
+          }
+        },
+        "required": [
+          "country"
+        ],
+        "title": "CountryProfile",
+        "type": "object"
+      },
+      "CountryProfileSummary": {
+        "description": "What the list endpoint returns: enough to build a picker.",
+        "properties": {
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "has_inspection": {
+            "title": "Has Inspection",
+            "type": "boolean"
+          },
+          "lez_scheme": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lez Scheme"
+          },
+          "names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "object"
+          },
+          "octane_scale": {
+            "title": "Octane Scale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "country",
+          "names",
+          "has_inspection",
+          "lez_scheme",
+          "octane_scale"
+        ],
+        "title": "CountryProfileSummary",
+        "type": "object"
+      },
       "CoverageEntry": {
         "description": "One standard coverage on one vehicle.\n\nSending the entry at all is what says the coverage is carried, so every\namount may be omitted (roadside assistance usually has none). A slot the\ncatalogue does not give this coverage is REJECTED rather than ignored: a\nstored \"each accident\" limit on a coverage whose card has no such line\nwould be money no screen ever shows.\n\n`premium` is what the declarations page charges for this coverage alone.\nIt is a record of the bill, NOT part of the allocation: the policy premium\nand the per-vehicle shares are what analytics and the even split work from,\nso editing it moves no money between vehicles and needs only write access\nto the vehicle it is on.",
         "properties": {
@@ -4947,6 +5082,31 @@
           "fleet_health"
         ],
         "title": "DashboardResponse",
+        "type": "object"
+      },
+      "DataSources": {
+        "additionalProperties": false,
+        "properties": {
+          "fuel_prices": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Prices"
+          },
+          "recalls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recalls",
+            "type": "array"
+          }
+        },
+        "title": "DataSources",
         "type": "object"
       },
       "DeviceCommandRequest": {
@@ -7475,6 +7635,48 @@
         "title": "FuelEfficiencyAlert",
         "type": "object"
       },
+      "FuelGradePreset": {
+        "additionalProperties": false,
+        "description": "A pump name as drivers know it, mapped to its EN 16942 label.",
+        "properties": {
+          "fuel_type": {
+            "title": "Fuel Type",
+            "type": "string"
+          },
+          "grade": {
+            "title": "Grade",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "octane": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Octane"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "grade",
+          "fuel_type"
+        ],
+        "title": "FuelGradePreset",
+        "type": "object"
+      },
       "FuelReceiptDraft": {
         "description": "Draft fuel fields extracted from a receipt (never persisted automatically).",
         "properties": {
@@ -9238,6 +9440,34 @@
         "title": "FuelRecordUpdate",
         "type": "object"
       },
+      "FuelRules": {
+        "additionalProperties": false,
+        "properties": {
+          "diesel_dyed_distinction": {
+            "default": true,
+            "title": "Diesel Dyed Distinction",
+            "type": "boolean"
+          },
+          "grades": {
+            "items": {
+              "$ref": "#/components/schemas/FuelGradePreset"
+            },
+            "title": "Grades",
+            "type": "array"
+          },
+          "octane_scale": {
+            "default": "AKI",
+            "enum": [
+              "RON",
+              "AKI"
+            ],
+            "title": "Octane Scale",
+            "type": "string"
+          }
+        },
+        "title": "FuelRules",
+        "type": "object"
+      },
       "GarageAnalytics": {
         "description": "Complete garage-wide analytics.",
         "properties": {
@@ -10134,6 +10364,150 @@
         "title": "InboxResponse",
         "type": "object"
       },
+      "InspectionRules": {
+        "additionalProperties": false,
+        "properties": {
+          "lead_window_months": {
+            "default": 0,
+            "title": "Lead Window Months",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "retest_window_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retest Window Months"
+          },
+          "schedules": {
+            "items": {
+              "$ref": "#/components/schemas/InspectionSchedule"
+            },
+            "minItems": 1,
+            "title": "Schedules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "schedules"
+        ],
+        "title": "InspectionRules",
+        "type": "object"
+      },
+      "InspectionSchedule": {
+        "additionalProperties": false,
+        "description": "A cadence and the vehicles it applies to.",
+        "properties": {
+          "fuel_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fuel Types",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/InspectionStep"
+            },
+            "minItems": 2,
+            "title": "Steps",
+            "type": "array"
+          },
+          "vehicle_types": {
+            "items": {
+              "enum": [
+                "Car",
+                "Truck",
+                "SUV",
+                "Motorcycle",
+                "ATV",
+                "RV",
+                "Trailer",
+                "FifthWheel",
+                "TravelTrailer",
+                "Electric",
+                "Hybrid",
+                "Boat",
+                "UTV",
+                "Snowmobile",
+                "Bicycle",
+                "EBike"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Vehicle Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "vehicle_types",
+          "steps"
+        ],
+        "title": "InspectionSchedule",
+        "type": "object"
+      },
+      "InspectionStep": {
+        "additionalProperties": false,
+        "description": "One step of a roadworthiness cadence.\n\nThe first step says when the first inspection is due (``first_after_years``\nafter first registration); every later step says how often it recurs\n(``every_years``) and, optionally, until what vehicle age that rhythm\napplies (``until_age_years``, exclusive). The next due date is the\nprevious one plus ``every_years`` of the first step whose ``until_age_years``\nis null or above the vehicle's age at the previous due date.",
+        "properties": {
+          "every_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Every Years"
+          },
+          "first_after_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First After Years"
+          },
+          "until_age_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until Age Years"
+          }
+        },
+        "title": "InspectionStep",
+        "type": "object"
+      },
       "InsurancePolicyCreate": {
         "description": "Create a household policy, optionally with its vehicles.",
         "properties": {
@@ -10716,6 +11090,37 @@
         "title": "InsurancePolicyUpdate",
         "type": "object"
       },
+      "InsuranceRules": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Coverage Keys",
+            "type": "array"
+          },
+          "no_claims": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoClaimsScheme"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policy_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Policy Types",
+            "type": "array"
+          }
+        },
+        "title": "InsuranceRules",
+        "type": "object"
+      },
       "IntegrationListResponse": {
         "description": "The whole tab strip, in display order.",
         "properties": {
@@ -10949,6 +11354,53 @@
           "timestamp"
         ],
         "title": "LastLocationResponse",
+        "type": "object"
+      },
+      "LezRules": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "scheme": {
+            "anyOf": [
+              {
+                "enum": [
+                  "critair",
+                  "umweltplakette",
+                  "lez_registration",
+                  "ztl",
+                  "dgt_label"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheme"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "title": "LezRules",
         "type": "object"
       },
       "LinkOIDCAccountRequest": {
@@ -13482,6 +13934,41 @@
         "title": "NearestOdometerResponse",
         "type": "object"
       },
+      "NoClaimsScheme": {
+        "additionalProperties": false,
+        "properties": {
+          "example": {
+            "title": "Example",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pattern": {
+            "title": "Pattern",
+            "type": "string"
+          },
+          "scheme": {
+            "enum": [
+              "crm",
+              "sf_klasse",
+              "classe_di_merito",
+              "bonus_malus"
+            ],
+            "title": "Scheme",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheme",
+          "name",
+          "pattern",
+          "example"
+        ],
+        "title": "NoClaimsScheme",
+        "type": "object"
+      },
       "NoteCreate": {
         "description": "Schema for creating a note.",
         "properties": {
@@ -15812,6 +16299,32 @@
         "title": "PresetReadingInfo",
         "type": "object"
       },
+      "ProfileSource": {
+        "additionalProperties": false,
+        "description": "Where a figure in the profile comes from, so a reviewer can check it.",
+        "properties": {
+          "retrieved": {
+            "format": "date",
+            "title": "Retrieved",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "url",
+          "retrieved"
+        ],
+        "title": "ProfileSource",
+        "type": "object"
+      },
       "QuickEntryVehicle": {
         "description": "Lightweight vehicle summary for the Quick Entry selector.",
         "properties": {
@@ -16425,6 +16938,41 @@
           }
         },
         "title": "RecurrenceSpec",
+        "type": "object"
+      },
+      "RegistrationCertificateRules": {
+        "additionalProperties": false,
+        "properties": {
+          "energy_codes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Energy Codes",
+            "type": "object"
+          },
+          "markers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Markers",
+            "type": "array"
+          },
+          "national_categories": {
+            "items": {
+              "type": "string"
+            },
+            "title": "National Categories",
+            "type": "array"
+          },
+          "plate_patterns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Plate Patterns",
+            "type": "array"
+          }
+        },
+        "title": "RegistrationCertificateRules",
         "type": "object"
       },
       "ReminderCompleteRequest": {
@@ -21706,6 +22254,27 @@
         "title": "TaxRecordUpdate",
         "type": "object"
       },
+      "TaxRules": {
+        "additionalProperties": false,
+        "properties": {
+          "names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "object"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "title": "TaxRules",
+        "type": "object"
+      },
       "TelegramFuelStatus": {
         "description": "The Telegram fuel-command poller's state, for Settings > Notifications > Telegram.",
         "properties": {
@@ -23797,6 +24366,20 @@
         "title": "TokenInfoResponse",
         "type": "object"
       },
+      "TollRules": {
+        "additionalProperties": false,
+        "properties": {
+          "systems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Systems",
+            "type": "array"
+          }
+        },
+        "title": "TollRules",
+        "type": "object"
+      },
       "TollTagCreate": {
         "description": "Schema for creating a new toll tag.",
         "examples": [
@@ -25720,6 +26303,17 @@
             "title": "Auth Method",
             "type": "string"
           },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -25780,6 +26374,11 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "inspection_auto_schedule": {
+            "default": true,
+            "title": "Inspection Auto Schedule",
+            "type": "boolean"
           },
           "is_active": {
             "title": "Is Active",
@@ -26106,6 +26705,18 @@
             ],
             "title": "Accent Color"
           },
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
           "currency_code": {
             "anyOf": [
               {
@@ -26178,6 +26789,17 @@
               }
             ],
             "title": "Full Name"
+          },
+          "inspection_auto_schedule": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inspection Auto Schedule"
           },
           "language": {
             "anyOf": [
@@ -27045,6 +27667,19 @@
             "description": "Drive type (FWD, RWD, AWD, etc.)",
             "title": "Drive Type"
           },
+          "first_registration_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date of first registration (field B of an EU registration certificate)",
+            "title": "First Registration Date"
+          },
           "fuel_filter_part_number": {
             "anyOf": [
               {
@@ -27245,6 +27880,20 @@
             ],
             "description": "Purchase price",
             "title": "Purchase Price"
+          },
+          "registration_country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs from the owner's; drives inspection cadence, fuel pump names and tax types",
+            "title": "Registration Country"
           },
           "secondary_usage_enabled": {
             "default": false,
@@ -28296,6 +28945,19 @@
             ],
             "title": "Exterior Color"
           },
+          "first_registration_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date of first registration (field B of an EU registration certificate)",
+            "title": "First Registration Date"
+          },
           "fuel_economy_city_l_per_100km": {
             "anyOf": [
               {
@@ -28574,6 +29236,18 @@
             ],
             "description": "Purchase price",
             "title": "Purchase Price"
+          },
+          "registration_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs from the owner's; drives inspection cadence, fuel pump names and tax types",
+            "title": "Registration Country"
           },
           "secondary_usage_enabled": {
             "default": false,
@@ -29737,6 +30411,19 @@
             "description": "Exterior color",
             "title": "Exterior Color"
           },
+          "first_registration_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date of first registration (field B of an EU registration certificate)",
+            "title": "First Registration Date"
+          },
           "fuel_filter_part_number": {
             "anyOf": [
               {
@@ -30021,6 +30708,20 @@
             ],
             "description": "Purchase price",
             "title": "Purchase Price"
+          },
+          "registration_country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs from the owner's; drives inspection cadence, fuel pump names and tax types",
+            "title": "Registration Country"
           },
           "secondary_usage_enabled": {
             "anyOf": [
@@ -35697,6 +36398,86 @@
         "summary": "Export Calendar Ical",
         "tags": [
           "calendar"
+        ]
+      }
+    },
+    "/api/country-profiles": {
+      "get": {
+        "description": "Every shipped profile, the ``EU`` baseline included.",
+        "operationId": "list_country_profiles_api_country_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CountryProfileSummary"
+                  },
+                  "title": "Response List Country Profiles Api Country Profiles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Country Profiles",
+        "tags": [
+          "country-profiles"
+        ]
+      }
+    },
+    "/api/country-profiles/{country}": {
+      "get": {
+        "description": "The profile a country code resolves to.\n\nA member state without a file of its own answers with the ``EU`` baseline\n(its ``country`` field says ``EU``); a code with no profile is a 404.",
+        "operationId": "get_country_profile_api_country_profiles__country__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z]{2}$",
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Country Profile",
+        "tags": [
+          "country-profiles"
         ]
       }
     },

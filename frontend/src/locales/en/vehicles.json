@@ -525,7 +525,12 @@
     "usageDistance": "Distance (odometer)",
     "usageHours": "Hours (hour meter)",
     "currentHours": "Current Hours",
-    "year": "Year"
+    "year": "Year",
+    "registrationCountry": "Registration country",
+    "registrationCountryNone": "Not set",
+    "registrationCountryHint": "Where the vehicle is registered. Drives its inspection cadence, fuel pump names and tax types.",
+    "firstRegistrationDate": "First registration date",
+    "firstRegistrationDateHint": "Field B on an EU registration certificate."
   },
   "fuelList": {
     "octane": "Octane",

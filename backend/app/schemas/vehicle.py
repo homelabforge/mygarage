@@ -6,12 +6,29 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, field_validator
 
+from app.constants.countries import is_country_code, normalize_country_code
 from app.constants.fuel import FUEL_TYPE_VALUES, normalize_fuel_type
 from app.constants.units import DistanceUnit
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 from app.utils.unit_resolution import LenientDistanceUnit
+
+
+def _normalize_country_input(v: Any) -> Any:
+    """Uppercase a country code and check it against ISO 3166-1 alpha-2.
+
+    Wired on Create/Update only, like the fuel-type normaliser: a stored row
+    reads back as it is, the input is what gets checked. Blank or null clears.
+    """
+    if v is None:
+        return None
+    code = normalize_country_code(str(v))
+    if code is None:
+        return None
+    if not is_country_code(code):
+        raise ValueError("registration_country must be an ISO 3166-1 alpha-2 code")
+    return code
 
 
 def _normalize_fuel_type_input(v: Any) -> Any:
@@ -106,6 +123,19 @@ class VehicleBase(BaseModel):
     make: str | None = Field(None, description="Manufacturer brand", max_length=50)
     model: str | None = Field(None, description="Model name", max_length=50)
     license_plate: str | None = Field(None, description="License plate number", max_length=20)
+    registration_country: str | None = Field(
+        None,
+        description=(
+            "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs "
+            "from the owner's; drives inspection cadence, fuel pump names and tax types"
+        ),
+        min_length=2,
+        max_length=2,
+    )
+    first_registration_date: date | None = Field(
+        None,
+        description="Date of first registration (field B of an EU registration certificate)",
+    )
     color: str | None = Field(None, description="Vehicle color", max_length=30)
     purchase_date: date | None = Field(None, description="Date purchased")
     purchase_price: OptionalMoney = Field(None, description="Purchase price")
@@ -194,6 +224,12 @@ class VehicleCreate(VehicleBase):
         """Normalize free-text fuel-type input to the canonical vocabulary."""
         return _normalize_fuel_type_input(v)
 
+    @field_validator("registration_country", mode="before")
+    @classmethod
+    def normalize_registration_country(cls, v: Any) -> Any:
+        """Uppercase and check the country code (#211)."""
+        return _normalize_country_input(v)
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -277,6 +313,12 @@ class VehicleUpdate(VehicleBase):
         """Normalize free-text fuel-type input to the canonical vocabulary."""
         return _normalize_fuel_type_input(v)
 
+    @field_validator("registration_country", mode="before")
+    @classmethod
+    def normalize_registration_country(cls, v: Any) -> Any:
+        """Uppercase and check the country code (#211)."""
+        return _normalize_country_input(v)
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -323,6 +365,13 @@ class VehicleResponse(VehicleBase):
     make: str | None = Field(None, description="Manufacturer brand")
     model: str | None = Field(None, description="Model name")
     license_plate: str | None = Field(None, description="License plate number")
+    registration_country: str | None = Field(
+        None,
+        description=(
+            "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs "
+            "from the owner's; drives inspection cadence, fuel pump names and tax types"
+        ),
+    )
     color: str | None = Field(None, description="Vehicle color")
     trim: str | None = Field(None, description="Trim level")
     body_class: str | None = Field(None, description="Body class")

@@ -565,6 +565,29 @@ DEFAULT_SETTINGS = {
         "description": "Imperial gallon standard: us (3.785 L) or uk (4.546 L)",
         "encrypted": False,
     },
+    # The country whose rules apply to users and vehicles that have none of
+    # their own (ISO 3166-1 alpha-2, blank = none). Drives defaults only:
+    # inspection cadence, fuel pump names, tax types. Never hides a feature.
+    "default_country": {
+        "value": "",
+        "category": "general",
+        "description": (
+            "Default country for users and vehicles without one "
+            "(ISO 3166-1 alpha-2 code, blank = none)"
+        ),
+        "encrypted": False,
+    },
+    # Instance-wide fallback for the per-user preference of the same name:
+    # vehicles without an owner (auth_mode=none) read this one.
+    "inspection_auto_schedule": {
+        "value": "true",
+        "category": "general",
+        "description": (
+            "Keep periodic technical inspection reminders up to date automatically "
+            "for vehicles whose owner has no preference"
+        ),
+        "encrypted": False,
+    },
     # No static "value": the seeded value is derived per instance below, from
     # the live gallon flavour. `category` and `description` must stay
     # byte-identical to what migration 093 writes, or the update branch below
