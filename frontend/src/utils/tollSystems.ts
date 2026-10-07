@@ -38,14 +38,22 @@ export function findTollCountry(code: string, countries: readonly TollCountry[] 
 }
 
 /**
- * The country a new tag starts on. Currency counts 2 and language 1, and only
- * a single top scorer counts. Otherwise the user picks.
+ * The country a new tag starts on.
+ *
+ * A country the settings resolve (the vehicle's registration country, the
+ * person's, the instance's; #211) is the answer when it has a row, and the
+ * user picks when it has none: the euro is shared by four listed countries,
+ * so guessing one of them from the currency would send a Belgian to France.
+ * Without a resolved country, currency counts 2 and language 1, and only a
+ * single top scorer counts.
  */
 export function guessTollCountry(
   currencyCode: string,
   language: string,
   countries: readonly TollCountry[] = TOLL_COUNTRIES,
+  resolvedCountry?: string | null,
 ): string | null {
+  if (resolvedCountry) return findTollCountry(resolvedCountry, countries) ? resolvedCountry : null
   let best: string | null = null
   let bestScore = 0
   let tied = false

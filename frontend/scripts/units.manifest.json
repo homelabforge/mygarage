@@ -1045,8 +1045,8 @@
     {
       "path": "src/components/TollTagForm.tsx",
       "disposition": "no unit behaviour",
-      "digest": "c36ebd63f302b8cf63955cf3a35c18634669d0d6bc306869ac6a44420638fb5f",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-29 (clear-means-clear): a stored toll system outside the list stays selectable; no quantity, unit or conversion code changed. 2026-10-04 (toll system picker): country and toll system dropdowns plus a typed name for Other; only the system is sent. Names and codes only; no quantity, unit or conversion code changed."
+      "digest": "9555378bbdaee59a0d6018aee045fbafa5e55bc9255e5958069f81ba73086767",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-29 (clear-means-clear): a stored toll system outside the list stays selectable; no quantity, unit or conversion code changed. 2026-10-04 (toll system picker): country and toll system dropdowns plus a typed name for Other; only the system is sent. Names and codes only; no quantity, unit or conversion code changed. Re-acknowledged 2026-10-07 (FR/ES/PT toll systems, #211): fetches the vehicle's registration country and seeds the country select from the resolved country when it is listed; no quantity, unit or conversion touched."
     },
     {
       "path": "src/components/TollTagList.tsx",
@@ -2359,8 +2359,8 @@
     {
       "path": "src/constants/tollSystems.ts",
       "disposition": "no unit behaviour",
-      "digest": "f432904aff626c0bc0500494531a489ecc7db9604f77778ce43ba3e75bff65bd",
-      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Toll systems by country: ISO country codes, currency and language codes, and brand names. Read in full; no quantity, unit or conversion. 2026-10-04 (toll picker review): header comment now says row order matters for a system listed in several countries. Comment only; no quantity, unit or conversion."
+      "digest": "33bbab6ef63808b2d9d0da818e0fa94595dbdee4f4ae4ddad8ef708b47d3d1a2",
+      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Toll systems by country: ISO country codes, currency and language codes, and brand names. Read in full; no quantity, unit or conversion. 2026-10-04 (toll picker review): header comment now says row order matters for a system listed in several countries. Comment only; no quantity, unit or conversion. Re-acknowledged 2026-10-07 (FR/ES/PT toll systems, #211): three rows added (Spain Via-T, France Bip&Go/Fulli/Ulys, Portugal Via Verde); country, currency and language codes and brand names only, no quantity or unit."
     },
     {
       "path": "src/contexts/AccentContext.tsx",
@@ -3638,8 +3638,8 @@
     {
       "path": "src/utils/tollSystems.ts",
       "disposition": "no unit behaviour",
-      "digest": "8d6731e54d793bad70b54968c7dc7075d4f92a669a3b511683193f6dde433d90",
-      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Matches typed toll system names to the list, guesses a country from currency and language, and builds the dropdown options. Read in full; strings and codes only, no quantity, unit or conversion. 2026-10-04 (toll picker review): tidyTollSystem also splits on NEL and the four separator controls, matching the backend's str.split(). Strings only; no quantity, unit or conversion."
+      "digest": "6325986a1db7f4f63323c9186b2ea9d73c19045b586f4233a26ccd528615afd5",
+      "reason": "no unit behaviour: NEW 2026-10-04 (toll system picker). Matches typed toll system names to the list, guesses a country from currency and language, and builds the dropdown options. Read in full; strings and codes only, no quantity, unit or conversion. 2026-10-04 (toll picker review): tidyTollSystem also splits on NEL and the four separator controls, matching the backend's str.split(). Strings only; no quantity, unit or conversion. Re-acknowledged 2026-10-07 (FR/ES/PT toll systems, #211): guessTollCountry takes the country the settings resolve and answers it when listed, else leaves the pick to the person; a string decision, no quantity or unit."
     },
     {
       "path": "src/utils/treadEntry.ts",

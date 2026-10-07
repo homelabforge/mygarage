@@ -20,6 +20,8 @@ import {
 } from '../utils/tollSystems'
 import { languageToLocale } from '../constants/i18n'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { useResolvedCountry } from '../hooks/useResolvedCountry'
+import api from '../services/api'
 import { useCreateTollTag, useUpdateTollTag } from '../hooks/queries/useTollRecords'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
@@ -39,14 +41,40 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
   const updateMutation = useUpdateTollTag(vin)
   const { currencyCode } = useCurrencyPreference()
   const locale = languageToLocale(i18n.language)
+  // #211 — the country the settings resolve (the vehicle's registration
+  // country, then the person's, then the instance's) is the country a new
+  // tag starts on when it is listed. The person's and the instance's are
+  // known at once; the vehicle's arrives with its fetch and refines the
+  // guess while the person has not touched the country select.
+  const [vehicleRegistrationCountry, setVehicleRegistrationCountry] = useState<string | null>(null)
+  const resolvedCountry = useResolvedCountry({ registration_country: vehicleRegistrationCountry })
+  const countryTouched = useRef(false)
+  useEffect(() => {
+    let cancelled = false
+    void api
+      .get(`/vehicles/${vin}`)
+      .then((response) => {
+        if (!cancelled) setVehicleRegistrationCountry(response.data?.registration_country ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setVehicleRegistrationCountry(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [vin])
 
   // Zod bakes its messages in at construction, so the schema is rebuilt when
   // the language changes. Only the resolver depends on it (no fetch, no
   // reset()), so a rebuild can't discard what the user typed.
   const schema = useMemo(() => makeTollTagSchema(t), [t])
 
-  // useForm reads defaultValues once, so only the first render's guess counts.
-  const initial = initialTollSelection(tag?.toll_system, guessTollCountry(currencyCode, i18n.language))
+  // useForm reads defaultValues once, so only the first render's guess counts
+  // (the vehicle's own country, if it differs, is applied by the effect below).
+  const initial = initialTollSelection(
+    tag?.toll_system,
+    guessTollCountry(currencyCode, i18n.language, undefined, resolvedCountry),
+  )
 
   const {
     register,
@@ -74,6 +102,17 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
 
   const country = watch('toll_country')
   const choice = watch('toll_system')
+
+  // The vehicle's registration country arrived after the first render: a new
+  // tag the person has not placed yet moves to it (a country without a row
+  // leaves the choice to the person, so the guess may also go blank).
+  useEffect(() => {
+    if (isEdit || countryTouched.current || vehicleRegistrationCountry === null) return
+    const guess = guessTollCountry(currencyCode, i18n.language, undefined, resolvedCountry) ?? ''
+    if (guess === getValues('toll_country')) return
+    setValue('toll_country', guess)
+    setValue('toll_system', choiceForCountry(getValues('toll_system'), guess))
+  }, [vehicleRegistrationCountry, resolvedCountry, currencyCode, i18n.language, isEdit, getValues, setValue])
   const otherName = watch('toll_system_other')
   const showName = usesOtherName({ country, choice })
   const listedName = showName ? listedTollSystem(otherName) : null
@@ -164,6 +203,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
                 id="toll_country"
                 {...register('toll_country', {
                   onChange: (e: ChangeEvent<HTMLSelectElement>) => {
+                    countryTouched.current = true
                     const kept = choiceForCountry(getValues('toll_system'), e.target.value)
                     setValue('toll_system', kept)
                     clearErrors(['toll_country', 'toll_system', 'toll_system_other'])

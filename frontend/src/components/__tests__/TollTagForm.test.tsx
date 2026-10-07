@@ -15,6 +15,21 @@ const currency = vi.hoisted(() => ({ code: 'USD' }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: currency.code, locale: 'en-US', formatCurrency: vi.fn() }),
 }))
+// #211: the settings' country (person or instance) and the vehicle's own,
+// which the form fetches. Both null by default, so the currency guess decides.
+const countryState = vi.hoisted(() => ({
+  personal: null as string | null,
+  vehicle: null as string | null,
+}))
+vi.mock('../../hooks/useResolvedCountry', () => ({
+  useResolvedCountry: (vehicle?: { registration_country?: string | null } | null) =>
+    vehicle?.registration_country ?? countryState.personal,
+}))
+vi.mock('../../services/api', () => ({
+  default: {
+    get: vi.fn(() => Promise.resolve({ data: { registration_country: countryState.vehicle } })),
+  },
+}))
 
 // Real react-i18next hands out a new t when the language changes, and the form
 // rebuilds its schema off that. The global mock's t never changes, so this file
@@ -44,6 +59,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   currency.code = 'USD'
   i18nMock.i18n.language = 'en'
+  countryState.personal = null
+  countryState.vehicle = null
 })
 
 const OTHER = '__other__'
@@ -272,7 +289,7 @@ describe('TollTagForm: review focus', () => {
     expect(control<HTMLSelectElement>('toll_system').value).toBe('Touch \'n Go RFID')
     expect(control<HTMLInputElement>('tag_number').value).toBe('0012345678')
     const countries = [...control<HTMLSelectElement>('toll_country').options].filter((o) => o.value !== '' && o.value !== OTHER)
-    expect(countries.map((o) => o.text)).toEqual(['Amerika Syarikat', 'Itali', 'Malaysia'])
+    expect(countries.map((o) => o.text)).toEqual(['Amerika Syarikat', 'Itali', 'Malaysia', 'Perancis', 'Portugal', 'Sepanyol'])
     // The schema was rebuilt with the Malay t, so its messages are Malay too.
     await user.clear(control('tag_number'))
     await user.click(screen.getByRole('button', { name: '[ms] toll.addTag' }))
@@ -299,5 +316,47 @@ describe('TollTagForm: review focus', () => {
     await waitFor(() => expect(control('toll_system_other-error')).not.toBeNull())
     expect(control('toll_system_other-error')).toHaveTextContent(/at most 50 characters/)
     expect(control('toll_system-error')).toBeNull()
+  })
+})
+
+describe('TollTagForm: the country the settings resolve (#211)', () => {
+  it("a new tag opens on the person's country when it is listed, whatever the currency", async () => {
+    countryState.personal = 'FR'
+    render(<TollTagForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    expect(control<HTMLSelectElement>('toll_country').value).toBe('FR')
+    const offered = [...control<HTMLSelectElement>('toll_system').options].map((o) => o.value)
+    expect(offered).toEqual(expect.arrayContaining(['Bip&Go', 'Fulli', 'Ulys']))
+  })
+
+  it("the vehicle's own registration country refines the guess once fetched", async () => {
+    countryState.personal = 'FR'
+    countryState.vehicle = 'ES'
+    render(<TollTagForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await waitFor(() => expect(control<HTMLSelectElement>('toll_country').value).toBe('ES'))
+    const offered = [...control<HTMLSelectElement>('toll_system').options].map((o) => o.value)
+    expect(offered).toContain('Via-T')
+  })
+
+  it('a resolved country without a row leaves the pick to the person, even with the euro', async () => {
+    currency.code = 'EUR'
+    countryState.personal = 'BE'
+    render(<TollTagForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    expect(control<HTMLSelectElement>('toll_country').value).toBe('')
+    expect(systemSelect()).toBeDisabled()
+  })
+
+  it('a country the person already picked is not moved by the vehicle fetch', async () => {
+    countryState.personal = 'FR'
+    countryState.vehicle = 'ES'
+    // Hold the fetch until after the person has chosen.
+    let release: (value: { data: { registration_country: string } }) => void = () => {}
+    const api = (await import('../../services/api')).default
+    vi.mocked(api.get).mockImplementationOnce(() => new Promise((resolve) => { release = resolve }))
+    const user = userEvent.setup()
+    render(<TollTagForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await user.selectOptions(countrySelect(), 'US')
+    release({ data: { registration_country: 'ES' } })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(control<HTMLSelectElement>('toll_country').value).toBe('US')
   })
 })
