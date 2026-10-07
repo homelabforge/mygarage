@@ -127,6 +127,24 @@ load (`test_tax.py` checks every shipped file). Adding a type is code-only
 since migration 146: the constant, the schema Literal, the frontend list and
 the two bundles; the database has no CHECK to update.
 
+### Low-emission zones and compliance
+
+`lez.scheme` names the country's sticker or registration scheme (`critair`,
+`umweltplakette`, `lez_registration`, `ztl`, `dgt_label`), `lez.name` its
+proper name and `lez.url` the official site. `GET /api/vehicles/{vin}/compliance`
+reads the resolved profile and the vehicle's certificate fields
+(`euro_emission_class`, `fiscal_power`, `co2_g_km`, `power_kw`, `eu_category`,
+`national_category`, migration 147) and answers with the low-emission-zone
+class, the next periodic inspection (from the automatic engine, with the
+window it may be done in) and the Euro class. Only Crit'Air is computed
+(`backend/app/utils/lez.py`, cars and light vans: electric and hydrogen 0; gas,
+plug-in hybrids and petrol Euro 5/6 1; petrol Euro 4 and diesel Euro 5/6 2;
+petrol Euro 2/3 and diesel Euro 4 3; diesel Euro 3 4; diesel Euro 2 5;
+earlier vehicles unclassified); without a recorded Euro class it is estimated
+from the first registration date, and the answer says so. The other schemes
+only show the class a person sets by hand on the vehicle (`lez_class`), which
+always wins. Everything is indicative: the UI links to the official site.
+
 ## Adding a country
 
 1. Copy `EU.json` to `<CC>.json` (uppercase ISO 3166-1 alpha-2), set

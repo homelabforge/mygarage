@@ -162,3 +162,5 @@ migrations must swallow their own operational errors.
 | `145_add_rule_lead_days` | **FATAL** — Add vehicle_maintenance_rules.lead_days (#211). |
 | `127_add_rule_lead_days` | **FATAL** — Add vehicle_maintenance_rules.lead_days (#211). |
 | `146_tax_type_codes` | Tax types become codes (#211). |
+| `128_tax_type_codes` | Tax types become codes (#211). |
+| `147_add_vehicle_eu_fields` | **FATAL** — Add the EU registration-certificate fields on vehicles (#211). |

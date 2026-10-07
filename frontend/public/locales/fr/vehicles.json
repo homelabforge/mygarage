@@ -491,7 +491,14 @@
     "registrationCountryNone": "Non défini",
     "registrationCountryHint": "Pays où le véhicule est immatriculé. Détermine la périodicité du contrôle technique, les carburants à la pompe et les types de taxes.",
     "firstRegistrationDate": "Date de première immatriculation",
-    "firstRegistrationDateHint": "Rubrique B du certificat d’immatriculation (carte grise)."
+    "firstRegistrationDateHint": "Rubrique B du certificat d’immatriculation (carte grise).",
+    "euroClass": "Norme Euro (V.9)",
+    "fiscalPower": "Puissance fiscale (P.6, CV)",
+    "co2": "CO₂ (V.7, g/km)",
+    "powerKw": "Puissance (P.2, kW)",
+    "euCategory": "Catégorie CE (J)",
+    "nationalCategory": "Genre national (J.1)",
+    "lezClass": "Classe zone à faibles émissions (saisie à la main)"
   },
   "fuelList": {
     "octane": "Octane",
@@ -2041,5 +2048,28 @@
       "name": "Saison motoneige",
       "description": "Vérifications d’avant-saison et de mi-saison pour les motoneiges."
     }
+  },
+  "compliance": {
+    "title": "Conformité",
+    "lez": "Zone à faibles émissions",
+    "lezBadge": "{{name}} {{value}}",
+    "lezUnclassified": "Non classé",
+    "lezUnknown": "Classe non calculée pour ce dispositif. Vérifiez sur le site officiel.",
+    "lezEstimated": "Estimée d’après la date de première immatriculation.",
+    "lezOverridden": "Saisie à la main sur le véhicule.",
+    "officialSite": "Site officiel",
+    "inspectionWindow": "Réalisable à partir du {{date}}",
+    "inspectionFromRegistration": "Calculé d’après la date de première immatriculation.",
+    "inspectionNone": "Rien de planifié",
+    "euroClass": "Norme Euro",
+    "euroValue": "Euro {{n}}",
+    "estimated": "(estimée)",
+    "fiscalPower": "Puissance fiscale",
+    "fiscalPowerValue": "{{n}} CV",
+    "co2": "CO₂",
+    "co2Value": "{{n}} g/km",
+    "power": "Puissance",
+    "powerValue": "{{n}} kW",
+    "disclaimer": "Indicatif. Vérifiez sur le site officiel avant d’entrer dans une zone."
   }
 }

@@ -537,6 +537,17 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
     # Country profiles are shipped JSON validated at load time, never a stored
     # row: a value outside the vocabulary fails the profile test, not a read.
     ("FuelRules", "octane_scale"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
+    # The compliance view (#211) copies the scheme off the loaded profile and
+    # sets the basis and the reason to constants on every branch.
+    ("LezStatus", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
+    ("LezStatus", "basis"): (
+        "app.services.compliance_service.compliance_for_vehicle",
+        "a constant per branch, its own and critair_class's",
+    ),
+    ("ComplianceResponse", "reason"): (
+        "app.services.compliance_service.compliance_for_vehicle",
+        "a constant per branch",
+    ),
     ("LezRules", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("NoClaimsScheme", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("InspectionSchedule", "vehicle_types"): (

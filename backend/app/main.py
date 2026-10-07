@@ -410,6 +410,7 @@ from app.routes import (
     backup_router,
     brakes_router,
     calendar_router,
+    compliance_router,
     country_profiles_router,
     dashboard_router,
     def_router,
@@ -511,6 +512,7 @@ app.include_router(service_visits_router)
 app.include_router(reminders_router)
 app.include_router(reminder_packs_router)
 app.include_router(country_profiles_router)
+app.include_router(compliance_router)
 app.include_router(maintenance_types_router)
 app.include_router(maintenance_rules_router)
 app.include_router(supplies_router)

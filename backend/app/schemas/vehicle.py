@@ -136,6 +136,34 @@ class VehicleBase(BaseModel):
         None,
         description="Date of first registration (field B of an EU registration certificate)",
     )
+    # The other EU registration-certificate fields (#211). Bounds are the
+    # input's; the response reads what is stored.
+    euro_emission_class: str | None = Field(
+        None,
+        description="Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)",
+        max_length=12,
+    )
+    fiscal_power: int | None = Field(
+        None, description="National fiscal power, field P.6 (French CV)", ge=0, le=200
+    )
+    co2_g_km: int | None = Field(None, description="CO₂ emissions in g/km, field V.7", ge=0, le=999)
+    power_kw: int | None = Field(
+        None, description="Maximum net power in kW, field P.2", ge=0, le=2000
+    )
+    eu_category: str | None = Field(
+        None, description="EU vehicle category, field J (M1, N1, L3e)", max_length=5
+    )
+    national_category: str | None = Field(
+        None, description="National vehicle kind, field J.1 (VP, CTTE, MTL)", max_length=10
+    )
+    lez_class: str | None = Field(
+        None,
+        description=(
+            "Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); "
+            "overrides the class computed from the fuel and the Euro class"
+        ),
+        max_length=10,
+    )
     color: str | None = Field(None, description="Vehicle color", max_length=30)
     purchase_date: date | None = Field(None, description="Date purchased")
     purchase_price: OptionalMoney = Field(None, description="Purchase price")
@@ -373,6 +401,26 @@ class VehicleResponse(VehicleBase):
         ),
     )
     color: str | None = Field(None, description="Vehicle color")
+    euro_emission_class: str | None = Field(
+        None,
+        description="Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)",
+    )
+    fiscal_power: int | None = Field(
+        None, description="National fiscal power, field P.6 (French CV)"
+    )
+    co2_g_km: int | None = Field(None, description="CO₂ emissions in g/km, field V.7")
+    power_kw: int | None = Field(None, description="Maximum net power in kW, field P.2")
+    eu_category: str | None = Field(None, description="EU vehicle category, field J (M1, N1, L3e)")
+    national_category: str | None = Field(
+        None, description="National vehicle kind, field J.1 (VP, CTTE, MTL)"
+    )
+    lez_class: str | None = Field(
+        None,
+        description=(
+            "Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); "
+            "overrides the class computed from the fuel and the Euro class"
+        ),
+    )
     trim: str | None = Field(None, description="Trim level")
     body_class: str | None = Field(None, description="Body class")
     drive_type: str | None = Field(None, description="Drive type (FWD, RWD, AWD, etc.)")

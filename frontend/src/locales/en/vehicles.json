@@ -530,7 +530,14 @@
     "registrationCountryNone": "Not set",
     "registrationCountryHint": "Where the vehicle is registered. Drives its inspection cadence, fuel pump names and tax types.",
     "firstRegistrationDate": "First registration date",
-    "firstRegistrationDateHint": "Field B on an EU registration certificate."
+    "firstRegistrationDateHint": "Field B on an EU registration certificate.",
+    "euroClass": "Euro emission class (V.9)",
+    "fiscalPower": "Fiscal power (P.6, CV)",
+    "co2": "CO₂ (V.7, g/km)",
+    "powerKw": "Power (P.2, kW)",
+    "euCategory": "EU category (J)",
+    "nationalCategory": "National category (J.1)",
+    "lezClass": "Low-emission zone class (set by hand)"
   },
   "fuelList": {
     "octane": "Octane",
@@ -2236,5 +2243,28 @@
       "name": "Snowmobile Season Prep",
       "description": "Pre-season and mid-season checks for snowmobiles."
     }
+  },
+  "compliance": {
+    "title": "Compliance",
+    "lez": "Low-emission zone",
+    "lezBadge": "{{name}} {{value}}",
+    "lezUnclassified": "Unclassified",
+    "lezUnknown": "Class not computed for this scheme. Check the official site.",
+    "lezEstimated": "Estimated from the first registration date.",
+    "lezOverridden": "Set by hand on the vehicle.",
+    "officialSite": "Official site",
+    "inspectionWindow": "Can be done from {{date}}",
+    "inspectionFromRegistration": "Computed from the first registration date.",
+    "inspectionNone": "Nothing scheduled",
+    "euroClass": "Euro class",
+    "euroValue": "Euro {{n}}",
+    "estimated": "(estimated)",
+    "fiscalPower": "Fiscal power",
+    "fiscalPowerValue": "{{n}} CV",
+    "co2": "CO₂",
+    "co2Value": "{{n}} g/km",
+    "power": "Power",
+    "powerValue": "{{n}} kW",
+    "disclaimer": "Indicative. Check the official site before driving into a zone."
   }
 }

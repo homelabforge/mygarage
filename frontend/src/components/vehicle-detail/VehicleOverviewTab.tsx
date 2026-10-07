@@ -16,6 +16,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat'
 import { formatDateTime } from '../../utils/parseAPITimestamp'
 import TransferHistorySection from '../TransferHistorySection'
 import TrailerTowPanel from './TrailerTowPanel'
+import VehicleCompliancePanel from './VehicleCompliancePanel'
 import VehicleSpecsPanel from './VehicleSpecsPanel'
 import GarageAssistantPanel from './GarageAssistantPanel'
 
@@ -230,6 +231,9 @@ export default function VehicleOverviewTab({
 
       {/* Transfer History (its own file is retokenized in Step 3) */}
       <TransferHistorySection vin={vin} />
+
+      {/* #211 — what the vehicle's country asks of it; renders nothing without a profile. */}
+      <VehicleCompliancePanel vin={vin} vehicle={vehicle} />
 
       <TrailerTowPanel vehicle={vehicle} />
 

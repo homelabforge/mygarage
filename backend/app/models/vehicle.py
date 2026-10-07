@@ -75,6 +75,18 @@ class Vehicle(Base):
     # (migration 143, #211). NULL = not set.
     registration_country: Mapped[str | None] = mapped_column(String(2))
     first_registration_date: Mapped[date | None] = mapped_column(Date)
+    # The other EU registration-certificate fields (migration 147, #211):
+    # V.9 Euro class, P.6 fiscal power, V.7 CO₂ g/km, P.2 power kW, J EU
+    # category (M1, N1, L3e), J.1 national kind (VP, CTTE), and the
+    # low-emission-zone class a person sets by hand when the computed one
+    # is wrong. Bounds and vocabularies are Pydantic's, not a CHECK.
+    euro_emission_class: Mapped[str | None] = mapped_column(String(12))
+    fiscal_power: Mapped[int | None] = mapped_column(Integer)
+    co2_g_km: Mapped[int | None] = mapped_column(Integer)
+    power_kw: Mapped[int | None] = mapped_column(Integer)
+    eu_category: Mapped[str | None] = mapped_column(String(5))
+    national_category: Mapped[str | None] = mapped_column(String(10))
+    lez_class: Mapped[str | None] = mapped_column(String(10))
     color: Mapped[str | None] = mapped_column(String(30))
     purchase_date: Mapped[date | None] = mapped_column(Date)
     purchase_price: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
