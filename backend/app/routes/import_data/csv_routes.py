@@ -15,6 +15,7 @@ from app.constants.fuel import (
     FuelTypeEnum,
     normalize_fuel_type,
 )
+from app.constants.tax import is_tax_type, normalize_tax_type
 from app.database import get_db
 from app.models import (
     DEFRecord,
@@ -1078,7 +1079,17 @@ async def import_tax_csv(
             # imported. The export writes `Date` and `Renewal Date`; the two
             # halves now share one vocabulary.
             record_date = parse_date(row.get("Date", "")) or parse_date(row.get("Paid Date", ""))
-            tax_type = row.get("Type", "").strip() or None
+            # #211 — a code, or a pre-146 display string, means its code; a
+            # type this version does not know is filed under `other` rather
+            # than failing the row (the amount and date are the record).
+            tax_type = normalize_tax_type(row.get("Type", ""))
+            if tax_type is not None and not is_tax_type(tax_type):
+                logger.warning(
+                    "Tax CSV row %d: unknown type %s imported as 'other'",
+                    row_num,
+                    sanitize_for_log(tax_type),
+                )
+                tax_type = "other"
             amount = parse_decimal(row.get("Amount", ""))
             _within_api_bounds(TaxRecordCreate, amount=amount)
             renewal_date = parse_date(row.get("Renewal Date", "")) or parse_date(

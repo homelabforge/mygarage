@@ -228,7 +228,7 @@ class TestTaxCsv:
             TaxRecord(
                 vin=vin,
                 date=date(2026, 5, 1),
-                tax_type="Registration",
+                tax_type="registration",
                 amount=Decimal("212.00"),
                 renewal_date=date(2027, 5, 1),
                 notes="tax rt",
@@ -263,9 +263,48 @@ class TestTaxCsv:
             )
         ).scalar_one()
         assert back.date == date(2026, 5, 1)
-        assert back.tax_type == "Registration"
+        assert back.tax_type == "registration"
         assert back.amount == Decimal("212.00")
         assert back.renewal_date == date(2027, 5, 1)
+
+    async def test_legacy_and_unknown_types_land_as_codes(
+        self, client: AsyncClient, db_session: AsyncSession, test_vehicle, auth_headers
+    ):
+        """#211 — a file exported before migration 146 carries the display
+        strings; a type this build does not know is filed under `other`."""
+        vin = str(test_vehicle["vin"])
+        csv_text = (
+            "Date,Type,Amount,Renewal Date,Notes\n"
+            "2026-06-01,Property Tax,150.00,,legacy tax csv\n"
+            "2026-06-02,co2_malus,300.00,,code tax csv\n"
+            "2026-06-03,Road fund licence,45.00,,unknown tax csv\n"
+        )
+        r = await client.post(
+            f"/api/import/vehicles/{vin}/tax/csv",
+            files={"file": ("legacy.csv", csv_text, "text/csv")},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["error_count"] == 0, r.json()
+        rows = (
+            (
+                await db_session.execute(
+                    select(TaxRecord).where(TaxRecord.vin == vin, TaxRecord.notes.like("% tax csv"))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        by_note = {row.notes: row.tax_type for row in rows}
+        assert by_note == {
+            "legacy tax csv": "property_tax",
+            "code tax csv": "co2_malus",
+            "unknown tax csv": "other",
+        }
+        await db_session.execute(
+            TaxRecord.__table__.delete().where(TaxRecord.notes.like("% tax csv"))
+        )
+        await db_session.commit()
 
 
 @pytest.mark.asyncio

@@ -25,6 +25,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.constants.fuel import FUEL_GRADE_VALUES, FUEL_TYPE_VALUES
+from app.constants.tax import is_tax_type
 from app.schemas.vehicle import VehicleType
 
 #: EN 16942 pump labels, the vocabulary of ``fuel_records.fuel_grade``.
@@ -169,6 +170,18 @@ class TaxRules(_Strict):
     types: list[str] = Field(default_factory=list)
     #: National proper name per code (« Malus écologique »), never translated.
     names: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _known_codes(self) -> TaxRules:
+        """Every code is one of `app.constants.tax.TAX_TYPE_VALUES`, and a
+        name belongs to a type the country lists."""
+        unknown = [code for code in [*self.types, *self.names] if not is_tax_type(code)]
+        if unknown:
+            raise ValueError(f"unknown tax type code(s): {unknown}")
+        orphan = [code for code in self.names if code not in self.types]
+        if orphan:
+            raise ValueError(f"tax names without a listed type: {orphan}")
+        return self
 
 
 LezScheme = Literal["critair", "umweltplakette", "lez_registration", "ztl", "dgt_label"]

@@ -1009,9 +1009,18 @@
   },
   "taxTypes": {
     "registration": "Immatriculation",
+    "registrationTax": "Taxe d’immatriculation",
+    "co2Malus": "Malus CO₂",
+    "weightMalus": "Malus au poids",
+    "circulationTax": "Taxe de circulation",
+    "companyVehicleTax": "Taxe sur les véhicules de société",
     "inspection": "Contrôle technique",
-    "propertyTax": "Taxe foncière",
-    "tolls": "Péages"
+    "propertyTax": "Taxe de propriété du véhicule",
+    "tolls": "Péages",
+    "vignette": "Vignette",
+    "lezSticker": "Vignette zone à faibles émissions",
+    "parkingPermit": "Permis de stationnement",
+    "other": "Autre"
   },
   "tollSystems": {
     "other": "Autre"

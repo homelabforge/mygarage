@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -7,11 +7,14 @@ import FormModalWrapper from './FormModalWrapper'
 import CurrencyInput from './common/CurrencyInput'
 import { Button, Field, Input, Select, Textarea, registerDecimal } from './ui'
 import type { TaxRecord, TaxRecordCreate, TaxRecordUpdate } from '../types/tax'
-import { makeTaxRecordSchema, type TaxRecordFormData, TAX_TYPES } from '../schemas/tax'
+import { asTaxType, makeTaxRecordSchema, type TaxRecordFormData, taxTypeOptions } from '../schemas/tax'
 import { useCreateTaxRecord, useUpdateTaxRecord } from '../hooks/queries/useTaxRecords'
 import { formatDateForInput } from '../utils/dateUtils'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { useResolvedCountry } from '../hooks/useResolvedCountry'
+import { useCountryProfile } from '../hooks/queries/useCountryProfile'
+import api from '../services/api'
 
 interface TaxRecordFormProps {
   vin: string
@@ -26,6 +29,30 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateTaxRecord(vin)
   const updateMutation = useUpdateTaxRecord(vin)
+  // #211 — the country whose tax types come first, with their national
+  // names: the vehicle's registration country, then the person's, then the
+  // instance's. No country, or a country without a profile: the plain list.
+  const [vehicleRegistrationCountry, setVehicleRegistrationCountry] = useState<string | null>(null)
+  const country = useResolvedCountry({ registration_country: vehicleRegistrationCountry })
+  const { data: countryProfile } = useCountryProfile(country)
+  useEffect(() => {
+    let cancelled = false
+    void api
+      .get(`/vehicles/${vin}`)
+      .then((response) => {
+        if (!cancelled) setVehicleRegistrationCountry(response.data?.registration_country ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setVehicleRegistrationCountry(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [vin])
+  const typeOptions = useMemo(
+    () => taxTypeOptions(t, countryProfile?.taxes?.types, countryProfile?.taxes?.names),
+    [t, countryProfile]
+  )
 
   const onSubmit = async (data: TaxRecordFormData) => {
     setError(null)
@@ -81,7 +108,8 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
     resolver: zodResolver(schema) as Resolver<TaxRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      tax_type: record?.tax_type ?? undefined,
+      // A record from before migration 146 carries a display string: its code.
+      tax_type: asTaxType(record?.tax_type) ?? undefined,
       amount: record?.amount != null ? parseFloat(String(record.amount)) : undefined,
       renewal_date: record?.renewal_date ? formatDateForInput(record.renewal_date) : '',
       notes: record?.notes || '',
@@ -123,10 +151,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
                 disabled={isSubmitting}
                 invalid={!!errors.tax_type}
                 placeholder={t('tax.selectType')}
-                options={TAX_TYPES.map((option) => ({
-                  value: option.value,
-                  label: t(option.labelKey),
-                }))}
+                options={typeOptions}
               />
             </Field>
           </div>

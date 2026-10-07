@@ -112,6 +112,21 @@ The fuel form reads the `fuel` section of the resolved profile:
 Without a country, or with a country that has no profile, none of this
 appears and the form behaves exactly as before.
 
+### Tax types
+
+A tax record's `tax_type` is a code from `backend/app/constants/tax.py`
+(`registration`, `registration_tax`, `co2_malus`, `weight_malus`,
+`circulation_tax`, `company_vehicle_tax`, `inspection`, `property_tax`,
+`tolls`, `vignette`, `lez_sticker`, `parking_permit`, `other`). The UI shows
+each code's translated label; a profile's `taxes.types` lists the codes the
+country uses, in the order the form offers them, and `taxes.names` gives the
+national proper name shown beside the label (« Malus écologique (Y.3) »,
+« Kfz-Steuer »). Codes the profile does not list follow, so every type stays
+reachable. A profile that names a code the constants do not know fails to
+load (`test_tax.py` checks every shipped file). Adding a type is code-only
+since migration 146: the constant, the schema Literal, the frontend list and
+the two bundles; the database has no CHECK to update.
+
 ## Adding a country
 
 1. Copy `EU.json` to `<CC>.json` (uppercase ISO 3166-1 alpha-2), set

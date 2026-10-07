@@ -1058,9 +1058,18 @@
   },
   "taxTypes": {
     "registration": "Registration",
+    "registrationTax": "Registration Tax",
+    "co2Malus": "CO₂ Malus",
+    "weightMalus": "Weight Malus",
+    "circulationTax": "Circulation Tax",
+    "companyVehicleTax": "Company Vehicle Tax",
     "inspection": "Inspection",
     "propertyTax": "Property Tax",
-    "tolls": "Tolls"
+    "tolls": "Tolls",
+    "vignette": "Vignette",
+    "lezSticker": "Low-Emission Zone Sticker",
+    "parkingPermit": "Parking Permit",
+    "other": "Other"
   },
   "financingCategories": {
     "leasePayment": "Lease Payment",

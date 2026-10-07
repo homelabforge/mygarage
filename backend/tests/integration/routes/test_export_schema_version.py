@@ -142,7 +142,7 @@ class TestDimensionlessCSVPairsVersionCellOnly:
             TaxRecord(
                 vin=vin,
                 date=date(2026, 5, 2),
-                tax_type="Registration",
+                tax_type="registration",
                 amount=Decimal("120.50"),
                 renewal_date=date(2027, 5, 2),
                 notes="Annual renewal",
@@ -169,7 +169,7 @@ class TestDimensionlessCSVPairsVersionCellOnly:
         assert row["units_version"] == "8"
         assert row["unit_system"] == "metric"
         assert row["Date"] == "2026-05-02"
-        assert row["Type"] == "Registration"
+        assert row["Type"] == "registration"
         assert row["Amount"] == "120.50"
         assert row["Renewal Date"] == "2027-05-02"
         assert row["Notes"] == "Annual renewal"

@@ -414,6 +414,7 @@ INPUT_MODELS_REUSED: dict[str, str] = {
     "InspectionSchedule": _COUNTRY_PROFILE_SHIPPED_DATA,
     "InspectionRules": _COUNTRY_PROFILE_SHIPPED_DATA,
     "FuelGradePreset": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "TaxRules": _COUNTRY_PROFILE_SHIPPED_DATA,
     "RegistrationCertificateRules": _COUNTRY_PROFILE_SHIPPED_DATA,
 }
 
@@ -522,7 +523,8 @@ CHECK_BACKED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
     ("SupplyResponse", "unit_type"): ("supplies", "check_supply_unit_type"),
     # The usage's own row has no unit type: it reads the joined supply's.
     ("SupplyUsageResponse", "unit_type"): ("supplies", "check_supply_unit_type"),
-    ("TaxRecordResponse", "tax_type"): ("tax_records", "check_tax_type"),
+    # TaxRecordResponse.tax_type: its CHECK went with migration 146 (#211);
+    # the field reads leniently (LenientTaxType) and the inputs stay strict.
 }
 #: Vocabulary fields the app works out rather than reads: (model, field) ->
 #: (the producer's dotted path, why every branch lands in the vocabulary).

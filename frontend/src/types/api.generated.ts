@@ -16889,7 +16889,7 @@ export interface components {
          *       "date": "2025-01-15",
          *       "notes": "Annual vehicle registration renewal",
          *       "renewal_date": "2026-01-15",
-         *       "tax_type": "Registration",
+         *       "tax_type": "registration",
          *       "vin": "ML32A5HJ9KH009478"
          *     }
          */
@@ -16914,9 +16914,9 @@ export interface components {
             renewal_date?: string | null;
             /**
              * Tax Type
-             * @description Type of tax/fee
+             * @description Type of tax/fee, as a code. The pre-128 display strings (Registration, Inspection, Property Tax, Tolls) are accepted as their codes.
              */
-            tax_type?: ("Registration" | "Inspection" | "Property Tax" | "Tolls") | null;
+            tax_type?: ("registration" | "registration_tax" | "co2_malus" | "weight_malus" | "circulation_tax" | "company_vehicle_tax" | "inspection" | "property_tax" | "tolls" | "vignette" | "lez_sticker" | "parking_permit" | "other") | null;
             /** Vin */
             vin: string;
         };
@@ -16932,7 +16932,7 @@ export interface components {
          *           "id": 1,
          *           "notes": "Annual vehicle registration renewal",
          *           "renewal_date": "2026-01-15",
-         *           "tax_type": "Registration",
+         *           "tax_type": "registration",
          *           "vin": "ML32A5HJ9KH009478"
          *         }
          *       ],
@@ -16955,7 +16955,7 @@ export interface components {
          *       "id": 1,
          *       "notes": "Annual vehicle registration renewal",
          *       "renewal_date": "2026-01-15",
-         *       "tax_type": "Registration",
+         *       "tax_type": "registration",
          *       "vin": "ML32A5HJ9KH009478"
          *     }
          */
@@ -16987,9 +16987,9 @@ export interface components {
             renewal_date?: string | null;
             /**
              * Tax Type
-             * @description Type of tax/fee
+             * @description Type of tax/fee, as a code. The pre-128 display strings (Registration, Inspection, Property Tax, Tolls) are accepted as their codes.
              */
-            tax_type?: ("Registration" | "Inspection" | "Property Tax" | "Tolls") | null;
+            tax_type?: ("registration" | "registration_tax" | "co2_malus" | "weight_malus" | "circulation_tax" | "company_vehicle_tax" | "inspection" | "property_tax" | "tolls" | "vignette" | "lez_sticker" | "parking_permit" | "other") | null;
             /** Vin */
             vin: string;
         };
@@ -17007,7 +17007,7 @@ export interface components {
             /** Renewal Date */
             renewal_date?: string | null;
             /** Tax Type */
-            tax_type?: ("Registration" | "Inspection" | "Property Tax" | "Tolls") | null;
+            tax_type?: ("registration" | "registration_tax" | "co2_malus" | "weight_malus" | "circulation_tax" | "company_vehicle_tax" | "inspection" | "property_tax" | "tolls" | "vignette" | "lez_sticker" | "parking_permit" | "other") | null;
         };
         /** TaxRules */
         TaxRules: {

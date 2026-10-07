@@ -23,8 +23,8 @@ vi.mock('../TaxRecordForm', () => ({
 
 import TaxRecordList from '../TaxRecordList'
 
-const recA = { id: 1, date: '2026-03-01', tax_type: 'Registration', amount: '85.50', renewal_date: '2027-03-01', notes: 'annual' } as unknown as TaxRecord
-const recB = { id: 2, date: '2026-04-01', tax_type: 'Inspection', amount: '40.00', renewal_date: null, notes: '' } as unknown as TaxRecord
+const recA = { id: 1, date: '2026-03-01', tax_type: 'registration', amount: '85.50', renewal_date: '2027-03-01', notes: 'annual' } as unknown as TaxRecord
+const recB = { id: 2, date: '2026-04-01', tax_type: 'inspection', amount: '40.00', renewal_date: null, notes: '' } as unknown as TaxRecord
 const money = (v: number | string) => formatCurrency(v, { currencyCode: 'USD', locale: 'en-US' })
 // The caption-scoped helper (RED until the DataTable adds <caption>) — RESERVED for the DataTable-SPECIFIC
 // column/caption assertions (RED→GREEN across the restyle).
@@ -54,13 +54,13 @@ describe('TaxRecordList — DataTable cells scoped to the named table', () => {
 
   it('renders the tax type inside the table row (fails if the type column is dropped)', () => {
     render(<TaxRecordList vin="V1" />)
-    expect(within(table()).getByText('Registration')).toBeInTheDocument()
+    expect(within(table()).getByText('forms:taxTypes.registration')).toBeInTheDocument()
   })
 
   it('renders EVERY column render-transform inside the named table — date, both amounts, renewal date + its fallback, notes + its fallback, and both types (M2 — fails if any column render is dropped)', () => {
     render(<TaxRecordList vin="V1" />)
-    const rowA = within(table()).getByText('Registration').closest('tr') as HTMLElement
-    const rowB = within(table()).getByText('Inspection').closest('tr') as HTMLElement
+    const rowA = within(table()).getByText('forms:taxTypes.registration').closest('tr') as HTMLElement
+    const rowB = within(table()).getByText('forms:taxTypes.inspection').closest('tr') as HTMLElement
     // Row A — every field populated. Real formatter output (no dateLocale arg — the column render passes none).
     expect(within(rowA).getByText(formatDateForDisplay('2026-03-01'))).toBeInTheDocument()  // datePaid
     expect(within(rowA).getByText(money('85.50'))).toBeInTheDocument()                       // amount
@@ -81,14 +81,14 @@ describe('TaxRecordList — DataTable cells scoped to the named table', () => {
 describe('TaxRecordList — row actions + add', () => {
   it('clicking a row Edit opens the form editing THAT record (fails if edit is unwired or opens the wrong/blank record)', () => {
     render(<TaxRecordList vin="V1" />)
-    const firstRow = within(anyTable()).getByText('Registration').closest('tr') as HTMLElement
+    const firstRow = within(anyTable()).getByText('forms:taxTypes.registration').closest('tr') as HTMLElement
     fireEvent.click(within(firstRow).getByRole('button', { name: 'common:edit' }))
     expect(screen.getByTestId('tax-form')).toHaveTextContent('editing:1')
   })
 
   it('clicking a row Delete (confirm accepted) calls the delete mutation with the record id (fails if delete is unwired or the confirm gate is dropped)', () => {
     render(<TaxRecordList vin="V1" />)
-    const firstRow = within(anyTable()).getByText('Registration').closest('tr') as HTMLElement
+    const firstRow = within(anyTable()).getByText('forms:taxTypes.registration').closest('tr') as HTMLElement
     fireEvent.click(within(firstRow).getByRole('button', { name: 'common:delete' }))
     expect(window.confirm).toHaveBeenCalled()
     expect(deleteMutate).toHaveBeenCalledWith(1, expect.anything())
@@ -97,7 +97,7 @@ describe('TaxRecordList — row actions + add', () => {
   it('clicking a row Delete with confirm REJECTED does NOT call the delete mutation (B4 — fails if the handler ignores a false confirm and deletes anyway)', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<TaxRecordList vin="V1" />)
-    const firstRow = within(anyTable()).getByText('Registration').closest('tr') as HTMLElement
+    const firstRow = within(anyTable()).getByText('forms:taxTypes.registration').closest('tr') as HTMLElement
     fireEvent.click(within(firstRow).getByRole('button', { name: 'common:delete' }))
     expect(window.confirm).toHaveBeenCalled()
     expect(deleteMutate).not.toHaveBeenCalled()
@@ -105,7 +105,7 @@ describe('TaxRecordList — row actions + add', () => {
 
   it('the row Edit/Delete expose a real aria-label via IconButton (fails if IconButton regresses to a title-only <button>)', () => {
     render(<TaxRecordList vin="V1" />)
-    const firstRow = within(anyTable()).getByText('Registration').closest('tr') as HTMLElement
+    const firstRow = within(anyTable()).getByText('forms:taxTypes.registration').closest('tr') as HTMLElement
     expect(within(firstRow).getByRole('button', { name: 'common:edit' })).toHaveAttribute('aria-label', 'common:edit')
     expect(within(firstRow).getByRole('button', { name: 'common:delete' })).toHaveAttribute('aria-label', 'common:delete')
   })
