@@ -13494,6 +13494,8 @@ export interface components {
             interval_months: number | null;
             /** Is Active */
             is_active: boolean;
+            /** Lead Days */
+            lead_days?: number | null;
             /** Maintenance Type */
             maintenance_type: string | null;
             /** Notes */
@@ -13528,6 +13530,8 @@ export interface components {
             interval_months: number | null;
             /** Is Active */
             is_active: boolean;
+            /** Lead Days */
+            lead_days?: number | null;
             /** Maintenance Type */
             maintenance_type: string | null;
             /** Source */

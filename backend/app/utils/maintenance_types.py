@@ -22,6 +22,7 @@ pins both directions.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 #: A code a pack, a rule or a request may carry: lowercase snake_case, 2..50.
@@ -350,6 +351,15 @@ REGISTRY: tuple[MaintenanceType, ...] = (
             r"\binspection sticker\b",
             r"\bregistration inspection\b",
             r"\bvehicle inspection\b",
+            # #211 — the periodic roadworthiness test as Europe names it.
+            # `normalise` lower-cases but keeps accents, hence the classes.
+            r"\b(?:technical|roadworthiness|periodic|periodical) (?:inspection|test)\b",
+            r"\bcontr[oô]le technique\b",
+            r"\bcontre[- ]?visite\b",
+            r"\b(?:ct|t[uü]v|hu|apk|itv|snct|mot)\b",
+            r"\bhauptuntersuchung\b",
+            r"\brevisione\b",
+            r"\b(?:auto)?keuring\b",
         ),
         exclude=(r"\bmulti point\b", r"\bpre purchase\b", r"\bbrake\w*\b", r"\btires?\b"),
     ),
@@ -421,8 +431,17 @@ _NON_WORD = re.compile(r"[^a-z0-9]+")
 
 
 def normalise(description: str) -> str:
-    """Lower-case, `&` as `and`, every other punctuation run as one space."""
-    text = description.lower().replace("&", " and ")
+    """Lower-case, accents stripped, `&` as `and`, every other punctuation
+    run as one space.
+
+    Accents go before the punctuation pass (#211): `[^a-z0-9]` would turn
+    « contrôle » into "contr le" and "TÜV" into "t v", and no pattern can
+    match a word with a hole in it. "contrôle technique" and "controle
+    technique" normalise to the same text.
+    """
+    decomposed = unicodedata.normalize("NFKD", description)
+    ascii_text = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    text = ascii_text.lower().replace("&", " and ")
     return _NON_WORD.sub(" ", text).strip()
 
 

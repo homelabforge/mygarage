@@ -924,9 +924,11 @@ class _DueNotification:
     tread_depth_mm: Decimal | None
     tread_threshold_mm: Decimal | None
     last_notified_at: datetime | None
+    #: Set when this is the one-off "inspection window open" notice (#211).
+    window_opens: date | None = None
 
     @classmethod
-    def of(cls, reminder: Reminder, event: DueEvent) -> _DueNotification:
+    def of(cls, reminder: Reminder, event: DueEvent, *, window: bool = False) -> _DueNotification:
         """Copy what the send, its log lines and its stamp need from a loaded reminder."""
         return cls(
             id=reminder.id,
@@ -940,6 +942,7 @@ class _DueNotification:
             tread_depth_mm=reminder.tread_depth_mm,
             tread_threshold_mm=reminder.tread_threshold_mm,
             last_notified_at=reminder.last_notified_at,
+            window_opens=window_opens_on(reminder) if window else None,
         )
 
 
@@ -1016,7 +1019,18 @@ async def check_due_reminders(db: AsyncSession) -> None:
                 for reminder, reminder_id in zip(reminders, reminder_ids, strict=True):
                     # No savepoint here: judging a reminder runs no SQL.
                     try:
-                        event = _due_event(reminder, reminder_due_status(reminder, due_ctx), now)
+                        status = reminder_due_status(reminder, due_ctx)
+                        # #211 — a rule with a lead window (the French contrôle
+                        # technique may be done six months early) sends ONE
+                        # notification when that window opens, then the ordinary
+                        # overdue ones. The due-soon status keeps its own 30-day
+                        # horizon: six months of amber badge would be noise.
+                        if status in ("due_soon", "on_track") and _inspection_window_opens(
+                            reminder, today
+                        ):
+                            found.append(_DueNotification.of(reminder, "service_due", window=True))
+                            continue
+                        event = _due_event(reminder, status, now)
                     except Exception:
                         logger.exception("Reminder %s check failed", reminder_id)
                         continue
@@ -1041,11 +1055,18 @@ async def check_due_reminders(db: AsyncSession) -> None:
             # default for an ownerless vehicle. Resolved here, for the ones
             # going out, so a sweep that sends nothing costs no extra queries.
             render_ctx = await render_context_for_vehicle(db, item.vin)
-            results = await dispatcher.dispatch(
-                event_type=item.event,
-                title=_DUE_TITLES[item.event].format(title=item.title),
-                message=_build_reminder_message(item, render_ctx),
-            )
+            if item.window_opens is not None:
+                results = await dispatcher.dispatch(
+                    event_type=item.event,
+                    title=f"Inspection window open: {item.title}",
+                    message=_build_window_message(item, household_today()),
+                )
+            else:
+                results = await dispatcher.dispatch(
+                    event_type=item.event,
+                    title=_DUE_TITLES[item.event].format(title=item.title),
+                    message=_build_reminder_message(item, render_ctx),
+                )
         except Exception as e:
             logger.error(
                 "Failed to send reminder notification %s: %s",
@@ -1123,6 +1144,39 @@ async def check_due_reminders(db: AsyncSession) -> None:
                 "Reminder %s not stamped: row no longer matches the sent values", item.id
             )
     await db.commit()
+
+
+def window_opens_on(reminder: Reminder) -> date | None:
+    """The first day the work may be done: due date minus the rule's lead days."""
+    rule = reminder.rule
+    if rule is None or not rule.lead_days or reminder.due_date is None:
+        return None
+    return reminder.due_date - timedelta(days=rule.lead_days)
+
+
+def _inspection_window_opens(reminder: Reminder, today: date) -> bool:
+    """Whether today is inside the lead window and nothing was sent yet.
+
+    Once only: the window notification stamps `last_notified_at`, so the
+    next sweeps skip to the due-date rule. A reminder already notified for
+    any reason is never told about its window.
+    """
+    opens = window_opens_on(reminder)
+    if opens is None or reminder.last_notified_at is not None or reminder.due_date is None:
+        return False
+    return opens <= today < reminder.due_date
+
+
+def _build_window_message(reminder: _DueNotification, today: date) -> str:
+    """The "inspection window open" notice, from the sweep's plain values."""
+    opens = reminder.window_opens
+    parts = [f"Inspection reminder: {reminder.title}"]
+    if opens is not None:
+        parts.append(f"Can be done from: {opens.isoformat()}")
+    if reminder.due_date:
+        parts.append(f"Due date: {reminder.due_date.isoformat()}")
+        parts.append(f"Days left: {(reminder.due_date - today).days}")
+    return "\n".join(parts)
 
 
 def _build_reminder_message(reminder: ReminderMessageSource, ctx: RenderContext) -> str:

@@ -1137,7 +1137,13 @@
     "daysLeft_other": "{{count}} days left",
     "daysOverdue": "{{count}} days overdue",
     "daysOverdue_one": "{{count}} day overdue",
-    "daysOverdue_other": "{{count}} days overdue"
+    "daysOverdue_other": "{{count}} days overdue",
+    "automaticInspection": "Automatic",
+    "inspectionFromRegistration": "Scheduled from the first registration date, by the country's cadence. Log an inspection to count from the real date.",
+    "inspectionFromLast": "Counted from the last inspection you logged, by the country's cadence.",
+    "inspectionRetest": "The last inspection failed: a re-test is due within the country's retest window.",
+    "inspectionWindowOpen": "Can be done from {{date}}",
+    "inspectionNeedsDate": "Add the vehicle's first registration date to schedule its {{name}} automatically."
   },
   "serviceList": {
     "attachments": "Attachments",
@@ -2208,5 +2214,27 @@
     "deleteConfirm": "Delete the pack “{{name}}”? Reminders already created from it are not affected.",
     "deleted": "Pack deleted",
     "overwrite": "Save over"
+  },
+  "reminderPacks": {
+    "oil_and_filter": {
+      "name": "Oil & Filter Service",
+      "description": "DIY engine oil and oil filter change — typically every 8,000 km or 6 months."
+    },
+    "tire_rotation": {
+      "name": "Tire Rotation",
+      "description": "Rotate tires every 10,000 km or 6 months to even out wear."
+    },
+    "atv_utv_service": {
+      "name": "ATV / UTV Hours Service",
+      "description": "Engine oil and air filter intervals for hour-metered ATVs and side-by-sides."
+    },
+    "boat_winterization": {
+      "name": "Boat Winterization",
+      "description": "Starter checklist for seasonal boat winterization and spring recommission."
+    },
+    "snowmobile_season": {
+      "name": "Snowmobile Season Prep",
+      "description": "Pre-season and mid-season checks for snowmobiles."
+    }
   }
 }

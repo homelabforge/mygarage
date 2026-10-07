@@ -22,6 +22,14 @@ from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
+# #211 — vehicle fields the periodic inspection engine reads. The first set
+# may turn the engine on or off for the vehicle, so a change reactivates a
+# paused rule; the second only changes the cadence.
+_INSPECTION_REACTIVATING_FIELDS = frozenset(
+    {"first_registration_date", "registration_country", "sold_date"}
+)
+_INSPECTION_CADENCE_FIELDS = frozenset({"vehicle_type", "fuel_type", "fuel_type_secondary"})
+
 DEF_CAPACITY_NON_DIESEL_DETAIL = "DEF tank capacity applies only to diesel vehicles"
 DEF_CAPACITY_CLEAR_FIRST_DETAIL = (
     "Changing fuel type away from diesel requires clearing the DEF tank capacity first"
@@ -125,6 +133,12 @@ class VehicleService:
         vehicle = await get_vehicle_or_403(vin, current_user, self.db)
         return vehicle
 
+    async def _resync_inspection(self, vin: str, *, force_reactivate: bool) -> None:
+        """Hand the vehicle to the inspection engine after its own commit (#211)."""
+        from app.services.inspection_schedule_service import resync_vehicle
+
+        await resync_vehicle(self.db, vin, force_reactivate=force_reactivate)
+
     async def create_vehicle(
         self, vehicle_data: VehicleCreate, current_user: User | None
     ) -> Vehicle:
@@ -189,6 +203,11 @@ class VehicleService:
                 sanitize_for_log(vehicle.nickname),
                 sanitize_for_log(username),
             )
+
+            # #211 — a first registration date is what the inspection engine
+            # schedules from; without one it has nothing to do yet.
+            if vehicle.first_registration_date is not None:
+                await self._resync_inspection(vehicle.vin, force_reactivate=True)
 
             return vehicle
 
@@ -267,6 +286,14 @@ class VehicleService:
             await self.db.refresh(vehicle)
 
             logger.info("Updated vehicle: %s", sanitize_for_log(vehicle.vin))
+
+            # #211 — the fields the inspection engine reads. A country, a
+            # date or a sale may turn it on or off, so those reactivate a
+            # paused rule; a type or fuel change only recomputes the cadence.
+            if update_data.keys() & _INSPECTION_REACTIVATING_FIELDS:
+                await self._resync_inspection(vehicle.vin, force_reactivate=True)
+            elif update_data.keys() & _INSPECTION_CADENCE_FIELDS:
+                await self._resync_inspection(vehicle.vin, force_reactivate=False)
 
             return vehicle
 

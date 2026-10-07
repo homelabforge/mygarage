@@ -387,6 +387,13 @@ async def update_current_user(
 
     logger.info("User updated their profile: %s", sanitize_for_log(current_user.username))
 
+    # #211 — the country and the inspection preference decide whether each of
+    # this person's vehicles gets an automatic inspection reminder.
+    if changes.keys() & {"country", "inspection_auto_schedule"}:
+        from app.services.inspection_schedule_service import resync_user_vehicles
+
+        await resync_user_vehicles(db, current_user.id)
+
     return current_user
 
 

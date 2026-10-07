@@ -1055,7 +1055,13 @@
     "daysLeft_other": "{{count}} jours restants",
     "daysOverdue": "{{count}} jours de retard",
     "daysOverdue_one": "{{count}} jour de retard",
-    "daysOverdue_other": "{{count}} jours de retard"
+    "daysOverdue_other": "{{count}} jours de retard",
+    "automaticInspection": "Automatique",
+    "inspectionFromRegistration": "Planifié d’après la date de première immatriculation, selon la périodicité du pays. Enregistrez un contrôle pour compter depuis la date réelle.",
+    "inspectionFromLast": "Compté depuis le dernier contrôle enregistré, selon la périodicité du pays.",
+    "inspectionRetest": "Le dernier contrôle a été défavorable : une contre-visite est due dans le délai prévu par le pays.",
+    "inspectionWindowOpen": "Réalisable à partir du {{date}}",
+    "inspectionNeedsDate": "Ajoutez la date de première immatriculation du véhicule pour planifier automatiquement son {{name}}."
   },
   "serviceList": {
     "attachments": "Pièces jointes",
@@ -2013,5 +2019,27 @@
     "deleteConfirm": "Supprimer le pack « {{name}} » ? Les rappels déjà créés à partir de celui-ci ne sont pas affectés.",
     "deleted": "Pack supprimé",
     "overwrite": "Écraser"
+  },
+  "reminderPacks": {
+    "oil_and_filter": {
+      "name": "Vidange et filtre à huile",
+      "description": "Vidange de l’huile moteur et remplacement du filtre à huile, en général tous les 8 000 km ou 6 mois."
+    },
+    "tire_rotation": {
+      "name": "Permutation des pneus",
+      "description": "Permutez les pneus tous les 10 000 km ou 6 mois pour égaliser l’usure."
+    },
+    "atv_utv_service": {
+      "name": "Entretien quad / SSV",
+      "description": "Intervalles d’huile moteur et de filtre à air pour les quads et SSV à compteur horaire."
+    },
+    "boat_winterization": {
+      "name": "Hivernage du bateau",
+      "description": "Liste de départ pour l’hivernage saisonnier du bateau et la remise en service au printemps."
+    },
+    "snowmobile_season": {
+      "name": "Saison motoneige",
+      "description": "Vérifications d’avant-saison et de mi-saison pour les motoneiges."
+    }
   }
 }

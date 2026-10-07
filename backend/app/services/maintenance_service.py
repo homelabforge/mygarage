@@ -588,6 +588,14 @@ async def _reanchor(
     return resolved
 
 
+async def reanchor_pending(
+    db: AsyncSession, reminder: Reminder, rule: HasIntervals, anchor: Anchor
+) -> Anchor:
+    """`_reanchor` for the inspection engine, which computes its own anchor
+    (a theoretical due date) rather than reading one off the history."""
+    return await _reanchor(db, reminder, rule, anchor)
+
+
 def _complete(reminder: Reminder, anchor: Anchor) -> None:
     reminder.status = "done"
     reminder.completed_at = utc_now()
@@ -607,6 +615,11 @@ async def _pending_reminder(db: AsyncSession, rule_id: int) -> Reminder | None:
         .order_by(Reminder.id)
     )
     return result.scalars().first()
+
+
+async def pending_reminder(db: AsyncSession, rule_id: int) -> Reminder | None:
+    """The rule's pending reminder, if any (the inspection engine's read)."""
+    return await _pending_reminder(db, rule_id)
 
 
 async def _anchor_from_line_item(
@@ -798,8 +811,17 @@ async def reconcile_rule(
     return pending
 
 
-async def reconcile_vehicle_unlocked(db: AsyncSession, vin: str) -> None:
-    """Reconcile every active rule; the caller holds the lock and commits."""
+async def reconcile_vehicle_unlocked(
+    db: AsyncSession, vin: str, *, inspection_force_reactivate: bool = False
+) -> None:
+    """Reconcile every active rule; the caller holds the lock and commits.
+
+    Then the country-profile inspection engine (#211) has its turn, so a
+    service visit, an import or an explicit reconcile also brings the
+    periodic inspection reminder up to date. Its failure is logged, never
+    raised: a profile data error must not cost the other rules their
+    reconcile.
+    """
     result = await db.execute(
         select(MaintenanceRule)
         .where(MaintenanceRule.vin == vin, MaintenanceRule.is_active.is_(True))
@@ -809,8 +831,26 @@ async def reconcile_vehicle_unlocked(db: AsyncSession, vin: str) -> None:
         await reconcile_rule(db, rule)
     await db.flush()
 
+    from app.services.inspection_schedule_service import sync_vehicle_by_vin
 
-async def reconcile_vehicle(db: AsyncSession, vin: str) -> None:
+    # Its own savepoint: a service-visit write runs this inside the visit's
+    # transaction, so a failed statement here must not abort that transaction
+    # on PostgreSQL and take the visit down with it.
+    try:
+        async with db.begin_nested():
+            await sync_vehicle_by_vin(db, vin, force_reactivate=inspection_force_reactivate)
+    except Exception as exc:  # noqa: BLE001 - the other rules are already reconciled
+        logger.error(
+            "Inspection schedule sync failed for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(exc),
+        )
+    await db.flush()
+
+
+async def reconcile_vehicle(
+    db: AsyncSession, vin: str, *, inspection_force_reactivate: bool = False
+) -> None:
     """Lock, reconcile, commit, for the reconcile route and the two imports.
 
     Service-visit writes don't come through here: they call
@@ -818,10 +858,16 @@ async def reconcile_vehicle(db: AsyncSession, vin: str) -> None:
     this after its rows are committed, so a failure is logged and the import
     stands; the next write or `POST .../reminders/reconcile` repairs from the
     same state.
+
+    `inspection_force_reactivate` is for the writes that may turn the
+    inspection engine back on (a country, a first registration date, the
+    owner's preference): see `inspection_schedule_service.sync_vehicle`.
     """
     try:
         await lock_vehicle_for_write(db, vin)
-        await reconcile_vehicle_unlocked(db, vin)
+        await reconcile_vehicle_unlocked(
+            db, vin, inspection_force_reactivate=inspection_force_reactivate
+        )
         await db.commit()
     except HTTPException:
         raise

@@ -30,6 +30,7 @@ from app.schemas.vehicle import (
     VehicleResponse,
     VehicleUpdate,
 )
+from app.services import inspection_schedule_service
 from app.services.auth import (
     get_vehicle_for_owner_or_403,
     get_vehicle_or_403,
@@ -564,6 +565,9 @@ async def bulk_archive_vehicles(
         len(archived),
         sanitize_for_log(payload.reason),
     )
+    # #211 — an archived vehicle has no inspection to schedule.
+    for vehicle in archived:
+        await inspection_schedule_service.pause_vehicle_locked(db, vehicle.vin)
     return VehicleListResponse(
         vehicles=[VehicleResponse.model_validate(v) for v in archived],
         total=len(archived),
@@ -615,6 +619,8 @@ async def archive_vehicle(
         sanitize_for_log(vin),
         sanitize_for_log(archive_data.reason),
     )
+    # #211 — an archived vehicle has no inspection to schedule.
+    await inspection_schedule_service.pause_vehicle_locked(db, vin)
     return VehicleResponse.model_validate(vehicle)
 
 
@@ -661,6 +667,8 @@ async def unarchive_vehicle(
     await db.refresh(vehicle)
 
     logger.info("Unarchived vehicle %s", sanitize_for_log(vin))
+    # #211 — back in service: the inspection engine takes the vehicle back.
+    await inspection_schedule_service.resync_vehicle(db, vin, force_reactivate=True)
     return VehicleResponse.model_validate(vehicle)
 
 

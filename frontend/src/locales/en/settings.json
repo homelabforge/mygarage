@@ -806,5 +806,12 @@
     "saved": "Country saved",
     "error": "Failed to save the country",
     "description": "Drives national defaults for your vehicles: inspection cadence, fuel pump names, tax types. A vehicle registered elsewhere can set its own country."
+  },
+  "inspection": {
+    "label": "Technical inspection reminders",
+    "autoSchedule": "Schedule the periodic technical inspection automatically",
+    "description": "With a country set, each vehicle with a first registration date gets a reminder for its periodic roadworthiness test (contrôle technique, HU, APK, ITV…), computed from the country's cadence and brought forward by the inspections you log. Turn it off to manage those reminders yourself.",
+    "saved": "Preference saved",
+    "error": "Failed to save the preference"
   }
 }

@@ -666,6 +666,21 @@ async def check_reminder_notifications() -> None:
         logger.error("Reminder notification check failed: %s", str(e))
 
 
+async def sync_inspection_schedules() -> None:
+    """Keep every vehicle's periodic inspection reminder in line with its
+    country profile (#211): what no write hook saw, once a day."""
+    logger.info("Running inspection schedule sync...")
+    try:
+        async with AsyncSessionLocal() as db:
+            await load_household_zone(db)
+            from app.services.inspection_schedule_service import sync_all
+
+            counts = await sync_all(db)
+        logger.info("Inspection schedule sync completed: %s", counts)
+    except Exception as e:
+        logger.error("Inspection schedule sync failed: %s", str(e))
+
+
 async def auto_archive_inactive_vehicles() -> None:
     """Archive vehicles with no recent activity when auto_archive_inactive_days > 0.
 
@@ -908,6 +923,17 @@ def start_scheduler() -> None:
         hour=5,
         minute=0,
         id="auto_archive_inactive_vehicles",
+        replace_existing=True,
+    )
+
+    # Periodic inspection reminders from the country profiles at 6 AM UTC
+    # (#211), before the 8 AM reminder notification check reads them.
+    scheduler.add_job(
+        sync_inspection_schedules,
+        "cron",
+        hour=6,
+        minute=0,
+        id="sync_inspection_schedules",
         replace_existing=True,
     )
 

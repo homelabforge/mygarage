@@ -17,7 +17,7 @@
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bell, Plus, Check, X, Edit, Trash2, Clock, Gauge, Zap, Timer, Package, PackagePlus, Repeat, GitMerge } from 'lucide-react'
+import { Bell, Plus, Check, X, Edit, Trash2, Clock, Gauge, Zap, Timer, Package, PackagePlus, Repeat, GitMerge, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useReminders,
@@ -45,6 +45,7 @@ import type { DuplicateGroup, Reminder, ReminderStatus, ReminderType } from '../
 import type { Vehicle } from '../types/vehicle'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { getUsageTracking } from '../utils/usageTracking'
+import { packDisplayName } from '../utils/reminderPacks'
 import { Button, IconButton, Card, Chip, Mono, EmptyState, ProgressMeter, Select, type ProgressMeterTone } from './ui'
 
 interface ReminderListProps {
@@ -179,7 +180,7 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
   const openPackPreview = () => {
     const pack = packs.find((p) => p.id === selectedPack)
     if (!pack) return
-    setPreviewingPack({ id: pack.id, name: pack.name })
+    setPreviewingPack({ id: pack.id, name: packDisplayName(pack, t) })
   }
 
   const anchorText = (reminder: Reminder): string | null => {
@@ -194,6 +195,27 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
       return t('reminderList.countingFrom', { date: formatDate(reminder.anchor_date), reading: reading ?? '' })
     }
     return t('reminderList.lastDone', { date: formatDate(reminder.anchor_date), reading: reading ?? '' })
+  }
+
+  // #211 — a reminder the country-profile inspection engine keeps: where its
+  // date comes from, and the window before the due date it may be done in.
+  const isAutomaticInspection = (reminder: Reminder): boolean =>
+    reminder.source === 'inspection' || reminder.rule?.source === 'inspection'
+
+  const automaticInspectionHint = (reminder: Reminder): string => {
+    const months = reminder.rule?.interval_months ?? null
+    if (reminder.anchor_kind === 'baseline') return t('reminderList.inspectionFromRegistration')
+    if (months != null && months <= 3) return t('reminderList.inspectionRetest')
+    return t('reminderList.inspectionFromLast')
+  }
+
+  const windowOpensOn = (reminder: Reminder): string | null => {
+    const leadDays = reminder.rule?.lead_days
+    if (!leadDays || !reminder.due_date || reminder.status !== 'pending') return null
+    const opens = new Date(`${reminder.due_date}T00:00:00`)
+    opens.setDate(opens.getDate() - leadDays)
+    const iso = `${opens.getFullYear()}-${String(opens.getMonth() + 1).padStart(2, '0')}-${String(opens.getDate()).padStart(2, '0')}`
+    return t('reminderList.inspectionWindowOpen', { date: formatDate(iso) })
   }
 
   /** What is left along one dimension, in the vehicle's units; null when that target isn't set. */
@@ -277,7 +299,7 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
                   // have your own.
                   ...packs.map((p) => ({
                     value: p.id,
-                    label: p.is_custom ? `${p.name} (${t('packList.saved')})` : p.name,
+                    label: p.is_custom ? `${p.name} (${t('packList.saved')})` : packDisplayName(p, t),
                   })),
                 ]}
               />
@@ -404,6 +426,11 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
                             {t('reminderList.every', { interval: recurrence })}
                           </Chip>
                         )}
+                        {isAutomaticInspection(reminder) && (
+                          <span title={automaticInspectionHint(reminder)}>
+                            <Chip tone="accent" icon={ShieldCheck}>{t('reminderList.automaticInspection')}</Chip>
+                          </span>
+                        )}
                         {isDuplicate && reminder.status === 'pending' && (
                           <Chip tone="warning">{t('reminderList.possibleDuplicate')}</Chip>
                         )}
@@ -466,6 +493,9 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
                             })}
                           </p>
                         )}
+                      {windowOpensOn(reminder) && (
+                        <p className="text-xs text-text-mute mt-1">{windowOpensOn(reminder)}</p>
+                      )}
                       {reminder.notes && (
                         <p className="text-xs text-text-mute mt-1 truncate">{reminder.notes}</p>
                       )}

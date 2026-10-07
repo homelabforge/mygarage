@@ -220,3 +220,41 @@ class TestRegistryShape:
 
     def test_all_types_is_the_registry(self):
         assert all_types() is REGISTRY
+
+
+@pytest.mark.unit
+class TestClassifyInspectionEurope:
+    """#211 — the periodic roadworthiness test as European owners write it."""
+
+    @pytest.mark.parametrize(
+        "description",
+        [
+            "Contrôle technique",
+            "Controle technique périodique",
+            "Contre-visite",
+            "CT",
+            "Passage au CT",
+            "TÜV",
+            "TUV",
+            "HU",
+            "Hauptuntersuchung",
+            "APK",
+            "ITV",
+            "Revisione",
+            "Autokeuring",
+            "SNCT",
+            "MOT",
+            "Technical inspection",
+            "Periodic roadworthiness test",
+            "State inspection",
+        ],
+    )
+    def test_european_wordings_share_the_inspection_code(self, description):
+        assert classify(description) == "state_inspection"
+
+    @pytest.mark.parametrize(
+        "description",
+        ["Brake inspection", "Pre purchase inspection", "Tire inspection", "Duct cleaning"],
+    )
+    def test_other_inspections_are_not_the_periodic_test(self, description):
+        assert classify(description) != "state_inspection"

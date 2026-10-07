@@ -742,5 +742,12 @@
     "saved": "Pays enregistré",
     "error": "Impossible d’enregistrer le pays",
     "description": "Détermine les valeurs par défaut nationales de vos véhicules : périodicité du contrôle technique, noms des carburants à la pompe, types de taxes. Un véhicule immatriculé ailleurs peut avoir son propre pays."
+  },
+  "inspection": {
+    "label": "Rappels de contrôle technique",
+    "autoSchedule": "Planifier automatiquement le contrôle technique périodique",
+    "description": "Avec un pays défini, chaque véhicule ayant une date de première immatriculation reçoit un rappel pour son contrôle technique périodique, calculé d’après la périodicité du pays et recalé par les contrôles que vous enregistrez. Désactivez-le pour gérer ces rappels vous-même.",
+    "saved": "Préférence enregistrée",
+    "error": "Impossible d’enregistrer la préférence"
   }
 }

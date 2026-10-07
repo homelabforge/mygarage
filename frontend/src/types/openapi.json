@@ -13179,6 +13179,17 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
           "maintenance_type": {
             "anyOf": [
               {
@@ -13322,6 +13333,17 @@
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
           },
           "maintenance_type": {
             "anyOf": [
