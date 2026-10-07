@@ -54,6 +54,7 @@ from app.schemas.fuel import (
     FuelRecordCreate,
     _parse_obc_trip_duration,
     _validate_diesel_grade,
+    _validate_fuel_grade,
     _validate_octane,
 )
 from app.utils.csv_units import MASS, PRICE_PER_VOLUME, CsvUnitContext
@@ -302,6 +303,7 @@ def _fuel_record_from_json(
         # int() would (91.9 -> 91; codex review R1-M1).
         octane=_validate_octane(_coerce_octane(row.get("octane"))),
         diesel_grade=_validate_diesel_grade(row.get("diesel_grade")),
+        fuel_grade=_validate_fuel_grade(row.get("fuel_grade")),
         is_full_tank=row.get("is_full_tank", True),
         missed_fillup=row.get("missed_fillup", False),
         is_hauling=row.get("is_hauling", False),
@@ -383,6 +385,8 @@ def _json_fuel_key(
         key.append(_matches(FuelRecord.octane, record.octane))
     if "diesel_grade" in row:
         key.append(_matches(FuelRecord.diesel_grade, record.diesel_grade))
+    if "fuel_grade" in row:
+        key.append(_matches(FuelRecord.fuel_grade, record.fuel_grade))
     return key
 
 

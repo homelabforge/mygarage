@@ -22,6 +22,7 @@ from app.schemas.fuel import (
     _validate_charge_level,
     _validate_charge_location,
     _validate_diesel_grade,
+    _validate_fuel_grade,
     _validate_fuel_type_enum,
     _validate_octane,
     _validate_price_basis,
@@ -70,6 +71,14 @@ class WebhookFuelPayload(BaseModel):
     @classmethod
     def _check_diesel_grade(cls, v: str | None) -> str | None:
         return _validate_diesel_grade(v)
+
+    # #211 — EN 16942 pump label, same validator as the fuel input schemas.
+    fuel_grade: str | None = Field(None, max_length=10)
+
+    @field_validator("fuel_grade")
+    @classmethod
+    def _check_fuel_grade(cls, v: str | None) -> str | None:
+        return _validate_fuel_grade(v)
 
     @field_validator("charge_level")
     @classmethod
@@ -152,6 +161,7 @@ async def create_fuel_record(db: AsyncSession, payload: WebhookFuelPayload) -> d
         fuel_type_used=payload.fuel_type_used or ("electric" if payload.kwh is not None else None),
         octane=payload.octane,
         diesel_grade=payload.diesel_grade,
+        fuel_grade=payload.fuel_grade,
     )
     db.add(record)
     await db.flush()  # populate record.id without committing

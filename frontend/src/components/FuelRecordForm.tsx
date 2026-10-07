@@ -15,9 +15,14 @@ import {
   FUEL_TYPE_VALUES,
   PAYMENT_METHOD_VALUES,
   TRIP_TYPE_VALUES,
+  gradesForFuelType,
   isDieselFuelType,
+  isFuelGrade,
   isFuelType,
+  type FuelGrade,
 } from '../constants/fuel'
+import { useResolvedCountry } from '../hooks/useResolvedCountry'
+import { useCountryProfile } from '../hooks/queries/useCountryProfile'
 import { FormError } from './FormError'
 import api from '../services/api'
 import { isSettingOn } from '../utils/settingSwitch'
@@ -128,6 +133,13 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   const parseReceiptMutation = useParseFuelReceipt(vin)
   const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const [vehicleFuelTypeSecondary, setVehicleFuelTypeSecondary] = useState<string>('')
+  // #211 — the country whose pump names and octane scale apply: the
+  // vehicle's registration country first, then the person's, then the
+  // instance's. No country, or a country without a profile, means the
+  // form stays exactly as it was (octane as AKI or RON, US diesel grades).
+  const [vehicleRegistrationCountry, setVehicleRegistrationCountry] = useState<string | null>(null)
+  const country = useResolvedCountry({ registration_country: vehicleRegistrationCountry })
+  const { data: countryProfile } = useCountryProfile(country)
   // Task 13 — which usage dimension(s) this vehicle tracks, driving the
   // odometer vs. engine-hours field visibility below. Defaults mirror
   // getUsageTracking's own distance-primary default so the form doesn't
@@ -352,6 +364,9 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
       // prefill from the last fill-up happens in an effect below.
       octane: readNumber((record as { octane?: number | null })?.octane),
       diesel_grade: (record as { diesel_grade?: 'onroad' | 'offroad' | null })?.diesel_grade ?? undefined,
+      // #211 — only a label the vocabulary knows; anything else is left
+      // blank rather than failing validation on a field the user never saw.
+      fuel_grade: isFuelGrade(record?.fuel_grade) ? record.fuel_grade : undefined,
       is_full_tank: record?.is_full_tank ?? true,
       missed_fillup: record?.missed_fillup ?? false,
       is_hauling: record?.is_hauling ?? false,
@@ -416,6 +431,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         // Store fuel_type for conditional rendering
         setVehicleFuelType(vehicleData.fuel_type || '')
         setVehicleFuelTypeSecondary(vehicleData.fuel_type_secondary || '')
+        setVehicleRegistrationCountry(vehicleData.registration_country ?? null)
         // Task 13 — usage-dimension fields, for odometer/engine-hours field visibility.
         setVehicleUsageUnit(vehicleData.usage_unit || 'distance')
         setVehicleSecondaryUsageEnabled(!!vehicleData.secondary_usage_enabled)
@@ -446,11 +462,12 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   // (codex code review R1-M4). The subscription marks any octane/diesel_grade
   // change, including the form's own setValue calls, which is fine: those all
   // happen after (prefill itself, and the hidden-field clears below).
-  const gradeTouchedRef = useRef({ octane: false, diesel_grade: false })
+  const gradeTouchedRef = useRef({ octane: false, diesel_grade: false, fuel_grade: false })
   useEffect(() => {
     const subscription = watch((_, { name }) => {
       if (name === 'octane') gradeTouchedRef.current.octane = true
       if (name === 'diesel_grade') gradeTouchedRef.current.diesel_grade = true
+      if (name === 'fuel_grade') gradeTouchedRef.current.fuel_grade = true
     })
     return () => subscription.unsubscribe()
   }, [watch])
@@ -463,7 +480,11 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
       .then((res) => {
         if (cancelled) return
         const last = (res.data?.records ?? [])[0] as
-          | { octane?: number | null; diesel_grade?: 'onroad' | 'offroad' | null }
+          | {
+              octane?: number | null
+              diesel_grade?: 'onroad' | 'offroad' | null
+              fuel_grade?: string | null
+            }
           | undefined
         if (!last) return
         if (last.octane != null && !gradeTouchedRef.current.octane && getValues('octane') == null) {
@@ -475,6 +496,14 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
           !getValues('diesel_grade')
         ) {
           setValue('diesel_grade', last.diesel_grade)
+        }
+        // #211 — same pump, same label.
+        if (
+          isFuelGrade(last.fuel_grade) &&
+          !gradeTouchedRef.current.fuel_grade &&
+          !getValues('fuel_grade')
+        ) {
+          setValue('fuel_grade', last.fuel_grade)
         }
       })
       .catch(() => {
@@ -845,6 +874,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         // (exclude_unset drops omitted keys; the issue-#108 convention).
         octane: data.octane ?? null,
         diesel_grade: data.diesel_grade ?? null,
+        fuel_grade: data.fuel_grade ?? null,
         is_full_tank: data.is_full_tank,
         missed_fillup: data.missed_fillup,
         is_hauling: data.is_hauling,
@@ -929,6 +959,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         'fuel_type_used',
         'octane',
         'diesel_grade',
+        'fuel_grade',
         'driver_name_freetext',
         'payment_method',
         'trip_type',
@@ -970,21 +1001,88 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   const effectiveFuelType = watch('fuel_type_used') || vehicleFuelType
   const effectiveFuelLower = (effectiveFuelType || '').toLowerCase()
   const showOctane = effectiveFuelLower.includes('gasoline') || effectiveFuelLower === 'e85'
-  const showDieselGrade = isDieselFuelType(effectiveFuelType)
+  // #211 — the clear-vs-dyed diesel grade is a North-American distinction;
+  // a profile that says so hides it rather than asking a European driver
+  // a question their pump cannot answer.
+  const showDieselGrade =
+    isDieselFuelType(effectiveFuelType) && countryProfile?.fuel?.diesel_dyed_distinction !== false
+  // The EN 16942 label only makes sense where a profile applies (the label
+  // is printed on every EU nozzle, not on a US one) and for a fuel type
+  // that carries one: electricity has no label.
+  const allowedGrades = gradesForFuelType(effectiveFuelType)
+  const showFuelGrade = !!countryProfile && allowedGrades.length > 0
+  const octaneIsRon = countryProfile?.fuel?.octane_scale === 'RON'
+
+  // The pump names of the profile for the fuel dispensed (SP95-E10, Super
+  // Plus…). Picking one writes the EN 16942 label and, for petrol, the
+  // octane; the select's own value is DERIVED from those two fields so a
+  // label chosen by hand, prefilled or edited stays in step with it.
+  const fuelPresets = useMemo(
+    () =>
+      showFuelGrade
+        ? (countryProfile?.fuel?.grades ?? []).filter(
+            (preset) => preset.fuel_type === effectiveFuelType && isFuelGrade(preset.grade)
+          )
+        : [],
+    [countryProfile, effectiveFuelType, showFuelGrade]
+  )
+  const watchedFuelGrade = watch('fuel_grade')
+  const watchedOctane = watch('octane')
+  const [presetOther, setPresetOther] = useState(false)
+  const matchedPreset = useMemo(() => {
+    if (!watchedFuelGrade) return undefined
+    const octane = typeof watchedOctane === 'number' && !Number.isNaN(watchedOctane) ? watchedOctane : null
+    return (
+      fuelPresets.find((p) => p.grade === watchedFuelGrade && p.octane != null && p.octane === octane) ??
+      fuelPresets.find((p) => p.grade === watchedFuelGrade && p.octane == null)
+    )
+  }, [fuelPresets, watchedFuelGrade, watchedOctane])
+  // An explicit "Other" wins over a coincidental match, so the plain select
+  // stays open while the person picks a label by hand.
+  const presetValue = presetOther ? 'other' : matchedPreset ? matchedPreset.id : watchedFuelGrade ? 'other' : ''
+  const showPlainGradeSelect = showFuelGrade && (fuelPresets.length === 0 || presetValue === 'other')
+
+  const handlePresetChange = (id: string) => {
+    if (id === 'other') {
+      setPresetOther(true)
+      return
+    }
+    setPresetOther(false)
+    const preset = fuelPresets.find((p) => p.id === id)
+    if (!preset) {
+      setValue('fuel_grade', undefined, { shouldDirty: true })
+      return
+    }
+    setValue('fuel_grade', preset.grade as FuelGrade, { shouldDirty: true, shouldValidate: true })
+    if (showOctane) {
+      setValue('octane', preset.octane ?? undefined, { shouldDirty: true, shouldValidate: true })
+    }
+  }
 
   // Switching the fuel dispensed hides a grade field; clear it, or a stale
   // hidden value keeps failing validation with an error the user cannot see
   // and blocks the save (codex code review R1-M3). Only a true->false FLIP
   // clears: on mount prev is null, so a legacy value on a record whose type
   // never showed the field this session is left alone.
-  const prevGradeVisibilityRef = useRef<{ octane: boolean; grade: boolean } | null>(null)
+  const prevGradeVisibilityRef = useRef<{ octane: boolean; grade: boolean; label: boolean } | null>(
+    null
+  )
   useEffect(() => {
     const prev = prevGradeVisibilityRef.current
-    prevGradeVisibilityRef.current = { octane: showOctane, grade: showDieselGrade }
+    prevGradeVisibilityRef.current = { octane: showOctane, grade: showDieselGrade, label: showFuelGrade }
     if (!prev) return
     if (prev.octane && !showOctane) setValue('octane', undefined)
     if (prev.grade && !showDieselGrade) setValue('diesel_grade', undefined)
-  }, [showOctane, showDieselGrade, setValue])
+    if (prev.label && !showFuelGrade) setValue('fuel_grade', undefined)
+  }, [showOctane, showDieselGrade, showFuelGrade, setValue])
+
+  // A label that the NEW fuel type cannot carry (E10 after switching the
+  // fill to diesel) is cleared too, for the same reason.
+  useEffect(() => {
+    if (!showFuelGrade) return
+    const current = getValues('fuel_grade')
+    if (current && !allowedGrades.includes(current)) setValue('fuel_grade', undefined)
+  }, [showFuelGrade, allowedGrades, getValues, setValue])
 
   // Dynamic labels. The denominator follows the PRICE BASIS, not the volume
   // unit alone: `priceToDisplay` scales a `per_weight` price by the resolved
@@ -1343,11 +1441,49 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
             </Field>
           )}
 
+          {/* #211 — the pump name and EN 16942 label, only where a country profile applies */}
+          {showFuelGrade && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {fuelPresets.length > 0 && (
+                <Field id="fuel_preset" label={t('fuel.fuelPreset')} hint={t('fuel.fuelPresetHint')}>
+                  <Select
+                    id="fuel_preset"
+                    value={presetValue}
+                    onChange={(e) => handlePresetChange(e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder={t('common:select') || '—'}
+                    options={[
+                      ...fuelPresets.map((preset) => ({ value: preset.id, label: preset.label })),
+                      { value: 'other', label: t('fuel.fuelPresetOther') },
+                    ]}
+                  />
+                </Field>
+              )}
+              {showPlainGradeSelect && (
+                <Field id="fuel_grade" label={t('fuel.fuelGrade')} error={errors.fuel_grade} hint={t('fuel.fuelGradeHint')}>
+                  <Select
+                    id="fuel_grade"
+                    {...register('fuel_grade')}
+                    disabled={isSubmitting}
+                    invalid={!!errors.fuel_grade}
+                    placeholder={t('common:select') || '—'}
+                    options={allowedGrades.map((grade) => ({ value: grade, label: t(`fuel.fuelGrades.${grade}`) }))}
+                  />
+                </Field>
+              )}
+            </div>
+          )}
+
           {/* #164 — grade of the fuel dispensed, gated on the effective type */}
           {(showOctane || showDieselGrade) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {showOctane && (
-                <Field id="octane" label={t('fuel.octane')} error={errors.octane} hint={t('fuel.octaneHint')}>
+                <Field
+                  id="octane"
+                  label={octaneIsRon ? t('fuel.octaneRon') : t('fuel.octane')}
+                  error={errors.octane}
+                  hint={octaneIsRon ? t('fuel.octaneRonHint') : t('fuel.octaneHint')}
+                >
                   <NumberInput id="octane" {...registerDecimal(register, 'octane')} invalid={!!errors.octane} disabled={isSubmitting} />
                 </Field>
               )}

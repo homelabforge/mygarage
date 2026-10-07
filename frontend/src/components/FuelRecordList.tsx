@@ -268,6 +268,8 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
   // #164 — only when some loaded record carries a rating, so vehicles that
   // never track octane keep their table width.
   const showOctaneColumn = records.some((r) => r.octane != null)
+  // #211 — likewise for the EN 16942 pump label (E10, B7, XTL…).
+  const showFuelGradeColumn = records.some((r) => !!r.fuel_grade)
 
   const columns: DataTableColumn<FuelRecord>[] = [
     { id: 'date', header: t('fuelList.date'), mono: true, render: (r) => formatDate(r.date) },
@@ -280,6 +282,10 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
     ...(showPropaneColumn ? [{
       id: 'propane', header: t('fuelList.propaneUnit', { unit: UnitFormatter.getVolumeUnit(units) }), align: 'right' as const, mono: true,
       render: (r: FuelRecord) => r.propane_liters ? UnitFormatter.formatVolume(parseFloat(r.propane_liters.toString()), units, showBoth) : '-',
+    }] : []),
+    ...(showFuelGradeColumn ? [{
+      id: 'fuel_grade', header: t('fuelList.fuelGrade'), mono: true,
+      render: (r: FuelRecord) => r.fuel_grade || '-',
     }] : []),
     ...(showOctaneColumn ? [{
       id: 'octane', header: t('fuelList.octane'), align: 'right' as const, mono: true,

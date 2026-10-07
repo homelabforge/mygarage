@@ -70,6 +70,10 @@ class FuelRecord(Base):
     # ('onroad' | 'offroad'). Both prefilled client-side from the last fillup.
     octane: Mapped[int | None] = mapped_column(Integer)
     diesel_grade: Mapped[str | None] = mapped_column(String(10))
+    # #211 — the EN 16942 pump label (E10, B7, XTL…), a FuelGradeEnum value
+    # validated by Pydantic (migration 144). Prefilled from the last fill-up
+    # like the two above; NULL on every pre-existing row.
+    fuel_grade: Mapped[str | None] = mapped_column(String(10))
     is_full_tank: Mapped[bool] = mapped_column(Boolean, default=True)
     missed_fillup: Mapped[bool] = mapped_column(Boolean, default=False)
     is_hauling: Mapped[bool] = mapped_column(

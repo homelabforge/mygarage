@@ -27,6 +27,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.constants.fuel import (
+    FUEL_GRADE_VALUES,
     FUEL_TYPE_VALUES,
     PAYMENT_METHOD_VALUES,
     TRIP_TYPE_VALUES,
@@ -94,6 +95,22 @@ def _validate_diesel_grade(v: str | None) -> str | None:
     if v is not None and v not in DIESEL_GRADE_VALUES:
         raise ValueError(f"diesel_grade must be one of {DIESEL_GRADE_VALUES}, got {v!r}")
     return v
+
+
+def _validate_fuel_grade(v: str | None) -> str | None:
+    """An EN 16942 label (E10, B7, XTL…), case-insensitive; blank clears (#211).
+
+    Module-level like its two siblings: the CSV/JSON importers and the ingest
+    payload construct rows outside Pydantic and run the same check per row.
+    """
+    if v is None:
+        return None
+    cleaned = v.strip().upper()
+    if not cleaned:
+        return None
+    if cleaned not in FUEL_GRADE_VALUES:
+        raise ValueError(f"fuel_grade must be one of {FUEL_GRADE_VALUES}, got {v!r}")
+    return cleaned
 
 
 def _parse_obc_trip_duration(v: object) -> int | None:
@@ -285,6 +302,11 @@ class FuelRecordBase(BaseModel):
         description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)",
         max_length=10,
     )
+    fuel_grade: str | None = Field(
+        None,
+        description="EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG…)",
+        max_length=10,
+    )
     is_full_tank: bool = Field(True, description="Full tank fill-up")
     missed_fillup: bool = Field(False, description="Skipped recording a fill-up")
     is_hauling: bool = Field(False, description="Vehicle was towing/hauling during this fuel cycle")
@@ -407,6 +429,11 @@ class FuelRecordCreate(FuelRecordBase):
     @classmethod
     def _check_diesel_grade_create(cls, v: str | None) -> str | None:
         return _validate_diesel_grade(v)
+
+    @field_validator("fuel_grade")
+    @classmethod
+    def _check_fuel_grade_create(cls, v: str | None) -> str | None:
+        return _validate_fuel_grade(v)
 
     @field_validator("payment_method")
     @classmethod
@@ -554,6 +581,11 @@ class FuelRecordUpdate(BaseModel):
         description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)",
         max_length=10,
     )
+    fuel_grade: str | None = Field(
+        None,
+        description="EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG…)",
+        max_length=10,
+    )
     is_full_tank: bool | None = Field(None, description="Full tank fill-up")
     missed_fillup: bool | None = Field(None, description="Skipped recording a fill-up")
     is_hauling: bool | None = Field(
@@ -623,6 +655,11 @@ class FuelRecordUpdate(BaseModel):
     @classmethod
     def _check_diesel_grade_update(cls, v: str | None) -> str | None:
         return _validate_diesel_grade(v)
+
+    @field_validator("fuel_grade")
+    @classmethod
+    def _check_fuel_grade_update(cls, v: str | None) -> str | None:
+        return _validate_fuel_grade(v)
 
     @field_validator("payment_method")
     @classmethod
@@ -720,6 +757,10 @@ class FuelRecordResponse(FuelRecordBase):
     )
     diesel_grade: str | None = Field(
         None, description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)"
+    )
+    fuel_grade: str | None = Field(
+        None,
+        description="EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG…)",
     )
     station_name_freetext: str | None = Field(
         None,

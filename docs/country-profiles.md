@@ -49,7 +49,7 @@ concatenated instead: the baseline's citations come first, then the country's.
 | `names` | Proper names shown as-is in every UI language: `inspection`, `registration_certificate`, `lez`… |
 | `currency` | ISO 4217 code |
 | `inspection` | `name`, `lead_window_months` (how early the test may be done), `retest_window_months` (after a failed test), and `schedules` |
-| `fuel` | `octane_scale` (`RON` or `AKI`), `diesel_dyed_distinction` (US clear vs dyed diesel), `grades` (pump names mapped to EN 16942 labels) |
+| `fuel` | `octane_scale` (`RON` or `AKI`), `diesel_dyed_distinction` (US clear vs dyed diesel), `grades` (pump names mapped to EN 16942 labels, see below) |
 | `taxes` | `types` in the order the form offers them, `names` for the national proper names |
 | `lez` | low-emission-zone `scheme` (`critair`, `umweltplakette`, `lez_registration`, `ztl`, `dgt_label`), `name`, `url` |
 | `insurance` | `policy_types`, `coverage_keys`, the `no_claims` scheme (CRM, SF-Klasse, classe di merito, bonus-malus) |
@@ -86,6 +86,31 @@ Examples:
 
 The `note` is shown next to the computed date: use it for regional rules and
 exemptions the schedule cannot express (Belgium's regions, for instance).
+
+### Fuel labels
+
+Every nozzle sold in the EU carries an EN 16942 label: `E5`, `E10` or `E85`
+in a circle for petrol, `B7`, `B10`, `B20`, `B30`, `B100` or `XTL` in a
+square for diesel, `H2`, `CNG`, `LPG` or `LNG` in a diamond for gas. A
+fill-up stores that label in `fuel_grade` (migration 144), next to the
+octane rating and the US on/off-road diesel grade of #164.
+
+The fuel form reads the `fuel` section of the resolved profile:
+
+- `grades` lists the names drivers see on the pump (`SP95-E10`, `Super
+  Plus`, `Gazole (B7)`, `HVO (XTL)`…), each mapped to a label, an octane
+  rating when it has one, and the `fuel_type` it belongs to. The form offers
+  the names that match the fuel dispensed; picking one fills in the label
+  and the octane. « Other » opens the plain label list for that fuel type.
+  A profile with no names for a fuel type still offers the plain list.
+- `octane_scale` relabels the octane field « Octane (RON) » where Europe's
+  research octane number applies; `AKI` (the US pump number) keeps the
+  generic label.
+- `diesel_dyed_distinction: false` hides the on/off-road diesel grade, a
+  North-American question a European pump cannot answer.
+
+Without a country, or with a country that has no profile, none of this
+appears and the form behaves exactly as before.
 
 ## Adding a country
 

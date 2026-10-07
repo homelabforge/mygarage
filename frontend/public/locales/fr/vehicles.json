@@ -495,6 +495,7 @@
   },
   "fuelList": {
     "octane": "Octane",
+    "fuelGrade": "Étiquette",
     "actions": "Actions",
     "addFillUp": "Ajouter un plein",
     "addFirstFillUp": "Ajouter le premier plein",

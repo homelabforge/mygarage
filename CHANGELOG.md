@@ -64,6 +64,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Number fields say how they read a value like 1,234: "Read as 1,234" shows under the field
 ### Added
 - Country as a setting (#211): a country per person (Quick Settings), an optional registration country and first registration date per vehicle, and an instance default (Settings → System). Country profiles are data files (`docs/country-profiles.md`): an EU baseline plus France, Luxembourg, Germany, Belgium, Italy, the Netherlands and Spain, served by `GET /api/country-profiles`. Nothing changes until a country is set.
+- EN 16942 fuel labels on fill-ups (#211): with a country set, the fuel form offers that country's pump names (SP95-E10, Super Plus, Gazole B7, HVO…) which fill in the label (E5, E10, B7, XTL, LPG…) and the octane rating, labelled RON where Europe's scale applies; the US on/off-road diesel grade is hidden where it does not exist. The label is exported (CSV schema 8, JSON backup 9, `Fuel Grade` / `fuel_grade`), imported, accepted by the fuel webhook, and shown in the fill-up list. French, German, Italian, Dutch and Spanish fuel names (essence, gazole, Benzin, gasolio, benzine, gasóleo…) are recognised when importing.
 
 ### Changed
 - An engine-off stop shorter than the drive gap no longer splits a drive

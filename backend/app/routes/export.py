@@ -117,6 +117,9 @@ limiter = Limiter(key_func=get_remote_address)
 #   `purchases`, standalone `usages` and `used_elsewhere`, its uses on
 #   another vehicle's visits; a line item carries its own `supply_usages`)
 #   to v9 without a bump: a 3a file simply has none.
+# - CSV "8" / JSON "9": additive `Fuel Grade` column / `fuel_grade` key, the
+#   EN 16942 pump label of a fill-up (#211, migration 144). Same additive
+#   treatment as the #164 grade columns: an older file imports with NULLs.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -649,6 +652,7 @@ async def export_fuel_records_csv(
         "Fuel Type Used",
         "Octane",
         "Diesel Grade",
+        "Fuel Grade",
         "Station ID",
         "Station",
         "Driver ID",
@@ -702,6 +706,7 @@ async def export_fuel_records_csv(
                 # not a unit-bearing quantity, so no csv_emission conversion.
                 record.octane if record.octane is not None else "",
                 record.diesel_grade or "",
+                record.fuel_grade or "",
                 record.station_address_book_id or "",
                 station_names.get(record.id) or "",
                 record.driver_user_id or "",

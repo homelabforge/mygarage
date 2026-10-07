@@ -92,6 +92,172 @@ class TestOctaneGradeApi:
             assert r.status_code == 422, (bad, r.text)
 
 
+class TestFuelGradeApi:
+    """#211 — `fuel_grade`, the EN 16942 pump label (E5, E10, B7, XTL…)."""
+
+    async def test_create_round_trips_and_normalises_case(self, client, auth_headers, test_vehicle):
+        vin = test_vehicle["vin"]
+        r = await _create(client, auth_headers, vin, odometer_km=210100, fuel_grade="E10")
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert body["fuel_grade"] == "E10"
+
+        r = await client.get(f"/api/vehicles/{vin}/fuel", headers=auth_headers)
+        mine = [x for x in r.json()["records"] if x["id"] == body["id"]]
+        assert mine and mine[0]["fuel_grade"] == "E10"
+
+        # Lowercase and surrounding whitespace are tolerated and stored upper.
+        r = await _create(client, auth_headers, vin, odometer_km=210150, fuel_grade=" xtl ")
+        assert r.status_code == 201, r.text
+        assert r.json()["fuel_grade"] == "XTL"
+
+    async def test_update_sets_and_null_clears(self, client, auth_headers, test_vehicle):
+        vin = test_vehicle["vin"]
+        record = (await _create(client, auth_headers, vin, odometer_km=210200)).json()
+        assert record["fuel_grade"] is None
+
+        r = await client.put(
+            f"/api/vehicles/{vin}/fuel/{record['id']}",
+            headers=auth_headers,
+            json={"fuel_grade": "b7"},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["fuel_grade"] == "B7"
+
+        r = await client.put(
+            f"/api/vehicles/{vin}/fuel/{record['id']}",
+            headers=auth_headers,
+            json={"fuel_grade": None},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["fuel_grade"] is None
+
+    async def test_unknown_label_422(self, client, auth_headers, test_vehicle):
+        vin = test_vehicle["vin"]
+        for bad in ("E95", "SP98", "diesel"):
+            r = await _create(client, auth_headers, vin, odometer_km=210300, fuel_grade=bad)
+            assert r.status_code == 422, (bad, r.text)
+
+        record = (await _create(client, auth_headers, vin, odometer_km=210301)).json()
+        r = await client.put(
+            f"/api/vehicles/{vin}/fuel/{record['id']}",
+            headers=auth_headers,
+            json={"fuel_grade": "E95"},
+        )
+        assert r.status_code == 422, r.text
+
+    async def test_webhook_carries_and_validates_fuel_grade(
+        self, client, auth_headers, test_vehicle, db_session
+    ):
+        key = "webhook_ingest_token"
+        existing = await db_session.scalar(select(Setting).where(Setting.key == key))
+        if existing is None:
+            db_session.add(Setting(key=key, value="grade-hook"))
+        else:
+            existing.value = "grade-hook"
+        await db_session.commit()
+        try:
+            vin = test_vehicle["vin"]
+            r = await client.post(
+                "/api/v1/webhooks/fuel",
+                json={"vin": vin, "date": "2026-05-06", "liters": "38", "fuel_grade": "e10"},
+                headers={"X-Webhook-Token": "grade-hook"},
+            )
+            assert r.status_code == 200, r.text
+            row = await db_session.scalar(select(FuelRecord).where(FuelRecord.id == r.json()["id"]))
+            assert row is not None and row.fuel_grade == "E10"
+
+            r = await client.post(
+                "/api/v1/webhooks/fuel",
+                json={"vin": vin, "liters": "38", "fuel_grade": "E95"},
+                headers={"X-Webhook-Token": "grade-hook"},
+            )
+            assert r.status_code == 422, r.text
+        finally:
+            existing = await db_session.scalar(select(Setting).where(Setting.key == key))
+            if existing is not None:
+                existing.value = ""
+                await db_session.commit()
+
+    async def test_csv_round_trip_and_unknown_label_fails_its_row(
+        self, client, auth_headers, test_vehicle
+    ):
+        vin = test_vehicle["vin"]
+        created = (
+            await _create(client, auth_headers, vin, odometer_km=210400, fuel_grade="E10")
+        ).json()
+
+        r = await client.get(f"/api/export/vehicles/{vin}/fuel/csv", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        text = r.text
+        header = text.splitlines()[0].split(",")
+        assert header.index("Fuel Grade") == header.index("Diesel Grade") + 1
+
+        r = await client.delete(f"/api/vehicles/{vin}/fuel/{created['id']}", headers=auth_headers)
+        assert r.status_code in (200, 204), r.text
+        r = await client.post(
+            f"/api/import/vehicles/{vin}/fuel/csv",
+            headers=auth_headers,
+            files={"file": ("fuel.csv", BytesIO(text.encode()), "text/csv")},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["error_count"] == 0
+        r = await client.get(f"/api/vehicles/{vin}/fuel", headers=auth_headers)
+        mine = [x for x in r.json()["records"] if x["odometer_km"] == "210400.00"]
+        assert mine and mine[0]["fuel_grade"] == "E10"
+
+        # The import path builds ORM rows directly, so the validator must run
+        # there too: a bad label fails its row alone, an empty cell is NULL.
+        csv_content = (
+            "Date,Odometer (km),Liters,Price Per Liter,Total Cost,Full Tank,Fuel Grade\n"
+            "2026-05-07,210500,41.0,1.50,61.50,True,E95\n"
+            "2026-05-08,210600,41.0,1.50,61.50,True,\n"
+            "2026-05-09,210700,41.0,1.50,61.50,True,b10\n"
+        )
+        r = await client.post(
+            f"/api/import/vehicles/{vin}/fuel/csv",
+            headers=auth_headers,
+            files={"file": ("fuel.csv", BytesIO(csv_content.encode()), "text/csv")},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["error_count"] == 1, body
+        assert body["success_count"] == 2, body
+        records = (await client.get(f"/api/vehicles/{vin}/fuel", headers=auth_headers)).json()[
+            "records"
+        ]
+        assert not [x for x in records if x["date"] == "2026-05-07"]
+        assert [x["fuel_grade"] for x in records if x["date"] == "2026-05-08"] == [None]
+        assert [x["fuel_grade"] for x in records if x["date"] == "2026-05-09"] == ["B10"]
+
+    async def test_json_round_trip(self, client, auth_headers, test_vehicle):
+        import json as jsonlib
+
+        vin = test_vehicle["vin"]
+        created = (
+            await _create(client, auth_headers, vin, odometer_km=210800, fuel_grade="LPG")
+        ).json()
+        backup = (await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)).json()
+        mine = [x for x in backup["fuel_records"] if x.get("odometer_km") == 210800.0]
+        assert mine and mine[0]["fuel_grade"] == "LPG"
+
+        r = await client.delete(f"/api/vehicles/{vin}/fuel/{created['id']}", headers=auth_headers)
+        assert r.status_code in (200, 204), r.text
+        r = await client.post(
+            f"/api/import/vehicles/{vin}/json",
+            headers=auth_headers,
+            files={
+                "file": ("backup.json", BytesIO(jsonlib.dumps(backup).encode()), "application/json")
+            },
+        )
+        assert r.status_code == 200, r.text
+        records = (await client.get(f"/api/vehicles/{vin}/fuel", headers=auth_headers)).json()[
+            "records"
+        ]
+        mine = [x for x in records if x["odometer_km"] == "210800.00"]
+        assert mine and mine[0]["fuel_grade"] == "LPG"
+
+
 class TestOctaneGradeWebhook:
     async def test_webhook_carries_and_validates_both_fields(
         self, client, auth_headers, test_vehicle, db_session

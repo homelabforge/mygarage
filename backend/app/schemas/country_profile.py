@@ -24,26 +24,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.constants.fuel import FUEL_TYPE_VALUES
+from app.constants.fuel import FUEL_GRADE_VALUES, FUEL_TYPE_VALUES
 from app.schemas.vehicle import VehicleType
 
-#: EN 16942 pump labels. Phase 2 of the EU work moves this to ``constants.fuel``
-#: as ``FuelGradeEnum``; until then the profile loader validates against it.
-EN16942_GRADES: tuple[str, ...] = (
-    "E5",
-    "E10",
-    "E85",
-    "B7",
-    "B10",
-    "B20",
-    "B30",
-    "B100",
-    "XTL",
-    "H2",
-    "CNG",
-    "LPG",
-    "LNG",
-)
+#: EN 16942 pump labels, the vocabulary of ``fuel_records.fuel_grade``.
+EN16942_GRADES: tuple[str, ...] = FUEL_GRADE_VALUES
 
 _COUNTRY_RE = re.compile(r"^[A-Z]{2}$")
 

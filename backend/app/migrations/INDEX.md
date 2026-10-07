@@ -156,3 +156,4 @@ migrations must swallow their own operational errors.
 | `123_add_user_oidc_relink_until` | **FATAL** — Add users.oidc_relink_until: when an admin-approved SSO relink closes. |
 | `124_supply_volume_unit` | **FATAL** — Add supplies.volume_unit, the per-supply display unit token (#191). |
 | `143_add_country_fields` | **FATAL** — Add the country columns behind the EU/national profiles (#211). |
+| `144_add_fuel_grade` | **FATAL** — Add fuel_records.fuel_grade, the EN 16942 pump label of a fill-up (#211). |

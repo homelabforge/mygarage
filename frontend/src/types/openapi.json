@@ -7980,6 +7980,19 @@
             "description": "Optional fill-up timestamp (naive local). Required for OBC auto-suggest from a matching DriveSession.",
             "title": "Filled At"
           },
+          "fuel_grade": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG\u2026)",
+            "title": "Fuel Grade"
+          },
           "fuel_type_used": {
             "anyOf": [
               {
@@ -8568,6 +8581,18 @@
             "description": "Optional fill-up timestamp (naive local). Required for OBC auto-suggest from a matching DriveSession.",
             "title": "Filled At"
           },
+          "fuel_grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG\u2026)",
+            "title": "Fuel Grade"
+          },
           "fuel_type_used": {
             "anyOf": [
               {
@@ -9066,6 +9091,19 @@
             ],
             "description": "Optional fill-up timestamp",
             "title": "Filled At"
+          },
+          "fuel_grade": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG\u2026)",
+            "title": "Fuel Grade"
           },
           "fuel_type_used": {
             "anyOf": [
@@ -31873,6 +31911,18 @@
               }
             ],
             "title": "Diesel Grade"
+          },
+          "fuel_grade": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Grade"
           },
           "fuel_type_used": {
             "anyOf": [
