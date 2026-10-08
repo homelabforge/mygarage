@@ -3538,6 +3538,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/registration-certificate/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse Registration Certificate
+         * @description Read a certificate and return what it would fill. Writes nothing.
+         */
+        post: operations["parse_registration_certificate_api_registration_certificate_parse_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reminder-packs": {
         parameters: {
             query?: never;
@@ -6326,6 +6346,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/registration-certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Registration Certificate
+         * @description Store the certificate as a document, fill the vehicle, record X.1.
+         *
+         *     Owner only: it writes the vehicle row. The file is kept under the
+         *     vehicle's documents whatever the read found, so a certificate a model
+         *     could not read is still filed.
+         */
+        post: operations["import_registration_certificate_api_vehicles__vin__registration_certificate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/reminders": {
         parameters: {
             query?: never;
@@ -8738,6 +8782,11 @@ export interface components {
              */
             skip_duplicates: boolean;
         };
+        /** Body_import_registration_certificate_api_vehicles__vin__registration_certificate_post */
+        Body_import_registration_certificate_api_vehicles__vin__registration_certificate_post: {
+            /** File */
+            file: string;
+        };
         /** Body_import_service_csv_api_import_vehicles__vin__service_csv_post */
         Body_import_service_csv_api_import_vehicles__vin__service_csv_post: {
             /** File */
@@ -8807,6 +8856,11 @@ export interface components {
         };
         /** Body_parse_insurance_pdf_api_insurance_parse_pdf_post */
         Body_parse_insurance_pdf_api_insurance_parse_pdf_post: {
+            /** File */
+            file: string;
+        };
+        /** Body_parse_registration_certificate_api_registration_certificate_parse_post */
+        Body_parse_registration_certificate_api_registration_certificate_parse_post: {
             /** File */
             file: string;
         };
@@ -15073,6 +15127,92 @@ export interface components {
             plate_patterns?: string[];
         };
         /**
+         * RegistrationImportResponse
+         * @description A certificate stored on a vehicle and applied to it.
+         */
+        RegistrationImportResponse: {
+            /**
+             * Applied
+             * @description The vehicle fields written
+             */
+            applied: string[];
+            document: components["schemas"]["DocumentResponse"];
+            /**
+             * Inspection Recorded
+             * @description Whether field X.1 was recorded as a service visit
+             */
+            inspection_recorded: boolean;
+            parse: components["schemas"]["RegistrationParseResponse"];
+            /**
+             * Skipped
+             * @description The vehicle fields left alone (already set, and overwrite was off)
+             */
+            skipped: string[];
+        };
+        /**
+         * RegistrationParseResponse
+         * @description A certificate read, before anything is applied.
+         */
+        RegistrationParseResponse: {
+            /**
+             * Confidence
+             * @description 0 to 100, from the fields found
+             */
+            confidence: number;
+            /**
+             * Country
+             * @description The issuing country, when recognised
+             */
+            country?: string | null;
+            /**
+             * Field Confidence
+             * @description high, medium or low per field that was read
+             */
+            field_confidence: {
+                [key: string]: string;
+            };
+            /**
+             * Fields
+             * @description Every harmonised field read, by name
+             */
+            fields: {
+                [key: string]: unknown;
+            };
+            /**
+             * Last Inspection Date
+             * @description Field X.1, the last periodic inspection
+             */
+            last_inspection_date?: string | null;
+            /**
+             * Model
+             * @description The vision model that read it, on the llm path
+             */
+            model?: string | null;
+            /**
+             * Pages
+             * @description How many images were sent, on the llm path
+             * @default 0
+             */
+            pages: number;
+            /**
+             * Source
+             * @description text: the PDF's own text layer; llm: images read by the vision model
+             * @enum {string}
+             */
+            source: "text" | "llm";
+            /** Suggested Tax Records */
+            suggested_tax_records?: components["schemas"]["SuggestedTaxRecord"][];
+            /**
+             * Vehicle Patch
+             * @description The vehicle fields the certificate fills, already validated
+             */
+            vehicle_patch: {
+                [key: string]: unknown;
+            };
+            /** Warnings */
+            warnings?: string[];
+        };
+        /**
          * ReminderCompleteRequest
          * @description Close a reminder with the real completion date and readings.
          *
@@ -16546,6 +16686,34 @@ export interface components {
             water?: number | string | null;
             /** Weekly Rate */
             weekly_rate?: number | string | null;
+        };
+        /**
+         * SuggestedTaxRecord
+         * @description A tax amount printed on the certificate (Y.1, Y.3, Y.6), offered as a
+         *     tax record the person may create; nothing is created unasked.
+         */
+        SuggestedTaxRecord: {
+            /**
+             * Amount
+             * @description The amount as printed
+             */
+            amount: string;
+            /**
+             * Code
+             * @description The certificate field the amount comes from (Y.1, Y.3, Y.6)
+             */
+            code: string;
+            /**
+             * Date
+             * Format: date
+             * @description The date of first registration (field B)
+             */
+            date: string;
+            /**
+             * Tax Type
+             * @description The tax type code the amount maps to
+             */
+            tax_type: string;
         };
         /**
          * SupplyAdjustmentCreate
@@ -26451,6 +26619,42 @@ export interface operations {
             };
         };
     };
+    parse_registration_certificate_api_registration_certificate_parse_post: {
+        parameters: {
+            query?: {
+                /** @description A hint for the plate format and the energy codes; the document wins */
+                country?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_parse_registration_certificate_api_registration_certificate_parse_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationParseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_reminder_packs_api_reminder_packs_get: {
         parameters: {
             query?: {
@@ -31168,6 +31372,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_registration_certificate_api_vehicles__vin__registration_certificate_post: {
+        parameters: {
+            query?: {
+                /** @description Replace values already set on the vehicle (never the VIN) */
+                overwrite?: boolean;
+            };
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_registration_certificate_api_vehicles__vin__registration_certificate_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationImportResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

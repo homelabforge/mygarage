@@ -517,7 +517,8 @@ class TestWindowNotification:
     ):
         from app.services import reminder_service
 
-        vin = await _vehicle(client, auth_headers, first_registration=_first_cycle_registration())
+        # The vehicle only has to exist with a pending inspection reminder.
+        await _vehicle(client, auth_headers, first_registration=_first_cycle_registration())
         sent: list[str] = []
 
         class _Dispatcher:

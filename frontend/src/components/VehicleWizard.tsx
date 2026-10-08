@@ -25,6 +25,40 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useDateLocale } from '../hooks/useDateLocale'
 import { useResolvedCountry } from '../hooks/useResolvedCountry'
 import { countryOptions } from '../constants/countries'
+import RegistrationCertificateImport from './RegistrationCertificateImport'
+import registrationCertificateService, {
+  type RegistrationParseResponse,
+} from '../services/registrationCertificateService'
+import { taxTypeLabel } from '../schemas/tax'
+import { VEHICLE_TYPES } from '../schemas/vehicle'
+import { toast } from 'sonner'
+
+/** The certificate fields the wizard form edits; the rest ride in the payload. */
+type CertificateExtras = Pick<
+  VehicleCreate,
+  | 'fuel_type_secondary'
+  | 'power_kw'
+  | 'fiscal_power'
+  | 'co2_g_km'
+  | 'euro_emission_class'
+  | 'eu_category'
+  | 'national_category'
+>
+const CERTIFICATE_EXTRA_KEYS: (keyof CertificateExtras)[] = [
+  'fuel_type_secondary',
+  'power_kw',
+  'fiscal_power',
+  'co2_g_km',
+  'euro_emission_class',
+  'eu_category',
+  'national_category',
+]
+
+interface ParsedCertificate {
+  file: File
+  parse: RegistrationParseResponse
+  extras: CertificateExtras
+}
 
 interface VehicleWizardProps {
   onClose: () => void
@@ -65,6 +99,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   // Wizard state
   const [vin, setVin] = useState('')
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
+  // A registration certificate read on step 1 (#211): its file is filed on
+  // the vehicle after creation, its taxes are offered on the review step,
+  // and the fields the form does not edit ride along in the create payload.
+  const [certificate, setCertificate] = useState<ParsedCertificate | null>(null)
+  const [selectedTaxes, setSelectedTaxes] = useState<Set<string>>(new Set())
 
   // The registration country opens on the one this person's settings resolve
   // (their own country, else the instance default): a one-country household
@@ -120,6 +159,59 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     setValue('fuel_type', (data.engine?.fuel_type_normalized as FuelType | null) || null)
     setValue('transmission_type', data.transmission?.type || null)
     setValue('transmission_speeds', data.transmission?.speeds || null)
+  }
+
+  // A certificate fills what it can; every value stays editable on step 2,
+  // which opens with a notice to check them. The VIN is taken only when none
+  // was typed. A patch value is `unknown` on the wire; each one is checked
+  // against the form's own vocabulary before it is set.
+  const handleCertificateParsed = (parse: RegistrationParseResponse, file: File) => {
+    const patch = parse.vehicle_patch as Record<string, unknown>
+    const text = (key: string): string | null => (typeof patch[key] === 'string' ? (patch[key] as string) : null)
+    const whole = (key: string): number | null => (typeof patch[key] === 'number' ? (patch[key] as number) : null)
+
+    const certificateVin = text('vin')
+    if (certificateVin && !vin) setVin(certificateVin)
+    for (const key of ['license_plate', 'registration_country', 'first_registration_date', 'make', 'model', 'displacement_l'] as const) {
+      const value = text(key)
+      if (value) setValue(key, value)
+    }
+    const vehicleType = text('vehicle_type')
+    if (vehicleType && (VEHICLE_TYPES as readonly string[]).includes(vehicleType)) {
+      setValue('vehicle_type', vehicleType as (typeof VEHICLE_TYPES)[number])
+      setValue('usage_unit', defaultUsageUnitForType(vehicleType))
+    }
+    const fuelType = text('fuel_type')
+    if (fuelType && (FUEL_TYPE_VALUES as readonly string[]).includes(fuelType)) {
+      setValue('fuel_type', fuelType as FuelType)
+    }
+    const firstRegistration = text('first_registration_date')
+    if (firstRegistration && !getValues('year')) {
+      setValue('year', Number(firstRegistration.slice(0, 4)))
+    }
+    if (!getValues('nickname')) {
+      setValue('nickname', `${getValues('year') || ''} ${text('make') || ''} ${text('model') || ''}`.trim())
+    }
+
+    const extras: CertificateExtras = {}
+    for (const key of CERTIFICATE_EXTRA_KEYS) {
+      const value = key === 'fuel_type_secondary' || key === 'euro_emission_class' || key === 'eu_category' || key === 'national_category'
+        ? text(key)
+        : whole(key)
+      if (value !== null) (extras as Record<string, unknown>)[key] = value
+    }
+    setCertificate({ file, parse, extras })
+    setSelectedTaxes(new Set((parse.suggested_tax_records ?? []).map((record) => record.code)))
+    if ((certificateVin ?? vin).length === 17) setCurrentStep(2)
+  }
+
+  const toggleTax = (code: string, checked: boolean) => {
+    setSelectedTaxes((previous) => {
+      const next = new Set(previous)
+      if (checked) next.add(code)
+      else next.delete(code)
+      return next
+    })
   }
 
   // Handle photo selection
@@ -191,9 +283,29 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
         fuel_type: validatedData.fuel_type,
         transmission_type: validatedData.transmission_type,
         transmission_speeds: validatedData.transmission_speeds,
+        // The certificate's fields the form does not edit (#211).
+        ...(certificate?.extras ?? {}),
       }
 
       const createdVehicle = await vehicleService.create(vehicleData)
+
+      // File the certificate on the new vehicle (it records the last
+      // inspection) and create the taxes ticked on the review step. The
+      // vehicle exists either way: a failure here is a toast, and the
+      // import can be redone from the vehicle's settings.
+      if (certificate) {
+        try {
+          await registrationCertificateService.importForVehicle(createdVehicle.vin, certificate.file, false)
+          const chosen = (certificate.parse.suggested_tax_records ?? []).filter((record) =>
+            selectedTaxes.has(record.code)
+          )
+          if (chosen.length > 0) {
+            await registrationCertificateService.createTaxRecords(createdVehicle.vin, chosen)
+          }
+        } catch {
+          toast.warning(t('registrationImport.importFailedAfterCreate'))
+        }
+      }
 
       // Upload photos if any, set first one as main photo
       if (photoFiles.length > 0) {
@@ -329,6 +441,13 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 checkDuplicate={true}
               />
             </div>
+
+            {/* Or read the registration certificate (#211): fills the VIN
+                and the fields of step 2 from the document. */}
+            <div className="rounded-panel border border-border bg-surface-2 p-4">
+              <h3 className="mb-2 text-base font-semibold text-text">{t('registrationImport.title')}</h3>
+              <RegistrationCertificateImport country={resolvedCountry} onParsed={handleCertificateParsed} />
+            </div>
           </div>
         )}
 
@@ -336,6 +455,15 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
         {currentStep === 2 && (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-text mb-4">{t('edit.vehicleDetails')}</h3>
+
+            {certificate && (
+              <div
+                role="status"
+                className="rounded-panel border border-(--accent-fg)/40 bg-(--accent-fg)/10 p-3 text-sm text-text"
+              >
+                {t('registrationImport.checkFields')}
+              </div>
+            )}
 
             <div>
               <label htmlFor="wizard-nickname" className="block text-sm font-medium text-text-mid mb-2">
@@ -733,6 +861,37 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 <div>
                   <p className="text-sm text-text-mute mb-2">{t('wizard.misc.photosToUpload')}</p>
                   <p className="text-text">{t('wizard.misc.photoCount', { count: photoFiles.length })}</p>
+                </div>
+              )}
+
+              {certificate && (
+                <div className="space-y-2" data-testid="wizard-certificate-review">
+                  <p className="text-sm text-text-mute">
+                    {t('registrationImport.certificateFile', { name: certificate.file.name })}
+                  </p>
+                  {certificate.parse.last_inspection_date && (
+                    <p className="text-sm text-text">
+                      {t('registrationImport.lastInspection', { date: certificate.parse.last_inspection_date })}
+                    </p>
+                  )}
+                  {(certificate.parse.suggested_tax_records ?? []).length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-text">{t('registrationImport.suggestedTaxes')}</p>
+                      <p className="mb-1 text-xs text-text-mute">{t('registrationImport.suggestedTaxesHint')}</p>
+                      {(certificate.parse.suggested_tax_records ?? []).map((record) => (
+                        <label key={record.code} className="flex items-center gap-2 text-sm text-text">
+                          <input
+                            type="checkbox"
+                            checked={selectedTaxes.has(record.code)}
+                            onChange={(e) => toggleTax(record.code, e.target.checked)}
+                          />
+                          <span>
+                            {taxTypeLabel(record.tax_type, t)} · {formatCurrency(Number(record.amount))} · {record.date}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

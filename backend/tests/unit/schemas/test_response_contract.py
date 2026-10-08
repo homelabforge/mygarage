@@ -548,6 +548,12 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.compliance_service.compliance_for_vehicle",
         "a constant per branch",
     ),
+    # The certificate import (#211) copies the reader's source, itself a
+    # constant per branch ("text" for a PDF's own text, "llm" for the model).
+    ("RegistrationParseResponse", "source"): (
+        "app.services.document_reader_service.read_document",
+        "a constant per branch",
+    ),
     ("LezRules", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("NoClaimsScheme", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("InspectionSchedule", "vehicle_types"): (

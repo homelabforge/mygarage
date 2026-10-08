@@ -215,3 +215,77 @@ describe('VehicleWizard: every label names its control', () => {
     expect(await screen.findByLabelText('wizard.misc.uploadPhotos')).toHaveAttribute('type', 'file')
   })
 })
+
+// The certificate import (#211): its hook reads the public settings through
+// react-query, which the shared render does not provide; the service is the
+// seam the wizard talks to.
+vi.mock('@/hooks/queries/useAiDocumentReading', () => ({
+  useAiDocumentReading: () => ({ enabled: false, isLoading: false }),
+}))
+vi.mock('../../services/registrationCertificateService', () => {
+  // One object behind both exports: the wizard imports the default, the
+  // import component the named one, and the test programs `parse` once.
+  const service = {
+    parse: vi.fn(),
+    importForVehicle: vi.fn(),
+    createTaxRecords: vi.fn(),
+  }
+  return {
+  default: service,
+  registrationCertificateService: service,
+  AI_READING_NOT_CONFIGURED: 'ai_reading_not_configured',
+  CERTIFICATE_ACCEPT: 'application/pdf',
+  CERTIFICATE_MIME_TYPES: ['application/pdf'],
+  CERTIFICATE_MAX_BYTES: 25 * 1024 * 1024,
+  isAiNotConfigured: () => false,
+  isPdf: (file: File) => file.type === 'application/pdf',
+  }
+})
+
+import registrationCertificateService from '../../services/registrationCertificateService'
+
+describe('VehicleWizard — registration certificate (#211)', () => {
+  const CERTIFICATE_VIN = 'VF1RFB00X56123456'
+  const PARSE = {
+    source: 'text',
+    country: 'FR',
+    confidence: 100,
+    fields: { vin: CERTIFICATE_VIN, plate: 'AB-123-CD', taxes: {} },
+    field_confidence: {},
+    vehicle_patch: {
+      vin: CERTIFICATE_VIN,
+      license_plate: 'AB-123-CD',
+      first_registration_date: '2023-03-12',
+      make: 'RENAULT',
+      model: 'CLIO',
+      fuel_type: 'gasoline',
+      vehicle_type: 'Car',
+      registration_country: 'FR',
+      power_kw: 74,
+      fiscal_power: 5,
+    },
+    last_inspection_date: '2026-02-10',
+    suggested_tax_records: [{ code: 'Y.1', tax_type: 'registration_tax', amount: '162.50', date: '2023-03-12' }],
+    warnings: [],
+    model: null,
+    pages: 0,
+  }
+
+  it('fills the VIN and the step-2 fields from the certificate and moves on', async () => {
+    vi.mocked(registrationCertificateService.parse).mockResolvedValue(PARSE as never)
+    render(<VehicleWizard onClose={vi.fn()} />)
+
+    const file = new File(['%PDF-1.4'], 'carte-grise.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByTestId('registration-certificate-file'), { target: { files: [file] } })
+    fireEvent.click(screen.getByRole('button', { name: 'registrationImport.read' }))
+
+    // Step 2 opens with the notice to check the values…
+    expect(await screen.findByText('registrationImport.checkFields')).toBeInTheDocument()
+    // …and the certificate's values in the form, still editable.
+    expect(screen.getByPlaceholderText('wizard.misc.licensePlatePlaceholder')).toHaveValue('AB-123-CD')
+    expect(screen.getByPlaceholderText('wizard.misc.nicknamePlaceholder')).toHaveValue('2023 RENAULT CLIO')
+    expect(screen.getByLabelText('wizard.fuelType')).toHaveValue('gasoline')
+    // No country resolves here (no account, no instance default): the hint is absent.
+    expect(registrationCertificateService.parse).toHaveBeenCalledWith(file, undefined)
+  })
+})

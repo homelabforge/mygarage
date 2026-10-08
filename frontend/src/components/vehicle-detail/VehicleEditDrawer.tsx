@@ -59,6 +59,9 @@ interface VehicleEditDrawerProps {
   onUploadWindowSticker: () => void
   /** Opens the per-vehicle Torque Pro source drawer, which stacks over this one. */
   onManageTorqueSources: () => void
+  /** Opens the registration certificate import drawer (#211), which stacks
+   *  over this one. Optional: a caller without the flow renders no section. */
+  onImportRegistrationCertificate?: () => void
 }
 
 /**
@@ -102,6 +105,7 @@ function VehicleEditForm({
   onDownloadWindowSticker,
   onUploadWindowSticker,
   onManageTorqueSources,
+  onImportRegistrationCertificate,
 }: VehicleEditDrawerProps) {
   const { t } = useTranslation('vehicles')
   const [defEnabled, setDefEnabled] = useState(false)
@@ -568,6 +572,22 @@ function VehicleEditForm({
             The two raw <button>s carry an explicit type="button": they sit
             inside #vehicle-edit-form, whose submit belongs to the footer Save.
             (The <Button> primitive already defaults to type="button".) */}
+        {/* Registration certificate (#211): one action that stacks the import
+            drawer over this one. Ungated on vehicle type: every registered
+            vehicle in the EU has one. Nothing here registers with the form. */}
+        {onImportRegistrationCertificate && (
+          <section>
+            <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-text">
+              <FileText className="h-5 w-5" aria-hidden="true" />
+              {t('registrationImport.title')}
+            </h3>
+            <p className="mb-3 text-sm text-text-mute">{t('registrationImport.detailDesc')}</p>
+            <Button variant="secondary" size="sm" onClick={onImportRegistrationCertificate}>
+              {t('registrationImport.detailAction')}
+            </Button>
+          </section>
+        )}
+
         {hasWindowSticker && (
           <section>
             <div className="mb-4 flex items-center justify-between gap-3">

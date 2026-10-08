@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
-from app.models.vehicle import Vehicle
 from app.schemas._money import MONEY_MAX, OptionalMoney
 from app.services.auth import (
     get_vehicle_for_owner_or_403,
@@ -26,6 +25,7 @@ from app.services.settings_service import SettingsService
 from app.services.window_sticker_ocr import WindowStickerOCRService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.vehicle_columns import fit_to_column
 from app.utils.vin import validate_vin
 
 logger = logging.getLogger(__name__)
@@ -102,16 +102,11 @@ def _fit_to_column(column: str, value: Any) -> Any:
     """Cut a parsed string to what its vehicle column holds; anything else passes.
 
     OCR sometimes reads a paragraph into a short field. PostgreSQL refused it,
-    a 500 with the upload already on disk, and SQLite kept it whole.
+    a 500 with the upload already on disk, and SQLite kept it whole. The
+    work lives in `app.utils.vehicle_columns`, shared with the registration
+    certificate import (#211).
     """
-    length: int | None = getattr(Vehicle.__table__.c[column].type, "length", None)
-    if not isinstance(value, str) or length is None or len(value) <= length:
-        return value
-    # Never the text itself: it's OCR output, so it's whatever was on the paper.
-    logger.warning(
-        "Window sticker: cut parsed %s from %d to %d characters", column, len(value), length
-    )
-    return value[:length]
+    return fit_to_column(column, value, source="Window sticker", log=logger)
 
 
 #: Sticker data columns: filled from a scan only where empty, unless replacing.

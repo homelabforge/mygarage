@@ -75,6 +75,15 @@ class DocumentParserRegistry:
         return GenericInsuranceParser()
 
     @classmethod
+    def get_registration_parser(cls) -> BaseDocumentParser:
+        """The one EU registration certificate parser (#211): every member
+        state prints the same harmonised codes, so there is no per-country
+        parser to detect."""
+        from .registration import EURegistrationCertificateParser
+
+        return EURegistrationCertificateParser()
+
+    @classmethod
     def list_insurance_parsers(cls) -> list[dict[str, Any]]:
         """List all registered insurance parsers."""
         cls._ensure_initialized()

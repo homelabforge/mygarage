@@ -430,6 +430,7 @@ from app.routes import (
     odometer_router,
     photos_router,
     recalls_router,
+    registration_certificate_router,
     reminder_packs_router,
     reminders_router,
     reports_router,
@@ -513,6 +514,7 @@ app.include_router(reminders_router)
 app.include_router(reminder_packs_router)
 app.include_router(country_profiles_router)
 app.include_router(compliance_router)
+app.include_router(registration_certificate_router)
 app.include_router(maintenance_types_router)
 app.include_router(maintenance_rules_router)
 app.include_router(supplies_router)
