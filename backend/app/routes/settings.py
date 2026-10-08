@@ -23,6 +23,7 @@ from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.settings import (
+    LlmTestResponse,
     POIProviderCreate,
     POIProviderUpdate,
     SecretsStatusResponse,
@@ -36,6 +37,7 @@ from app.schemas.settings import (
     UploadLimitsResponse,
     UploadStorageDirs,
 )
+from app.services import llm_client
 from app.services.auth import get_current_admin_user
 from app.services.auth_settings import (
     AUTH_KEYS,
@@ -43,6 +45,7 @@ from app.services.auth_settings import (
     ensure_sso_mode_usable,
     lock_auth_settings,
 )
+from app.services.document_reader_service import reading_enabled as document_reading_enabled
 from app.services.file_upload_service import (
     ATTACHMENT_UPLOAD_CONFIG,
     DOCUMENT_UPLOAD_CONFIG,
@@ -300,6 +303,9 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
         "imperial_gallon_standard",
         "llm_receipt_parse_enabled",
         "llm_garage_assistant_enabled",
+        # The document import cards show only when a vision model may read a
+        # photo; without it the same fields are typed by hand (#211).
+        "llm_document_reading_enabled",
         # Replaces imperial_gallon_standard for clients with no user: anonymous
         # visitors and every client on an auth_mode=none instance skip /auth/me,
         # so they have no user row to resolve units from (spec D5). Non-sensitive:
@@ -791,6 +797,36 @@ async def get_upload_limits(
             attachments_dir=str(app_settings.attachments_dir),
             documents_dir=str(app_settings.documents_dir),
         ),
+    )
+
+
+@router.post("/test/llm", response_model=LlmTestResponse)
+async def test_llm_endpoint(
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_admin_user),
+) -> LlmTestResponse:
+    """Exercise the saved LLM settings once (admin only).
+
+    Sends a one-word text completion to ``llm_base_url`` with ``llm_model``
+    and, when document reading is enabled, a 64×64 image to the vision model,
+    so an operator sees "text OK / vision OK" (or the endpoint's own error)
+    before uploading a real document. Reads the stored settings: the card
+    saves first, then tests. Writes nothing.
+    """
+    result = await llm_client.probe(db, check_vision=await document_reading_enabled(db))
+    logger.info(
+        "LLM connection test: text=%s vision=%s model=%s",
+        result.text_ok,
+        result.vision_ok,
+        sanitize_for_log(result.model),
+    )
+    return LlmTestResponse(
+        valid=result.valid,
+        message=result.message,
+        text_ok=result.text_ok,
+        vision_ok=result.vision_ok,
+        model=result.model,
+        vision_model=result.vision_model,
     )
 
 

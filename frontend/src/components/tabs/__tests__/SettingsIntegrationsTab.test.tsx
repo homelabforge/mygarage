@@ -311,3 +311,103 @@ describe('SettingsIntegrationsTab', () => {
     expect(screen.queryByTestId('settings-drawer')).not.toBeInTheDocument()
   })
 })
+
+describe('the LLM card (#211)', () => {
+  // The one toggle on this tab with a privacy consequence: the description
+  // that says images leave the server must be under it, and it must save.
+  it('offers document reading as a third toggle and saves its flag', async () => {
+    renderTab()
+
+    const toggle = await screen.findByRole('checkbox', { name: 'integrations.enableLlmDocuments' })
+    expect(screen.getByText('integrations.enableLlmDocumentsDesc')).toBeInTheDocument()
+    // The vision model field waits for the toggle: a text-only setup has no use for it.
+    expect(screen.queryByLabelText('integrations.llmVisionModel')).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    expect(await screen.findByLabelText('integrations.llmVisionModel')).toBeInTheDocument()
+    await waitFor(() => expect(mockedApi.post).toHaveBeenCalled(), { timeout: 3000 })
+    const [url, body] = mockedApi.post.mock.calls.at(-1) as [string, { settings: Record<string, string> }]
+    expect(url).toBe('/settings/batch')
+    expect(body.settings.llm_document_reading_enabled).toBe('true')
+    expect(body.settings).toHaveProperty('llm_vision_model')
+    expect(body.settings).toHaveProperty('llm_provider_preset')
+  })
+
+  it('fills the base URL from a preset and never a model name', async () => {
+    renderTab()
+    const preset = (await screen.findByLabelText('integrations.llmPreset')) as HTMLSelectElement
+    expect(preset.options).toHaveLength(4)
+    // Every field but the toggles is inert while all three features are off.
+    expect(preset).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'integrations.enableLlmDocuments' }))
+    await waitFor(() => expect(preset).not.toBeDisabled())
+
+    fireEvent.change(preset, { target: { value: 'openrouter' } })
+
+    expect(screen.getByLabelText('integrations.llmBaseUrl')).toHaveValue('https://openrouter.ai/api/v1')
+    // The model stays whatever it was: a preset must not pick a paid model.
+    expect(screen.getByLabelText('integrations.llmModel')).toHaveValue('llama3.2')
+
+    fireEvent.change(preset, { target: { value: 'custom' } })
+    expect(screen.getByLabelText('integrations.llmBaseUrl')).toHaveValue('https://openrouter.ai/api/v1')
+  })
+
+  it('saves, then tests the stored settings, and reports both checks', async () => {
+    mockedApi.post.mockImplementation((url: string) => {
+      if (url === '/settings/test/llm') {
+        return Promise.resolve({
+          data: {
+            valid: true,
+            message: 'Text model OK; vision model OK',
+            text_ok: true,
+            vision_ok: true,
+            model: 'llama3.2',
+            vision_model: 'llava',
+          },
+        })
+      }
+      return Promise.resolve({ data: {} })
+    })
+    renderTab()
+    const button = await screen.findByRole('button', { name: 'integrations.llmTest' })
+    expect(button).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'integrations.enableLlmDocuments' }))
+    await waitFor(() => expect(button).not.toBeDisabled())
+
+    fireEvent.click(button)
+
+    expect(await screen.findByText('integrations.llmTestVisionOk')).toBeInTheDocument()
+    const urls = mockedApi.post.mock.calls.map(([url]) => url as string)
+    const save = urls.indexOf('/settings/batch')
+    const test = urls.lastIndexOf('/settings/test/llm')
+    expect(save).toBeGreaterThanOrEqual(0)
+    expect(test).toBeGreaterThan(save)
+  })
+
+  it('shows the endpoint failure the server reports', async () => {
+    mockedApi.post.mockImplementation((url: string) => {
+      if (url === '/settings/test/llm') {
+        return Promise.resolve({
+          data: {
+            valid: false,
+            message: 'LLM endpoint request failed',
+            text_ok: false,
+            vision_ok: null,
+            model: 'llama3.2',
+            vision_model: 'llama3.2',
+          },
+        })
+      }
+      return Promise.resolve({ data: {} })
+    })
+    renderTab()
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'integrations.enableLlmReceipt' }))
+    const button = screen.getByRole('button', { name: 'integrations.llmTest' })
+    await waitFor(() => expect(button).not.toBeDisabled())
+
+    fireEvent.click(button)
+
+    expect(await screen.findByText('integrations.llmTestFailed')).toBeInTheDocument()
+  })
+})

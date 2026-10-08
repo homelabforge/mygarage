@@ -26,6 +26,12 @@ import math
 from collections.abc import Mapping
 
 from app.schemas.livelink import TELEMETRY_RETENTION_MAX_DAYS, TELEMETRY_RETENTION_MIN_DAYS
+from app.services.llm_client import (
+    LLM_BASE_URL_SETTING,
+    LLM_PRESET_SETTING,
+    LLM_PROVIDER_PRESETS,
+    is_http_url,
+)
 from app.services.settings_init import DEFAULT_SETTINGS
 from app.services.settings_service import SWITCH_OFF_VALUES, SWITCH_ON_VALUES
 from app.utils.household_time import TIMEZONE_SETTING_KEY
@@ -163,3 +169,12 @@ def check_setting_value(key: str, value: object) -> None:
                 f"must be a whole number of days from {TELEMETRY_RETENTION_MIN_DAYS} "
                 f"to {TELEMETRY_RETENTION_MAX_DAYS}"
             )
+    elif key == LLM_BASE_URL_SETTING:
+        # The LLM client POSTs to it verbatim; a bare host or a typo would fail
+        # every receipt parse and document read with an opaque 502 (#211).
+        if text and not is_http_url(text):
+            raise ValueError("must be an http(s) URL")
+    elif key == LLM_PRESET_SETTING:
+        # A hint for the settings card, from a fixed vocabulary (#211).
+        if text and text not in LLM_PROVIDER_PRESETS:
+            raise ValueError(f"must be one of: {', '.join(LLM_PROVIDER_PRESETS)}")

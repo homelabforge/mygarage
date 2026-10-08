@@ -90,4 +90,14 @@ Structured maintenance fields on the vehicle record (Overview → Fluids & torqu
 
 `POST /api/vehicles/{vin}/assistant/chat` with `{"message":"...","history":[]}` returns `{answer, citations, missing}`.
 
+## Document reading with a vision model
+
+Disabled by default. Setting keys:
+
+- `llm_document_reading_enabled` (images of imported documents are sent to `llm_base_url`)
+- `llm_vision_model` (optional; blank reuses `llm_model`)
+- `llm_provider_preset` (`custom`, `openrouter`, `ollama`, `openai`; a hint for the settings card)
+
+A PDF with a text layer is read on the server without any model. `POST /api/settings/test/llm` (admin) checks the endpoint as text and, when document reading is on, as vision. What is sent, how to set up OpenRouter, Ollama or OpenAI, and the limits are in [AI features](ai-features.md).
+
 Answers are grounded in garage data only (identity, specs, recent service visits, notes, supplies, tires, reminders, trailer details) plus LiveLink `vehicle_dtcs` enriched with curated DTC definitions (`common_causes` / `symptoms` / `fix_guidance`). Codes mentioned in the question are looked up even if not currently active. The model must not invent fluid/torque specs or repair steps beyond that context; diagnostics are guidance, not a professional diagnosis.

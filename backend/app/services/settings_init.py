@@ -479,6 +479,27 @@ DEFAULT_SETTINGS = {
         "description": "Enable opt-in Ask My Garage assistant (specs + diagnostics Q&A)",
         "encrypted": False,
     },
+    "llm_document_reading_enabled": {
+        "value": "false",
+        "category": "integrations",
+        "description": (
+            "Read uploaded documents (registration certificate, insurance) with a vision "
+            "model; images of the documents are sent to the configured LLM endpoint"
+        ),
+        "encrypted": False,
+    },
+    "llm_vision_model": {
+        "value": "",
+        "category": "integrations",
+        "description": "Vision-capable model for document reading; blank = llm_model",
+        "encrypted": False,
+    },
+    "llm_provider_preset": {
+        "value": "custom",
+        "category": "integrations",
+        "description": "Which preset the LLM card shows (custom, openrouter, ollama, openai); UI only",
+        "encrypted": False,
+    },
     # CarComplaints Integration
     "carcomplaints_enabled": {
         "value": "true",

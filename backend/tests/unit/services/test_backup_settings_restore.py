@@ -457,3 +457,76 @@ class TestSettingsRestoreCanonicalizesSwitches:
 
         assert await _stored(db_session, _NON_SWITCH_KEY) == "1"
         assert details["restored_count"] == 1
+
+
+# The LLM endpoint rows follow the same rule (#211): `llm_base_url` is POSTed
+# to verbatim by the client and must be an http(s) URL; `llm_provider_preset`
+# is a vocabulary. A backup is the one writer that bypasses the routes.
+LLM_URL_KEY = "llm_base_url"
+LLM_PRESET_KEY = "llm_provider_preset"
+
+
+@pytest_asyncio.fixture
+async def _llm_rows(db_session: AsyncSession):
+    """Snapshot the two LLM rows and put them back: the DB is shared."""
+    before = {key: await _stored(db_session, key) for key in (LLM_URL_KEY, LLM_PRESET_KEY)}
+    yield
+    await db_session.rollback()
+    await db_session.execute(delete(Setting).where(Setting.key.in_(list(before))))
+    for key, value in before.items():
+        if value is not None:
+            db_session.add(Setting(key=key, value=value, category="integrations"))
+    await db_session.commit()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestSettingsRestoreValidatesLlmRows:
+    @pytest.mark.parametrize(
+        ("key", "stored", "bad"),
+        [
+            pytest.param(LLM_URL_KEY, "http://127.0.0.1:11434/v1", "localhost:11434", id="url"),
+            pytest.param(LLM_PRESET_KEY, "ollama", "anthropic", id="preset"),
+        ],
+    )
+    async def test_an_unusable_value_is_skipped(
+        self, db_session: AsyncSession, tmp_path: Path, _llm_rows, key: str, stored: str, bad: str
+    ) -> None:
+        await db_session.execute(delete(Setting).where(Setting.key == key))
+        db_session.add(Setting(key=key, value=stored, category="integrations"))
+        await db_session.commit()
+        assert await _stored(db_session, key) == stored
+
+        service = _service(tmp_path)
+        filename = _write_backup(
+            service,
+            [
+                {"key": key, "value": bad, "category": "integrations"},
+                {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+            ],
+        )
+
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+        assert await _stored(db_session, key) == stored
+        assert await _stored(db_session, COMPANION_KEY) == "restored"
+        assert details["restored_count"] == 1
+
+    async def test_usable_values_still_restore(
+        self, db_session: AsyncSession, tmp_path: Path, _llm_rows
+    ) -> None:
+        service = _service(tmp_path)
+        filename = _write_backup(
+            service,
+            [
+                {"key": LLM_URL_KEY, "value": "https://openrouter.ai/api/v1", "category": "x"},
+                {"key": LLM_PRESET_KEY, "value": "openrouter", "category": "x"},
+                {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+            ],
+        )
+
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+        assert await _stored(db_session, LLM_URL_KEY) == "https://openrouter.ai/api/v1"
+        assert await _stored(db_session, LLM_PRESET_KEY) == "openrouter"
+        assert details["restored_count"] == 3

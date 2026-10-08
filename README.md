@@ -34,7 +34,7 @@ Self-hosted vehicle maintenance tracking for the whole household: service histor
 - **Household** - Separate accounts, vehicle sharing and transfers, and a family dashboard. Run with no auth, local accounts, or any OIDC provider.
 - **Units and languages** - Imperial, metric or any mix per quantity, a per-vehicle odometer unit, nine languages and 17 currencies.
 - **Countries** - A country per person, per vehicle or per instance drives national defaults from data-driven [country profiles](docs/country-profiles.md) (EU baseline, France, Luxembourg, Germany, Belgium, Italy, Netherlands, Spain).
-- **Also** - Analytics and PDF reports, calendar, global search, a [gethomepage](https://gethomepage.dev) widget API, inbound webhooks and Telegram fuel commands, JSON and CSV backup and export, an installable PWA, and an opt-in [Ask My Garage](docs/tier2-features.md) assistant.
+- **Also** - Analytics and PDF reports, calendar, global search, a [gethomepage](https://gethomepage.dev) widget API, inbound webhooks and Telegram fuel commands, JSON and CSV backup and export, an installable PWA, and opt-in [AI helpers](docs/ai-features.md): receipt drafts, Ask My Garage, and document reading with a vision model.
 
 ---
 

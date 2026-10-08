@@ -8,6 +8,7 @@ import { isSettingOn } from '@/utils/settingSwitch'
 import WidgetKeysPanel from '../settings/WidgetKeysPanel'
 import { Card, IconButton, Select, Toggle, Drawer } from '../ui'
 import type { IconType } from '../ui/types'
+import type { components } from '@/types/api.generated'
 import AddSourceDrawer from '@/components/livelink/AddSourceDrawer'
 import LiveLinkIntegrationsCard from '@/components/livelink/LiveLinkIntegrationsCard'
 import LiveLinkSettingsDrawers, { type SettingsTarget } from '@/components/livelink/settings/LiveLinkSettingsDrawers'
@@ -27,6 +28,27 @@ type SettingRecord = {
 type SettingsResponse = {
   settings: SettingRecord[]
 }
+
+type LlmTestResult = components['schemas']['LlmTestResponse']
+
+// The base URL each preset fills in. `custom` fills nothing. The vocabulary
+// is the backend's `LLM_PROVIDER_PRESETS`; a value outside it is a 422.
+const LLM_PRESET_BASE_URLS: Record<string, string | undefined> = {
+  custom: undefined,
+  openrouter: 'https://openrouter.ai/api/v1',
+  ollama: 'http://127.0.0.1:11434/v1',
+  openai: 'https://api.openai.com/v1',
+}
+
+// Example model names shown as placeholders only; never written to the form.
+const LLM_PRESET_PLACEHOLDERS: Record<string, { model: string; vision: string }> = {
+  custom: { model: 'llama3.2', vision: 'llava' },
+  openrouter: { model: 'vendor/model', vision: 'vendor/vision-model' },
+  ollama: { model: 'llama3.2', vision: 'llava' },
+  openai: { model: 'gpt-4o-mini', vision: 'gpt-4o' },
+}
+
+const AI_FEATURES_DOC_URL = 'https://github.com/homelabforge/mygarage/blob/main/docs/ai-features.md'
 
 /**
  * One integration section.
@@ -129,8 +151,12 @@ function IntegrationsAdminView(): React.ReactElement {
     llm_base_url: 'http://127.0.0.1:11434/v1',
     llm_model: 'llama3.2',
     llm_api_key: '',
+    llm_document_reading_enabled: 'false',
+    llm_vision_model: '',
+    llm_provider_preset: 'custom',
   })
   const [loadedFormData, setLoadedFormData] = useState<typeof formData | null>(null)
+  const [llmTesting, setLlmTesting] = useState(false)
 
   const loadSettings = useCallback(async () => {
     try {
@@ -156,6 +182,9 @@ function IntegrationsAdminView(): React.ReactElement {
         llm_base_url: settingsMap['llm_base_url'] || 'http://127.0.0.1:11434/v1',
         llm_model: settingsMap['llm_model'] || 'llama3.2',
         llm_api_key: settingsMap['llm_api_key'] || '',
+        llm_document_reading_enabled: settingsMap['llm_document_reading_enabled'] || 'false',
+        llm_vision_model: settingsMap['llm_vision_model'] || '',
+        llm_provider_preset: settingsMap['llm_provider_preset'] || 'custom',
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
@@ -187,6 +216,9 @@ function IntegrationsAdminView(): React.ReactElement {
         llm_base_url: formData.llm_base_url,
         llm_model: formData.llm_model,
         llm_api_key: formData.llm_api_key,
+        llm_document_reading_enabled: formData.llm_document_reading_enabled,
+        llm_vision_model: formData.llm_vision_model,
+        llm_provider_preset: formData.llm_provider_preset,
       },
     })
   }, [formData])
@@ -223,6 +255,53 @@ function IntegrationsAdminView(): React.ReactElement {
       setTesting(false)
     }
   }
+
+  // The server tests what is STORED, so the form is saved first: the button
+  // is pressed right after typing a key or a model, before the debounced
+  // auto-save has run. A 502 from the endpoint comes back as a 200 with
+  // `valid: false` and the endpoint's own sentence; only a transport failure
+  // to our own backend lands in the catch.
+  const handleTestLlm = async () => {
+    setLlmTesting(true)
+    setMessage(null)
+    try {
+      await handleSave()
+      const { data } = await api.post<LlmTestResult>('/settings/test/llm')
+      if (data.valid) {
+        setMessage({
+          type: 'success',
+          text: data.vision_ok ? t('integrations.llmTestVisionOk') : t('integrations.llmTestOk'),
+        })
+      } else {
+        setMessage({
+          type: 'error',
+          text: t('integrations.llmTestFailed', { message: data.message }),
+        })
+      }
+    } catch {
+      setMessage({ type: 'error', text: t('integrations.llmTestFailed', { message: '' }) })
+    } finally {
+      setLlmTesting(false)
+    }
+  }
+
+  // A preset fills the base URL in; the model names stay the person's own
+  // choice (a preset that typed a model would pick one that costs money, or
+  // one that is not pulled on their Ollama).
+  const applyPreset = (preset: string) => {
+    const baseUrl = LLM_PRESET_BASE_URLS[preset]
+    setFormData({
+      ...formData,
+      llm_provider_preset: preset,
+      ...(baseUrl ? { llm_base_url: baseUrl } : {}),
+    })
+  }
+
+  const llmFieldsDisabled =
+    !isSettingOn(formData.llm_receipt_parse_enabled, false) &&
+    !isSettingOn(formData.llm_garage_assistant_enabled, false) &&
+    !isSettingOn(formData.llm_document_reading_enabled, false)
+  const llmPlaceholders = LLM_PRESET_PLACEHOLDERS[formData.llm_provider_preset] ?? LLM_PRESET_PLACEHOLDERS.custom
 
   if (loading) {
     return (
@@ -286,7 +365,39 @@ function IntegrationsAdminView(): React.ReactElement {
                 {t('integrations.enableLlmAssistantDesc')}
               </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Document reading sends IMAGES of what people upload to the
+                endpoint, so its description says so in full: it is the one
+                toggle here with a privacy consequence (#211). */}
+            <div>
+              <Toggle
+                label={t('integrations.enableLlmDocuments')}
+                checked={isSettingOn(formData.llm_document_reading_enabled, false)}
+                onChange={(next) =>
+                  setFormData({ ...formData, llm_document_reading_enabled: next ? 'true' : 'false' })
+                }
+              />
+              <p className="mt-1 ml-14 text-sm text-garage-text-muted">
+                {t('integrations.enableLlmDocumentsDesc')}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label htmlFor="llm_provider_preset" className="block text-sm font-medium text-garage-text mb-2">
+                  {t('integrations.llmPreset')}
+                </label>
+                <Select
+                  id="llm_provider_preset"
+                  value={formData.llm_provider_preset}
+                  disabled={llmFieldsDisabled}
+                  onChange={(e) => applyPreset(e.target.value)}
+                  options={[
+                    { value: 'custom', label: t('integrations.llmPresetCustom') },
+                    { value: 'openrouter', label: t('integrations.llmPresetOpenRouter') },
+                    { value: 'ollama', label: t('integrations.llmPresetOllama') },
+                    { value: 'openai', label: t('integrations.llmPresetOpenAI') },
+                  ]}
+                />
+              </div>
               <div>
                 <label htmlFor="llm_base_url" className="block text-sm font-medium text-garage-text mb-2">
                   {t('integrations.llmBaseUrl')}
@@ -295,10 +406,7 @@ function IntegrationsAdminView(): React.ReactElement {
                   type="url"
                   id="llm_base_url"
                   value={formData.llm_base_url}
-                  disabled={
-                    !isSettingOn(formData.llm_receipt_parse_enabled, false) &&
-                    !isSettingOn(formData.llm_garage_assistant_enabled, false)
-                  }
+                  disabled={llmFieldsDisabled}
                   onChange={(e) => setFormData({ ...formData, llm_base_url: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono text-sm"
                   placeholder="http://127.0.0.1:11434/v1"
@@ -312,13 +420,10 @@ function IntegrationsAdminView(): React.ReactElement {
                   type="text"
                   id="llm_model"
                   value={formData.llm_model}
-                  disabled={
-                    !isSettingOn(formData.llm_receipt_parse_enabled, false) &&
-                    !isSettingOn(formData.llm_garage_assistant_enabled, false)
-                  }
+                  disabled={llmFieldsDisabled}
                   onChange={(e) => setFormData({ ...formData, llm_model: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-                  placeholder="llama3.2"
+                  placeholder={llmPlaceholders.model}
                 />
               </div>
               <div>
@@ -329,17 +434,53 @@ function IntegrationsAdminView(): React.ReactElement {
                   type="password"
                   id="llm_api_key"
                   value={formData.llm_api_key}
-                  disabled={
-                    !isSettingOn(formData.llm_receipt_parse_enabled, false) &&
-                    !isSettingOn(formData.llm_garage_assistant_enabled, false)
-                  }
+                  disabled={llmFieldsDisabled}
                   onChange={(e) => setFormData({ ...formData, llm_api_key: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                   autoComplete="off"
                 />
               </div>
             </div>
-            <p className="text-sm text-garage-text-muted">{t('integrations.llmHint')}</p>
+            {isSettingOn(formData.llm_document_reading_enabled, false) && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-2">
+                  <label htmlFor="llm_vision_model" className="block text-sm font-medium text-garage-text mb-2">
+                    {t('integrations.llmVisionModel')}
+                  </label>
+                  <input
+                    type="text"
+                    id="llm_vision_model"
+                    value={formData.llm_vision_model}
+                    onChange={(e) => setFormData({ ...formData, llm_vision_model: e.target.value })}
+                    className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                    placeholder={llmPlaceholders.vision}
+                  />
+                  <p className="mt-1 text-sm text-garage-text-muted">{t('integrations.llmVisionModelHint')}</p>
+                </div>
+              </div>
+            )}
+            <p className="text-sm text-garage-text-muted">
+              {t('integrations.llmHint')}{' '}
+              <a
+                href={AI_FEATURES_DOC_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-(--accent-fg) underline-offset-2 hover:underline"
+              >
+                {t('integrations.llmDocsLink')}
+              </a>
+            </p>
+            <div className="pt-4 border-t border-garage-border">
+              <button
+                type="button"
+                onClick={handleTestLlm}
+                disabled={llmTesting || llmFieldsDisabled}
+                className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
+              >
+                <CheckCircle size={16} />
+                {llmTesting ? t('integrations.testingConnection') : t('integrations.llmTest')}
+              </button>
+            </div>
           </div>
         </IntegrationCard>
 
