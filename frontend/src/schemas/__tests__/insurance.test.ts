@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { TFunction } from 'i18next'
-import { makeInsuranceSchema, makeRenewSchema } from '../insurance'
+import {
+  POLICY_TYPES,
+  makeInsuranceSchema,
+  makeRenewSchema,
+  policyTypeLabel,
+  policyTypeOptions,
+} from '../insurance'
 import { MONEY_MAX } from '../shared'
 
 // The i18n mock elsewhere in the suite echoes keys back; do the same here so
@@ -144,5 +150,42 @@ describe('Renew schema', () => {
     expect(
       renew.safeParse({ start_date: '2026-07-01', end_date: '2027-01-01', premium_amount: 684 }).success
     ).toBe(true)
+  })
+})
+
+describe('European formulas and the no-claims class (#211)', () => {
+  it('lists the two European formulas after the North American ones', () => {
+    expect(POLICY_TYPES.map((option) => option.value)).toEqual([
+      'Liability', 'Comprehensive', 'Collision', 'Full Coverage', 'Minimum', 'Other',
+      'Third Party', 'Third Party Extended',
+    ])
+  })
+
+  it('labels a known type by its key and shows an unknown stored type as it is', () => {
+    expect(policyTypeLabel('Third Party', t)).toBe('forms:policyTypes.thirdParty')
+    expect(policyTypeLabel('Vintage', t)).toBe('Vintage')
+    expect(policyTypeLabel(null, t)).toBe('')
+  })
+
+  it("offers the profile's formulas first, in its order, then every other one, ignoring an unknown", () => {
+    const values = policyTypeOptions(t, ['Full Coverage', 'Gold', 'Third Party']).map((o) => o.value)
+    expect(values.slice(0, 2)).toEqual(['Full Coverage', 'Third Party'])
+    expect(values).toHaveLength(POLICY_TYPES.length)
+    expect(new Set(values).size).toBe(POLICY_TYPES.length)
+    expect(policyTypeOptions(t, undefined).map((o) => o.value)).toEqual(POLICY_TYPES.map((o) => o.value))
+    expect(policyTypeOptions(t, ['Third Party'])[0].label).toBe('forms:policyTypes.thirdParty')
+  })
+
+  it('accepts a short no-claims class, an empty one, and refuses one the API would', () => {
+    expect(schema.safeParse(policy({ vehicles: [vehicle({ no_claims_class: '0.50' })] })).success).toBe(true)
+    expect(schema.safeParse(policy({ vehicles: [vehicle({ no_claims_class: 'SF 12' })] })).success).toBe(true)
+    expect(schema.safeParse(policy({ vehicles: [vehicle({ no_claims_class: '' })] })).success).toBe(true)
+    expect(schema.safeParse(policy({ vehicles: [vehicle({})] })).success).toBe(true)
+    expect(messages(policy({ vehicles: [vehicle({ no_claims_class: 'a class far too long' })] }))).toContain(
+      'forms:insurance.noClaimsClassInvalid'
+    )
+    expect(messages(policy({ vehicles: [vehicle({ no_claims_class: '0.50€' })] }))).toContain(
+      'forms:insurance.noClaimsClassInvalid'
+    )
   })
 })

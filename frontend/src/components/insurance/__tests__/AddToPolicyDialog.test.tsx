@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { render } from '../../../__tests__/test-utils'
 import type { InsurancePolicy } from '../../../types/insurance'
@@ -8,6 +8,14 @@ vi.mock('../../../hooks/queries/useInsuranceRecords', () => ({
   useAttachPolicyVehicle: () => ({ mutateAsync: attach, isPending: false }),
 }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+// #211: the country profile orders the formulas and names the no-claims field.
+const profileState: {
+  policyTypes: string[]
+  noClaims: { scheme: string; name: string; pattern: string; example: string } | null
+} = { policyTypes: [], noClaims: null }
+vi.mock('../../../hooks/useInsuranceProfile', () => ({
+  useInsuranceProfile: () => ({ country: null, coverageKeys: [], ...profileState }),
+}))
 
 import AddToPolicyDialog from '../AddToPolicyDialog'
 
@@ -64,5 +72,49 @@ describe('AddToPolicyDialog: the premium share', () => {
     add()
     await waitFor(() => expect(attach).toHaveBeenCalledTimes(2))
     expect(attach.mock.calls[1][0].premium_share).toBeNull()
+  })
+})
+
+describe('AddToPolicyDialog — Europe (#211)', () => {
+  beforeEach(() => {
+    profileState.policyTypes = ['Third Party', 'Third Party Extended', 'Full Coverage', 'Other']
+    profileState.noClaims = { scheme: 'crm', name: 'Bonus-malus (CRM)', pattern: '^[0-3][.,][0-9]{2}$', example: '0.50' }
+  })
+  afterEach(() => {
+    profileState.policyTypes = []
+    profileState.noClaims = null
+  })
+
+  it('offers the profile’s formulas first and sends the no-claims class with the link', async () => {
+    renderDialog()
+    const options = Array.from((document.getElementById('attach_type') as HTMLSelectElement).options)
+      .map((option) => option.value)
+      .filter(Boolean)
+    expect(options.slice(0, 4)).toEqual(['Third Party', 'Third Party Extended', 'Full Coverage', 'Other'])
+    expect(options).toContain('Liability')
+    fireEvent.change(document.getElementById('attach_type') as HTMLSelectElement, { target: { value: 'Third Party' } })
+    const noClaims = screen.getByLabelText('Bonus-malus (CRM)') as HTMLInputElement
+    expect(noClaims.placeholder).toBe('0.50')
+    fireEvent.change(noClaims, { target: { value: '0.50' } })
+    add()
+    await waitFor(() => expect(attach).toHaveBeenCalledTimes(1))
+    expect(attach.mock.calls[0][0]).toMatchObject({ policy_type: 'Third Party', no_claims_class: '0.50' })
+  })
+
+  it('refuses a class the API would refuse before sending it', () => {
+    renderDialog()
+    fireEvent.change(screen.getByLabelText('Bonus-malus (CRM)'), { target: { value: 'far too long a class' } })
+    expect(screen.getByText('insurance.noClaimsClassInvalid')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common:add' })).toBeDisabled()
+    expect(attach).not.toHaveBeenCalled()
+  })
+
+  it('without a no-claims scheme in the profile there is no class field, and null is sent', async () => {
+    profileState.noClaims = null
+    renderDialog()
+    expect(screen.queryByLabelText('Bonus-malus (CRM)')).not.toBeInTheDocument()
+    add()
+    await waitFor(() => expect(attach).toHaveBeenCalledTimes(1))
+    expect(attach.mock.calls[0][0]).toMatchObject({ no_claims_class: null })
   })
 })

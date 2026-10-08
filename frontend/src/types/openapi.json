@@ -3986,7 +3986,16 @@
               "rental_reimbursement",
               "roadside_assistance",
               "loan_lease_gap",
-              "custom_equipment"
+              "custom_equipment",
+              "third_party_liability",
+              "driver_protection",
+              "theft",
+              "fire",
+              "natural_disasters",
+              "all_accidents_damage",
+              "legal_protection",
+              "assistance",
+              "replacement_vehicle"
             ],
             "title": "Coverage Key",
             "type": "string"
@@ -4061,7 +4070,83 @@
         ],
         "title": "CoverageEntry",
         "type": "object",
+        "x-coverage-regions": {
+          "all_accidents_damage": [
+            "EU"
+          ],
+          "assistance": [
+            "EU"
+          ],
+          "bodily_injury": [
+            "US"
+          ],
+          "collision": [
+            "US"
+          ],
+          "comprehensive": [
+            "US"
+          ],
+          "custom_equipment": [
+            "US"
+          ],
+          "driver_protection": [
+            "EU"
+          ],
+          "fire": [
+            "EU"
+          ],
+          "glass": [
+            "US",
+            "EU"
+          ],
+          "legal_protection": [
+            "EU"
+          ],
+          "loan_lease_gap": [
+            "US"
+          ],
+          "medical_payments": [
+            "US"
+          ],
+          "natural_disasters": [
+            "EU"
+          ],
+          "personal_injury_protection": [
+            "US"
+          ],
+          "property_damage": [
+            "US"
+          ],
+          "rental_reimbursement": [
+            "US"
+          ],
+          "replacement_vehicle": [
+            "EU"
+          ],
+          "roadside_assistance": [
+            "US"
+          ],
+          "theft": [
+            "EU"
+          ],
+          "third_party_liability": [
+            "EU"
+          ],
+          "uninsured_bodily_injury": [
+            "US"
+          ],
+          "uninsured_property_damage": [
+            "US"
+          ]
+        },
         "x-coverage-slots": {
+          "all_accidents_damage": {
+            "deductible": "money",
+            "premium": "money"
+          },
+          "assistance": {
+            "premium": "money"
+          },
           "bodily_injury": {
             "limit_primary": "money",
             "limit_secondary": "money",
@@ -4080,8 +4165,20 @@
             "limit_primary": "money",
             "premium": "money"
           },
+          "driver_protection": {
+            "limit_primary": "money",
+            "premium": "money"
+          },
+          "fire": {
+            "deductible": "money",
+            "premium": "money"
+          },
           "glass": {
             "deductible": "money",
+            "premium": "money"
+          },
+          "legal_protection": {
+            "limit_primary": "money",
             "premium": "money"
           },
           "loan_lease_gap": {
@@ -4089,6 +4186,10 @@
           },
           "medical_payments": {
             "limit_primary": "money",
+            "premium": "money"
+          },
+          "natural_disasters": {
+            "deductible": "money",
             "premium": "money"
           },
           "personal_injury_protection": {
@@ -4105,7 +4206,19 @@
             "limit_secondary": "count",
             "premium": "money"
           },
+          "replacement_vehicle": {
+            "limit_primary": "count",
+            "premium": "money"
+          },
           "roadside_assistance": {
+            "premium": "money"
+          },
+          "theft": {
+            "deductible": "money",
+            "premium": "money"
+          },
+          "third_party_liability": {
+            "limit_primary": "money",
             "premium": "money"
           },
           "uninsured_bodily_injury": {
@@ -4137,7 +4250,16 @@
               "rental_reimbursement",
               "roadside_assistance",
               "loan_lease_gap",
-              "custom_equipment"
+              "custom_equipment",
+              "third_party_liability",
+              "driver_protection",
+              "theft",
+              "fire",
+              "natural_disasters",
+              "all_accidents_damage",
+              "legal_protection",
+              "assistance",
+              "replacement_vehicle"
             ],
             "title": "Coverage Key",
             "type": "string"
@@ -4192,7 +4314,83 @@
         ],
         "title": "CoverageEntryResponse",
         "type": "object",
+        "x-coverage-regions": {
+          "all_accidents_damage": [
+            "EU"
+          ],
+          "assistance": [
+            "EU"
+          ],
+          "bodily_injury": [
+            "US"
+          ],
+          "collision": [
+            "US"
+          ],
+          "comprehensive": [
+            "US"
+          ],
+          "custom_equipment": [
+            "US"
+          ],
+          "driver_protection": [
+            "EU"
+          ],
+          "fire": [
+            "EU"
+          ],
+          "glass": [
+            "US",
+            "EU"
+          ],
+          "legal_protection": [
+            "EU"
+          ],
+          "loan_lease_gap": [
+            "US"
+          ],
+          "medical_payments": [
+            "US"
+          ],
+          "natural_disasters": [
+            "EU"
+          ],
+          "personal_injury_protection": [
+            "US"
+          ],
+          "property_damage": [
+            "US"
+          ],
+          "rental_reimbursement": [
+            "US"
+          ],
+          "replacement_vehicle": [
+            "EU"
+          ],
+          "roadside_assistance": [
+            "US"
+          ],
+          "theft": [
+            "EU"
+          ],
+          "third_party_liability": [
+            "EU"
+          ],
+          "uninsured_bodily_injury": [
+            "US"
+          ],
+          "uninsured_property_damage": [
+            "US"
+          ]
+        },
         "x-coverage-slots": {
+          "all_accidents_damage": {
+            "deductible": "money",
+            "premium": "money"
+          },
+          "assistance": {
+            "premium": "money"
+          },
           "bodily_injury": {
             "limit_primary": "money",
             "limit_secondary": "money",
@@ -4211,8 +4409,20 @@
             "limit_primary": "money",
             "premium": "money"
           },
+          "driver_protection": {
+            "limit_primary": "money",
+            "premium": "money"
+          },
+          "fire": {
+            "deductible": "money",
+            "premium": "money"
+          },
           "glass": {
             "deductible": "money",
+            "premium": "money"
+          },
+          "legal_protection": {
+            "limit_primary": "money",
             "premium": "money"
           },
           "loan_lease_gap": {
@@ -4220,6 +4430,10 @@
           },
           "medical_payments": {
             "limit_primary": "money",
+            "premium": "money"
+          },
+          "natural_disasters": {
+            "deductible": "money",
             "premium": "money"
           },
           "personal_injury_protection": {
@@ -4236,7 +4450,19 @@
             "limit_secondary": "count",
             "premium": "money"
           },
+          "replacement_vehicle": {
+            "limit_primary": "count",
+            "premium": "money"
+          },
           "roadside_assistance": {
+            "premium": "money"
+          },
+          "theft": {
+            "deductible": "money",
+            "premium": "money"
+          },
+          "third_party_liability": {
+            "limit_primary": "money",
             "premium": "money"
           },
           "uninsured_bodily_injury": {
@@ -15877,6 +16103,20 @@
             "title": "Fields",
             "type": "array"
           },
+          "no_claims_class": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "pattern": "^[A-Za-z0-9 .,/%-]{1,10}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)\u2026 Ten characters of plain text",
+            "title": "No Claims Class"
+          },
           "notes": {
             "anyOf": [
               {
@@ -15895,7 +16135,9 @@
               "Collision",
               "Full Coverage",
               "Minimum",
-              "Other"
+              "Other",
+              "Third Party",
+              "Third Party Extended"
             ],
             "title": "Policy Type",
             "type": "string"
@@ -15991,6 +16233,18 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "no_claims_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)\u2026 Ten characters of plain text",
+            "title": "No Claims Class"
           },
           "notes": {
             "anyOf": [
@@ -16096,6 +16350,20 @@
             ],
             "title": "Fields"
           },
+          "no_claims_class": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "pattern": "^[A-Za-z0-9 .,/%-]{1,10}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)\u2026 Ten characters of plain text",
+            "title": "No Claims Class"
+          },
           "notes": {
             "anyOf": [
               {
@@ -16116,7 +16384,9 @@
                   "Collision",
                   "Full Coverage",
                   "Minimum",
-                  "Other"
+                  "Other",
+                  "Third Party",
+                  "Third Party Extended"
                 ],
                 "type": "string"
               },
@@ -16207,6 +16477,20 @@
             "description": "Omit to leave an existing vehicle's named fields alone",
             "title": "Fields"
           },
+          "no_claims_class": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "pattern": "^[A-Za-z0-9 .,/%-]{1,10}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)\u2026 Ten characters of plain text",
+            "title": "No Claims Class"
+          },
           "notes": {
             "anyOf": [
               {
@@ -16225,7 +16509,9 @@
               "Collision",
               "Full Coverage",
               "Minimum",
-              "Other"
+              "Other",
+              "Third Party",
+              "Third Party Extended"
             ],
             "title": "Policy Type",
             "type": "string"
@@ -39044,7 +39330,7 @@
     },
     "/api/insurance/parse-pdf": {
       "post": {
-        "description": "Read a declarations page and return what it says, persisting nothing.\n\n`vehicles` lists every VIN on the document with its own premium and\ndeductible where the parser finds a per-vehicle section. `matched` marks\nthe ones the caller has WRITE access to, which is what attaching one takes.",
+        "description": "Read a policy document and return what it says, persisting nothing.\n\nA PDF with a text layer is read on the server (the North American\nparsers, the French one, the generic fallback); a photo or a scan goes\nto the vision model when document reading is on, else 409\n`ai_reading_not_configured` (#211). `source` says which.\n\n`vehicles` lists every VIN on the document with its own premium and\ndeductible where the parser finds a per-vehicle section, and every\nregistration plate when the document names no VIN (`matched_by` is\n`vin` or `plate`). `matched` marks the ones the caller has WRITE access\nto, which is what attaching one takes.",
         "operationId": "parse_insurance_pdf_api_insurance_parse_pdf_post",
         "parameters": [
           {

@@ -179,3 +179,37 @@ async def test_resolve_country_precedence(db_session, test_user, test_vehicle):
     assert await svc.resolve_country(db_session, vehicle) == "LU"
     profile = await svc.profile_for_vehicle(db_session, vehicle)
     assert profile is not None and profile.country == "LU"
+
+
+# --- Insurance (#211) ---------------------------------------------------------
+
+
+def test_every_profile_lists_known_formulas_and_coverages():
+    """The profile's order is what the form shows first; every entry has to
+    be something the API accepts, and every European coverage has to be
+    reachable from the EU baseline."""
+    from app.constants.insurance import POLICY_TYPE_VALUES
+    from app.utils.insurance_coverages import COVERAGES
+
+    eu_keys = {c.key for c in COVERAGES if "EU" in c.regions}
+    for profile_id in svc.available_profile_ids():
+        profile = svc.load_profile(profile_id)
+        assert profile is not None
+        assert set(profile.insurance.policy_types) <= set(POLICY_TYPE_VALUES), profile_id
+        assert set(profile.insurance.coverage_keys) <= eu_keys, profile_id
+        assert len(profile.insurance.coverage_keys) == len(set(profile.insurance.coverage_keys))
+    eu = svc.load_profile("EU")
+    assert eu is not None
+    assert set(eu.insurance.coverage_keys) == eu_keys
+    fr = svc.load_profile("FR")
+    assert fr is not None and fr.insurance.no_claims is not None
+    assert fr.insurance.no_claims.scheme == "crm"
+    assert fr.insurance.policy_types[0] == "Third Party"
+
+
+def test_a_profile_with_an_unknown_formula_or_coverage_is_refused():
+    base = {"country": "ZZ", "sources": []}
+    with pytest.raises(ValueError, match="unknown policy types"):
+        CountryProfile.model_validate(base | {"insurance": {"policy_types": ["Gold"]}})
+    with pytest.raises(ValueError, match="unknown coverage keys"):
+        CountryProfile.model_validate(base | {"insurance": {"coverage_keys": ["umbrella"]}})

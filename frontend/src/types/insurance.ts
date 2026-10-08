@@ -29,12 +29,19 @@ export type PolicyStatusFilter = 'current' | 'active' | 'upcoming' | 'expired' |
 // ============================================================================
 
 export interface ParsedPolicyVehicle {
-  vin: string
+  /** Null for a plate the garage does not know (#211). */
+  vin: string | null
+  /** The registration plate the document printed, when it named one instead of a VIN. */
+  plate?: string | null
   /** A vehicle in this garage the caller can put on a policy. */
   matched: boolean
+  /** How the document named the vehicle: by VIN, or by plate (a French avis d'échéance). */
+  matched_by?: 'vin' | 'plate'
   vehicle_name: string | null
   premium_share: string | null
   deductible: string | null
+  /** The bonus-malus coefficient or class printed, for this vehicle's link. */
+  no_claims_class?: string | null
   /** The standard coverages read off this vehicle's section, or off the
    *  document as a whole when it has no section of its own. */
   coverages: Coverage[]
@@ -42,6 +49,8 @@ export interface ParsedPolicyVehicle {
 
 export interface InsurancePDFParseResponse {
   success: boolean
+  /** `text`: a PDF read on the server; `llm`: a photo read by the vision model (#211). */
+  source?: 'text' | 'llm'
   data: {
     provider: string | null
     policy_number: string | null
@@ -51,12 +60,19 @@ export interface InsurancePDFParseResponse {
     premium_amount: string | null
     premium_frequency: string | null
     deductible: string | null
+    no_claims_class?: string | null
     notes: string | null
   }
-  /** Every VIN on the document, with its own figures where the parser finds them. */
+  /** Every VIN on the document, with its own figures where the parser finds
+   *  them, then every plate the document printed when it named no VIN. */
   vehicles: ParsedPolicyVehicle[]
+  /** The plates printed on the document. */
+  plates?: string[]
+  /** The document-wide coverages, for a vehicle the form already holds when
+   *  the document names none the garage knows. */
+  coverages?: Coverage[]
   confidence: {
-    [key: string]: 'high' | 'medium' | 'low'
+    [key: string]: 'high' | 'medium' | 'low' | 'rejected'
   }
   confidence_score: number
   parser_used: string | null

@@ -3,6 +3,7 @@ import openapi from '../../types/openapi.json'
 import {
   COVERAGES,
   COVERAGE_ORDER,
+  coverageLayout,
   coverageRows,
   coverageSlots,
   coveragesToApi,
@@ -133,5 +134,34 @@ describe('the checklist the form holds', () => {
     ])
     expect(again[0].limit_secondary).toBe('300000')
     expect(again[1].premium).toBeNull()
+  })
+})
+
+describe('the European catalogue (#211)', () => {
+  const backendRegions = (
+    openapi as unknown as {
+      components: { schemas: { CoverageEntryResponse: { 'x-coverage-regions': Record<string, string[]> } } }
+    }
+  ).components.schemas.CoverageEntryResponse['x-coverage-regions']
+
+  it('sells each coverage on the markets the backend says', () => {
+    const ours = Object.fromEntries(COVERAGE_ORDER.map((key) => [key, COVERAGES[key].regions]))
+    expect(ours).toEqual(backendRegions)
+  })
+
+  it('lays a French form out with the profile’s coverages first and the rest behind « more »', () => {
+    const french = ['third_party_liability', 'driver_protection', 'glass', 'theft']
+    const { shown, more } = coverageLayout(french)
+    expect(shown).toEqual(french)
+    expect(more).toEqual(COVERAGE_ORDER.filter((key) => !french.includes(key)))
+    expect(more).toContain('collision')
+    expect(more).not.toContain('glass')
+  })
+
+  it('shows everything in catalogue order without a profile, and ignores a key it does not know', () => {
+    expect(coverageLayout(undefined)).toEqual({ shown: COVERAGE_ORDER, more: [] })
+    expect(coverageLayout([])).toEqual({ shown: COVERAGE_ORDER, more: [] })
+    expect(coverageLayout(['umbrella'])).toEqual({ shown: COVERAGE_ORDER, more: [] })
+    expect(coverageLayout(['umbrella', 'theft']).shown).toEqual(['theft'])
   })
 })

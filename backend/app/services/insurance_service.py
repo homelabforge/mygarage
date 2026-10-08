@@ -125,6 +125,15 @@ def policy_status(
     return "active"
 
 
+def plate_key(value: str | None) -> str:
+    """A registration plate reduced to what identifies it: upper-case letters
+    and digits, so « AB-123-CD », « ab 123 cd » and « AB123CD » are one plate
+    (#211)."""
+    if not value:
+        return ""
+    return "".join(ch for ch in value.upper() if ch.isalnum())
+
+
 def _vehicle_name(vehicle: Vehicle | None, vin: str) -> str:
     if vehicle is None:
         return vin
@@ -305,6 +314,7 @@ class InsuranceService:
                     premium_share=link.premium_share,
                     effective_share=shares.get(link.id),
                     deductible=link.deductible,
+                    no_claims_class=link.no_claims_class,
                     notes=link.notes,
                     coverages=_coverage_responses(link),
                     effective_to=link.effective_to,
@@ -459,6 +469,26 @@ class InsuranceService:
         vehicles = (await self.db.execute(query)).scalars().all()
         return {v.vin: _vehicle_name(v, v.vin) for v in vehicles if access.can_write_vin(v.vin)}
 
+    async def attachable_vehicles_by_plate(
+        self, current_user: User | None
+    ) -> dict[str, tuple[str, str]]:
+        """`plate_key` -> (VIN, display name) of the attachable vehicles that
+        have a plate, for a document that names the plate and not the VIN
+        (#211). Two vehicles on one plate (a plate reused after a sale) match
+        the newer one."""
+        access = await self._resolve_access(current_user)
+        query = (
+            select(Vehicle)
+            .where(Vehicle.archived_at.is_(None), Vehicle.license_plate.isnot(None))
+            .order_by(Vehicle.created_at)
+        )
+        vehicles = (await self.db.execute(query)).scalars().all()
+        return {
+            plate_key(v.license_plate): (v.vin, _vehicle_name(v, v.vin))
+            for v in vehicles
+            if v.license_plate and plate_key(v.license_plate) and access.can_write_vin(v.vin)
+        }
+
     # ------------------------------------------------------------------ helpers
 
     def _check_allocation(self, policy: InsurancePolicy) -> None:
@@ -547,6 +577,7 @@ class InsuranceService:
             policy_type=data.policy_type,
             premium_share=data.premium_share,
             deductible=data.deductible,
+            no_claims_class=data.no_claims_class,
             notes=data.notes,
             effective_to=getattr(data, "effective_to", None),
         )
@@ -676,6 +707,7 @@ class InsuranceService:
                 link.policy_type == item.policy_type
                 and link.premium_share == item.premium_share
                 and link.deductible == item.deductible
+                and (link.no_claims_class or None) == (item.no_claims_class or None)
                 and (link.notes or None) == (item.notes or None)
                 and (
                     item.coverages is None
@@ -700,6 +732,7 @@ class InsuranceService:
             link.policy_type = item.policy_type
             link.premium_share = item.premium_share
             link.deductible = item.deductible
+            link.no_claims_class = item.no_claims_class
             link.notes = item.notes
             link.effective_to = item.effective_to
             if item.coverages is not None:
@@ -910,6 +943,7 @@ class InsuranceService:
                 policy_type=link.policy_type,
                 premium_share=shares[link.id],
                 deductible=link.deductible,
+                no_claims_class=link.no_claims_class,
                 notes=link.notes,
             )
             new.vehicle_links.append(copy)
@@ -1005,8 +1039,15 @@ class InsuranceService:
         else:
             for link in covered:
                 if link.vin in moving:
+                    # The no-claims class follows the driver to the new
+                    # insurer (the relevé d'information carries it); the
+                    # old insurer's deductible and coverages do not.
                     new.vehicle_links.append(
-                        InsurancePolicyVehicle(vin=link.vin, policy_type=link.policy_type)
+                        InsurancePolicyVehicle(
+                            vin=link.vin,
+                            policy_type=link.policy_type,
+                            no_claims_class=link.no_claims_class,
+                        )
                     )
 
         if is_full_switch:

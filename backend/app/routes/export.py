@@ -117,9 +117,13 @@ limiter = Limiter(key_func=get_remote_address)
 #   `purchases`, standalone `usages` and `used_elsewhere`, its uses on
 #   another vehicle's visits; a line item carries its own `supply_usages`)
 #   to v9 without a bump: a 3a file simply has none.
-# - CSV "8" / JSON "9": additive `Fuel Grade` column / `fuel_grade` key, the
-#   EN 16942 pump label of a fill-up (#211, migration 144). Same additive
-#   treatment as the #164 grade columns: an older file imports with NULLs.
+# - The European additions (#211) ride CSV "8" / JSON "9" without a bump,
+#   since they ship in the same release: a `Fuel Grade` column / `fuel_grade`
+#   key, the EN 16942 pump label of a fill-up (migration 144), and a
+#   `No-Claims Class` column / `no_claims_class` key on a vehicle's insurance
+#   row, the bonus-malus coefficient or class it is rated at (migration 149).
+#   Same additive treatment as the #164 grade columns: an older file imports
+#   with NULLs.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -1043,6 +1047,7 @@ async def export_insurance_csv(
         "Premium",
         "Premium Frequency",
         "Deductible",
+        "No-Claims Class",
         "Coverage Limits",
         "Notes",
     ]
@@ -1063,6 +1068,7 @@ async def export_insurance_csv(
                 f"{share:.2f}" if share is not None else "",
                 policy.premium_frequency or "",
                 f"{link.deductible:.2f}" if link.deductible is not None else "",
+                link.no_claims_class or "",
                 coverage_text(link.coverages),
                 link.notes or "",
             ]
@@ -1500,6 +1506,7 @@ async def export_vehicle_json(
                 "policy_type": link.policy_type,
                 "premium_share": _insurance_share(link),
                 "deductible": float(link.deductible) if link.deductible is not None else None,
+                "no_claims_class": link.no_claims_class,
                 "coverages": [
                     {
                         "coverage_key": c.coverage_key,

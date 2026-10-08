@@ -202,9 +202,34 @@ class NoClaimsScheme(_Strict):
 
 
 class InsuranceRules(_Strict):
+    #: The formulas offered first, in this order; each one of
+    #: ``app.constants.insurance.POLICY_TYPE_VALUES``.
     policy_types: list[str] = Field(default_factory=list)
+    #: The coverages shown first, in this order; each one of the catalogue
+    #: ``app.utils.insurance_coverages.COVERAGE_KEYS``. The rest of the
+    #: catalogue stays reachable under « more coverages ».
     coverage_keys: list[str] = Field(default_factory=list)
     no_claims: NoClaimsScheme | None = None
+
+    @field_validator("policy_types")
+    @classmethod
+    def known_policy_types(cls, v: list[str]) -> list[str]:
+        from app.constants.insurance import POLICY_TYPE_VALUES
+
+        unknown = sorted({t for t in v if t not in POLICY_TYPE_VALUES})
+        if unknown:
+            raise ValueError(f"unknown policy types: {unknown}")
+        return v
+
+    @field_validator("coverage_keys")
+    @classmethod
+    def known_coverage_keys(cls, v: list[str]) -> list[str]:
+        from app.utils.insurance_coverages import COVERAGE_BY_KEY
+
+        unknown = sorted({k for k in v if k not in COVERAGE_BY_KEY})
+        if unknown:
+            raise ValueError(f"unknown coverage keys: {unknown}")
+        return v
 
 
 class TollRules(_Strict):

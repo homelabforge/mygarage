@@ -9,8 +9,9 @@ import { useTranslation } from 'react-i18next'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import FormModalWrapper from '../FormModalWrapper'
-import { Button, Field, NumberInput, Select } from '../ui'
-import { POLICY_TYPES } from '../../schemas/insurance'
+import { Button, Field, Input, NumberInput, Select } from '../ui'
+import { NO_CLAIMS_CLASS_PATTERN, policyTypeOptions } from '../../schemas/insurance'
+import { useInsuranceProfile } from '../../hooks/useInsuranceProfile'
 import { moneyTextError } from '../../schemas/shared'
 import { useAttachPolicyVehicle } from '../../hooks/queries/useInsuranceRecords'
 import { parseOptionalDecimal } from '../../utils/decimalInput'
@@ -32,6 +33,11 @@ export default function AddToPolicyDialog({ vin, policies, onClose, onSuccess }:
   const [policyType, setPolicyType] = useState('')
   const [share, setShare] = useState('')
   const [shareError, setShareError] = useState<string | null>(null)
+  const [noClaims, setNoClaims] = useState('')
+  // #211 — the country's formulas first; its no-claims scheme names the field.
+  const insuranceProfile = useInsuranceProfile()
+  const typeOptions = policyTypeOptions(t, insuranceProfile.policyTypes)
+  const noClaimsInvalid = !!noClaims.trim() && !NO_CLAIMS_CLASS_PATTERN.test(noClaims.trim())
 
   const submit = async (): Promise<void> => {
     // The same locale-aware reading every other money field uses, so a comma
@@ -49,6 +55,7 @@ export default function AddToPolicyDialog({ vin, policies, onClose, onSuccess }:
         vin,
         policy_type: policyType as PolicyVehicleCreate['policy_type'],
         premium_share: premiumShare,
+        no_claims_class: noClaims.trim() || null,
       })
       toast.success(t('insurance.vehicleAdded'))
       onSuccess()
@@ -73,7 +80,7 @@ export default function AddToPolicyDialog({ vin, policies, onClose, onSuccess }:
             icon={Plus}
             onClick={submit}
             loading={attachMutation.isPending}
-            disabled={!policyId || !policyType || attachMutation.isPending}
+            disabled={!policyId || !policyType || noClaimsInvalid || attachMutation.isPending}
           >
             {t('common:add')}
           </Button>
@@ -99,9 +106,31 @@ export default function AddToPolicyDialog({ vin, policies, onClose, onSuccess }:
             value={policyType}
             onChange={(event) => setPolicyType(event.target.value)}
             placeholder={t('common:selectType')}
-            options={POLICY_TYPES.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
+            options={typeOptions}
           />
         </Field>
+        {insuranceProfile.noClaims && (
+          <Field
+            id="attach_no_claims"
+            label={insuranceProfile.noClaims.name}
+            hint={t('insurance.noClaimsHint')}
+            error={
+              noClaimsInvalid
+                ? { type: 'validate', message: t('insurance.noClaimsClassInvalid') }
+                : undefined
+            }
+          >
+            <Input
+              id="attach_no_claims"
+              type="text"
+              maxLength={10}
+              value={noClaims}
+              placeholder={insuranceProfile.noClaims.example}
+              onChange={(event) => setNoClaims(event.target.value)}
+              invalid={noClaimsInvalid}
+            />
+          </Field>
+        )}
         <Field
           id="attach_share"
           label={t('insurance.vehicleShare')}

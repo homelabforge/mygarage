@@ -22,6 +22,9 @@ export interface CoverageSlot {
   kind: 'money' | 'count'
 }
 
+/** Where a coverage is sold, mirroring `Coverage.regions` on the backend (#211). */
+export type CoverageRegion = 'US' | 'EU'
+
 export interface CoverageMeta {
   labelKey: string
   /** Shown under the label when the coverage's name alone is not the whole story. */
@@ -30,6 +33,7 @@ export interface CoverageMeta {
   secondary?: CoverageSlot
   deductible?: boolean
   premium?: boolean
+  regions: CoverageRegion[]
 }
 
 const EACH_PERSON: CoverageSlot = {
@@ -63,76 +67,160 @@ export const COVERAGES: Record<CoverageKey, CoverageMeta> = {
     primary: EACH_PERSON,
     secondary: EACH_ACCIDENT,
     premium: true,
+    regions: ['US'],
   },
   property_damage: {
     labelKey: 'forms:insuranceCoverages.propertyDamage',
     primary: EACH_ACCIDENT,
     premium: true,
+    regions: ['US'],
   },
   uninsured_bodily_injury: {
     labelKey: 'forms:insuranceCoverages.uninsuredBodilyInjury',
     primary: EACH_PERSON,
     secondary: EACH_ACCIDENT,
     premium: true,
+    regions: ['US'],
   },
   uninsured_property_damage: {
     labelKey: 'forms:insuranceCoverages.uninsuredPropertyDamage',
     primary: EACH_ACCIDENT,
     deductible: true,
     premium: true,
+    regions: ['US'],
   },
   personal_injury_protection: {
     labelKey: 'forms:insuranceCoverages.personalInjuryProtection',
     primary: EACH_PERSON,
     deductible: true,
     premium: true,
+    regions: ['US'],
   },
   medical_payments: {
     labelKey: 'forms:insuranceCoverages.medicalPayments',
     primary: EACH_PERSON,
     premium: true,
+    regions: ['US'],
   },
   comprehensive: {
     labelKey: 'forms:insuranceCoverages.comprehensive',
     hintKey: 'forms:insuranceCoverages.actualCashValue',
     deductible: true,
     premium: true,
+    regions: ['US'],
   },
   collision: {
     labelKey: 'forms:insuranceCoverages.collision',
     hintKey: 'forms:insuranceCoverages.actualCashValue',
     deductible: true,
     premium: true,
+    regions: ['US'],
   },
   glass: {
     labelKey: 'forms:insuranceCoverages.glass',
     deductible: true,
     premium: true,
+    regions: ['US', 'EU'],
   },
   rental_reimbursement: {
     labelKey: 'forms:insuranceCoverages.rentalReimbursement',
     primary: EACH_DAY,
     secondary: MAXIMUM_DAYS,
     premium: true,
+    regions: ['US'],
   },
   roadside_assistance: {
     labelKey: 'forms:insuranceCoverages.roadsideAssistance',
     premium: true,
+    regions: ['US'],
   },
   loan_lease_gap: {
     labelKey: 'forms:insuranceCoverages.loanLeaseGap',
     premium: true,
+    regions: ['US'],
   },
   custom_equipment: {
     labelKey: 'forms:insuranceCoverages.customEquipment',
     primary: LIMIT,
     deductible: true,
     premium: true,
+    regions: ['US'],
+  },
+  // --- Europe (#211): the garanties a French, German, Italian or Spanish
+  // policy prints, in the backend catalogue's order.
+  third_party_liability: {
+    labelKey: 'forms:insuranceCoverages.thirdPartyLiability',
+    primary: LIMIT,
+    premium: true,
+    regions: ['EU'],
+  },
+  driver_protection: {
+    labelKey: 'forms:insuranceCoverages.driverProtection',
+    primary: LIMIT,
+    premium: true,
+    regions: ['EU'],
+  },
+  theft: {
+    labelKey: 'forms:insuranceCoverages.theft',
+    deductible: true,
+    premium: true,
+    regions: ['EU'],
+  },
+  fire: {
+    labelKey: 'forms:insuranceCoverages.fire',
+    deductible: true,
+    premium: true,
+    regions: ['EU'],
+  },
+  natural_disasters: {
+    labelKey: 'forms:insuranceCoverages.naturalDisasters',
+    deductible: true,
+    premium: true,
+    regions: ['EU'],
+  },
+  all_accidents_damage: {
+    labelKey: 'forms:insuranceCoverages.allAccidentsDamage',
+    hintKey: 'forms:insuranceCoverages.allAccidentsDamageHint',
+    deductible: true,
+    premium: true,
+    regions: ['EU'],
+  },
+  legal_protection: {
+    labelKey: 'forms:insuranceCoverages.legalProtection',
+    primary: LIMIT,
+    premium: true,
+    regions: ['EU'],
+  },
+  assistance: {
+    labelKey: 'forms:insuranceCoverages.assistance',
+    premium: true,
+    regions: ['EU'],
+  },
+  replacement_vehicle: {
+    labelKey: 'forms:insuranceCoverages.replacementVehicle',
+    primary: MAXIMUM_DAYS,
+    premium: true,
+    regions: ['EU'],
   },
 }
 
 /** Every coverage, in the one order every surface shows them in. */
 export const COVERAGE_ORDER = Object.keys(COVERAGES) as CoverageKey[]
+
+/**
+ * How a form lays the catalogue out for one country (#211): the profile's
+ * `insurance.coverage_keys` first, in the profile's order, and every other
+ * coverage behind « more coverages ». Without a profile, everything is shown
+ * in catalogue order and nothing is folded away.
+ */
+export function coverageLayout(preferred: readonly string[] | null | undefined): {
+  shown: CoverageKey[]
+  more: CoverageKey[]
+} {
+  const first = (preferred ?? []).filter((key): key is CoverageKey => key in COVERAGES)
+  if (first.length === 0) return { shown: COVERAGE_ORDER, more: [] }
+  return { shown: first, more: COVERAGE_ORDER.filter((key) => !first.includes(key)) }
+}
 
 export type SlotName = 'limit_primary' | 'limit_secondary' | 'deductible' | 'premium'
 

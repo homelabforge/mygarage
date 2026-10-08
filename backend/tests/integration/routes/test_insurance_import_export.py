@@ -244,7 +244,7 @@ async def test_the_json_backup_carries_insurance_with_named_fields_at_both_level
 
     exported = await client.get(f"/api/export/vehicles/{RAM}/json", headers=auth_headers)
     backup = exported.json()
-    assert backup["export_version"] == "9"
+    assert backup["export_version"] == "10"
     (entry,) = backup["insurance_policies"]
     assert entry["premium_share"] == 300.0, "the vehicle's EFFECTIVE share, not the policy total"
 
@@ -759,3 +759,46 @@ async def test_a_blank_premium_frequency_imports_as_none(
     assert response.json()["insurance_policies"]["success"] == 1, response.json()
     (policy,) = await _policies(db_session)
     assert policy.premium_frequency == stored
+
+
+async def test_the_no_claims_class_round_trips_the_csv_and_the_json(
+    client: AsyncClient, db_session: AsyncSession, auth_headers
+):
+    """#211: the bonus-malus class is a column of its own in the flat file and
+    a key of the backup; a French comma in the file is stored with a point."""
+    header = HEADER.replace("Deductible,", "Deductible,No-Claims Class,")
+    row = 'MAIF,P-CRM,Third Party Extended,2026-01-01,2026-12-31,612.40,Annual,300.00,"0,50",,imported'
+    body = "\n".join([header, row]) + "\n"
+    response = await client.post(
+        f"/api/import/vehicles/{RAM}/insurance/csv",
+        files={"file": ("insurance.csv", body, "text/csv")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    (policy,) = await _policies(db_session)
+    (link,) = policy.vehicle_links
+    assert (link.policy_type, link.no_claims_class) == ("Third Party Extended", "0.50")
+
+    exported = await client.get(f"/api/export/vehicles/{RAM}/insurance/csv", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    (exported_row,) = list(csv.DictReader(io.StringIO(exported.text)))
+    assert exported_row["No-Claims Class"] == "0.50"
+    assert exported_row["Type"] == "Third Party Extended"
+
+    backup = (await client.get(f"/api/export/vehicles/{RAM}/json", headers=auth_headers)).json()
+    (entry,) = backup["insurance_policies"]
+    assert entry["no_claims_class"] == "0.50"
+
+    # Restored from the backup, the class comes back; an unreadable one is dropped.
+    await db_session.execute(delete(InsurancePolicy))
+    await db_session.commit()
+    entry["no_claims_class"] = "a value far too long for the column"
+    backup["insurance_policies"] = [entry]
+    restored = await client.post(
+        f"/api/import/vehicles/{RAM}/json",
+        files={"file": ("backup.json", json.dumps(backup), "application/json")},
+        headers=auth_headers,
+    )
+    assert restored.status_code == 200, restored.text
+    (policy,) = await _policies(db_session)
+    assert policy.vehicle_links[0].no_claims_class is None

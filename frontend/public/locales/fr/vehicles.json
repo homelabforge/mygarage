@@ -1558,7 +1558,14 @@
     "readBy": "Parseur {{parser}}, {{score}} % de confiance",
     "vehiclesOnPolicy": "Véhicules figurant sur ce document",
     "vehicleMatched": "Sera ajouté",
-    "vehicleNotInGarage": "Absent de votre garage"
+    "vehicleNotInGarage": "Absent de votre garage",
+    "dragDropAny": "Glissez-déposez le PDF ou la photo de votre assurance ici",
+    "errorInvalidTypeAny": "Veuillez téléverser un fichier PDF, JPEG, PNG ou HEIC",
+    "aiNotConfigured": "La lecture d’une photo nécessite la lecture de documents par IA (Réglages → Intégrations). Téléversez un PDF ou saisissez les valeurs à la main.",
+    "readByAi": "Lu par le modèle vision",
+    "readFromPdf": "Lu depuis le texte du PDF",
+    "vehicleMatchedByPlate": "Sera ajouté (reconnu par la plaque)",
+    "confidenceRejected": "Rejetée"
   },
   "odometerRecordList": {
     "autoTrackedByLiveLink": "Suivi automatique par LiveLink",
@@ -1645,7 +1652,8 @@
     "premiumAmount": "Montant de la prime",
     "premiumFrequency": "Fréquence de la prime",
     "deductible": "Franchise",
-    "notes": "Notes"
+    "notes": "Notes",
+    "noClaimsClass": "Bonus-malus"
   },
   "hoursList": {
     "actions": "Actions",
@@ -2019,7 +2027,8 @@
     "premiumChange": "{{amount}} {{percent}} vs la période précédente",
     "showHistory": "Afficher les anciennes polices",
     "hideHistory": "Masquer les anciennes polices",
-    "addToExisting": "Ajouter à une police existante"
+    "addToExisting": "Ajouter à une police existante",
+    "noClaimsClass": "Bonus-malus"
   },
   "savePack": {
     "title": "Enregistrer comme pack",

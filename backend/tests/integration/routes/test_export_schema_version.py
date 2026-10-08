@@ -8,8 +8,8 @@ silently moved the JSON backup contract too, since both endpoints read one
 name. This module proves the fix: `CSV_SCHEMA_VERSION` and
 `JSON_SCHEMA_VERSION` are independent, `EXPORT_SCHEMA_VERSION` is gone,
 (current literals: CSV "8" / JSON "9" since batch 3a's whole service visits,
-which also carry the #211 EN 16942 fuel grade; CSV "7" / JSON "6" were the
-#164 octane / diesel grade columns)
+which also carry the #211 EN 16942 fuel grade and insurance no-claims class;
+CSV "7" / JSON "6" were the #164 octane / diesel grade columns)
 and the five dimensionless CSV pairs (hours, warranties, insurance, tax,
 notes -- the ones that call `generate_csv_stream` directly rather than going
 through `build_csv`) change ONLY in the version cell.
@@ -329,9 +329,10 @@ class TestCSVSchemaVersionAlsoAppliesToUnitBearingPairs:
 
 class TestJSONExportVersionUnchanged:
     """The JSON backup's `export_version` is the current JSON literal ("9" since
-    every section is complete and fuel records carry the EN 16942 `fuel_grade`,
-    #211; "8" was insurance entries carrying `coverages`, "7" the household
-    `insurance_policies` list, "6" the #164 fuel-grade keys).
+    every section is complete, fuel records carry the EN 16942 `fuel_grade` and
+    insurance rows the `no_claims_class`, #211; "8" was insurance entries
+    carrying `coverages`, "7" the household `insurance_policies` list, "6" the
+    #164 fuel-grade keys).
 
     Proves JSON_SCHEMA_VERSION did not silently move alongside CSV_SCHEMA_VERSION.
     """

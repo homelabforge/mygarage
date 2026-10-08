@@ -20,7 +20,41 @@ export const POLICY_TYPES = [
   { value: 'Full Coverage', labelKey: 'forms:policyTypes.fullCoverage' },
   { value: 'Minimum', labelKey: 'forms:policyTypes.minimum' },
   { value: 'Other', labelKey: 'forms:policyTypes.other' },
+  // The European formulas (#211): « au tiers », « tiers étendu ».
+  { value: 'Third Party', labelKey: 'forms:policyTypes.thirdParty' },
+  { value: 'Third Party Extended', labelKey: 'forms:policyTypes.thirdPartyExtended' },
 ] as const
+
+export type PolicyTypeValue = (typeof POLICY_TYPES)[number]['value']
+
+/** The translated name of a stored policy type; a value this version does
+ *  not know (an older row, an import) is shown as stored. */
+export function policyTypeLabel(value: string | null | undefined, t: TFunction): string {
+  if (!value) return ''
+  const option = POLICY_TYPES.find((item) => item.value === value)
+  return option ? t(option.labelKey) : value
+}
+
+/**
+ * The policy type options in the order a form offers them: the country
+ * profile's formulas first, in its order, then the rest of the list. Without
+ * a profile, the list as declared (#211).
+ */
+export function policyTypeOptions(
+  t: TFunction,
+  preferred: readonly string[] | null | undefined
+): { value: PolicyTypeValue; label: string }[] {
+  const first = (preferred ?? []).filter((value): value is PolicyTypeValue =>
+    POLICY_TYPES.some((option) => option.value === value)
+  )
+  const rest = POLICY_TYPES.map((option) => option.value).filter((value) => !first.includes(value))
+  return [...first, ...rest].map((value) => ({ value, label: policyTypeLabel(value, t) }))
+}
+
+/** `insurance_policy_vehicles.no_claims_class`: ten characters of plain text.
+ *  The country profile's own pattern is a hint shown beside the field, never
+ *  a rule, since the schemes differ per insurer. */
+export const NO_CLAIMS_CLASS_PATTERN = /^[A-Za-z0-9 .,/%-]{1,10}$/
 
 export const PREMIUM_FREQUENCIES = [
   { value: 'Monthly', labelKey: 'forms:premiumFrequencies.monthly' },
@@ -76,6 +110,13 @@ const policyVehicleSchema = (t: TFunction) =>
     policy_type: z.string().min(1, t('common:validation.policyType.required')),
     premium_share: makeOptionalCurrencySchema(t),
     deductible: makeOptionalCurrencySchema(t),
+    no_claims_class: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => !value || NO_CLAIMS_CLASS_PATTERN.test(value), {
+        message: t('forms:insurance.noClaimsClassInvalid'),
+      }),
     notes: z.string().optional(),
     effective_to: z.string().optional(),
     coverages: z.array(coverageSchema(t)),

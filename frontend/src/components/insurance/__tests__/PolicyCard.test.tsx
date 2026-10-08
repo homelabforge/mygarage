@@ -7,6 +7,14 @@ vi.mock('../../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US', formatCurrency: vi.fn() }),
 }))
 vi.mock('../../../hooks/useDateLocale', () => ({ useDateLocale: () => undefined }))
+// #211: the no-claims scheme comes from the country profile; the card itself
+// is what is tested, so the hook answers from a variable.
+const profileState: { noClaims: { scheme: string; name: string; pattern: string; example: string } | null } = {
+  noClaims: null,
+}
+vi.mock('../../../hooks/useInsuranceProfile', () => ({
+  useInsuranceProfile: () => ({ country: null, policyTypes: [], coverageKeys: [], noClaims: profileState.noClaims }),
+}))
 
 import PolicyCard from '../PolicyCard'
 import type { InsurancePolicy, PolicyVehicle } from '../../../types/insurance'
@@ -68,10 +76,10 @@ describe('PolicyCard', () => {
     const rows = within(covered).getAllByRole('listitem')
     expect(rows).toHaveLength(2)
     expect(within(rows[0]).getByText('Ram')).toBeInTheDocument()
-    expect(within(rows[0]).getByText('Full Coverage')).toBeInTheDocument()
+    expect(within(rows[0]).getByText('forms:policyTypes.fullCoverage')).toBeInTheDocument()
     expect(within(rows[0]).getByText('Collision Deductible')).toBeInTheDocument()
     expect(within(rows[1]).getByText('Mirage')).toBeInTheDocument()
-    expect(within(rows[1]).getByText('Liability')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('forms:policyTypes.liability')).toBeInTheDocument()
     // The policy-level named field sits with the policy, not inside a vehicle.
     expect(within(covered).queryByText('Agent Phone')).not.toBeInTheDocument()
     expect(screen.getByText('Agent Phone')).toBeInTheDocument()
@@ -174,5 +182,29 @@ describe('PolicyCard', () => {
       render(<PolicyCard policy={withCoverages(unknown)} {...handlers()} />)
       expect(screen.getByText('Ram')).toBeInTheDocument()
     })
+  })
+})
+
+describe('PolicyCard — Europe (#211)', () => {
+  it('shows a European formula by its translated name and the no-claims class under the profile’s own name', () => {
+    profileState.noClaims = { scheme: 'crm', name: 'Bonus-malus (CRM)', pattern: '^[0-3][.,][0-9]{2}$', example: '0.50' }
+    render(
+      <PolicyCard
+        policy={policy({ vehicles: [vehicle({ policy_type: 'Third Party Extended', no_claims_class: '0.50' })] })}
+        {...handlers()}
+      />
+    )
+    const covered = screen.getByRole('region', { name: 'insurancePolicies.coveredVehicles' })
+    expect(within(covered).getByText('forms:policyTypes.thirdPartyExtended')).toBeInTheDocument()
+    expect(within(covered).getByText('Bonus-malus (CRM)')).toBeInTheDocument()
+    expect(within(covered).getByText('0.50')).toBeInTheDocument()
+    profileState.noClaims = null
+  })
+
+  it('shows a stored type this version does not know as stored, and no class row without one', () => {
+    render(<PolicyCard policy={policy({ vehicles: [vehicle({ policy_type: 'Vintage', no_claims_class: null })] })} {...handlers()} />)
+    const covered = screen.getByRole('region', { name: 'insurancePolicies.coveredVehicles' })
+    expect(within(covered).getByText('Vintage')).toBeInTheDocument()
+    expect(within(covered).queryByText('insurancePolicies.noClaimsClass')).not.toBeInTheDocument()
   })
 })

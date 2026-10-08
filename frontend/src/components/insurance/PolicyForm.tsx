@@ -30,7 +30,9 @@ import {
   PREMIUM_FREQUENCIES,
   SUGGESTED_POLICY_FIELDS,
   SUGGESTED_VEHICLE_FIELDS,
+  policyTypeOptions,
 } from '../../schemas/insurance'
+import { useInsuranceProfile } from '../../hooks/useInsuranceProfile'
 import InsurancePDFUpload from '../InsurancePDFUpload'
 import { coverageRows, coveragesToApi } from '../../constants/insuranceCoverages'
 import CoverageEditor from './CoverageEditor'
@@ -68,6 +70,7 @@ function emptyVehicle(vin: string, over: Partial<PolicyVehicleFormData> = {}): P
     policy_type: '',
     premium_share: undefined,
     deductible: undefined,
+    no_claims_class: '',
     notes: '',
     effective_to: '',
     coverages: coverageRows(),
@@ -88,6 +91,13 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
   const replaceMutation = useReplaceInsurancePolicy()
   const { data: garage = [] } = useQuickEntryVehicles()
   const { currencyCode, locale } = useCurrencyPreference()
+  // #211 — the country's formulas and coverages come first, and its
+  // no-claims scheme names the bonus-malus field.
+  const insuranceProfile = useInsuranceProfile()
+  const typeOptions = useMemo(
+    () => policyTypeOptions(t, insuranceProfile.policyTypes),
+    [t, insuranceProfile.policyTypes]
+  )
   const [showPDFUpload, setShowPDFUpload] = useState(false)
   const [pickedVin, setPickedVin] = useState('')
   const [endOldOn, setEndOldOn] = useState('')
@@ -125,6 +135,7 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
           policy_type: vehicle.policy_type,
           premium_share: vehicle.premium_share != null ? Number(vehicle.premium_share) : undefined,
           deductible: vehicle.deductible != null ? Number(vehicle.deductible) : undefined,
+          no_claims_class: vehicle.no_claims_class ?? '',
           notes: vehicle.notes ?? '',
           coverages: coverageRows(vehicle.coverages ?? []),
           effective_to: vehicle.effective_to ?? '',
@@ -136,7 +147,13 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
       // A new insurer's coverages differ: carry the vehicles, not their terms.
       return (policy.vehicles ?? [])
         .filter((vehicle) => !vehicle.effective_to)
-        .map((vehicle) => emptyVehicle(vehicle.vin, { policy_type: vehicle.policy_type }))
+        .map((vehicle) =>
+          emptyVehicle(vehicle.vin, {
+            policy_type: vehicle.policy_type,
+            // The relevé d'information carries the coefficient to the new insurer.
+            no_claims_class: vehicle.no_claims_class ?? '',
+          })
+        )
     }
     return initialVin ? [emptyVehicle(initialVin)] : []
   }, [isEdit, isReplace, policy, initialVin])
@@ -147,6 +164,7 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
     handleSubmit,
     formState: { errors, isSubmitting },
     setValue,
+    getValues,
     setError: setFieldError,
   } = useForm<InsuranceFormData>({
     resolver: zodResolver(schema) as Resolver<InsuranceFormData>,
@@ -227,12 +245,16 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
 
     const parsedType =
       data.policy_type && POLICY_TYPE_VALUES.includes(data.policy_type) ? data.policy_type : ''
+    let attachedAny = false
     for (const vehicle of parsed.vehicles) {
-      if (!vehicle.matched) continue
+      // A plate the garage does not know has no VIN to attach (#211).
+      if (!vehicle.matched || !vehicle.vin) continue
+      attachedAny = true
       const parsedRow = emptyVehicle(vehicle.vin, {
         policy_type: parsedType,
         premium_share: vehicle.premium_share ? Number(vehicle.premium_share) : undefined,
         deductible: vehicle.deductible ? Number(vehicle.deductible) : undefined,
+        no_claims_class: vehicle.no_claims_class ?? data.no_claims_class ?? '',
         coverages: coverageRows(vehicle.coverages),
       })
       // The vehicle whose tab opened the form is attached already: it takes
@@ -240,6 +262,19 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
       const at = vehicleRows.findIndex((row) => row.vin === vehicle.vin)
       if (at === -1) append(parsedRow)
       else update(at, parsedRow)
+    }
+    // A document that names no vehicle the garage knows (a French notice
+    // printing a plate the vehicle record lacks) still fills the one vehicle
+    // the form holds, which is the vehicle whose tab opened it (#211).
+    if (!attachedAny && vehicleRows.length === 1) {
+      const current = getValues('vehicles.0')
+      update(0, {
+        ...current,
+        policy_type: parsedType || current.policy_type,
+        deductible: data.deductible ? Number(data.deductible) : current.deductible,
+        no_claims_class: data.no_claims_class ?? current.no_claims_class,
+        coverages: parsed.coverages?.length ? coverageRows(parsed.coverages) : current.coverages,
+      })
     }
   }
 
@@ -252,6 +287,7 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
         policy_type: vehicle.policy_type as PolicyVehicleCreate['policy_type'],
         premium_share: vehicle.premium_share ?? null,
         deductible: vehicle.deductible ?? null,
+        no_claims_class: vehicle.no_claims_class || null,
         notes: vehicle.notes || null,
         effective_to: vehicle.effective_to || null,
         coverages: coveragesToApi(vehicle.coverages),
@@ -553,10 +589,7 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
                             disabled={rowDisabled}
                             invalid={!!rowErrors?.policy_type}
                             placeholder={t('common:selectType')}
-                            options={POLICY_TYPES.map((option) => ({
-                              value: option.value,
-                              label: t(option.labelKey),
-                            }))}
+                            options={typeOptions}
                           />
                         </Field>
                             <Field
@@ -591,6 +624,24 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
                                 disabled={rowDisabled}
                               />
                             </Field>
+                            {(insuranceProfile.noClaims || !!watchedVehicles?.[index]?.no_claims_class) && (
+                              <Field
+                                id={`vehicle-${index}-no-claims`}
+                                label={insuranceProfile.noClaims?.name ?? t('insurance.noClaimsClass')}
+                                hint={t('insurance.noClaimsHint')}
+                                error={rowErrors?.no_claims_class}
+                              >
+                                <Input
+                                  id={`vehicle-${index}-no-claims`}
+                                  type="text"
+                                  maxLength={10}
+                                  {...register(`vehicles.${index}.no_claims_class`)}
+                                  placeholder={insuranceProfile.noClaims?.example}
+                                  invalid={!!rowErrors?.no_claims_class}
+                                  disabled={rowDisabled}
+                                />
+                              </Field>
+                            )}
                       </div>
                           <CoverageEditor
                             control={control}
@@ -600,6 +651,7 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
                             disabled={rowDisabled}
                             idPrefix={`vehicle-${index}-coverage`}
                             errors={rowErrors?.coverages}
+                            preferredKeys={insuranceProfile.coverageKeys}
                           />
                           <NamedFieldsEditor
                             control={control}

@@ -8,6 +8,8 @@ import { useDateLocale } from '../../hooks/useDateLocale'
 import { formatCurrency } from '../../utils/formatUtils'
 import { useCurrencyPreference } from '../../hooks/useCurrencyPreference'
 import { COVERAGES, coverageSlots } from '../../constants/insuranceCoverages'
+import { policyTypeLabel } from '../../schemas/insurance'
+import { useInsuranceProfile } from '../../hooks/useInsuranceProfile'
 import { Badge, Button, IconButton, Mono } from '../ui'
 import type { Tone } from '../ui/types'
 
@@ -227,6 +229,7 @@ interface VehicleRowProps {
 
 function VehicleRow({ vehicle, money, formatDate }: VehicleRowProps) {
   const { t } = useTranslation('vehicles')
+  const { noClaims } = useInsuranceProfile()
   const coverages = vehicle.coverages ?? []
   const fields = vehicle.fields ?? []
   return (
@@ -235,7 +238,7 @@ function VehicleRow({ vehicle, money, formatDate }: VehicleRowProps) {
         <div className="flex items-center gap-2 min-w-0">
           <Car aria-hidden="true" size={16} className="text-text-mute shrink-0" />
           <span className="font-medium text-text truncate">{vehicle.vehicle_name}</span>
-          <Badge tone="muted">{vehicle.policy_type}</Badge>
+          <Badge tone="muted">{policyTypeLabel(vehicle.policy_type, t)}</Badge>
         </div>
         {vehicle.effective_share != null && (
           <Mono size="sm" className="text-text">
@@ -248,6 +251,13 @@ function VehicleRow({ vehicle, money, formatDate }: VehicleRowProps) {
           <Detail label={t('insuranceList.deductible')}>
             <Mono size="sm" className="text-text">
               {money(vehicle.deductible)}
+            </Mono>
+          </Detail>
+        )}
+        {vehicle.no_claims_class && (
+          <Detail label={noClaims?.name ?? t('insurancePolicies.noClaimsClass')}>
+            <Mono size="sm" className="text-text">
+              {vehicle.no_claims_class}
             </Mono>
           </Detail>
         )}

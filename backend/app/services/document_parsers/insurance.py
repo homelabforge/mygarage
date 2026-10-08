@@ -1,4 +1,10 @@
-"""Insurance document parsers with provider-specific implementations."""
+"""Insurance document parsers with provider-specific implementations.
+
+The French parser lives in `insurance_fr.py` (#211); `from_llm_fields` below
+turns a vision model's answer (`document_prompts/insurance_policy.py`) into
+the same `InsuranceData` the text parsers produce, every value through the
+same validators.
+"""
 
 import logging
 import re
@@ -8,12 +14,115 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from app.constants.insurance import clean_no_claims_class
 from app.utils.household_time import household_today
-from app.utils.insurance_coverages import coverage_payload, parse_coverage_lines
+from app.utils.insurance_coverages import COVERAGE_BY_KEY, coverage_payload, parse_coverage_lines
 
 from .base import BaseDocumentParser, DocumentData, DocumentType
 
 logger = logging.getLogger(__name__)
+
+#: A registration plate as a policy prints it: letters, digits, spaces and
+#: dashes, 4 to 12 characters, at least one digit (« AB-123-CD », « 1234 AB
+#: 56 », « M-AB 1234 »).
+_PLATE_RE = re.compile(r"^(?=.*\d)[A-Z0-9][A-Z0-9 -]{2,10}[A-Z0-9]$")
+#: The French SIV plate, with the dashes a document may print as spaces.
+_SIV_PLATE_RE = re.compile(r"\b([A-Z]{2})[- ]?(\d{3})[- ]?([A-Z]{2})\b")
+
+#: The formula printed on a policy → the stored policy type. Longest and most
+#: specific first, since « tiers étendu » contains « tiers » and « tous
+#: risques » may be quoted in a third-party policy's marketing text, which
+#: is why `classify_formula` looks for a labelled formula before a bare word.
+_FORMULA_RULES: tuple[tuple[str, str], ...] = (
+    # Full cover: France, Germany, Italy, Spain, English.
+    (r"tous\s+risques", "Full Coverage"),
+    (r"\bvollkasko\b", "Full Coverage"),
+    (r"\bkasko\s+completa\b|\bkasko\b(?!\s+parziale)", "Full Coverage"),
+    (r"\btodo\s+riesgo\b", "Full Coverage"),
+    (r"\bfull\s+coverage\b|\bfully\s+comprehensive\b", "Full Coverage"),
+    # Third party extended: a third-party formula plus theft, fire, glass…
+    (
+        r"tiers\s*(?:étendu|etendu|\+|plus|confort|intermédiaire|intermediaire|privilège|privilege)",
+        "Third Party Extended",
+    ),
+    (r"formule\s+(?:intermédiaire|intermediaire|confort|médiane|mediane)", "Third Party Extended"),
+    (r"\bteilkasko\b", "Third Party Extended"),
+    (r"\bkasko\s+parziale\b|\bfurto\s+(?:e|ed)\s+incendio\b", "Third Party Extended"),
+    (r"\bterceros\s+(?:ampliado|con\s+lunas|\+)", "Third Party Extended"),
+    (r"\bthird\s+party\s*,?\s+fire\s+and\s+theft\b|\btpft\b", "Third Party Extended"),
+    # Third party only.
+    (
+        r"\bau\s+tiers\b|\btiers\s+(?:simple|essentiel|seul|minimum)\b|\bformule\s+tiers\b",
+        "Third Party",
+    ),
+    (r"responsabilit[ée]\s+civile\s+(?:seule|uniquement|obligatoire)", "Third Party"),
+    (
+        r"\b(?:kfz-)?haftpflicht(?:versicherung)?\s+(?:nur|only)\b|\bnur\s+haftpflicht\b",
+        "Third Party",
+    ),
+    (r"\bsolo\s+rc\b|\brc\s+auto\s+(?:base|solo)\b", "Third Party"),
+    (
+        r"\b(?:solo\s+)?(?:a\s+)?terceros\s+(?:básico|basico|simple)\b|\ba\s+terceros\b",
+        "Third Party",
+    ),
+    # Not a bare « third party »: a North American page says it of the other
+    # driver, and this classifier runs on every parser's text.
+    (r"\bthird\s+party\s+only\b|\bthird\s+party\s+liability\s+only\b", "Third Party"),
+)
+#: A formula printed after its label: « Formule : Tous risques », « Formel »,
+#: « Tipo di polizza », « Modalidad ».
+_FORMULA_LABEL_RE = re.compile(
+    r"(?:formule|formula|forme\s+de\s+contrat|option\s+choisie|niveau\s+de\s+garantie|"
+    r"deckung|deckungsart|tarif|tipo\s+di\s+polizza|modalidad|cover(?:age)?\s+type|policy\s+type)"
+    r"\s*[:\-–]?\s*([^\n]{3,60})",
+    re.IGNORECASE,
+)
+
+
+def classify_formula(text: str | None) -> str | None:
+    """The stored policy type a printed formula means, or None.
+
+    A labelled formula (« Formule : tiers étendu ») is read first; the whole
+    text only when the label is missing. Full cover beats extended beats
+    third party, since the wider formula includes the narrower words.
+    """
+    if not text:
+        return None
+    labelled = _FORMULA_LABEL_RE.search(text)
+    for candidate in ((labelled.group(1) if labelled else None), text):
+        if not candidate:
+            continue
+        lowered = candidate.lower()
+        for pattern, policy_type in _FORMULA_RULES:
+            if re.search(pattern, lowered):
+                return policy_type
+    return None
+
+
+def clean_plate(value: Any) -> str | None:
+    """A registration plate as the garage stores it, upper-case, or None.
+
+    A French SIV plate is written with its dashes whatever the document
+    printed (« AB 123 CD » → « AB-123-CD »), which is how the vehicle form
+    stores it, so a plate match finds the vehicle.
+    """
+    if not isinstance(value, str):
+        return None
+    printed = " ".join(value.split()).upper()
+    siv = _SIV_PLATE_RE.fullmatch(printed)
+    if siv:
+        return "-".join(siv.groups())
+    return printed if _PLATE_RE.match(printed) else None
+
+
+def plates_in(text: str) -> list[str]:
+    """Every French SIV plate printed in the text, dashed, in order, once."""
+    found: list[str] = []
+    for match in _SIV_PLATE_RE.finditer(text.upper()):
+        plate = "-".join(match.groups())
+        if plate not in found:
+            found.append(plate)
+    return found
 
 
 @dataclass
@@ -36,8 +145,14 @@ class InsuranceData(DocumentData):
     premium_frequency: str | None = None  # Monthly/Quarterly/Semi-Annual/Annual
     deductible: Decimal | None = None
 
+    #: The no-claims class printed (CRM 0.50, SF 12, classe 1…), #211.
+    no_claims_class: str | None = None
+
     # Vehicle info
     vehicles_found: list[str] = field(default_factory=list)
+    #: The registration plates printed, for a policy that names no VIN (a
+    #: French avis d'échéance usually prints the plate alone), #211.
+    plates_found: list[str] = field(default_factory=list)
     #: Per-VIN figures for EVERY vehicle on the document, where the parser can
     #: find a per-vehicle section. A household policy covers several vehicles,
     #: so the target VIN's figures alone discard most of the declarations page.
@@ -50,6 +165,10 @@ class InsuranceData(DocumentData):
     #: Kept apart from `vehicle_details`, which is money only and is
     #: stringified wholesale on the way out.
     vehicle_coverages: dict[str, list[dict[str, str | None]]] = field(default_factory=dict)
+    #: Coverage names the document printed that the catalogue does not know
+    #: (the vision path lists them; the text path keeps such lines as named
+    #: fields in the same read), #211.
+    unmatched_coverages: list[str] = field(default_factory=list)
 
     # Notes
     notes: str | None = None
@@ -73,13 +192,16 @@ class InsuranceData(DocumentData):
                 "premium_amount": str(self.premium_amount) if self.premium_amount else None,
                 "premium_frequency": self.premium_frequency,
                 "deductible": str(self.deductible) if self.deductible else None,
+                "no_claims_class": self.no_claims_class,
                 "coverages": self.coverages,
                 "vehicles_found": self.vehicles_found,
+                "plates_found": self.plates_found,
                 "vehicle_details": {
                     vin: {name: str(amount) for name, amount in figures.items()}
                     for vin, figures in self.vehicle_details.items()
                 },
                 "vehicle_coverages": self.vehicle_coverages,
+                "unmatched_coverages": self.unmatched_coverages,
                 "notes": self.notes,
                 "field_confidence": self.field_confidence,
             }
@@ -96,8 +218,8 @@ class InsuranceData(DocumentData):
             warnings.append("Policy dates not fully extracted")
         if not self.premium_amount:
             warnings.append("Premium amount not found")
-        if not self.vehicles_found:
-            warnings.append("No VINs found in document")
+        if not self.vehicles_found and not self.plates_found:
+            warnings.append("No VINs or registration plates found in document")
 
         return warnings
 
@@ -173,7 +295,8 @@ class InsuranceDocumentParser(BaseDocumentParser):
                 continue
         return None
 
-    def _determine_frequency(self, start_date: str, end_date: str) -> str:
+    @staticmethod
+    def _determine_frequency(start_date: str, end_date: str) -> str:
         """Determine payment frequency from policy period."""
         try:
             start = datetime.strptime(start_date, "%Y-%m-%d")
@@ -195,6 +318,10 @@ class InsuranceDocumentParser(BaseDocumentParser):
         """Determine policy type from coverage information."""
         text_lower = text.lower()
 
+        # A European formula printed on the page names the type outright.
+        formula = classify_formula(text)
+        if formula is not None:
+            return formula
         if all(c in text_lower for c in ["comprehensive", "collision", "liability"]):
             return "Full Coverage"
         elif "comprehensive" in text_lower and "collision" in text_lower:
@@ -208,7 +335,8 @@ class InsuranceDocumentParser(BaseDocumentParser):
         else:
             return "Other"
 
-    def _calculate_confidence(self, data: InsuranceData) -> float:
+    @staticmethod
+    def _calculate_confidence(data: InsuranceData) -> float:
         """Calculate overall confidence score."""
         score = 0.0
 
@@ -727,3 +855,131 @@ class GenericInsuranceParser(InsuranceDocumentParser):
         data.notes = f"Auto-imported from PDF on {household_today().isoformat()} (generic parser)"
 
         return data
+
+
+# ---------------------------------------------------------------------------
+# The vision model's answer (#211)
+# ---------------------------------------------------------------------------
+
+_FREQUENCY_WORDS: dict[str, str] = {
+    "monthly": "Monthly",
+    "mensuel": "Monthly",
+    "mensuelle": "Monthly",
+    "monatlich": "Monthly",
+    "mensile": "Monthly",
+    "mensual": "Monthly",
+    "quarterly": "Quarterly",
+    "trimestriel": "Quarterly",
+    "trimestrielle": "Quarterly",
+    "vierteljährlich": "Quarterly",
+    "trimestrale": "Quarterly",
+    "trimestral": "Quarterly",
+    "semi-annual": "Semi-Annual",
+    "semiannual": "Semi-Annual",
+    "half-yearly": "Semi-Annual",
+    "semestriel": "Semi-Annual",
+    "semestrielle": "Semi-Annual",
+    "halbjährlich": "Semi-Annual",
+    "semestrale": "Semi-Annual",
+    "semestral": "Semi-Annual",
+    "annual": "Annual",
+    "yearly": "Annual",
+    "annuel": "Annual",
+    "annuelle": "Annual",
+    "jährlich": "Annual",
+    "annuale": "Annual",
+    "anual": "Annual",
+}
+
+
+def frequency_from_words(value: Any) -> str | None:
+    """`Monthly` / `Quarterly` / `Semi-Annual` / `Annual` from a printed word."""
+    if not isinstance(value, str):
+        return None
+    return _FREQUENCY_WORDS.get(value.strip().lower())
+
+
+def from_llm_fields(fields: dict[str, Any], *, model: str | None = None) -> InsuranceData:
+    """The vision model's JSON (`document_prompts/insurance_policy.py`) as
+    `InsuranceData`, every value through the same validators as the text
+    path: what fails is dropped with a warning naming the key, in
+    `field_confidence` as `rejected`."""
+    from .registration import clean_vin, free_text, iso_date, to_decimal
+
+    data = InsuranceData(parser_name=f"vision:{model}" if model else "vision")
+    confidence = data.field_confidence
+
+    def take(key: str, value: Any, kept: Any) -> None:
+        if value in (None, ""):
+            return
+        confidence[key] = "high" if kept is not None else "rejected"
+
+    insurer = free_text(fields.get("insurer"), max_length=100)
+    take("provider", fields.get("insurer"), insurer)
+    data.provider = insurer or "Unknown"
+
+    number = free_text(fields.get("policy_number"), max_length=50)
+    take("policy_number", fields.get("policy_number"), number)
+    data.policy_number = number
+
+    start, end = iso_date(fields.get("start_date")), iso_date(fields.get("end_date"))
+    if fields.get("start_date") or fields.get("end_date"):
+        confidence["dates"] = "high" if start and end else "rejected"
+    data.start_date, data.end_date = start, end
+
+    premium = to_decimal(fields.get("premium"))
+    take("premium_amount", fields.get("premium"), premium)
+    data.premium_amount = premium
+
+    frequency = frequency_from_words(fields.get("payment_frequency"))
+    if frequency is None and start and end:
+        frequency = InsuranceDocumentParser._determine_frequency(start, end)
+    data.premium_frequency = frequency
+
+    deductible = to_decimal(fields.get("deductible"))
+    take("deductible", fields.get("deductible"), deductible)
+    data.deductible = deductible
+
+    policy_type = classify_formula(fields.get("policy_type"))
+    take("policy_type", fields.get("policy_type"), policy_type)
+    data.policy_type = policy_type or "Other"
+
+    no_claims = clean_no_claims_class(fields.get("no_claims_class"))
+    take("no_claims_class", fields.get("no_claims_class"), no_claims)
+    data.no_claims_class = no_claims
+
+    for raw in fields.get("vins") or []:
+        vin = clean_vin(raw)
+        if vin and vin not in data.vehicles_found:
+            data.vehicles_found.append(vin)
+    for raw in fields.get("plates") or []:
+        plate = clean_plate(raw)
+        if plate and plate not in data.plates_found:
+            data.plates_found.append(plate)
+
+    # Each coverage the model listed becomes a line the catalogue parser
+    # reads, so a FR/DE/IT/ES garantie lands on the same row a text PDF's
+    # would; a name outside the catalogue is reported, never guessed.
+    lines: list[str] = []
+    for item in fields.get("coverages") or []:
+        if not isinstance(item, dict):
+            continue
+        name = free_text(item.get("name"), max_length=80)
+        if not name:
+            continue
+        limit = to_decimal(item.get("limit"))
+        # The amount is a LIMIT: it fills a coverage that has a limit slot
+        # and is dropped for one that has none (a franchise the model
+        # called a limit must not become a deductible by position).
+        probe = parse_coverage_lines(name).coverages
+        has_limit = bool(probe) and COVERAGE_BY_KEY[probe[0].key].primary is not None
+        lines.append(f"{name} {limit} €" if limit is not None and has_limit else name)
+    parse = parse_coverage_lines("\n".join(lines))
+    data.coverages = coverage_payload(parse.coverages)
+    for label, _value in parse.fields:
+        data.unmatched_coverages.append(label)
+    data.unmatched_coverages.extend(parse.notes)
+
+    data.confidence_score = InsuranceDocumentParser._calculate_confidence(data)
+    data.notes = f"Read by the vision model on {household_today().isoformat()}"
+    return data

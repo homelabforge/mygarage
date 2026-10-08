@@ -213,7 +213,10 @@
     "partialSwitch": "Les véhicules que vous retirez ici restent chez {{provider}}, qui continue de les couvrir et peut toujours être renouvelé.",
     "coverages": "Garanties",
     "moveFieldUp": "Monter le champ",
-    "moveFieldDown": "Descendre le champ"
+    "moveFieldDown": "Descendre le champ",
+    "noClaimsClass": "Bonus-malus",
+    "noClaimsHint": "Tel qu’imprimé sur la police : coefficient bonus-malus, classe SF, classe de mérite…",
+    "noClaimsClassInvalid": "10 caractères maximum : lettres, chiffres, espaces ou . , / % -"
   },
   "modal": {
     "activeUser": "Utilisateur actif",
@@ -988,9 +991,11 @@
     "liability": "Responsabilité civile",
     "comprehensive": "Tous risques hors collision",
     "collision": "Collision",
-    "fullCoverage": "Couverture complète",
+    "fullCoverage": "Tous risques",
     "minimum": "Minimum",
-    "other": "Autre"
+    "other": "Autre",
+    "thirdParty": "Au tiers",
+    "thirdPartyExtended": "Tiers étendu"
   },
   "premiumFrequencies": {
     "monthly": "Mensuel",
@@ -1079,7 +1084,7 @@
     "comprehensive": "Tous risques hors collision",
     "collision": "Collision",
     "glass": "Bris de glace",
-    "rentalReimbursement": "Véhicule de remplacement",
+    "rentalReimbursement": "Remboursement de location",
     "roadsideAssistance": "Assistance dépannage",
     "loanLeaseGap": "Garantie GAP (prêt/leasing)",
     "customEquipment": "Pièces et équipements personnalisés",
@@ -1092,6 +1097,18 @@
       "maximumDays": "Jours maximum",
       "limit": "Plafond",
       "premium": "Prime"
-    }
+    },
+    "thirdPartyLiability": "Responsabilité civile",
+    "driverProtection": "Garantie du conducteur",
+    "theft": "Vol",
+    "fire": "Incendie",
+    "naturalDisasters": "Catastrophes naturelles",
+    "allAccidentsDamage": "Dommages tous accidents",
+    "allAccidentsDamageHint": "Dommages au véhicule, quel que soit le responsable",
+    "legalProtection": "Protection juridique",
+    "assistance": "Assistance",
+    "replacementVehicle": "Véhicule de remplacement",
+    "moreCoverages": "Autres garanties ({{count}})",
+    "lessCoverages": "Moins de garanties"
   }
 }

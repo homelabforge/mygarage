@@ -2001,7 +2001,14 @@
     "readBy": "{{parser}} parser, {{score}}% confidence",
     "vehiclesOnPolicy": "Vehicles on this document",
     "vehicleMatched": "Will be added",
-    "vehicleNotInGarage": "Not in your garage"
+    "vehicleNotInGarage": "Not in your garage",
+    "dragDropAny": "Drag and drop your insurance PDF or photo here",
+    "errorInvalidTypeAny": "Please upload a PDF, JPEG, PNG or HEIC file",
+    "aiNotConfigured": "Reading a photo needs AI document reading (Settings → Integrations). Upload a PDF, or type the values by hand.",
+    "readByAi": "Read by the vision model",
+    "readFromPdf": "Read from the PDF text",
+    "vehicleMatchedByPlate": "Will be added (matched by plate)",
+    "confidenceRejected": "Rejected"
   },
   "odometerRecordList": {
     "autoTrackedByLiveLink": "Auto-tracked by LiveLink",
@@ -2089,7 +2096,8 @@
     "premiumAmount": "Premium Amount",
     "premiumFrequency": "Premium Frequency",
     "deductible": "Deductible",
-    "notes": "Notes"
+    "notes": "Notes",
+    "noClaimsClass": "No-claims class"
   },
   "maintenanceTypeSelect": {
     "auto": "Detect from the description"
@@ -2214,7 +2222,8 @@
     "premiumChange": "{{amount}} {{percent}} vs the prior term",
     "showHistory": "Show past policies",
     "hideHistory": "Hide past policies",
-    "addToExisting": "Add to existing policy"
+    "addToExisting": "Add to existing policy",
+    "noClaimsClass": "No-claims class"
   },
   "savePack": {
     "title": "Save as pack",

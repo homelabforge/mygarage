@@ -58,6 +58,18 @@ class DocumentOCRService:
         else:
             raise ValueError("Either file_path or file_bytes must be provided")
 
+        return self.parse_insurance_text(text, target_vin=target_vin, provider_hint=provider_hint)
+
+    @staticmethod
+    def parse_insurance_text(
+        text: str | None,
+        *,
+        target_vin: str | None = None,
+        provider_hint: str | None = None,
+    ) -> dict[str, Any]:
+        """Read insurance data off text already extracted (#211: the document
+        reader hands over a PDF's text layer; `extract_insurance_data` the
+        text it pulled itself)."""
         if not text or len(text.strip()) < 30:
             logger.warning("Insufficient text extracted from document")
             return {

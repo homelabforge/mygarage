@@ -3,17 +3,33 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { isAiNotConfigured } from '../services/registrationCertificateService'
+import { useAiDocumentReading } from '../hooks/queries/useAiDocumentReading'
 import type { InsurancePDFParseResponse } from '../types/insurance'
 import { CloudUpload, X, AlertTriangle, CheckCircle } from 'lucide-react'
 import { Button, Card, IconButton, Chip } from './ui'
 import type { Tone } from './ui'
 
 // LD3: confidence is off-accent (§4.3); high→success, medium→warning, low→danger.
-const CONFIDENCE_TONE: Record<'high' | 'medium' | 'low', Tone> = {
+// `rejected` is the vision model's value the validators refused (#211).
+const CONFIDENCE_TONE: Record<'high' | 'medium' | 'low' | 'rejected', Tone> = {
   high: 'success',
   medium: 'warning',
   low: 'danger',
+  rejected: 'danger',
 }
+
+const PDF_ACCEPT = '.pdf,application/pdf'
+/** With AI document reading on, a photo or a scan of the policy is read by
+ *  the vision model (#211); a PDF with a text layer is read on the server
+ *  either way. */
+const ANY_ACCEPT = `${PDF_ACCEPT},image/jpeg,image/png,image/heic,image/heif,.jpg,.jpeg,.png,.heic,.heif`
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif']
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|heic|heif)$/i
+
+const isPdfFile = (file: File) =>
+  file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+const isImageFile = (file: File) => IMAGE_TYPES.includes(file.type) || IMAGE_EXTENSIONS.test(file.name)
 
 /**
  * Parsed-policy field name -> translation key.
@@ -38,6 +54,7 @@ const INSURANCE_FIELD_KEYS: Record<string, string> = {
   premium_amount: 'insuranceFields.premiumAmount',
   premium_frequency: 'insuranceFields.premiumFrequency',
   deductible: 'insuranceFields.deductible',
+  no_claims_class: 'insuranceFields.noClaimsClass',
   notes: 'insuranceFields.notes',
 }
 
@@ -63,6 +80,13 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
   const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { enabled: aiEnabled } = useAiDocumentReading()
+
+  // A PDF is always welcome; a photo only when a vision model can read it.
+  const acceptable = (candidate: File) => isPdfFile(candidate) || (aiEnabled && isImageFile(candidate))
+  const invalidTypeMessage = aiEnabled
+    ? t('insurancePdfUpload.errorInvalidTypeAny')
+    : t('insurancePdfUpload.errorInvalidType')
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -81,11 +105,11 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const droppedFile = e.dataTransfer.files[0]
-      if (droppedFile.type === 'application/pdf' || droppedFile.name.toLowerCase().endsWith('.pdf')) {
+      if (acceptable(droppedFile)) {
         setFile(droppedFile)
         setError(null)
       } else {
-        setError(t('insurancePdfUpload.errorInvalidType'))
+        setError(invalidTypeMessage)
       }
     }
   }
@@ -93,11 +117,11 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0]
-      if (selectedFile.type === 'application/pdf' || selectedFile.name.toLowerCase().endsWith('.pdf')) {
+      if (acceptable(selectedFile)) {
         setFile(selectedFile)
         setError(null)
       } else {
-        setError(t('insurancePdfUpload.errorInvalidType'))
+        setError(invalidTypeMessage)
       }
     }
   }
@@ -121,7 +145,11 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
 
       setParseResult(response.data)
     } catch (err) {
-      setError(getActionErrorMessage(err, t('insurancePdfUpload.parseAction')))
+      if (isAiNotConfigured(err)) {
+        setError(t('insurancePdfUpload.aiNotConfigured'))
+      } else {
+        setError(getActionErrorMessage(err, t('insurancePdfUpload.parseAction')))
+      }
     } finally {
       setUploading(false)
     }
@@ -141,6 +169,7 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
       high: t('insurancePdfUpload.confidenceHigh'),
       medium: t('insurancePdfUpload.confidenceMedium'),
       low: t('insurancePdfUpload.confidenceLow'),
+      rejected: t('insurancePdfUpload.confidenceRejected'),
     }
 
     return <Chip tone={CONFIDENCE_TONE[confidence]}>{labels[confidence]}</Chip>
@@ -170,7 +199,9 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
                 onDrop={handleDrop}
               >
                 <CloudUpload aria-hidden="true" className="w-12 h-12 mx-auto text-text-mute mb-4" />
-                <p className="text-text mb-2">{file ? file.name : t('insurancePdfUpload.dragDrop')}</p>
+                <p className="text-text mb-2">
+                  {file ? file.name : aiEnabled ? t('insurancePdfUpload.dragDropAny') : t('insurancePdfUpload.dragDrop')}
+                </p>
                 <p className="text-sm text-text-mute mb-4">{t('insurancePdfUpload.or')}</p>
                 {/* B3/M6/G4(b): the Choose-File affordance is a real focusable <Button> that clicks
                     the hidden input's ref — restoring KEYBOARD operability (Tab to the button,
@@ -188,7 +219,7 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
                   id="insurance-pdf-file"
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,application/pdf"
+                  accept={aiEnabled ? ANY_ACCEPT : PDF_ACCEPT}
                   onChange={handleFileChange}
                   className="hidden"
                 />
@@ -244,14 +275,23 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
                 <Card padding="sm">
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <h3 className="text-sm font-semibold text-text">{t('insurancePdfUpload.extractedData')}</h3>
-                    {parseResult.parser_used && (
-                      <span className="text-xs text-text-mute">
-                        {t('insurancePdfUpload.readBy', {
-                          parser: parseResult.parser_used,
-                          score: Math.round(parseResult.confidence_score),
-                        })}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {parseResult.source && (
+                        <Chip tone={parseResult.source === 'llm' ? 'accent' : 'muted'}>
+                          {parseResult.source === 'llm'
+                            ? t('insurancePdfUpload.readByAi')
+                            : t('insurancePdfUpload.readFromPdf')}
+                        </Chip>
+                      )}
+                      {parseResult.parser_used && (
+                        <span className="text-xs text-text-mute">
+                          {t('insurancePdfUpload.readBy', {
+                            parser: parseResult.parser_used,
+                            score: Math.round(parseResult.confidence_score),
+                          })}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2 text-sm">
                     {Object.entries(parseResult.data).map(([key, value]) => {
@@ -275,12 +315,19 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
                   <Card padding="sm">
                     <h3 className="text-sm font-semibold text-text mb-3">{t('insurancePdfUpload.vehiclesOnPolicy')}</h3>
                     <ul className="space-y-2 text-sm">
-                      {parseResult.vehicles.map((vehicle) => (
-                        <li key={vehicle.vin} className="flex justify-between items-center gap-2">
-                          <span className="text-text">{vehicle.vehicle_name ?? vehicle.vin}</span>
+                      {parseResult.vehicles.map((vehicle, index) => (
+                        <li
+                          key={vehicle.vin ?? vehicle.plate ?? index}
+                          className="flex justify-between items-center gap-2"
+                        >
+                          <span className="text-text">
+                            {vehicle.vehicle_name ?? vehicle.vin ?? vehicle.plate}
+                          </span>
                           <Chip tone={vehicle.matched ? 'success' : 'muted'}>
                             {vehicle.matched
-                              ? t('insurancePdfUpload.vehicleMatched')
+                              ? vehicle.matched_by === 'plate'
+                                ? t('insurancePdfUpload.vehicleMatchedByPlate')
+                                : t('insurancePdfUpload.vehicleMatched')
                               : t('insurancePdfUpload.vehicleNotInGarage')}
                           </Chip>
                         </li>

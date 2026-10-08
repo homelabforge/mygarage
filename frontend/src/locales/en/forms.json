@@ -219,7 +219,10 @@
     "partialSwitch": "Vehicles you remove here stay on {{provider}}, which carries on for them and can still be renewed.",
     "coverages": "Coverages",
     "moveFieldUp": "Move field up",
-    "moveFieldDown": "Move field down"
+    "moveFieldDown": "Move field down",
+    "noClaimsClass": "No-claims class",
+    "noClaimsHint": "As printed on the policy: a bonus-malus coefficient, an SF class, a merit class…",
+    "noClaimsClassInvalid": "Up to 10 letters, digits, spaces or . , / % -"
   },
   "modal": {
     "activeUser": "Active User",
@@ -1039,7 +1042,9 @@
     "collision": "Collision",
     "fullCoverage": "Full Coverage",
     "minimum": "Minimum",
-    "other": "Other"
+    "other": "Other",
+    "thirdParty": "Third party",
+    "thirdPartyExtended": "Third party extended"
   },
   "premiumFrequencies": {
     "monthly": "Monthly",
@@ -1125,6 +1130,18 @@
       "maximumDays": "Maximum days",
       "limit": "Limit",
       "premium": "Premium"
-    }
+    },
+    "thirdPartyLiability": "Third-party liability",
+    "driverProtection": "Driver protection",
+    "theft": "Theft",
+    "fire": "Fire",
+    "naturalDisasters": "Natural disasters",
+    "allAccidentsDamage": "All-accidents damage",
+    "allAccidentsDamageHint": "Damage to the vehicle whoever is at fault",
+    "legalProtection": "Legal protection",
+    "assistance": "Assistance",
+    "replacementVehicle": "Replacement vehicle",
+    "moreCoverages": "More coverages ({{count}})",
+    "lessCoverages": "Fewer coverages"
   }
 }

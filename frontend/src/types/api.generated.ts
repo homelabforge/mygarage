@@ -2119,11 +2119,18 @@ export interface paths {
         put?: never;
         /**
          * Parse Insurance Pdf
-         * @description Read a declarations page and return what it says, persisting nothing.
+         * @description Read a policy document and return what it says, persisting nothing.
+         *
+         *     A PDF with a text layer is read on the server (the North American
+         *     parsers, the French one, the generic fallback); a photo or a scan goes
+         *     to the vision model when document reading is on, else 409
+         *     `ai_reading_not_configured` (#211). `source` says which.
          *
          *     `vehicles` lists every VIN on the document with its own premium and
-         *     deductible where the parser finds a per-vehicle section. `matched` marks
-         *     the ones the caller has WRITE access to, which is what attaching one takes.
+         *     deductible where the parser finds a per-vehicle section, and every
+         *     registration plate when the document names no VIN (`matched_by` is
+         *     `vin` or `plate`). `matched` marks the ones the caller has WRITE access
+         *     to, which is what attaching one takes.
          */
         post: operations["parse_insurance_pdf_api_insurance_parse_pdf_post"];
         delete?: never;
@@ -9658,7 +9665,7 @@ export interface components {
              * Coverage Key
              * @enum {string}
              */
-            coverage_key: "bodily_injury" | "property_damage" | "uninsured_bodily_injury" | "uninsured_property_damage" | "personal_injury_protection" | "medical_payments" | "comprehensive" | "collision" | "glass" | "rental_reimbursement" | "roadside_assistance" | "loan_lease_gap" | "custom_equipment";
+            coverage_key: "bodily_injury" | "property_damage" | "uninsured_bodily_injury" | "uninsured_property_damage" | "personal_injury_protection" | "medical_payments" | "comprehensive" | "collision" | "glass" | "rental_reimbursement" | "roadside_assistance" | "loan_lease_gap" | "custom_equipment" | "third_party_liability" | "driver_protection" | "theft" | "fire" | "natural_disasters" | "all_accidents_damage" | "legal_protection" | "assistance" | "replacement_vehicle";
             /** Deductible */
             deductible?: number | string | null;
             /** Limit Primary */
@@ -9681,7 +9688,7 @@ export interface components {
              * Coverage Key
              * @enum {string}
              */
-            coverage_key: "bodily_injury" | "property_damage" | "uninsured_bodily_injury" | "uninsured_property_damage" | "personal_injury_protection" | "medical_payments" | "comprehensive" | "collision" | "glass" | "rental_reimbursement" | "roadside_assistance" | "loan_lease_gap" | "custom_equipment";
+            coverage_key: "bodily_injury" | "property_damage" | "uninsured_bodily_injury" | "uninsured_property_damage" | "personal_injury_protection" | "medical_payments" | "comprehensive" | "collision" | "glass" | "rental_reimbursement" | "roadside_assistance" | "loan_lease_gap" | "custom_equipment" | "third_party_liability" | "driver_protection" | "theft" | "fire" | "natural_disasters" | "all_accidents_damage" | "legal_protection" | "assistance" | "replacement_vehicle";
             /** Deductible */
             deductible?: string | null;
             /** Limit Primary */
@@ -14712,13 +14719,18 @@ export interface components {
             deductible?: number | string | null;
             /** Fields */
             fields?: components["schemas"]["NamedField"][];
+            /**
+             * No Claims Class
+             * @description The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)… Ten characters of plain text
+             */
+            no_claims_class?: string | null;
             /** Notes */
             notes?: string | null;
             /**
              * Policy Type
              * @enum {string}
              */
-            policy_type: "Liability" | "Comprehensive" | "Collision" | "Full Coverage" | "Minimum" | "Other";
+            policy_type: "Liability" | "Comprehensive" | "Collision" | "Full Coverage" | "Minimum" | "Other" | "Third Party" | "Third Party Extended";
             /**
              * Premium Share
              * @description Per-period share; omit for an even split
@@ -14752,6 +14764,11 @@ export interface components {
             fields?: components["schemas"]["NamedFieldResponse"][];
             /** Id */
             id: number;
+            /**
+             * No Claims Class
+             * @description The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)… Ten characters of plain text
+             */
+            no_claims_class?: string | null;
             /** Notes */
             notes?: string | null;
             /** Policy Type */
@@ -14783,10 +14800,15 @@ export interface components {
             effective_to?: string | null;
             /** Fields */
             fields?: components["schemas"]["NamedField"][] | null;
+            /**
+             * No Claims Class
+             * @description The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)… Ten characters of plain text
+             */
+            no_claims_class?: string | null;
             /** Notes */
             notes?: string | null;
             /** Policy Type */
-            policy_type?: ("Liability" | "Comprehensive" | "Collision" | "Full Coverage" | "Minimum" | "Other") | null;
+            policy_type?: ("Liability" | "Comprehensive" | "Collision" | "Full Coverage" | "Minimum" | "Other" | "Third Party" | "Third Party Extended") | null;
             /** Premium Share */
             premium_share?: number | string | null;
         };
@@ -14810,13 +14832,18 @@ export interface components {
              * @description Omit to leave an existing vehicle's named fields alone
              */
             fields?: components["schemas"]["NamedField"][] | null;
+            /**
+             * No Claims Class
+             * @description The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)… Ten characters of plain text
+             */
+            no_claims_class?: string | null;
             /** Notes */
             notes?: string | null;
             /**
              * Policy Type
              * @enum {string}
              */
-            policy_type: "Liability" | "Comprehensive" | "Collision" | "Full Coverage" | "Minimum" | "Other";
+            policy_type: "Liability" | "Comprehensive" | "Collision" | "Full Coverage" | "Minimum" | "Other" | "Third Party" | "Third Party Extended";
             /** Premium Share */
             premium_share?: number | string | null;
             /** Vin */

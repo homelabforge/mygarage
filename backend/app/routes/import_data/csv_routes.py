@@ -1021,6 +1021,7 @@ async def import_insurance_csv(
                 "premium": parse_decimal(row.get("Premium", "")),
                 "premium_frequency": row.get("Premium Frequency", "").strip() or None,
                 "deductible": parse_decimal(row.get("Deductible", "")),
+                "no_claims_class": row.get("No-Claims Class", "").strip() or None,
                 "notes": row.get("Notes", "").strip() or None,
             }
             # The flat file has one Coverage Limits column: converted whole,

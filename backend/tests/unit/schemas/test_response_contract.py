@@ -416,6 +416,7 @@ INPUT_MODELS_REUSED: dict[str, str] = {
     "FuelGradePreset": _COUNTRY_PROFILE_SHIPPED_DATA,
     "TaxRules": _COUNTRY_PROFILE_SHIPPED_DATA,
     "RegistrationCertificateRules": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "InsuranceRules": _COUNTRY_PROFILE_SHIPPED_DATA,
 }
 
 

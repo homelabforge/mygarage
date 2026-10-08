@@ -1129,6 +1129,7 @@ async def import_vehicle_json(
                 "premium": Decimal(str(premium)) if premium is not None else None,
                 "premium_frequency": (entry.get("premium_frequency") or "").strip() or None,
                 "deductible": Decimal(str(deductible)) if deductible is not None else None,
+                "no_claims_class": entry.get("no_claims_class"),
                 "coverages": _coverages_from_rows(entry.get("coverages") or []),
                 "notes": entry.get("notes"),
                 "fields": entry.get("fields") or [],
