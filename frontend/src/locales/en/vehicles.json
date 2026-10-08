@@ -1423,7 +1423,17 @@
     "fieldYear": "Year:",
     "invalidFormat": "Invalid VIN format",
     "mustBe17Characters": "VIN must be 17 characters",
-    "validateFailed": "Failed to validate VIN"
+    "validateFailed": "Failed to validate VIN",
+    "euPartial": "European VIN: the maker is {{make}}, but the VIN does not carry the model or the year. Type them, or import the registration certificate.",
+    "partialDecode": "Partial decode: the maker is {{make}}. Type the model and the year.",
+    "nothingDecoded": "This VIN could not be decoded. Type the vehicle's details, or import the registration certificate.",
+    "importCertificate": "Import the registration certificate",
+    "fieldWmiCountry": "Built in:",
+    "notes": {
+      "eu_vin_no_model": "European VINs do not encode the model.",
+      "year_unreliable": "Position 10 is not a model year for this maker; the year was left blank.",
+      "check_digit_not_applicable": "The check digit is a North American rule and does not apply to this VIN."
+    }
   },
   "tireList": {
     "add": "Add Tire",

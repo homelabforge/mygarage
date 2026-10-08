@@ -245,3 +245,74 @@ class TestVINRoutes:
 
         # Should return 404 (no VIN parameter) or validation error
         assert response.status_code in [400, 404, 422]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestEuropeanVins:
+    """What the routes add from the VIN's own structure (#211)."""
+
+    @patch("app.routes.vin.NHTSAService")
+    async def test_decode_completes_a_renault_from_the_wmi(
+        self, mock_nhtsa_class, client: AsyncClient, auth_headers
+    ):
+        mock_instance = mock_nhtsa_class.return_value
+        mock_instance.decode_vin = AsyncMock(
+            return_value={
+                "vin": "VF1RFB00X56123456",
+                "year": 2005,
+                "manufacturer": "RENAULT GROUP",
+                "error_code": "1,8",
+            }
+        )
+        response = await client.post(
+            "/api/vin/decode", json={"vin": "VF1RFB00X56123456"}, headers=auth_headers
+        )
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["make"] == "Renault"
+        assert data["model"] is None
+        assert data["year"] is None
+        assert data["region"] == "EU"
+        assert data["wmi_country"] == "FR"
+        assert data["decode_quality"] == "partial"
+        assert "eu_vin_no_model" in data["notes"]
+        assert "year_unreliable" in data["notes"]
+        assert "check_digit_not_applicable" in data["notes"]
+
+    @patch("app.routes.vin.NHTSAService")
+    async def test_decode_leaves_a_north_american_answer_alone(
+        self, mock_nhtsa_class, client: AsyncClient, auth_headers
+    ):
+        mock_instance = mock_nhtsa_class.return_value
+        mock_instance.decode_vin = AsyncMock(
+            return_value={
+                "vin": "1HGBH41JXMN109186",
+                "make": "HONDA",
+                "model": "Accord",
+                "year": 2018,
+            }
+        )
+        response = await client.get("/api/vin/decode/1HGBH41JXMN109186", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["year"] == 2018
+        assert data["decode_quality"] == "full"
+        assert data["region"] == "NA"
+        assert data["notes"] == []
+
+    async def test_validate_says_region_country_and_make(self, client: AsyncClient, auth_headers):
+        response = await client.get("/api/vin/validate/vf1rfb00x56123456", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["valid"] is True
+        assert data["region"] == "EU"
+        assert data["country"] == "FR"
+        assert data["make"] == "Renault"
+
+        response = await client.get("/api/vin/validate/ZAZ12345678901234", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["region"] == "EU"
+        assert data["country"] == "IT"
+        assert data["make"] is None

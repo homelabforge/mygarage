@@ -8,8 +8,10 @@ from fastapi.responses import JSONResponse
 
 from app.models.user import User
 from app.schemas.vin import VINDecodeRequest, VINDecodeResponse
+from app.services import vin_decoder
 from app.services.auth import require_auth
 from app.services.nhtsa import NHTSAService
+from app.utils import wmi as wmi_table
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -31,8 +33,11 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
         HTTPException: For invalid VIN format or NHTSA API errors
     """
     try:
+        # The NHTSA call sits in `vin_decoder.decode`, which completes the
+        # answer from the VIN's own structure (#211); the service is built
+        # here so a test can patch it in this module as before.
         nhtsa = NHTSAService()
-        vehicle_info = await nhtsa.decode_vin(vin)
+        vehicle_info = await vin_decoder.decode(vin, nhtsa)
         return VINDecodeResponse(**vehicle_info)
 
     except ValueError as e:
@@ -119,12 +124,18 @@ async def validate_vin_endpoint(vin: str, current_user: User | None = Depends(re
     is_valid, error_msg = validate_vin(vin)
 
     if is_valid:
+        clean = vin.strip().upper()
+        known = wmi_table.lookup(clean)
         return JSONResponse(
             status_code=200,
             content={
                 "valid": True,
-                "vin": vin.strip().upper(),
+                "vin": clean,
                 "message": "VIN format is valid",
+                # What the VIN itself says (#211), before any decode.
+                "region": wmi_table.region_of(clean),
+                "country": known.country if known else wmi_table.country_of(clean),
+                "make": known.make if known else None,
             },
         )
     else:

@@ -1,5 +1,7 @@
 """Pydantic schemas for VIN-related operations."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -81,6 +83,28 @@ class VINDecodeResponse(BaseModel):
     entertainment_system: str | None = Field(None, description="Entertainment system")
     error_code: str | None = Field(None, description="NHTSA error code (if any)")
     error_text: str | None = Field(None, description="NHTSA error text (if any)")
+    # What the VIN itself says (#211), read from the bundled WMI table.
+    region: str | None = Field(
+        None,
+        description="Region of the first character (ISO 3780): AF, AS, EU, NA, OC, SA",
+    )
+    wmi_country: str | None = Field(
+        None, description="Country of manufacture from the WMI (ISO 3166-1 alpha-2)"
+    )
+    decode_quality: Literal["full", "partial", "wmi_only", "none"] | None = Field(
+        None,
+        description=(
+            "full: make and model; partial: make only; wmi_only: the manufacturer "
+            "from the VIN's first three characters; none: nothing"
+        ),
+    )
+    notes: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Why the answer is partial: eu_vin_no_model, year_unreliable, "
+            "check_digit_not_applicable"
+        ),
+    )
 
     model_config = {
         "json_schema_extra": {

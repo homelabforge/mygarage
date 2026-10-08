@@ -20,4 +20,8 @@ export interface VINValidationResponse {
   vin: string
   message?: string
   error?: string
+  /** What the VIN itself says (#211): ISO 3780 region, country and maker from the WMI. */
+  region?: string | null
+  country?: string | null
+  make?: string | null
 }

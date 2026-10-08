@@ -1319,7 +1319,17 @@
     "fieldYear": "Année :",
     "invalidFormat": "Format VIN invalide",
     "mustBe17Characters": "Le VIN doit contenir 17 caractères",
-    "validateFailed": "Impossible de valider le VIN"
+    "validateFailed": "Impossible de valider le VIN",
+    "euPartial": "VIN européen : la marque est {{make}}, mais le VIN ne contient ni le modèle ni l’année. Saisissez-les, ou importez le certificat d’immatriculation.",
+    "partialDecode": "Décodage partiel : la marque est {{make}}. Saisissez le modèle et l’année.",
+    "nothingDecoded": "Ce VIN n’a pas pu être décodé. Saisissez les caractéristiques du véhicule, ou importez le certificat d’immatriculation.",
+    "importCertificate": "Importer le certificat d’immatriculation",
+    "fieldWmiCountry": "Construit en :",
+    "notes": {
+      "eu_vin_no_model": "Les VIN européens n’encodent pas le modèle.",
+      "year_unreliable": "La position 10 n’est pas une année-modèle chez ce constructeur ; l’année a été laissée vide.",
+      "check_digit_not_applicable": "Le chiffre de contrôle est une règle nord-américaine et ne s’applique pas à ce VIN."
+    }
   },
   "warrantyList": {
     "addFirstWarranty": "Ajouter votre première garantie",

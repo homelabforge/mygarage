@@ -554,6 +554,12 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.document_reader_service.read_document",
         "a constant per branch",
     ),
+    # The VIN decoder (#211) sets the quality to a constant per branch and
+    # never reads it from a row.
+    ("VINDecodeResponse", "decode_quality"): (
+        "app.services.vin_decoder.quality_of",
+        "a constant per branch",
+    ),
     ("LezRules", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("NoClaimsScheme", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("InspectionSchedule", "vehicle_types"): (

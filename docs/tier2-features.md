@@ -100,6 +100,15 @@ Disabled by default. Setting keys:
 
 A PDF with a text layer is read on the server without any model. `POST /api/settings/test/llm` (admin) checks the endpoint as text and, when document reading is on, as vision. What is sent, how to set up OpenRouter, Ollama or OpenAI, and the limits are in [AI features](ai-features.md).
 
+## European VINs
+
+NHTSA's vPIC decodes North American VINs in full. On a European VIN it knows the manufacturer (« RENAULT GROUP »), leaves the make and the model empty, reports a check-digit error that is not one (the check digit is a North American rule), and reads a model year off position 10 that most European makers use for a plant or series character. `app/services/vin_decoder.py` keeps everything NHTSA says and completes it from the bundled `app/data/wmi.json` (ISO 3780 regions, country ranges, and about 170 common WMIs with the makers that do use position 10 as a model year flagged):
+
+- `make` and `manufacturer` are filled from the WMI when NHTSA has none; the `year` is dropped outside North America unless the maker is flagged.
+- `GET`/`POST /api/vin/decode` adds `region` (AF, AS, EU, NA, OC, SA), `wmi_country`, `decode_quality` (`full`, `partial`, `wmi_only`, `none`) and `notes` (`eu_vin_no_model`, `year_unreliable`, `check_digit_not_applicable`).
+- `GET /api/vin/validate/{vin}` adds `region`, `country` and `make` from the table, before any decode.
+- The VIN input shows a notice on a partial decode (« European VIN: the maker is Renault… ») with the decoder's notes and a link to the registration certificate import; the wizard no longer clears a typed year or model when the decode has none.
+
 ## Registration certificate import
 
 The EU registration certificate (Directive 1999/37/EC: carte grise, Zulassungsbescheinigung Teil I, kentekenbewijs, carta di circolazione, permiso de circulación…) prints the same harmonised field codes in every member state, so one parser reads them all.

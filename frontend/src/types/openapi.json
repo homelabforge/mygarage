@@ -27219,6 +27219,24 @@
             "description": "Body class/style",
             "title": "Body Class"
           },
+          "decode_quality": {
+            "anyOf": [
+              {
+                "enum": [
+                  "full",
+                  "partial",
+                  "wmi_only",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "full: make and model; partial: make only; wmi_only: the manufacturer from the VIN's first three characters; none: nothing",
+            "title": "Decode Quality"
+          },
           "doors": {
             "anyOf": [
               {
@@ -27338,6 +27356,14 @@
             "description": "Vehicle model",
             "title": "Model"
           },
+          "notes": {
+            "description": "Why the answer is partial: eu_vin_no_model, year_unreliable, check_digit_not_applicable",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
           "plant_city": {
             "anyOf": [
               {
@@ -27361,6 +27387,18 @@
             ],
             "description": "Manufacturing plant country",
             "title": "Plant Country"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Region of the first character (ISO 3780): AF, AS, EU, NA, OC, SA",
+            "title": "Region"
           },
           "series": {
             "anyOf": [
@@ -27425,6 +27463,18 @@
             "description": "The decoded VIN",
             "title": "Vin",
             "type": "string"
+          },
+          "wmi_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Country of manufacture from the WMI (ISO 3166-1 alpha-2)",
+            "title": "Wmi Country"
           },
           "year": {
             "anyOf": [

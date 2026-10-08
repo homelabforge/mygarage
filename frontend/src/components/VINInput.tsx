@@ -4,11 +4,20 @@
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search, Check, X, Loader2 } from 'lucide-react'
+import { Search, Check, X, Loader2, Info, FileText } from 'lucide-react'
 import { vinService } from '@/services/vinService'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { Card } from '@/components/ui'
+import { asCountryCode, countryName } from '@/constants/countries'
+import { useDateLocale } from '@/hooks/useDateLocale'
 import type { VINDecodeResponse } from '@/types/vin'
+
+/** The decoder's notes (#211), each with its own translated sentence. */
+const NOTE_LABEL_KEYS: Record<string, string> = {
+  eu_vin_no_model: 'vinInput.notes.eu_vin_no_model',
+  year_unreliable: 'vinInput.notes.year_unreliable',
+  check_digit_not_applicable: 'vinInput.notes.check_digit_not_applicable',
+}
 
 interface VINInputProps {
   value: string
@@ -23,6 +32,12 @@ interface VINInputProps {
    * wizard before discovering the duplicate. Surfaced by issue #69.
    */
   checkDuplicate?: boolean
+  /**
+   * Offered on a partial decode (a European VIN names the maker and nothing
+   * else): the caller brings the registration certificate import into view.
+   * Absent, no button.
+   */
+  onImportCertificate?: () => void
 }
 
 export default function VINInput({
@@ -32,8 +47,10 @@ export default function VINInput({
   autoValidate = true,
   className = '',
   checkDuplicate = false,
+  onImportCertificate,
 }: VINInputProps) {
   const { t } = useTranslation('vehicles')
+  const locale = useDateLocale()
   const [isValidating, setIsValidating] = useState(false)
   const [isDecoding, setIsDecoding] = useState(false)
   const [validationStatus, setValidationStatus] = useState<
@@ -211,6 +228,45 @@ export default function VINInput({
         </div>
       )}
 
+      {/* A partial decode (#211): a European VIN names the maker and nothing
+          else, so say so and point at the certificate instead of showing
+          an empty card as if the vehicle were unknown. */}
+      {decodedData && !errorMessage && decodedData.decode_quality && decodedData.decode_quality !== 'full' && (
+        <div
+          role="status"
+          data-testid="vin-partial-decode"
+          className="flex items-start gap-2 rounded-panel border border-(--accent-fg)/40 bg-(--accent-fg)/10 p-3 text-sm text-text"
+        >
+          <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-(--accent-fg)" />
+          <div className="space-y-2">
+            <p>
+              {decodedData.make
+                ? decodedData.region === 'EU'
+                  ? t('vinInput.euPartial', { make: decodedData.make })
+                  : t('vinInput.partialDecode', { make: decodedData.make })
+                : t('vinInput.nothingDecoded')}
+            </p>
+            {decodedData.notes && decodedData.notes.length > 0 && (
+              <ul className="list-disc pl-5 text-xs text-text-mute">
+                {decodedData.notes.map((note) => (
+                  <li key={note}>{t(NOTE_LABEL_KEYS[note] ?? note)}</li>
+                ))}
+              </ul>
+            )}
+            {onImportCertificate && (
+              <button
+                type="button"
+                onClick={onImportCertificate}
+                className="inline-flex items-center gap-1 text-sm font-medium text-(--accent-fg) underline-offset-2 hover:underline"
+              >
+                <FileText aria-hidden="true" className="h-4 w-4" />
+                {t('vinInput.importCertificate')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Decoded data display */}
       {decodedData && !errorMessage && (
         <Card className="bg-surface-2">
@@ -273,7 +329,7 @@ export default function VINInput({
                 <span className="ml-2 font-medium">{decodedData.doors}</span>
               </div>
             )}
-            {decodedData.plant_country && (
+            {decodedData.plant_country ? (
               <div>
                 <span className="text-garage-text-muted">{t('vinInput.fieldMadeIn')}</span>
                 <span className="ml-2 font-medium">
@@ -281,6 +337,15 @@ export default function VINInput({
                   {decodedData.plant_country}
                 </span>
               </div>
+            ) : (
+              asCountryCode(decodedData.wmi_country) && (
+                <div>
+                  <span className="text-garage-text-muted">{t('vinInput.fieldWmiCountry')}</span>
+                  <span className="ml-2 font-medium">
+                    {countryName(asCountryCode(decodedData.wmi_country) as string, locale)}
+                  </span>
+                </div>
+              )
             )}
           </div>
         </Card>

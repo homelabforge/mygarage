@@ -6,7 +6,7 @@
  * Step 4: Review & Create
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
@@ -104,6 +104,8 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   // and the fields the form does not edit ride along in the create payload.
   const [certificate, setCertificate] = useState<ParsedCertificate | null>(null)
   const [selectedTaxes, setSelectedTaxes] = useState<Set<string>>(new Set())
+  // Where the VIN input's "import the certificate" link scrolls to.
+  const certificateCardRef = useRef<HTMLDivElement>(null)
 
   // The registration country opens on the one this person's settings resolve
   // (their own country, else the instance default): a one-country household
@@ -136,10 +138,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     const currentNickname = getValues('nickname')
     const generatedNickname = `${data.year || ''} ${data.make || ''} ${data.model || ''}`.trim()
 
-    // Set all decoded values using setValue
-    setValue('year', data.year || undefined)
-    setValue('make', data.make || null)
-    setValue('model', data.model || null)
+    // Set all decoded values using setValue. A European VIN decodes with no
+    // year and no model (#211): neither clears what was typed.
+    if (data.year) setValue('year', data.year)
+    if (data.make || !getValues('make')) setValue('make', data.make || null)
+    if (data.model || !getValues('model')) setValue('model', data.model || null)
     setValue('nickname', currentNickname || generatedNickname)
     setValue('trim', data.trim || null)
     setValue('body_class', data.body_class || null)
@@ -439,12 +442,15 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 onDecode={handleVinDecode}
                 autoValidate={true}
                 checkDuplicate={true}
+                onImportCertificate={() =>
+                  certificateCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
               />
             </div>
 
             {/* Or read the registration certificate (#211): fills the VIN
                 and the fields of step 2 from the document. */}
-            <div className="rounded-panel border border-border bg-surface-2 p-4">
+            <div ref={certificateCardRef} className="rounded-panel border border-border bg-surface-2 p-4">
               <h3 className="mb-2 text-base font-semibold text-text">{t('registrationImport.title')}</h3>
               <RegistrationCertificateImport country={resolvedCountry} onParsed={handleCertificateParsed} />
             </div>
