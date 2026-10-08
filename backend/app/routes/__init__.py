@@ -15,6 +15,7 @@ from app.routes.export import router as export_router
 from app.routes.external_vehicles import router as external_vehicles_router
 from app.routes.financing import router as financing_router
 from app.routes.fuel import router as fuel_router
+from app.routes.fuel_prices import address_book_fuel_prices_router, fuel_prices_router
 from app.routes.garage_assistant import router as garage_assistant_router
 from app.routes.hours import router as hours_router
 from app.routes.import_data import router as import_router
@@ -71,6 +72,8 @@ __all__ = [
     "toll_tags_router",
     "toll_transactions_router",
     "recalls_router",
+    "fuel_prices_router",
+    "address_book_fuel_prices_router",
     "settings_router",
     "backup_router",
     "attachments_router",

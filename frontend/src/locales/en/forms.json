@@ -153,7 +153,13 @@
     "chargeHome": "Home",
     "chargePublic": "Public",
     "chargeLevelPlaceholder": "Not recorded",
-    "chargeLocationPlaceholder": "Not recorded"
+    "chargeLocationPlaceholder": "Not recorded",
+    "pricesTitle": "Prices at {{station}}",
+    "pricesUpdated": "updated {{when}}",
+    "pricesUseThisPrice": "Use this price",
+    "pricesCurrentFuel": "This fuel",
+    "pricesUnavailable": "Fuel prices could not be fetched right now.",
+    "pricesNone": "This station has not reported any price."
   },
   "hours": {
     "createTitle": "Add Engine Hours Reading",

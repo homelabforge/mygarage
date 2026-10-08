@@ -178,6 +178,22 @@ DEFAULT_SETTINGS = {
         "description": "Timestamp of last RappelConso recall check",
         "encrypted": False,
     },
+    # Fuel prices from the French open-data feed (#211)
+    "fuel_prices_enabled": {
+        "value": "true",
+        "category": "integrations",
+        "description": "Show the pump prices reported near a saved station (France: prix des carburants)",
+        "encrypted": False,
+    },
+    "fuel_prices_api_url": {
+        "value": (
+            "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/"
+            "prix-des-carburants-en-france-flux-instantane-v2/records"
+        ),
+        "category": "integrations",
+        "description": "Fuel prices records API URL (data.economie.gouv.fr)",
+        "encrypted": False,
+    },
     # Window Sticker Integration
     "window_sticker_enabled": {
         "value": "true",

@@ -452,7 +452,13 @@
     "enableRappelConso": "Enable RappelConso",
     "enableRappelConsoDesc": "Matched on the make, the model and the production dates (the register has no VIN); every match is shown with its confidence and is never marked resolved automatically.",
     "rappelconsoApiUrl": "RappelConso API URL",
-    "rappelconsoApiUrlDesc": "The records endpoint on data.economie.gouv.fr. Only change it if the dataset moves."
+    "rappelconsoApiUrlDesc": "The records endpoint on data.economie.gouv.fr. Only change it if the dataset moves.",
+    "fuelPrices": "Fuel prices (France)",
+    "fuelPricesDesc": "The pump prices every station in France reports to the government, shown on the fill-up form for the saved station you pick.",
+    "enableFuelPrices": "Enable fuel prices",
+    "enableFuelPricesDesc": "Asked for the station's coordinates only, about every ten minutes at most; nothing about your vehicle leaves the instance.",
+    "fuelPricesApiUrl": "Fuel prices API URL",
+    "fuelPricesApiUrlDesc": "The records endpoint on data.economie.gouv.fr. Only change it if the dataset moves."
   },
   "notifications": {
     "loading": "Loading notification settings...",

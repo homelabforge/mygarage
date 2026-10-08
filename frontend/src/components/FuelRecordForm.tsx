@@ -23,6 +23,8 @@ import {
 } from '../constants/fuel'
 import { useResolvedCountry } from '../hooks/useResolvedCountry'
 import { useCountryProfile } from '../hooks/queries/useCountryProfile'
+import { useFuelPrices, type FuelPrice } from '../hooks/queries/useFuelPrices'
+import FuelPriceHint from './FuelPriceHint'
 import { FormError } from './FormError'
 import api from '../services/api'
 import { isSettingOn } from '../utils/settingSwitch'
@@ -53,6 +55,7 @@ import { Button, Field, Input, NumberInput, Select, Textarea, Checkbox, register
 import { formatDateForInput } from '../utils/dateUtils'
 import TimeInput24, { normalizeTime, formatTimeForInput } from './common/TimeInput24'
 import { useTimeFormat } from '../hooks/useTimeFormat'
+import { useDateLocale } from '../hooks/useDateLocale'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { withUnitSession } from '../contexts/UnitSession'
@@ -147,6 +150,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   const [vehicleUsageUnit, setVehicleUsageUnit] = useState<string>('distance')
   const [vehicleSecondaryUsageEnabled, setVehicleSecondaryUsageEnabled] = useState<boolean>(false)
   const { units } = useUnitPreference()
+  const locale = useDateLocale()
   // Per-quantity adapters. The binary `system` is D8-collapsed from VOLUME, so
   // it cannot answer for the odometer or the outside temperature: a client
   // resolving `{volume: 'L', distance: 'mi'}` reads 'metric' out of it for a
@@ -530,6 +534,15 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
       : null,
   )
   const hasLinkedStation = !!watch('station_address_book_id')
+  const linkedStationId = watch('station_address_book_id')
+  // #211 — the pump prices at the linked station, where the country profile
+  // names a source (France today). Asked only with a station and a source.
+  const fuelPriceSource = countryProfile?.data_sources?.fuel_prices ?? null
+  const fuelPrices = useFuelPrices(
+    typeof linkedStationId === 'number' ? linkedStationId : null,
+    country,
+    !!fuelPriceSource && hasLinkedStation
+  )
   // Phase 3.4 quick-add modal — opened from the autocomplete's "+ Add"
   // footer when the user types a station name not in the address book.
   const [quickAddOpen, setQuickAddOpen] = useState(false)
@@ -666,6 +679,30 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
     if (display === undefined) return
     setValue('price_per_unit', display, { shouldValidate: true })
     setPriceOrigin(origin)
+  }
+
+  /** A pump price from the station's own report: per litre, in the
+   *  provider's currency, which is the household's in the country it serves. */
+  const acceptStationPrice = (price: FuelPrice) => {
+    const amount = Number(price.price)
+    if (!Number.isFinite(amount)) return
+    setValue('price_basis', 'per_volume', { shouldValidate: true })
+    acceptPriceField(amount)
+  }
+
+  /** A station price as money per the household's volume unit: the same
+   *  conversion the price field itself goes through, so a gallon account
+   *  reads a per-gallon figure beside its per-gallon field. */
+  const formatStationPrice = (price: FuelPrice) => {
+    const perLitre = Number(price.price)
+    const display = readNumber(seedPriceField(perLitre, units, 'per_volume').display) ?? perLitre
+    const money = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: fuelPrices.data?.currency ?? 'EUR',
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    }).format(display)
+    return `${money} / ${UnitFormatter.getVolumeUnit(units)}`
   }
 
   const acceptObcSuggestion = () => {
@@ -1280,6 +1317,19 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
               />
             </Field>
           </div>
+
+          {/* #211 — the prices the linked station reports, where a source covers the country */}
+          {fuelPriceSource && hasLinkedStation && !isElectric && (
+            <FuelPriceHint
+              prices={fuelPrices.data}
+              loading={fuelPrices.isLoading}
+              grade={watchedFuelGrade ?? null}
+              octane={watchedOctane ?? null}
+              onUsePrice={acceptStationPrice}
+              formatPrice={formatStationPrice}
+              disabled={isSubmitting}
+            />
+          )}
 
           {showKwh && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">

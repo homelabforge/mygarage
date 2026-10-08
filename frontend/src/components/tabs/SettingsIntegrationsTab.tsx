@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, AlertCircle, Plug, Shield, Radio, HelpCircle, Webhook, Sparkles, Settings } from 'lucide-react'
+import { CheckCircle, AlertCircle, Plug, Shield, Radio, HelpCircle, Webhook, Sparkles, Settings, Fuel } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useCanManageInstance } from '@/hooks/useCanManageInstance'
 import api from '@/services/api'
@@ -23,6 +23,8 @@ const NHTSA_RECALLS_BASE_URL = 'https://api.nhtsa.gov/recalls'
 // backend's DEFAULT_API_URL; the setting only accepts https on this host.
 const RAPPELCONSO_API_URL =
   'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/rappelconso-v2-gtin-espaces/records'
+const FUEL_PRICES_API_URL =
+  'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records'
 
 type SettingRecord = {
   key: string
@@ -160,6 +162,8 @@ function IntegrationsAdminView(): React.ReactElement {
     llm_provider_preset: 'custom',
     rappelconso_enabled: 'true',
     rappelconso_api_url: RAPPELCONSO_API_URL,
+    fuel_prices_enabled: 'true',
+    fuel_prices_api_url: FUEL_PRICES_API_URL,
   })
   const [loadedFormData, setLoadedFormData] = useState<typeof formData | null>(null)
   const [llmTesting, setLlmTesting] = useState(false)
@@ -193,6 +197,8 @@ function IntegrationsAdminView(): React.ReactElement {
         llm_provider_preset: settingsMap['llm_provider_preset'] || 'custom',
         rappelconso_enabled: settingsMap['rappelconso_enabled'] || 'true',
         rappelconso_api_url: settingsMap['rappelconso_api_url'] || RAPPELCONSO_API_URL,
+        fuel_prices_enabled: settingsMap['fuel_prices_enabled'] || 'true',
+        fuel_prices_api_url: settingsMap['fuel_prices_api_url'] || FUEL_PRICES_API_URL,
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
@@ -229,6 +235,8 @@ function IntegrationsAdminView(): React.ReactElement {
         llm_provider_preset: formData.llm_provider_preset,
         rappelconso_enabled: formData.rappelconso_enabled,
         rappelconso_api_url: formData.rappelconso_api_url,
+        fuel_prices_enabled: formData.fuel_prices_enabled,
+        fuel_prices_api_url: formData.fuel_prices_api_url,
       },
     })
   }, [formData])
@@ -653,6 +661,42 @@ function IntegrationsAdminView(): React.ReactElement {
                 placeholder={RAPPELCONSO_API_URL}
               />
               <p className="text-xs text-garage-text-muted mt-1">{t('integrations.rappelconsoApiUrlDesc')}</p>
+            </div>
+          </div>
+        </IntegrationCard>
+
+        {/* Fuel prices (#211): the French open-data feed every station
+            reports to, shown on the fill-up form for a saved station. */}
+        <IntegrationCard
+          icon={Fuel}
+          title={t('integrations.fuelPrices')}
+          description={t('integrations.fuelPricesDesc')}
+        >
+          <div className="space-y-6">
+            <div>
+              <Toggle
+                label={t('integrations.enableFuelPrices')}
+                checked={formData.fuel_prices_enabled === 'true'}
+                onChange={(next) => setFormData({ ...formData, fuel_prices_enabled: next ? 'true' : 'false' })}
+              />
+              <p className="mt-1 ml-14 text-sm text-garage-text-muted">
+                {t('integrations.enableFuelPricesDesc')}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="fuel_prices_api_url" className="block text-sm font-medium text-garage-text mb-2">
+                {t('integrations.fuelPricesApiUrl')}
+              </label>
+              <input
+                type="url"
+                id="fuel_prices_api_url"
+                value={formData.fuel_prices_api_url}
+                disabled={formData.fuel_prices_enabled === 'false'}
+                onChange={(e) => setFormData({ ...formData, fuel_prices_api_url: e.target.value })}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono text-sm"
+                placeholder={FUEL_PRICES_API_URL}
+              />
+              <p className="text-xs text-garage-text-muted mt-1">{t('integrations.fuelPricesApiUrlDesc')}</p>
             </div>
           </div>
         </IntegrationCard>

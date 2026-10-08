@@ -153,7 +153,13 @@
     "chargeHome": "Domicile",
     "chargePublic": "Public",
     "chargeLevelPlaceholder": "Non renseigné",
-    "chargeLocationPlaceholder": "Non renseigné"
+    "chargeLocationPlaceholder": "Non renseigné",
+    "pricesTitle": "Prix à {{station}}",
+    "pricesUpdated": "mis à jour {{when}}",
+    "pricesUseThisPrice": "Utiliser ce prix",
+    "pricesCurrentFuel": "Ce carburant",
+    "pricesUnavailable": "Les prix des carburants ne peuvent pas être récupérés pour le moment.",
+    "pricesNone": "Cette station n’a transmis aucun prix."
   },
   "insurance": {
     "createTitle": "Ajouter une police d’assurance",

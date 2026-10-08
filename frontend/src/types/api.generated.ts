@@ -56,6 +56,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/address-book/{entry_id}/fuel-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Address Book Fuel Prices
+         * @description The prices at (and right around) a saved station. 404 for an entry
+         *     the garage does not have; 422 for one without coordinates.
+         */
+        get: operations["address_book_fuel_prices_api_address_book__entry_id__fuel_prices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analytics/garage": {
         parameters: {
             query?: never;
@@ -1780,6 +1801,26 @@ export interface paths {
          *     - Users can only see history for vehicles they own or have access to
          */
         get: operations["get_transfer_history_api_family_vehicles__vin__transfer_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/fuel-prices/nearby": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fuel Prices Nearby
+         * @description The stations near a point, nearest first, with their pump prices.
+         */
+        get: operations["fuel_prices_nearby_api_fuel_prices_nearby_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11146,6 +11187,51 @@ export interface components {
             octane?: number | null;
         };
         /**
+         * FuelPriceResponse
+         * @description One pump price at one station.
+         */
+        FuelPriceResponse: {
+            /** Currency */
+            currency: string;
+            /**
+             * Grade
+             * @description EN 16942 label (E5, E10, B7, E85, LPG…)
+             */
+            grade: string;
+            /**
+             * Octane
+             * @description RON where the label alone is ambiguous
+             */
+            octane?: number | null;
+            /**
+             * Price
+             * @description Per litre (per kilogram for a gas)
+             */
+            price: string;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
+         * FuelPricesResponse
+         * @description The stations near a point, from the provider the country names.
+         *
+         *     `provider` is null when no profile applies to the country, when the
+         *     profile names no source, or when the source is turned off: the form then
+         *     shows nothing rather than an error.
+         */
+        FuelPricesResponse: {
+            /** Country */
+            country?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Provider */
+            provider?: string | null;
+            /** Stations */
+            stations?: components["schemas"]["StationPricesResponse"][];
+            /** Warnings */
+            warnings?: string[];
+        };
+        /**
          * FuelReceiptDraft
          * @description Draft fuel fields extracted from a receipt (never persisted automatically).
          */
@@ -16796,6 +16882,27 @@ export interface components {
             /** Weekly Rate */
             weekly_rate?: number | string | null;
         };
+        /** StationPricesResponse */
+        StationPricesResponse: {
+            /** Address */
+            address?: string | null;
+            /** City */
+            city?: string | null;
+            /** Distance Km */
+            distance_km: number;
+            /** External Id */
+            external_id: string;
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
+            /** Name */
+            name?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Prices */
+            prices?: components["schemas"]["FuelPriceResponse"][];
+        };
         /**
          * SuggestedTaxRecord
          * @description A tax amount printed on the certificate (Y.1, Y.3, Y.6), offered as a
@@ -21874,6 +21981,41 @@ export interface operations {
             };
         };
     };
+    address_book_fuel_prices_api_address_book__entry_id__fuel_prices_get: {
+        parameters: {
+            query?: {
+                radius_km?: number;
+                limit?: number;
+                country?: string | null;
+            };
+            header?: never;
+            path: {
+                entry_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FuelPricesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_garage_analytics_api_analytics_garage_get: {
         parameters: {
             query?: never;
@@ -24198,6 +24340,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransferHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fuel_prices_nearby_api_fuel_prices_nearby_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+                radius_km?: number;
+                limit?: number;
+                country?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FuelPricesResponse"];
                 };
             };
             /** @description Validation Error */

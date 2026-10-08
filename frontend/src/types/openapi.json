@@ -7931,6 +7931,111 @@
         "title": "FuelGradePreset",
         "type": "object"
       },
+      "FuelPriceResponse": {
+        "description": "One pump price at one station.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "grade": {
+            "description": "EN 16942 label (E5, E10, B7, E85, LPG\u2026)",
+            "title": "Grade",
+            "type": "string"
+          },
+          "octane": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "RON where the label alone is ambiguous",
+            "title": "Octane"
+          },
+          "price": {
+            "description": "Per litre (per kilogram for a gas)",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "grade",
+          "price",
+          "currency"
+        ],
+        "title": "FuelPriceResponse",
+        "type": "object"
+      },
+      "FuelPricesResponse": {
+        "description": "The stations near a point, from the provider the country names.\n\n`provider` is null when no profile applies to the country, when the\nprofile names no source, or when the source is turned off: the form then\nshows nothing rather than an error.",
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/StationPricesResponse"
+            },
+            "title": "Stations",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "title": "FuelPricesResponse",
+        "type": "object"
+      },
       "FuelReceiptDraft": {
         "description": "Draft fuel fields extracted from a receipt (never persisted automatically).",
         "properties": {
@@ -21640,6 +21745,85 @@
         "title": "SpotRentalUpdate",
         "type": "object"
       },
+      "StationPricesResponse": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "distance_km": {
+            "title": "Distance Km",
+            "type": "number"
+          },
+          "external_id": {
+            "title": "External Id",
+            "type": "string"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "postal_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postal Code"
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/FuelPriceResponse"
+            },
+            "title": "Prices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "external_id",
+          "latitude",
+          "longitude",
+          "distance_km"
+        ],
+        "title": "StationPricesResponse",
+        "type": "object"
+      },
       "SuggestedTaxRecord": {
         "description": "A tax amount printed on the certificate (Y.1, Y.3, Y.6), offered as a\ntax record the person may create; nothing is created unasked.",
         "properties": {
@@ -34779,6 +34963,96 @@
         ]
       }
     },
+    "/api/address-book/{entry_id}/fuel-prices": {
+      "get": {
+        "description": "The prices at (and right around) a saved station. 404 for an entry\nthe garage does not have; 422 for one without coordinates.",
+        "operationId": "address_book_fuel_prices_api_address_book__entry_id__fuel_prices_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 2.0,
+              "exclusiveMinimum": 0,
+              "maximum": 25,
+              "title": "Radius Km",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FuelPricesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Address Book Fuel Prices",
+        "tags": [
+          "Fuel prices"
+        ]
+      }
+    },
     "/api/analytics/garage": {
       "get": {
         "description": "Get comprehensive analytics aggregated across all vehicles in the garage.",
@@ -38524,6 +38798,109 @@
         "summary": "Get Transfer History",
         "tags": [
           "Family"
+        ]
+      }
+    },
+    "/api/fuel-prices/nearby": {
+      "get": {
+        "description": "The stations near a point, nearest first, with their pump prices.",
+        "operationId": "fuel_prices_nearby_api_fuel_prices_nearby_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 2.0,
+              "exclusiveMinimum": 0,
+              "maximum": 25,
+              "title": "Radius Km",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FuelPricesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Fuel Prices Nearby",
+        "tags": [
+          "Fuel prices"
         ]
       }
     },

@@ -382,7 +382,13 @@
     "enableRappelConso": "Activer RappelConso",
     "enableRappelConsoDesc": "Rapprochement sur la marque, le modèle et les dates de production (le registre ne contient pas de VIN) ; chaque correspondance est affichée avec sa confiance et n’est jamais marquée résolue automatiquement.",
     "rappelconsoApiUrl": "URL de l’API RappelConso",
-    "rappelconsoApiUrlDesc": "Le point de terminaison des enregistrements sur data.economie.gouv.fr. Ne le modifiez que si le jeu de données change d’adresse."
+    "rappelconsoApiUrlDesc": "Le point de terminaison des enregistrements sur data.economie.gouv.fr. Ne le modifiez que si le jeu de données change d’adresse.",
+    "fuelPrices": "Prix des carburants (France)",
+    "fuelPricesDesc": "Les prix à la pompe que chaque station de France transmet à l’État, affichés dans le formulaire de plein pour la station enregistrée que vous choisissez.",
+    "enableFuelPrices": "Activer les prix des carburants",
+    "enableFuelPricesDesc": "Interrogé uniquement avec les coordonnées de la station, au plus toutes les dix minutes environ ; rien concernant votre véhicule ne quitte l’instance.",
+    "fuelPricesApiUrl": "URL de l’API des prix des carburants",
+    "fuelPricesApiUrlDesc": "Le point de terminaison des enregistrements sur data.economie.gouv.fr. Ne le modifiez que si le jeu de données change d’adresse."
   },
   "notifications": {
     "loading": "Chargement des paramètres de notification…",

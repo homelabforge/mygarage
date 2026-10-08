@@ -404,6 +404,7 @@ async def api_health_check(request: Request):
 
 # Import and include routers
 from app.routes import (
+    address_book_fuel_prices_router,
     address_book_router,
     analytics_router,
     attachments_router,
@@ -418,6 +419,7 @@ from app.routes import (
     export_router,
     external_vehicles_router,
     financing_router,
+    fuel_prices_router,
     fuel_router,
     garage_assistant_router,
     hours_router,
@@ -494,6 +496,8 @@ app.include_router(reports_router)
 app.include_router(toll_tags_router)
 app.include_router(toll_transactions_router)
 app.include_router(recalls_router)
+app.include_router(fuel_prices_router)
+app.include_router(address_book_fuel_prices_router)
 app.include_router(settings_router)
 app.include_router(backup_router)
 app.include_router(attachments_router)

@@ -154,6 +154,7 @@ describe('SettingsIntegrationsTab', () => {
       'integrations.llmSection',
       'integrations.nhtsa',
       'integrations.rappelconso',
+      'integrations.fuelPrices',
       'integrations.carComplaints',
       'integrations.livelink',
     ]) {

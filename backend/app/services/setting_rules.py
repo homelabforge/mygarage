@@ -26,6 +26,7 @@ import math
 from collections.abc import Mapping
 
 from app.schemas.livelink import TELEMETRY_RETENTION_MAX_DAYS, TELEMETRY_RETENTION_MIN_DAYS
+from app.services.fuel_prices.france import API_URL_SETTING as FUEL_PRICES_API_URL_SETTING
 from app.services.llm_client import (
     LLM_BASE_URL_SETTING,
     LLM_PRESET_SETTING,
@@ -181,7 +182,7 @@ def check_setting_value(key: str, value: object) -> None:
         # A hint for the settings card, from a fixed vocabulary (#211).
         if text and text not in LLM_PROVIDER_PRESETS:
             raise ValueError(f"must be one of: {', '.join(LLM_PROVIDER_PRESETS)}")
-    elif key == RAPPELCONSO_API_URL_SETTING:
+    elif key in (RAPPELCONSO_API_URL_SETTING, FUEL_PRICES_API_URL_SETTING):
         # The provider would fall back to the default and log an error on
         # every check; say so at the write instead (#211).
         if text:
