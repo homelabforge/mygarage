@@ -32,14 +32,17 @@ from app.services.llm_client import (
     LLM_PROVIDER_PRESETS,
     is_http_url,
 )
+from app.services.recalls.rappelconso import API_URL_SETTING as RAPPELCONSO_API_URL_SETTING
 from app.services.settings_init import DEFAULT_SETTINGS
 from app.services.settings_service import SWITCH_OFF_VALUES, SWITCH_ON_VALUES
+from app.utils.url_validation import validate_data_economie_url
 from app.utils.household_time import TIMEZONE_SETTING_KEY
 
 #: Kept by the app itself, never by an admin: the running version, the last
-#: recall check, and how far the Telegram poller has read.
+#: recall checks (NHTSA, and RappelConso for #211), and how far the Telegram
+#: poller has read.
 SYSTEM_MAINTAINED_KEYS: frozenset[str] = frozenset(
-    {"app_version", "nhtsa_last_check", "telegram_update_offset"}
+    {"app_version", "nhtsa_last_check", "rappelconso_last_check", "telegram_update_offset"}
 )
 
 #: The LiveLink settings have their own typed routes (`routes/livelink_admin.py`),
@@ -178,3 +181,11 @@ def check_setting_value(key: str, value: object) -> None:
         # A hint for the settings card, from a fixed vocabulary (#211).
         if text and text not in LLM_PROVIDER_PRESETS:
             raise ValueError(f"must be one of: {', '.join(LLM_PROVIDER_PRESETS)}")
+    elif key == RAPPELCONSO_API_URL_SETTING:
+        # The provider would fall back to the default and log an error on
+        # every check; say so at the write instead (#211).
+        if text:
+            try:
+                validate_data_economie_url(text)
+            except Exception:  # noqa: BLE001 - SSRF or malformed, same answer
+                raise ValueError("must be an https URL on data.economie.gouv.fr") from None

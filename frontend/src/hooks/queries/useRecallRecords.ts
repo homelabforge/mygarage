@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
-import type { RecallListResponse, RecallCreate, RecallUpdate } from '@/types/recall'
+import type { RecallListResponse, RecallCheckResponse, RecallCreate, RecallUpdate } from '@/types/recall'
 
 export function useRecallRecords(vin: string, statusFilter: 'all' | 'active' | 'resolved' = 'all') {
   return useQuery({
@@ -59,6 +59,24 @@ export function useCheckNHTSA(vin: string) {
   return useMutation({
     mutationFn: async () => {
       await api.post(`/vehicles/${vin}/recalls/check-nhtsa`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
+    },
+  })
+}
+
+/**
+ * Every source that covers the vehicle's country (#211): NHTSA where no
+ * country profile says otherwise, RappelConso in France. The answer names
+ * the sources asked, how many recalls were new, and any source that failed.
+ */
+export function useCheckRecalls(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post<RecallCheckResponse>(`/vehicles/${vin}/recalls/check`)
+      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recalls', vin] })

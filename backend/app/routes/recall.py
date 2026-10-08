@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.schemas.recall import (
+    RecallCheckResponse,
     RecallCreate,
     RecallListResponse,
     RecallResponse,
@@ -42,6 +43,19 @@ async def check_nhtsa_recalls(
     """Fetch recalls from NHTSA API and store new ones in database."""
     service = RecallService(db)
     return await service.check_nhtsa(vin, current_user)
+
+
+@recalls_router.post("/check", response_model=RecallCheckResponse)
+async def check_recalls(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Check every recall source that covers the vehicle's country (#211):
+    NHTSA where no country profile says otherwise, RappelConso in France.
+    Stores what is new; names the sources asked and the ones that failed."""
+    service = RecallService(db)
+    return await service.check_all(vin, current_user)
 
 
 @recalls_router.post("", response_model=RecallResponse, status_code=201)

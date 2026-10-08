@@ -7,7 +7,7 @@ Tests recall CRUD operations and NHTSA integration endpoints.
 import datetime as dt
 import os
 import time
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -625,3 +625,170 @@ class TestCheckNhtsaSwitch:
         )
 
         assert response.status_code == 403, response.text
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestRecallSources:
+    """Where a recall came from (#211): the generic check, the sources that
+    cover a country, and the rows they store."""
+
+    async def test_manual_entry_is_marked_manual(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/recalls",
+            json={
+                "vin": test_vehicle["vin"],
+                "component": "Seat belt",
+                "summary": "Typed by hand",
+                "external_url": "https://example.org/notice/1",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201, response.text
+        data = response.json()
+        assert data["source"] == "manual"
+        assert data["external_url"] == "https://example.org/notice/1"
+        assert data["external_id"] is None
+        assert data["match_confidence"] is None
+
+    async def test_check_asks_rappelconso_for_a_french_vehicle_once(
+        self, client: AsyncClient, auth_headers
+    ):
+
+        from app.services.recalls.base import RecallHit
+
+        vin = "VF1AG000X" + "66" + uuid_tail()
+        created = await client.post(
+            "/api/vehicles",
+            headers=auth_headers,
+            json={
+                "vin": vin,
+                "nickname": "Zoé",
+                "vehicle_type": "Car",
+                "make": "Renault",
+                "model": "Zoe",
+                "registration_country": "FR",
+                "first_registration_date": "2019-09-02",
+            },
+        )
+        assert created.status_code == 201, created.text
+        hit = RecallHit(
+            source="rappelconso",
+            external_id="2024-03-0123",
+            external_url="https://rappel.conso.gouv.fr/fiche-rappel/12345/Interne",
+            component="Automobiles",
+            summary="Rappel de véhicules Renault ZOE",
+            consequence="Risque d'incendie",
+            remedy="Prendre rendez-vous",
+            date_announced=dt.date(2024, 3, 14),
+            match_confidence=95,
+        )
+        try:
+            with patch(
+                "app.services.recalls.rappelconso.RappelConsoProvider.fetch",
+                new=AsyncMock(return_value=[hit]),
+            ) as fetch:
+                first = await client.post(
+                    f"/api/vehicles/{vin}/recalls/check", headers=auth_headers
+                )
+                assert first.status_code == 200, first.text
+                body = first.json()
+                assert body["providers_checked"] == ["rappelconso"]
+                assert body["new_count"] == 1
+                assert body["warnings"] == []
+                assert body["total"] == 1
+                stored = body["recalls"][0]
+                assert stored["source"] == "rappelconso"
+                assert stored["external_id"] == "2024-03-0123"
+                assert stored["external_url"].startswith("https://rappel.conso.gouv.fr/")
+                assert stored["match_confidence"] == 95
+                assert stored["nhtsa_campaign_number"] is None
+                assert stored["date_announced"] == "2024-03-14"
+                assert stored["is_resolved"] is False
+
+                again = await client.post(
+                    f"/api/vehicles/{vin}/recalls/check", headers=auth_headers
+                )
+                assert again.json()["new_count"] == 0
+                assert again.json()["total"] == 1
+                assert fetch.await_count == 2
+        finally:
+            await client.delete(f"/api/vehicles/{vin}", headers=auth_headers)
+
+    async def test_check_reports_a_source_that_fails(self, client: AsyncClient, auth_headers):
+
+        vin = "VF1AG000X" + "77" + uuid_tail()
+        created = await client.post(
+            "/api/vehicles",
+            headers=auth_headers,
+            json={
+                "vin": vin,
+                "nickname": "Clio",
+                "vehicle_type": "Car",
+                "make": "Renault",
+                "model": "Clio",
+                "registration_country": "FR",
+            },
+        )
+        assert created.status_code == 201, created.text
+        try:
+            with patch(
+                "app.services.recalls.rappelconso.RappelConsoProvider.fetch",
+                new=AsyncMock(side_effect=RuntimeError("down")),
+            ):
+                response = await client.post(
+                    f"/api/vehicles/{vin}/recalls/check", headers=auth_headers
+                )
+            assert response.status_code == 200, response.text
+            body = response.json()
+            assert body["providers_checked"] == ["rappelconso"]
+            assert body["warnings"] == ["rappelconso: check failed"]
+            assert body["new_count"] == 0
+        finally:
+            await client.delete(f"/api/vehicles/{vin}", headers=auth_headers)
+
+    async def test_check_without_a_country_asks_nhtsa(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+
+        from app.services.recalls.base import RecallHit
+
+        hit = RecallHit(
+            source="nhtsa",
+            external_id="24V999",
+            external_url="https://www.nhtsa.gov/recalls?nhtsaId=24V999",
+            component="AIR BAGS",
+            summary="Inflator",
+        )
+        with patch(
+            "app.services.recalls.nhtsa.NHTSARecallProvider.fetch",
+            new=AsyncMock(return_value=[hit]),
+        ):
+            response = await client.post(
+                f"/api/vehicles/{test_vehicle['vin']}/recalls/check", headers=auth_headers
+            )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["providers_checked"] == ["nhtsa"]
+        stored = [r for r in body["recalls"] if r["external_id"] == "24V999"]
+        assert len(stored) == 1
+        assert stored[0]["source"] == "nhtsa"
+        assert stored[0]["nhtsa_campaign_number"] == "24V999"
+        assert stored[0]["match_confidence"] == 100
+
+    async def test_check_requires_write_access(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/recalls/check", headers=non_admin_headers
+        )
+        assert response.status_code in (403, 404)
+
+
+def uuid_tail() -> str:
+    """Six VIN-safe characters."""
+    import uuid
+
+    return uuid.uuid4().hex.upper().replace("O", "P").replace("I", "J").replace("Q", "R")[:6]

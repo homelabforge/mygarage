@@ -21,6 +21,15 @@ class Recall(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     nhtsa_campaign_number: Mapped[str | None] = mapped_column(String(20))
+    # Where the recall came from (#211): nhtsa, rappelconso or manual, the
+    # provider's own identifier and link, and how surely the notice concerns
+    # this vehicle (RappelConso has no VIN). Migration 148.
+    source: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="nhtsa", server_default="nhtsa"
+    )
+    external_id: Mapped[str | None] = mapped_column(String(64))
+    external_url: Mapped[str | None] = mapped_column(String(500))
+    match_confidence: Mapped[int | None] = mapped_column(Integer)
     # 200, what RecallCreate and the NHTSA sync take (K10, migration 137).
     component: Mapped[str | None] = mapped_column(String(200))
     summary: Mapped[str | None] = mapped_column(Text)
@@ -38,6 +47,7 @@ class Recall(Base):
     __table_args__ = (
         Index("idx_recalls_vin", "vin"),
         Index("idx_recalls_resolved", "is_resolved"),
+        Index("idx_recalls_source_external", "vin", "source", "external_id"),
     )
 
 

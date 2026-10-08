@@ -153,6 +153,7 @@ describe('SettingsIntegrationsTab', () => {
       'integrations.webhooks',
       'integrations.llmSection',
       'integrations.nhtsa',
+      'integrations.rappelconso',
       'integrations.carComplaints',
       'integrations.livelink',
     ]) {

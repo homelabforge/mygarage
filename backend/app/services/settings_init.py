@@ -156,6 +156,28 @@ DEFAULT_SETTINGS = {
         "description": "NHTSA Recalls API base URL",
         "encrypted": False,
     },
+    # RappelConso, the French product recall register (#211)
+    "rappelconso_enabled": {
+        "value": "true",
+        "category": "integrations",
+        "description": "Check RappelConso (France) for recalls of vehicles registered in France",
+        "encrypted": False,
+    },
+    "rappelconso_api_url": {
+        "value": (
+            "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/"
+            "rappelconso-v2-gtin-espaces/records"
+        ),
+        "category": "integrations",
+        "description": "RappelConso records API URL (data.economie.gouv.fr)",
+        "encrypted": False,
+    },
+    "rappelconso_last_check": {
+        "value": "",
+        "category": "integrations",
+        "description": "Timestamp of last RappelConso recall check",
+        "encrypted": False,
+    },
     # Window Sticker Integration
     "window_sticker_enabled": {
         "value": "true",

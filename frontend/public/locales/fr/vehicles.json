@@ -992,7 +992,21 @@
     "nhtsaCheckAction": "de vérifier les rappels constructeur",
     "deleteAction": "de supprimer le rappel constructeur",
     "statusAction": "de mettre à jour le statut du rappel constructeur",
-    "loadAction": "de charger les rappels constructeur"
+    "loadAction": "de charger les rappels constructeur",
+    "checkAll": "Vérifier les rappels",
+    "checkAllTitle": "Interroge toutes les sources de rappels qui couvrent le pays de ce véhicule",
+    "checkAllSuccess": "{{count}} nouveau(x) rappel(s) trouvé(s)",
+    "checkAllNone": "Aucun nouveau rappel",
+    "checkAllWarning": "Une source n’a pas pu être interrogée : {{warnings}}",
+    "noProviderForCountry": "Aucune source de rappels ne couvre encore le pays de ce véhicule ; ajoutez les rappels à la main.",
+    "viewNotice": "Voir la fiche de rappel",
+    "confidence": "Correspondance {{percent}} %",
+    "matchedByModel": "Rapproché sur la marque, le modèle et les dates : le registre ne contient pas de VIN. Vérifiez la fiche.",
+    "source": {
+      "nhtsa": "NHTSA",
+      "rappelconso": "RappelConso",
+      "manual": "Manuel"
+    }
   },
   "reminderList": {
     "addReminder": "Ajouter un rappel",

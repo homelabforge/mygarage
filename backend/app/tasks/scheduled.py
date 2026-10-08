@@ -23,7 +23,6 @@ from app.models import (
     FuelRecord,
     InsurancePolicy,
     OdometerRecord,
-    Recall,
     ServiceVisit,
     User,
     Vehicle,
@@ -504,10 +503,12 @@ async def _recall_check_due(db: AsyncSession, now: datetime) -> bool:
 async def check_recalls_all_vehicles() -> None:
     """Auto-check NHTSA recalls for all vehicles when the interval is due.
 
-    Runs daily at 2 AM UTC. Skips when nhtsa_enabled or nhtsa_auto_check is
-    off, or when nhtsa_recall_check_interval days (less an hour) haven't
-    passed since nhtsa_last_check. Otherwise queries NHTSA for each vehicle,
-    inserts new recalls, and sends notifications for newly discovered ones.
+    Runs daily at 2 AM UTC. Skips when nhtsa_auto_check is off, when every
+    recall source is switched off, or when nhtsa_recall_check_interval days
+    (less an hour) haven't passed since nhtsa_last_check. Otherwise asks every
+    source that covers each vehicle's country (NHTSA, RappelConso in France,
+    #211), inserts new recalls, and sends notifications for newly discovered
+    ones.
 
     An NHTSA outage for any vehicle leaves nhtsa_last_check unchanged, so the
     next daily run tries again; the recalls found meanwhile are committed
@@ -515,13 +516,21 @@ async def check_recalls_all_vehicles() -> None:
     check keeps the retry from storing or announcing them twice. A VIN NHTSA
     can't resolve to a make, model and year counts as checked.
     """
-    from app.services.nhtsa import NHTSAService, NHTSAUnavailableError
+    from app.services.recall_service import sync_vehicle_recalls
+    from app.services.recalls.base import SOURCE_RAPPELCONSO
+    from app.services.recalls.rappelconso import ENABLED_SETTING as RAPPELCONSO_ENABLED_SETTING
 
     async with AsyncSessionLocal() as db:
         await load_household_zone(db)
         try:
-            if not await SettingsService.get_bool(db, "nhtsa_enabled", True):
-                logger.info("NHTSA recalls switched off, skipping the scheduled check")
+            # nhtsa_enabled still keeps NHTSA from being asked: its provider
+            # checks it (`NHTSARecallProvider.enabled`). The pass only stops
+            # here when RappelConso (#211) is off too, so a household that
+            # switched NHTSA off keeps its French recalls.
+            if not await SettingsService.get_bool(
+                db, "nhtsa_enabled", True
+            ) and not await SettingsService.get_bool(db, RAPPELCONSO_ENABLED_SETTING, True):
+                logger.info("Every recall source switched off, skipping the scheduled check")
                 return
             if not await SettingsService.get_bool(db, "nhtsa_auto_check", True):
                 logger.info("NHTSA auto-check disabled, skipping")
@@ -531,7 +540,6 @@ async def check_recalls_all_vehicles() -> None:
                 logger.debug("NHTSA recall check not due yet, skipping")
                 return
 
-            nhtsa = NHTSAService()
             dispatcher = NotificationDispatcher(db)
 
             # Get all active vehicles
@@ -540,6 +548,7 @@ async def check_recalls_all_vehicles() -> None:
 
             total_new = 0
             outage = False
+            rappelconso_failed = False
 
             for vehicle in vehicles:
                 try:
@@ -547,40 +556,17 @@ async def check_recalls_all_vehicles() -> None:
                         vehicle.nickname or f"{vehicle.year} {vehicle.make} {vehicle.model}"
                     )
 
-                    # Fetch recalls from NHTSA
-                    recalls_data = await nhtsa.get_vehicle_recalls(
-                        vehicle.vin, db, raise_on_error=True
-                    )
-
-                    # Get existing campaign numbers for this vehicle
-                    existing_result = await db.execute(
-                        select(Recall.nhtsa_campaign_number).where(
-                            Recall.vin == vehicle.vin,
-                            Recall.nhtsa_campaign_number.isnot(None),
-                        )
-                    )
-                    existing_campaigns = {r[0] for r in existing_result.fetchall()}
-
-                    # Insert new recalls
-                    new_count = 0
-                    for recall_data in recalls_data:
-                        campaign_num = recall_data.get("nhtsa_campaign_number") or recall_data.get(
-                            "NHTSACampaignNumber"
-                        )
-                        if not campaign_num or campaign_num in existing_campaigns:
-                            continue
-
-                        recall = Recall(
-                            vin=vehicle.vin,
-                            nhtsa_campaign_number=campaign_num,
-                            component=recall_data.get("Component") or recall_data.get("component"),
-                            summary=recall_data.get("Summary") or recall_data.get("summary"),
-                            consequence=recall_data.get("Consequence")
-                            or recall_data.get("consequence"),
-                            remedy=recall_data.get("Remedy") or recall_data.get("remedy"),
-                        )
-                        db.add(recall)
-                        new_count += 1
+                    # Every source that covers the vehicle's country (#211):
+                    # NHTSA where no profile says otherwise, RappelConso in
+                    # France. Stores what is new and commits.
+                    outcome = await sync_vehicle_recalls(db, vehicle)
+                    new_count = outcome.new_count
+                    # A provider's failure is caught in the sync; an NHTSA
+                    # outage still holds nhtsa_last_check back.
+                    if outcome.nhtsa_unavailable:
+                        outage = True
+                    if SOURCE_RAPPELCONSO in outcome.failed:
+                        rappelconso_failed = True
 
                     if new_count > 0:
                         total_new += new_count
@@ -594,13 +580,6 @@ async def check_recalls_all_vehicles() -> None:
                             vehicle_name,
                         )
 
-                except NHTSAUnavailableError as e:
-                    outage = True
-                    logger.warning(
-                        "NHTSA unavailable checking recalls for %s: %s",
-                        vehicle.vin,
-                        str(e),
-                    )
                 except ValueError as e:
                     logger.warning(
                         "Recalls can't be checked for %s: %s",
@@ -629,6 +608,9 @@ async def check_recalls_all_vehicles() -> None:
                 )
             else:
                 await SettingsService.set(db, "nhtsa_last_check", now.isoformat())
+            # RappelConso (#211) keeps its own stamp, left alone when it failed.
+            if not rappelconso_failed:
+                await SettingsService.set(db, "rappelconso_last_check", now.isoformat())
             await db.commit()
 
             logger.info(

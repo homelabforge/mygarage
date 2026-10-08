@@ -1073,7 +1073,21 @@
     "nhtsaCheckAction": "check for recalls",
     "deleteAction": "delete the recall",
     "statusAction": "update the recall status",
-    "loadAction": "load safety recalls"
+    "loadAction": "load safety recalls",
+    "checkAll": "Check recalls",
+    "checkAllTitle": "Check every recall source that covers this vehicle's country",
+    "checkAllSuccess": "{{count}} new recall(s) found",
+    "checkAllNone": "No new recall",
+    "checkAllWarning": "A source could not be checked: {{warnings}}",
+    "noProviderForCountry": "No recall source covers this vehicle's country yet; add recalls by hand.",
+    "viewNotice": "View the recall notice",
+    "confidence": "Match {{percent}}%",
+    "matchedByModel": "Matched on the make, the model and the dates: the register has no VIN. Check the notice.",
+    "source": {
+      "nhtsa": "NHTSA",
+      "rappelconso": "RappelConso",
+      "manual": "Manual"
+    }
   },
   "reminderList": {
     "addReminder": "Add Reminder",

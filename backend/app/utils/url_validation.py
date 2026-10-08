@@ -394,6 +394,25 @@ def validate_oidc_url(url: str, trusted_hosts: set[str] | None = None) -> ParseR
     )
 
 
+def validate_data_economie_url(url: str) -> ParseResult:
+    """Validate a URL for the French open-data portal (RappelConso, fuel prices).
+
+    - Only allows https
+    - Blocks private IPs and localhost
+    - Domain whitelist: data.economie.gouv.fr
+
+    Raises:
+        SSRFProtectionError: If URL fails SSRF validation
+        ValueError: If URL is malformed
+    """
+    return validate_url_for_ssrf(
+        url,
+        allowed_schemes=["https"],
+        allowed_domains=["data.economie.gouv.fr"],
+        require_https=True,
+    )
+
+
 def validate_nhtsa_url(url: str) -> ParseResult:
     """Validate a URL for NHTSA API endpoints.
 

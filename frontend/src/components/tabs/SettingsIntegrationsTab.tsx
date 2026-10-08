@@ -19,6 +19,10 @@ const TEST_VIN = '1HGCM82633A123456'
 // full endpoint got saved and fetched with the path twice. Same as the
 // backend's DEFAULT_RECALLS_API_URL.
 const NHTSA_RECALLS_BASE_URL = 'https://api.nhtsa.gov/recalls'
+// The French product recall register's records endpoint (#211). Same as the
+// backend's DEFAULT_API_URL; the setting only accepts https on this host.
+const RAPPELCONSO_API_URL =
+  'https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/rappelconso-v2-gtin-espaces/records'
 
 type SettingRecord = {
   key: string
@@ -154,6 +158,8 @@ function IntegrationsAdminView(): React.ReactElement {
     llm_document_reading_enabled: 'false',
     llm_vision_model: '',
     llm_provider_preset: 'custom',
+    rappelconso_enabled: 'true',
+    rappelconso_api_url: RAPPELCONSO_API_URL,
   })
   const [loadedFormData, setLoadedFormData] = useState<typeof formData | null>(null)
   const [llmTesting, setLlmTesting] = useState(false)
@@ -185,6 +191,8 @@ function IntegrationsAdminView(): React.ReactElement {
         llm_document_reading_enabled: settingsMap['llm_document_reading_enabled'] || 'false',
         llm_vision_model: settingsMap['llm_vision_model'] || '',
         llm_provider_preset: settingsMap['llm_provider_preset'] || 'custom',
+        rappelconso_enabled: settingsMap['rappelconso_enabled'] || 'true',
+        rappelconso_api_url: settingsMap['rappelconso_api_url'] || RAPPELCONSO_API_URL,
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
@@ -219,6 +227,8 @@ function IntegrationsAdminView(): React.ReactElement {
         llm_document_reading_enabled: formData.llm_document_reading_enabled,
         llm_vision_model: formData.llm_vision_model,
         llm_provider_preset: formData.llm_provider_preset,
+        rappelconso_enabled: formData.rappelconso_enabled,
+        rappelconso_api_url: formData.rappelconso_api_url,
       },
     })
   }, [formData])
@@ -607,6 +617,42 @@ function IntegrationsAdminView(): React.ReactElement {
                 POST /api/v1/webhooks/fuel|odometer|reminders/complete
               </p>
               <p className="text-xs text-garage-text-muted mt-1">{t('integrations.webhookHeaderHint')}</p>
+            </div>
+          </div>
+        </IntegrationCard>
+
+        {/* RappelConso (#211): the French recall register, for vehicles
+            registered in France. One switch and the endpoint. */}
+        <IntegrationCard
+          icon={Shield}
+          title={t('integrations.rappelconso')}
+          description={t('integrations.rappelconsoDesc')}
+        >
+          <div className="space-y-6">
+            <div>
+              <Toggle
+                label={t('integrations.enableRappelConso')}
+                checked={isSettingOn(formData.rappelconso_enabled, true)}
+                onChange={(next) => setFormData({ ...formData, rappelconso_enabled: next ? 'true' : 'false' })}
+              />
+              <p className="mt-1 ml-14 text-sm text-garage-text-muted">
+                {t('integrations.enableRappelConsoDesc')}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="rappelconso_api_url" className="block text-sm font-medium text-garage-text mb-2">
+                {t('integrations.rappelconsoApiUrl')}
+              </label>
+              <input
+                type="url"
+                id="rappelconso_api_url"
+                value={formData.rappelconso_api_url}
+                disabled={!isSettingOn(formData.rappelconso_enabled, true)}
+                onChange={(e) => setFormData({ ...formData, rappelconso_api_url: e.target.value })}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono text-sm"
+                placeholder={RAPPELCONSO_API_URL}
+              />
+              <p className="text-xs text-garage-text-muted mt-1">{t('integrations.rappelconsoApiUrlDesc')}</p>
             </div>
           </div>
         </IntegrationCard>

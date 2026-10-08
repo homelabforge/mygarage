@@ -100,6 +100,14 @@ Disabled by default. Setting keys:
 
 A PDF with a text layer is read on the server without any model. `POST /api/settings/test/llm` (admin) checks the endpoint as text and, when document reading is on, as vision. What is sent, how to set up OpenRouter, Ollama or OpenAI, and the limits are in [AI features](ai-features.md).
 
+## Recall sources (NHTSA, RappelConso)
+
+A recall now records where it came from: `source` (`nhtsa`, `rappelconso` or `manual`), the provider's own `external_id` (an NHTSA campaign number, a RappelConso notice number), the notice's `external_url`, and a `match_confidence` (migration 148). Which sources a vehicle gets follows its country profile's `data_sources.recalls`: NHTSA where no profile applies (today's behaviour), RappelConso for France.
+
+- `POST /api/vehicles/{vin}/recalls/check` asks every source that covers the vehicle, stores what is new, and answers `{providers_checked, new_count, warnings}` with the list; `check-nhtsa` still exists. The weekly job walks the same sources.
+- **RappelConso** is the French government's product recall register (data.economie.gouv.fr, open data, Licence Ouverte 2.0). It has no VIN: a notice is matched on the make (with a few aliases: Citroën and DS, VW and Volkswagen…), on the model (every word of the vehicle's model as a whole word of the notice's models, so « 3 » never matches « 3008 ») and on the production or registration dates printed in the notice against the vehicle's first registration date: inside a range scores 95, outside every range 55 (not stored), no range printed 75. A stored notice is never resolved automatically. Settings: `rappelconso_enabled`, `rappelconso_api_url` (https on `data.economie.gouv.fr` only), `rappelconso_last_check`.
+- The Recalls tab shows the source chip, the confidence when below 100, and a link to the notice; « Check recalls » replaces « Check NHTSA » and says when no source covers the vehicle's country.
+
 ## European VINs
 
 NHTSA's vPIC decodes North American VINs in full. On a European VIN it knows the manufacturer (« RENAULT GROUP »), leaves the make and the model empty, reports a check-digit error that is not one (the check digit is a North American rule), and reads a model year off position 10 that most European makers use for a plant or series character. `app/services/vin_decoder.py` keeps everything NHTSA says and completes it from the bundled `app/data/wmi.json` (ISO 3780 regions, country ranges, and about 170 common WMIs with the makers that do use position 10 as a model year flagged):

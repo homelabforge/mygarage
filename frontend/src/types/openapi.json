@@ -16585,6 +16585,60 @@
         "title": "QuickEntryVehicleList",
         "type": "object"
       },
+      "RecallCheckResponse": {
+        "description": "The list after a check of every source that covers the vehicle (#211).",
+        "properties": {
+          "active_count": {
+            "title": "Active Count",
+            "type": "integer"
+          },
+          "new_count": {
+            "default": 0,
+            "description": "How many recalls the check stored",
+            "title": "New Count",
+            "type": "integer"
+          },
+          "providers_checked": {
+            "description": "The sources asked, in order; empty when none covers the vehicle's country",
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers Checked",
+            "type": "array"
+          },
+          "recalls": {
+            "items": {
+              "$ref": "#/components/schemas/RecallResponse"
+            },
+            "title": "Recalls",
+            "type": "array"
+          },
+          "resolved_count": {
+            "title": "Resolved Count",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "warnings": {
+            "description": "A source that could not be asked, and why",
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recalls",
+          "total",
+          "active_count",
+          "resolved_count"
+        ],
+        "title": "RecallCheckResponse",
+        "type": "object"
+      },
       "RecallCreate": {
         "description": "Schema for creating a new recall.",
         "properties": {
@@ -16619,6 +16673,19 @@
             ],
             "description": "Date recall was announced",
             "title": "Date Announced"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link to the recall notice online",
+            "title": "External Url"
           },
           "is_resolved": {
             "default": false,
@@ -16755,6 +16822,30 @@
             "description": "Date recall was announced",
             "title": "Date Announced"
           },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The provider's own identifier",
+            "title": "External Id"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link to the recall notice online",
+            "title": "External Url"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -16762,6 +16853,18 @@
           "is_resolved": {
             "title": "Is Resolved",
             "type": "boolean"
+          },
+          "match_confidence": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0 to 100: how surely the notice concerns this vehicle",
+            "title": "Match Confidence"
           },
           "nhtsa_campaign_number": {
             "anyOf": [
@@ -16810,6 +16913,23 @@
               }
             ],
             "title": "Resolved At"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nhtsa",
+                  "rappelconso",
+                  "manual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "nhtsa, rappelconso or manual",
+            "title": "Source"
           },
           "summary": {
             "description": "Summary of the recall issue",
@@ -16873,6 +16993,19 @@
             ],
             "description": "Date recall was announced",
             "title": "Date Announced"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link to the recall notice online",
+            "title": "External Url"
           },
           "is_resolved": {
             "anyOf": [
@@ -49827,6 +49960,54 @@
           }
         ],
         "summary": "Create Recall",
+        "tags": [
+          "Recalls"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/recalls/check": {
+      "post": {
+        "description": "Check every recall source that covers the vehicle's country (#211):\nNHTSA where no country profile says otherwise, RappelConso in France.\nStores what is new; names the sources asked and the ones that failed.",
+        "operationId": "check_recalls_api_vehicles__vin__recalls_check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecallCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Check Recalls",
         "tags": [
           "Recalls"
         ]

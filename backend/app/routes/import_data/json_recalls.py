@@ -16,8 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.recall import Recall
 from app.routes.import_data._common import (
+    _blank_to_none,
+    _in_vocabulary,
     _is_blank,
     _json_bool,
+    _json_int,
     _json_optional_date,
     _json_row_datetime,
     _json_text,
@@ -26,6 +29,7 @@ from app.routes.import_data._common import (
 )
 from app.routes.import_data._families import as_object
 from app.routes.import_data._matching import _DuplicateMatcher, _matches, _text_matches
+from app.services.recalls.base import RECALL_SOURCES, SOURCE_NHTSA
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -41,6 +45,12 @@ def _recall_from_json(vin: str, row: Mapping[str, Any]) -> Recall:
     return Recall(
         vin=vin,
         nhtsa_campaign_number=_json_text(row, "nhtsa_campaign_number"),
+        # Where it came from (#211); a file from before the column is NHTSA's.
+        source=_in_vocabulary(_blank_to_none(row.get("source")), "source", RECALL_SOURCES)
+        or SOURCE_NHTSA,
+        external_id=_json_text(row, "external_id"),
+        external_url=_json_text(row, "external_url"),
+        match_confidence=_json_int(row, "match_confidence"),
         component=_json_text(row, "component"),
         summary=_json_text(row, "summary"),
         consequence=_json_text(row, "consequence"),
@@ -61,6 +71,10 @@ def _json_recall_key(row: Mapping[str, Any], recall: Recall) -> list[ColumnEleme
     """
     if recall.nhtsa_campaign_number is not None:
         return [Recall.nhtsa_campaign_number == recall.nhtsa_campaign_number]
+    # Another source's notice (#211) is keyed on its own identifier, as the
+    # recall check stores it once per (source, external_id).
+    if recall.external_id is not None and recall.source != SOURCE_NHTSA:
+        return [Recall.source == recall.source, Recall.external_id == recall.external_id]
     key = [_text_matches(Recall.nhtsa_campaign_number, None)]
     if "component" in row:
         key.append(_text_matches(Recall.component, recall.component))

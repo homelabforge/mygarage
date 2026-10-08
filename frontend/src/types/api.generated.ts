@@ -6298,6 +6298,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/recalls/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Recalls
+         * @description Check every recall source that covers the vehicle's country (#211):
+         *     NHTSA where no country profile says otherwise, RappelConso in France.
+         *     Stores what is new; names the sources asked and the ones that failed.
+         */
+        post: operations["check_recalls_api_vehicles__vin__recalls_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/recalls/check-nhtsa": {
         parameters: {
             query?: never;
@@ -14924,6 +14946,36 @@ export interface components {
             vehicles: components["schemas"]["QuickEntryVehicle"][];
         };
         /**
+         * RecallCheckResponse
+         * @description The list after a check of every source that covers the vehicle (#211).
+         */
+        RecallCheckResponse: {
+            /** Active Count */
+            active_count: number;
+            /**
+             * New Count
+             * @description How many recalls the check stored
+             * @default 0
+             */
+            new_count: number;
+            /**
+             * Providers Checked
+             * @description The sources asked, in order; empty when none covers the vehicle's country
+             */
+            providers_checked?: string[];
+            /** Recalls */
+            recalls: components["schemas"]["RecallResponse"][];
+            /** Resolved Count */
+            resolved_count: number;
+            /** Total */
+            total: number;
+            /**
+             * Warnings
+             * @description A source that could not be asked, and why
+             */
+            warnings?: string[];
+        };
+        /**
          * RecallCreate
          * @description Schema for creating a new recall.
          */
@@ -14943,6 +14995,11 @@ export interface components {
              * @description Date recall was announced
              */
             date_announced?: string | null;
+            /**
+             * External Url
+             * @description Link to the recall notice online
+             */
+            external_url?: string | null;
             /**
              * Is Resolved
              * @description Whether recall has been resolved
@@ -15014,10 +15071,25 @@ export interface components {
              * @description Date recall was announced
              */
             date_announced?: string | null;
+            /**
+             * External Id
+             * @description The provider's own identifier
+             */
+            external_id?: string | null;
+            /**
+             * External Url
+             * @description Link to the recall notice online
+             */
+            external_url?: string | null;
             /** Id */
             id: number;
             /** Is Resolved */
             is_resolved: boolean;
+            /**
+             * Match Confidence
+             * @description 0 to 100: how surely the notice concerns this vehicle
+             */
+            match_confidence?: number | null;
             /**
              * Nhtsa Campaign Number
              * @description NHTSA campaign number
@@ -15035,6 +15107,11 @@ export interface components {
             remedy?: string | null;
             /** Resolved At */
             resolved_at?: string | null;
+            /**
+             * Source
+             * @description nhtsa, rappelconso or manual
+             */
+            source?: ("nhtsa" | "rappelconso" | "manual") | null;
             /**
              * Summary
              * @description Summary of the recall issue
@@ -15063,6 +15140,11 @@ export interface components {
              * @description Date recall was announced
              */
             date_announced?: string | null;
+            /**
+             * External Url
+             * @description Link to the recall notice online
+             */
+            external_url?: string | null;
             /**
              * Is Resolved
              * @description Whether recall has been resolved
@@ -31262,6 +31344,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecallResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_recalls_api_vehicles__vin__recalls_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecallCheckResponse"];
                 };
             };
             /** @description Validation Error */
