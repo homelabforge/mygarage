@@ -2,6 +2,7 @@
 
 # pyright: reportAssignmentType=false
 
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -51,6 +52,10 @@ def get_token_from_request(
 # Initialize Argon2 password hasher with recommended parameters
 # time_cost=2, memory_cost=102400 (100MB), parallelism=8
 ph = PasswordHasher(time_cost=2, memory_cost=102400, parallelism=8)
+
+# A login with no password to check (unknown user, SSO-only account) verifies
+# against this instead, so it costs the same as a wrong password. Same ph, same params.
+_DUMMY_HASH = ph.hash(secrets.token_urlsafe(16))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -265,12 +270,15 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
 
+    # Both misses burn a dummy verify, or response time says which accounts exist.
     if not user:
+        verify_password(password, _DUMMY_HASH)
         return None
 
     # SECURITY: Reject password login for OIDC-only users (no password set)
     if user.hashed_password is None:
         logger.warning("Password login attempted for OIDC-only user: %s", username)
+        verify_password(password, _DUMMY_HASH)
         return None
 
     if not verify_password(password, user.hashed_password):
