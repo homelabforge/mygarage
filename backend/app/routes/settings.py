@@ -232,13 +232,12 @@ async def list_settings(
 @router.get("/poi-providers")
 async def get_poi_providers(
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
-    """Get configured POI search providers.
+    """Get configured POI search providers (admin only).
 
     Returns ONLY providers that have been configured (have API keys).
     OSM is always included as the default fallback.
-
-    Note: This endpoint is public as it only returns masked API keys and metadata.
 
     Returns:
         List of provider configurations

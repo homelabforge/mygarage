@@ -3624,12 +3624,10 @@ export interface paths {
         };
         /**
          * Get Poi Providers
-         * @description Get configured POI search providers.
+         * @description Get configured POI search providers (admin only).
          *
          *     Returns ONLY providers that have been configured (have API keys).
          *     OSM is always included as the default fallback.
-         *
-         *     Note: This endpoint is public as it only returns masked API keys and metadata.
          *
          *     Returns:
          *         List of provider configurations

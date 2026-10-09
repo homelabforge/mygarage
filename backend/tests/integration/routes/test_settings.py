@@ -122,9 +122,9 @@ class TestSettingsRoutes:
         response = await client.get("/api/settings")
         assert response.status_code == 401
 
-    async def test_get_poi_providers(self, client: AsyncClient):
-        """Test getting POI providers (public endpoint)."""
-        response = await client.get("/api/settings/poi-providers")
+    async def test_get_poi_providers(self, client: AsyncClient, auth_headers):
+        """Test getting POI providers (admin only)."""
+        response = await client.get("/api/settings/poi-providers", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -134,9 +134,9 @@ class TestSettingsRoutes:
         assert osm is not None
         assert osm["is_default"] is True
 
-    async def test_poi_providers_osm_always_enabled(self, client: AsyncClient):
+    async def test_poi_providers_osm_always_enabled(self, client: AsyncClient, auth_headers):
         """Test that OSM provider is always enabled and present."""
-        response = await client.get("/api/settings/poi-providers")
+        response = await client.get("/api/settings/poi-providers", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -286,9 +286,9 @@ class TestSettingsRoutes:
             assert "key" in setting
             assert "value" in setting
 
-    async def test_poi_providers_sorted_by_priority(self, client: AsyncClient):
+    async def test_poi_providers_sorted_by_priority(self, client: AsyncClient, auth_headers):
         """Test that POI providers are sorted by priority."""
-        response = await client.get("/api/settings/poi-providers")
+        response = await client.get("/api/settings/poi-providers", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -298,9 +298,9 @@ class TestSettingsRoutes:
         priorities = [p["priority"] for p in providers]
         assert priorities == sorted(priorities)
 
-    async def test_poi_providers_structure(self, client: AsyncClient):
+    async def test_poi_providers_structure(self, client: AsyncClient, auth_headers):
         """Test POI providers response structure."""
-        response = await client.get("/api/settings/poi-providers")
+        response = await client.get("/api/settings/poi-providers", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -911,6 +911,57 @@ class TestPOIProviderPersistence:
         )
         assert response.status_code == 204, response.text
         assert await _committed_provider_rows(test_sessionmaker) == {}
+
+
+# Long enough to mask, so the list has a real prefix in it.
+_LISTED_KEY = "fsq-list-key-0123456789"
+
+
+@pytest_asyncio.fixture
+async def listed_provider(db_session, provider_rows) -> None:
+    """The test provider with a key on file. provider_rows puts its rows back afterwards."""
+    await _set_setting(db_session, f"{_PROVIDER}_api_key", _LISTED_KEY)
+    await _set_setting(db_session, f"{_PROVIDER}_enabled", "true")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("listed_provider")
+class TestPOIProviderListIsAdminOnly:
+    """The provider list was public, so anyone could read each key's first 8
+    characters and its usage (A-10). It's admin-only now, like the rest of
+    /api/settings."""
+
+    async def test_anonymous_is_a_401(self, client: AsyncClient, set_auth_mode):
+        await set_auth_mode("local")
+        response = await client.get("/api/settings/poi-providers")
+        assert response.status_code == 401, response.text
+        assert _LISTED_KEY[:8] not in response.text
+
+    async def test_a_non_admin_is_a_403(
+        self, client: AsyncClient, set_auth_mode, non_admin_headers
+    ):
+        await set_auth_mode("local")
+        response = await client.get("/api/settings/poi-providers", headers=non_admin_headers)
+        assert response.status_code == 403, response.text
+        assert _LISTED_KEY[:8] not in response.text
+
+    async def test_an_admin_gets_the_masked_key(
+        self, client: AsyncClient, set_auth_mode, auth_headers
+    ):
+        """Control, passes before the gate too. The admin drawer shows the prefix."""
+        await set_auth_mode("local")
+        response = await client.get("/api/settings/poi-providers", headers=auth_headers)
+        assert response.status_code == 200, response.text
+        listed = {p["name"]: p for p in response.json()["providers"]}
+        assert listed[_PROVIDER]["api_key_masked"] == f"{_LISTED_KEY[:8]}***"
+
+    async def test_none_mode_stays_open(self, client: AsyncClient, set_auth_mode):
+        """Control, passes before the gate too. With no login, everyone runs the instance."""
+        await set_auth_mode("none")
+        response = await client.get("/api/settings/poi-providers")
+        assert response.status_code == 200, response.text
+        assert _PROVIDER in {p["name"] for p in response.json()["providers"]}
 
 
 @pytest.mark.integration

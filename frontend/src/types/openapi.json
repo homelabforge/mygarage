@@ -40026,7 +40026,7 @@
     },
     "/api/settings/poi-providers": {
       "get": {
-        "description": "Get configured POI search providers.\n\nReturns ONLY providers that have been configured (have API keys).\nOSM is always included as the default fallback.\n\nNote: This endpoint is public as it only returns masked API keys and metadata.\n\nReturns:\n    List of provider configurations",
+        "description": "Get configured POI search providers (admin only).\n\nReturns ONLY providers that have been configured (have API keys).\nOSM is always included as the default fallback.\n\nReturns:\n    List of provider configurations",
         "operationId": "get_poi_providers_api_settings_poi_providers_get",
         "responses": {
           "200": {
@@ -40038,6 +40038,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Get Poi Providers",
         "tags": [
           "Settings"
