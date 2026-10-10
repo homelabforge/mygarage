@@ -566,9 +566,8 @@ export default function ServiceVisitForm({
           inspection_result: item.inspection_result || undefined,
           inspection_severity: item.inspection_severity || undefined,
           triggered_by_inspection_id: item.triggered_by_inspection_id,
-          // ALWAYS sent (even []) — the backend replaces a line item's usages
-          // wholesale from this field, so omitting it for an existing item
-          // that was never touched here would wipe its logged usages.
+          // Always sent, even []: that's how a supply the user removed gets
+          // cleared. Leaving the field out would keep the item's old usages.
           supplies_used: mapSuppliesUsedForSubmit(item),
           // Reminder only for new items (no id) that have an enabled draft
           reminder: !item.id && item.reminderDraft?.enabled
