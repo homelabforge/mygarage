@@ -347,6 +347,55 @@ class TestOIDCRoutes:
 
         assert response.status_code == 403
 
+    async def test_test_connection_works_with_auth_disabled(
+        self, client: AsyncClient, set_auth_mode
+    ):
+        """With sign-in off nobody has a token, so the test has to run without one.
+
+        Regression: the route used ``get_current_user``, which 401s on a missing
+        token in every mode, so Test Connection could never work in none mode.
+        """
+        await set_auth_mode("none")
+
+        with patch("app.services.oidc.test_oidc_connection", new_callable=AsyncMock) as mock_test:
+            mock_test.return_value = {
+                "success": True,
+                "provider_reachable": True,
+                "metadata_valid": True,
+                "endpoints_found": True,
+                "errors": [],
+                "metadata": {"issuer": "https://auth.example.com"},
+            }
+
+            response = await client.post(
+                "/api/auth/oidc/test",
+                json={
+                    "issuer_url": "https://auth.example.com/",
+                    "client_id": "test-id",
+                    "client_secret": "test-secret",
+                },
+            )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["ok"] is True
+        mock_test.assert_awaited_once()
+
+    async def test_test_connection_unauthorized_in_oidc_mode(
+        self, client: AsyncClient, set_auth_mode
+    ):
+        """Only none mode opens it: with SSO on, no token is still a 401."""
+        await set_auth_mode("oidc")
+
+        response = await client.post(
+            "/api/auth/oidc/test",
+            json={
+                "issuer_url": "https://auth.example.com/",
+                "client_id": "test-id",
+                "client_secret": "test-secret",
+            },
+        )
+        assert response.status_code == 401
+
     async def test_test_connection_success(self, client: AsyncClient, auth_headers):
         """Test OIDC connection test returns canonical {ok, issuer, algorithms_supported}."""
         with patch("app.services.oidc.test_oidc_connection", new_callable=AsyncMock) as mock_test:

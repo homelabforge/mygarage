@@ -31,7 +31,7 @@ from app.models.audit_log import USER_AGENT_MAX_LENGTH, AuditLog
 from app.models.csrf_token import CSRFToken
 from app.models.user import User
 from app.services import oidc as oidc_service
-from app.services.auth import create_access_token, get_current_admin_user, get_current_user
+from app.services.auth import create_access_token, get_current_admin_user
 from app.services.oidc.config import checked_redirect_uri, effective_oidc_value
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -600,19 +600,18 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Res
 @router.post("/test", response_model=OIDCTestResult)
 async def test_oidc_connection(
     test_request: OIDCTestRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Test OIDC provider connection (admin only).
+    """Test OIDC provider connection (admin only when sign-in is on).
 
     Returns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope
     per plan §5.4(4).
     """
-    if not current_user or not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required",
-        )
+    # current_user is None only when auth_mode == "none", same as the config GET
+    # and PUT above. Nothing new opens up: in that mode the PUT already lets anyone
+    # store an issuer that login then fetches, and this fetch goes through the same
+    # trusted-host guard (test_test_connection_blocked_issuer pins that).
 
     # §5.4(2): empty/placeholder secret falls back to the stored value so admins can test before saving.
     client_secret = test_request.client_secret

@@ -671,7 +671,7 @@ export interface paths {
         put?: never;
         /**
          * Test Oidc Connection
-         * @description Test OIDC provider connection (admin only).
+         * @description Test OIDC provider connection (admin only when sign-in is on).
          *
          *     Returns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope
          *     per plan §5.4(4).

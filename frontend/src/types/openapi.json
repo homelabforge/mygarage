@@ -33164,7 +33164,7 @@
     },
     "/api/auth/oidc/test": {
       "post": {
-        "description": "Test OIDC provider connection (admin only).\n\nReturns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope\nper plan \u00a75.4(4).",
+        "description": "Test OIDC provider connection (admin only when sign-in is on).\n\nReturns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope\nper plan \u00a75.4(4).",
         "operationId": "test_oidc_connection_api_auth_oidc_test_post",
         "requestBody": {
           "content": {

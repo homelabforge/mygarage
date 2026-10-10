@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
 - Small supply amounts (a few mL in L, qt or gal) no longer show as 0.00, and supply amounts follow the selected language
 - With sign-in off, creating a user and resetting a password no longer error after saving, the family pages no longer error, and Share is hidden on the vehicle page
+- Test Connection in the SSO settings works with sign-in off
 
 ### Security
 - POI provider settings are admin-only
