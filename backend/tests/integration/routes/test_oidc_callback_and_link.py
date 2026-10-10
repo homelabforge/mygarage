@@ -1057,9 +1057,32 @@ class TestEmailStepEndToEnd:
                 )
             ).scalar_one()
         logged = [r.getMessage() for r in caplog.records if r.levelno >= logging.INFO]
-        # The username lines prove the capture saw this callback at all.
+        # The username line proves the capture saw this callback at all.
         assert any(target.username in m for m in logged), logged
         assert [m for m in logged if token in m] == []
+
+    async def test_the_link_redirect_names_the_username_once(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        made_users: list[_Account],
+        user_agent: str,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """It used to log the pending link and then the redirect, the same event twice."""
+        caplog.set_level(logging.INFO, logger="app.routes.oidc")
+        target = await _account(db_session, made_users)
+
+        with _idp(_claims(email=target.email)):
+            response = await _callback(client, user_agent)
+
+        assert response.status_code == 302, response.text
+        named = [
+            r.getMessage()
+            for r in caplog.records
+            if r.name == "app.routes.oidc" and target.username in r.getMessage()
+        ]
+        assert named == [f"Pending link required for username: {target.username}"]
 
 
 class TestArmedRelinkThroughTheCallback:

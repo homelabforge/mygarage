@@ -80,9 +80,10 @@ _warned_blank_redirect_uri = False
 def _warn_if_redirect_uri_blank(config: dict[str, str]) -> None:
     """Warn once when SSO's callback URL is coming from the request (A-15).
 
-    With ``oidc_redirect_uri`` blank, ``create_authorization_url`` builds it
-    from X-Forwarded-Host or Host, so a forged one becomes the redirect_uri the
-    IdP is asked to send the code to. Only an IdP that skips exact matching
+    With ``oidc_redirect_uri`` blank, the login route builds the base URL from
+    X-Forwarded-Host or Host (``_external_base``) and ``create_authorization_url``
+    only appends the callback path, so a forged header becomes the redirect_uri
+    the IdP is asked to send the code to. Only an IdP that skips exact matching
     accepts that, so it's a nudge to pin the setting, not a refusal.
     """
     global _warned_blank_redirect_uri
@@ -485,8 +486,6 @@ async def oidc_callback(
         # and access logs never see it.
         frontend_url = _frontend_base(request)
         redirect_url = f"{frontend_url}/auth/link-account#token={pending_token}"
-
-        logger.info("Redirecting to the link account page for %s", sanitize_for_log(e.username))
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     except OIDCLoginRefusedError as e:
         await _audit_login_refused(db, request, e.message, e.username, details=e.details)
