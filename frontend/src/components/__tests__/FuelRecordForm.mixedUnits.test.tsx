@@ -266,7 +266,7 @@ describe('FuelRecordForm — odometer and temperature follow their own tokens', 
     expect(labelText('odometer_km')).toBe('common:mileage (mi)')
     expect(labelText('outside_temp_display')).toBe('fuel.outsideTemp (°F)')
     expect(labelText('liters')).toBe('fuel.volume (L)')
-    expect(labelText('price_per_unit')).toBe('fuel.pricePer L')
+    expect(labelText('price_per_unit')).toBe('fuel.pricePer L/kWh')
 
     // And the binary answer really does disagree with two of them, so none of
     // the four above can be passing because the collapse happened to agree.
@@ -683,6 +683,7 @@ describe('FuelRecordForm — the OBC pair follows the speed and consumption toke
     await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
 
     fireEvent.change(field('date'), { target: { value: '2026-02-10' } })
+    fireEvent.change(field('odometer_km'), { target: { value: '45000' } })
     fireEvent.change(field('obc_avg_speed_kmh'), { target: { value: '60' } })
     fireEvent.change(field('obc_l_per_100km'), { target: { value: '30' } })
     fireEvent.submit(drawerForm())
@@ -766,6 +767,7 @@ describe('FuelRecordForm — the OBC pair follows the speed and consumption toke
 
     // The auto-fill button is gated on a fill-up timestamp.
     fireEvent.change(field('date'), { target: { value: '2026-02-10' } })
+    fireEvent.change(field('odometer_km'), { target: { value: '45000' } })
     fireEvent.change(field('filled_at_time'), { target: { value: '09:45' } })
     fireEvent.click(screen.getByRole('button', { name: 'fuel.obcAutoFill' }))
 

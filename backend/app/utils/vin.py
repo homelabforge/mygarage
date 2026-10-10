@@ -43,12 +43,19 @@ def validate_vin(vin: str) -> tuple[bool, str | None]:
     calculated_check = calculate_check_digit(vin)
 
     if calculated_check and check_digit != calculated_check:
-        # Note: Not all VINs use check digits (non-North American VINs may not follow this standard)
-        # We log a warning but still accept the VIN to support international vehicles
-        logger.warning(
-            f"VIN check digit mismatch for {vin}: expected '{calculated_check}', got '{check_digit}'. "
-            "This may be a non-North American VIN or a typo."
-        )
+        # Note: Not all VINs use check digits (European / ISO 3779 VINs do not use position 9 as check digit)
+        # We log a warning for North American VINs, and debug for international vehicles
+        from app.utils.wmi import MarketRegion, detect_market_region
+
+        if detect_market_region(vin) == MarketRegion.NORTH_AMERICA:
+            logger.warning(
+                f"VIN check digit mismatch for {vin}: expected '{calculated_check}', got '{check_digit}'. "
+                "This may be a typo."
+            )
+        else:
+            logger.debug(
+                f"VIN check digit ignored for non-North American VIN {vin} (expected '{calculated_check}', got '{check_digit}')."
+            )
 
     return True, None
 

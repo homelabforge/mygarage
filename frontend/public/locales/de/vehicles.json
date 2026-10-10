@@ -1294,7 +1294,16 @@
       "createVehicle": "Fahrzeug erstellen",
       "createFailed": "Fahrzeug konnte nicht erstellt werden",
       "progressLabel": "Fortschritt beim Hinzufügen",
-      "createAction": "Fahrzeug erstellen"
+      "createAction": "Fahrzeug erstellen",
+      "makePlaceholder": "Marke suchen oder auswählen...",
+      "useCustomMake": "Verwenden",
+      "noMakesFound": "Keine Marken gefunden",
+      "useCustomModel": "Verwenden",
+      "noModelsFound": "Keine Modelle für diese Marke gefunden",
+      "selectMakePrompt": "Wählen Sie eine Marke, um verfügbare Modelle anzuzeigen",
+      "selectMakeFirst": "Zuerst Marke auswählen oder Modell eingeben",
+      "loadingOnlineModels": "Online-Modelle werden gesucht...",
+      "fetchMoreModelsOnline": "NHTSA Online-Modelle suchen"
     },
     "stepOf": "Schritt {{current}} von {{total}}"
   },

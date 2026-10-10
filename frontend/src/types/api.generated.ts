@@ -7696,6 +7696,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vin/test-european": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test European Vin Connection
+         * @description Test connection to the European VIN API (AutoRef) and check quota.
+         *     Does not consume monthly decoding quota.
+         */
+        post: operations["test_european_vin_connection_api_vin_test_european_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vin/validate/{vin}": {
         parameters: {
             query?: never;
@@ -9850,6 +9871,48 @@ export interface components {
              * @description Kilowatts
              */
             kw?: number | null;
+        };
+        /**
+         * EuropeanVINTestRequest
+         * @description Request schema for European VIN test connection endpoint.
+         */
+        EuropeanVINTestRequest: {
+            /**
+             * Api Key
+             * @description Optional AutoRef API key to test
+             */
+            api_key?: string | null;
+        };
+        /**
+         * EuropeanVINTestResponse
+         * @description Response schema for European VIN test connection endpoint.
+         */
+        EuropeanVINTestResponse: {
+            /**
+             * Limit
+             * @description Total decode limit for plan
+             */
+            limit?: number | null;
+            /**
+             * Message
+             * @description Human-readable result message
+             */
+            message: string;
+            /**
+             * Plan
+             * @description Current subscription plan
+             */
+            plan?: string | null;
+            /**
+             * Remaining
+             * @description Remaining decodes in quota
+             */
+            remaining?: number | null;
+            /**
+             * Success
+             * @description Whether the connection test succeeded
+             */
+            success: boolean;
         };
         /** ExternalVehicleCreate */
         ExternalVehicleCreate: {
@@ -17775,6 +17838,11 @@ export interface components {
              */
             body_class?: string | null;
             /**
+             * Decoder Source
+             * @description Provider that decoded the VIN (nhtsa, european, autoref, etc.)
+             */
+            decoder_source?: string | null;
+            /**
              * Doors
              * @description Number of doors
              */
@@ -17816,6 +17884,11 @@ export interface components {
              * @description Manufacturer name
              */
             manufacturer?: string | null;
+            /**
+             * Market Region
+             * @description Vehicle market region (north_america, europe, other)
+             */
+            market_region?: string | null;
             /**
              * Model
              * @description Vehicle model
@@ -32774,6 +32847,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VINDecodeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_european_vin_connection_api_vin_test_european_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["EuropeanVINTestRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EuropeanVINTestResponse"];
                 };
             };
             /** @description Validation Error */

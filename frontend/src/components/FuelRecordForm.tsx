@@ -224,11 +224,21 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     { label: '1/4', labelKey: null, value: 25 },
   ] as const
 
+  // Task 13 — which usage dimension(s) drive the odometer vs. engine-hours
+  // field visibility and validation requirements (a dual vehicle shows both).
+  const { tracksDistance, tracksHours } = getUsageTracking({
+    usage_unit: vehicleUsageUnit,
+    secondary_usage_enabled: vehicleSecondaryUsageEnabled,
+  })
+
   // Zod bakes its messages in at construction, so the schema is rebuilt when
   // the language changes. Only the resolver depends on it — no fetch, no
   // reset() — so a rebuild can't discard what the user typed. `units` is in
   // there too: the price cap converts the typed price to $/L or $/kg first.
-  const schema = useMemo(() => makeFuelRecordSchema(t, units), [t, units])
+  const schema = useMemo(
+    () => makeFuelRecordSchema(t, units, { tracksDistance, tracksHours, isEdit }),
+    [t, units, tracksDistance, tracksHours, isEdit]
+  )
 
   /**
    * The canonical origin of each unit-bearing field this form seeds.
@@ -928,17 +938,27 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
-        setError(getActionErrorMessage(err, t('fuel.saveAction')))
+        let specificError: string | null = null
+        const responseData = (err as { response?: { data?: { detail?: unknown; details?: unknown } } })?.response?.data
+        const rawDetail = responseData?.detail ?? responseData?.details
+        if (Array.isArray(rawDetail)) {
+          for (const item of rawDetail) {
+            const msg = typeof item?.msg === 'string' ? item.msg : ''
+            if (msg.includes('odometer') || msg.includes('reading')) {
+              specificError = t('common:validation.odometer.required')
+              setFieldError('odometer_km', { type: 'server', message: specificError })
+              break
+            } else if (msg.includes('engine_hours')) {
+              specificError = t('common:validation.engineHours.required')
+              setFieldError('engine_hours', { type: 'server', message: specificError })
+              break
+            }
+          }
+        }
+        setError(specificError || getActionErrorMessage(err, t('fuel.saveAction')))
       }
     }
   }
-
-  // Task 13 — which usage dimension(s) drive the odometer vs. engine-hours
-  // field visibility (a dual vehicle shows both).
-  const { tracksDistance, tracksHours } = getUsageTracking({
-    usage_unit: vehicleUsageUnit,
-    secondary_usage_enabled: vehicleSecondaryUsageEnabled,
-  })
 
   // Conditional field visibility based on fuel_type
   const isElectric = vehicleFuelType?.toLowerCase().includes('electric')
@@ -981,9 +1001,17 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   // same-screen disagreement this change exists to remove. `per_kwh` and
   // `per_tank` convert nothing in either direction and are left as they were.
   const priceBasis = watch('price_basis')
-  const priceDenominator =
-    priceBasis === 'per_weight' ? UnitFormatter.getMassUnit(units) : UnitFormatter.getVolumeUnit(units)
-  const priceLabel = isElectric ? t('fuel.pricePerKwh') : `${t('fuel.pricePer')} ${priceDenominator}`
+  const volumeUnit = UnitFormatter.getVolumeUnit(units)
+  const isWeight = priceBasis === 'per_weight'
+  const isKwhBasis = priceBasis === 'per_kwh'
+  const priceDenominator = isWeight
+    ? UnitFormatter.getMassUnit(units)
+    : volumeUnit === 'L'
+      ? 'L/kWh'
+      : volumeUnit
+  const priceLabel = isElectric || isKwhBasis
+    ? t('fuel.pricePerKwh')
+    : `${t('fuel.pricePer')} ${priceDenominator}`
 
   return (
     <FormModalWrapper
@@ -1119,7 +1147,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 exemption to both legs, so this is structural and carries no
                 pragma. */}
             {tracksDistance && (
-              <Field id="odometer_km" label={t('common:mileage')} unit={u.distance.label} error={errors.odometer_km}>
+              <Field id="odometer_km" label={t('common:mileage')} required={!isEdit} unit={u.distance.label} error={errors.odometer_km}>
                 <NumberInput
                   id="odometer_km"
                   {...registerDecimal(register, 'odometer_km')}

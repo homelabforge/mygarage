@@ -81,6 +81,12 @@ class VINDecodeResponse(BaseModel):
     entertainment_system: str | None = Field(None, description="Entertainment system")
     error_code: str | None = Field(None, description="NHTSA error code (if any)")
     error_text: str | None = Field(None, description="NHTSA error text (if any)")
+    decoder_source: str | None = Field(
+        None, description="Provider that decoded the VIN (nhtsa, european, autoref, etc.)"
+    )
+    market_region: str | None = Field(
+        None, description="Vehicle market region (north_america, europe, other)"
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -109,3 +115,19 @@ class VINDecodeResponse(BaseModel):
             ]
         }
     }
+
+
+class EuropeanVINTestRequest(BaseModel):
+    """Request schema for European VIN test connection endpoint."""
+
+    api_key: str | None = Field(None, description="Optional AutoRef API key to test")
+
+
+class EuropeanVINTestResponse(BaseModel):
+    """Response schema for European VIN test connection endpoint."""
+
+    success: bool = Field(..., description="Whether the connection test succeeded")
+    message: str = Field(..., description="Human-readable result message")
+    plan: str | None = Field(None, description="Current subscription plan")
+    remaining: int | None = Field(None, description="Remaining decodes in quota")
+    limit: int | None = Field(None, description="Total decode limit for plan")

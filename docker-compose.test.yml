@@ -16,6 +16,17 @@
 services:
   postgres-test:
     image: postgres:16-alpine
+    command: >
+      postgres
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
+      -c checkpoint_timeout=1h
+      -c max_wal_size=2GB
+      -c wal_level=minimal
+      -c max_wal_senders=0
+      -c shared_buffers=256MB
+      -c work_mem=32MB
     environment:
       POSTGRES_USER: mygarage
       POSTGRES_PASSWORD: testpass
@@ -56,6 +67,8 @@ services:
       PGUSER: mygarage
       PGPASSWORD: testpass
       PGDATABASE: mygarage_test
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
     user: "${MYGARAGE_TEST_UID:-1000}:${MYGARAGE_TEST_GID:-1000}"
     volumes:
       - ./backend:/app

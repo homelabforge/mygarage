@@ -519,10 +519,10 @@
       "categoryRequired": "La categoria è obbligatoria"
     },
     "odometer": {
-      "negative": "Il contachilometri non può essere negativo",
-      "tooLarge": "Valore del contachilometri troppo grande",
+      "negative": "Il chilometraggio non può essere negativo",
+      "tooLarge": "Valore del chilometraggio troppo grande",
       "invalid": "Inserisci un numero valido",
-      "required": "Il contachilometri è obbligatorio"
+      "required": "Il chilometraggio è obbligatorio"
     },
     "engineHours": {
       "negative": "Le ore motore non possono essere negative",

@@ -104,6 +104,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Skip cross-origin requests (e.g. external CDNs, APIs) so the browser
+  // handles them natively and they are not intercepted by the Service Worker
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   // Navigation requests - network with 5s timeout, then offline fallback.
   //
   // We also catch non-navigate *document* requests here (request.destination

@@ -94,6 +94,7 @@ function postedPayload(): Record<string, unknown> {
 /** Enter a full-tank fill of `volume` at `price`, in the client's own units. */
 function enterFill(volume: string, price: string): void {
   fireEvent.change(field('date'), { target: { value: '2026-02-10' } })
+  fireEvent.change(field('odometer_km'), { target: { value: '45000' } })
   fireEvent.change(field('price_basis'), { target: { value: 'per_volume' } })
   fireEvent.change(field('liters'), { target: { value: volume } })
   fireEvent.change(field('price_per_unit'), { target: { value: price } })
@@ -335,7 +336,7 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     const label = () => document.querySelector('label[for="price_per_unit"]')?.textContent
 
     fireEvent.change(field('price_basis'), { target: { value: 'per_volume' } })
-    await waitFor(() => expect(label()).toBe('fuel.pricePer L'))
+    await waitFor(() => expect(label()).toBe('fuel.pricePer L/kWh'))
     fireEvent.change(field('price_basis'), { target: { value: 'per_weight' } })
     await waitFor(() => expect(label()).toBe('fuel.pricePer lb'))
   })
@@ -367,6 +368,7 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     expect(field('price_per_unit').value).toBe('6')
 
     fireEvent.change(field('date'), { target: { value: '2026-02-10' } })
+    fireEvent.change(field('odometer_km'), { target: { value: '45000' } })
     fireEvent.change(field('price_basis'), { target: { value: 'per_volume' } })
     fireEvent.submit(drawerForm())
 
@@ -403,6 +405,7 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     expect(field('price_per_unit').value).toBe('6.001')
 
     fireEvent.change(field('date'), { target: { value: '2026-02-10' } })
+    fireEvent.change(field('odometer_km'), { target: { value: '45000' } })
     fireEvent.change(field('price_basis'), { target: { value: 'per_volume' } })
     fireEvent.submit(drawerForm())
 
@@ -504,6 +507,7 @@ describe('FuelRecordForm: the price cap is in $/L or $/kg, as the basis select s
     render(<FuelRecordForm {...DEFAULT_PROPS} />)
     await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
     fireEvent.change(field('date'), { target: { value: '2026-02-10' } })
+    fireEvent.change(field('odometer_km'), { target: { value: '45000' } })
     fireEvent.change(field('price_basis'), { target: { value: 'per_weight' } })
     // 453,592,370 $/lb is just over 1,000,000,000 $/kg.
     fireEvent.change(field('price_per_unit'), { target: { value: '453592370' } })

@@ -125,6 +125,33 @@ describe('VehicleWizard — canonical fuel-type select', () => {
     expect(select.value).toBe('')
   })
 
+  it('auto-resolves make and model in comboboxes from decoded VIN', async () => {
+    mockedVinService.decode.mockResolvedValue({
+      vin: TEST_VIN,
+      year: 2022,
+      make: 'MITSUBISHI',
+      model: 'Outlander',
+      engine: { fuel_type_normalized: 'gasoline' },
+    })
+
+    renderAndEnterVin()
+
+    const decodeButton = await screen.findByRole('button', { name: 'vinInput.decode' })
+    fireEvent.click(decodeButton)
+    await waitFor(() => expect(mockedVinService.decode).toHaveBeenCalledWith(TEST_VIN))
+
+    const nextButton = await screen.findByRole('button', { name: 'wizard.next' })
+    fireEvent.click(nextButton)
+
+    // Verify make combobox auto-resolves to canonical 'Mitsubishi'
+    const makeInput = screen.getByLabelText('wizard.make')
+    expect(makeInput).toHaveValue('Mitsubishi')
+
+    // Verify model combobox auto-resolves to 'Outlander'
+    const modelInput = screen.getByLabelText('wizard.model')
+    expect(modelInput).toHaveValue('Outlander')
+  })
+
   it('renders as a Drawer with the step-progress subtitle and closes', () => {
     const onClose = vi.fn()
     render(<VehicleWizard onClose={onClose} />)
