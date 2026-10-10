@@ -13,7 +13,7 @@
  * runs (only `AuthContext` is mocked), so the probe reads the true scope.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { METRIC_UNITS } from '../../__tests__/factories'
@@ -26,7 +26,12 @@ type WriterProps = {
   vehicle: Record<string, unknown>
   onUpdated?: (v: unknown) => void
   onVehicleUpdated?: (v: unknown) => void
+  onUploadWindowSticker?: () => void
 }
+
+// What the page handed the sticker upload last time it rendered.
+type StickerProps = { hasExistingSticker?: boolean; onClose: (uploaded: boolean) => void }
+const sticker = vi.hoisted(() => ({ props: null as StickerProps | null }))
 
 vi.mock('../../components/vehicle-detail/EquipmentDrawer', () => ({
   default: (p: WriterProps) => (
@@ -45,7 +50,10 @@ vi.mock('../../components/vehicle-detail/VehicleFieldsDrawer', () => ({
 }))
 vi.mock('../../components/vehicle-detail/VehicleEditDrawer', () => ({
   default: (p: WriterProps) => (
-    <button onClick={() => p.onUpdated?.({ ...p.vehicle, ...writer.next })}>save-edit</button>
+    <>
+      <button onClick={() => p.onUpdated?.({ ...p.vehicle, ...writer.next })}>save-edit</button>
+      <button onClick={() => p.onUploadWindowSticker?.()}>open-sticker</button>
+    </>
   ),
 }))
 vi.mock('../../components/vehicle-detail/VehicleOverviewTab', () => ({
@@ -91,7 +99,12 @@ vi.mock('../../components/tabs/LiveLinkDTCsTab', () => ({ default: () => <div>Li
 vi.mock('../../components/tabs/LiveLinkSessionsTab', () => ({ default: () => <div>LiveLinkSessionsTab</div> }))
 vi.mock('../../components/tabs/LiveLinkChartsTab', () => ({ default: () => <div>LiveLinkChartsTab</div> }))
 vi.mock('../../components/TaxRecordList', () => ({ default: () => <div>TaxRecordList</div> }))
-vi.mock('../../components/WindowStickerUpload', () => ({ default: () => <div>WindowStickerUpload</div> }))
+vi.mock('../../components/WindowStickerUpload', () => ({
+  default: (p: StickerProps) => {
+    sticker.props = p
+    return <div>WindowStickerUpload</div>
+  },
+}))
 vi.mock('../../components/modals/VehicleRemoveModal', () => ({ default: () => null }))
 vi.mock('../../components/modals/VehicleTransferWizard', () => ({ default: () => null }))
 vi.mock('../../components/modals/VehicleSharingModal', () => ({ default: () => null }))
@@ -178,6 +191,7 @@ function renderPage(client: QueryClient, path = `/vehicles/${VIN}`) {
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
+  sticker.props = null
   writer.next = { distance_unit: 'mi', nickname: 'Test Car' }
   vi.mocked(vehicleService.get).mockResolvedValue(vehicle)
   vi.mocked(vehicleService.getDetailStats).mockRejectedValue(new Error('no stats'))
@@ -240,5 +254,44 @@ describe('a unit change remounts the scoped page', () => {
     fireEvent.click(screen.getByText('save-edit'))
     await waitFor(() => expect(readCachedVehicle(VIN)?.nickname).toBe('Renamed'))
     expect(screen.getByTestId('probe-count')).toHaveTextContent('1')
+  })
+})
+
+describe('the window sticker upload', () => {
+  const openSticker = async (): Promise<StickerProps> => {
+    fireEvent.click(await screen.findByText('open-sticker'))
+    await screen.findByText('WindowStickerUpload')
+    return sticker.props!
+  }
+
+  it('is told a sticker is on file when the vehicle has one', async () => {
+    vi.mocked(vehicleService.get).mockResolvedValue({
+      ...vehicle,
+      window_sticker_file_path: '/data/documents/TEST/window_sticker_a.pdf',
+    })
+    renderPage(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
+
+    expect((await openSticker()).hasExistingSticker).toBe(true)
+  })
+
+  it('is told there is none when the vehicle has no sticker path', async () => {
+    renderPage(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
+
+    expect((await openSticker()).hasExistingSticker).toBe(false)
+  })
+
+  it('reloads the vehicle on a close after an upload, and only then', async () => {
+    renderPage(new QueryClient({ defaultOptions: { queries: { retry: false } } }))
+
+    const first = await openSticker()
+    act(() => first.onClose(false))
+    await waitFor(() => expect(screen.queryByText('WindowStickerUpload')).not.toBeInTheDocument())
+    expect(vehicleService.get).toHaveBeenCalledTimes(1)
+
+    // The upload committed before the review, so the page has to catch up.
+    const second = await openSticker()
+    act(() => second.onClose(true))
+    await waitFor(() => expect(vehicleService.get).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText('WindowStickerUpload')).not.toBeInTheDocument()
   })
 })

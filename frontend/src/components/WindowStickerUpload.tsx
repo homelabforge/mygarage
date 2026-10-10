@@ -61,8 +61,11 @@ interface WindowStickerUploadProps {
   vin: string
   /** A sticker is already on file, so the upload asks whether to keep its values. */
   hasExistingSticker?: boolean
+  /** The review was saved. The caller closes the drawer and reloads. */
   onSuccess: () => void
-  onClose: () => void
+  /** Closed without saving the review. `uploaded`: the server already holds a
+   *  sticker from this drawer, since the upload commits before the review. */
+  onClose: (uploaded: boolean) => void
 }
 
 export default function WindowStickerUpload({
@@ -93,6 +96,9 @@ export default function WindowStickerUpload({
   const [editMode, setEditMode] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // The upload commits before the review, so a cancelled review still left a
+  // new sticker on the vehicle, and the page has to know to reload.
+  const close = (): void => onClose(seed !== null)
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -233,7 +239,6 @@ export default function WindowStickerUpload({
     setSuccess(t('windowSticker.misc.saveSuccess'))
     setTimeout(() => {
       onSuccess()
-      onClose()
     }, 1000)
   }
 
@@ -310,7 +315,7 @@ export default function WindowStickerUpload({
   return (
     <Drawer
       open
-      onClose={onClose}
+      onClose={close}
       title={t('windowSticker.uploadTitle')}
       icon={FileText}
       width="xl"
@@ -401,7 +406,7 @@ export default function WindowStickerUpload({
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={close}
                 className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors"
               >
                 {t('windowSticker.misc.cancel')}
@@ -607,7 +612,7 @@ export default function WindowStickerUpload({
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={close}
                 className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors"
               >
                 {t('windowSticker.misc.cancel')}

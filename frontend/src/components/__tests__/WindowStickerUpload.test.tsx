@@ -197,3 +197,62 @@ describe('WindowStickerUpload: keep the values already saved (D1)', () => {
     expect(screen.queryByText('windowSticker.scanReadNothing')).not.toBeInTheDocument()
   })
 })
+
+// The upload commits the sticker before the review, so closing the drawer
+// tells the page whether it has to reload, whichever way it was closed.
+describe('WindowStickerUpload: closing says whether a sticker was saved', () => {
+  const upload = async (user: ReturnType<typeof userEvent.setup>): Promise<void> => {
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, new File(['%PDF-1.4'], 'sticker.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' }))
+    await screen.findByRole('button', { name: 'windowSticker.misc.saveData' })
+  }
+
+  it('cancelling before any upload closes with false', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledWith(false)
+  })
+
+  it('cancelling the review after an upload closes with true', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+    await upload(user)
+
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledWith(true)
+  })
+
+  it('escaping the drawer after an upload closes with true', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+    await upload(user)
+
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledWith(true)
+  })
+
+  it('a saved review finishes through onSuccess alone, so the page reloads once', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    const onSuccess = vi.fn()
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={onClose} />)
+    await upload(user)
+
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.saveData' }))
+
+    await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1), { timeout: 2000 })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+})

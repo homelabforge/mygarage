@@ -145,7 +145,7 @@ def _unlink_quietly(path: Path) -> None:
     """Remove a sticker file if it's there; a failure is an orphan, not an error."""
     try:
         path.unlink(missing_ok=True)
-    except OSError as e:
+    except (OSError, ValueError) as e:  # ValueError: a NUL in a stored path
         logger.warning(
             "Failed to delete window sticker file %s: %s",
             sanitize_for_log(path),
@@ -386,8 +386,11 @@ async def upload_window_sticker(
                 setattr(vehicle, field, _fit_to_column(field, extracted_data[field]))
         for field in STICKER_SCAN_FIELDS:  # None passes _fit_to_column untouched
             setattr(vehicle, field, _fit_to_column(field, extracted_data.get(field)))
+        # From the colour the row ends up with: keep mode may have kept a typed
+        # one over the scan's. Only when the scan read a colour, though, so a
+        # scan that read nothing still changes nothing.
         if not vehicle.color and extracted_data.get("exterior_color"):
-            vehicle.color = _fit_to_column("color", extracted_data["exterior_color"])
+            vehicle.color = _fit_to_column("color", vehicle.exterior_color)
         vehicle.window_sticker_file_path = str(file_path)
         vehicle.window_sticker_uploaded_at = utc_now()
         await db.commit()
@@ -396,8 +399,6 @@ async def upload_window_sticker(
         # one was never touched.
         _unlink_quietly(file_path)
         await db.rollback()
-        if isinstance(e, HTTPException):
-            raise
         logger.exception("Window sticker upload failed for %s", sanitize_for_log(vin))
         # Starlette answers anything else with a 500 and then re-raises it,
         # which the test client turns into an exception. Same 500 as the write.

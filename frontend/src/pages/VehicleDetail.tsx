@@ -844,7 +844,11 @@ export default function VehicleDetail() {
             loadVehicle()
             toast.success(t('detail.windowStickerUploaded'))
           }}
-          onClose={() => setOpenModal(null)}
+          onClose={(uploaded) => {
+            setOpenModal(null)
+            // A cancelled review still left the new sticker on file.
+            if (uploaded) loadVehicle()
+          }}
         />
       )}
     </div>
