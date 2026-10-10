@@ -4,10 +4,15 @@ Integration tests for data import routes.
 Tests CSV and JSON import operations for various record types.
 """
 
+import uuid
+from collections.abc import AsyncGenerator
 from io import BytesIO
+from typing import Any
 
 import pytest
-from httpx import AsyncClient
+import pytest_asyncio
+from httpx import AsyncClient, Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture(autouse=True)
@@ -980,6 +985,232 @@ class TestHoursCSVRoundTrip:
         assert rows[1].source == "manual"
         assert rows[1].fuel_record_id is None
         assert rows[1].service_visit_id is None
+
+
+@pytest_asyncio.fixture
+async def hours_source_vehicle(
+    db_session: AsyncSession, test_user: dict[str, object]
+) -> AsyncGenerator[str]:
+    """A second fresh vehicle to export hours from, deleted afterwards with its rows."""
+    from app.models.vehicle import Vehicle
+
+    vehicle = Vehicle(
+        vin="HRS" + uuid.uuid4().hex[:14].upper(),
+        user_id=test_user["id"],
+        nickname="Hours JSON Src",
+        vehicle_type="ATV",
+        year=2024,
+        make="Test",
+        model="HoursSrc",
+    )
+    db_session.add(vehicle)
+    await db_session.commit()
+    vin = vehicle.vin
+    yield vin
+    await db_session.rollback()
+    stored = await db_session.get(Vehicle, vin)
+    if stored is not None:
+        await db_session.delete(stored)
+        await db_session.commit()
+
+
+def _hours_backup(hours_records: Any, **sections: Any) -> dict[str, Any]:
+    """A v3 vehicle backup carrying `hours_records`, plus any other sections given."""
+    return {"export_version": "3", "units": "metric", "hours_records": hours_records, **sections}
+
+
+async def _post_backup(
+    client: AsyncClient, headers: dict[str, str], vin: str, payload: dict[str, Any]
+) -> Response:
+    import json
+
+    return await client.post(
+        f"/api/import/vehicles/{vin}/json",
+        headers=headers,
+        files={"file": ("vehicle.json", BytesIO(json.dumps(payload).encode()), "application/json")},
+        data={"skip_duplicates": "true"},
+    )
+
+
+async def _hours_rows(db_session: AsyncSession, vin: str) -> list[Any]:
+    """The vehicle's HoursRecord rows, oldest first."""
+    from sqlalchemy import select
+
+    from app.models.hours import HoursRecord
+
+    result = await db_session.execute(
+        select(HoursRecord).where(HoursRecord.vin == vin).order_by(HoursRecord.date)
+    )
+    return list(result.scalars().all())
+
+
+_TWO_HOURS_READINGS = [
+    {"date": "2026-09-01", "engine_hours": 120.5, "notes": "n", "source": "fuel"},
+    {"date": "2026-09-15", "engine_hours": 131.0, "notes": None, "source": "manual"},
+]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestVehicleJsonImportHours:
+    """G4-76: the JSON backup writes `hours_records` and the import used to drop them.
+
+    Rows land the way the CSV hours importer lands them: always manual, both
+    link columns null, since a backup can't carry a live FK into the target
+    vehicle's fuel or service rows.
+    """
+
+    async def test_imports_hours_readings_as_manual_rows(
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session
+    ):
+        from datetime import date
+        from decimal import Decimal
+
+        response = await _post_backup(
+            client, auth_headers, own_vehicle.vin, _hours_backup(_TWO_HOURS_READINGS)
+        )
+        assert response.status_code == 200, response.text
+        bucket = response.json()["hours_records"]
+        assert (bucket["success_count"], bucket["error_count"], bucket["skipped_count"]) == (
+            2,
+            0,
+            0,
+        )
+
+        rows = await _hours_rows(db_session, own_vehicle.vin)
+        assert [(r.date, r.engine_hours) for r in rows] == [
+            (date(2026, 9, 1), Decimal("120.5")),
+            (date(2026, 9, 15), Decimal("131.0")),
+        ]
+        assert [r.notes for r in rows] == ["n", None]
+        # The first row was exported as source='fuel'; there is no fuel row to link.
+        assert [r.source for r in rows] == ["manual", "manual"]
+        assert [r.fuel_record_id for r in rows] == [None, None]
+        assert [r.service_visit_id for r in rows] == [None, None]
+
+    async def test_reimport_skips_the_same_readings(
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session
+    ):
+        payload = _hours_backup(_TWO_HOURS_READINGS)
+        first = await _post_backup(client, auth_headers, own_vehicle.vin, payload)
+        assert first.status_code == 200, first.text
+        assert first.json()["hours_records"]["success_count"] == 2
+
+        second = await _post_backup(client, auth_headers, own_vehicle.vin, payload)
+        assert second.status_code == 200, second.text
+        bucket = second.json()["hours_records"]
+        assert (bucket["success_count"], bucket["skipped_count"], bucket["error_count"]) == (
+            0,
+            2,
+            0,
+        )
+        assert len(await _hours_rows(db_session, own_vehicle.vin)) == 2
+
+    async def test_a_bad_row_is_a_row_error_and_the_rest_imports(
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session
+    ):
+        """Codex R1-F3: no hours, out of bounds, no date, a bad date; the last row lands."""
+        from datetime import date
+        from decimal import Decimal
+
+        payload = _hours_backup(
+            [
+                {"date": "2026-09-01", "notes": "no hours"},
+                {"date": "2026-09-02", "engine_hours": 1e9},
+                {"engine_hours": 5.0},
+                {"date": "not-a-date", "engine_hours": 6.0},
+                {"date": "2026-09-05", "engine_hours": 7.0},
+            ]
+        )
+        response = await _post_backup(client, auth_headers, own_vehicle.vin, payload)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        bucket = body["hours_records"]
+        assert (bucket["success_count"], bucket["error_count"], bucket["skipped_count"]) == (
+            1,
+            4,
+            0,
+        )
+        assert body["errors"] == [
+            "Hours record 0: engine hours are required",
+            "Hours record 1: engine_hours must be at most 999999999.9, not 1000000000.0",
+            "Hours record 2: could not be imported",
+            "Hours record 3: could not be imported",
+        ]
+        rows = await _hours_rows(db_session, own_vehicle.vin)
+        assert [(r.date, r.engine_hours) for r in rows] == [(date(2026, 9, 5), Decimal("7.0"))]
+
+    async def test_a_hours_section_that_is_not_a_list_refuses_the_file(
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session
+    ):
+        """Checked with the other sections, before the odometer row ahead of it is written."""
+        from sqlalchemy import func, select
+
+        from app.models.odometer import OdometerRecord
+
+        # The 400 rolls the shared session back, which expires own_vehicle.
+        vin = own_vehicle.vin
+        payload = _hours_backup("x", odometer_records=[{"date": "2026-09-01", "odometer_km": 1000}])
+        response = await _post_backup(client, auth_headers, vin, payload)
+        assert response.status_code == 400, response.text
+        assert response.json()["detail"] == "hours_records must be a list of records"
+        assert await _hours_rows(db_session, vin) == []
+        odometer_rows = await db_session.scalar(
+            select(func.count()).select_from(OdometerRecord).where(OdometerRecord.vin == vin)
+        )
+        assert odometer_rows == 0
+
+    async def test_export_then_import_into_another_vehicle(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        own_vehicle,
+        hours_source_vehicle,
+        db_session,
+    ):
+        from datetime import date
+        from decimal import Decimal
+
+        from app.models.hours import HoursRecord
+
+        db_session.add_all(
+            [
+                HoursRecord(
+                    vin=hours_source_vehicle,
+                    date=date(2026, 8, 1),
+                    engine_hours=Decimal("100.0"),
+                    notes="Manual reading",
+                    source="manual",
+                ),
+                HoursRecord(
+                    vin=hours_source_vehicle,
+                    date=date(2026, 8, 10),
+                    engine_hours=Decimal("105.3"),
+                    notes="Synced from fuel",
+                    source="fuel",
+                ),
+            ]
+        )
+        await db_session.commit()
+
+        export_resp = await client.get(
+            f"/api/export/vehicles/{hours_source_vehicle}/json", headers=auth_headers
+        )
+        assert export_resp.status_code == 200, export_resp.text
+
+        import_resp = await client.post(
+            f"/api/import/vehicles/{own_vehicle.vin}/json",
+            headers=auth_headers,
+            files={"file": ("vehicle.json", BytesIO(export_resp.content), "application/json")},
+        )
+        assert import_resp.status_code == 200, import_resp.text
+        assert import_resp.json()["hours_records"]["success_count"] == 2
+
+        rows = await _hours_rows(db_session, own_vehicle.vin)
+        assert [(r.date, r.engine_hours) for r in rows] == [
+            (date(2026, 8, 1), Decimal("100.0")),
+            (date(2026, 8, 10), Decimal("105.3")),
+        ]
 
 
 @pytest.mark.integration
