@@ -134,10 +134,10 @@ class SharingService:
 
             logger.info(
                 "Vehicle %s shared with user %s (permission: %s) by user %s",
-                vin,
-                recipient.username,
+                sanitize_for_log(vin),
+                sanitize_for_log(recipient.username),
                 share_request.permission,
-                current_user.username,
+                sanitize_for_log(current_user.username),
             )
 
             return VehicleShareResponse(
@@ -224,7 +224,7 @@ class SharingService:
                 "Share %s permission updated to %s by user %s",
                 share_id,
                 update_request.permission,
-                current_user.username if current_user else "<auth disabled>",
+                sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
             )
 
             return VehicleShareResponse(
@@ -291,7 +291,7 @@ class SharingService:
             logger.info(
                 "Share %s revoked by user %s",
                 share_id,
-                current_user.username if current_user else "<auth disabled>",
+                sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
             )
 
         except OperationalError as e:

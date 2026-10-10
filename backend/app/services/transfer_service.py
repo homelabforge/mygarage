@@ -151,7 +151,7 @@ class TransferService:
                 sanitize_for_log(vin),
                 from_user_id,
                 to_user.id,
-                current_user.username,
+                sanitize_for_log(current_user.username),
                 released,
             )
 

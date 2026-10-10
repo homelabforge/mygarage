@@ -22,6 +22,7 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_share import VehicleShare
 from app.schemas.user import TokenData
+from app.utils.logging_utils import sanitize_for_log
 
 # HTTP Bearer token
 security = HTTPBearer(auto_error=False)
@@ -292,7 +293,9 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
 
     # SECURITY: Reject password login for OIDC-only users (no password set)
     if user.hashed_password is None:
-        logger.warning("Password login attempted for OIDC-only user: %s", username)
+        logger.warning(
+            "Password login attempted for OIDC-only user: %s", sanitize_for_log(username)
+        )
         verify_password(password, _DUMMY_HASH)
         return None
 
@@ -301,7 +304,9 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
 
     # Auto-migrate legacy bcrypt hashes to Argon2
     if not user.hashed_password.startswith("$argon2"):
-        logger.info("Auto-migrating password hash to Argon2 for user: %s", username)
+        logger.info(
+            "Auto-migrating password hash to Argon2 for user: %s", sanitize_for_log(username)
+        )
         user.hashed_password = hash_password(password)
         await db.commit()
 
