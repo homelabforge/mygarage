@@ -2129,8 +2129,8 @@
     {
       "path": "src/components/vehicle-detail/VehicleActionsToolbar.tsx",
       "disposition": "no unit behaviour",
-      "digest": "5791f6f19dd6e7fd6e7db2b886932e4fa4d39f17738618dd639e6249ad7f0d0c",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
+      "digest": "78f20cc4c8d1bc70c4a6d291d3050953b3dc484b20ab6c8790415c66dee7f4e6",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-10-09 (security batch A-12): the Share button renders only when useAuth's authMode isn't 'none', since sharing needs a signed-in user. No quantity, unit or conversion code changed."
     },
     {
       "path": "src/components/vehicle-detail/VehicleEditDrawer.tsx",
@@ -2166,8 +2166,8 @@
     {
       "path": "src/components/vehicle-detail/VehicleMobileActionsSheet.tsx",
       "disposition": "no unit behaviour",
-      "digest": "91c5e77f3fed13b2f2adb8b867a582b2106ba5e0f49b7d8233930edf72bc9f3e",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
+      "digest": "7eb7694c0c996c9704f689a29f9e88dd388640169a74beafaf7a9ee15fc67107",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-09 (security batch A-12): the Share row renders only when useAuth's authMode isn't 'none', same as the desktop toolbar. No quantity, unit or conversion code changed."
     },
     {
       "path": "src/components/vehicle-detail/VehicleOverviewTab.tsx",

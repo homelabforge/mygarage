@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { X, Upload, Download, BarChart3, Share2, Edit, ArrowRightLeft, Trash2 } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface VehicleMobileActionsSheetProps {
   vin: string
@@ -26,6 +27,9 @@ export default function VehicleMobileActionsSheet({
 }: VehicleMobileActionsSheetProps) {
   const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
+  // Same as the desktop toolbar: no Share with sign-in off (A-12).
+  const { authMode } = useAuth()
+  const canShare = authMode !== 'none'
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 md:hidden" onClick={onClose}>
       <div className="bg-surface rounded-t-2xl w-full max-w-lg max-h-[70vh] overflow-y-auto pb-safe" onClick={(e) => e.stopPropagation()}>
@@ -62,13 +66,15 @@ export default function VehicleMobileActionsSheet({
             <BarChart3 className="w-5 h-5" />
             <span>{t('detail.viewAnalytics')}</span>
           </button>
-          <button
-            onClick={() => { onClose(); onOpenModal('sharing') }}
-            className="w-full flex items-center space-x-3 px-4 py-3 text-left text-text hover:bg-surface-2 rounded-lg ui-motion cursor-pointer"
-          >
-            <Share2 className="w-5 h-5" />
-            <span>{t('detail.shareVehicle')}</span>
-          </button>
+          {canShare && (
+            <button
+              onClick={() => { onClose(); onOpenModal('sharing') }}
+              className="w-full flex items-center space-x-3 px-4 py-3 text-left text-text hover:bg-surface-2 rounded-lg ui-motion cursor-pointer"
+            >
+              <Share2 className="w-5 h-5" />
+              <span>{t('detail.shareVehicle')}</span>
+            </button>
+          )}
           <button
             onClick={() => { onClose(); onEdit() }}
             className="w-full flex items-center space-x-3 px-4 py-3 text-left text-text hover:bg-surface-2 rounded-lg ui-motion cursor-pointer"
