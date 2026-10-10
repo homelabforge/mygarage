@@ -6,10 +6,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import cast
+from typing import Protocol, cast
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.hours import HoursRecord
@@ -876,6 +877,52 @@ async def list_reminders(
     return order_reminders(responses)
 
 
+class ReminderMessageSource(Protocol):
+    """What `_build_reminder_message` reads. The ORM `Reminder` satisfies it,
+    and so does the sweep's plain-value `_DueNotification`."""
+
+    @property
+    def title(self) -> str: ...
+    @property
+    def due_date(self) -> date | None: ...
+    @property
+    def due_mileage_km(self) -> Decimal | None: ...
+    @property
+    def due_hours(self) -> Decimal | None: ...
+    @property
+    def notes(self) -> str | None: ...
+
+
+@dataclass(frozen=True)
+class _DueNotification:
+    """A reminder the sweep decided to send, copied out as plain values.
+
+    The send phase may have to roll the session back, which expires every
+    loaded ORM object, so nothing after the checks reads a `Reminder`.
+    """
+
+    id: int
+    vin: str
+    title: str
+    due_date: date | None
+    due_mileage_km: Decimal | None
+    due_hours: Decimal | None
+    notes: str | None
+
+    @classmethod
+    def of(cls, reminder: Reminder) -> _DueNotification:
+        """Copy what the send and its log lines need from a loaded reminder."""
+        return cls(
+            id=reminder.id,
+            vin=reminder.vin,
+            title=reminder.title,
+            due_date=reminder.due_date,
+            due_mileage_km=reminder.due_mileage_km,
+            due_hours=reminder.due_hours,
+            notes=reminder.notes,
+        )
+
+
 async def check_due_reminders(db: AsyncSession) -> None:
     """Scheduler entry point. Check pending reminders and send notifications.
 
@@ -891,10 +938,7 @@ async def check_due_reminders(db: AsyncSession) -> None:
     reminders = result.scalars().all()
 
     dispatcher = NotificationDispatcher(db)
-    # Sent ones, stamped after the loop. Each check's savepoint flushes
-    # whatever is pending, and on SQLite a flushed stamp holds the write lock
-    # through every later backend call.
-    notified: list[Reminder] = []
+    due: list[_DueNotification] = []
 
     for reminder in reminders:
         # Read before the savepoint: if it rolls back, whatever it changed comes
@@ -903,8 +947,7 @@ async def check_due_reminders(db: AsyncSession) -> None:
         try:
             # Its own savepoint, so a check that fails (a bad query, an
             # overflowing projection) rolls back alone. Without it PostgreSQL
-            # keeps the transaction aborted and the stamps for what already
-            # went out never commit.
+            # keeps the transaction aborted and every check after it fails too.
             async with db.begin_nested():
                 if is_reminder_snoozed(reminder, today):
                     # Snoozed: no notification whatever the thresholds say, and no
@@ -988,43 +1031,63 @@ async def check_due_reminders(db: AsyncSession) -> None:
             continue
 
         if should_notify:
-            try:
-                # No caller: a scheduled job renders in the VEHICLE OWNER's
-                # units (render_context_for_vehicle), which falls back to the
-                # instance default for an ownerless vehicle. Resolved here,
-                # inside the notify branch, so a sweep over pending reminders
-                # that sends nothing costs no extra queries.
-                ctx = await render_context_for_vehicle(db, reminder.vin)
-                await dispatcher.dispatch(
-                    event_type="reminder_due",
-                    title=f"Reminder Due: {reminder.title}",
-                    message=_build_reminder_message(reminder, ctx),
-                )
-                notified.append(reminder)
-                logger.info(
-                    "Sent reminder notification for reminder %s (vin=%s)",
-                    reminder.id,
-                    sanitize_for_log(reminder.vin),
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to send reminder notification %s: %s",
-                    reminder.id,
-                    sanitize_for_log(e),
-                )
+            due.append(_DueNotification.of(reminder))
 
+    # End the checking transaction before anything goes out. On SQLite a
+    # rolled-back savepoint is never released, so the transaction would stay
+    # open on its old read snapshot, and the stamps written in it fail with
+    # "database is locked" once anyone else has committed in the meantime.
+    await db.commit()
+
+    sent: list[int] = []
+    for item in due:
+        try:
+            # No caller: a scheduled job renders in the VEHICLE OWNER's units
+            # (render_context_for_vehicle), which falls back to the instance
+            # default for an ownerless vehicle. Resolved here, for the ones
+            # going out, so a sweep that sends nothing costs no extra queries.
+            ctx = await render_context_for_vehicle(db, item.vin)
+            await dispatcher.dispatch(
+                event_type="reminder_due",
+                title=f"Reminder Due: {item.title}",
+                message=_build_reminder_message(item, ctx),
+            )
+            sent.append(item.id)
+            logger.info(
+                "Sent reminder notification for reminder %s (vin=%s)",
+                item.id,
+                sanitize_for_log(item.vin),
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send reminder notification %s: %s",
+                item.id,
+                sanitize_for_log(e),
+            )
+            if isinstance(e, SQLAlchemyError):
+                # A failed statement leaves PostgreSQL's transaction aborted.
+                # Start clean so the rest still send and get stamped.
+                await db.rollback()
+
+    # Stamped once every send is done: a write any earlier would hold SQLite's
+    # write lock through the remaining backend calls. By id, because nothing
+    # after the checks touches a loaded reminder (see `_DueNotification`).
+    #
     # `last_notified_at` is DateTime with no timezone (models/reminder.py).
     # PostgreSQL rejects an aware value for a naive column with asyncpg
     # DataError; SQLite accepts it and strips the offset on the way back out,
     # which is why this never showed on a dev instance. `now` itself stays
     # aware because the cooldown comparison above needs it.
-    stamp = now.replace(tzinfo=None)
-    for sent in notified:
-        sent.last_notified_at = stamp
+    if sent:
+        await db.execute(
+            update(Reminder)
+            .where(Reminder.id.in_(sent))
+            .values(last_notified_at=now.replace(tzinfo=None))
+        )
     await db.commit()
 
 
-def _build_reminder_message(reminder: Reminder, ctx: RenderContext) -> str:
+def _build_reminder_message(reminder: ReminderMessageSource, ctx: RenderContext) -> str:
     """Build the notification message for a due reminder, rendered in ``ctx``.
 
     Three kinds of content, three deliberately different treatments:
