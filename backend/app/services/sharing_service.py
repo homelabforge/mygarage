@@ -20,6 +20,7 @@ from app.schemas.family import (
     VehicleShareResponse,
     VehicleShareUpdate,
 )
+from app.services.auth import sign_in_required
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 
@@ -46,17 +47,23 @@ class SharingService:
         Args:
             vin: Vehicle VIN to share
             share_request: Share details (user_id, permission)
-            current_user: User performing the share (owner or admin)
+            current_user: User performing the share (owner or admin), None if auth_mode='none'
 
         Returns:
             VehicleShareResponse with share details
 
         Raises:
+            HTTPException 400: requires_sign_in if auth_mode='none'
             HTTPException 403: If user is not owner or admin
             HTTPException 404: If vehicle or recipient not found
             HTTPException 400: If sharing with self, owner, or disabled user
             HTTPException 409: If share already exists
         """
+        # A share has to say who made it (shared_by can't be null), and with
+        # auth off there's nobody to put there.
+        if current_user is None:
+            raise sign_in_required("Sharing a vehicle")
+
         try:
             # Get the vehicle
             result = await self.db.execute(select(Vehicle).where(Vehicle.vin == vin))
@@ -168,7 +175,7 @@ class SharingService:
         Args:
             share_id: Share ID to update
             update_request: New permission level
-            current_user: User performing the update
+            current_user: User performing the update, None if auth_mode='none'
 
         Returns:
             Updated VehicleShareResponse
@@ -189,8 +196,12 @@ class SharingService:
             result = await self.db.execute(select(Vehicle).where(Vehicle.vin == share.vehicle_vin))
             vehicle = result.scalar_one_or_none()
 
-            # Check authorization (owner or admin)
-            if not current_user.is_admin and (not vehicle or vehicle.user_id != current_user.id):
+            # Check authorization (owner or admin). None is auth off, treated like an admin.
+            if (
+                current_user is not None
+                and not current_user.is_admin
+                and (not vehicle or vehicle.user_id != current_user.id)
+            ):
                 raise HTTPException(
                     status_code=403,
                     detail="Only the owner or an admin can update this share",
@@ -213,7 +224,7 @@ class SharingService:
                 "Share %s permission updated to %s by user %s",
                 share_id,
                 update_request.permission,
-                current_user.username,
+                current_user.username if current_user else "<auth disabled>",
             )
 
             return VehicleShareResponse(
@@ -244,7 +255,7 @@ class SharingService:
 
         Args:
             share_id: Share ID to revoke
-            current_user: User performing the revocation
+            current_user: User performing the revocation, None if auth_mode='none'
 
         Raises:
             HTTPException 403: If user is not owner or admin
@@ -262,8 +273,12 @@ class SharingService:
             result = await self.db.execute(select(Vehicle).where(Vehicle.vin == share.vehicle_vin))
             vehicle = result.scalar_one_or_none()
 
-            # Check authorization (owner or admin)
-            if not current_user.is_admin and (not vehicle or vehicle.user_id != current_user.id):
+            # Check authorization (owner or admin). None is auth off, treated like an admin.
+            if (
+                current_user is not None
+                and not current_user.is_admin
+                and (not vehicle or vehicle.user_id != current_user.id)
+            ):
                 raise HTTPException(
                     status_code=403,
                     detail="Only the owner or an admin can revoke this share",
@@ -276,7 +291,7 @@ class SharingService:
             logger.info(
                 "Share %s revoked by user %s",
                 share_id,
-                current_user.username,
+                current_user.username if current_user else "<auth disabled>",
             )
 
         except OperationalError as e:
@@ -298,7 +313,7 @@ class SharingService:
 
         Args:
             vin: Vehicle VIN
-            current_user: User requesting the list
+            current_user: User requesting the list, None if auth_mode='none'
 
         Returns:
             Tuple of (shares list, total count)
@@ -315,8 +330,12 @@ class SharingService:
             if not vehicle:
                 raise HTTPException(status_code=404, detail="Vehicle not found")
 
-            # Check authorization (owner or admin)
-            if not current_user.is_admin and vehicle.user_id != current_user.id:
+            # Check authorization (owner or admin). None is auth off, treated like an admin.
+            if (
+                current_user is not None
+                and not current_user.is_admin
+                and vehicle.user_id != current_user.id
+            ):
                 raise HTTPException(
                     status_code=403,
                     detail="Only the owner or an admin can view shares",

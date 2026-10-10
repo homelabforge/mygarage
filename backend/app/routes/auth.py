@@ -559,7 +559,7 @@ async def create_user(
 
     logger.info(
         "Admin %s created new user: %s",
-        sanitize_for_log(current_user.username),
+        sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
         sanitize_for_log(new_user.username),
     )
 
@@ -771,7 +771,7 @@ async def admin_reset_user_password(
 
     logger.info(
         "Admin %s reset password for user: %s",
-        sanitize_for_log(current_user.username),
+        sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
         sanitize_for_log(user.username),
     )
 

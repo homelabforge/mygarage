@@ -258,6 +258,21 @@ async def get_current_admin_user(
     return current_user
 
 
+def sign_in_required(action: str) -> HTTPException:
+    """The 400 for a write that has to record who did it, when auth is off.
+
+    Same shape as `widget_keys_require_auth`: the sentinel sits in
+    `detail.detail` so the UI can match on it.
+    """
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail={
+            "detail": "requires_sign_in",
+            "message": f"{action} requires auth_mode=local or oidc.",
+        },
+    )
+
+
 async def authenticate_user(db: AsyncSession, username: str, password: str) -> User | None:
     """Authenticate a user by username and password.
 
