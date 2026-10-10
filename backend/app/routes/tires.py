@@ -39,7 +39,7 @@ async def list_tires(
     vin: str,
     include_retired: bool = False,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireListResponse:
     """List a vehicle's tires, with distance and wear.
 
@@ -54,7 +54,7 @@ async def create_tire(
     vin: str,
     data: TireCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Create a tire. It is not mounted until you mount it.
 
@@ -71,7 +71,7 @@ async def rotate_tires(
     vin: str,
     data: TireRotationRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireListResponse:
     """Move several tires at once.
 
@@ -87,7 +87,7 @@ async def create_and_mount_tire(
     vin: str,
     data: TireCreateAndMountRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Create a tire and mount it in one step.
 
@@ -104,7 +104,7 @@ async def mount_tire(
     tire_id: int,
     data: TireMountRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Mount a stored tire at a position, opening a mount period.
 
@@ -119,7 +119,7 @@ async def retire_tire(
     tire_id: int,
     data: TireDismountRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Retire a tire: take it off the vehicle and keep its whole history.
 
@@ -134,7 +134,7 @@ async def restore_tire(
     vin: str,
     tire_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Un-retire a tire: back to storage, history intact. 409 if it is not retired."""
     return await TireService(db).restore_tire(vin, tire_id, current_user)
@@ -146,7 +146,7 @@ async def create_mount_period(
     tire_id: int,
     data: MountPeriodCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Record a closed period the tire spent on a corner in the past.
 
@@ -163,7 +163,7 @@ async def update_mount_period(
     period_id: int,
     data: MountPeriodUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Correct one mount period's dates, odometers or notes.
 
@@ -182,7 +182,7 @@ async def dismount_tire(
     tire_id: int,
     data: TireDismountRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Take a tire off the vehicle, closing its open mount period.
 
@@ -197,7 +197,7 @@ async def update_tire(
     tire_id: int,
     data: TireUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Update tire metadata / latest tread without adding a history reading."""
     return await TireService(db).update_tire(vin, tire_id, data, current_user)
@@ -208,7 +208,7 @@ async def delete_tire(
     vin: str,
     tire_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Remove a tire position record and its readings."""
     await TireService(db).delete_tire(vin, tire_id, current_user)
@@ -224,7 +224,7 @@ async def add_tire_reading(
     tire_id: int,
     data: TireReadingCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireResponse:
     """Append a tread/pressure reading and refresh wear projection + reminders."""
     return await TireService(db).add_reading(vin, tire_id, data, current_user)
@@ -236,7 +236,7 @@ async def delete_tire_reading(
     tire_id: int,
     reading_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete one reading, for one logged with the wrong odometer or date.
 
@@ -260,7 +260,7 @@ async def delete_tire_reading(
 async def list_tire_sets(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireSetListResponse:
     """Every tire set for a vehicle, with its membership."""
     return await TireSetService(db).list_sets(vin, current_user)
@@ -271,7 +271,7 @@ async def create_tire_set(
     vin: str,
     data: TireSetCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireSetResponse:
     """Name a new, empty set. Tires join it through `PUT /tires/{id}`."""
     return await TireSetService(db).create_set(vin, data, current_user)
@@ -283,7 +283,7 @@ async def update_tire_set(
     set_id: int,
     data: TireSetUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireSetResponse:
     """Rename a set, or change its notes."""
     return await TireSetService(db).update_set(vin, set_id, data, current_user)
@@ -294,7 +294,7 @@ async def delete_tire_set(
     vin: str,
     set_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a set. Its tires survive, ungrouped."""
     await TireSetService(db).delete_set(vin, set_id, current_user)
@@ -306,7 +306,7 @@ async def mount_tire_set(
     set_id: int,
     data: TireSetMountRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TireListResponse:
     """Fit every tire in a set, each at the corner it was last on.
 

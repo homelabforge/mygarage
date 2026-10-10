@@ -42,7 +42,7 @@ export default function Register() {
   // Check if this will be the first user
   useEffect(() => {
     api.get('/auth/users/count')
-      .then(res => setIsFirstUser(res.data.count === 0))
+      .then(res => setIsFirstUser(res.data.has_users === false))
       .catch(() => setIsFirstUser(false))
   }, [])
 

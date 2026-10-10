@@ -28,7 +28,7 @@ class VendorService:
 
     async def list_vendors(
         self,
-        current_user: User,
+        current_user: User | None,
         skip: int = 0,
         limit: int = 100,
         search: str | None = None,
@@ -86,7 +86,7 @@ class VendorService:
             logger.error("Database connection error listing vendors: %s", sanitize_for_log(e))
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def get_vendor(self, vendor_id: int, current_user: User) -> Vendor:
+    async def get_vendor(self, vendor_id: int, current_user: User | None) -> Vendor:
         """
         Get a specific vendor by ID.
 
@@ -108,7 +108,7 @@ class VendorService:
 
         return vendor
 
-    async def create_vendor(self, vendor_data: VendorCreate, current_user: User) -> Vendor:
+    async def create_vendor(self, vendor_data: VendorCreate, current_user: User | None) -> Vendor:
         """
         Create a new vendor.
 
@@ -143,7 +143,7 @@ class VendorService:
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_vendor(
-        self, vendor_id: int, vendor_data: VendorUpdate, current_user: User
+        self, vendor_id: int, vendor_data: VendorUpdate, current_user: User | None
     ) -> Vendor:
         """
         Update an existing vendor.
@@ -191,7 +191,7 @@ class VendorService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def delete_vendor(self, vendor_id: int, current_user: User) -> None:
+    async def delete_vendor(self, vendor_id: int, current_user: User | None) -> None:
         """
         Delete a vendor.
 

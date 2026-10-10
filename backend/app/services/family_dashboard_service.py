@@ -56,7 +56,7 @@ class FamilyDashboardService:
 
     async def get_family_dashboard(
         self,
-        current_user: User,
+        current_user: User | None,
     ) -> FamilyDashboardResponse:
         """
         Get family dashboard data.
@@ -65,7 +65,7 @@ class FamilyDashboardService:
         plus the admin's own vehicles.
 
         Args:
-            current_user: Admin user requesting the dashboard
+            current_user: Admin user requesting the dashboard, None if auth_mode='none'
 
         Returns:
             FamilyDashboardResponse with aggregated family data
@@ -73,7 +73,8 @@ class FamilyDashboardService:
         Raises:
             HTTPException 403: If user is not admin
         """
-        if not current_user.is_admin:
+        # None is auth off, treated like an admin.
+        if current_user is not None and not current_user.is_admin:
             raise HTTPException(
                 status_code=403,
                 detail="Admin privileges required for family dashboard",
@@ -91,10 +92,11 @@ class FamilyDashboardService:
             )
             dashboard_users = _in_dashboard_order(result.scalars().all())
 
-            # Ensure admin is always included (at position 0 if not already in list)
-            admin_in_list = any(u.id == current_user.id for u in dashboard_users)
-            if not admin_in_list:
-                # Prepend admin to the list
+            # Ensure admin is always included (at position 0 if not already in list).
+            # With auth off there's no admin to add.
+            if current_user is not None and not any(
+                u.id == current_user.id for u in dashboard_users
+            ):
                 dashboard_users.insert(0, current_user)
 
             # Build member data for each user
@@ -259,7 +261,7 @@ class FamilyDashboardService:
         self,
         user_id: int,
         update_request: FamilyMemberUpdateRequest,
-        current_user: User,
+        current_user: User | None,
     ) -> FamilyMemberData:
         """
         Update a user's family dashboard display settings.
@@ -267,7 +269,7 @@ class FamilyDashboardService:
         Args:
             user_id: User ID to update
             update_request: New display settings
-            current_user: Admin user making the update
+            current_user: Admin user making the update, None if auth_mode='none'
 
         Returns:
             Updated FamilyMemberData
@@ -276,7 +278,7 @@ class FamilyDashboardService:
             HTTPException 403: If user is not admin
             HTTPException 404: If user not found
         """
-        if not current_user.is_admin:
+        if current_user is not None and not current_user.is_admin:
             raise HTTPException(
                 status_code=403,
                 detail="Admin privileges required to update dashboard settings",
@@ -301,10 +303,10 @@ class FamilyDashboardService:
 
             logger.info(
                 "Updated family dashboard settings for user %s (show=%s, order=%s) by admin %s",
-                user.username,
+                sanitize_for_log(user.username),
                 update_request.show_on_family_dashboard,
                 update_request.family_dashboard_order,
-                current_user.username,
+                sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
             )
 
             # Return updated member data
@@ -321,7 +323,7 @@ class FamilyDashboardService:
 
     async def get_all_users_for_dashboard_management(
         self,
-        current_user: User,
+        current_user: User | None,
     ) -> list[FamilyMemberData]:
         """
         Get all active users for dashboard management.
@@ -330,7 +332,7 @@ class FamilyDashboardService:
         allowing admin to toggle visibility and set order.
 
         Args:
-            current_user: Admin user requesting the list
+            current_user: Admin user requesting the list, None if auth_mode='none'
 
         Returns:
             List of FamilyMemberData for all active users
@@ -338,7 +340,7 @@ class FamilyDashboardService:
         Raises:
             HTTPException 403: If user is not admin
         """
-        if not current_user.is_admin:
+        if current_user is not None and not current_user.is_admin:
             raise HTTPException(
                 status_code=403,
                 detail="Admin privileges required for dashboard management",

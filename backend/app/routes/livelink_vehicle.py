@@ -136,7 +136,7 @@ def _union_capabilities(devices: Sequence[LiveLinkDevice]) -> list[str]:
 async def get_vehicle_livelink_status(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get live status for a vehicle's LiveLink connection.
@@ -241,7 +241,7 @@ async def get_vehicle_livelink_status(
 async def list_vehicle_parameters(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     List the parameters this vehicle actually reports.
@@ -283,7 +283,7 @@ async def get_vehicle_telemetry(
     param_keys: str | None = Query(None, description="Comma-separated parameter keys"),
     limit: int = Query(10000, ge=1, le=100000, description="Max data points per parameter"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get historical telemetry data for a vehicle.
@@ -373,7 +373,7 @@ async def list_vehicle_sessions(
         True, description="Include sessions with no evidence the vehicle moved"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get drive sessions for a vehicle.
@@ -426,7 +426,7 @@ async def get_session_detail(
     vin: str,
     session_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get detailed information about a drive session.
@@ -515,7 +515,7 @@ async def list_vehicle_dtcs(
     include_cleared: bool = Query(False, description="Include cleared DTCs"),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get DTCs for a vehicle.
@@ -561,7 +561,7 @@ async def get_dtc_detail(
     vin: str,
     dtc_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get detailed information about a DTC.
@@ -595,7 +595,7 @@ async def update_dtc(
     dtc_id: int,
     updates: VehicleDTCUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Update a DTC (user notes, custom description/severity).
@@ -630,7 +630,7 @@ async def clear_dtc(
     dtc_id: int,
     request: DTCClearRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Mark a DTC as cleared.
@@ -677,7 +677,7 @@ async def export_telemetry(
     format: str = Query("csv", description="Export format: csv or json"),
     param_keys: str | None = Query(None, description="Comma-separated parameter keys"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Export telemetry data as CSV or JSON.
@@ -753,7 +753,7 @@ async def export_sessions(
     end: datetime | None = Query(None, description="Filter by end time"),
     format: str = Query("csv", description="Export format: csv or json"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Export drive sessions as CSV or JSON.
@@ -852,7 +852,7 @@ async def get_trips(
     vin: str,
     limit: int = Query(50, ge=1, le=500, description="Max trips to return"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TripListResponse:
     """
     Get GPS-tracked trips (drive sessions with >=1 location point) for a vehicle.
@@ -878,7 +878,7 @@ async def get_trip_points(
     vin: str,
     session_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TripPointsResponse:
     """
     Get a trip's GPS points as an ordered polyline (for map rendering).
@@ -924,7 +924,7 @@ async def get_trip_points(
 async def get_last_location(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> LastLocationResponse | None:
     """
     Get the vehicle's most recent GPS location point, if any.
@@ -958,7 +958,7 @@ async def update_location_tracking(
     vin: str,
     payload: LocationTrackingUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> LocationTrackingResponse:
     """
     Set the vehicle's GPS location-tracking opt-out flag (R1-H4).
@@ -992,7 +992,7 @@ async def create_torque_source(
     payload: TorqueSourceCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TorqueSourceCreateResponse:
     """
     Register a new Torque Pro upload source for this vehicle.
@@ -1029,7 +1029,7 @@ async def create_torque_source(
 async def list_torque_sources(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TorqueSourceListResponse:
     """
     List this vehicle's registered Torque Pro sources (no token).
@@ -1069,7 +1069,7 @@ async def delete_torque_source(
     vin: str,
     device_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """
     Revoke (delete) a Torque Pro source.

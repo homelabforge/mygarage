@@ -76,7 +76,7 @@ class ServiceVisitService:
         self.db = db
 
     async def list_service_visits(
-        self, vin: str, current_user: User, skip: int = 0, limit: int = 100
+        self, vin: str, current_user: User | None, skip: int = 0, limit: int = 100
     ) -> tuple[list[ServiceVisitResponse], int]:
         """
         Get all service visits for a vehicle.
@@ -131,7 +131,9 @@ class ServiceVisitService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def get_service_visit(self, vin: str, visit_id: int, current_user: User) -> ServiceVisit:
+    async def get_service_visit(
+        self, vin: str, visit_id: int, current_user: User | None
+    ) -> ServiceVisit:
         """
         Get a specific service visit by ID.
 
@@ -165,7 +167,7 @@ class ServiceVisitService:
         return visit
 
     async def create_service_visit(
-        self, vin: str, visit_data: ServiceVisitCreate, current_user: User
+        self, vin: str, visit_data: ServiceVisitCreate, current_user: User | None
     ) -> ServiceVisit:
         """
         Create a new service visit with line items.
@@ -383,7 +385,7 @@ class ServiceVisitService:
         vin: str,
         visit_id: int,
         visit_data: ServiceVisitUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> ServiceVisit:
         """
         Update an existing service visit.
@@ -598,7 +600,9 @@ class ServiceVisitService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def delete_service_visit(self, vin: str, visit_id: int, current_user: User) -> None:
+    async def delete_service_visit(
+        self, vin: str, visit_id: int, current_user: User | None
+    ) -> None:
         """
         Delete a service visit.
 
@@ -703,7 +707,7 @@ class ServiceVisitService:
         vin: str,
         visit_id: int,
         item_data: ServiceLineItemCreate,
-        current_user: User,
+        current_user: User | None,
     ) -> ServiceLineItem:
         """
         Add a line item to an existing service visit.
@@ -800,7 +804,7 @@ class ServiceVisitService:
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_line_item(
-        self, vin: str, visit_id: int, line_item_id: int, current_user: User
+        self, vin: str, visit_id: int, line_item_id: int, current_user: User | None
     ) -> None:
         """
         Delete a line item from a service visit.

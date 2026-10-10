@@ -5,7 +5,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.location_point import LocationPoint
@@ -49,6 +49,9 @@ async def test_prune_old_deletes_points_past_retention_keeps_recent(
 ):
     """prune_old(90) deletes a point older than 90 days, keeps a point from
     yesterday, and returns the count of rows deleted.
+
+    The test DB is shared across the run, so other suites' old points get
+    pruned too. Expect everything past the cutoff, not just ours.
     """
     vin = await _make_vehicle(db_session)
     service = LocationService(db_session)
@@ -72,9 +75,14 @@ async def test_prune_old_deletes_points_past_retention_keeps_recent(
     db_session.add_all([old_point, recent_point])
     await db_session.commit()
 
+    # Same cutoff as prune_old. Only a row landing in the ms between the two calls could split them.
+    cutoff = utc_now() - timedelta(days=90)
+    past_cutoff = select(func.count(LocationPoint.id)).where(LocationPoint.timestamp < cutoff)
+    expected = (await db_session.execute(past_cutoff)).scalar_one()
+
     deleted_count = await service.prune_old(90)
 
-    assert deleted_count == 1
+    assert deleted_count == expected
 
     remaining = (
         (await db_session.execute(select(LocationPoint).where(LocationPoint.vin == vin)))
@@ -83,3 +91,4 @@ async def test_prune_old_deletes_points_past_retention_keeps_recent(
     )
     assert len(remaining) == 1
     assert remaining[0].id == recent_point.id
+    assert (await db_session.execute(past_cutoff)).scalar_one() == 0

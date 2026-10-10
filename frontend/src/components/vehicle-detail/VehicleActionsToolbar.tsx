@@ -4,6 +4,7 @@ import {
   ArrowRightLeft, Trash2, MoreVertical,
 } from 'lucide-react'
 import { Button } from '../ui'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface VehicleActionsToolbarProps {
   isAdmin: boolean
@@ -41,6 +42,9 @@ export default function VehicleActionsToolbar({
   onImport, onExport, onOpenModal, onOpenMobileMenu,
 }: VehicleActionsToolbarProps) {
   const { t } = useTranslation('vehicles')
+  // Sharing needs a signed-in user, so it's gone with sign-in off (A-12).
+  const { authMode } = useAuth()
+  const canShare = authMode !== 'none'
   return (
     <>
       {/* Mobile overflow trigger (phones) */}
@@ -102,9 +106,11 @@ export default function VehicleActionsToolbar({
         <Button variant="accentTint" size="sm" icon={BarChart3} onClick={onAnalytics} title={t('detail.analyticsTooltip')}>
           {t('detail.analytics')}
         </Button>
-        <Button variant="secondary" size="sm" icon={Share2} onClick={() => onOpenModal('sharing')} title={t('detail.shareTooltip')}>
-          {t('detail.share')}
-        </Button>
+        {canShare && (
+          <Button variant="secondary" size="sm" icon={Share2} onClick={() => onOpenModal('sharing')} title={t('detail.shareTooltip')}>
+            {t('detail.share')}
+          </Button>
+        )}
         {isAdmin && (
           <button
             onClick={() => onOpenModal('transfer')}

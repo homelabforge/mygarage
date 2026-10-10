@@ -27,7 +27,7 @@ async def list_vendors(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=500, description="Maximum records to return"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get all vendors with optional search.
@@ -49,7 +49,7 @@ async def list_vendors(
 async def get_vendor(
     vendor_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get a specific vendor by ID.
@@ -83,7 +83,7 @@ async def get_vendor(
 async def create_vendor(
     vendor_data: VendorCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Create a new vendor.
@@ -118,7 +118,7 @@ async def update_vendor(
     vendor_id: int,
     vendor_data: VendorUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Update an existing vendor.
@@ -156,7 +156,7 @@ async def update_vendor(
 async def delete_vendor(
     vendor_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Delete a vendor.

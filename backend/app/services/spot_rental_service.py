@@ -32,7 +32,7 @@ class SpotRentalService:
     async def list_rentals(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
     ) -> SpotRentalListResponse:
         """Get all spot rentals for a vehicle.
 
@@ -83,7 +83,7 @@ class SpotRentalService:
         self,
         vin: str,
         rental_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> SpotRentalResponse:
         """Get a specific spot rental by ID.
 
@@ -129,7 +129,7 @@ class SpotRentalService:
         self,
         vin: str,
         data: SpotRentalCreate,
-        current_user: User,
+        current_user: User | None,
     ) -> SpotRentalResponse:
         """Create a new spot rental record.
 
@@ -246,7 +246,7 @@ class SpotRentalService:
         vin: str,
         rental_id: int,
         data: SpotRentalUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> SpotRentalResponse:
         """Update an existing spot rental record.
 
@@ -318,7 +318,7 @@ class SpotRentalService:
         self,
         vin: str,
         rental_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> None:
         """Delete a spot rental record.
 

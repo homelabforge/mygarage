@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -20,6 +20,7 @@ from app.schemas.user import (
     AdminPasswordReset,
     AdminUserCreate,
     AdminUserUpdate,
+    HasUsersResponse,
     LoginRequest,
     Token,
     UnitPreferenceUpdate,
@@ -264,14 +265,17 @@ async def logout(
     return {"message": "Successfully logged out"}
 
 
-@router.get("/users/count")
-async def get_user_count(
+@router.get("/users/count", response_model=HasUsersResponse)
+async def get_has_users(
     db: AsyncSession = Depends(get_db),
-):
-    """Get total number of registered users (public endpoint for registration page)."""
-    result = await db.execute(select(func.count(User.id)))
-    count = result.scalar_one()
-    return {"count": count}
+) -> HasUsersResponse:
+    """Say whether anyone has registered yet.
+
+    Public on purpose, since the Register page asks before anyone can log in.
+    It's a yes or no, so strangers don't get the head count.
+    """
+    result = await db.execute(select(exists(select(User.id))))
+    return HasUsersResponse(has_users=result.scalar_one())
 
 
 @router.get("/relationship-presets")
@@ -456,7 +460,7 @@ async def update_password(
 async def list_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List all users (admin only)."""
@@ -492,7 +496,7 @@ async def get_shareable_users(
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: AdminUserCreate,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new user (admin only).
@@ -555,7 +559,7 @@ async def create_user(
 
     logger.info(
         "Admin %s created new user: %s",
-        sanitize_for_log(current_user.username),
+        sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
         sanitize_for_log(new_user.username),
     )
 
@@ -565,7 +569,7 @@ async def create_user(
 @router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a specific user by ID (admin only)."""
@@ -736,7 +740,7 @@ async def admin_reset_user_password(
     request: Request,
     user_id: int,
     password_data: AdminPasswordReset,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Reset a user's password (admin only).
@@ -767,7 +771,7 @@ async def admin_reset_user_password(
 
     logger.info(
         "Admin %s reset password for user: %s",
-        sanitize_for_log(current_user.username),
+        sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
         sanitize_for_log(user.username),
     )
 

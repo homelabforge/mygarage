@@ -2,6 +2,7 @@
 
 # pyright: reportAssignmentType=false
 
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -21,6 +22,7 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_share import VehicleShare
 from app.schemas.user import TokenData
+from app.utils.logging_utils import sanitize_for_log
 
 # HTTP Bearer token
 security = HTTPBearer(auto_error=False)
@@ -51,6 +53,10 @@ def get_token_from_request(
 # Initialize Argon2 password hasher with recommended parameters
 # time_cost=2, memory_cost=102400 (100MB), parallelism=8
 ph = PasswordHasher(time_cost=2, memory_cost=102400, parallelism=8)
+
+# A login with no password to check (unknown user, SSO-only account) verifies
+# against this instead, so it costs the same as a wrong password. Same ph, same params.
+_DUMMY_HASH = ph.hash(secrets.token_urlsafe(16))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -253,6 +259,21 @@ async def get_current_admin_user(
     return current_user
 
 
+def sign_in_required(action: str) -> HTTPException:
+    """The 400 for a write that has to record who did it, when auth is off.
+
+    Same shape as `widget_keys_require_auth`: the sentinel sits in
+    `detail.detail` so the UI can match on it.
+    """
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail={
+            "detail": "requires_sign_in",
+            "message": f"{action} requires auth_mode=local or oidc.",
+        },
+    )
+
+
 async def authenticate_user(db: AsyncSession, username: str, password: str) -> User | None:
     """Authenticate a user by username and password.
 
@@ -265,20 +286,31 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
 
+    # Both misses burn a dummy verify, or response time says which accounts exist.
     if not user:
+        verify_password(password, _DUMMY_HASH)
         return None
 
     # SECURITY: Reject password login for OIDC-only users (no password set)
     if user.hashed_password is None:
-        logger.warning("Password login attempted for OIDC-only user: %s", username)
+        logger.warning(
+            "Password login attempted for OIDC-only user: %s", sanitize_for_log(username)
+        )
+        verify_password(password, _DUMMY_HASH)
         return None
 
     if not verify_password(password, user.hashed_password):
+        # A legacy bcrypt hash fails without any Argon2 work (bcrypt isn't a
+        # dependency), so pay the dummy too or old accounts stand out.
+        if not user.hashed_password.startswith("$argon2"):
+            verify_password(password, _DUMMY_HASH)
         return None
 
     # Auto-migrate legacy bcrypt hashes to Argon2
     if not user.hashed_password.startswith("$argon2"):
-        logger.info("Auto-migrating password hash to Argon2 for user: %s", username)
+        logger.info(
+            "Auto-migrating password hash to Argon2 for user: %s", sanitize_for_log(username)
+        )
         user.hashed_password = hash_password(password)
         await db.commit()
 

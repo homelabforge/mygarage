@@ -25,7 +25,7 @@ async def garage_assistant_chat(
     vin: str,
     body: GarageAssistantChatRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> GarageAssistantChatResponse:
     """Ask a grounded question about this vehicle (specs, history, diagnostics).
 

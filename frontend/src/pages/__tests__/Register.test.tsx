@@ -12,6 +12,10 @@ vi.mock('../../contexts/AuthContext', () => ({
   }),
 }))
 
+// What /auth/users/count answers. Most tests don't care, so somebody's
+// already registered unless a test says otherwise.
+const usersCount = vi.hoisted(() => ({ hasUsers: true }))
+
 // Mock axios so the api module (imported directly by Register for the
 // /auth/users/count first-user check) doesn't error out on import.
 vi.mock('axios', () => {
@@ -26,7 +30,7 @@ vi.mock('axios', () => {
   }
   const mockAxios: MockAxios = {
     post: vi.fn(() => Promise.resolve({ data: {} })),
-    get: vi.fn(() => Promise.resolve({ data: { count: 1 } })),
+    get: vi.fn(() => Promise.resolve({ data: { has_users: usersCount.hasUsers } })),
     interceptors: {
       request: { use: vi.fn(), eject: vi.fn() },
       response: { use: vi.fn(), eject: vi.fn() },
@@ -41,6 +45,7 @@ import Register from '../Register'
 
 beforeEach(() => {
   registerMock.mockClear()
+  usersCount.hasUsers = true
 })
 
 afterEach(() => {
@@ -146,5 +151,14 @@ describe('Register — server-side 422 field-error wiring', () => {
     await user.click(screen.getByRole('button', { name: 'register.submit' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Too weak')
+  })
+})
+
+describe('Register: first-user check', () => {
+  it('shows the admin badge when nobody has registered yet', async () => {
+    usersCount.hasUsers = false
+    render(<Register />)
+
+    expect(await screen.findByText('registerPage.adminBadge')).toBeInTheDocument()
   })
 })
