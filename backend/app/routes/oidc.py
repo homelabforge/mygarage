@@ -11,7 +11,6 @@ import logging
 import secrets
 from datetime import timedelta
 from typing import Any
-from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -33,7 +32,7 @@ from app.models.csrf_token import CSRFToken
 from app.models.user import User
 from app.services import oidc as oidc_service
 from app.services.auth import create_access_token, get_current_admin_user, get_current_user
-from app.services.oidc.config import effective_oidc_value
+from app.services.oidc.config import checked_redirect_uri, effective_oidc_value
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.request_scheme import get_cookie_secure, get_external_base_url
@@ -231,25 +230,17 @@ async def get_oidc_config(db: AsyncSession = Depends(get_db)):
 
 
 def _checked_redirect_uri(raw: str) -> str:
-    """The callback URL to store: stripped, and blank or an absolute http(s) URL.
-
-    The path isn't checked, since a proxy may rewrite it (users.py already warns
-    on a missing root_path prefix).
+    """The callback URL to store, per ``checked_redirect_uri``, or a 422.
 
     Raises:
         HTTPException 422: If it's neither blank nor an absolute http(s) URL
     """
-    value = raw.strip()
-    if not value:
-        return ""
     try:
-        parts = urlsplit(value)
-        absolute = parts.scheme in ("http", "https") and bool(parts.netloc)
-    except ValueError:
-        absolute = False
-    if not absolute:
-        raise HTTPException(status_code=422, detail="redirect_uri must be an absolute http(s) URL")
-    return value
+        return checked_redirect_uri(raw)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail="redirect_uri must be an absolute http(s) URL"
+        ) from exc
 
 
 @router.get("/config/admin", response_model=OIDCAdminConfig)

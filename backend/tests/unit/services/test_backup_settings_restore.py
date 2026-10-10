@@ -15,11 +15,16 @@ anonymous client and every ``auth_mode=none`` client the imperial preset. On a
 UK or metric instance that is about a twenty percent error in every volume,
 every price per volume and every fuel economy, with nothing in any response to
 say it happened.
+
+The same goes for ``oidc_redirect_uri``: the SSO settings re-send the stored pin
+with every save, so a bad one restored here makes each of those a 422.
 """
 
 from __future__ import annotations
 
 import json
+import logging
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -173,3 +178,105 @@ async def test_a_settings_name_outside_the_backup_folder_is_not_read(
 
     with pytest.raises(FileNotFoundError):
         await service.restore_settings_backup("../outside.json", db_session, create_safety=False)
+
+
+REDIRECT_URI_KEY = "oidc_redirect_uri"
+PINNED = "https://garage.example.com/api/auth/oidc/callback"
+
+
+@pytest_asyncio.fixture
+async def pinned_redirect_uri(db_session: AsyncSession) -> AsyncIterator[None]:
+    """A known pin for the restore to keep or replace; the original row goes back afterwards."""
+    row = (
+        await db_session.execute(select(Setting).where(Setting.key == REDIRECT_URI_KEY))
+    ).scalar_one_or_none()
+    saved = None if row is None else (row.value, row.category, row.description, row.encrypted)
+    await db_session.execute(delete(Setting).where(Setting.key == REDIRECT_URI_KEY))
+    db_session.add(Setting(key=REDIRECT_URI_KEY, value=PINNED, category="security"))
+    await db_session.commit()
+    # Asserted, not assumed, as above.
+    assert await _stored(db_session, REDIRECT_URI_KEY) == PINNED
+    yield
+    await db_session.rollback()
+    await db_session.execute(delete(Setting).where(Setting.key == REDIRECT_URI_KEY))
+    if saved is not None:
+        value, category, description, encrypted = saved
+        db_session.add(
+            Setting(
+                key=REDIRECT_URI_KEY,
+                value=value,
+                category=category,
+                description=description,
+                encrypted=encrypted,
+            )
+        )
+    await db_session.commit()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("pinned_redirect_uri")
+class TestSettingsRestoreValidatesOidcRedirectUri:
+    """A restored pin gets the same check as the settings routes and the SSO PUT."""
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            pytest.param("ftp://garage.example.com/api/auth/oidc/callback", id="non_http_scheme"),
+            pytest.param("https://", id="hostless"),
+            pytest.param("https://garage.example.com\n.evil.example/cb", id="embedded_newline"),
+        ],
+    )
+    async def test_a_bad_pin_is_skipped_and_the_stored_row_survives(
+        self,
+        db_session: AsyncSession,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+        bad: str,
+    ) -> None:
+        caplog.set_level(logging.WARNING, logger="app.services.backup_service")
+        service = _service(tmp_path)
+        filename = _write_backup(
+            service,
+            [
+                {"key": REDIRECT_URI_KEY, "value": bad, "category": "security"},
+                {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+            ],
+        )
+
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+        assert await _stored(db_session, REDIRECT_URI_KEY) == PINNED
+        assert await _stored(db_session, COMPANION_KEY) == "restored"
+        assert details["restored_count"] == 1
+        warnings = [
+            r.getMessage()
+            for r in caplog.records
+            if r.name == "app.services.backup_service" and r.levelno == logging.WARNING
+        ]
+        assert warnings == [
+            f"Skipping {REDIRECT_URI_KEY} during restore: not a blank or absolute http(s) URL"
+        ]
+
+    @pytest.mark.parametrize(
+        "value",
+        ["https://other.example.com/api/auth/oidc/callback", ""],
+        ids=["pinned", "blank"],
+    )
+    async def test_a_good_pin_or_blank_still_restores(
+        self, db_session: AsyncSession, tmp_path: Path, value: str
+    ) -> None:
+        """Control: the mirror, so the guard can't pass by skipping every pin."""
+        service = _service(tmp_path)
+        filename = _write_backup(
+            service,
+            [
+                {"key": REDIRECT_URI_KEY, "value": value, "category": "security"},
+                {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+            ],
+        )
+
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+        assert await _stored(db_session, REDIRECT_URI_KEY) == value
+        assert details["restored_count"] == 2

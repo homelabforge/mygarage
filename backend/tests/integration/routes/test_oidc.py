@@ -802,8 +802,17 @@ class TestAdminRedirectUri:
 
     @pytest.mark.parametrize(
         "bad",
-        ["ftp://x", "not a url", "https://", "https://[garage.example.com"],
-        ids=["ftp", "no-scheme", "no-host", "unparseable"],
+        [
+            "ftp://x",
+            "not a url",
+            "https://",
+            "https://[garage.example.com",
+            # urlsplit drops tabs and newlines before it parses, so these looked fine.
+            "https://x\n.evil",
+            "https://x\t.evil",
+            "https://x .evil",
+        ],
+        ids=["ftp", "no-scheme", "no-host", "unparseable", "newline", "tab", "space"],
     )
     async def test_put_refuses_anything_but_an_absolute_http_url(
         self, client: AsyncClient, auth_headers, db_session, bad: str

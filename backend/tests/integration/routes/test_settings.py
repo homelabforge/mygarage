@@ -636,25 +636,33 @@ BAD_UNIT_PREFS = {
 }
 
 
-async def _write_through(client: AsyncClient, endpoint: str, headers, db_session, raw: str):
-    """Send `raw` as `default_unit_prefs` through one named write endpoint.
+async def _write_through(
+    client: AsyncClient,
+    endpoint: str,
+    headers,
+    db_session,
+    raw: str,
+    *,
+    key: str = "default_unit_prefs",
+    seed: str = GOOD_UNIT_PREFS,
+):
+    """Send `raw` as `key` (`default_unit_prefs` unless told) through one named write endpoint.
 
     Each path is set up so it can actually reach its write: `create_setting`
     409s on an existing row and `update_setting` 404s on a missing one, so the
-    row is removed or seeded accordingly. An unasserted setup that silently
-    404'd would leave the assertion below testing nothing.
+    row is removed or seeded (with `seed`) accordingly. An unasserted setup that
+    silently 404'd would leave the assertion below testing nothing.
 
     :returns: the response.
     """
-    key = "default_unit_prefs"
     if endpoint == "create_setting":
         await _delete_setting(db_session, key)
         return await client.post("/api/settings", headers=headers, json={"key": key, "value": raw})
     if endpoint == "update_setting":
-        await _set_setting(db_session, key, GOOD_UNIT_PREFS)
+        await _set_setting(db_session, key, seed)
         return await client.put(f"/api/settings/{key}", headers=headers, json={"value": raw})
     if endpoint == "batch_update_settings":
-        await _set_setting(db_session, key, GOOD_UNIT_PREFS)
+        await _set_setting(db_session, key, seed)
         return await client.post(
             "/api/settings/batch", headers=headers, json={"settings": {key: raw}}
         )
@@ -724,6 +732,96 @@ class TestDefaultUnitPrefsWriteValidation:
             assert await _stored_value(db_session, "default_unit_prefs") == OTHER_GOOD_UNIT_PREFS
         finally:
             await _delete_setting(db_session, "default_unit_prefs")
+
+
+REDIRECT_URI_KEY = "oidc_redirect_uri"
+GOOD_REDIRECT_URI = "https://garage.example.com/api/auth/oidc/callback"
+OTHER_GOOD_REDIRECT_URI = "https://other.example.com/mygarage/api/auth/oidc/callback"
+BAD_REDIRECT_URIS = {
+    "non_http_scheme": "ftp://garage.example.com/api/auth/oidc/callback",
+    "hostless": "https://",
+    # urlsplit drops the newline before it parses, so this looked like a good URL.
+    "embedded_newline": "https://garage.example.com\n.evil.example/api/auth/oidc/callback",
+}
+
+
+@pytest_asyncio.fixture
+async def redirect_uri_row(db_session) -> AsyncIterator[None]:
+    """Put the stored oidc_redirect_uri row back afterwards, since the suite shares one DB."""
+    row = (
+        await db_session.execute(select(Setting).where(Setting.key == REDIRECT_URI_KEY))
+    ).scalar_one_or_none()
+    saved = None if row is None else (row.value, row.category, row.description, row.encrypted)
+    yield
+    await db_session.rollback()
+    await db_session.execute(delete(Setting).where(Setting.key == REDIRECT_URI_KEY))
+    if saved is not None:
+        value, category, description, encrypted = saved
+        db_session.add(
+            Setting(
+                key=REDIRECT_URI_KEY,
+                value=value,
+                category=category,
+                description=description,
+                encrypted=encrypted,
+            )
+        )
+    await db_session.commit()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("redirect_uri_row")
+class TestOidcRedirectUriWriteValidation:
+    """A pinned SSO callback URL is blank or an absolute http(s) URL, on every write path.
+
+    The SSO settings PUT re-sends the stored pin with every OIDC save, so a bad
+    one written here made each of those 422, the auth-mode switch included.
+    """
+
+    @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
+    @pytest.mark.parametrize("case", sorted(BAD_REDIRECT_URIS))
+    async def test_a_bad_pin_is_rejected(
+        self, client: AsyncClient, auth_headers, db_session, endpoint: str, case: str
+    ):
+        """Each path refuses it and leaves the stored row alone."""
+        response = await _write_through(
+            client,
+            endpoint,
+            auth_headers,
+            db_session,
+            BAD_REDIRECT_URIS[case],
+            key=REDIRECT_URI_KEY,
+            seed=GOOD_REDIRECT_URI,
+        )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"] == (
+            f"Setting '{REDIRECT_URI_KEY}' must be blank or an absolute http(s) URL"
+        )
+        if endpoint == "create_setting":
+            assert not await _has_row(db_session, REDIRECT_URI_KEY)
+        else:
+            assert await _stored_value(db_session, REDIRECT_URI_KEY) == GOOD_REDIRECT_URI
+
+    @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
+    @pytest.mark.parametrize("value", [OTHER_GOOD_REDIRECT_URI, ""], ids=["pinned", "blank"])
+    async def test_a_good_pin_or_blank_still_writes(
+        self, client: AsyncClient, auth_headers, db_session, endpoint: str, value: str
+    ):
+        """Control: the guard isn't a blanket refusal, and blank still clears the pin."""
+        response = await _write_through(
+            client,
+            endpoint,
+            auth_headers,
+            db_session,
+            value,
+            key=REDIRECT_URI_KEY,
+            seed=GOOD_REDIRECT_URI,
+        )
+
+        assert response.status_code in (200, 201), response.text
+        assert await _stored_value(db_session, REDIRECT_URI_KEY) == value
 
 
 # ---------------------------------------------------------------------------

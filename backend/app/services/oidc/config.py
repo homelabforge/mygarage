@@ -6,7 +6,9 @@ provider metadata via the standard OpenID Connect discovery endpoint.
 
 import datetime as dt
 import logging
+import unicodedata
 from typing import Any, cast
+from urllib.parse import urlsplit
 
 import httpx
 from sqlalchemy import select
@@ -26,6 +28,37 @@ OIDC_DEFAULTS: dict[str, str] = {
     "email_claim": "email",
     "full_name_claim": "name",
 }
+
+#: The settings row that pins SSO's callback URL.
+OIDC_REDIRECT_URI_KEY = "oidc_redirect_uri"
+
+
+def checked_redirect_uri(raw: str) -> str:
+    """The SSO callback pin to store: stripped, and blank or an absolute http(s) URL.
+
+    Absolute means an http or https scheme and a host. Whitespace or a control
+    character anywhere inside is refused too: urlsplit drops tabs and newlines
+    before it parses, so it saw a fine URL while the raw value got stored. The
+    path isn't checked, since a proxy may rewrite it (create_authorization_url
+    already warns on a missing root_path prefix). Every writer of the row calls
+    this: the SSO settings PUT, the settings routes and the settings restore.
+
+    Raises:
+        ValueError: If it's neither blank nor an absolute http(s) URL
+    """
+    value = raw.strip()
+    if not value:
+        return ""
+    rule = "must be blank or an absolute http(s) URL"
+    if any(ch.isspace() or unicodedata.category(ch) == "Cc" for ch in value):
+        raise ValueError(rule)
+    try:
+        parts = urlsplit(value)
+    except ValueError as exc:
+        raise ValueError(rule) from exc
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        raise ValueError(rule)
+    return value
 
 
 def provider_json(
