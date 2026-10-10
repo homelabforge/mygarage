@@ -14,3 +14,14 @@ def utc_now() -> datetime:
     and offset-aware datetimes' error with PostgreSQL asyncpg driver.
     """
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def to_naive_utc(value: datetime) -> datetime:
+    """The UTC wall clock of `value`, naive.
+
+    Aware values are converted; naive values are returned unchanged, because
+    MyGarage stores naive UTC everywhere (see `utc_now`).
+    """
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(UTC).replace(tzinfo=None)

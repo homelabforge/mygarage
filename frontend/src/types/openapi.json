@@ -30060,7 +30060,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional device timestamp for replay support",
+            "description": "Optional device timestamp for replay support; naive values are read as UTC",
             "title": "Timestamp"
           }
         },

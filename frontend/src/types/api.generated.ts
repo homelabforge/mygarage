@@ -19747,7 +19747,7 @@ export interface components {
             status?: components["schemas"]["WiCANStatus"] | null;
             /**
              * Timestamp
-             * @description Optional device timestamp for replay support
+             * @description Optional device timestamp for replay support; naive values are read as UTC
              */
             timestamp?: string | null;
         };

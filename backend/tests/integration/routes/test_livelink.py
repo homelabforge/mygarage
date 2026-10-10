@@ -6,6 +6,8 @@ Note: The /ingest endpoint uses token-based auth (not JWT), so these tests
 verify the token validation flow.
 """
 
+import uuid
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,7 +17,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_device import LiveLinkDevice
+from app.models.livelink_parameter import LiveLinkParameter
+from app.models.vehicle import Vehicle
+from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
 from app.schemas.livelink_ingest import WiCANStatus
+from app.services.livelink_service import LiveLinkService
 
 BLANKABLE_STATUS_FIELDS = ["fw_version", "hw_version", "git_version", "sta_ip"]
 
@@ -247,6 +253,84 @@ def test_the_blank_normaliser_leaves_anything_that_isnt_blank_text_alone(field: 
     assert getattr(WiCANStatus(device_id="aabbccddeeff", **{field: None}), field) is None
     with pytest.raises(ValidationError):
         WiCANStatus(device_id="aabbccddeeff", **{field: 4.45})
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_tz_aware_ingest_timestamp_is_stored_as_utc(
+    client: AsyncClient, db_session: AsyncSession, test_user: dict[str, object]
+) -> None:
+    """A device timestamp with an offset is stored as its UTC wall clock.
+
+    SQLite used to drop the offset (12:00+02:00 stored as 12:00) and asyncpg
+    refused the aware value, rolling the whole batch back with processing_error.
+    """
+    suffix = uuid.uuid4().hex[:10]
+    vin = f"TZINGEST{suffix.upper()}"[:17]
+    device_id = f"tzing{suffix}"
+    # Telemetry-only payloads find their device by token. A per-device token
+    # keeps that lookup off whatever other enabled devices the shared DB holds.
+    token = f"tz-ingest-{suffix}"
+    db_session.add(
+        Vehicle(vin=vin, user_id=test_user["id"], nickname="TZ ingest", vehicle_type="Car")
+    )
+    await db_session.flush()
+    db_session.add(
+        LiveLinkDevice(
+            device_id=device_id,
+            vin=vin,
+            enabled=True,
+            device_token_hash=LiveLinkService.hash_token(token),
+        )
+    )
+    # The ingest auto-registers the param in a table every test shares, so
+    # only drop it afterwards if this test is the one that created it.
+    param_created = (
+        await db_session.execute(
+            select(LiveLinkParameter.id).where(LiveLinkParameter.param_key == "ENGINE_RPM")
+        )
+    ).scalar_one_or_none() is None
+    await db_session.commit()
+    try:
+        with patch("app.routes.livelink.validate_livelink_token", new_callable=AsyncMock):
+            response = await client.post(
+                "/api/v1/livelink/ingest",
+                json={
+                    "autopid_data": {"ENGINE_RPM": 800},
+                    "timestamp": "2026-10-10T12:00:00+02:00",
+                },
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        assert response.status_code == 202
+        assert response.json()["device_id"] == device_id
+        assert "processing_error" not in response.json()
+        db_session.expire_all()
+        stored = (
+            await db_session.execute(
+                select(VehicleTelemetry.timestamp).where(
+                    VehicleTelemetry.device_id == device_id,
+                    VehicleTelemetry.param_key == "ENGINE_RPM",
+                )
+            )
+        ).scalar_one()
+        assert stored == datetime(2026, 10, 10, 10, 0)
+    finally:
+        await db_session.rollback()
+        await db_session.execute(delete(VehicleTelemetry).where(VehicleTelemetry.vin == vin))
+        await db_session.execute(
+            delete(VehicleTelemetryLatest).where(VehicleTelemetryLatest.vin == vin)
+        )
+        await db_session.execute(
+            delete(LiveLinkDevice).where(LiveLinkDevice.device_id == device_id)
+        )
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+        if param_created:
+            await db_session.execute(
+                delete(LiveLinkParameter).where(LiveLinkParameter.param_key == "ENGINE_RPM")
+            )
+        await db_session.commit()
 
 
 @pytest.mark.integration

@@ -7,6 +7,8 @@ helpers that are thin wrappers over a single query — those tests still live
 under unit/ by existing convention (see test_odometer_sync.py, test_def_sync.py).
 """
 
+import time
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -103,3 +105,17 @@ def mock_user_data():
         "is_superuser": False,
         "created_at": datetime.now(),
     }
+
+
+@pytest.fixture
+def local_clock_off_utc(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Put the process clock five hours west of UTC for one test.
+
+    A naive value fed to `astimezone` is read as LOCAL time, so in a UTC
+    container a naive-as-local bug looks right and no test can tell.
+    """
+    monkeypatch.setenv("TZ", "EST5")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
