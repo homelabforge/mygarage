@@ -5004,6 +5004,82 @@
         "title": "EngineInfo",
         "type": "object"
       },
+      "EuropeanVINTestRequest": {
+        "description": "Request schema for European VIN test connection endpoint.",
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional AutoRef API key to test",
+            "title": "Api Key"
+          }
+        },
+        "title": "EuropeanVINTestRequest",
+        "type": "object"
+      },
+      "EuropeanVINTestResponse": {
+        "description": "Response schema for European VIN test connection endpoint.",
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total decode limit for plan",
+            "title": "Limit"
+          },
+          "message": {
+            "description": "Human-readable result message",
+            "title": "Message",
+            "type": "string"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current subscription plan",
+            "title": "Plan"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Remaining decodes in quota",
+            "title": "Remaining"
+          },
+          "success": {
+            "description": "Whether the connection test succeeded",
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ],
+        "title": "EuropeanVINTestResponse",
+        "type": "object"
+      },
       "ExternalVehicleCreate": {
         "properties": {
           "contact_name": {
@@ -52554,6 +52630,60 @@
           }
         ],
         "summary": "Decode Vin Get",
+        "tags": [
+          "VIN"
+        ]
+      }
+    },
+    "/api/vin/test-european": {
+      "post": {
+        "description": "Test connection to the European VIN API (AutoRef) and check quota.\nDoes not consume monthly decoding quota.",
+        "operationId": "test_european_vin_connection_api_vin_test_european_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EuropeanVINTestRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EuropeanVINTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Test European Vin Connection",
         "tags": [
           "VIN"
         ]
