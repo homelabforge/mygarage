@@ -573,7 +573,14 @@
     "exportAction": "export fuel records",
     "importAction": "import fuel records",
     "deleteAction": "delete the fuel record",
-    "loadAction": "load fuel history"
+    "loadAction": "load fuel history",
+    "importOptions": {
+      "title": "Import options ({{format}})",
+      "odometerLabel": "Odometer in",
+      "decimalsLabel": "Decimals",
+      "hint": "Columns labelled in miles or gallons are read as labelled whatever you pick.",
+      "confirm": "Import"
+    }
   },
   "hoursList": {
     "actions": "Actions",

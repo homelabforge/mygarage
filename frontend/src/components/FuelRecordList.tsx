@@ -23,6 +23,7 @@ import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { Button, IconButton, Card, Mono, DataTable, Badge, SearchField, EmptyState, Checkbox, Select } from './ui'
 import type { DataTableColumn } from './ui'
+import FuelImportOptionsDrawer, { type FuelImportOptions } from './FuelImportOptionsDrawer'
 
 type ImportFormat = 'csv' | 'fuelio' | 'drivvo' | 'tesla' | 'external'
 
@@ -46,6 +47,8 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
   const [vehicleSecondaryUsageEnabled, setVehicleSecondaryUsageEnabled] = useState<boolean>(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importFormat, setImportFormat] = useState<ImportFormat>('csv')
+  // A third-party file waits here while the options drawer asks how to read it.
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
   // ★ No `system` here any more. The last two consumers were
   // `UnitFormatter.getCostPerDistanceLabel(system)` and its formatter, which
   // decided a DISTANCE on a binary collapsed from VOLUME; both now read
@@ -168,13 +171,20 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
     fileInputRef.current?.click()
   }
 
-  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const clearFileInput = (): void => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
 
+  const postImport = (file: File, opts?: FuelImportOptions): void => {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('skip_duplicates', 'true')
+    if (opts) {
+      formData.append('odometer_unit', opts.odometerUnit)
+      formData.append('decimal_separator', opts.decimalSeparator)
+    }
 
     importMutation.mutate(
       { formData, format: importFormat },
@@ -196,13 +206,34 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
         onError: (err) => {
           toast.error(getActionErrorMessage(err, t('fuelList.importAction')))
         },
-        onSettled: () => {
-          if (fileInputRef.current) {
-            fileInputRef.current.value = ''
-          }
-        },
+        onSettled: clearFileInput,
       },
     )
+  }
+
+  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Our own CSV names its units in the headers. The others don't, so a
+    // miles export would land as km unless somebody says otherwise.
+    if (importFormat === 'csv') {
+      postImport(file)
+      return
+    }
+    setPendingFile(file)
+  }
+
+  const handleImportOptionsConfirm = (opts: FuelImportOptions): void => {
+    if (!pendingFile) return
+    postImport(pendingFile, opts)
+    setPendingFile(null)
+  }
+
+  // Clearing the input is what lets the same file be picked again.
+  const handleImportOptionsClose = (): void => {
+    setPendingFile(null)
+    clearFileInput()
   }
 
   const handleDelete = (recordId: number) => {
@@ -287,6 +318,14 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
       ) },
   ]
 
+  const importFormatOptions: { value: ImportFormat; label: string }[] = [
+    { value: 'csv', label: t('fuelList.importFormatCsv') },
+    { value: 'fuelio', label: t('fuelList.importFormatFuelio') },
+    { value: 'drivvo', label: t('fuelList.importFormatDrivvo') },
+    { value: 'tesla', label: t('fuelList.importFormatTesla') },
+    { value: 'external', label: t('fuelList.importFormatAuto') },
+  ]
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
@@ -333,13 +372,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
             aria-label={t('fuelList.importFormat')}
             value={importFormat}
             onChange={(e) => setImportFormat(e.target.value as ImportFormat)}
-            options={[
-              { value: 'csv', label: t('fuelList.importFormatCsv') },
-              { value: 'fuelio', label: t('fuelList.importFormatFuelio') },
-              { value: 'drivvo', label: t('fuelList.importFormatDrivvo') },
-              { value: 'tesla', label: t('fuelList.importFormatTesla') },
-              { value: 'external', label: t('fuelList.importFormatAuto') },
-            ]}
+            options={importFormatOptions}
             className="w-40"
           />
           <Button variant="secondary" icon={Upload} onClick={handleImportClick} loading={importMutation.isPending} title={t('fuelList.importFromCSV')}>
@@ -496,6 +529,14 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
           </div>
         </div>
       )}
+
+      <FuelImportOptionsDrawer
+        open={pendingFile !== null}
+        formatLabel={importFormatOptions.find((o) => o.value === importFormat)?.label ?? ''}
+        defaultOdometerUnit={units.distance}
+        onConfirm={handleImportOptionsConfirm}
+        onClose={handleImportOptionsClose}
+      />
     </div>
   )
 }
