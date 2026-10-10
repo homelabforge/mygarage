@@ -131,6 +131,10 @@ describe('OIDCModal: the setup guide names no provider', () => {
       (key) => key !== 'providerNamePlaceholder' && /authentik/i.test(copy[key] ?? ''),
     )
     expect(named).toEqual([])
-    expect(modal.oidcSetupGuide).toEqual(expect.any(String))
+
+    // The mock renders a key whether en has it or not, so check the new ones are really there.
+    const newKeys = ['oidcSetupGuide', 'setupCreateClient', 'setupRegisterCallback']
+    const missing = newKeys.filter((key) => !copy[key]?.trim())
+    expect(missing).toEqual([])
   })
 })

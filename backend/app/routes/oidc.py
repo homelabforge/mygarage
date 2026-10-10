@@ -4,7 +4,7 @@ Provides endpoints for OIDC/OpenID Connect authentication flow:
 - /api/auth/oidc/config - Get OIDC configuration (public)
 - /api/auth/oidc/login - Initiate OIDC flow (redirects to provider)
 - /api/auth/oidc/callback - Handle OIDC callback
-- /api/auth/oidc/test - Test OIDC connection (admin only)
+- /api/auth/oidc/test - Test OIDC connection (admin only when sign-in is on)
 """
 
 import logging
@@ -609,9 +609,9 @@ async def test_oidc_connection(
     per plan §5.4(4).
     """
     # current_user is None only when auth_mode == "none", same as the config GET
-    # and PUT above. Nothing new opens up: in that mode the PUT already lets anyone
-    # store an issuer that login then fetches, and this fetch goes through the same
-    # trusted-host guard (test_test_connection_blocked_issuer pins that).
+    # and PUT above. In that mode anyone can already PUT the admin config and
+    # auth_mode, so there's nothing left to protect, and the issuer fetch still goes
+    # through the trusted-host guard (test_test_connection_blocked_issuer pins that).
 
     # §5.4(2): empty/placeholder secret falls back to the stored value so admins can test before saving.
     client_secret = test_request.client_secret
