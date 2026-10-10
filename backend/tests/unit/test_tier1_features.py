@@ -772,6 +772,68 @@ class TestParseOptions:
         rows = parse_drivvo(csv_data, ParseOptions(odometer_unit="mi"))
         assert rows[0]["odometer_km"] == Decimal("12345")
 
+    # Tesla exports can carry a per-row "Odometer Unit" cell beside a bare
+    # Odometer. The import drawer now defaults a miles vehicle to a mi pick, so
+    # a km cell has to beat that pick the same way a mi cell beats a km one.
+    TESLA_UNIT_CELL = (
+        "Charge End Date,Odometer,Odometer Unit,Energy Added (kWh)\n2026-03-01,12345,{unit},42.5\n"
+    )
+
+    def test_tesla_km_unit_cell_beats_a_miles_pick(self):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = self.TESLA_UNIT_CELL.format(unit="km")
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit="mi"))
+        assert rows[0]["odometer_km"] == Decimal("12345")
+
+    @pytest.mark.parametrize("unit", ["Kilometers", "kilometres", "KM"])
+    def test_tesla_spelled_out_km_unit_cell_beats_a_miles_pick(self, unit):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = self.TESLA_UNIT_CELL.format(unit=unit)
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit="mi"))
+        assert rows[0]["odometer_km"] == Decimal("12345")
+
+    @pytest.mark.parametrize("unit", ["mi", "Miles"])
+    def test_tesla_miles_unit_cell_still_beats_a_km_pick(self, unit):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = self.TESLA_UNIT_CELL.format(unit=unit)
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit="km"))
+        assert rows[0]["odometer_km"] == Decimal("12345") * Decimal("1.609344")
+
+    @pytest.mark.parametrize(
+        ("pick", "expected"),
+        [("km", Decimal("12345")), ("mi", Decimal("12345") * Decimal("1.609344"))],
+    )
+    def test_tesla_unit_cell_naming_both_leaves_the_pick(self, pick, expected):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = self.TESLA_UNIT_CELL.format(unit="km/mi")
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit=pick))
+        assert rows[0]["odometer_km"] == expected
+
+    @pytest.mark.parametrize(
+        ("header", "unit", "pick", "expected"),
+        [
+            ("Odometer (km)", "mi", "km", Decimal("12345")),
+            ("Odometer (mi)", "km", "mi", Decimal("12345") * Decimal("1.609344")),
+        ],
+    )
+    def test_tesla_explicit_header_beats_the_unit_cell(self, header, unit, pick, expected):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = f"Charge End Date,{header},Odometer Unit,Energy Added (kWh)\n2026-03-01,12345,{unit},42.5\n"
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit=pick))
+        assert rows[0]["odometer_km"] == expected
+
+    def test_tesla_without_a_unit_cell_follows_a_miles_pick(self):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = "Charge End Date,Odometer,Energy Added (kWh)\n2026-03-01,12345,42.5\n"
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit="mi"))
+        assert rows[0]["odometer_km"] == Decimal("12345") * Decimal("1.609344")
+
     def test_defaults_are_metric_and_dot(self):
         from app.services.import_adapters.fuel_csv import ParseOptions
 

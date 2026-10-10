@@ -87,6 +87,20 @@ def _odometer_km(
     return None
 
 
+def _unit_cell(raw: str | None) -> str | None:
+    """Read a per-row odometer unit cell as "km" or "mi", or None if it names neither.
+
+    No km spelling (km, kilometer, kilometre) contains "mi", so a sane cell can't
+    match both; one that somehow does says nothing and the pick stands.
+    """
+    text = (raw or "").lower()
+    is_km = "km" in text or "kilomet" in text
+    is_mi = "mi" in text
+    if is_km == is_mi:
+        return None
+    return "km" if is_km else "mi"
+
+
 def _parse_date(raw: str | None) -> date | None:
     if not raw:
         return None
@@ -351,16 +365,18 @@ def parse_tesla(csv_data: str, opts: ParseOptions | None = None) -> list[dict[st
             mi_keys=("Odometer (mi)",),
             ambiguous_keys=("Odometer", "Mileage"),
         )
-        # An explicit unit column beats the declared default, but only when the
-        # value came from an ambiguous header.
+        # An Odometer Unit cell beats the declared unit either way round, but
+        # only when the value came from a bare header; an explicit (km) or (mi)
+        # column already said what it is.
+        cell_unit = _unit_cell(row.get("Odometer Unit"))
         if (
             odo is not None
-            and "mi" in (row.get("Odometer Unit") or "").lower()
+            and cell_unit is not None
             and not row.get("Odometer (km)")
             and not row.get("Odometer (mi)")
-            and opts.odometer_unit != "mi"
         ):
-            odo = (_dec(row.get("Odometer") or row.get("Mileage"), sep) or Decimal(0)) * MI_TO_KM
+            raw_odo = _dec(row.get("Odometer") or row.get("Mileage"), sep) or Decimal(0)
+            odo = raw_odo * MI_TO_KM if cell_unit == "mi" else raw_odo
 
         cost = _dec(row.get("Cost") or row.get("Total Cost") or row.get("Fee"), sep)
         price = _dec(row.get("Price/kWh") or row.get("Rate") or row.get("Cost per kWh"), sep)
