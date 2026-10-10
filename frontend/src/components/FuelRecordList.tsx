@@ -194,11 +194,10 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
             success: result.success_count,
             skipped: result.skipped_count,
             errors: result.error_count,
-            defaultValue: `Import completed: ${result.success_count} records imported${result.skipped_count > 0 ? `, ${result.skipped_count} duplicates skipped` : ''}${result.error_count > 0 ? `, ${result.error_count} errors` : ''}`,
           })
 
           if (result.errors && result.errors.length > 0) {
-            toast.error(message + ' - Errors: ' + result.errors.join(', '))
+            toast.error(t('fuelList.importErrors', { message, errors: result.errors.join(', ') }))
           } else {
             toast.success(message)
           }

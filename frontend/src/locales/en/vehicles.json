@@ -548,6 +548,7 @@
     "importFormatTesla": "Tesla / ABRP",
     "importFormatAuto": "Auto-detect",
     "importCompleted": "Import completed: {{success}} imported, {{skipped}} skipped, {{errors}} errors",
+    "importErrors": "{{message}} - Errors: {{errors}}",
     "inclTowing": "Incl. Towing",
     "loading": "Loading fuel records...",
     "mileage": "Mileage",
@@ -578,7 +579,7 @@
       "title": "Import options ({{format}})",
       "odometerLabel": "Odometer in",
       "decimalsLabel": "Decimals",
-      "hint": "Columns labelled in miles or gallons are read as labelled whatever you pick.",
+      "hint": "Columns whose header names a unit (km, mi, gallons) are read in that unit whatever you pick.",
       "confirm": "Import"
     }
   },

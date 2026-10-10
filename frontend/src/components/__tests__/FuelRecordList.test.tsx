@@ -65,10 +65,17 @@ vi.mock('react-i18next', () => ({
     // `value` as well as `unit`: fix round 1 routed the volume-total and
     // avg-cost captions through `t()` with an interpolated NUMBER, and a mock
     // that dropped it would render the same key for 10.4 gal and 47.3 L.
-    t: (key: string, options?: { unit?: string; value?: string }) =>
-      options?.unit !== undefined || options?.value !== undefined
-        ? `${key} (${options.unit ?? options.value})`
-        : key,
+    // `format` for the import options drawer's title, so a dropped or wrong
+    // format name shows. `message` (with `errors`) for the import error toast,
+    // which wraps the summary line and the row errors in one key.
+    t: (
+      key: string,
+      options?: { unit?: string; value?: string; format?: string; message?: string; errors?: string | number },
+    ) => {
+      if (options?.message !== undefined) return `${key} (${options.message} | ${options.errors})`
+      const echoed = options?.unit ?? options?.value ?? options?.format
+      return echoed !== undefined ? `${key} (${echoed})` : key
+    },
     i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
   }),
   Trans: ({ children }: { children: React.ReactNode }) => children,
@@ -85,7 +92,9 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+import { toast } from 'sonner'
 import { IMPERIAL_UNITS, METRIC_UNITS, UK_IMPERIAL_UNITS } from '../../__tests__/factories'
+import vehiclesEn from '../../locales/en/vehicles.json'
 import { binarySystemFor } from '../../types/units'
 import { UnitConverter } from '../../utils/units'
 import FuelRecordList from '../FuelRecordList'
@@ -607,7 +616,14 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
   }
   const formatSelect = (): HTMLElement => screen.getByRole('combobox', { name: 'fuelList.importFormat' })
   const optionsDrawer = (): HTMLElement | null =>
-    screen.queryByRole('dialog', { name: 'fuelList.importOptions.title' })
+    screen.queryByRole('dialog', { name: /^fuelList\.importOptions\.title/ })
+  // The title names the picked format, through the local mock's `format` echo.
+  const FORMAT_LABEL_KEY = {
+    fuelio: 'fuelList.importFormatFuelio',
+    drivvo: 'fuelList.importFormatDrivvo',
+    tesla: 'fuelList.importFormatTesla',
+    external: 'fuelList.importFormatAuto',
+  } as const
   const posted = (): { path: string; form: FormData } => {
     expect(apiPostMock).toHaveBeenCalledTimes(1)
     const [path, form] = apiPostMock.mock.calls[0] as [string, FormData]
@@ -632,8 +648,10 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
 
   it('Fuelio on a miles vehicle: choosing a file opens the drawer instead of posting, and Import posts mi and dot', async () => {
     // Litres with miles, so the default has to come from the vehicle's
-    // distance unit and not from a system collapsed off the volume.
+    // distance unit and not from a system collapsed off the volume. The
+    // account stays on km, so the mi can only come from the vehicle scope.
     unitPrefMock.units = MILES_VEHICLE
+    unitPrefMock.accountUnits = METRIC_UNITS
     const user = userEvent.setup()
     renderList()
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
@@ -644,6 +662,9 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
 
     const drawer = optionsDrawer()
     expect(drawer).toBeInTheDocument()
+    expect(drawer).toHaveAccessibleName(`fuelList.importOptions.title (${FORMAT_LABEL_KEY.fuelio})`)
+    // The mock echoes the option, so the English has to keep its slot too.
+    expect(vehiclesEn.fuelList.importOptions.title).toContain('{{format}}')
     expect(apiPostMock).not.toHaveBeenCalled()
 
     await user.click(within(drawer!).getByRole('button', { name: 'fuelList.importOptions.confirm' }))
@@ -659,8 +680,11 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
   })
 
   it.each(['drivvo', 'tesla', 'external'] as const)(
-    '%s on a km vehicle posts km and the comma picked in the drawer',
+    '%s on a km vehicle with a miles account posts km and the comma picked in the drawer',
     async (format) => {
+      // The mirror of the Fuelio case: the vehicle's km has to beat the account's mi.
+      unitPrefMock.units = METRIC_UNITS
+      unitPrefMock.accountUnits = IMPERIAL_UNITS
       const user = userEvent.setup()
       renderList()
       await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
@@ -671,6 +695,7 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
 
       const drawer = optionsDrawer()
       expect(drawer).toBeInTheDocument()
+      expect(drawer).toHaveAccessibleName(`fuelList.importOptions.title (${FORMAT_LABEL_KEY[format]})`)
       expect(apiPostMock).not.toHaveBeenCalled()
       await user.selectOptions(within(drawer!).getByLabelText('fuelList.importOptions.decimalsLabel'), 'comma')
       await user.click(within(drawer!).getByRole('button', { name: 'fuelList.importOptions.confirm' }))
@@ -698,6 +723,27 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
 
     await waitFor(() => expect(optionsDrawer()).not.toBeInTheDocument())
     expect(apiPostMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('an import with row errors toasts the summary and the errors through fuelList.importErrors', async () => {
+    // The errors used to be glued on with a hardcoded English ' - Errors: '.
+    apiPostMock.mockResolvedValue({
+      data: { success_count: 2, skipped_count: 0, error_count: 2, errors: ['Row 3: bad date', 'Row 7: no odometer'] },
+    })
+    const user = userEvent.setup()
+    renderList()
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+    await user.upload(fileInput(), csvFile())
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    expect(toast.error).toHaveBeenCalledWith(
+      'fuelList.importErrors (fuelList.importCompleted | Row 3: bad date, Row 7: no odometer)',
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+    // And the English keeps both slots, so neither half can fall out of the bundle.
+    expect(vehiclesEn.fuelList.importErrors).toContain('{{message}}')
+    expect(vehiclesEn.fuelList.importErrors).toContain('{{errors}}')
   })
 
   it('MyGarage CSV still posts at once with no drawer and no unit fields (control: passes on main)', async () => {
