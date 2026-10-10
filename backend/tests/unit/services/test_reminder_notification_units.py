@@ -69,11 +69,11 @@ _IMPERIAL_CTX = RenderContext(units=IMPERIAL_PRESET, show_both=False)
 _DUE_DATE = date(2020, 1, 1)
 _DUE_MILEAGE_KM = Decimal("50000")
 
-# Exactly the shape `tire_service._sync_low_tread_reminder` writes: metric
-# prose, both quantities inside `notes`, and no `due_mileage_km` at all.
 # A settings row a test's "other connection" writes and removes again.
 _PROBE_KEY = "reminder_units_probe"
 
+# Exactly the shape `tire_service._sync_low_tread_reminder` writes: metric
+# prose, both quantities inside `notes`, and no `due_mileage_km` at all.
 _LOW_TREAD_NOTES = "Tread 3.0 mm ≤ threshold 4.0 mm. ~12000 km remaining."
 
 
@@ -458,9 +458,9 @@ class TestCheckDueRemindersUnits:
     ) -> None:
         """While a notification goes out, another connection can still write.
 
-        A stamp written mid-sweep (the next reminder's savepoint flushes it)
-        takes SQLite's database-wide write lock and keeps it through every later
-        backend call, and a dead backend outlasts prod's 30s busy_timeout.
+        A stamp written before the last send takes SQLite's database-wide
+        write lock and keeps it through every later backend call, and a dead
+        backend outlasts prod's 30s busy_timeout.
         """
         if db_session.get_bind().dialect.name != "sqlite":
             pytest.skip("SQLite's write lock is database-wide; PostgreSQL locks only the rows")
