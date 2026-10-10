@@ -1,34 +1,59 @@
-"""Garage analytics and the calendar read household insurance correctly."""
+"""Garage analytics and the calendar read household insurance correctly.
 
+The garage belongs to this module's own non-admin user. The admin test user
+sees every vehicle in the shared database, and other modules leave far-future
+records behind that pushed these months out of the trend window.
+"""
+
+import uuid
+from collections.abc import AsyncGenerator
 from datetime import timedelta
 from decimal import Decimal
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
+from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.services.auth import create_access_token
 from app.utils.household_time import household_today
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 RAM, MIRAGE = "INSCONSUM00000001", "INSCONSUM00000002"
 
+# Copied from tests/conftest.py: hashing here would need threads these
+# containers don't always have.
+_PASSWORD_HASH = "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI"
 
-@pytest_asyncio.fixture(autouse=True)
-async def garage(db_session: AsyncSession, test_user):
-    await db_session.execute(delete(InsurancePolicy))
-    for vin, nickname in ((RAM, "Ram"), (MIRAGE, "Mirage")):
-        if (await db_session.execute(select(Vehicle).where(Vehicle.vin == vin))).first() is None:
-            db_session.add(
-                Vehicle(vin=vin, user_id=test_user["id"], nickname=nickname, vehicle_type="Car")
-            )
-    await db_session.commit()
-    yield
+
+@pytest_asyncio.fixture
+async def garage_headers(db_session: AsyncSession) -> AsyncGenerator[dict[str, str]]:
+    """Auth headers for a fresh non-admin user who owns just the Ram and the Mirage."""
+    username = f"insconsum_{uuid.uuid4().hex[:8]}"
+    user = User(
+        username=username,
+        email=f"{username}@example.com",
+        hashed_password=_PASSWORD_HASH,
+        is_active=True,
+        is_admin=False,
+    )
+    db_session.add(user)
     await db_session.execute(delete(InsurancePolicy))
     await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_([RAM, MIRAGE])))
+    await db_session.flush()
+    for vin, nickname in ((RAM, "Ram"), (MIRAGE, "Mirage")):
+        db_session.add(Vehicle(vin=vin, user_id=user.id, nickname=nickname, vehicle_type="Car"))
+    await db_session.commit()
+    token = create_access_token(data={"sub": str(user.id), "username": username})
+    yield {"Authorization": f"Bearer {token}"}
+    await db_session.rollback()
+    await db_session.execute(delete(InsurancePolicy))
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_([RAM, MIRAGE])))
+    await db_session.execute(delete(User).where(User.username == username))
     await db_session.commit()
 
 
@@ -57,34 +82,33 @@ def _policy(
 
 
 async def test_each_vehicle_carries_its_own_share_and_the_garage_total_is_their_sum(
-    client, db_session, auth_headers
+    client, db_session, garage_headers
 ):
     # A finished 182-day semi-annual term: the whole 600 has accrued.
     db_session.add(_policy(200, 182, "600.00", "Semi-Annual", {RAM: "400.00", MIRAGE: "200.00"}))
     await db_session.commit()
 
-    body = (await client.get("/api/analytics/garage", headers=auth_headers)).json()
+    body = (await client.get("/api/analytics/garage", headers=garage_headers)).json()
 
     by_vin = {v["vin"]: Decimal(v["total_insurance"]) for v in body["cost_by_vehicle"]}
     assert by_vin[RAM] == Decimal("400.00")
     assert by_vin[MIRAGE] == Decimal("200.00")
-    ours = by_vin[RAM] + by_vin[MIRAGE]
-    assert Decimal(body["total_costs"]["total_insurance"]) >= ours
+    assert Decimal(body["total_costs"]["total_insurance"]) == by_vin[RAM] + by_vin[MIRAGE]
     assert any(Decimal(m["insurance"]) > 0 for m in body["monthly_trends"])
 
 
-async def test_a_monthly_premium_counts_every_month_not_once(client, db_session, auth_headers):
+async def test_a_monthly_premium_counts_every_month_not_once(client, db_session, garage_headers):
     # 365 days in the past, fully elapsed: 12 x 100.
     db_session.add(_policy(400, 365, "100.00", "Monthly", {RAM: ""}))
     await db_session.commit()
 
-    body = (await client.get("/api/analytics/garage", headers=auth_headers)).json()
+    body = (await client.get("/api/analytics/garage", headers=garage_headers)).json()
 
     ram = next(v for v in body["cost_by_vehicle"] if v["vin"] == RAM)
     assert Decimal(ram["total_insurance"]) == Decimal("1200.00")
 
 
-async def test_the_calendar_shows_a_household_policy_once(client, db_session, auth_headers):
+async def test_the_calendar_shows_a_household_policy_once(client, db_session, garage_headers):
     today = household_today()
     policy = InsurancePolicy(
         provider="Progressive",
@@ -104,7 +128,7 @@ async def test_the_calendar_shows_a_household_policy_once(client, db_session, au
             "end_date": (today + timedelta(days=60)).isoformat(),
             "event_types": "insurance",
         },
-        headers=auth_headers,
+        headers=garage_headers,
     )
     assert response.status_code == 200, response.text
     events = [e for e in response.json()["events"] if e["id"] == f"insurance-{policy.id}"]

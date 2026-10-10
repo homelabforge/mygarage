@@ -876,7 +876,9 @@ class TestAdminRedirectUri:
         )
 
         assert response.status_code == 422, response.text
-        assert response.json()["detail"] == "redirect_uri must be an absolute http(s) URL"
+        assert response.json()["detail"] == (
+            "redirect_uri must be an absolute http(s) URL with no #fragment"
+        )
         assert await stored_setting(db_session, "oidc_client_id") == "before-id"
         assert await stored_setting(db_session, "oidc_redirect_uri") == PINNED
 

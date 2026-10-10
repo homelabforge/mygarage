@@ -141,7 +141,7 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
         except ValueError as exc:
             raise HTTPException(
                 status_code=422,
-                detail=f"Setting '{key}' must be blank or an absolute http(s) URL",
+                detail=f"Setting '{key}' must be blank or an absolute http(s) URL with no #fragment",
             ) from exc
     if key != DEFAULT_UNIT_PREFS_KEY:
         return

@@ -1,8 +1,9 @@
 """checked_redirect_uri: the one rule every writer of the SSO callback pin uses.
 
-Blank or an absolute http(s) URL, with no whitespace or control character
-inside. urlsplit quietly drops tabs and newlines before it parses, so its view
-of the URL alone said "https://x\\n.evil" was fine while the raw value got stored.
+Blank or an absolute http(s) URL, with no whitespace, control character or
+fragment inside. urlsplit quietly drops tabs and newlines before it parses, so
+its view of the URL alone said "https://x\\n.evil" was fine while the raw value
+got stored.
 """
 
 import pytest
@@ -46,6 +47,8 @@ class TestCheckedRedirectUri:
             "https://garage.example.com/\x1bcb",
             "https://garage.example.com/\x7fcb",
             "https://garage.example.com/\x9bcb",
+            "https://garage.example.com/cb#frag",
+            "https://garage.example.com/cb#",
             "https://garage.example.com/ cb",
         ],
         ids=[
@@ -63,6 +66,8 @@ class TestCheckedRedirectUri:
             "escape",
             "delete",
             "c1-csi",
+            "fragment",
+            "empty-fragment",
             "no-break-space",
         ],
     )

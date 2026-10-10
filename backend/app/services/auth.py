@@ -300,6 +300,10 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
         return None
 
     if not verify_password(password, user.hashed_password):
+        # A legacy bcrypt hash fails without any Argon2 work (bcrypt isn't a
+        # dependency), so pay the dummy too or old accounts stand out.
+        if not user.hashed_password.startswith("$argon2"):
+            verify_password(password, _DUMMY_HASH)
         return None
 
     # Auto-migrate legacy bcrypt hashes to Argon2

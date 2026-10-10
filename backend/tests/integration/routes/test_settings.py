@@ -797,7 +797,7 @@ class TestOidcRedirectUriWriteValidation:
 
         assert response.status_code == 422, response.text
         assert response.json()["detail"] == (
-            f"Setting '{REDIRECT_URI_KEY}' must be blank or an absolute http(s) URL"
+            f"Setting '{REDIRECT_URI_KEY}' must be blank or an absolute http(s) URL with no #fragment"
         )
         if endpoint == "create_setting":
             assert not await _has_row(db_session, REDIRECT_URI_KEY)

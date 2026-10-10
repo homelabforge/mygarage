@@ -239,7 +239,7 @@ def _checked_redirect_uri(raw: str) -> str:
         return checked_redirect_uri(raw)
     except ValueError as exc:
         raise HTTPException(
-            status_code=422, detail="redirect_uri must be an absolute http(s) URL"
+            status_code=422, detail="redirect_uri must be an absolute http(s) URL with no #fragment"
         ) from exc
 
 

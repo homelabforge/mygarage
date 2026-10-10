@@ -1,8 +1,8 @@
 """A login that can't succeed still pays for one Argon2 verify (A-14).
 
-An unknown username and an SSO-only account used to return before any hash
-work, while a real password account paid for a full verify. So the response
-time told you which usernames exist.
+An unknown username, an SSO-only account and a legacy bcrypt account used to
+return before any Argon2 work, while a real password account paid for a full
+verify. So the response time told you which usernames exist.
 """
 
 from collections.abc import AsyncGenerator, Generator
@@ -19,6 +19,7 @@ from app.services import auth
 from app.services.auth import authenticate_user
 
 _OIDC_USERNAME = "a14_oidc_only"
+_BCRYPT_USERNAME = "a14_legacy_bcrypt"
 
 
 @pytest.fixture
@@ -52,6 +53,25 @@ async def oidc_only_user(db_session: AsyncSession) -> AsyncGenerator[User]:
     await db_session.commit()
     yield user
     await db_session.execute(delete(User).where(User.username == _OIDC_USERNAME))
+    await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def legacy_bcrypt_user(db_session: AsyncSession) -> AsyncGenerator[User]:
+    """A password account still on a pre-Argon2 bcrypt hash, removed afterwards."""
+    await db_session.execute(delete(User).where(User.username == _BCRYPT_USERNAME))
+    user = User(
+        username=_BCRYPT_USERNAME,
+        email=f"{_BCRYPT_USERNAME}@example.com",
+        hashed_password="$2b$12$K9v3M5qVxPZYH.fQz9J9/.kN7xN8YE9Xw5qKjN8QrXj9zKzN8QrX.",
+        auth_method="local",
+        is_active=True,
+        is_admin=False,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    yield user
+    await db_session.execute(delete(User).where(User.username == _BCRYPT_USERNAME))
     await db_session.commit()
 
 
@@ -89,6 +109,34 @@ async def test_oidc_only_user_runs_one_argon2_verify(
 ) -> None:
     """SSO-only account: still refused, but only after the same Argon2 work."""
     result = await authenticate_user(db_session, oidc_only_user.username, "whatever-password")
+
+    assert result is None
+    _assert_one_full_cost_verify(argon2_verify)
+
+
+@pytest.mark.unit
+@pytest.mark.auth
+@pytest.mark.parametrize("password", ["wrong-password", "x" * 73], ids=["wrong", "over-72-bytes"])
+async def test_legacy_bcrypt_miss_runs_one_argon2_verify(
+    db_session: AsyncSession,
+    legacy_bcrypt_user: User,
+    argon2_verify: mock.MagicMock,
+    password: str,
+) -> None:
+    """A bcrypt hash fails with no Argon2 work, so it pays the dummy like the rest."""
+    result = await authenticate_user(db_session, legacy_bcrypt_user.username, password)
+
+    assert result is None
+    _assert_one_full_cost_verify(argon2_verify)
+
+
+@pytest.mark.unit
+@pytest.mark.auth
+async def test_known_user_wrong_password_runs_one_argon2_verify(
+    db_session: AsyncSession, test_user: dict[str, object], argon2_verify: mock.MagicMock
+) -> None:
+    """Control: an Argon2 miss already paid for its own verify, so no dummy on top."""
+    result = await authenticate_user(db_session, "testuser", "wrong-password")
 
     assert result is None
     _assert_one_full_cost_verify(argon2_verify)
