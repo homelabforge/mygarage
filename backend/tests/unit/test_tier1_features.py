@@ -26,7 +26,7 @@ class _Reading:
         self.tread_depth_mm = tread_depth_mm
 
 
-def _tire_with(readings, min_tread, *, bounded=True):
+def _tire_with(readings, min_tread, *, bounded=True, mounted_on: date = date(2025, 1, 1)):
     """A tire whose mount history supports (or does not support) a projection.
 
     v3.3.0 made the projection period-aware: the distance is the tire's own,
@@ -42,7 +42,7 @@ def _tire_with(readings, min_tread, *, bounded=True):
     tire.mount_periods = [
         TireMountPeriod(
             position="FL",
-            mounted_on=date(2025, 1, 1),
+            mounted_on=mounted_on,
             mounted_odometer_km=Decimal("9000") if bounded else None,
         )
     ]
@@ -115,6 +115,32 @@ def test_project_wear():
     assert result.status is WearStatus.PROJECTED
     assert result.km_remaining == Decimal("2000.0")
     assert result.wear_date is not None
+
+
+def test_project_wear_dates_an_in_range_projection():
+    # 1 mm per 1,000 km at 10 km/day with 3 mm left: 300 days after the newer reading.
+    readings = [
+        _Reading(date(2026, 4, 11), Decimal("11000"), Decimal("5.0")),
+        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+    ]
+    result = project_wear(_tire_with(readings, Decimal("2.0")), Decimal("11000"), readings)
+    assert result.status is WearStatus.PROJECTED
+    assert result.km_remaining == Decimal("3000.0")
+    assert result.wear_date == date(2027, 2, 5)
+
+
+def test_project_wear_past_the_calendar_has_no_date():
+    """0.01 mm in nine years with 10 mm left is 3,287,000 days out, past
+    9999-12-31. The km figure still stands; only the date is unavailable."""
+    readings = [
+        _Reading(date(2026, 6, 1), Decimal("100000"), Decimal("12.00")),
+        _Reading(date(2017, 6, 1), Decimal("10000"), Decimal("12.01")),
+    ]
+    tire = _tire_with(readings, Decimal("2.0"), mounted_on=date(2017, 1, 1))
+    result = project_wear(tire, Decimal("100000"), readings)
+    assert result.status is WearStatus.PROJECTED
+    assert result.km_remaining == Decimal("90000000.0")
+    assert result.wear_date is None
 
 
 def test_project_wear_needs_two_readings():
