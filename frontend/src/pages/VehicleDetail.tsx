@@ -838,6 +838,7 @@ export default function VehicleDetail() {
       {openModal === 'windowSticker' && vin && (
         <WindowStickerUpload
           vin={vin}
+          hasExistingSticker={!!vehicle?.window_sticker_file_path}
           onSuccess={() => {
             setOpenModal(null)
             loadVehicle()

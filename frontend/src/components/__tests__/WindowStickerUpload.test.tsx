@@ -129,3 +129,71 @@ describe('WindowStickerUpload — server-side error wiring (final-review I4)', (
 
 // The comma-decimal MSRP fence (final-review I9) lives in WindowStickerUpload.review.test.tsx,
 // asserted on the posted payload now that the input keeps the typed text.
+
+// D1: with a sticker already on file the upload fills empty fields only,
+// unless the user turns "keep" off, which sends replace=true.
+describe('WindowStickerUpload: keep the values already saved (D1)', () => {
+  const uploadAndGetForm = async (user: ReturnType<typeof userEvent.setup>): Promise<FormData> => {
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, new File(['%PDF-1.4'], 'sticker.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' }))
+    await vi.waitFor(() => expect(apiPost).toHaveBeenCalledTimes(1))
+    return apiPost.mock.calls[0][1] as FormData
+  }
+
+  it('with a sticker on file, keep starts on and the upload sends no replace', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    render(<WindowStickerUpload vin="V1" hasExistingSticker onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByRole('checkbox', { name: 'windowSticker.keepSavedValues' })).toBeChecked()
+    expect(screen.getByText('windowSticker.keepSavedValuesHint')).toBeInTheDocument()
+    const sent = await uploadAndGetForm(user)
+    expect(sent.get('file')).toBeInstanceOf(File)
+    expect(sent.has('replace')).toBe(false)
+  })
+
+  it('turning keep off sends replace=true', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    render(<WindowStickerUpload vin="V1" hasExistingSticker onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    const keep = screen.getByRole('checkbox', { name: 'windowSticker.keepSavedValues' })
+    await user.click(keep)
+    expect(keep).not.toBeChecked()
+    const sent = await uploadAndGetForm(user)
+    expect(sent.get('replace')).toBe('true')
+  })
+
+  it('a first sticker has no checkbox and sends no replace', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByText('windowSticker.keepSavedValuesHint')).not.toBeInTheDocument()
+    const sent = await uploadAndGetForm(user)
+    expect(sent.has('replace')).toBe(false)
+  })
+
+  it('a scan that read nothing says so instead of the success line', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    apiPost.mockResolvedValueOnce({ data: { msrp_base: null, scan_read_nothing: true } })
+    render(<WindowStickerUpload vin="V1" hasExistingSticker onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    await uploadAndGetForm(user)
+
+    expect(await screen.findByText('windowSticker.scanReadNothing')).toBeInTheDocument()
+    expect(screen.queryByText('windowSticker.misc.uploadSuccess')).not.toBeInTheDocument()
+    // The review still opens, so what the scan missed can be typed in.
+    expect(screen.getByRole('button', { name: 'windowSticker.misc.saveData' })).toBeInTheDocument()
+  })
+
+  it('a scan that read something shows the success line and no notice', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    apiPost.mockResolvedValueOnce({ data: { msrp_base: 30000, scan_read_nothing: false } })
+    render(<WindowStickerUpload vin="V1" hasExistingSticker onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    await uploadAndGetForm(user)
+
+    expect(await screen.findByText('windowSticker.misc.uploadSuccess')).toBeInTheDocument()
+    expect(screen.queryByText('windowSticker.scanReadNothing')).not.toBeInTheDocument()
+  })
+})

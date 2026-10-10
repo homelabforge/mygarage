@@ -6,15 +6,22 @@ Tests window sticker OCR and file management endpoints.
 
 import logging
 import string
+from collections.abc import AsyncGenerator
+from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient, Response
-from sqlalchemy import select
+from sqlalchemy import JSON, DateTime, Numeric, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.vehicle import Vehicle
+from app.routes import window_sticker as window_sticker_route
 from tests.integration.routes._legacy_reads import read_ok
 
 
@@ -344,6 +351,9 @@ OCR_TEXT_COLUMNS = [
 ]
 
 
+NEW_BYTES = b"%PDF-1.4 sticker"
+
+
 def _width(column: str) -> int:
     width = getattr(Vehicle.__table__.c[column].type, "length", None)
     assert isinstance(width, int), column
@@ -351,16 +361,27 @@ def _width(column: str) -> int:
 
 
 async def _upload_with_ocr(
-    client: AsyncClient, headers: dict[str, str], vin: str, parsed: dict[str, Any]
+    client: AsyncClient,
+    headers: dict[str, str],
+    vin: str,
+    parsed: dict[str, Any] | Exception,
+    *,
+    replace: bool = False,
 ) -> Response:
-    """Upload a sticker whose OCR returns `parsed`."""
+    """Upload a sticker whose OCR returns `parsed`, or raises it when it's an
+    exception. `replace` sends the field the drawer sends with "keep" off."""
     with patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class:
         ocr = MagicMock()
-        ocr.extract_data_from_file = AsyncMock(return_value=parsed)
+        if isinstance(parsed, Exception):
+            ocr.extract_data_from_file = AsyncMock(side_effect=parsed)
+        else:
+            # A copy: the route drops misread numbers from the dict it gets.
+            ocr.extract_data_from_file = AsyncMock(return_value=dict(parsed))
         ocr_class.return_value = ocr
         return await client.post(
             f"/api/vehicles/{vin}/window-sticker/upload",
-            files={"file": ("sticker.pdf", b"%PDF-1.4 sticker", "application/pdf")},
+            files={"file": ("sticker.pdf", NEW_BYTES, "application/pdf")},
+            data={"replace": "true"} if replace else None,
             headers=headers,
         )
 
@@ -435,3 +456,310 @@ async def test_a_cut_is_logged_once_without_the_text(client, auth_headers, own_v
     ]
     assert warnings == ["Window sticker: cut parsed assembly_location from 140 to 100 characters"]
     assert "OCRTEXT" not in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# A re-scan fills empty fields only, unless replacing (D1)
+# ---------------------------------------------------------------------------
+
+# What the scan reads in the D1 tests.
+SCAN: dict[str, Any] = {
+    "msrp_base": 30000,
+    "exterior_color": "Red",
+    "window_sticker_parser_used": "generic",
+    "standard_equipment": {"Safety": ["ABS"]},
+}
+OLD_BYTES = b"%PDF-1.4 the sticker already on file"
+
+# What DELETE cleared before the lists became module constants, copied off
+# the route as it stood. The upload wrote the same set minus path and time.
+TODAY_DELETE_CLEARS = (
+    "window_sticker_file_path",
+    "window_sticker_uploaded_at",
+    "msrp_base",
+    "msrp_options",
+    "msrp_total",
+    "destination_charge",
+    "fuel_economy_city_l_per_100km",
+    "fuel_economy_highway_l_per_100km",
+    "fuel_economy_combined_l_per_100km",
+    "standard_equipment",
+    "optional_equipment",
+    "assembly_location",
+    "exterior_color",
+    "interior_color",
+    "sticker_engine_description",
+    "sticker_transmission_description",
+    "sticker_drivetrain",
+    "wheel_specs",
+    "tire_specs",
+    "warranty_powertrain",
+    "warranty_basic",
+    "environmental_rating_ghg",
+    "environmental_rating_smog",
+    "window_sticker_options_detail",
+    "window_sticker_packages",
+    "window_sticker_parser_used",
+    "window_sticker_confidence_score",
+    "window_sticker_extracted_vin",
+)
+
+
+@pytest_asyncio.fixture
+async def sticker_on_file(
+    client: AsyncClient, own_vehicle: Vehicle, db_session: AsyncSession, tmp_path: Path
+) -> AsyncGenerator[Path]:
+    """A sticker already saved: a real file with known bytes, the row pointing
+    at it, msrp_base 25000. Storage moves to tmp_path so the file checks only
+    ever see this test's files. Needs `client` so its own storage swap goes
+    first and is put back last."""
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(window_sticker_route, "STICKER_STORAGE_PATH", tmp_path)
+        old = tmp_path / own_vehicle.vin / "window_sticker_old.pdf"
+        old.parent.mkdir()
+        old.write_bytes(OLD_BYTES)
+        own_vehicle.window_sticker_file_path = str(old)
+        own_vehicle.window_sticker_uploaded_at = datetime(2026, 1, 2, 3, 4, 5)
+        own_vehicle.msrp_base = Decimal("25000")
+        await db_session.commit()
+        yield old
+
+
+@pytest.mark.integration
+async def test_a_rescan_fills_only_the_empty_fields(
+    client, auth_headers, own_vehicle, db_session, test_sessionmaker
+):
+    """D1: a price typed by hand survives the scan; the empty fields fill."""
+    vin = own_vehicle.vin
+    own_vehicle.msrp_base = Decimal("25000")
+    await db_session.commit()
+
+    uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN)
+
+    assert uploaded.status_code == 201, uploaded.text
+    assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
+    assert await _stored(test_sessionmaker, vin, "exterior_color") == "Red"
+    assert await _stored(test_sessionmaker, vin, "standard_equipment") == {"Safety": ["ABS"]}
+    assert await _stored(test_sessionmaker, vin, "window_sticker_parser_used") == "generic"
+
+
+@pytest.mark.integration
+async def test_a_blank_string_and_an_empty_object_count_as_empty(
+    client, auth_headers, own_vehicle, db_session, test_sessionmaker
+):
+    """A field cleared to "" or {} reads as nothing to keep. Passes on main
+    too (it overwrote everything); it pins the rule for the fill-empty code."""
+    vin = own_vehicle.vin
+    own_vehicle.exterior_color = ""
+    own_vehicle.interior_color = "   "
+    own_vehicle.standard_equipment = {}
+    await db_session.commit()
+
+    uploaded = await _upload_with_ocr(
+        client, auth_headers, vin, {**SCAN, "interior_color": "Black"}
+    )
+
+    assert uploaded.status_code == 201, uploaded.text
+    assert await _stored(test_sessionmaker, vin, "exterior_color") == "Red"
+    assert await _stored(test_sessionmaker, vin, "interior_color") == "Black"
+    assert await _stored(test_sessionmaker, vin, "standard_equipment") == {"Safety": ["ABS"]}
+
+
+@pytest.mark.integration
+async def test_a_zero_is_a_value_and_is_kept(
+    client, auth_headers, own_vehicle, db_session, test_sessionmaker
+):
+    vin = own_vehicle.vin
+    own_vehicle.msrp_options = Decimal("0")
+    await db_session.commit()
+
+    uploaded = await _upload_with_ocr(client, auth_headers, vin, {"msrp_options": 500})
+
+    assert uploaded.status_code == 201, uploaded.text
+    assert await _stored(test_sessionmaker, vin, "msrp_options") == Decimal("0")
+
+
+@pytest.mark.integration
+async def test_replace_clears_the_old_values_first(
+    client, auth_headers, own_vehicle, sticker_on_file, db_session, test_sessionmaker
+):
+    vin = own_vehicle.vin
+    own_vehicle.assembly_location = "Ohio"
+    await db_session.commit()
+
+    uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
+
+    assert uploaded.status_code == 201, uploaded.text
+    assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("30000")
+    # The new sticker doesn't say, so the old sticker's value goes with it.
+    assert await _stored(test_sessionmaker, vin, "assembly_location") is None
+
+
+@pytest.mark.integration
+async def test_every_upload_resets_the_scan_metadata(
+    client, auth_headers, own_vehicle, sticker_on_file, db_session, test_sessionmaker
+):
+    """Parser, confidence and VIN read describe the file on record, so even a
+    keep-mode upload swaps them for the new scan's, None where it has none."""
+    vin = own_vehicle.vin
+    own_vehicle.window_sticker_confidence_score = Decimal("90")
+    await db_session.commit()
+
+    uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN)
+
+    assert uploaded.status_code == 201, uploaded.text
+    assert await _stored(test_sessionmaker, vin, "window_sticker_confidence_score") is None
+    assert await _stored(test_sessionmaker, vin, "window_sticker_parser_used") == "generic"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "scan",
+    [RuntimeError("tesseract fell over"), {}],
+    ids=["ocr-raised", "ocr-read-nothing"],
+)
+async def test_a_scan_that_read_nothing_keeps_the_values_and_says_so(
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, scan
+):
+    """Replace with nothing to replace the values with clears nothing. The new
+    file is still the sticker on record, and the response says the scan was
+    empty instead of swallowing it."""
+    vin = own_vehicle.vin
+
+    uploaded = await _upload_with_ocr(client, auth_headers, vin, scan, replace=True)
+
+    assert uploaded.status_code == 201, uploaded.text
+    assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
+    new_path = await _stored(test_sessionmaker, vin, "window_sticker_file_path")
+    assert new_path == uploaded.json()["window_sticker_file_path"]
+    assert new_path != str(sticker_on_file)
+    assert Path(new_path).read_bytes() == NEW_BYTES
+    assert not sticker_on_file.exists()
+    assert uploaded.json().get("scan_read_nothing") is True
+
+
+@pytest.mark.integration
+async def test_a_failed_write_keeps_the_sticker_on_file(
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker
+):
+    vin = own_vehicle.vin
+    columns = ("window_sticker_file_path", "window_sticker_uploaded_at", "msrp_base")
+    before = {c: await _stored(test_sessionmaker, vin, c) for c in columns}
+    assert before["window_sticker_file_path"] == str(sticker_on_file)
+    assert before["msrp_base"] == Decimal("25000")
+
+    with patch("app.routes.window_sticker.open", side_effect=OSError, create=True):
+        uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
+
+    assert uploaded.status_code == 500, uploaded.text
+    assert sticker_on_file.exists()
+    assert sticker_on_file.read_bytes() == OLD_BYTES
+    assert {c: await _stored(test_sessionmaker, vin, c) for c in columns} == before
+
+
+@pytest.mark.integration
+async def test_a_failed_commit_keeps_the_sticker_on_file(
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker
+):
+    vin = own_vehicle.vin
+    vin_dir = sticker_on_file.parent
+    on_disk_at_commit: list[list[str]] = []
+
+    async def refuse(self: AsyncSession) -> None:
+        on_disk_at_commit.append(sorted(p.name for p in vin_dir.iterdir()))
+        raise SQLAlchemyError("disk I/O error")
+
+    # This request only: the fixtures' own commits have to work afterwards.
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(AsyncSession, "commit", refuse)
+        uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
+
+    assert uploaded.status_code == 500, uploaded.text
+    # It was the route's commit that failed, with the new file beside the old.
+    assert len(on_disk_at_commit) == 1, on_disk_at_commit
+    assert len(on_disk_at_commit[0]) == 2, on_disk_at_commit
+    assert sticker_on_file.read_bytes() == OLD_BYTES
+    assert list(vin_dir.iterdir()) == [sticker_on_file]
+    assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") == str(sticker_on_file)
+    assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
+
+
+@pytest.mark.integration
+async def test_a_replace_moves_the_record_to_the_new_file(
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker
+):
+    vin = own_vehicle.vin
+
+    uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
+
+    assert uploaded.status_code == 201, uploaded.text
+    new_path = Path(await _stored(test_sessionmaker, vin, "window_sticker_file_path"))
+    assert new_path != sticker_on_file
+    assert new_path.parent == sticker_on_file.parent
+    assert new_path.read_bytes() == NEW_BYTES
+    assert not sticker_on_file.exists()
+    assert uploaded.json().get("scan_read_nothing") is False
+
+
+@pytest.mark.integration
+async def test_replace_with_no_sticker_on_file_keeps_typed_values(
+    client, auth_headers, own_vehicle, test_sessionmaker
+):
+    """Fable F-6: with no sticker there's nothing to replace, so the values
+    typed through the review PATCH survive. Main ignored the field and passed
+    too; this goes red if the `old_path` guard is dropped."""
+    vin = own_vehicle.vin
+    typed = await client.patch(
+        f"/api/vehicles/{vin}/window-sticker/data",
+        json={"assembly_location": "Ohio"},
+        headers=auth_headers,
+    )
+    assert typed.status_code == 200, typed.text
+
+    uploaded = await _upload_with_ocr(client, auth_headers, vin, SCAN, replace=True)
+
+    assert uploaded.status_code == 201, uploaded.text
+    assert await _stored(test_sessionmaker, vin, "assembly_location") == "Ohio"
+    assert await _stored(test_sessionmaker, vin, "exterior_color") == "Red"
+
+
+def _a_value_for(column: str) -> Any:
+    """Something non-null that fits the column."""
+    kind = Vehicle.__table__.c[column].type
+    if isinstance(kind, Numeric):
+        return Decimal("1")
+    if isinstance(kind, JSON):
+        return {"k": "v"}
+    if isinstance(kind, DateTime):
+        return datetime(2026, 1, 2, 3, 4, 5)
+    return "7"
+
+
+@pytest.mark.integration
+async def test_delete_still_clears_every_sticker_column(
+    client, auth_headers, own_vehicle, sticker_on_file, db_session, test_sessionmaker
+):
+    """The delete's list now comes from the upload's constants; none of
+    today's 28 may drop out of it."""
+    vin = own_vehicle.vin
+    for column in TODAY_DELETE_CLEARS[1:]:  # the fixture set the path
+        setattr(own_vehicle, column, _a_value_for(column))
+    await db_session.commit()
+    for column in TODAY_DELETE_CLEARS:
+        assert await _stored(test_sessionmaker, vin, column) is not None, column
+
+    deleted = await client.delete(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
+
+    assert deleted.status_code == 204, deleted.text
+    for column in TODAY_DELETE_CLEARS:
+        assert await _stored(test_sessionmaker, vin, column) is None, column
+
+
+def test_the_field_lists_cover_what_upload_and_delete_wrote():
+    """The upload fills from the same two lists, so a field missing here
+    would silently stop being read off the sticker."""
+    from app.routes.window_sticker import STICKER_DATA_FIELDS, STICKER_SCAN_FIELDS
+
+    fields = (*STICKER_DATA_FIELDS, *STICKER_SCAN_FIELDS)
+    assert len(fields) == len(set(fields)) == 26
+    assert set(fields) == set(TODAY_DELETE_CLEARS[2:])

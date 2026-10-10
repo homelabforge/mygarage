@@ -7,7 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,6 +96,63 @@ def _fit_to_column(column: str, value: Any) -> Any:
     return value[:length]
 
 
+#: Sticker data columns: filled from a scan only where empty, unless replacing.
+STICKER_DATA_FIELDS: tuple[str, ...] = (
+    "msrp_base",
+    "msrp_options",
+    "msrp_total",
+    "destination_charge",
+    "fuel_economy_city_l_per_100km",
+    "fuel_economy_highway_l_per_100km",
+    "fuel_economy_combined_l_per_100km",
+    "standard_equipment",
+    "optional_equipment",
+    "assembly_location",
+    "exterior_color",
+    "interior_color",
+    "sticker_engine_description",
+    "sticker_transmission_description",
+    "sticker_drivetrain",
+    "wheel_specs",
+    "tire_specs",
+    "warranty_powertrain",
+    "warranty_basic",
+    "environmental_rating_ghg",
+    "environmental_rating_smog",
+    "window_sticker_options_detail",
+    "window_sticker_packages",
+)
+#: What the scan of the file on record found: reset by every upload.
+STICKER_SCAN_FIELDS: tuple[str, ...] = (
+    "window_sticker_parser_used",
+    "window_sticker_confidence_score",
+    "window_sticker_extracted_vin",
+)
+
+
+def _is_empty_sticker_value(value: object) -> bool:
+    """None, a blank string, or an empty JSON object/list. 0 and False are values."""
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (dict, list)):
+        return not value
+    return False
+
+
+def _unlink_quietly(path: Path) -> None:
+    """Remove a sticker file if it's there; a failure is an orphan, not an error."""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as e:
+        logger.warning(
+            "Failed to delete window sticker file %s: %s",
+            sanitize_for_log(path),
+            sanitize_for_log(e),
+        )
+
+
 class WindowStickerDataUpdate(BaseModel):
     """The review's edits. Omitted keeps, null clears; widths match the columns."""
 
@@ -154,6 +211,8 @@ class WindowStickerResponse(BaseModel):
     window_sticker_parser_used: str | None
     window_sticker_confidence_score: Decimal | None
     window_sticker_extracted_vin: str | None
+    # Only the upload sets it: the scan found no sticker field, or OCR failed.
+    scan_read_nothing: bool = False
 
     class Config:
         from_attributes = True
@@ -244,12 +303,15 @@ async def upload_window_sticker(
     vin: str,
     file: Annotated[UploadFile, File(...)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    replace: Annotated[bool, Form()] = False,
     current_user: User | None = Depends(require_auth),
 ) -> WindowStickerResponse:
     """
     Upload a window sticker file and extract data using OCR.
 
-    The file will be saved and OCR extraction will be attempted.
+    The scan fills only the sticker fields that are empty. With `replace` and a
+    sticker already on file, the old sticker's fields are cleared first. A scan
+    that read nothing changes no field and says so in `scan_read_nothing`.
     Extracted data can be edited via the PATCH endpoint.
     """
     # Window-sticker upload mutates the vehicle row (incl. vehicle.color) -> OWNER-only (D-8).
@@ -282,15 +344,9 @@ async def upload_window_sticker(
     vin_dir = STICKER_STORAGE_PATH / vin
     vin_dir.mkdir(parents=True, exist_ok=True)
 
-    # Delete old window sticker file if exists
-    if vehicle.window_sticker_file_path:
-        old_file_path = Path(vehicle.window_sticker_file_path)
-        if old_file_path.exists():
-            try:
-                old_file_path.unlink()
-                logger.info("Deleted old window sticker: %s", old_file_path)
-            except Exception as e:
-                logger.warning("Failed to delete old window sticker: %s", e)
+    # The old file stays until the new one is committed, so a failed upload
+    # still leaves the saved sticker in place.
+    old_path = vehicle.window_sticker_file_path
 
     # Save new file
     file_path = vin_dir / unique_filename
@@ -300,70 +356,59 @@ async def upload_window_sticker(
             f.write(content)
         logger.info("Saved window sticker to: %s", file_path)
     except Exception:
+        logger.exception("Failed to save window sticker for %s", sanitize_for_log(vin))
+        _unlink_quietly(file_path)  # whatever got written before it failed
         raise HTTPException(status_code=500, detail="Failed to save file")
 
-    # Extract data using OCR with manufacturer-specific parser
-    ocr_service = WindowStickerOCRService()
     try:
-        extracted_data = await ocr_service.extract_data_from_file(
-            str(file_path),
-            vin=vin,
-            make=vehicle.make,
-        )
-        logger.info("Extracted %d fields from window sticker", len(extracted_data))
+        ocr_failed = False
+        try:
+            extracted_data = await WindowStickerOCRService().extract_data_from_file(
+                str(file_path), vin=vin, make=vehicle.make
+            )
+            logger.info("Extracted %d fields from window sticker", len(extracted_data))
+        except Exception as e:
+            logger.error("OCR extraction failed: %s", sanitize_for_log(e))
+            extracted_data, ocr_failed = {}, True
+        _drop_numbers_that_cannot_be_stored(extracted_data)
+        scan_read_nothing = ocr_failed or not any(f in extracted_data for f in STICKER_DATA_FIELDS)
+
+        # D1 (2026-08-01): a scan fills empty fields only, so values typed by
+        # hand or corrected in the review survive a re-upload. `replace` clears
+        # first, but never on a scan that read nothing (it would just erase).
+        # `old_path`: replace means replacing a sticker; with none on file it
+        # would only erase values typed through PATCH (Fable F-6).
+        if replace and old_path and not scan_read_nothing:
+            for field in STICKER_DATA_FIELDS:
+                setattr(vehicle, field, None)
+        for field in STICKER_DATA_FIELDS:
+            if field in extracted_data and _is_empty_sticker_value(getattr(vehicle, field)):
+                setattr(vehicle, field, _fit_to_column(field, extracted_data[field]))
+        for field in STICKER_SCAN_FIELDS:  # None passes _fit_to_column untouched
+            setattr(vehicle, field, _fit_to_column(field, extracted_data.get(field)))
+        if not vehicle.color and extracted_data.get("exterior_color"):
+            vehicle.color = _fit_to_column("color", extracted_data["exterior_color"])
+        vehicle.window_sticker_file_path = str(file_path)
+        vehicle.window_sticker_uploaded_at = utc_now()
+        await db.commit()
     except Exception as e:
-        logger.error("OCR extraction failed: %s", e)
-        extracted_data = {}
-
-    _drop_numbers_that_cannot_be_stored(extracted_data)
-
-    # Update vehicle with file path and extracted data
-    vehicle.window_sticker_file_path = str(file_path)
-    vehicle.window_sticker_uploaded_at = utc_now()
-
-    # Update all extracted fields
-    field_mappings = [
-        ("msrp_base", "msrp_base"),
-        ("msrp_options", "msrp_options"),
-        ("msrp_total", "msrp_total"),
-        ("destination_charge", "destination_charge"),
-        ("fuel_economy_city_l_per_100km", "fuel_economy_city_l_per_100km"),
-        ("fuel_economy_highway_l_per_100km", "fuel_economy_highway_l_per_100km"),
-        ("fuel_economy_combined_l_per_100km", "fuel_economy_combined_l_per_100km"),
-        ("standard_equipment", "standard_equipment"),
-        ("optional_equipment", "optional_equipment"),
-        ("assembly_location", "assembly_location"),
-        ("exterior_color", "exterior_color"),
-        ("interior_color", "interior_color"),
-        ("sticker_engine_description", "sticker_engine_description"),
-        ("sticker_transmission_description", "sticker_transmission_description"),
-        ("sticker_drivetrain", "sticker_drivetrain"),
-        ("wheel_specs", "wheel_specs"),
-        ("tire_specs", "tire_specs"),
-        ("warranty_powertrain", "warranty_powertrain"),
-        ("warranty_basic", "warranty_basic"),
-        ("environmental_rating_ghg", "environmental_rating_ghg"),
-        ("environmental_rating_smog", "environmental_rating_smog"),
-        ("window_sticker_options_detail", "window_sticker_options_detail"),
-        ("window_sticker_packages", "window_sticker_packages"),
-        ("window_sticker_parser_used", "window_sticker_parser_used"),
-        ("window_sticker_confidence_score", "window_sticker_confidence_score"),
-        ("window_sticker_extracted_vin", "window_sticker_extracted_vin"),
-    ]
-
-    for db_field, data_key in field_mappings:
-        if data_key in extracted_data:
-            setattr(vehicle, db_field, _fit_to_column(db_field, extracted_data[data_key]))
-
-    # Also populate main vehicle fields from window sticker data
-    # Color: use exterior_color if vehicle.color is not set
-    if not vehicle.color and extracted_data.get("exterior_color"):
-        vehicle.color = _fit_to_column("color", extracted_data["exterior_color"])
-
-    await db.commit()
+        # Nothing committed points at the new file, so it goes first; the old
+        # one was never touched.
+        _unlink_quietly(file_path)
+        await db.rollback()
+        if isinstance(e, HTTPException):
+            raise
+        logger.exception("Window sticker upload failed for %s", sanitize_for_log(vin))
+        # Starlette answers anything else with a 500 and then re-raises it,
+        # which the test client turns into an exception. Same 500 as the write.
+        raise HTTPException(status_code=500, detail="Failed to save window sticker") from e
+    # Only now is the old file unreferenced.
+    if old_path and old_path != str(file_path):
+        _unlink_quietly(Path(old_path))
     await db.refresh(vehicle)
-
-    return WindowStickerResponse.model_validate(vehicle)
+    response = WindowStickerResponse.model_validate(vehicle)
+    response.scan_read_nothing = scan_read_nothing
+    return response
 
 
 @router.post("/{vin}/window-sticker/test", response_model=WindowStickerTestResponse)
@@ -477,38 +522,12 @@ async def delete_window_sticker(
             logger.error("Failed to delete window sticker file: %s", e)
 
     # Clear all window sticker data
-    window_sticker_fields = [
+    for field in (
         "window_sticker_file_path",
         "window_sticker_uploaded_at",
-        "msrp_base",
-        "msrp_options",
-        "msrp_total",
-        "destination_charge",
-        "fuel_economy_city_l_per_100km",
-        "fuel_economy_highway_l_per_100km",
-        "fuel_economy_combined_l_per_100km",
-        "standard_equipment",
-        "optional_equipment",
-        "assembly_location",
-        "exterior_color",
-        "interior_color",
-        "sticker_engine_description",
-        "sticker_transmission_description",
-        "sticker_drivetrain",
-        "wheel_specs",
-        "tire_specs",
-        "warranty_powertrain",
-        "warranty_basic",
-        "environmental_rating_ghg",
-        "environmental_rating_smog",
-        "window_sticker_options_detail",
-        "window_sticker_packages",
-        "window_sticker_parser_used",
-        "window_sticker_confidence_score",
-        "window_sticker_extracted_vin",
-    ]
-
-    for field in window_sticker_fields:
+        *STICKER_DATA_FIELDS,
+        *STICKER_SCAN_FIELDS,
+    ):
         setattr(vehicle, field, None)
 
     await db.commit()

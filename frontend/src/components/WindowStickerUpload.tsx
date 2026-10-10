@@ -1,4 +1,4 @@
-import { useState, useRef, type SyntheticEvent } from 'react'
+import { useState, useRef, type ReactElement, type SyntheticEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, FileText, DollarSign, Fuel, Edit2, Save, Palette, Shield, Leaf, Cog, Car } from 'lucide-react'
 import api from '../services/api'
@@ -7,7 +7,7 @@ import { applyControlledFieldErrors, withoutFieldError } from '../hooks/useApiFo
 import { parseDecimalInput } from '../utils/decimalInput'
 import { moneyTextError } from '../schemas/shared'
 import { getActiveLocale } from '@/constants/i18n'
-import { Drawer } from './ui'
+import { Checkbox, Drawer } from './ui'
 import { useCurrencySymbol } from '../hooks/useCurrencySymbol'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { formatStickerValue } from '../utils/formatUtils'
@@ -59,11 +59,18 @@ const toNumber = (value: string | number | null | undefined): number | null =>
 
 interface WindowStickerUploadProps {
   vin: string
+  /** A sticker is already on file, so the upload asks whether to keep its values. */
+  hasExistingSticker?: boolean
   onSuccess: () => void
   onClose: () => void
 }
 
-export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowStickerUploadProps) {
+export default function WindowStickerUpload({
+  vin,
+  hasExistingSticker = false,
+  onSuccess,
+  onClose,
+}: WindowStickerUploadProps): ReactElement {
   const { t } = useTranslation('vehicles')
   const currencySymbol = useCurrencySymbol()
   const { currencyCode, locale } = useCurrencyPreference()
@@ -72,6 +79,10 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [success, setSuccess] = useState<string | null>(null)
+  // Its own tone: the upload worked, but the scan gave the review nothing.
+  const [notice, setNotice] = useState<string | null>(null)
+  // On by default (D1): a re-scan only fills what's empty.
+  const [keepSaved, setKeepSaved] = useState(true)
   const [file, setFile] = useState<File | null>(null)
   // What the upload stored, and the review's edits as typed. Save sends only
   // the fields whose value differs from the seed, so an untouched review
@@ -135,10 +146,12 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
     setError(null)
     setFieldErrors({})
     setSuccess(null)
+    setNotice(null)
 
     try {
       const formData = new FormData()
       formData.append('file', file)
+      if (hasExistingSticker && !keepSaved) formData.append('replace', 'true')
 
       const response = await api.post(`/vehicles/${vin}/window-sticker/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -155,7 +168,8 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
       setSeed(data)
       setEconomyOrigins(origins)
       setDraft(seeded)
-      setSuccess(t('windowSticker.misc.uploadSuccess'))
+      if (data.scan_read_nothing) setNotice(t('windowSticker.scanReadNothing'))
+      else setSuccess(t('windowSticker.misc.uploadSuccess'))
       setEditMode(true)
     } catch (err) {
       const { attached, unhandled, errorsByField } = applyControlledFieldErrors(
@@ -215,6 +229,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
   }
 
   const finish = () => {
+    setNotice(null)
     setSuccess(t('windowSticker.misc.saveSuccess'))
     setTimeout(() => {
       onSuccess()
@@ -315,8 +330,26 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
           </div>
         )}
 
+        {notice && (
+          <div className="bg-warning-500/10 border border-warning-500 rounded-lg p-3">
+            <p className="text-sm text-warning-500">{notice}</p>
+          </div>
+        )}
+
         {!seed && (
           <>
+            {hasExistingSticker && (
+              <div className="space-y-1">
+                <Checkbox
+                  label={t('windowSticker.keepSavedValues')}
+                  checked={keepSaved}
+                  onChange={(e) => setKeepSaved(e.target.checked)}
+                  disabled={uploading}
+                />
+                <p className="text-xs text-text-mute">{t('windowSticker.keepSavedValuesHint')}</p>
+              </div>
+            )}
+
             <div
               className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
                 dragActive
