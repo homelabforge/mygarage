@@ -1141,9 +1141,9 @@ class TestVehicleJsonImportHours:
         assert [(r.date, r.engine_hours) for r in rows] == [(date(2026, 9, 5), Decimal("7.0"))]
 
     async def test_a_hours_section_that_is_not_a_list_refuses_the_file(
-        self, client: AsyncClient, auth_headers, own_vehicle, db_session
+        self, client: AsyncClient, auth_headers, own_vehicle, test_sessionmaker
     ):
-        """Checked with the other sections, before the odometer row ahead of it is written."""
+        """Refused whole, so the odometer row ahead of it isn't kept either."""
         from sqlalchemy import func, select
 
         from app.models.odometer import OdometerRecord
@@ -1154,10 +1154,13 @@ class TestVehicleJsonImportHours:
         response = await _post_backup(client, auth_headers, vin, payload)
         assert response.status_code == 400, response.text
         assert response.json()["detail"] == "hours_records must be a list of records"
-        assert await _hours_rows(db_session, vin) == []
-        odometer_rows = await db_session.scalar(
-            select(func.count()).select_from(OdometerRecord).where(OdometerRecord.vin == vin)
-        )
+        # A fresh session sees only what got committed. It can't tell whether the
+        # check ran before the odometer write: the 400 rolls the whole request back.
+        async with test_sessionmaker() as fresh:
+            assert await _hours_rows(fresh, vin) == []
+            odometer_rows = await fresh.scalar(
+                select(func.count()).select_from(OdometerRecord).where(OdometerRecord.vin == vin)
+            )
         assert odometer_rows == 0
 
     async def test_export_then_import_into_another_vehicle(
