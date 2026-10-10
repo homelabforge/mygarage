@@ -267,3 +267,22 @@ describe('SettingsSystemTab: a save sends only what changed', () => {
     expect(mockedApi.put).not.toHaveBeenCalled()
   })
 })
+
+describe('SettingsSystemTab: the local-auth card reads has_users', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('says local auth is configured once anyone has registered', async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings') {
+        return Promise.resolve({ data: { settings: [{ key: 'auth_mode', value: 'local' }] } })
+      }
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
+      return Promise.resolve({ data: {} })
+    })
+    renderTab()
+
+    expect(await screen.findByText('auth.localConfigured')).toBeInTheDocument()
+  })
+})
