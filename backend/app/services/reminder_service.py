@@ -893,88 +893,94 @@ async def check_due_reminders(db: AsyncSession) -> None:
     dispatcher = NotificationDispatcher(db)
 
     for reminder in reminders:
+        # Read before the savepoint: if it rolls back, whatever it changed comes
+        # back expired, and reading that in async raises MissingGreenlet.
+        reminder_id = reminder.id
         try:
-            if is_reminder_snoozed(reminder, today):
-                # Snoozed: no notification whatever the thresholds say, and no
-                # cooldown stamp either, so the day the snooze expires the very
-                # next run notifies (plan 2026-09-18, feature A).
-                continue
+            # Its own savepoint, so a check that fails (a bad query, an
+            # overflowing projection) rolls back alone. Without it PostgreSQL
+            # keeps the transaction aborted and the stamps for what already
+            # went out never commit.
+            async with db.begin_nested():
+                if is_reminder_snoozed(reminder, today):
+                    # Snoozed: no notification whatever the thresholds say, and no
+                    # cooldown stamp either, so the day the snooze expires the very
+                    # next run notifies (plan 2026-09-18, feature A).
+                    continue
 
-            # Dedup check. Reminder.last_notified_at is a plain (non-tz-aware)
-            # DateTime column: SQLite's bind processor silently drops tzinfo on
-            # write, so a value round-tripped through the DB comes back naive
-            # even though it was always written as UTC. Re-attach UTC before
-            # comparing against the aware `now`, or a naive/aware subtraction
-            # raises TypeError on the very next scheduler tick after a reminder
-            # has ever been notified once.
-            last_notified_at = reminder.last_notified_at
-            if last_notified_at is not None and last_notified_at.tzinfo is None:
-                last_notified_at = last_notified_at.replace(tzinfo=UTC)
-            if last_notified_at and (now - last_notified_at) < NOTIFICATION_COOLDOWN:
-                continue
+                # Dedup check. Reminder.last_notified_at is a plain (non-tz-aware)
+                # DateTime column: SQLite's bind processor silently drops tzinfo on
+                # write, so a value round-tripped through the DB comes back naive
+                # even though it was always written as UTC. Re-attach UTC before
+                # comparing against the aware `now`, or a naive/aware subtraction
+                # raises TypeError on the very next scheduler tick after a reminder
+                # has ever been notified once.
+                last_notified_at = reminder.last_notified_at
+                if last_notified_at is not None and last_notified_at.tzinfo is None:
+                    last_notified_at = last_notified_at.replace(tzinfo=UTC)
+                if last_notified_at and (now - last_notified_at) < NOTIFICATION_COOLDOWN:
+                    continue
 
-            should_notify = False
+                should_notify = False
 
-            # Date-based check
-            if reminder.reminder_type in ("date", "both") and reminder.due_date:
-                if reminder.due_date <= today:
-                    should_notify = True
+                # Date-based check
+                if reminder.reminder_type in ("date", "both") and reminder.due_date:
+                    if reminder.due_date <= today:
+                        should_notify = True
 
-            # Mileage-based check
-            if reminder.reminder_type in ("mileage", "both") and reminder.due_mileage_km:
-                latest_odometer_km = await get_current_mileage(reminder.vin, db)
-                if latest_odometer_km and latest_odometer_km >= reminder.due_mileage_km:
-                    should_notify = True
-
-            # Hours-based check
-            if reminder.reminder_type == "hours" and reminder.due_hours:
-                current_hours = await get_current_hours(reminder.vin, db)
-                if current_hours and current_hours >= reminder.due_hours:
-                    should_notify = True
-
-            # Smart: check estimated date or the tracked usage target (exactly
-            # one of due_mileage_km/due_hours is set, per validate_reminder_state).
-            if reminder.reminder_type == "smart":
-                # Check mileage
-                if reminder.due_mileage_km:
+                # Mileage-based check
+                if reminder.reminder_type in ("mileage", "both") and reminder.due_mileage_km:
                     latest_odometer_km = await get_current_mileage(reminder.vin, db)
                     if latest_odometer_km and latest_odometer_km >= reminder.due_mileage_km:
                         should_notify = True
 
-                # Check hours
-                if reminder.due_hours:
+                # Hours-based check
+                if reminder.reminder_type == "hours" and reminder.due_hours:
                     current_hours = await get_current_hours(reminder.vin, db)
                     if current_hours and current_hours >= reminder.due_hours:
                         should_notify = True
 
-                # Check date (hard cap)
-                if reminder.due_date and reminder.due_date <= today:
-                    should_notify = True
-
-                # Check estimated date (within 7 days), branching on whichever
-                # target is set.
-                if not should_notify and reminder.due_date:
-                    rate: float | None = None
-                    current: Decimal | None = None
-                    target: Decimal | None = None
+                # Smart: check estimated date or the tracked usage target (exactly
+                # one of due_mileage_km/due_hours is set, per validate_reminder_state).
+                if reminder.reminder_type == "smart":
+                    # Check mileage
                     if reminder.due_mileage_km:
-                        rate = await calculate_driving_rate(reminder.vin, db)
-                        current = await get_current_mileage(reminder.vin, db)
-                        target = reminder.due_mileage_km
-                    elif reminder.due_hours:
-                        rate = await calculate_hours_driving_rate(reminder.vin, db)
-                        current = await get_current_hours(reminder.vin, db)
-                        target = reminder.due_hours
-                    if rate and current and target:
-                        est = calculate_smart_estimated_date(
-                            current, target, rate, reminder.due_date
-                        )
-                        if (est - today).days <= 7:
+                        latest_odometer_km = await get_current_mileage(reminder.vin, db)
+                        if latest_odometer_km and latest_odometer_km >= reminder.due_mileage_km:
                             should_notify = True
+
+                    # Check hours
+                    if reminder.due_hours:
+                        current_hours = await get_current_hours(reminder.vin, db)
+                        if current_hours and current_hours >= reminder.due_hours:
+                            should_notify = True
+
+                    # Check date (hard cap)
+                    if reminder.due_date and reminder.due_date <= today:
+                        should_notify = True
+
+                    # Check estimated date (within 7 days), branching on whichever
+                    # target is set.
+                    if not should_notify and reminder.due_date:
+                        rate: float | None = None
+                        current: Decimal | None = None
+                        target: Decimal | None = None
+                        if reminder.due_mileage_km:
+                            rate = await calculate_driving_rate(reminder.vin, db)
+                            current = await get_current_mileage(reminder.vin, db)
+                            target = reminder.due_mileage_km
+                        elif reminder.due_hours:
+                            rate = await calculate_hours_driving_rate(reminder.vin, db)
+                            current = await get_current_hours(reminder.vin, db)
+                            target = reminder.due_hours
+                        if rate and current and target:
+                            est = calculate_smart_estimated_date(
+                                current, target, rate, reminder.due_date
+                            )
+                            if (est - today).days <= 7:
+                                should_notify = True
         except Exception:
-            # One bad row (an overflowing projection, say) shouldn't skip the
-            # rest of the sweep or the commit that stamps what already went out.
-            logger.exception("Reminder %s check failed", reminder.id)
+            logger.exception("Reminder %s check failed", reminder_id)
             continue
 
         if should_notify:

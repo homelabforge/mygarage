@@ -42,7 +42,7 @@ from decimal import Decimal
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet, field_to_column
@@ -397,3 +397,50 @@ class TestCheckDueRemindersUnits:
         ]
         assert len(failures) == 1
         assert failures[0].exc_info is not None
+
+    @pytest.mark.parametrize(
+        "failing_vin, healthy_vin, healthy_title",
+        [
+            (_OWNED_VIN, _OWNERLESS_VIN, "Reminder Units Ownerless Service"),
+            (_OWNERLESS_VIN, _OWNED_VIN, "Reminder Units Owned Service"),
+        ],
+        ids=["owned-fails", "ownerless-fails"],
+    )
+    async def test_a_failed_query_rolls_back_only_its_own_reminder(
+        self,
+        db_session: AsyncSession,
+        seeded_reminders,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+        failing_vin: str,
+        healthy_vin: str,
+        healthy_title: str,
+    ) -> None:
+        """A database error checking one reminder stays in that reminder's
+        savepoint. Without one, PostgreSQL leaves the transaction aborted and
+        every later check and the final commit fail with it. Both ways round,
+        so the failure lands before and after a stamp the run still has to
+        commit."""
+        sent = self._stub_dispatcher(monkeypatch)
+        real_mileage = reminder_service.get_current_mileage
+
+        async def _mileage_or_bad_sql(vin: str, db: AsyncSession) -> Decimal | None:
+            if vin == failing_vin:
+                await db.execute(text("SELECT no_such_column FROM vehicle_reminders"))
+            return await real_mileage(vin, db)
+
+        monkeypatch.setattr(reminder_service, "get_current_mileage", _mileage_or_bad_sql)
+
+        await check_due_reminders(db_session)
+
+        assert len(self._own(sent, healthy_title)) == 1
+        # A second session sees only what was committed.
+        async with test_sessionmaker() as fresh:
+            rows = await fresh.execute(
+                select(Reminder.vin, Reminder.last_notified_at).where(
+                    Reminder.vin.in_([failing_vin, healthy_vin])
+                )
+            )
+            stamps = {vin: stamped for vin, stamped in rows.all()}
+        assert stamps[healthy_vin] is not None
+        assert stamps[failing_vin] is None
