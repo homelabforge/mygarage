@@ -9,10 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - CI splits the test suites across parallel runners (shared-workflows v1.7.0)
+- `/api/auth/users/count` returns `has_users` only
 
 ### Fixed
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
 - Small supply amounts (a few mL in L, qt or gal) no longer show as 0.00, and supply amounts follow the selected language
+- With sign-in off, creating a user and resetting a password no longer error after saving, the family pages no longer error, and Share is hidden on the vehicle page
+
+### Security
+- POI provider settings are admin-only
+- SSO link and sign-in tokens moved out of the URL query and out of the app's logs
+- Signing in with an unknown username or an SSO-only account now takes as long as a wrong password
+- SSO logs a warning, once per start, while `oidc_redirect_uri` is blank (see SECURITY.md)
 
 ## [3.8.0] - 2026-10-04
 
