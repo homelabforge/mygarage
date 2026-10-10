@@ -1,8 +1,9 @@
 import type { ComponentProps } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, fireEvent, waitFor } from '@testing-library/react'
+import { screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { render } from '../../../__tests__/test-utils'
 import { withBase } from '@/utils/basePath'
+import formsEn from '../../../locales/en/forms.json'
 import OIDCModal from '../OIDCModal'
 
 type OIDCFormData = ComponentProps<typeof OIDCModal>['formData']
@@ -77,5 +78,59 @@ describe('OIDCModal: the Callback URL pins oidc_redirect_uri', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'modal.oidc.copy' }))
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(COMPUTED))
+  })
+})
+
+describe('OIDCModal: the setup guide names no provider', () => {
+  it('heads the guide generically, with the new step 1 and step 3 keys', () => {
+    renderModal()
+
+    expect(screen.queryByText('modal.authentikSetupGuide')).not.toBeInTheDocument()
+    const heading = screen.getByRole('heading', { name: 'modal.oidcSetupGuide' })
+    const steps = within(heading.parentElement as HTMLElement)
+      .getAllByRole('listitem')
+      .map((step) => step.textContent)
+    expect(steps).toEqual([
+      'modal.oidc.setupCreateClient',
+      'modal.oidc.setupStep2',
+      'modal.oidc.setupRegisterCallback',
+      'modal.oidc.setupStep4',
+      'modal.oidc.setupStep5',
+      'modal.oidc.setupStep6',
+      'modal.oidc.setupStep7',
+    ])
+  })
+
+  it('lists Rauthy as a supported provider, next to Keycloak', () => {
+    renderModal()
+
+    const providers = within(screen.getByText('Keycloak').closest('ul') as HTMLElement)
+      .getAllByRole('listitem')
+      .map((provider) => provider.textContent)
+    expect(providers).toEqual([
+      'Authentik',
+      'Keycloak',
+      'Rauthy',
+      'Auth0',
+      'Okta',
+      'Azure AD / Entra ID',
+      'Google Workspace',
+    ])
+  })
+
+  // The mock renders keys, so only the en bundle can show what users actually read.
+  it('ships no Authentik wording in the English guide copy', () => {
+    const modal: { oidc: Record<string, string>; oidcSetupGuide?: string } = formsEn.modal
+    const copy: Record<string, string | undefined> = {
+      ...modal.oidc,
+      oidcSetupGuide: modal.oidcSetupGuide,
+    }
+
+    // The placeholder is an example list, and Authentik is still supported.
+    const named = Object.keys(copy).filter(
+      (key) => key !== 'providerNamePlaceholder' && /authentik/i.test(copy[key] ?? ''),
+    )
+    expect(named).toEqual([])
+    expect(modal.oidcSetupGuide).toEqual(expect.any(String))
   })
 })

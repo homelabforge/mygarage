@@ -11,6 +11,7 @@ import FormModalWrapper from '../FormModalWrapper'
 const SUPPORTED_PROVIDERS = [
   'Authentik',
   'Keycloak',
+  'Rauthy',
   'Auth0',
   'Okta',
   'Azure AD / Entra ID',
@@ -439,16 +440,16 @@ export default function OIDCModal({
             </div>
           </div>
 
-          {/* Authentik Setup Instructions */}
+          {/* Setup Instructions */}
           <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h4 className="text-sm font-semibold text-garage-text mb-2">{t('modal.authentikSetupGuide')}</h4>
+                <h4 className="text-sm font-semibold text-garage-text mb-2">{t('modal.oidcSetupGuide')}</h4>
                 <ol className="list-decimal list-inside space-y-1.5 text-xs text-garage-text-muted">
-                  <li>{t('modal.oidc.setupStep1')}</li>
+                  <li>{t('modal.oidc.setupCreateClient')}</li>
                   <li>{t('modal.oidc.setupStep2')}</li>
-                  <li>{t('modal.oidc.setupStep3')}</li>
+                  <li>{t('modal.oidc.setupRegisterCallback')}</li>
                   <li>{t('modal.oidc.setupStep4')}</li>
                   <li>{t('modal.oidc.setupStep5')}</li>
                   <li>{t('modal.oidc.setupStep6')}</li>

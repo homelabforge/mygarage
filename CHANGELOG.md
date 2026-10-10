@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - CI splits the test suites across parallel runners (shared-workflows v1.7.0)
 - `/api/auth/users/count` returns `has_users` only
+- The SSO setup guide is no longer Authentik-specific, and lists Rauthy as a supported provider
 
 ### Fixed
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
