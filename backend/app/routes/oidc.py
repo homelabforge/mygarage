@@ -72,6 +72,30 @@ def _to_login(request: Request, code: SSOError) -> RedirectResponse:
 # The IdP's error text is free-form and goes to the log, so it's cut short.
 _IDP_ERROR_LOG_LENGTH = 200
 
+# One shot per process, module-level so tests can reset it. No await between
+# the check and the set, so one event loop can't log it twice.
+_warned_blank_redirect_uri = False
+
+
+def _warn_if_redirect_uri_blank(config: dict[str, str]) -> None:
+    """Warn once when SSO's callback URL is coming from the request (A-15).
+
+    With ``oidc_redirect_uri`` blank, ``create_authorization_url`` builds it
+    from X-Forwarded-Host or Host, so a forged one becomes the redirect_uri the
+    IdP is asked to send the code to. Only an IdP that skips exact matching
+    accepts that, so it's a nudge to pin the setting, not a refusal.
+    """
+    global _warned_blank_redirect_uri
+    if _warned_blank_redirect_uri or config.get("redirect_uri", "").strip():
+        return
+    _warned_blank_redirect_uri = True
+    logger.warning(
+        "oidc_redirect_uri is blank, so SSO builds its callback URL from each request's "
+        "X-Forwarded-Host or Host header. Set it to your public callback URL and register "
+        "exactly that URL at your identity provider, never a wildcard (see SECURITY.md). "
+        "Logged once."
+    )
+
 
 # Initialize rate limiter for auth endpoints
 limiter = Limiter(key_func=get_remote_address)
@@ -343,6 +367,7 @@ async def oidc_login(
         logger.error("OIDC configuration error: %s", e)
         return _to_login(request, SSOError.FAILED)
 
+    _warn_if_redirect_uri_blank(config)
     logger.info("Redirecting to OIDC provider for authentication (state: %s)", state)
     return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
 

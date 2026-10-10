@@ -11,6 +11,7 @@ JSON.
 import logging
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, patch
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
@@ -19,6 +20,7 @@ from joserfc.errors import JoseError
 from sqlalchemy import delete, select
 
 from app.models.settings import Setting
+from app.routes import oidc as oidc_routes
 from app.routes.oidc import limiter as oidc_route_limiter
 from tests.integration._oidc_refusals import assert_sent_to_login
 
@@ -707,3 +709,65 @@ class TestOIDCEdgeCases:
 
         # Should redirect (actual scope verification would be in service tests)
         assert response.status_code == 302
+
+
+def redirect_uri_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """The route warnings about a blank oidc_redirect_uri."""
+    return [m for m in route_warnings(caplog) if "oidc_redirect_uri" in m]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestBlankRedirectUriWarning:
+    """A-15: with oidc_redirect_uri blank, the callback URL comes from the request's Host.
+
+    That's a config problem, not a bug, so the login says so once per process.
+    create_authorization_url runs for real, so each test also checks which
+    redirect_uri actually went to the IdP.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _not_warned_yet(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(oidc_routes, "_warned_blank_redirect_uri", False)
+
+    async def _login(self, client: AsyncClient) -> str:
+        """Start SSO and return the redirect_uri it sent to the IdP."""
+        with patch(
+            "app.services.oidc.get_provider_metadata",
+            new_callable=AsyncMock,
+            return_value={"authorization_endpoint": "https://auth.example.com/authorize"},
+        ):
+            response = await client.get("/api/auth/oidc/login", follow_redirects=False)
+        assert response.status_code == 302, response.text
+        return parse_qs(urlsplit(response.headers["location"]).query)["redirect_uri"][0]
+
+    @pytest.mark.parametrize("stored", [None, "", "   "], ids=["no-row", "empty", "spaces"])
+    async def test_a_blank_setting_warns_on_the_first_login_only(
+        self,
+        client: AsyncClient,
+        db_session,
+        caplog: pytest.LogCaptureFixture,
+        stored: str | None,
+    ) -> None:
+        """Spaces count as blank, same as the service's strip()."""
+        caplog.set_level(logging.WARNING, logger="app.routes.oidc")
+        extra = {} if stored is None else {"oidc_redirect_uri": stored}
+        await set_settings(db_session, {**ENABLED, **extra})
+
+        assert await self._login(client) == "http://test/api/auth/oidc/callback"
+        assert len(redirect_uri_warnings(caplog)) == 1
+
+        assert await self._login(client) == "http://test/api/auth/oidc/callback"
+        assert len(redirect_uri_warnings(caplog)) == 1
+
+    async def test_a_pinned_setting_never_warns(
+        self, client: AsyncClient, db_session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Control: nothing to warn about once the admin pins it."""
+        caplog.set_level(logging.WARNING, logger="app.routes.oidc")
+        pinned = "https://garage.example.com/api/auth/oidc/callback"
+        await set_settings(db_session, {**ENABLED, "oidc_redirect_uri": pinned})
+
+        assert await self._login(client) == pinned
+        assert await self._login(client) == pinned
+        assert redirect_uri_warnings(caplog) == []
