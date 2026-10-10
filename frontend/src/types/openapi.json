@@ -12520,7 +12520,7 @@
         "type": "object"
       },
       "OIDCAdminConfig": {
-        "description": "Full admin OIDC configuration (canonical homelab OIDC settings contract).\n\n`client_secret` follows the \u00a75.4(3) wire convention:\n  - GET returns the literal \"********\" placeholder when stored, \"\" otherwise.\n  - PUT with empty string OR the placeholder preserves the stored value.",
+        "description": "Full admin OIDC configuration (canonical homelab OIDC settings contract).\n\n`client_secret` follows the \u00a75.4(3) wire convention:\n  - GET returns the literal \"********\" placeholder when stored, \"\" otherwise.\n  - PUT with empty string OR the placeholder preserves the stored value.\n\n`redirect_uri` pins the SSO callback URL; \"\" builds it from each request.\nPUT leaves it alone when the field is left out.",
         "properties": {
           "admin_group": {
             "default": "",
@@ -12565,6 +12565,11 @@
           "provider_name": {
             "default": "",
             "title": "Provider Name",
+            "type": "string"
+          },
+          "redirect_uri": {
+            "default": "",
+            "title": "Redirect Uri",
             "type": "string"
           },
           "scopes": {
@@ -33054,7 +33059,7 @@
         ]
       },
       "put": {
-        "description": "Update the admin OIDC configuration (admin-only).\n\nEnforces the \u00a75.4 wire contract:\n  - empty `client_secret` (or the masked placeholder) preserves the stored value\n  - issuer_url has trailing slash + whitespace stripped before persisting",
+        "description": "Update the admin OIDC configuration (admin-only).\n\nEnforces the \u00a75.4 wire contract:\n  - empty `client_secret` (or the masked placeholder) preserves the stored value\n  - issuer_url has trailing slash + whitespace stripped before persisting\n  - `redirect_uri` left out preserves the stored value; sent, it's stripped and\n    must be an absolute http(s) URL or blank, else a 422 and nothing is written",
         "operationId": "put_oidc_admin_config_api_auth_oidc_config_admin_put",
         "requestBody": {
           "content": {

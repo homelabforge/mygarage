@@ -438,7 +438,7 @@
       "showSecret": "Show secret",
       "hideSecret": "Hide secret",
       "callbackUrl": "Callback URL",
-      "callbackUrlHint": "Copy this into your IdP's redirect URI list.",
+      "redirectUriHint": "Register exactly this URL at your identity provider, never a wildcard. Leave it blank to build it from each request; behind a reverse proxy, enter your public URL.",
       "copy": "Copy",
       "copied": "Copied",
       "tokenAlgorithmsLabel": "Token algorithms",

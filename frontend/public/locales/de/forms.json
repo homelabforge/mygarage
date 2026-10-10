@@ -360,7 +360,6 @@
       "showSecret": "Secret anzeigen",
       "hideSecret": "Secret ausblenden",
       "callbackUrl": "Callback-URL",
-      "callbackUrlHint": "Kopiere dies in die Liste der Redirect-URIs deines IdPs.",
       "copy": "Kopieren",
       "copied": "Kopiert",
       "tokenAlgorithmsLabel": "Token-Algorithmen",

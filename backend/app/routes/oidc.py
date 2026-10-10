@@ -11,6 +11,7 @@ import logging
 import secrets
 from datetime import timedelta
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -92,9 +93,9 @@ def _warn_if_redirect_uri_blank(config: dict[str, str]) -> None:
     _warned_blank_redirect_uri = True
     logger.warning(
         "oidc_redirect_uri is blank, so SSO builds its callback URL from each request's "
-        "X-Forwarded-Host or Host header. Set it to your public callback URL and register "
-        "exactly that URL at your identity provider, never a wildcard (see SECURITY.md). "
-        "Logged once."
+        "X-Forwarded-Host or Host header. Set it in Settings > System > Configure OIDC > "
+        "Callback URL to your public callback URL and register exactly that URL at your "
+        "identity provider, never a wildcard (see SECURITY.md). Logged once."
     )
 
 
@@ -167,6 +168,9 @@ class OIDCAdminConfig(BaseModel):
     `client_secret` follows the §5.4(3) wire convention:
       - GET returns the literal "********" placeholder when stored, "" otherwise.
       - PUT with empty string OR the placeholder preserves the stored value.
+
+    `redirect_uri` pins the SSO callback URL; "" builds it from each request.
+    PUT leaves it alone when the field is left out.
     """
 
     enabled: bool = False
@@ -174,6 +178,7 @@ class OIDCAdminConfig(BaseModel):
     issuer_url: str = ""
     client_id: str = ""
     client_secret: str = ""
+    redirect_uri: str = ""
     scopes: str = "openid profile email"
     auto_create_users: bool = True
     admin_group: str = ""
@@ -225,6 +230,28 @@ async def get_oidc_config(db: AsyncSession = Depends(get_db)):
     )
 
 
+def _checked_redirect_uri(raw: str) -> str:
+    """The callback URL to store: stripped, and blank or an absolute http(s) URL.
+
+    The path isn't checked, since a proxy may rewrite it (users.py already warns
+    on a missing root_path prefix).
+
+    Raises:
+        HTTPException 422: If it's neither blank nor an absolute http(s) URL
+    """
+    value = raw.strip()
+    if not value:
+        return ""
+    try:
+        parts = urlsplit(value)
+        absolute = parts.scheme in ("http", "https") and bool(parts.netloc)
+    except ValueError:
+        absolute = False
+    if not absolute:
+        raise HTTPException(status_code=422, detail="redirect_uri must be an absolute http(s) URL")
+    return value
+
+
 @router.get("/config/admin", response_model=OIDCAdminConfig)
 async def get_oidc_admin_config(
     db: AsyncSession = Depends(get_db),
@@ -248,6 +275,7 @@ async def get_oidc_admin_config(
         issuer_url=config.get("issuer_url", ""),
         client_id=config.get("client_id", ""),
         client_secret=oidc_service.display_mask_secret(config.get("client_secret", "")),
+        redirect_uri=config.get("redirect_uri", ""),
         scopes=effective_oidc_value(config, "scopes"),
         auto_create_users=(config.get("auto_create_users", "true").lower() == "true"),
         admin_group=config.get("admin_group", ""),
@@ -268,9 +296,17 @@ async def put_oidc_admin_config(
     Enforces the §5.4 wire contract:
       - empty `client_secret` (or the masked placeholder) preserves the stored value
       - issuer_url has trailing slash + whitespace stripped before persisting
+      - `redirect_uri` left out preserves the stored value; sent, it's stripped and
+        must be an absolute http(s) URL or blank, else a 422 and nothing is written
     """
     # current_user is None only when auth_mode == "none" (auth disabled), which
     # this endpoint allows — see the GET above for why gating it deadlocks bootstrap.
+
+    # Left out, the stored pin stays, so an older client can't wipe it. Checked
+    # here, not on the model: the GET builds that model from what's stored.
+    redirect_update: dict[str, str] = {}
+    if "redirect_uri" in payload.model_fields_set:
+        redirect_update["redirect_uri"] = _checked_redirect_uri(payload.redirect_uri)
 
     # §5.4(2): preserve stored secret when caller sends empty/placeholder.
     client_secret = payload.client_secret
@@ -295,6 +331,7 @@ async def put_oidc_admin_config(
             "username_claim": payload.username_claim.strip(),
             "email_claim": payload.email_claim.strip(),
             "full_name_claim": payload.full_name_claim.strip(),
+            **redirect_update,
         },
     )
 

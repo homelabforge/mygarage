@@ -336,7 +336,6 @@
       "showSecret": "Afficher le secret",
       "hideSecret": "Masquer le secret",
       "callbackUrl": "URL de rappel",
-      "callbackUrlHint": "Copiez ceci dans la liste des URI de redirection de votre IdP.",
       "copy": "Copier",
       "copied": "Copié",
       "tokenAlgorithmsLabel": "Algorithmes de jeton",

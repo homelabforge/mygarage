@@ -31,6 +31,7 @@ interface OIDCFormData {
   oidc_issuer_url: string
   oidc_client_id: string
   oidc_client_secret: string
+  oidc_redirect_uri: string
   oidc_scopes: string
   oidc_auto_create_users: string
   oidc_admin_group: string
@@ -98,7 +99,7 @@ export default function OIDCModal({
 
   const handleCopyCallback = async () => {
     try {
-      await navigator.clipboard.writeText(callbackUrl)
+      await navigator.clipboard.writeText(formData.oidc_redirect_uri.trim() || callbackUrl)
       setCopiedCallback(true)
       setTimeout(() => setCopiedCallback(false), 1500)
     } catch {
@@ -231,7 +232,8 @@ export default function OIDCModal({
                 <p className="text-xs text-garage-text-muted mt-1">{t('modal.oidc.clientSecretHint')}</p>
               </div>
 
-              {/* Callback URL (Read-only, computed from window.location) */}
+              {/* Callback URL: pins oidc_redirect_uri. Blank builds it from each request,
+                  which is what the placeholder shows. */}
               <div>
                 <label htmlFor="oidc-redirect-uri" className="block text-xs font-medium text-garage-text mb-1.5">
                   {t('modal.oidc.callbackUrl')}
@@ -239,10 +241,11 @@ export default function OIDCModal({
                 <div className="flex gap-2">
                   <input
                     id="oidc-redirect-uri"
-                    type="text"
-                    value={callbackUrl}
-                    readOnly
-                    className="flex-1 px-3 py-2 bg-garage-surface/50 border border-garage-border rounded-lg text-sm text-garage-text-muted font-mono cursor-default"
+                    type="url"
+                    value={formData.oidc_redirect_uri}
+                    onChange={(e) => onFormDataChange({ oidc_redirect_uri: e.target.value })}
+                    className="flex-1 min-w-0 px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder={callbackUrl}
                   />
                   <button
                     type="button"
@@ -253,7 +256,7 @@ export default function OIDCModal({
                   </button>
                 </div>
                 <p className="text-xs text-garage-text-muted mt-1">
-                  {t('modal.oidc.callbackUrlHint')}
+                  {t('modal.oidc.redirectUriHint')}
                 </p>
               </div>
 

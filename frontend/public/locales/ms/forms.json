@@ -438,7 +438,6 @@
       "showSecret": "Tunjukkan rahsia",
       "hideSecret": "Sembunyikan rahsia",
       "callbackUrl": "URL Panggilan Balik",
-      "callbackUrlHint": "Salin ini ke dalam senarai URI ubah hala IdP anda.",
       "copy": "Salin",
       "copied": "Disalin",
       "tokenAlgorithmsLabel": "Algoritma token",

@@ -438,7 +438,6 @@
       "showSecret": "Mostra segreto",
       "hideSecret": "Nascondi segreto",
       "callbackUrl": "URL di callback",
-      "callbackUrlHint": "Copia questo valore nell'elenco degli URI di reindirizzamento del tuo IdP.",
       "copy": "Copia",
       "copied": "Copiato",
       "tokenAlgorithmsLabel": "Algoritmi del token",

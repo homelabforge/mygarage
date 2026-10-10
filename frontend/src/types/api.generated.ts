@@ -574,6 +574,8 @@ export interface paths {
          *     Enforces the §5.4 wire contract:
          *       - empty `client_secret` (or the masked placeholder) preserves the stored value
          *       - issuer_url has trailing slash + whitespace stripped before persisting
+         *       - `redirect_uri` left out preserves the stored value; sent, it's stripped and
+         *         must be an absolute http(s) URL or blank, else a 422 and nothing is written
          */
         put: operations["put_oidc_admin_config_api_auth_oidc_config_admin_put"];
         post?: never;
@@ -12998,6 +13000,9 @@ export interface components {
          *     `client_secret` follows the §5.4(3) wire convention:
          *       - GET returns the literal "********" placeholder when stored, "" otherwise.
          *       - PUT with empty string OR the placeholder preserves the stored value.
+         *
+         *     `redirect_uri` pins the SSO callback URL; "" builds it from each request.
+         *     PUT leaves it alone when the field is left out.
          */
         OIDCAdminConfig: {
             /**
@@ -13045,6 +13050,11 @@ export interface components {
              * @default
              */
             provider_name: string;
+            /**
+             * Redirect Uri
+             * @default
+             */
+            redirect_uri: string;
             /**
              * Scopes
              * @default openid profile email

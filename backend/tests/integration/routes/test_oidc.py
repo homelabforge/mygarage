@@ -711,6 +711,129 @@ class TestOIDCEdgeCases:
         assert response.status_code == 302
 
 
+PINNED = "https://pinned.example.com/api/auth/oidc/callback"
+FORGED_HOST = {"Host": "evil.example.com", "X-Forwarded-Host": "evil.example.com"}
+
+
+def admin_payload(**overrides: object) -> dict[str, object]:
+    """A full admin PUT body, the way the SSO settings send it."""
+    return {
+        "enabled": True,
+        "provider_name": "Rauthy",
+        "issuer_url": "https://auth.example.com",
+        "client_id": "test-client-id",
+        "client_secret": "",
+        "scopes": "openid profile email",
+        "auto_create_users": True,
+        "admin_group": "",
+        "username_claim": "preferred_username",
+        "email_claim": "email",
+        "full_name_claim": "name",
+        **overrides,
+    }
+
+
+async def stored_setting(db_session, key: str) -> str | None:
+    """The stored value of one setting, or None with no row."""
+    result = await db_session.execute(select(Setting.value).where(Setting.key == key))
+    return result.scalar_one_or_none()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestAdminRedirectUri:
+    """The SSO settings can pin oidc_redirect_uri, which used to need the batch endpoint."""
+
+    async def test_get_returns_the_stored_value(
+        self, client: AsyncClient, auth_headers, db_session
+    ) -> None:
+        await set_settings(db_session, {"oidc_redirect_uri": PINNED})
+
+        response = await client.get("/api/auth/oidc/config/admin", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["redirect_uri"] == PINNED
+
+    async def test_put_stores_it_stripped(
+        self, client: AsyncClient, auth_headers, db_session
+    ) -> None:
+        response = await client.put(
+            "/api/auth/oidc/config/admin",
+            headers=auth_headers,
+            json=admin_payload(redirect_uri=f"  {PINNED}  "),
+        )
+
+        assert response.status_code == 200, response.text
+        assert await stored_setting(db_session, "oidc_redirect_uri") == PINNED
+
+    @pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "spaces"])
+    async def test_put_blank_clears_it(
+        self, client: AsyncClient, auth_headers, db_session, blank: str
+    ) -> None:
+        """Back to building it from each request."""
+        await set_settings(db_session, {"oidc_redirect_uri": PINNED})
+
+        response = await client.put(
+            "/api/auth/oidc/config/admin",
+            headers=auth_headers,
+            json=admin_payload(redirect_uri=blank),
+        )
+
+        assert response.status_code == 200, response.text
+        assert await stored_setting(db_session, "oidc_redirect_uri") == ""
+
+    async def test_put_without_it_keeps_a_value_pinned_through_the_batch_endpoint(
+        self, client: AsyncClient, auth_headers, db_session
+    ) -> None:
+        """Control: this PUT never wrote it before, so an older client mustn't wipe it now."""
+        batch = await client.post(
+            "/api/settings/batch",
+            headers=auth_headers,
+            json={"settings": {"oidc_redirect_uri": PINNED}},
+        )
+        assert batch.status_code == 200, batch.text
+
+        response = await client.put(
+            "/api/auth/oidc/config/admin", headers=auth_headers, json=admin_payload()
+        )
+
+        assert response.status_code == 200, response.text
+        assert await stored_setting(db_session, "oidc_redirect_uri") == PINNED
+
+    @pytest.mark.parametrize(
+        "bad",
+        ["ftp://x", "not a url", "https://", "https://[garage.example.com"],
+        ids=["ftp", "no-scheme", "no-host", "unparseable"],
+    )
+    async def test_put_refuses_anything_but_an_absolute_http_url(
+        self, client: AsyncClient, auth_headers, db_session, bad: str
+    ) -> None:
+        """And writes nothing, not even the fields that were fine."""
+        await set_settings(db_session, {"oidc_client_id": "before-id", "oidc_redirect_uri": PINNED})
+
+        response = await client.put(
+            "/api/auth/oidc/config/admin",
+            headers=auth_headers,
+            json=admin_payload(client_id="after-id", redirect_uri=bad),
+        )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"] == "redirect_uri must be an absolute http(s) URL"
+        assert await stored_setting(db_session, "oidc_client_id") == "before-id"
+        assert await stored_setting(db_session, "oidc_redirect_uri") == PINNED
+
+    async def test_a_stored_bad_value_still_reads(
+        self, client: AsyncClient, auth_headers, db_session
+    ) -> None:
+        """The batch endpoint doesn't check it, so the GET mustn't 500 on what it stored."""
+        await set_settings(db_session, {"oidc_redirect_uri": "not a url"})
+
+        response = await client.get("/api/auth/oidc/config/admin", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["redirect_uri"] == "not a url"
+
+
 def redirect_uri_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     """The route warnings about a blank oidc_redirect_uri."""
     return [m for m in route_warnings(caplog) if "oidc_redirect_uri" in m]
@@ -730,14 +853,16 @@ class TestBlankRedirectUriWarning:
     def _not_warned_yet(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(oidc_routes, "_warned_blank_redirect_uri", False)
 
-    async def _login(self, client: AsyncClient) -> str:
+    async def _login(self, client: AsyncClient, headers: dict[str, str] | None = None) -> str:
         """Start SSO and return the redirect_uri it sent to the IdP."""
         with patch(
             "app.services.oidc.get_provider_metadata",
             new_callable=AsyncMock,
             return_value={"authorization_endpoint": "https://auth.example.com/authorize"},
         ):
-            response = await client.get("/api/auth/oidc/login", follow_redirects=False)
+            response = await client.get(
+                "/api/auth/oidc/login", headers=headers, follow_redirects=False
+            )
         assert response.status_code == 302, response.text
         return parse_qs(urlsplit(response.headers["location"]).query)["redirect_uri"][0]
 
@@ -770,4 +895,35 @@ class TestBlankRedirectUriWarning:
 
         assert await self._login(client) == pinned
         assert await self._login(client) == pinned
+        assert redirect_uri_warnings(caplog) == []
+
+    async def test_a_forged_host_picks_the_callback_while_blank(
+        self, client: AsyncClient, db_session, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Control: with nothing pinned, the forged header does pick the callback."""
+        caplog.set_level(logging.WARNING, logger="app.routes.oidc")
+        await set_settings(db_session, ENABLED)
+
+        sent = await self._login(client, FORGED_HOST)
+
+        assert sent == "http://evil.example.com/api/auth/oidc/callback"
+        assert len(redirect_uri_warnings(caplog)) == 1
+
+    async def test_a_callback_url_pinned_in_the_settings_beats_a_forged_host(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Pinned through the same PUT the SSO settings send."""
+        caplog.set_level(logging.WARNING, logger="app.routes.oidc")
+        response = await client.put(
+            "/api/auth/oidc/config/admin",
+            headers=auth_headers,
+            json=admin_payload(redirect_uri=PINNED),
+        )
+        assert response.status_code == 200, response.text
+
+        assert await self._login(client, FORGED_HOST) == PINNED
         assert redirect_uri_warnings(caplog) == []
