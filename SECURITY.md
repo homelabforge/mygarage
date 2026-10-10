@@ -33,10 +33,9 @@ The `main` branch is development and not recommended for production.
 - **Run behind an HTTPS reverse proxy** (Traefik, Nginx, Caddy).
 - **Pin the SSO callback URL.** Left blank, `oidc_redirect_uri` is built from
   each request's Host or X-Forwarded-Host header, so set it to your public
-  callback URL (it has no field in Settings; an admin sets it with
-  `POST /api/settings/batch`) and register exactly that URL at your identity
-  provider, never a wildcard. Behind a reverse proxy, also set
-  `MYGARAGE_TRUSTED_PROXIES`.
+  callback URL (Settings > System > Configure OIDC > Callback URL) and register
+  exactly that URL at your identity provider, never a wildcard. Behind a
+  reverse proxy, also set `MYGARAGE_TRUSTED_PROXIES`.
 - **Never enable debug mode in production** — it can leak internal details in
   error responses.
 - The official image (`ghcr.io/homelabforge/mygarage`) runs as a **non-root**
