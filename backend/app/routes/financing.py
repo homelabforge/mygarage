@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/vehicles/{vin}/financing-records", tags=["Financ
 async def list_financing_records(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> FinancingRecordListResponse:
     """Get all financing records for a vehicle."""
     service = FinancingService(db)
@@ -37,7 +37,7 @@ async def create_financing_record(
     vin: str,
     record: FinancingRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> FinancingRecordResponse:
     """Create a new financing record for a vehicle."""
     service = FinancingService(db)
@@ -49,7 +49,7 @@ async def get_financing_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> FinancingRecordResponse:
     """Get a specific financing record."""
     service = FinancingService(db)
@@ -62,7 +62,7 @@ async def update_financing_record(
     record_id: int,
     record_update: FinancingRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> FinancingRecordResponse:
     """Update a financing record."""
     service = FinancingService(db)
@@ -74,7 +74,7 @@ async def delete_financing_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a financing record."""
     service = FinancingService(db)

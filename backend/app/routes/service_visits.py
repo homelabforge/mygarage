@@ -30,7 +30,7 @@ async def list_service_visits(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=500, description="Maximum records to return"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get all service visits for a vehicle.
@@ -59,7 +59,7 @@ async def get_service_visit(
     vin: str,
     visit_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get a specific service visit.
@@ -85,7 +85,7 @@ async def create_service_visit(
     vin: str,
     visit_data: ServiceVisitCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Create a new service visit with line items.
@@ -115,7 +115,7 @@ async def update_service_visit(
     visit_id: int,
     visit_data: ServiceVisitUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Update an existing service visit.
@@ -144,7 +144,7 @@ async def delete_service_visit(
     vin: str,
     visit_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Delete a service visit.
@@ -168,7 +168,7 @@ async def add_line_item(
     visit_id: int,
     item_data: ServiceLineItemCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Add a line item to an existing service visit.
@@ -214,7 +214,7 @@ async def delete_line_item(
     visit_id: int,
     line_item_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Delete a line item from a service visit.

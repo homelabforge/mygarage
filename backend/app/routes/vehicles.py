@@ -51,7 +51,7 @@ router = APIRouter(prefix="/api/vehicles", tags=["Vehicles"])
 
 async def _validate_tow_vehicle_vin(
     db: AsyncSession,
-    current_user: User,
+    current_user: User | None,
     tow_vin: str | None,
 ) -> str | None:
     """Ensure tow VIN is an accessible motorized vehicle when provided."""
@@ -72,7 +72,7 @@ async def list_vehicles(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get list of all vehicles.
@@ -100,7 +100,7 @@ async def list_vehicles(
 async def get_vehicle(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get a specific vehicle by VIN.
@@ -270,7 +270,7 @@ async def get_vehicle_detail_stats(
 async def create_vehicle(
     vehicle_data: VehicleCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Create a new vehicle.
@@ -300,7 +300,7 @@ async def update_vehicle(
     vin: str,
     vehicle_data: VehicleUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Update an existing vehicle.
@@ -331,7 +331,7 @@ async def update_vehicle(
 async def delete_vehicle(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Delete a vehicle.
@@ -361,7 +361,7 @@ async def delete_vehicle(
 async def get_trailer_details(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get trailer details for a vehicle.
 
@@ -389,7 +389,7 @@ async def create_trailer_details(
     vin: str,
     trailer_data: TrailerDetailsCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Create trailer details for a vehicle.
 
@@ -453,7 +453,7 @@ async def update_trailer_details(
     vin: str,
     trailer_data: TrailerDetailsUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Update trailer details for a vehicle.
 
@@ -515,7 +515,7 @@ async def update_trailer_details(
 async def list_towed_trailers(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """List trailer vehicles paired to this tow vehicle via TrailerDetails.tow_vehicle_vin."""
     vin = vin.upper().strip()

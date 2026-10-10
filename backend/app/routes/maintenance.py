@@ -32,7 +32,7 @@ rules_router = APIRouter(prefix="/api/vehicles/{vin}/maintenance-rules", tags=["
 
 
 @types_router.get("", response_model=list[MaintenanceTypeResponse])
-async def list_maintenance_types(current_user: User = Depends(require_auth)):
+async def list_maintenance_types(current_user: User | None = Depends(require_auth)):
     """The canonical maintenance types, in registry order, for pickers."""
     return [
         MaintenanceTypeResponse(code=t.code, label=t.label, category=t.category)
@@ -44,7 +44,7 @@ async def list_maintenance_types(current_user: User = Depends(require_auth)):
 async def list_rules(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Every maintenance rule on the vehicle, active first."""
     vin = vin.upper().strip()
@@ -57,7 +57,7 @@ async def create_rule(
     vin: str,
     data: MaintenanceRuleCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Create a rule explicitly (a second rule of a type is allowed here)."""
     vin = vin.upper().strip()
@@ -75,7 +75,7 @@ async def update_rule(
     rule_id: int,
     data: MaintenanceRuleUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Edit a rule's intervals, title, type or activity; its pending reminder follows."""
     vin = vin.upper().strip()
@@ -93,7 +93,7 @@ async def delete_rule(
     vin: str,
     rule_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Remove a rule nothing references; deactivate one with history."""
     vin = vin.upper().strip()

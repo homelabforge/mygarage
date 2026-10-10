@@ -56,7 +56,7 @@ class FamilyDashboardService:
 
     async def get_family_dashboard(
         self,
-        current_user: User,
+        current_user: User | None,
     ) -> FamilyDashboardResponse:
         """
         Get family dashboard data.
@@ -259,7 +259,7 @@ class FamilyDashboardService:
         self,
         user_id: int,
         update_request: FamilyMemberUpdateRequest,
-        current_user: User,
+        current_user: User | None,
     ) -> FamilyMemberData:
         """
         Update a user's family dashboard display settings.
@@ -321,7 +321,7 @@ class FamilyDashboardService:
 
     async def get_all_users_for_dashboard_management(
         self,
-        current_user: User,
+        current_user: User | None,
     ) -> list[FamilyMemberData]:
         """
         Get all active users for dashboard management.

@@ -34,7 +34,7 @@ async def upload_vehicle_photo(
     caption: str | None = Form(None),
     set_as_main: bool = Form(False),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Upload a photo for a vehicle.
@@ -143,7 +143,7 @@ async def get_vehicle_photo(
     vin: str,
     filename: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get a vehicle photo by filename.
@@ -188,7 +188,7 @@ async def get_vehicle_thumbnail(
     vin: str,
     filename: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Serve a thumbnail for a photo.
@@ -223,7 +223,7 @@ async def get_vehicle_thumbnail(
 async def list_vehicle_photos(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     List all photos for a vehicle.
@@ -257,7 +257,7 @@ async def delete_vehicle_photo(
     vin: str,
     filename: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Delete a vehicle photo.
@@ -362,7 +362,7 @@ async def set_main_photo(
     vin: str,
     filename: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Set the main photo for a vehicle.
@@ -460,7 +460,7 @@ async def update_vehicle_photo_metadata(
     photo_id: int,
     photo_update: PhotoUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Update caption or main flag for an existing photo.

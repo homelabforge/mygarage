@@ -38,7 +38,7 @@ class TransferService:
         self,
         vin: str,
         transfer_request: VehicleTransferRequest,
-        current_user: User,
+        current_user: User | None,
     ) -> VehicleTransferResponse:
         """
         Transfer vehicle ownership from one user to another.
@@ -248,7 +248,7 @@ class TransferService:
     async def get_eligible_recipients(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
     ) -> list[EligibleRecipient]:
         """
         Get list of users eligible to receive a vehicle transfer.

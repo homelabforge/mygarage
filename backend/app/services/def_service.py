@@ -35,7 +35,7 @@ class DEFRecordService:
     async def list_def_records(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
         skip: int = 0,
         limit: int = 100,
     ) -> tuple[list[DEFRecordResponse], int]:
@@ -79,7 +79,9 @@ class DEFRecordService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def get_def_record(self, vin: str, record_id: int, current_user: User) -> DEFRecord:
+    async def get_def_record(
+        self, vin: str, record_id: int, current_user: User | None
+    ) -> DEFRecord:
         """Get a specific DEF record by ID."""
         from app.services.auth import get_vehicle_or_403
 
@@ -97,7 +99,7 @@ class DEFRecordService:
         return record
 
     async def create_def_record(
-        self, vin: str, record_data: DEFRecordCreate, current_user: User
+        self, vin: str, record_data: DEFRecordCreate, current_user: User | None
     ) -> DEFRecord:
         """Create a new DEF record."""
         from app.services.auth import get_vehicle_or_403
@@ -168,7 +170,7 @@ class DEFRecordService:
         vin: str,
         record_id: int,
         record_data: DEFRecordUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> DEFRecord:
         """Update an existing DEF record."""
         from app.services.auth import get_vehicle_or_403
@@ -254,7 +256,7 @@ class DEFRecordService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def delete_def_record(self, vin: str, record_id: int, current_user: User) -> None:
+    async def delete_def_record(self, vin: str, record_id: int, current_user: User | None) -> None:
         """Delete a DEF record."""
         from app.services.auth import get_vehicle_or_403
 
@@ -303,7 +305,7 @@ class DEFRecordService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def get_def_analytics(self, vin: str, current_user: User) -> DEFAnalytics:
+    async def get_def_analytics(self, vin: str, current_user: User | None) -> DEFAnalytics:
         """Calculate DEF analytics and consumption predictions.
 
         Conservative approach: returns None when data is insufficient.

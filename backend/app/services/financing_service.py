@@ -31,7 +31,7 @@ class FinancingService:
     async def list_records(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
     ) -> FinancingRecordListResponse:
         """Get all financing records for a vehicle."""
         from app.services.auth import get_vehicle_or_403
@@ -68,7 +68,7 @@ class FinancingService:
         self,
         vin: str,
         record_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> FinancingRecordResponse:
         """Get a specific financing record by ID."""
         from app.services.auth import get_vehicle_or_403
@@ -104,7 +104,7 @@ class FinancingService:
         self,
         vin: str,
         data: FinancingRecordCreate,
-        current_user: User,
+        current_user: User | None,
     ) -> FinancingRecordResponse:
         """Create a new financing record for a vehicle."""
         from app.services.auth import get_vehicle_or_403
@@ -164,7 +164,7 @@ class FinancingService:
         vin: str,
         record_id: int,
         data: FinancingRecordUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> FinancingRecordResponse:
         """Update an existing financing record."""
         from app.services.auth import get_vehicle_or_403
@@ -226,7 +226,7 @@ class FinancingService:
         self,
         vin: str,
         record_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> None:
         """Delete a financing record."""
         from app.services.auth import get_vehicle_or_403

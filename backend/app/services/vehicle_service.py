@@ -214,7 +214,7 @@ class VehicleService:
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_vehicle(
-        self, vin: str, vehicle_data: VehicleUpdate, current_user: User
+        self, vin: str, vehicle_data: VehicleUpdate, current_user: User | None
     ) -> Vehicle:
         """
         Update an existing vehicle.
@@ -293,7 +293,7 @@ class VehicleService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def delete_vehicle(self, vin: str, current_user: User) -> None:
+    async def delete_vehicle(self, vin: str, current_user: User | None) -> None:
         """
         Delete a vehicle.
 

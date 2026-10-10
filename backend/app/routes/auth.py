@@ -460,7 +460,7 @@ async def update_password(
 async def list_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List all users (admin only)."""
@@ -496,7 +496,7 @@ async def get_shareable_users(
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: AdminUserCreate,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new user (admin only).
@@ -569,7 +569,7 @@ async def create_user(
 @router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: int,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a specific user by ID (admin only)."""
@@ -740,7 +740,7 @@ async def admin_reset_user_password(
     request: Request,
     user_id: int,
     password_data: AdminPasswordReset,
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Reset a user's password (admin only).

@@ -47,7 +47,7 @@ async def list_reminder_packs(
         None, description="Filter packs applicable to this vehicle type"
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """List the reminder packs available to apply to a vehicle.
 
@@ -63,7 +63,7 @@ async def list_reminder_packs(
 async def save_reminder_pack(
     body: SaveReminderPackRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Save one vehicle's chosen maintenance rules as a reusable pack.
 
@@ -78,7 +78,7 @@ async def overwrite_reminder_pack(
     pack_id: str,
     body: SaveReminderPackRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Replace a saved pack's contents from a vehicle, keeping its id."""
     return await reminder_pack_service.overwrite_pack(db, pack_id, body, current_user)
@@ -89,7 +89,7 @@ async def rename_reminder_pack(
     pack_id: str,
     body: RenameReminderPackRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Rename a saved pack. Its id does not change, so rules it created keep
     pointing at it."""
@@ -100,7 +100,7 @@ async def rename_reminder_pack(
 async def delete_reminder_pack(
     pack_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Delete a saved pack. Rules it already created are left alone."""
     await reminder_pack_service.delete_pack(db, pack_id, current_user)
@@ -111,7 +111,7 @@ async def list_reminders(
     vin: str,
     status: str = Query("pending", description="Filter: pending|done|dismissed|all"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """List reminders for a vehicle, optionally filtered by status."""
     vin = vin.upper().strip()
@@ -123,7 +123,7 @@ async def list_reminders(
 async def list_duplicates(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Pending reminders that share a maintenance type, with a suggested keeper."""
     vin = vin.upper().strip()
@@ -136,7 +136,7 @@ async def create_reminder(
     vin: str,
     data: ReminderCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Create a new reminder for a vehicle.
 
@@ -161,7 +161,7 @@ async def preview_reminder_pack(
     vin: str,
     body: ApplyReminderPackRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """What applying the pack would do: rules, anchors, adoptions, thresholds. No writes."""
     vin = vin.upper().strip()
@@ -176,7 +176,7 @@ async def apply_reminder_pack(
     vin: str,
     body: ApplyReminderPackRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Apply a built-in reminder pack to a vehicle.
 
@@ -194,7 +194,7 @@ async def apply_reminder_pack(
 async def reconcile_reminders(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Recompute every active rule's pending reminder from the history. Idempotent."""
     vin = vin.upper().strip()
@@ -208,7 +208,7 @@ async def reconcile_duplicates(
     vin: str,
     body: ReconcileDuplicatesRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Keep one reminder of a duplicate group and supersede the others."""
     vin = vin.upper().strip()
@@ -223,7 +223,7 @@ async def update_reminder(
     reminder_id: int,
     data: ReminderUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Update a reminder (content only — use /done, /dismiss or /complete for status)."""
     vin = vin.upper().strip()
@@ -243,7 +243,7 @@ async def delete_reminder(
     vin: str,
     reminder_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Delete a reminder."""
     vin = vin.upper().strip()
@@ -264,7 +264,7 @@ async def complete_reminder(
     reminder_id: int,
     body: ReminderCompleteRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Complete a reminder with the actual date and readings.
 
@@ -281,7 +281,7 @@ async def mark_done(
     vin: str,
     reminder_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Mark a reminder as done today, without a service record.
 
@@ -310,7 +310,7 @@ async def dismiss(
     vin: str,
     reminder_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Mark a reminder as dismissed; a recurring one stops repeating."""
     vin = vin.upper().strip()
@@ -330,7 +330,7 @@ async def snooze(
     reminder_id: int,
     data: ReminderSnoozeRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Hide a pending reminder from every nag surface until a date.
 
@@ -360,7 +360,7 @@ async def unsnooze(
     vin: str,
     reminder_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Clear a pending reminder's snooze; it counts again immediately."""
     vin = vin.upper().strip()

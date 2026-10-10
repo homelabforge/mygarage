@@ -227,7 +227,7 @@ def validate_sticker_file(file: UploadFile) -> None:
 async def get_window_sticker(
     vin: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> WindowStickerResponse:
     """Get window sticker data for a vehicle."""
     vehicle = await get_vehicle_or_403(vin, current_user, db)
@@ -244,7 +244,7 @@ async def upload_window_sticker(
     vin: str,
     file: Annotated[UploadFile, File(...)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> WindowStickerResponse:
     """
     Upload a window sticker file and extract data using OCR.
@@ -371,7 +371,7 @@ async def test_window_sticker_extraction(
     vin: str,
     file: Annotated[UploadFile, File(...)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
     parser: str | None = Query(None, description="Specific parser to use"),
 ) -> WindowStickerTestResponse:
     """
@@ -435,7 +435,7 @@ async def update_window_sticker_data(
     vin: str,
     update_data: WindowStickerDataUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> WindowStickerResponse:
     """
     Update window sticker extracted data.
@@ -458,7 +458,7 @@ async def update_window_sticker_data(
 async def delete_window_sticker(
     vin: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete window sticker file and clear all extracted data."""
     # Deleting the sticker clears vehicle-row fields -> OWNER-only (D-8).
@@ -518,7 +518,7 @@ async def delete_window_sticker(
 async def download_window_sticker_file(
     vin: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> FileResponse:
     """Download the window sticker file."""
     vehicle = await get_vehicle_or_403(vin, current_user, db)
@@ -551,7 +551,7 @@ async def download_window_sticker_file(
 
 @router.get("/window-sticker/parsers", response_model=list[ParserInfo])
 async def list_parsers(
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> list[ParserInfo]:
     """List all available window sticker parsers."""
     ocr_service = WindowStickerOCRService()
@@ -561,7 +561,7 @@ async def list_parsers(
 
 @router.get("/window-sticker/ocr-status", response_model=OCRStatusResponse)
 async def get_ocr_status(
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> OCRStatusResponse:
     """Get OCR engine status and availability."""
     ocr_service = WindowStickerOCRService()

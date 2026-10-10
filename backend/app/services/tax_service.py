@@ -29,7 +29,7 @@ class TaxRecordService:
     async def list_records(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
     ) -> TaxRecordListResponse:
         """Get all tax/registration records for a vehicle.
 
@@ -72,7 +72,7 @@ class TaxRecordService:
         self,
         vin: str,
         record_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> TaxRecordResponse:
         """Get a specific tax/registration record by ID."""
         from app.services.auth import get_vehicle_or_403
@@ -106,7 +106,7 @@ class TaxRecordService:
         self,
         vin: str,
         data: TaxRecordCreate,
-        current_user: User,
+        current_user: User | None,
     ) -> TaxRecordResponse:
         """Create a new tax/registration record."""
         from app.services.auth import get_vehicle_or_403
@@ -164,7 +164,7 @@ class TaxRecordService:
         vin: str,
         record_id: int,
         data: TaxRecordUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> TaxRecordResponse:
         """Update an existing tax/registration record."""
         from app.services.auth import get_vehicle_or_403
@@ -221,7 +221,7 @@ class TaxRecordService:
         self,
         vin: str,
         record_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> None:
         """Delete a tax/registration record."""
         from app.services.auth import get_vehicle_or_403

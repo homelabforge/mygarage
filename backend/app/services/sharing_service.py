@@ -36,7 +36,7 @@ class SharingService:
         self,
         vin: str,
         share_request: VehicleShareCreate,
-        current_user: User,
+        current_user: User | None,
     ) -> VehicleShareResponse:
         """
         Share a vehicle with another user.
@@ -158,7 +158,7 @@ class SharingService:
         self,
         share_id: int,
         update_request: VehicleShareUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> VehicleShareResponse:
         """
         Update share permission level.
@@ -235,7 +235,7 @@ class SharingService:
     async def revoke_share(
         self,
         share_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> None:
         """
         Revoke (delete) a vehicle share.
@@ -289,7 +289,7 @@ class SharingService:
     async def get_vehicle_shares(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
     ) -> tuple[list[VehicleShareResponse], int]:
         """
         Get all shares for a vehicle.
