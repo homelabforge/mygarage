@@ -36,19 +36,21 @@ down in `finally`, and the VIN/username are scoped to this module.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date
 from decimal import Decimal
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet, field_to_column
 from app.models.reminder import Reminder
 from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.services import reminder_service
 from app.services.reminder_service import _build_reminder_message, check_due_reminders
 from app.utils.default_unit_prefs import DEFAULT_UNIT_PREFS_KEY
 from app.utils.render_context import RenderContext
@@ -352,3 +354,46 @@ class TestCheckDueRemindersUnits:
             "Due date: 2020-01-01\n"
             "Due mileage: 50,000 km"
         ]
+
+    async def test_one_failing_reminder_does_not_stop_the_sweep(
+        self,
+        db_session: AsyncSession,
+        seeded_reminders,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """An error evaluating one reminder (a projection overflow, say) is
+        logged and skipped: the others still notify, and the run still
+        commits their cooldown stamps."""
+        sent = self._stub_dispatcher(monkeypatch)
+        failing_id = (
+            await db_session.execute(select(Reminder.id).where(Reminder.vin == _OWNED_VIN))
+        ).scalar_one()
+        real_is_snoozed = reminder_service.is_reminder_snoozed
+
+        def _snoozed_or_raise(reminder: Reminder, today: date | None = None) -> bool:
+            if reminder.id == failing_id:
+                raise RuntimeError("evaluation blew up")
+            return real_is_snoozed(reminder, today)
+
+        monkeypatch.setattr(reminder_service, "is_reminder_snoozed", _snoozed_or_raise)
+
+        with caplog.at_level(logging.ERROR, logger="app.services.reminder_service"):
+            await check_due_reminders(db_session)
+
+        assert self._own(sent, "Reminder Units Owned Service") == []
+        assert len(self._own(sent, "Reminder Units Ownerless Service")) == 1
+        # A second session sees only what was committed.
+        async with test_sessionmaker() as fresh:
+            stamped = (
+                await fresh.execute(
+                    select(Reminder.last_notified_at).where(Reminder.vin == _OWNERLESS_VIN)
+                )
+            ).scalar_one()
+        assert stamped is not None
+        failures = [
+            r for r in caplog.records if r.getMessage() == f"Reminder {failing_id} check failed"
+        ]
+        assert len(failures) == 1
+        assert failures[0].exc_info is not None

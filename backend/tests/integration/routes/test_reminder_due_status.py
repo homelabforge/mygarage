@@ -206,3 +206,33 @@ async def test_the_list_and_the_hero_count_the_same_reminders(
     assert belt["progress_basis"] == "distance"
     assert belt["progress"] == pytest.approx(0.95)
     assert Decimal(belt["km_until_due"]) == Decimal("500")
+
+
+async def test_a_near_zero_rate_leaves_the_row_unestimated(
+    client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+):
+    """0.01 km in 89 days puts a 5,000 km target past 9999-12-31: no estimate, not a 500."""
+    vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH192003")
+    today = household_today()
+    db_session.add_all(
+        [
+            OdometerRecord(
+                vin=vin, date=today - timedelta(days=89), odometer_km=Decimal("50000.00")
+            ),
+            OdometerRecord(vin=vin, date=today, odometer_km=Decimal("50000.01")),
+            Reminder(
+                vin=vin,
+                title="Crawling",
+                reminder_type="mileage",
+                status="pending",
+                due_mileage_km=Decimal("55000"),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    (row,) = await _list(client, non_admin_headers, vin)
+    assert row["title"] == "Crawling"
+    assert row["estimated_due_date"] is None
+    # Unprojectable, so the D2 progress fallback decides, as with no rate at all.
+    assert row["due_status"] == "on_track"
