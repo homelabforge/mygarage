@@ -261,6 +261,7 @@ _JSON_IMPORT_SECTIONS = (
     "fuel_records",
     "def_records",
     "odometer_records",
+    "hours_records",
     "reminders",
     "notes",
     "insurance_policies",
@@ -1690,6 +1691,7 @@ async def import_vehicle_json(
         "fuel_records": {"success": 0, "errors": 0, "skipped": 0},
         "def_records": {"success": 0, "errors": 0, "skipped": 0},
         "odometer_records": {"success": 0, "errors": 0, "skipped": 0},
+        "hours_records": {"success": 0, "errors": 0, "skipped": 0},
         "reminders": {"success": 0, "errors": 0, "skipped": 0},
         "notes": {"success": 0, "errors": 0, "skipped": 0},
         "insurance_policies": {"success": 0, "errors": 0, "skipped": 0},
@@ -2018,6 +2020,50 @@ async def import_vehicle_json(
             logger.warning("Import: odometer record %s failed: %s", idx, sanitize_for_log(e))
             results["errors"].append(f"Odometer record {idx}: could not be imported")
 
+    # Import engine-hours readings. Always manual rows with no FKs, like the
+    # CSV importer: a file can't carry a live link to this vehicle's fuel or
+    # service rows. Dimensionless, so no legacy-v2 conversion.
+    for idx, record_data in enumerate(sections["hours_records"]):
+        try:
+            date = datetime.fromisoformat(record_data["date"]).date()
+            raw_hours = record_data.get("engine_hours")
+            if raw_hours is None or raw_hours == "":
+                results["hours_records"]["errors"] += 1
+                results["errors"].append(f"Hours record {idx}: engine hours are required")
+                continue
+            engine_hours = Decimal(str(raw_hours))
+            _within_api_bounds(HoursRecordCreate, engine_hours=engine_hours)
+
+            if skip_duplicates:
+                existing = await db.execute(
+                    select(HoursRecord).where(
+                        HoursRecord.vin == vin,
+                        HoursRecord.date == date,
+                        HoursRecord.engine_hours == engine_hours,
+                    )
+                )
+                if existing.scalars().first():
+                    results["hours_records"]["skipped"] += 1
+                    continue
+
+            record = HoursRecord(
+                vin=vin,
+                date=date,
+                engine_hours=engine_hours,
+                notes=record_data.get("notes"),
+                source="manual",
+            )
+            async with db.begin_nested():
+                db.add(record)
+            results["hours_records"]["success"] += 1
+        except _ImportBoundError as e:
+            results["hours_records"]["errors"] += 1
+            results["errors"].append(f"Hours record {idx}: {e.reason}")
+        except Exception as e:
+            results["hours_records"]["errors"] += 1
+            logger.warning("Import: hours record %s failed: %s", idx, sanitize_for_log(e))
+            results["errors"].append(f"Hours record {idx}: could not be imported")
+
     # Import reminders → map to vehicle_reminders
     for idx, reminder_data in enumerate(sections["reminders"]):
         try:
@@ -2160,6 +2206,7 @@ async def import_vehicle_json(
         "fuel_records",
         "def_records",
         "odometer_records",
+        "hours_records",
         "reminders",
         "notes",
         "insurance_policies",

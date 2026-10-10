@@ -14,12 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI splits the test suites across parallel runners (shared-workflows v1.7.0)
 - `/api/auth/users/count` returns `has_users` only
 - The SSO setup guide is no longer Authentik-specific, and lists Rauthy as a supported provider
+- An API update to a service visit that leaves out a line item's `supplies_used` keeps its supply usages; send `[]` to remove them
 
 ### Fixed
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
 - Small supply amounts (a few mL in L, qt or gal) no longer show as 0.00, and supply amounts follow the selected language
 - With sign-in off, creating a user and resetting a password no longer error after saving, the family pages no longer error, and Share is hidden on the vehicle page
 - Test Connection in the SSO settings works with sign-in off
+- Uploading a window sticker again fills only empty fields, so your edits stay; turn off "Keep the values already saved" to replace them
+- A failed window sticker upload no longer deletes the sticker already saved, and a sticker whose text can't be read says so
+- Fuelio, Drivvo, Tesla and Auto-detect imports ask which odometer unit and decimal style the file uses, instead of assuming kilometres and dot decimals
+- Importing a vehicle's JSON export brings back its engine-hours readings, and the import summary lists DEF, engine hours and insurance too
+- A reminder on a vehicle that has barely moved no longer breaks the reminder list, the due counts, the calendar or the daily reminder notifications
+- A tire with almost no tread wear between two readings no longer breaks the tire list, tire analytics or saving a tire; it shows the distance left without a wear date
+- A LiveLink HTTPS upload with a timestamp offset is stored in UTC instead of being dropped (PostgreSQL) or shifted (SQLite)
 
 ### Security
 - POI provider settings are admin-only
@@ -39,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supplies: search, filters, sort, grouping, a list view, out of stock highlights, and log purchase and adjustment from the card (#191)
 - Supplies: category suggestions in the supply form (#191)
 - Supplies: pick a volume unit per supply (mL, fl oz, qt, gal, in US or UK flavour); changing it affects display only (#191)
+- Malay language (#198) and Italian language (#201)
+- Malaysian Ringgit (MYR) currency (#197)
 - Toll tags: pick a country, then its toll system (United States, Malaysia and now Italy); Other saves the name you type
 
 ### Changed
@@ -49,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A mileage or hours reminder with no recent driving rate to project from counts as due soon once it's 90% of the way to its target (#192)
 - Note: volumes UK users logged as quarts were stored as US quarts and stay as stored; a picked unit applies from now on (#191)
 - A new toll tag no longer starts on EZ TAG; the country is preselected from your currency or language when only one fits
+- `MYGARAGE_DATABASE_URL`'s path is now URL-decoded, so a literal `%` in it must be written `%25`
 
 ### Deprecated
 - The spending-anomaly `message` field in the analytics API is deprecated; the app builds its own sentence from `amount`, `baseline` and `deviation_percent`
@@ -61,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Theme and accent apply before first paint in production: the CSP now allows the shell's inline script by hash instead of refusing it
 - The smallest font subset was inlined as a data: URL and refused by the CSP; fonts are always emitted as files
 - The dashboard sort trigger read "Sort: Sort by Name"; the order is now "Name" in every language, and the French trigger is translated
+- French relative dates ("3 months ago") are in French (#203)
 - Recall "Resolved" and document "Uploaded" dates rendered as "Invalid Date"
 - Garage analytics 3- and 6-month average lines skip months with only insurance or financing instead of counting them as zero
 - CSV, JSON and third-party imports refuse the negative, out-of-range and NaN values the app itself refuses, instead of storing them
@@ -150,7 +162,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Build
 - Backend dependencies bumped: sqlalchemy 2.1.2 (with its asyncio extra), pyjwt 2.15.1, ruff 0.16.10 and pillow-heif 1.8.0.
-- `MYGARAGE_DATABASE_URL`'s path is now URL-decoded, so a literal `%` in it must be written `%25`.
 
 ## [3.7.0] - 2026-09-24
 

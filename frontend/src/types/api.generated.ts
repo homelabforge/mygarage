@@ -7521,7 +7521,9 @@ export interface paths {
          * Upload Window Sticker
          * @description Upload a window sticker file and extract data using OCR.
          *
-         *     The file will be saved and OCR extraction will be attempted.
+         *     The scan fills only the sticker fields that are empty. With `replace` and a
+         *     sticker already on file, the old sticker's fields are cleared first. A scan
+         *     that read nothing changes no field and says so in `scan_read_nothing`.
          *     Extracted data can be edited via the PATCH endpoint.
          */
         post: operations["upload_window_sticker_api_vehicles__vin__window_sticker_upload_post"];
@@ -8561,6 +8563,11 @@ export interface components {
         Body_upload_window_sticker_api_vehicles__vin__window_sticker_upload_post: {
             /** File */
             file: string;
+            /**
+             * Replace
+             * @default false
+             */
+            replace: boolean;
         };
         /**
          * CalendarEvent
@@ -14744,7 +14751,7 @@ export interface components {
             reminder?: components["schemas"]["ReminderCreate"] | null;
             /**
              * Supplies Used
-             * @description Supplies consumed by this line item
+             * @description Supplies consumed by this line item. Omit to keep the current ones; send [] to remove them.
              */
             supplies_used?: components["schemas"]["SupplyUsageInput"][];
             /**
@@ -19747,7 +19754,7 @@ export interface components {
             status?: components["schemas"]["WiCANStatus"] | null;
             /**
              * Timestamp
-             * @description Optional device timestamp for replay support
+             * @description Optional device timestamp for replay support; naive values are read as UTC
              */
             timestamp?: string | null;
         };
@@ -20124,6 +20131,11 @@ export interface components {
             optional_equipment: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Scan Read Nothing
+             * @default false
+             */
+            scan_read_nothing: boolean;
             /** Standard Equipment */
             standard_equipment: {
                 [key: string]: unknown;

@@ -16,6 +16,7 @@ do not.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -138,7 +139,8 @@ def project_usage_date(
 ) -> date | None:
     """When `target` is reached at `rate_per_day`, uncapped.
 
-    `today` when the target is already met; `None` without a positive rate.
+    `today` when the target is already met; `None` without a positive rate, or
+    when the rate is so slow the date would land past the calendar.
     Unlike `reminder_service.calculate_smart_estimated_date`, this is NOT
     capped at the reminder's date threshold: the cap is what fused "when will
     I hit the mileage" with "when is it due", and the UI now shows the two
@@ -149,4 +151,8 @@ def project_usage_date(
     if target <= current:
         return today
     days = float(target - current) / rate_per_day
+    # A near-zero rate projects past the calendar; that is "can't project",
+    # not a date (and `today + timedelta` would raise OverflowError).
+    if not math.isfinite(days) or days > (date.max - today).days:
+        return None
     return today + timedelta(days=days)

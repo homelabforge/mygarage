@@ -2108,6 +2108,11 @@
             "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
+          },
+          "replace": {
+            "default": false,
+            "title": "Replace",
+            "type": "boolean"
           }
         },
         "required": [
@@ -17098,7 +17103,7 @@
             ]
           },
           "supplies_used": {
-            "description": "Supplies consumed by this line item",
+            "description": "Supplies consumed by this line item. Omit to keep the current ones; send [] to remove them.",
             "items": {
               "$ref": "#/components/schemas/SupplyUsageInput"
             },
@@ -30060,7 +30065,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional device timestamp for replay support",
+            "description": "Optional device timestamp for replay support; naive values are read as UTC",
             "title": "Timestamp"
           }
         },
@@ -31315,6 +31320,11 @@
               }
             ],
             "title": "Optional Equipment"
+          },
+          "scan_read_nothing": {
+            "default": false,
+            "title": "Scan Read Nothing",
+            "type": "boolean"
           },
           "standard_equipment": {
             "anyOf": [
@@ -52112,7 +52122,7 @@
     },
     "/api/vehicles/{vin}/window-sticker/upload": {
       "post": {
-        "description": "Upload a window sticker file and extract data using OCR.\n\nThe file will be saved and OCR extraction will be attempted.\nExtracted data can be edited via the PATCH endpoint.",
+        "description": "Upload a window sticker file and extract data using OCR.\n\nThe scan fills only the sticker fields that are empty. With `replace` and a\nsticker already on file, the old sticker's fields are cleared first. A scan\nthat read nothing changes no field and says so in `scan_read_nothing`.\nExtracted data can be edited via the PATCH endpoint.",
         "operationId": "upload_window_sticker_api_vehicles__vin__window_sticker_upload_post",
         "parameters": [
           {

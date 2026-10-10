@@ -548,6 +548,7 @@
     "importFormatTesla": "Tesla / ABRP",
     "importFormatAuto": "Auto-detect",
     "importCompleted": "Import completed: {{success}} imported, {{skipped}} skipped, {{errors}} errors",
+    "importErrors": "{{message}} - Errors: {{errors}}",
     "inclTowing": "Incl. Towing",
     "loading": "Loading fuel records...",
     "mileage": "Mileage",
@@ -573,7 +574,14 @@
     "exportAction": "export fuel records",
     "importAction": "import fuel records",
     "deleteAction": "delete the fuel record",
-    "loadAction": "load fuel history"
+    "loadAction": "load fuel history",
+    "importOptions": {
+      "title": "Import options ({{format}})",
+      "odometerLabel": "Odometer in",
+      "decimalsLabel": "Decimals",
+      "hint": "Columns whose header names a unit (km, mi, gallons) are read in that unit whatever you pick.",
+      "confirm": "Import"
+    }
   },
   "hoursList": {
     "actions": "Actions",
@@ -1568,9 +1576,12 @@
     "extractionResults": "Extraction Results",
     "extractionSuccess": "Extraction Successful",
     "fileTypes": "PDF, JPG, or PNG (max 10MB)",
+    "keepSavedValues": "Keep the values already saved",
+    "keepSavedValuesHint": "Only empty fields are filled from the new sticker. Turn off to replace everything with what the new sticker says.",
     "msrpPricing": "MSRP Pricing",
     "ocrTestTitle": "Window Sticker OCR Test",
     "processing": "Processing...",
+    "scanReadNothing": "The sticker was saved, but no text could be read from it. Nothing else was changed.",
     "testExtraction": "Test Extraction",
     "upload": "Upload Window Sticker",
     "uploadAndExtract": "Upload & Extract Data",

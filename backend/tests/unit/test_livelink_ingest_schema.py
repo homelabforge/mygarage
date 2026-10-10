@@ -1,5 +1,9 @@
 """Unit tests for WiCAN payload schema validation."""
 
+from datetime import datetime
+
+import pytest
+
 from app.schemas.livelink_ingest import WiCANPayload
 
 
@@ -67,3 +71,39 @@ class TestAutopidDataValidation:
         assert payload.autopid_data["RPM"] == 750.0
         assert payload.autopid_data["DIAGNOSTIC_TROUBLE_CODES"] == "P0171"
         assert payload.autopid_data["NONE_VAL"] is None
+
+
+class TestTimestampNormalization:
+    """The device timestamp lands as naive UTC, whatever offset it carries."""
+
+    @staticmethod
+    def _timestamp(sent: str | None) -> datetime | None:
+        return WiCANPayload.model_validate(
+            {"autopid_data": {"ENGINE_RPM": 800}, "timestamp": sent}
+        ).timestamp
+
+    def test_an_offset_is_converted_to_utc(self) -> None:
+        """12:00+02:00 is 10:00 UTC. Kept aware, SQLite dropped the offset and
+        stored 12:00, and asyncpg refused it and rolled the batch back."""
+        stamp = self._timestamp("2026-10-10T12:00:00+02:00")
+
+        assert stamp == datetime(2026, 10, 10, 10, 0)
+        assert stamp is not None and stamp.tzinfo is None
+
+    @pytest.mark.usefixtures("local_clock_off_utc")
+    def test_a_naive_timestamp_is_read_as_utc(self) -> None:
+        """What most WiCANs send: no offset means UTC, not server local time."""
+        stamp = self._timestamp("2026-10-10T10:00:00")
+
+        assert stamp == datetime(2026, 10, 10, 10)
+        assert stamp is not None and stamp.tzinfo is None
+
+    def test_z_keeps_the_wall_clock(self) -> None:
+        stamp = self._timestamp("2026-10-10T10:00:00Z")
+
+        assert stamp == datetime(2026, 10, 10, 10)
+        assert stamp is not None and stamp.tzinfo is None
+
+    def test_an_explicit_null_stays_none(self) -> None:
+        """Null means "use server time"; it must not reach the converter."""
+        assert self._timestamp(None) is None

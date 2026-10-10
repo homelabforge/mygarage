@@ -1,4 +1,4 @@
-import { useState, useRef, type SyntheticEvent } from 'react'
+import { useState, useRef, type ReactElement, type SyntheticEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Upload, FileText, DollarSign, Fuel, Edit2, Save, Palette, Shield, Leaf, Cog, Car } from 'lucide-react'
 import api from '../services/api'
@@ -7,7 +7,7 @@ import { applyControlledFieldErrors, withoutFieldError } from '../hooks/useApiFo
 import { parseDecimalInput } from '../utils/decimalInput'
 import { moneyTextError } from '../schemas/shared'
 import { getActiveLocale } from '@/constants/i18n'
-import { Drawer } from './ui'
+import { Checkbox, Drawer } from './ui'
 import { useCurrencySymbol } from '../hooks/useCurrencySymbol'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { formatStickerValue } from '../utils/formatUtils'
@@ -59,11 +59,21 @@ const toNumber = (value: string | number | null | undefined): number | null =>
 
 interface WindowStickerUploadProps {
   vin: string
+  /** A sticker is already on file, so the upload asks whether to keep its values. */
+  hasExistingSticker?: boolean
+  /** The review was saved. The caller closes the drawer and reloads. */
   onSuccess: () => void
-  onClose: () => void
+  /** Closed without saving the review. `uploaded`: the server already holds a
+   *  sticker from this drawer, since the upload commits before the review. */
+  onClose: (uploaded: boolean) => void
 }
 
-export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowStickerUploadProps) {
+export default function WindowStickerUpload({
+  vin,
+  hasExistingSticker = false,
+  onSuccess,
+  onClose,
+}: WindowStickerUploadProps): ReactElement {
   const { t } = useTranslation('vehicles')
   const currencySymbol = useCurrencySymbol()
   const { currencyCode, locale } = useCurrencyPreference()
@@ -72,6 +82,10 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [success, setSuccess] = useState<string | null>(null)
+  // Its own tone: the upload worked, but the scan gave the review nothing.
+  const [notice, setNotice] = useState<string | null>(null)
+  // On by default (D1): a re-scan only fills what's empty.
+  const [keepSaved, setKeepSaved] = useState(true)
   const [file, setFile] = useState<File | null>(null)
   // What the upload stored, and the review's edits as typed. Save sends only
   // the fields whose value differs from the seed, so an untouched review
@@ -82,6 +96,9 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
   const [editMode, setEditMode] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // The upload commits before the review, so a cancelled review still left a
+  // new sticker on the vehicle, and the page has to know to reload.
+  const close = (): void => onClose(seed !== null)
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -135,10 +152,12 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
     setError(null)
     setFieldErrors({})
     setSuccess(null)
+    setNotice(null)
 
     try {
       const formData = new FormData()
       formData.append('file', file)
+      if (hasExistingSticker && !keepSaved) formData.append('replace', 'true')
 
       const response = await api.post(`/vehicles/${vin}/window-sticker/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -155,7 +174,8 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
       setSeed(data)
       setEconomyOrigins(origins)
       setDraft(seeded)
-      setSuccess(t('windowSticker.misc.uploadSuccess'))
+      if (data.scan_read_nothing) setNotice(t('windowSticker.scanReadNothing'))
+      else setSuccess(t('windowSticker.misc.uploadSuccess'))
       setEditMode(true)
     } catch (err) {
       const { attached, unhandled, errorsByField } = applyControlledFieldErrors(
@@ -215,10 +235,10 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
   }
 
   const finish = () => {
+    setNotice(null)
     setSuccess(t('windowSticker.misc.saveSuccess'))
     setTimeout(() => {
       onSuccess()
-      onClose()
     }, 1000)
   }
 
@@ -295,7 +315,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
   return (
     <Drawer
       open
-      onClose={onClose}
+      onClose={close}
       title={t('windowSticker.uploadTitle')}
       icon={FileText}
       width="xl"
@@ -315,8 +335,26 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
           </div>
         )}
 
+        {notice && (
+          <div className="bg-warning-500/10 border border-warning-500 rounded-lg p-3">
+            <p className="text-sm text-warning-500">{notice}</p>
+          </div>
+        )}
+
         {!seed && (
           <>
+            {hasExistingSticker && (
+              <div className="space-y-1">
+                <Checkbox
+                  label={t('windowSticker.keepSavedValues')}
+                  checked={keepSaved}
+                  onChange={(e) => setKeepSaved(e.target.checked)}
+                  disabled={uploading}
+                />
+                <p className="text-xs text-text-mute">{t('windowSticker.keepSavedValuesHint')}</p>
+              </div>
+            )}
+
             <div
               className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
                 dragActive
@@ -368,7 +406,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={close}
                 className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors"
               >
                 {t('windowSticker.misc.cancel')}
@@ -574,7 +612,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
             <div className="flex justify-end gap-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={close}
                 className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors"
               >
                 {t('windowSticker.misc.cancel')}

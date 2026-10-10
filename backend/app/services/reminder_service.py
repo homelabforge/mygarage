@@ -6,10 +6,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import cast
+from typing import Protocol, cast
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.hours import HoursRecord
@@ -614,11 +615,15 @@ def calculate_smart_estimated_date(
     hard_date: date,
 ) -> date:
     """Estimate when km target will be hit. Never later than hard_date."""
+    today = household_today()
     if target_odometer_km <= current_odometer_km:
-        return household_today()
+        return today
     days = float(target_odometer_km - current_odometer_km) / avg_km_per_day
-    estimated = household_today() + timedelta(days=days)
-    return min(estimated, hard_date)
+    # Past the hard date there is nothing to compute, and a near-zero rate
+    # would overflow `timedelta`.
+    if not math.isfinite(days) or days > (hard_date - today).days:
+        return hard_date
+    return min(today + timedelta(days=days), hard_date)
 
 
 async def _validate_line_item_vin(line_item_id: int, vin: str, db: AsyncSession) -> None:
@@ -872,6 +877,52 @@ async def list_reminders(
     return order_reminders(responses)
 
 
+class ReminderMessageSource(Protocol):
+    """What `_build_reminder_message` reads. The ORM `Reminder` satisfies it,
+    and so does the sweep's plain-value `_DueNotification`."""
+
+    @property
+    def title(self) -> str: ...
+    @property
+    def due_date(self) -> date | None: ...
+    @property
+    def due_mileage_km(self) -> Decimal | None: ...
+    @property
+    def due_hours(self) -> Decimal | None: ...
+    @property
+    def notes(self) -> str | None: ...
+
+
+@dataclass(frozen=True)
+class _DueNotification:
+    """A reminder the sweep decided to send, copied out as plain values.
+
+    The send phase may have to roll the session back, which expires every
+    loaded ORM object, so nothing after the checks reads a `Reminder`.
+    """
+
+    id: int
+    vin: str
+    title: str
+    due_date: date | None
+    due_mileage_km: Decimal | None
+    due_hours: Decimal | None
+    notes: str | None
+
+    @classmethod
+    def of(cls, reminder: Reminder) -> _DueNotification:
+        """Copy what the send and its log lines need from a loaded reminder."""
+        return cls(
+            id=reminder.id,
+            vin=reminder.vin,
+            title=reminder.title,
+            due_date=reminder.due_date,
+            due_mileage_km=reminder.due_mileage_km,
+            due_hours=reminder.due_hours,
+            notes=reminder.notes,
+        )
+
+
 async def check_due_reminders(db: AsyncSession) -> None:
     """Scheduler entry point. Check pending reminders and send notifications.
 
@@ -887,120 +938,156 @@ async def check_due_reminders(db: AsyncSession) -> None:
     reminders = result.scalars().all()
 
     dispatcher = NotificationDispatcher(db)
+    due: list[_DueNotification] = []
 
     for reminder in reminders:
-        if is_reminder_snoozed(reminder, today):
-            # Snoozed: no notification whatever the thresholds say, and no
-            # cooldown stamp either, so the day the snooze expires the very
-            # next run notifies (plan 2026-09-18, feature A).
-            continue
+        # Read before the savepoint: if it rolls back, whatever it changed comes
+        # back expired, and reading that in async raises MissingGreenlet.
+        reminder_id = reminder.id
+        try:
+            # Its own savepoint, so a check that fails (a bad query, an
+            # overflowing projection) rolls back alone. Without it PostgreSQL
+            # keeps the transaction aborted and every check after it fails too.
+            async with db.begin_nested():
+                if is_reminder_snoozed(reminder, today):
+                    # Snoozed: no notification whatever the thresholds say, and no
+                    # cooldown stamp either, so the day the snooze expires the very
+                    # next run notifies (plan 2026-09-18, feature A).
+                    continue
 
-        # Dedup check. Reminder.last_notified_at is a plain (non-tz-aware)
-        # DateTime column — SQLite's bind processor silently drops tzinfo on
-        # write, so a value round-tripped through the DB comes back naive
-        # even though it was always written as UTC. Re-attach UTC before
-        # comparing against the aware `now`, or a naive/aware subtraction
-        # raises TypeError on the very next scheduler tick after a reminder
-        # has ever been notified once.
-        last_notified_at = reminder.last_notified_at
-        if last_notified_at is not None and last_notified_at.tzinfo is None:
-            last_notified_at = last_notified_at.replace(tzinfo=UTC)
-        if last_notified_at and (now - last_notified_at) < NOTIFICATION_COOLDOWN:
-            continue
+                # Dedup check. Reminder.last_notified_at is a plain (non-tz-aware)
+                # DateTime column: SQLite's bind processor silently drops tzinfo on
+                # write, so a value round-tripped through the DB comes back naive
+                # even though it was always written as UTC. Re-attach UTC before
+                # comparing against the aware `now`, or a naive/aware subtraction
+                # raises TypeError on the very next scheduler tick after a reminder
+                # has ever been notified once.
+                last_notified_at = reminder.last_notified_at
+                if last_notified_at is not None and last_notified_at.tzinfo is None:
+                    last_notified_at = last_notified_at.replace(tzinfo=UTC)
+                if last_notified_at and (now - last_notified_at) < NOTIFICATION_COOLDOWN:
+                    continue
 
-        should_notify = False
+                should_notify = False
 
-        # Date-based check
-        if reminder.reminder_type in ("date", "both") and reminder.due_date:
-            if reminder.due_date <= today:
-                should_notify = True
-
-        # Mileage-based check
-        if reminder.reminder_type in ("mileage", "both") and reminder.due_mileage_km:
-            latest_odometer_km = await get_current_mileage(reminder.vin, db)
-            if latest_odometer_km and latest_odometer_km >= reminder.due_mileage_km:
-                should_notify = True
-
-        # Hours-based check
-        if reminder.reminder_type == "hours" and reminder.due_hours:
-            current_hours = await get_current_hours(reminder.vin, db)
-            if current_hours and current_hours >= reminder.due_hours:
-                should_notify = True
-
-        # Smart: check estimated date or the tracked usage target (exactly
-        # one of due_mileage_km/due_hours is set — validate_reminder_state).
-        if reminder.reminder_type == "smart":
-            # Check mileage
-            if reminder.due_mileage_km:
-                latest_odometer_km = await get_current_mileage(reminder.vin, db)
-                if latest_odometer_km and latest_odometer_km >= reminder.due_mileage_km:
-                    should_notify = True
-
-            # Check hours
-            if reminder.due_hours:
-                current_hours = await get_current_hours(reminder.vin, db)
-                if current_hours and current_hours >= reminder.due_hours:
-                    should_notify = True
-
-            # Check date (hard cap)
-            if reminder.due_date and reminder.due_date <= today:
-                should_notify = True
-
-            # Check estimated date (within 7 days), branching on whichever
-            # target is set.
-            if not should_notify and reminder.due_date:
-                rate: float | None = None
-                current: Decimal | None = None
-                target: Decimal | None = None
-                if reminder.due_mileage_km:
-                    rate = await calculate_driving_rate(reminder.vin, db)
-                    current = await get_current_mileage(reminder.vin, db)
-                    target = reminder.due_mileage_km
-                elif reminder.due_hours:
-                    rate = await calculate_hours_driving_rate(reminder.vin, db)
-                    current = await get_current_hours(reminder.vin, db)
-                    target = reminder.due_hours
-                if rate and current and target:
-                    est = calculate_smart_estimated_date(current, target, rate, reminder.due_date)
-                    if (est - today).days <= 7:
+                # Date-based check
+                if reminder.reminder_type in ("date", "both") and reminder.due_date:
+                    if reminder.due_date <= today:
                         should_notify = True
 
-        if should_notify:
-            try:
-                # No caller: a scheduled job renders in the VEHICLE OWNER's
-                # units (render_context_for_vehicle), which falls back to the
-                # instance default for an ownerless vehicle. Resolved here,
-                # inside the notify branch, so a sweep over pending reminders
-                # that sends nothing costs no extra queries.
-                ctx = await render_context_for_vehicle(db, reminder.vin)
-                await dispatcher.dispatch(
-                    event_type="reminder_due",
-                    title=f"Reminder Due: {reminder.title}",
-                    message=_build_reminder_message(reminder, ctx),
-                )
-                # `last_notified_at` is DateTime with no timezone
-                # (models/reminder.py:40). PostgreSQL rejects an aware value
-                # for a naive column with asyncpg DataError; SQLite accepts it
-                # and strips the offset on the way back out, which is why this
-                # never showed on a dev instance. `now` itself stays aware
-                # because the cooldown comparison above needs it.
-                reminder.last_notified_at = now.replace(tzinfo=None)
-                logger.info(
-                    "Sent reminder notification for reminder %s (vin=%s)",
-                    reminder.id,
-                    sanitize_for_log(reminder.vin),
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to send reminder notification %s: %s",
-                    reminder.id,
-                    sanitize_for_log(e),
-                )
+                # Mileage-based check
+                if reminder.reminder_type in ("mileage", "both") and reminder.due_mileage_km:
+                    latest_odometer_km = await get_current_mileage(reminder.vin, db)
+                    if latest_odometer_km and latest_odometer_km >= reminder.due_mileage_km:
+                        should_notify = True
 
+                # Hours-based check
+                if reminder.reminder_type == "hours" and reminder.due_hours:
+                    current_hours = await get_current_hours(reminder.vin, db)
+                    if current_hours and current_hours >= reminder.due_hours:
+                        should_notify = True
+
+                # Smart: check estimated date or the tracked usage target (exactly
+                # one of due_mileage_km/due_hours is set, per validate_reminder_state).
+                if reminder.reminder_type == "smart":
+                    # Check mileage
+                    if reminder.due_mileage_km:
+                        latest_odometer_km = await get_current_mileage(reminder.vin, db)
+                        if latest_odometer_km and latest_odometer_km >= reminder.due_mileage_km:
+                            should_notify = True
+
+                    # Check hours
+                    if reminder.due_hours:
+                        current_hours = await get_current_hours(reminder.vin, db)
+                        if current_hours and current_hours >= reminder.due_hours:
+                            should_notify = True
+
+                    # Check date (hard cap)
+                    if reminder.due_date and reminder.due_date <= today:
+                        should_notify = True
+
+                    # Check estimated date (within 7 days), branching on whichever
+                    # target is set.
+                    if not should_notify and reminder.due_date:
+                        rate: float | None = None
+                        current: Decimal | None = None
+                        target: Decimal | None = None
+                        if reminder.due_mileage_km:
+                            rate = await calculate_driving_rate(reminder.vin, db)
+                            current = await get_current_mileage(reminder.vin, db)
+                            target = reminder.due_mileage_km
+                        elif reminder.due_hours:
+                            rate = await calculate_hours_driving_rate(reminder.vin, db)
+                            current = await get_current_hours(reminder.vin, db)
+                            target = reminder.due_hours
+                        if rate and current and target:
+                            est = calculate_smart_estimated_date(
+                                current, target, rate, reminder.due_date
+                            )
+                            if (est - today).days <= 7:
+                                should_notify = True
+        except Exception:
+            logger.exception("Reminder %s check failed", reminder_id)
+            continue
+
+        if should_notify:
+            due.append(_DueNotification.of(reminder))
+
+    # End the checking transaction before anything goes out. On SQLite a
+    # rolled-back savepoint is never released, so the transaction would stay
+    # open on its old read snapshot, and the stamps written in it fail with
+    # "database is locked" once anyone else has committed in the meantime.
+    await db.commit()
+
+    sent: list[int] = []
+    for item in due:
+        try:
+            # No caller: a scheduled job renders in the VEHICLE OWNER's units
+            # (render_context_for_vehicle), which falls back to the instance
+            # default for an ownerless vehicle. Resolved here, for the ones
+            # going out, so a sweep that sends nothing costs no extra queries.
+            ctx = await render_context_for_vehicle(db, item.vin)
+            await dispatcher.dispatch(
+                event_type="reminder_due",
+                title=f"Reminder Due: {item.title}",
+                message=_build_reminder_message(item, ctx),
+            )
+            sent.append(item.id)
+            logger.info(
+                "Sent reminder notification for reminder %s (vin=%s)",
+                item.id,
+                sanitize_for_log(item.vin),
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send reminder notification %s: %s",
+                item.id,
+                sanitize_for_log(e),
+            )
+            if isinstance(e, SQLAlchemyError):
+                # A failed statement leaves PostgreSQL's transaction aborted.
+                # Start clean so the rest still send and get stamped.
+                await db.rollback()
+
+    # Stamped once every send is done: a write any earlier would hold SQLite's
+    # write lock through the remaining backend calls. By id, because nothing
+    # after the checks touches a loaded reminder (see `_DueNotification`).
+    #
+    # `last_notified_at` is DateTime with no timezone (models/reminder.py).
+    # PostgreSQL rejects an aware value for a naive column with asyncpg
+    # DataError; SQLite accepts it and strips the offset on the way back out,
+    # which is why this never showed on a dev instance. `now` itself stays
+    # aware because the cooldown comparison above needs it.
+    if sent:
+        await db.execute(
+            update(Reminder)
+            .where(Reminder.id.in_(sent))
+            .values(last_notified_at=now.replace(tzinfo=None))
+        )
     await db.commit()
 
 
-def _build_reminder_message(reminder: Reminder, ctx: RenderContext) -> str:
+def _build_reminder_message(reminder: ReminderMessageSource, ctx: RenderContext) -> str:
     """Build the notification message for a due reminder, rendered in ``ctx``.
 
     Three kinds of content, three deliberately different treatments:

@@ -100,6 +100,7 @@ def _backup(vin: str) -> str:
             "fuel_records": [{"date": "2027-09-02", "odometer_km": 1100, "liters": 40}],
             "def_records": [{"date": "2027-09-03", "odometer_km": 1200, "liters": 9}],
             "odometer_records": [{"date": "2027-09-04", "odometer_km": 1300}],
+            "hours_records": [{"date": "2027-09-04", "engine_hours": 55.5}],
             "reminders": [{"description": "Oil", "is_recurring": True, "recurrence_miles": 5000}],
             "notes": [{"date": "2027-09-05", "title": "Note", "content": "body"}],
         }

@@ -108,8 +108,9 @@ class WearResult:
     status: WearStatus
     km_remaining: Decimal | None = None
     #: Null even on a successful projection when the two readings are same-day
-    #: (`day_delta == 0`) or the derived rate is non-positive. So it is not a
-    #: proxy for "did this project": read `status` for that.
+    #: (`day_delta == 0`), the derived rate is non-positive, or the date would
+    #: land past 9999-12-31. So it is not a proxy for "did this project": read
+    #: `status` for that.
     wear_date: dt.date | None = None
     blocking_period_ids: list[int] = field(default_factory=list)
 

@@ -24,6 +24,7 @@ and a supply archived after the fact).
 """
 
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
@@ -523,6 +524,120 @@ async def test_add_line_item_route_serializes_supply_usages(
     assert float(u["cost_snapshot"]) == 40.0  # 5 * 8.00
     assert u["service_visit_id"] == visit_id
     assert u["service_visit_date"] == "2026-02-01"
+
+
+# ---------------------------------------------------------------------------
+# G1-D5: an existing line item that leaves supplies_used out keeps its usages
+# ---------------------------------------------------------------------------
+
+
+async def _visit_using_five(
+    client: AsyncClient, auth_headers: dict[str, str], vin: str, sid: int
+) -> tuple[int, int]:
+    """Create a visit whose one line item uses 5 of `sid`; return (visit_id, li_id)."""
+    created = (
+        await client.post(
+            f"/api/vehicles/{vin}/service-visits",
+            json={
+                "date": "2026-02-01",
+                "line_items": [
+                    {
+                        "description": "Oil Change",
+                        "cost": 0,
+                        "supplies_used": [{"supply_id": sid, "quantity": "5"}],
+                    }
+                ],
+            },
+            headers=auth_headers,
+        )
+    ).json()
+    return created["id"], created["line_items"][0]["id"]
+
+
+async def _on_hand(client: AsyncClient, auth_headers: dict[str, str], sid: int) -> float:
+    """The supply's current on-hand quantity."""
+    return float((await client.get(f"/api/supplies/{sid}", headers=auth_headers)).json()["on_hand"])
+
+
+async def _usages(
+    client: AsyncClient, auth_headers: dict[str, str], vin: str, visit_id: int
+) -> list[dict[str, Any]]:
+    """The visit's one line item's supply usages, read back through GET."""
+    r = await client.get(f"/api/vehicles/{vin}/service-visits/{visit_id}", headers=auth_headers)
+    assert r.status_code == 200
+    return r.json()["line_items"][0]["supply_usages"]
+
+
+async def test_update_without_supplies_used_keeps_usages(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """An API client that leaves supplies_used off an existing item must not
+    delete its usages or return their stock."""
+    vin = str(test_vehicle["vin"])
+    sid = await _supply(client, auth_headers)
+    visit_id, li_id = await _visit_using_five(client, auth_headers, vin, sid)
+    before = await _on_hand(client, auth_headers, sid)
+    assert before == 5.0
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={"line_items": [{"id": li_id, "description": "Oil Change", "cost": 0}]},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+
+    usages = await _usages(client, auth_headers, vin, visit_id)
+    assert len(usages) == 1
+    assert float(usages[0]["quantity"]) == 5.0
+    assert await _on_hand(client, auth_headers, sid) == before
+
+
+async def test_update_with_empty_supplies_used_clears_usages(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """An explicit [] still clears the item's usages and returns the stock."""
+    vin = str(test_vehicle["vin"])
+    sid = await _supply(client, auth_headers)
+    visit_id, li_id = await _visit_using_five(client, auth_headers, vin, sid)
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "line_items": [
+                {"id": li_id, "description": "Oil Change", "cost": 0, "supplies_used": []}
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+
+    assert await _usages(client, auth_headers, vin, visit_id) == []
+    assert await _on_hand(client, auth_headers, sid) == 10.0
+
+
+async def test_update_with_null_supplies_used_is_rejected(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """null is neither keep nor clear: it's a 422 and the usage stays."""
+    vin = str(test_vehicle["vin"])
+    sid = await _supply(client, auth_headers)
+    visit_id, li_id = await _visit_using_five(client, auth_headers, vin, sid)
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "line_items": [
+                {"id": li_id, "description": "Oil Change", "cost": 0, "supplies_used": None}
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 422
+
+    usages = await _usages(client, auth_headers, vin, visit_id)
+    assert len(usages) == 1
+    assert float(usages[0]["quantity"]) == 5.0
+    assert await _on_hand(client, auth_headers, sid) == 5.0
 
 
 # ---------------------------------------------------------------------------
