@@ -462,7 +462,10 @@ class ServiceVisitService:
                         row.inspection_result = item_data.inspection_result
                         row.inspection_severity = item_data.inspection_severity
                         row.triggered_by_inspection_id = item_data.triggered_by_inspection_id
-                        await self._sync_line_item_supplies(row, item_data.supplies_used, vin)
+                        # Omitted = keep (G1-D5): an API client that leaves the
+                        # field out must not delete the item's usages. [] clears.
+                        if "supplies_used" in item_data.model_fields_set:
+                            await self._sync_line_item_supplies(row, item_data.supplies_used, vin)
                         # reminder ignored for existing items
                     else:
                         # New item added during edit

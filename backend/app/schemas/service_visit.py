@@ -138,7 +138,11 @@ class ServiceLineItemUpdate(BaseModel):
     triggered_by_inspection_id: int | None = None
     reminder: ReminderCreate | None = None
     supplies_used: list[SupplyUsageInput] = Field(
-        default_factory=list, description="Supplies consumed by this line item"
+        default_factory=list,
+        description=(
+            "Supplies consumed by this line item. Omit to keep the current ones; "
+            "send [] to remove them."
+        ),
     )
 
     @field_validator("maintenance_type")

@@ -17098,7 +17098,7 @@
             ]
           },
           "supplies_used": {
-            "description": "Supplies consumed by this line item",
+            "description": "Supplies consumed by this line item. Omit to keep the current ones; send [] to remove them.",
             "items": {
               "$ref": "#/components/schemas/SupplyUsageInput"
             },

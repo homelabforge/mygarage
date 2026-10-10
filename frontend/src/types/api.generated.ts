@@ -14744,7 +14744,7 @@ export interface components {
             reminder?: components["schemas"]["ReminderCreate"] | null;
             /**
              * Supplies Used
-             * @description Supplies consumed by this line item
+             * @description Supplies consumed by this line item. Omit to keep the current ones; send [] to remove them.
              */
             supplies_used?: components["schemas"]["SupplyUsageInput"][];
             /**
