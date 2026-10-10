@@ -154,10 +154,10 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
           setUsers([])
         }
       } else {
-        // Still check user count for authEverEnabled
+        // Still check whether anyone's registered, for authEverEnabled
         try {
           const countRes = await api.get('/auth/users/count')
-          if (countRes.data.count > 0) {
+          if (countRes.data.has_users === true) {
             const usersRes = await api.get('/auth/users')
             setUsers(usersRes.data)
           } else {

@@ -103,7 +103,7 @@ describe('SettingsSystemTab — OIDC config is only written when OIDC changed', 
           },
         })
       }
-      if (url === '/auth/users/count') return Promise.resolve({ data: { count: 2 } })
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
       if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
       if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
       return Promise.resolve({ data: {} })
@@ -183,7 +183,7 @@ describe('SettingsSystemTab: a save sends only what changed', () => {
         return settings instanceof Error ? Promise.reject(settings) : Promise.resolve({ data: { settings } })
       }
       if (url === '/auth/oidc/config/admin') return Promise.resolve({ data: OIDC_ADMIN })
-      if (url === '/auth/users/count') return Promise.resolve({ data: { count: 2 } })
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
       if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
       if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
       return Promise.resolve({ data: {} })

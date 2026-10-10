@@ -780,10 +780,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get User Count
-         * @description Get total number of registered users (public endpoint for registration page).
+         * Get Has Users
+         * @description Say whether anyone has registered yet.
+         *
+         *     Public on purpose, since the Register page asks before anyone can log in.
+         *     It's a yes or no, so strangers don't get the head count.
          */
-        get: operations["get_user_count_api_auth_users_count_get"];
+        get: operations["get_has_users_api_auth_users_count_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11249,6 +11252,14 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HasUsersResponse
+         * @description Public first-user check: whether anyone has registered yet.
+         */
+        HasUsersResponse: {
+            /** Has Users */
+            has_users: boolean;
+        };
+        /**
          * HistoryFaultResponse
          * @description One contradiction in a tire's mount history.
          *
@@ -21269,7 +21280,7 @@ export interface operations {
             };
         };
     };
-    get_user_count_api_auth_users_count_get: {
+    get_has_users_api_auth_users_count_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -21284,7 +21295,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HasUsersResponse"];
                 };
             };
         };

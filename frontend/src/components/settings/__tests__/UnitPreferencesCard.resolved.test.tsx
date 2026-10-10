@@ -184,7 +184,7 @@ describe('UnitPreferencesCard — the Units card reads the resolved set', () => 
           data: { settings: [{ key: 'timezone', value: 'UTC' }] },
         })
       }
-      if (url === '/auth/users/count') return Promise.resolve({ data: { count: 2 } })
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
       if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
       if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
       return Promise.resolve({ data: {} })
@@ -262,7 +262,7 @@ describe('UnitPreferencesCard — D3: an override column beats the preset', () =
           data: { settings: [{ key: 'timezone', value: 'UTC' }] },
         })
       }
-      if (url === '/auth/users/count') return Promise.resolve({ data: { count: 2 } })
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
       if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
       if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
       return Promise.resolve({ data: {} })
@@ -331,7 +331,7 @@ describe('UnitPreferencesCard — the show-both example demonstrates the reader\
       if (url === '/settings') {
         return Promise.resolve({ data: { settings: [{ key: 'timezone', value: 'UTC' }] } })
       }
-      if (url === '/auth/users/count') return Promise.resolve({ data: { count: 2 } })
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
       if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
       if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
       return Promise.resolve({ data: {} })

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -20,6 +20,7 @@ from app.schemas.user import (
     AdminPasswordReset,
     AdminUserCreate,
     AdminUserUpdate,
+    HasUsersResponse,
     LoginRequest,
     Token,
     UnitPreferenceUpdate,
@@ -264,14 +265,17 @@ async def logout(
     return {"message": "Successfully logged out"}
 
 
-@router.get("/users/count")
-async def get_user_count(
+@router.get("/users/count", response_model=HasUsersResponse)
+async def get_has_users(
     db: AsyncSession = Depends(get_db),
-):
-    """Get total number of registered users (public endpoint for registration page)."""
-    result = await db.execute(select(func.count(User.id)))
-    count = result.scalar_one()
-    return {"count": count}
+) -> HasUsersResponse:
+    """Say whether anyone has registered yet.
+
+    Public on purpose, since the Register page asks before anyone can log in.
+    It's a yes or no, so strangers don't get the head count.
+    """
+    result = await db.execute(select(exists(select(User.id))))
+    return HasUsersResponse(has_users=result.scalar_one())
 
 
 @router.get("/relationship-presets")

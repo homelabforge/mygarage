@@ -174,11 +174,11 @@ export default function SettingsSystemTab() {
 
       setAutoArchiveDays(settingsMap.auto_archive_inactive_days || '0')
 
-      // Check user count to determine if auth has ever been enabled
+      // Anyone registered means auth has been on at some point
       try {
         const countResponse = await api.get('/auth/users/count')
         const countData = countResponse.data
-        setAuthEverEnabled(countData.count > 0)
+        setAuthEverEnabled(countData.has_users === true)
       } catch {
         setAuthEverEnabled(false)
       }

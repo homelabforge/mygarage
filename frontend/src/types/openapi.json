@@ -8523,6 +8523,20 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HasUsersResponse": {
+        "description": "Public first-user check: whether anyone has registered yet.",
+        "properties": {
+          "has_users": {
+            "title": "Has Users",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "has_users"
+        ],
+        "title": "HasUsersResponse",
+        "type": "object"
+      },
       "HistoryFaultResponse": {
         "description": "One contradiction in a tire's mount history.\n\nThe same validator that refuses a contradictory write, run over the\nstored history, so a contradiction that blocks writes always has a period\nto badge even when no distance or projection figure is blocked by it.\n`message` is in the requesting user's distance unit.",
         "properties": {
@@ -33365,19 +33379,21 @@
     },
     "/api/auth/users/count": {
       "get": {
-        "description": "Get total number of registered users (public endpoint for registration page).",
-        "operationId": "get_user_count_api_auth_users_count_get",
+        "description": "Say whether anyone has registered yet.\n\nPublic on purpose, since the Register page asks before anyone can log in.\nIt's a yes or no, so strangers don't get the head count.",
+        "operationId": "get_has_users_api_auth_users_count_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HasUsersResponse"
+                }
               }
             },
             "description": "Successful Response"
           }
         },
-        "summary": "Get User Count",
+        "summary": "Get Has Users",
         "tags": [
           "Authentication"
         ]

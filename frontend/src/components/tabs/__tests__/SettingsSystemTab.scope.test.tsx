@@ -95,7 +95,7 @@ beforeEach(() => {
     if (url === '/settings') {
       return Promise.resolve({ data: { settings: [{ key: 'timezone', value: 'UTC' }] } })
     }
-    if (url === '/auth/users/count') return Promise.resolve({ data: { count: 2 } })
+    if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
     if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
     if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
     return Promise.resolve({ data: {} })
