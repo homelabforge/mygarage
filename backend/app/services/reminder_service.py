@@ -891,6 +891,10 @@ async def check_due_reminders(db: AsyncSession) -> None:
     reminders = result.scalars().all()
 
     dispatcher = NotificationDispatcher(db)
+    # Sent ones, stamped after the loop. Each check's savepoint flushes
+    # whatever is pending, and on SQLite a flushed stamp holds the write lock
+    # through every later backend call.
+    notified: list[Reminder] = []
 
     for reminder in reminders:
         # Read before the savepoint: if it rolls back, whatever it changed comes
@@ -996,13 +1000,7 @@ async def check_due_reminders(db: AsyncSession) -> None:
                     title=f"Reminder Due: {reminder.title}",
                     message=_build_reminder_message(reminder, ctx),
                 )
-                # `last_notified_at` is DateTime with no timezone
-                # (models/reminder.py:40). PostgreSQL rejects an aware value
-                # for a naive column with asyncpg DataError; SQLite accepts it
-                # and strips the offset on the way back out, which is why this
-                # never showed on a dev instance. `now` itself stays aware
-                # because the cooldown comparison above needs it.
-                reminder.last_notified_at = now.replace(tzinfo=None)
+                notified.append(reminder)
                 logger.info(
                     "Sent reminder notification for reminder %s (vin=%s)",
                     reminder.id,
@@ -1015,6 +1013,14 @@ async def check_due_reminders(db: AsyncSession) -> None:
                     sanitize_for_log(e),
                 )
 
+    # `last_notified_at` is DateTime with no timezone (models/reminder.py).
+    # PostgreSQL rejects an aware value for a naive column with asyncpg
+    # DataError; SQLite accepts it and strips the offset on the way back out,
+    # which is why this never showed on a dev instance. `now` itself stays
+    # aware because the cooldown comparison above needs it.
+    stamp = now.replace(tzinfo=None)
+    for sent in notified:
+        sent.last_notified_at = stamp
     await db.commit()
 
 

@@ -43,6 +43,7 @@ from decimal import Decimal
 import pytest
 import pytest_asyncio
 from sqlalchemy import delete, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet, field_to_column
@@ -444,3 +445,50 @@ class TestCheckDueRemindersUnits:
             stamps = {vin: stamped for vin, stamped in rows.all()}
         assert stamps[healthy_vin] is not None
         assert stamps[failing_vin] is None
+
+    async def test_no_backend_call_holds_the_sqlite_write_lock(
+        self,
+        db_session: AsyncSession,
+        seeded_reminders,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """While a notification goes out, another connection can still write.
+
+        A stamp written mid-sweep (the next reminder's savepoint flushes it)
+        takes SQLite's database-wide write lock and keeps it through every later
+        backend call, and a dead backend outlasts prod's 30s busy_timeout.
+        """
+        if db_session.get_bind().dialect.name != "sqlite":
+            pytest.skip("SQLite's write lock is database-wide; PostgreSQL locks only the rows")
+        outcomes: dict[str, str] = {}
+
+        class _ProbingDispatcher:
+            def __init__(self, db: AsyncSession) -> None:
+                pass
+
+            async def dispatch(self, event_type: str, title: str, message: str) -> None:
+                async with test_sessionmaker() as other:
+                    previous = (await other.execute(text("PRAGMA busy_timeout"))).scalar_one()
+                    await other.execute(text("PRAGMA busy_timeout = 100"))
+                    try:
+                        # Matches nothing, but still needs the write lock.
+                        await other.execute(text("UPDATE settings SET key = key WHERE 1 = 0"))
+                        await other.commit()
+                        outcomes[title] = "ok"
+                    except OperationalError as e:
+                        await other.rollback()
+                        outcomes[title] = str(e.orig)
+                    finally:
+                        await other.execute(text(f"PRAGMA busy_timeout = {int(previous)}"))
+
+        monkeypatch.setattr(
+            "app.services.notifications.dispatcher.NotificationDispatcher", _ProbingDispatcher
+        )
+
+        await check_due_reminders(db_session)
+
+        assert outcomes["Reminder Due: Reminder Units Owned Service"] == "ok"
+        assert outcomes["Reminder Due: Reminder Units Ownerless Service"] == "ok"
+        # Anything else the shared database had due went out without the lock too.
+        assert set(outcomes.values()) == {"ok"}
