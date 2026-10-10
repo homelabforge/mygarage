@@ -28,7 +28,7 @@ async def list_def_records(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get all DEF records for a vehicle.
 
@@ -48,7 +48,7 @@ async def list_def_records(
 async def get_def_analytics(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get DEF analytics and consumption predictions.
 
@@ -67,7 +67,7 @@ async def get_def_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get a specific DEF record."""
     service = DEFRecordService(db)
@@ -80,7 +80,7 @@ async def create_def_record(
     vin: str,
     record_data: DEFRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Create a new DEF record."""
     service = DEFRecordService(db)
@@ -94,7 +94,7 @@ async def update_def_record(
     record_id: int,
     record_data: DEFRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Update an existing DEF record."""
     service = DEFRecordService(db)
@@ -107,7 +107,7 @@ async def delete_def_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Delete a DEF record."""
     service = DEFRecordService(db)

@@ -1353,7 +1353,7 @@ async def export_garage_analytics_pdf(
 async def get_vendor_analytics(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_auth),
+    user: User | None = Depends(require_auth),
 ):
     """Get vendor analysis for a specific vehicle."""
 
@@ -1414,7 +1414,7 @@ async def get_vendor_analytics(
 async def get_seasonal_analytics(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_auth),
+    user: User | None = Depends(require_auth),
 ):
     """Get seasonal spending analysis for a specific vehicle."""
 
@@ -1513,7 +1513,7 @@ async def get_seasonal_analytics(
 async def get_tire_analytics(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_auth),
+    user: User | None = Depends(require_auth),
 ) -> TireAnalyticsSummary:
     """Tire wear and life for one vehicle, plus what is missing to compute it.
 
@@ -1547,7 +1547,7 @@ async def compare_periods(
     period1_label: str | None = None,
     period2_label: str | None = None,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_auth),
+    user: User | None = Depends(require_auth),
 ):
     """Compare costs and metrics between two time periods."""
 

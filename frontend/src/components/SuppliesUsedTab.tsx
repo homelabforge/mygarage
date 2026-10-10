@@ -9,10 +9,8 @@ import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useDateLocale } from '@/hooks/useDateLocale'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import {
-  displayDecimals,
+  formatSupplyQuantity,
   supplyDisplayUnit,
-  toDisplay,
-  unitLabel,
   type SupplyUnit,
 } from '@/utils/supplyUnits'
 import type { SupplyUsage } from '@/types/supplies'
@@ -22,17 +20,10 @@ interface SuppliesUsedTabProps {
 }
 
 // Quantity is stored canonically (L for volume, count for count). Show it in
-// the supply's own unit, at that unit's decimals.
+// the supply's own unit.
 function formatQuantity(raw: string, unit: SupplyUnit, locale: string): string {
   const canonical = Number(raw)
-  if (Number.isNaN(canonical)) return raw
-  const decimals = displayDecimals(unit)
-  const text = toDisplay(canonical, unit).toLocaleString(locale, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })
-  const label = unitLabel(unit)
-  return label ? `${text} ${label}` : text
+  return Number.isNaN(canonical) ? raw : formatSupplyQuantity(canonical, unit, locale)
 }
 
 export default function SuppliesUsedTab({ vin }: SuppliesUsedTabProps) {

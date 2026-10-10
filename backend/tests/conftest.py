@@ -30,12 +30,28 @@ from app.models.fuel import FuelRecord
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from tests._shard import apply_shard
 
 
 def skip_test(reason: str) -> NoReturn:
     """Skip test with given reason - typed to indicate it never returns."""
     pytest.skip(reason)
     raise AssertionError("pytest.skip should have raised")
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Keep only this CI runner's share of the tests. A no-op off CI.
+
+    trylast so -k and -m have already deselected, and the shards split
+    what's actually left.
+    """
+    apply_shard(
+        items,
+        rootpath=config.rootpath,
+        deselect=lambda dropped: config.hook.pytest_deselected(items=dropped),
+        environ=os.environ,
+    )
 
 
 # Test database URL - defaults to SQLite for isolated testing

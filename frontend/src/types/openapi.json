@@ -8523,6 +8523,20 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HasUsersResponse": {
+        "description": "Public first-user check: whether anyone has registered yet.",
+        "properties": {
+          "has_users": {
+            "title": "Has Users",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "has_users"
+        ],
+        "title": "HasUsersResponse",
+        "type": "object"
+      },
       "HistoryFaultResponse": {
         "description": "One contradiction in a tire's mount history.\n\nThe same validator that refuses a contradictory write, run over the\nstored history, so a contradiction that blocks writes always has a period\nto badge even when no distance or projection figure is blocked by it.\n`message` is in the requesting user's distance unit.",
         "properties": {
@@ -12506,7 +12520,7 @@
         "type": "object"
       },
       "OIDCAdminConfig": {
-        "description": "Full admin OIDC configuration (canonical homelab OIDC settings contract).\n\n`client_secret` follows the \u00a75.4(3) wire convention:\n  - GET returns the literal \"********\" placeholder when stored, \"\" otherwise.\n  - PUT with empty string OR the placeholder preserves the stored value.",
+        "description": "Full admin OIDC configuration (canonical homelab OIDC settings contract).\n\n`client_secret` follows the \u00a75.4(3) wire convention:\n  - GET returns the literal \"********\" placeholder when stored, \"\" otherwise.\n  - PUT with empty string OR the placeholder preserves the stored value.\n\n`redirect_uri` pins the SSO callback URL; \"\" builds it from each request.\nPUT leaves it alone when the field is left out.",
         "properties": {
           "admin_group": {
             "default": "",
@@ -12551,6 +12565,11 @@
           "provider_name": {
             "default": "",
             "title": "Provider Name",
+            "type": "string"
+          },
+          "redirect_uri": {
+            "default": "",
+            "title": "Redirect Uri",
             "type": "string"
           },
           "scopes": {
@@ -33064,7 +33083,7 @@
         ]
       },
       "put": {
-        "description": "Update the admin OIDC configuration (admin-only).\n\nEnforces the \u00a75.4 wire contract:\n  - empty `client_secret` (or the masked placeholder) preserves the stored value\n  - issuer_url has trailing slash + whitespace stripped before persisting",
+        "description": "Update the admin OIDC configuration (admin-only).\n\nEnforces the \u00a75.4 wire contract:\n  - empty `client_secret` (or the masked placeholder) preserves the stored value\n  - issuer_url has trailing slash + whitespace stripped before persisting\n  - `redirect_uri` left out preserves the stored value; sent, it's stripped and\n    must be an absolute http(s) URL or blank, else a 422 and nothing is written",
         "operationId": "put_oidc_admin_config_api_auth_oidc_config_admin_put",
         "requestBody": {
           "content": {
@@ -33169,7 +33188,7 @@
     },
     "/api/auth/oidc/test": {
       "post": {
-        "description": "Test OIDC provider connection (admin only).\n\nReturns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope\nper plan \u00a75.4(4).",
+        "description": "Test OIDC provider connection (admin only when sign-in is on).\n\nReturns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope\nper plan \u00a75.4(4).",
         "operationId": "test_oidc_connection_api_auth_oidc_test_post",
         "requestBody": {
           "content": {
@@ -33389,19 +33408,21 @@
     },
     "/api/auth/users/count": {
       "get": {
-        "description": "Get total number of registered users (public endpoint for registration page).",
-        "operationId": "get_user_count_api_auth_users_count_get",
+        "description": "Say whether anyone has registered yet.\n\nPublic on purpose, since the Register page asks before anyone can log in.\nIt's a yes or no, so strangers don't get the head count.",
+        "operationId": "get_has_users_api_auth_users_count_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HasUsersResponse"
+                }
               }
             },
             "description": "Successful Response"
           }
         },
-        "summary": "Get User Count",
+        "summary": "Get Has Users",
         "tags": [
           "Authentication"
         ]
@@ -40050,7 +40071,7 @@
     },
     "/api/settings/poi-providers": {
       "get": {
-        "description": "Get configured POI search providers.\n\nReturns ONLY providers that have been configured (have API keys).\nOSM is always included as the default fallback.\n\nNote: This endpoint is public as it only returns masked API keys and metadata.\n\nReturns:\n    List of provider configurations",
+        "description": "Get configured POI search providers (admin only).\n\nReturns ONLY providers that have been configured (have API keys).\nOSM is always included as the default fallback.\n\nReturns:\n    List of provider configurations",
         "operationId": "get_poi_providers_api_settings_poi_providers_get",
         "responses": {
           "200": {
@@ -40062,6 +40083,11 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "summary": "Get Poi Providers",
         "tags": [
           "Settings"

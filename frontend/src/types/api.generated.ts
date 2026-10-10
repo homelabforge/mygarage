@@ -574,6 +574,8 @@ export interface paths {
          *     Enforces the §5.4 wire contract:
          *       - empty `client_secret` (or the masked placeholder) preserves the stored value
          *       - issuer_url has trailing slash + whitespace stripped before persisting
+         *       - `redirect_uri` left out preserves the stored value; sent, it's stripped and
+         *         must be an absolute http(s) URL or blank, else a 422 and nothing is written
          */
         put: operations["put_oidc_admin_config_api_auth_oidc_config_admin_put"];
         post?: never;
@@ -669,7 +671,7 @@ export interface paths {
         put?: never;
         /**
          * Test Oidc Connection
-         * @description Test OIDC provider connection (admin only).
+         * @description Test OIDC provider connection (admin only when sign-in is on).
          *
          *     Returns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope
          *     per plan §5.4(4).
@@ -780,10 +782,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get User Count
-         * @description Get total number of registered users (public endpoint for registration page).
+         * Get Has Users
+         * @description Say whether anyone has registered yet.
+         *
+         *     Public on purpose, since the Register page asks before anyone can log in.
+         *     It's a yes or no, so strangers don't get the head count.
          */
-        get: operations["get_user_count_api_auth_users_count_get"];
+        get: operations["get_has_users_api_auth_users_count_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3624,12 +3629,10 @@ export interface paths {
         };
         /**
          * Get Poi Providers
-         * @description Get configured POI search providers.
+         * @description Get configured POI search providers (admin only).
          *
          *     Returns ONLY providers that have been configured (have API keys).
          *     OSM is always included as the default fallback.
-         *
-         *     Note: This endpoint is public as it only returns masked API keys and metadata.
          *
          *     Returns:
          *         List of provider configurations
@@ -11251,6 +11254,14 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HasUsersResponse
+         * @description Public first-user check: whether anyone has registered yet.
+         */
+        HasUsersResponse: {
+            /** Has Users */
+            has_users: boolean;
+        };
+        /**
          * HistoryFaultResponse
          * @description One contradiction in a tire's mount history.
          *
@@ -12989,6 +13000,9 @@ export interface components {
          *     `client_secret` follows the §5.4(3) wire convention:
          *       - GET returns the literal "********" placeholder when stored, "" otherwise.
          *       - PUT with empty string OR the placeholder preserves the stored value.
+         *
+         *     `redirect_uri` pins the SSO callback URL; "" builds it from each request.
+         *     PUT leaves it alone when the field is left out.
          */
         OIDCAdminConfig: {
             /**
@@ -13036,6 +13050,11 @@ export interface components {
              * @default
              */
             provider_name: string;
+            /**
+             * Redirect Uri
+             * @default
+             */
+            redirect_uri: string;
             /**
              * Scopes
              * @default openid profile email
@@ -21281,7 +21300,7 @@ export interface operations {
             };
         };
     };
-    get_user_count_api_auth_users_count_get: {
+    get_has_users_api_auth_users_count_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -21296,7 +21315,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HasUsersResponse"];
                 };
             };
         };

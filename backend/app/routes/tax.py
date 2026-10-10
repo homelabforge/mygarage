@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/vehicles", tags=["tax-records"])
 async def list_tax_records(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TaxRecordListResponse:
     """List all tax/registration records for a vehicle."""
     service = TaxRecordService(db)
@@ -37,7 +37,7 @@ async def create_tax_record(
     vin: str,
     record_data: TaxRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TaxRecordResponse:
     """Create a new tax/registration record."""
     service = TaxRecordService(db)
@@ -49,7 +49,7 @@ async def get_tax_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TaxRecordResponse:
     """Get a specific tax/registration record."""
     service = TaxRecordService(db)
@@ -62,7 +62,7 @@ async def update_tax_record(
     record_id: int,
     update_data: TaxRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TaxRecordResponse:
     """Update a tax/registration record."""
     service = TaxRecordService(db)
@@ -74,7 +74,7 @@ async def delete_tax_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a tax/registration record."""
     service = TaxRecordService(db)

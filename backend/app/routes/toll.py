@@ -40,7 +40,7 @@ toll_tags_router = APIRouter(prefix="/api/vehicles/{vin}/toll-tags", tags=["Toll
 async def list_toll_tags(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TollTagListResponse:
     """Get all toll tags for a vehicle."""
     service = TollService(db)
@@ -52,7 +52,7 @@ async def create_toll_tag(
     vin: str,
     toll_tag: TollTagCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TollTagResponse:
     """Create a new toll tag for a vehicle."""
     service = TollService(db)
@@ -64,7 +64,7 @@ async def get_toll_tag(
     vin: str,
     tag_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TollTagResponse:
     """Get a specific toll tag."""
     service = TollService(db)
@@ -77,7 +77,7 @@ async def update_toll_tag(
     tag_id: int,
     toll_tag_update: TollTagUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TollTagResponse:
     """Update a toll tag."""
     service = TollService(db)
@@ -89,7 +89,7 @@ async def delete_toll_tag(
     vin: str,
     tag_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a toll tag."""
     service = TollService(db)
@@ -109,7 +109,7 @@ async def list_toll_transactions(
     end_date: dt.date | None = None,
     toll_tag_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TollTransactionListResponse:
     """Get all toll transactions for a vehicle with optional filtering."""
     service = TollService(db)
@@ -121,7 +121,7 @@ async def create_toll_transaction(
     vin: str,
     transaction: TollTransactionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TollTransactionResponse:
     """Create a new toll transaction for a vehicle."""
     service = TollService(db)
@@ -133,7 +133,7 @@ async def get_toll_transaction(
     vin: str,
     transaction_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TollTransactionResponse:
     """Get a specific toll transaction."""
     service = TollService(db)
@@ -146,7 +146,7 @@ async def update_toll_transaction(
     transaction_id: int,
     transaction_update: TollTransactionUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TollTransactionResponse:
     """Update a toll transaction."""
     service = TollService(db)
@@ -158,7 +158,7 @@ async def delete_toll_transaction(
     vin: str,
     transaction_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a toll transaction."""
     service = TollService(db)
@@ -169,7 +169,7 @@ async def delete_toll_transaction(
 async def get_toll_transaction_summary(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TollTransactionSummary:
     """Get toll transaction summary and monthly statistics."""
     service = TollService(db)

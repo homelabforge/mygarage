@@ -21,6 +21,7 @@ from app.schemas.family import (
     VehicleTransferRequest,
     VehicleTransferResponse,
 )
+from app.services.auth import sign_in_required
 from app.services.insurance_service import InsuranceService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -38,7 +39,7 @@ class TransferService:
         self,
         vin: str,
         transfer_request: VehicleTransferRequest,
-        current_user: User,
+        current_user: User | None,
     ) -> VehicleTransferResponse:
         """
         Transfer vehicle ownership from one user to another.
@@ -51,16 +52,22 @@ class TransferService:
         Args:
             vin: Vehicle VIN to transfer
             transfer_request: Transfer details (to_user_id, notes, data_included)
-            current_user: Admin performing the transfer
+            current_user: Admin performing the transfer, None if auth_mode='none'
 
         Returns:
             VehicleTransferResponse with transfer details
 
         Raises:
+            HTTPException 400: requires_sign_in if auth_mode='none'
             HTTPException 403: If current_user is not admin
             HTTPException 404: If vehicle or recipient not found
             HTTPException 400: If recipient is current owner or disabled
         """
+        # The audit row has to say who did it (transferred_by can't be null),
+        # and with auth off there's nobody to put there.
+        if current_user is None:
+            raise sign_in_required("Transferring a vehicle")
+
         # Verify admin
         if not current_user.is_admin:
             raise HTTPException(
@@ -144,7 +151,7 @@ class TransferService:
                 sanitize_for_log(vin),
                 from_user_id,
                 to_user.id,
-                current_user.username,
+                sanitize_for_log(current_user.username),
                 released,
             )
 
@@ -248,7 +255,7 @@ class TransferService:
     async def get_eligible_recipients(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
     ) -> list[EligibleRecipient]:
         """
         Get list of users eligible to receive a vehicle transfer.
@@ -257,13 +264,13 @@ class TransferService:
 
         Args:
             vin: Vehicle VIN
-            current_user: Admin requesting the list
+            current_user: Admin requesting the list, None if auth_mode='none'
 
         Returns:
             List of eligible recipient users
         """
-        # Verify admin
-        if not current_user.is_admin:
+        # Verify admin. None is auth off, treated like an admin.
+        if current_user is not None and not current_user.is_admin:
             raise HTTPException(
                 status_code=403,
                 detail="Only admins can view eligible recipients",

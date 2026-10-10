@@ -696,7 +696,7 @@ class FuelRecordService:
     async def list_fuel_records(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
         skip: int = 0,
         limit: int = 100,
         include_hauling: bool = False,
@@ -786,7 +786,7 @@ class FuelRecordService:
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def get_fuel_record(
-        self, vin: str, record_id: int, current_user: User
+        self, vin: str, record_id: int, current_user: User | None
     ) -> tuple[FuelRecord, Decimal | None, Decimal | None]:
         """Get a specific fuel record with L/100km and L/hr."""
         from app.services.auth import get_vehicle_or_403
@@ -808,7 +808,7 @@ class FuelRecordService:
         return record, value, hours_value
 
     async def create_fuel_record(
-        self, vin: str, record_data: FuelRecordCreate, current_user: User
+        self, vin: str, record_data: FuelRecordCreate, current_user: User | None
     ) -> tuple[FuelRecord, Decimal | None, Decimal | None]:
         """Create a new fuel record with L/100km calc.
 
@@ -972,7 +972,7 @@ class FuelRecordService:
         vin: str,
         record_id: int,
         record_data: FuelRecordUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> tuple[FuelRecord, Decimal | None, Decimal | None]:
         """Update a fuel record; recompute L/100km."""
         from app.services.auth import get_vehicle_or_403
@@ -1189,7 +1189,7 @@ class FuelRecordService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def delete_fuel_record(self, vin: str, record_id: int, current_user: User) -> None:
+    async def delete_fuel_record(self, vin: str, record_id: int, current_user: User | None) -> None:
         """Delete a fuel record and any linked DEF auto-synced record."""
         from app.services.auth import get_vehicle_or_403
 

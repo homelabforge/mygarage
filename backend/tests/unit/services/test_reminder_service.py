@@ -1322,7 +1322,9 @@ class TestCheckDueRemindersHours:
 
         reminder = Reminder(
             vin=vin,
-            title="Hydraulic service",
+            # A title no other module uses: the filter below is by title, and other
+            # modules leave pending reminders like "Hydraulic service" behind.
+            title="Reminder Service Hours Overdue",
             reminder_type="hours",
             due_hours=Decimal("500.0"),
             status="pending",
@@ -1370,7 +1372,7 @@ class TestCheckDueRemindersHours:
 
         reminder = Reminder(
             vin=vin,
-            title="Hydraulic service",
+            title="Reminder Service Hours Not Due",
             reminder_type="hours",
             due_hours=Decimal("500.0"),
             status="pending",
@@ -1429,7 +1431,7 @@ class TestCheckDueRemindersHours:
 
         reminder = Reminder(
             vin=vin,
-            title="Tire rotation",
+            title="Reminder Service Mileage Overdue",
             reminder_type="mileage",
             due_mileage_km=Decimal("55000"),
             status="pending",
@@ -1500,7 +1502,7 @@ class TestCheckDueRemindersNaiveLastNotifiedAt:
 
         reminder = Reminder(
             vin=vin,
-            title="Hydraulic service",
+            title="Reminder Service Naive Cooldown",
             reminder_type="hours",
             due_hours=Decimal("500.0"),
             status="pending",

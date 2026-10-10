@@ -45,7 +45,7 @@ async def transfer_vehicle(
     vin: str,
     transfer_request: VehicleTransferRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """
     Transfer vehicle ownership to another user (admin only).
@@ -74,7 +74,7 @@ async def transfer_vehicle(
 async def get_transfer_history(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get transfer history for a vehicle.
@@ -104,7 +104,7 @@ async def get_transfer_history(
 async def get_eligible_recipients(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """
     Get list of users eligible to receive a vehicle transfer (admin only).
@@ -131,7 +131,7 @@ async def share_vehicle(
     vin: str,
     share_request: VehicleShareCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Share a vehicle with another user.
@@ -156,7 +156,7 @@ async def share_vehicle(
 async def get_vehicle_shares(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get all shares for a vehicle.
@@ -179,7 +179,7 @@ async def update_share(
     share_id: int,
     update_request: VehicleShareUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Update share permission level.
@@ -203,7 +203,7 @@ async def update_share(
 async def revoke_share(
     share_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Revoke (delete) a vehicle share.
@@ -228,7 +228,7 @@ async def revoke_share(
 @router.get("/dashboard", response_model=FamilyDashboardResponse)
 async def get_family_dashboard(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """
     Get the family dashboard with all members and their vehicles.
@@ -251,7 +251,7 @@ async def get_family_dashboard(
 @router.get("/dashboard/members", response_model=list[FamilyMemberData])
 async def get_dashboard_members(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """
     Get all users for dashboard management.
@@ -271,7 +271,7 @@ async def update_dashboard_member(
     user_id: int,
     update_request: FamilyMemberUpdateRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """
     Update a user's family dashboard display settings.

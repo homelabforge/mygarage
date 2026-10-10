@@ -16,6 +16,7 @@ from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import delete
 
 from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
@@ -23,8 +24,27 @@ from app.models.vehicle import Vehicle
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
+# Every VIN this module creates, so the cleanup below can find them.
+_CREATED_VINS: set[str] = set()
+
+
+@pytest.fixture(autouse=True)
+async def _delete_our_vehicles(db_session):
+    """Delete this module's vehicles after each test; their rows cascade.
+
+    The suite shares one database, and an overdue "Hydraulic service" left
+    here showed up in another module's global reminder run.
+    """
+    yield
+    if _CREATED_VINS:
+        await db_session.rollback()
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_(_CREATED_VINS)))
+        await db_session.commit()
+        _CREATED_VINS.clear()
+
 
 async def _vehicle(db_session, test_user, vin: str, distance_unit: str | None = None) -> None:
+    _CREATED_VINS.add(vin)
     db_session.add(
         Vehicle(
             vin=vin,

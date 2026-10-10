@@ -39,7 +39,7 @@ class TollService:
     async def list_tags(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
     ) -> TollTagListResponse:
         """Get all toll tags for a vehicle."""
         from app.services.auth import get_vehicle_or_403
@@ -73,7 +73,7 @@ class TollService:
         self,
         vin: str,
         tag_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> TollTagResponse:
         """Get a specific toll tag by ID."""
         from app.services.auth import get_vehicle_or_403
@@ -107,7 +107,7 @@ class TollService:
         self,
         vin: str,
         data: TollTagCreate,
-        current_user: User,
+        current_user: User | None,
     ) -> TollTagResponse:
         """Create a new toll tag for a vehicle."""
         from app.services.auth import get_vehicle_or_403
@@ -160,7 +160,7 @@ class TollService:
         vin: str,
         tag_id: int,
         data: TollTagUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> TollTagResponse:
         """Update an existing toll tag."""
         from app.services.auth import get_vehicle_or_403
@@ -217,7 +217,7 @@ class TollService:
         self,
         vin: str,
         tag_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> None:
         """Delete a toll tag."""
         from app.services.auth import get_vehicle_or_403
@@ -271,7 +271,7 @@ class TollService:
     async def list_transactions(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
         start_date: dt.date | None = None,
         end_date: dt.date | None = None,
         toll_tag_id: int | None = None,
@@ -317,7 +317,7 @@ class TollService:
         self,
         vin: str,
         transaction_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> TollTransactionResponse:
         """Get a specific toll transaction by ID."""
         from app.services.auth import get_vehicle_or_403
@@ -353,7 +353,7 @@ class TollService:
         self,
         vin: str,
         data: TollTransactionCreate,
-        current_user: User,
+        current_user: User | None,
     ) -> TollTransactionResponse:
         """Create a new toll transaction for a vehicle."""
         from app.services.auth import get_vehicle_or_403
@@ -416,7 +416,7 @@ class TollService:
         vin: str,
         transaction_id: int,
         data: TollTransactionUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> TollTransactionResponse:
         """Update an existing toll transaction."""
         from app.services.auth import get_vehicle_or_403
@@ -488,7 +488,7 @@ class TollService:
         self,
         vin: str,
         transaction_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> None:
         """Delete a toll transaction."""
         from app.services.auth import get_vehicle_or_403
@@ -546,7 +546,7 @@ class TollService:
     async def get_summary(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
     ) -> TollTransactionSummary:
         """Get toll transaction summary and monthly statistics."""
         from app.services.auth import get_vehicle_or_403

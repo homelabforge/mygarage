@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, type ComponentProps } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 
@@ -37,13 +37,25 @@ vi.mock('@/contexts/AuthContext', () => ({
   }),
 }))
 
+// The OIDC modal renders nothing here; its last props are kept so a test can
+// read the form it was handed and edit through its onFormDataChange.
+const oidcModal = vi.hoisted(() => ({ props: null as OIDCModalProps | null }))
+
 // Children with their own data fetching; not under test here.
 vi.mock('@/components/ArchivedVehiclesList', () => ({ default: () => null }))
-vi.mock('@/components/modals/OIDCModal', () => ({ default: () => null }))
+vi.mock('@/components/modals/OIDCModal', () => ({
+  default: (props: OIDCModalProps) => {
+    oidcModal.props = props
+    return null
+  },
+}))
 vi.mock('@/components/modals/FamilyManagementModal', () => ({ default: () => null }))
 
+import type OIDCModal from '@/components/modals/OIDCModal'
 import api from '@/services/api'
 import SettingsSystemTab from '../SettingsSystemTab'
+
+type OIDCModalProps = ComponentProps<typeof OIDCModal>
 
 const mockedApi = vi.mocked(api)
 
@@ -103,7 +115,7 @@ describe('SettingsSystemTab — OIDC config is only written when OIDC changed', 
           },
         })
       }
-      if (url === '/auth/users/count') return Promise.resolve({ data: { count: 2 } })
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
       if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
       if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
       return Promise.resolve({ data: {} })
@@ -183,7 +195,7 @@ describe('SettingsSystemTab: a save sends only what changed', () => {
         return settings instanceof Error ? Promise.reject(settings) : Promise.resolve({ data: { settings } })
       }
       if (url === '/auth/oidc/config/admin') return Promise.resolve({ data: OIDC_ADMIN })
-      if (url === '/auth/users/count') return Promise.resolve({ data: { count: 2 } })
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
       if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
       if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
       return Promise.resolve({ data: {} })
@@ -265,5 +277,102 @@ describe('SettingsSystemTab: a save sends only what changed', () => {
     await new Promise((resolve) => setTimeout(resolve, 1300))
     expect(mockedApi.post).not.toHaveBeenCalled()
     expect(mockedApi.put).not.toHaveBeenCalled()
+  })
+})
+
+describe('SettingsSystemTab: the SSO Callback URL round-trips through the admin config', () => {
+  const PINNED = 'https://pinned.example.com/api/auth/oidc/callback'
+  const OIDC_ADMIN = {
+    enabled: true, provider_name: 'Rauthy', issuer_url: 'https://auth.example.com',
+    client_id: 'client-id', client_secret: '********', redirect_uri: PINNED,
+    scopes: 'openid profile email', auto_create_users: true, admin_group: '',
+    username_claim: 'preferred_username', email_claim: 'email', full_name_claim: 'name',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    oidcModal.props = null
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings') {
+        return Promise.resolve({
+          data: {
+            settings: [
+              { key: 'auth_mode', value: 'oidc' },
+              // A stale copy, so the test can tell which source the form read.
+              { key: 'oidc_redirect_uri', value: 'https://stale.example.com/api/auth/oidc/callback' },
+            ],
+          },
+        })
+      }
+      if (url === '/auth/oidc/config/admin') return Promise.resolve({ data: OIDC_ADMIN })
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
+      if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
+      if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
+      return Promise.resolve({ data: {} })
+    })
+    mockedApi.post.mockResolvedValue({ data: { settings: [], total: 0 } })
+    mockedApi.put.mockResolvedValue({ data: {} })
+  })
+
+  const loadedModal = async (): Promise<OIDCModalProps> => {
+    renderTab()
+    await waitFor(() => expect(oidcModal.props?.formData.oidc_provider_name).toBe('Rauthy'))
+    return oidcModal.props as OIDCModalProps
+  }
+
+  it('hands the modal the redirect_uri from the admin GET', async () => {
+    const props = await loadedModal()
+
+    expect(props.formData.oidc_redirect_uri).toBe(PINNED)
+  })
+
+  it('PUTs an edited Callback URL as redirect_uri', async () => {
+    const edited = 'https://garage.example.com/api/auth/oidc/callback'
+    const props = await loadedModal()
+
+    act(() => props.onFormDataChange({ oidc_redirect_uri: edited }))
+
+    await waitFor(
+      () =>
+        expect(mockedApi.put).toHaveBeenCalledWith(
+          '/auth/oidc/config/admin',
+          expect.objectContaining({ redirect_uri: edited }),
+        ),
+      { timeout: 3000 },
+    )
+  })
+
+  it('sends the pinned value back with any other OIDC edit, so a save never clears it', async () => {
+    const props = await loadedModal()
+
+    act(() => props.onFormDataChange({ oidc_provider_name: 'Keycloak' }))
+
+    await waitFor(
+      () =>
+        expect(mockedApi.put).toHaveBeenCalledWith(
+          '/auth/oidc/config/admin',
+          expect.objectContaining({ provider_name: 'Keycloak', redirect_uri: PINNED }),
+        ),
+      { timeout: 3000 },
+    )
+  })
+})
+
+describe('SettingsSystemTab: the local-auth card reads has_users', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('says local auth is configured once anyone has registered', async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings') {
+        return Promise.resolve({ data: { settings: [{ key: 'auth_mode', value: 'local' }] } })
+      }
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
+      return Promise.resolve({ data: {} })
+    })
+    renderTab()
+
+    expect(await screen.findByText('auth.localConfigured')).toBeInTheDocument()
   })
 })

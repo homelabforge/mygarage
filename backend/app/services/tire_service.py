@@ -829,7 +829,7 @@ class TireService:
         return payload
 
     async def list_tires(
-        self, vin: str, current_user: User, include_retired: bool = False
+        self, vin: str, current_user: User | None, include_retired: bool = False
     ) -> TireListResponse:
         from app.services.auth import get_vehicle_or_403
 
@@ -869,7 +869,9 @@ class TireService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def create_tire(self, vin: str, data: TireCreate, current_user: User) -> TireResponse:
+    async def create_tire(
+        self, vin: str, data: TireCreate, current_user: User | None
+    ) -> TireResponse:
         """Create a tire. It is NOT mounted anywhere until you mount it.
 
         This replaced `upsert_tire`, and the change is the release's breaking
@@ -922,7 +924,7 @@ class TireService:
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def mount_tire(
-        self, vin: str, tire_id: int, data: TireMountRequest, current_user: User
+        self, vin: str, tire_id: int, data: TireMountRequest, current_user: User | None
     ) -> TireResponse:
         """Mount a tire at a position, opening a mount period.
 
@@ -1003,7 +1005,7 @@ class TireService:
         return await self._reload_and_sync(tire.id, vin, format_distance)
 
     async def dismount_tire(
-        self, vin: str, tire_id: int, data: TireDismountRequest, current_user: User
+        self, vin: str, tire_id: int, data: TireDismountRequest, current_user: User | None
     ) -> TireResponse:
         """Take a tire off the vehicle, closing its open period."""
         from app.services.auth import get_vehicle_or_403
@@ -1065,7 +1067,7 @@ class TireService:
         return await self._reload_response(tire.id, vin, format_distance)
 
     async def create_and_mount(
-        self, vin: str, data: TireCreateAndMountRequest, current_user: User
+        self, vin: str, data: TireCreateAndMountRequest, current_user: User | None
     ) -> TireResponse:
         """Create a tire and mount it, atomically.
 
@@ -1130,7 +1132,7 @@ class TireService:
         return await self._reload_and_sync(tire.id, vin, format_distance)
 
     async def rotate_tires(
-        self, vin: str, data: TireRotationRequest, current_user: User
+        self, vin: str, data: TireRotationRequest, current_user: User | None
     ) -> TireListResponse:
         """Move several tires at once, in two phases.
 
@@ -1331,7 +1333,7 @@ class TireService:
         )
 
     async def update_tire(
-        self, vin: str, tire_id: int, data: TireUpdate, current_user: User
+        self, vin: str, tire_id: int, data: TireUpdate, current_user: User | None
     ) -> TireResponse:
         from app.services.auth import get_vehicle_or_403
 
@@ -1392,7 +1394,7 @@ class TireService:
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def retire_tire(
-        self, vin: str, tire_id: int, data: TireDismountRequest, current_user: User
+        self, vin: str, tire_id: int, data: TireDismountRequest, current_user: User | None
     ) -> TireResponse:
         """Retire a tire: it comes off the vehicle and keeps everything.
 
@@ -1467,7 +1469,7 @@ class TireService:
         return await self._reload_response(tire.id, vin, format_distance)
 
     async def create_mount_period(
-        self, vin: str, tire_id: int, data: MountPeriodCreate, current_user: User
+        self, vin: str, tire_id: int, data: MountPeriodCreate, current_user: User | None
     ) -> TireResponse:
         """Record a closed period the tire spent on a corner in the past.
 
@@ -1532,7 +1534,7 @@ class TireService:
         tire_id: int,
         period_id: int,
         data: MountPeriodUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> TireResponse:
         """Correct one period's bounds or notes, under the vehicle write lock.
 
@@ -1690,7 +1692,7 @@ class TireService:
             await self.db.delete(owned)
             await self.db.flush()
 
-    async def restore_tire(self, vin: str, tire_id: int, current_user: User) -> TireResponse:
+    async def restore_tire(self, vin: str, tire_id: int, current_user: User | None) -> TireResponse:
         """Un-retire a tire. It goes back to storage with its whole history.
 
         The way back from a mistaken Retire, and the reason `mount_tire` can
@@ -1711,7 +1713,7 @@ class TireService:
         await self.db.commit()
         return await self._reload_and_sync(tire.id, vin, format_distance)
 
-    async def delete_tire(self, vin: str, tire_id: int, current_user: User) -> None:
+    async def delete_tire(self, vin: str, tire_id: int, current_user: User | None) -> None:
         """Permanently delete a tire and everything measured about it.
 
         For a tire entered by mistake. To replace a worn tire, RETIRE it: this
@@ -1773,7 +1775,7 @@ class TireService:
         vin: str,
         tire_id: int,
         data: TireReadingCreate,
-        current_user: User,
+        current_user: User | None,
     ) -> TireResponse:
         from app.services.auth import get_vehicle_or_403
 
@@ -1854,7 +1856,7 @@ class TireService:
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_reading(
-        self, vin: str, tire_id: int, reading_id: int, current_user: User
+        self, vin: str, tire_id: int, reading_id: int, current_user: User | None
     ) -> None:
         """Delete one reading, for one logged with the wrong odometer or date.
 

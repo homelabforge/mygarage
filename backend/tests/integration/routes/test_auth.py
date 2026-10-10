@@ -109,6 +109,53 @@ class TestUserRegistration:
 @pytest.mark.integration
 @pytest.mark.auth
 @pytest.mark.asyncio
+class TestHasUsers:
+    """The public first-user check says yes or no, never how many."""
+
+    async def test_no_users_reads_false(self, client: AsyncClient, db_session):
+        """With nobody registered, anonymous callers get has_users false."""
+        await db_session.execute(delete(User))
+        await db_session.commit()
+
+        response = await client.get("/api/auth/users/count")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body == {"has_users": False}
+        # 0 == False in Python, so pin the type too.
+        assert body["has_users"] is False
+        assert "count" not in body
+
+    async def test_one_user_reads_true(self, client: AsyncClient, db_session):
+        """Once someone exists, anonymous callers get has_users true and no count."""
+        await db_session.execute(delete(User))
+        await db_session.commit()
+        user = User(
+            username="hasusersprobe",
+            email="hasusersprobe@example.com",
+            hashed_password="unused",
+            is_active=True,
+            is_admin=False,
+        )
+        db_session.add(user)
+        await db_session.commit()
+
+        response = await client.get("/api/auth/users/count")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body == {"has_users": True}
+        # 1 == True too, so a leaked count of one would sneak past the equality.
+        assert body["has_users"] is True
+        assert "count" not in body
+
+        await db_session.delete(user)
+        await db_session.commit()
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+@pytest.mark.asyncio
 class TestUserLogin:
     """Test user login endpoint."""
 

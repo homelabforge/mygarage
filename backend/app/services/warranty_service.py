@@ -28,7 +28,7 @@ class WarrantyService:
     async def list_warranties(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
         skip: int = 0,
         limit: int = 100,
     ) -> list[WarrantyRecord]:
@@ -65,7 +65,9 @@ class WarrantyService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def get_warranty(self, vin: str, warranty_id: int, current_user: User) -> WarrantyRecord:
+    async def get_warranty(
+        self, vin: str, warranty_id: int, current_user: User | None
+    ) -> WarrantyRecord:
         """Get a specific warranty record by ID."""
         from app.services.auth import get_vehicle_or_403
 
@@ -85,7 +87,7 @@ class WarrantyService:
         return WarrantyRecord.model_validate(record)
 
     async def create_warranty(
-        self, vin: str, data: WarrantyRecordCreate, current_user: User
+        self, vin: str, data: WarrantyRecordCreate, current_user: User | None
     ) -> WarrantyRecord:
         """Create a new warranty record."""
         from app.services.auth import get_vehicle_or_403
@@ -135,7 +137,7 @@ class WarrantyService:
         vin: str,
         warranty_id: int,
         data: WarrantyRecordUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> WarrantyRecord:
         """Update an existing warranty record."""
         from app.services.auth import get_vehicle_or_403
@@ -193,7 +195,7 @@ class WarrantyService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def delete_warranty(self, vin: str, warranty_id: int, current_user: User) -> None:
+    async def delete_warranty(self, vin: str, warranty_id: int, current_user: User | None) -> None:
         """Delete a warranty record."""
         from app.services.auth import get_vehicle_or_403
 

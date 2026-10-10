@@ -52,7 +52,7 @@ async def list_fuel_records(
     limit: int = Query(100, ge=1, le=500),
     include_hauling: bool = False,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get all fuel records for a vehicle with MPG calculations.
@@ -102,7 +102,7 @@ async def parse_fuel_receipt(
     text: str | None = Form(None),
     file: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Parse a fuel receipt into a draft FuelRecord payload (does not persist).
 
@@ -162,7 +162,7 @@ async def obc_suggestion(
         ),
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> ObcSuggestionResponse:
     """Return OBC values from the DriveSession that immediately preceded a fill-up.
 
@@ -233,7 +233,7 @@ async def get_fuel_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get a specific fuel record with MPG calculation.
@@ -264,7 +264,7 @@ async def create_fuel_record(
     vin: str,
     record_data: FuelRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Create a new fuel record with MPG calculation.
@@ -285,7 +285,7 @@ async def update_fuel_record(
     record_id: int,
     record_data: FuelRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Update an existing fuel record.
@@ -307,7 +307,7 @@ async def delete_fuel_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Delete a fuel record.

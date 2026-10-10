@@ -123,7 +123,7 @@ class TireSetService:
             raise HTTPException(status_code=404, detail="Tire set not found")
         return tire_set
 
-    async def list_sets(self, vin: str, current_user: User) -> TireSetListResponse:
+    async def list_sets(self, vin: str, current_user: User | None) -> TireSetListResponse:
         """Every set for a vehicle, oldest first."""
         from app.services.auth import get_vehicle_or_403
 
@@ -145,7 +145,7 @@ class TireSetService:
         return TireSetListResponse(sets=sets, total=len(sets))
 
     async def create_set(
-        self, vin: str, data: TireSetCreate, current_user: User
+        self, vin: str, data: TireSetCreate, current_user: User | None
     ) -> TireSetResponse:
         """Name a new, empty set.
 
@@ -163,7 +163,7 @@ class TireSetService:
         return await self._reload(vin, tire_set.id)
 
     async def update_set(
-        self, vin: str, set_id: int, data: TireSetUpdate, current_user: User
+        self, vin: str, set_id: int, data: TireSetUpdate, current_user: User | None
     ) -> TireSetResponse:
         """Rename a set, or change its notes."""
         from app.services.auth import get_vehicle_or_403
@@ -176,7 +176,7 @@ class TireSetService:
         await self.db.commit()
         return await self._reload(vin, set_id)
 
-    async def delete_set(self, vin: str, set_id: int, current_user: User) -> None:
+    async def delete_set(self, vin: str, set_id: int, current_user: User | None) -> None:
         """Delete a set. Its tires survive, ungrouped.
 
         `tires.set_id` is ON DELETE SET NULL rather than CASCADE, and that is
@@ -199,7 +199,7 @@ class TireSetService:
         await self.db.commit()
 
     async def mount_set(
-        self, vin: str, set_id: int, data: TireSetMountRequest, current_user: User
+        self, vin: str, set_id: int, data: TireSetMountRequest, current_user: User | None
     ) -> TireListResponse:
         """Fit every tire in a set, each at the corner it was last on.
 

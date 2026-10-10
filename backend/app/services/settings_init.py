@@ -62,10 +62,11 @@ DEFAULT_SETTINGS = {
         "value": "",
         "category": "security",
         "description": (
-            "OIDC redirect URI (callback URL, auto-generated if empty). If set "
-            "manually, must be the full external callback URL including any "
-            "subpath prefix (MYGARAGE_ROOT_PATH), e.g. "
-            "https://host/mygarage/api/auth/oidc/callback — used verbatim, not rewritten."
+            "OIDC redirect URI (callback URL). Set this to your public callback URL "
+            "and register exactly that URL at your identity provider; never a "
+            "wildcard. Left empty, it's built from each request's X-Forwarded-Host "
+            "or Host header. Include any subpath prefix (MYGARAGE_ROOT_PATH), e.g. "
+            "https://host/mygarage/api/auth/oidc/callback; it's used verbatim, not rewritten."
         ),
         "encrypted": False,
     },

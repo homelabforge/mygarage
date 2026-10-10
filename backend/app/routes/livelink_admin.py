@@ -319,7 +319,7 @@ async def list_devices(
 async def get_device(
     device_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get a specific device.
@@ -336,7 +336,7 @@ async def update_device(
     device_id: str,
     updates: LiveLinkDeviceUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Update a device (label, VIN link, enabled status).
@@ -382,7 +382,7 @@ async def update_device(
 async def delete_device(
     device_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Delete a device.
@@ -411,7 +411,7 @@ async def delete_device(
 async def generate_device_token(
     device_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Generate a per-device API token.
@@ -440,7 +440,7 @@ async def generate_device_token(
 async def revoke_device_token(
     device_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Revoke a per-device token (device falls back to global token).
@@ -461,7 +461,7 @@ async def revoke_device_token(
 async def get_device_token_info(
     device_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get info about a device's token (masked).
@@ -487,7 +487,7 @@ async def send_device_command(
     device_id: str,
     request: DeviceCommandRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Send a command to a WiCAN device via MQTT.
@@ -795,7 +795,7 @@ async def unskip_firmware_version(
 async def lookup_dtc_definition(
     code: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Look up a DTC code definition.
@@ -817,7 +817,7 @@ async def search_dtc_definitions(
     q: str,
     limit: int = Query(50, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Search DTC definitions by code prefix or description.

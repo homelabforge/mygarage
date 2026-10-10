@@ -132,6 +132,7 @@ export default function SettingsSystemTab() {
         issuer_url: string
         client_id: string
         client_secret: string
+        redirect_uri: string
         scopes: string
         auto_create_users: boolean
         admin_group: string
@@ -158,7 +159,7 @@ export default function SettingsSystemTab() {
         oidc_issuer_url: oidcAdmin?.issuer_url ?? (settingsMap.oidc_issuer_url || ''),
         oidc_client_id: oidcAdmin?.client_id ?? (settingsMap.oidc_client_id || ''),
         oidc_client_secret: oidcAdmin?.client_secret ?? '',
-        oidc_redirect_uri: settingsMap.oidc_redirect_uri || '',
+        oidc_redirect_uri: oidcAdmin?.redirect_uri ?? (settingsMap.oidc_redirect_uri || ''),
         oidc_scopes: oidcAdmin?.scopes ?? (settingsMap.oidc_scopes || 'openid profile email'),
         oidc_auto_create_users: oidcAdmin
           ? (oidcAdmin.auto_create_users ? 'true' : 'false')
@@ -174,11 +175,11 @@ export default function SettingsSystemTab() {
 
       setAutoArchiveDays(settingsMap.auto_archive_inactive_days || '0')
 
-      // Check user count to determine if auth has ever been enabled
+      // Anyone registered means auth has been on at some point
       try {
         const countResponse = await api.get('/auth/users/count')
         const countData = countResponse.data
-        setAuthEverEnabled(countData.count > 0)
+        setAuthEverEnabled(countData.has_users === true)
       } catch {
         setAuthEverEnabled(false)
       }
@@ -264,6 +265,7 @@ export default function SettingsSystemTab() {
         issuer_url: formData.oidc_issuer_url,
         client_id: formData.oidc_client_id,
         client_secret: formData.oidc_client_secret,
+        redirect_uri: formData.oidc_redirect_uri,
         scopes: formData.oidc_scopes,
         auto_create_users: formData.oidc_auto_create_users === 'true',
         admin_group: formData.oidc_admin_group,
@@ -832,6 +834,7 @@ export default function SettingsSystemTab() {
           oidc_issuer_url: formData.oidc_issuer_url,
           oidc_client_id: formData.oidc_client_id,
           oidc_client_secret: formData.oidc_client_secret,
+          oidc_redirect_uri: formData.oidc_redirect_uri,
           oidc_scopes: formData.oidc_scopes,
           oidc_auto_create_users: formData.oidc_auto_create_users,
           oidc_admin_group: formData.oidc_admin_group,

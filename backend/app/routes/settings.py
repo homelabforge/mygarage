@@ -28,6 +28,7 @@ from app.schemas.settings import (
 )
 from app.services.auth import get_current_admin_user
 from app.services.oidc import MASKED_SECRET_PLACEHOLDER, display_mask_secret
+from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.settings_init import SENSITIVE_SETTING_KEYS
 from app.services.settings_service import SettingsService
 from app.utils.default_unit_prefs import (
@@ -105,9 +106,12 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
     straight through `SettingsService.set`, and it applies this same rule at its
     own site rather than through here.
 
-    Three keys have a shape to check today: `effective_timezone` is computed
+    Four keys have a shape to check today: `effective_timezone` is computed
     and never stored; `timezone` must be a valid IANA name or the reader
-    would skip it (see `app.utils.household_time.resolve_zone`); and
+    would skip it (see `app.utils.household_time.resolve_zone`);
+    `oidc_redirect_uri` must be blank or an absolute http(s) URL, since the SSO
+    settings re-send the stored pin and a bad one 422s every SSO save from the
+    modal, the auth-mode switch included; and
     `default_unit_prefs` is checked because
     `parse_default_unit_prefs` degrades WHOLE: an unparseable row hands every
     anonymous client the imperial preset, which on a UK or metric instance is a
@@ -129,6 +133,15 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
             raise HTTPException(
                 status_code=422,
                 detail=f"Setting '{key}' must be a valid IANA time zone name",
+            ) from exc
+    if key == OIDC_REDIRECT_URI_KEY:
+        # Only refused, not stripped: the reader strips (services/oidc/users.py).
+        try:
+            checked_redirect_uri(value or "")
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Setting '{key}' must be blank or an absolute http(s) URL with no #fragment",
             ) from exc
     if key != DEFAULT_UNIT_PREFS_KEY:
         return
@@ -232,13 +245,12 @@ async def list_settings(
 @router.get("/poi-providers")
 async def get_poi_providers(
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
-    """Get configured POI search providers.
+    """Get configured POI search providers (admin only).
 
     Returns ONLY providers that have been configured (have API keys).
     OSM is always included as the default fallback.
-
-    Note: This endpoint is public as it only returns masked API keys and metadata.
 
     Returns:
         List of provider configurations

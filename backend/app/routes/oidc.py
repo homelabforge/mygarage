@@ -4,7 +4,7 @@ Provides endpoints for OIDC/OpenID Connect authentication flow:
 - /api/auth/oidc/config - Get OIDC configuration (public)
 - /api/auth/oidc/login - Initiate OIDC flow (redirects to provider)
 - /api/auth/oidc/callback - Handle OIDC callback
-- /api/auth/oidc/test - Test OIDC connection (admin only)
+- /api/auth/oidc/test - Test OIDC connection (admin only when sign-in is on)
 """
 
 import logging
@@ -31,8 +31,8 @@ from app.models.audit_log import USER_AGENT_MAX_LENGTH, AuditLog
 from app.models.csrf_token import CSRFToken
 from app.models.user import User
 from app.services import oidc as oidc_service
-from app.services.auth import create_access_token, get_current_admin_user, get_current_user
-from app.services.oidc.config import effective_oidc_value
+from app.services.auth import create_access_token, get_current_admin_user
+from app.services.oidc.config import checked_redirect_uri, effective_oidc_value
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.request_scheme import get_cookie_secure, get_external_base_url
@@ -71,6 +71,31 @@ def _to_login(request: Request, code: SSOError) -> RedirectResponse:
 
 # The IdP's error text is free-form and goes to the log, so it's cut short.
 _IDP_ERROR_LOG_LENGTH = 200
+
+# One shot per process, module-level so tests can reset it. No await between
+# the check and the set, so one event loop can't log it twice.
+_warned_blank_redirect_uri = False
+
+
+def _warn_if_redirect_uri_blank(config: dict[str, str]) -> None:
+    """Warn once when SSO's callback URL is coming from the request (A-15).
+
+    With ``oidc_redirect_uri`` blank, the login route builds the base URL from
+    X-Forwarded-Host or Host (``_external_base``) and ``create_authorization_url``
+    only appends the callback path, so a forged header becomes the redirect_uri
+    the IdP is asked to send the code to. Only an IdP that skips exact matching
+    accepts that, so it's a nudge to pin the setting, not a refusal.
+    """
+    global _warned_blank_redirect_uri
+    if _warned_blank_redirect_uri or config.get("redirect_uri", "").strip():
+        return
+    _warned_blank_redirect_uri = True
+    logger.warning(
+        "oidc_redirect_uri is blank, so SSO builds its callback URL from each request's "
+        "X-Forwarded-Host or Host header. Set it in Settings > System > Configure OIDC > "
+        "Callback URL to your public callback URL and register exactly that URL at your "
+        "identity provider, never a wildcard (see SECURITY.md). Logged once."
+    )
 
 
 # Initialize rate limiter for auth endpoints
@@ -142,6 +167,9 @@ class OIDCAdminConfig(BaseModel):
     `client_secret` follows the §5.4(3) wire convention:
       - GET returns the literal "********" placeholder when stored, "" otherwise.
       - PUT with empty string OR the placeholder preserves the stored value.
+
+    `redirect_uri` pins the SSO callback URL; "" builds it from each request.
+    PUT leaves it alone when the field is left out.
     """
 
     enabled: bool = False
@@ -149,6 +177,7 @@ class OIDCAdminConfig(BaseModel):
     issuer_url: str = ""
     client_id: str = ""
     client_secret: str = ""
+    redirect_uri: str = ""
     scopes: str = "openid profile email"
     auto_create_users: bool = True
     admin_group: str = ""
@@ -200,6 +229,20 @@ async def get_oidc_config(db: AsyncSession = Depends(get_db)):
     )
 
 
+def _checked_redirect_uri(raw: str) -> str:
+    """The callback URL to store, per ``checked_redirect_uri``, or a 422.
+
+    Raises:
+        HTTPException 422: If it's neither blank nor an absolute http(s) URL
+    """
+    try:
+        return checked_redirect_uri(raw)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail="redirect_uri must be an absolute http(s) URL with no #fragment"
+        ) from exc
+
+
 @router.get("/config/admin", response_model=OIDCAdminConfig)
 async def get_oidc_admin_config(
     db: AsyncSession = Depends(get_db),
@@ -223,6 +266,7 @@ async def get_oidc_admin_config(
         issuer_url=config.get("issuer_url", ""),
         client_id=config.get("client_id", ""),
         client_secret=oidc_service.display_mask_secret(config.get("client_secret", "")),
+        redirect_uri=config.get("redirect_uri", ""),
         scopes=effective_oidc_value(config, "scopes"),
         auto_create_users=(config.get("auto_create_users", "true").lower() == "true"),
         admin_group=config.get("admin_group", ""),
@@ -243,9 +287,17 @@ async def put_oidc_admin_config(
     Enforces the §5.4 wire contract:
       - empty `client_secret` (or the masked placeholder) preserves the stored value
       - issuer_url has trailing slash + whitespace stripped before persisting
+      - `redirect_uri` left out preserves the stored value; sent, it's stripped and
+        must be an absolute http(s) URL or blank, else a 422 and nothing is written
     """
     # current_user is None only when auth_mode == "none" (auth disabled), which
     # this endpoint allows — see the GET above for why gating it deadlocks bootstrap.
+
+    # Left out, the stored pin stays, so an older client can't wipe it. Checked
+    # here, not on the model: the GET builds that model from what's stored.
+    redirect_update: dict[str, str] = {}
+    if "redirect_uri" in payload.model_fields_set:
+        redirect_update["redirect_uri"] = _checked_redirect_uri(payload.redirect_uri)
 
     # §5.4(2): preserve stored secret when caller sends empty/placeholder.
     client_secret = payload.client_secret
@@ -270,6 +322,7 @@ async def put_oidc_admin_config(
             "username_claim": payload.username_claim.strip(),
             "email_claim": payload.email_claim.strip(),
             "full_name_claim": payload.full_name_claim.strip(),
+            **redirect_update,
         },
     )
 
@@ -343,6 +396,7 @@ async def oidc_login(
         logger.error("OIDC configuration error: %s", e)
         return _to_login(request, SSOError.FAILED)
 
+    _warn_if_redirect_uri_blank(config)
     logger.info("Redirecting to OIDC provider for authentication (state: %s)", state)
     return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
 
@@ -455,11 +509,11 @@ async def oidc_callback(
             e.config,
         )
 
-        # Redirect to link account page with token (#107: prefix-aware)
+        # Redirect to link account page with token (#107: prefix-aware). The token
+        # rides in the fragment, which a browser never sends to a server, so proxy
+        # and access logs never see it.
         frontend_url = _frontend_base(request)
-        redirect_url = f"{frontend_url}/auth/link-account?token={pending_token}"
-
-        logger.info("Redirecting to link account page: %s", redirect_url)
+        redirect_url = f"{frontend_url}/auth/link-account#token={pending_token}"
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     except OIDCLoginRefusedError as e:
         await _audit_login_refused(db, request, e.message, e.username, details=e.details)
@@ -503,9 +557,10 @@ async def oidc_callback(
     logger.info("OIDC login successful for user: %s", sanitize_for_log(user.username))
 
     # Set httpOnly cookie and redirect with CSRF token (Security Enhancement v2.10.0)
-    # Frontend needs CSRF token for state-changing requests (#107: prefix-aware)
+    # Frontend needs CSRF token for state-changing requests (#107: prefix-aware).
+    # Fragment, not query, for the same reason as the link token above.
     frontend_url = _frontend_base(request)
-    redirect_url = f"{frontend_url}/auth/oidc/success?csrf_token={csrf_token_value}"
+    redirect_url = f"{frontend_url}/auth/oidc/success#csrf_token={csrf_token_value}"
 
     redirect_response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     redirect_response.set_cookie(
@@ -545,19 +600,18 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> Res
 @router.post("/test", response_model=OIDCTestResult)
 async def test_oidc_connection(
     test_request: OIDCTestRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Test OIDC provider connection (admin only).
+    """Test OIDC provider connection (admin only when sign-in is on).
 
     Returns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope
     per plan §5.4(4).
     """
-    if not current_user or not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required",
-        )
+    # current_user is None only when auth_mode == "none", same as the config GET
+    # and PUT above. In that mode anyone can already PUT the admin config and
+    # auth_mode, so there's nothing left to protect, and the issuer fetch still goes
+    # through the trusted-host guard (test_test_connection_blocked_issuer pins that).
 
     # §5.4(2): empty/placeholder secret falls back to the stored value so admins can test before saving.
     client_secret = test_request.client_secret

@@ -19,112 +19,48 @@ permissions:
 
 jobs:
   ci:
-    uses: homelabforge/shared-workflows/.github/workflows/python-react-ci.yml@v1.6.0
+    uses: homelabforge/shared-workflows/.github/workflows/python-react-ci.yml@v1.7.0
     with:
       enable-translations: true
-      enable-pg-migrations: false
+      enable-pg-migrations: true
+      # Each suite split across runners. Measured on run 37449264165 before
+      # this: 12m23s end to end. See the shared-workflows README, "Test shards".
+      backend-test-shards: 2
+      frontend-test-shards: 3
+      e2e-test-shards: 2
+      pg-migrations-shards: 3
+      # Closes #77: run both migration and integration tests against the PG
+      # sidecar so the asyncpg loop-binding regression that gated this work
+      # can't reappear. Pytest accepts multiple positional paths.
+      # The pg_*_test.py suites don't match python_files, so they're named
+      # outright. pg_migration_path_test.py drops the public schema, so it runs
+      # right after tests/migrations/, ahead of anything that builds tables.
+      # Everything else runs on PG too: SQLite ignores VARCHAR widths, so a
+      # SQLite-only test can be green and wrong (#200). Every dir and top-level
+      # file is listed by name, because pytest folds an overlapping `tests/` into
+      # one walk that runs integration first and drops pg_migration_path_test.py.
+      # tests/unit/test_pg_ci_path.py fails CI if a new test file isn't listed.
+      pg-migrations-pytest-path: >-
+        tests/migrations/
+        tests/pg_migration_path_test.py
+        tests/pg_comprehensive_test.py
+        tests/pg_issue_regression_test.py
+        tests/pg_smoke_test.py
+        tests/integration/
+        tests/routes/
+        tests/services/
+        tests/tasks/
+        tests/unit/
+        tests/utils/
+        tests/test_address_book_update_poi.py
+        tests/test_address_book_vendor_sync.py
+        tests/test_analytics_routes.py
+        tests/test_analytics_service.py
+        tests/test_config_root_path.py
+        tests/test_currency.py
+        tests/test_fuel_enums.py
+        tests/test_html_base.py
+        tests/test_oidc_issuer_trailing_slash.py
+        tests/test_oidc_prefix_urls.py
+        tests/test_units.py
       security-tripwire-script: .github/scripts/security-tripwire.sh
-
-  postgres-tests:
-    name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: PostgreSQL Migration Tests
-            scope: migrations
-            paths: >-
-              tests/migrations/
-              tests/pg_migration_path_test.py
-          - name: PostgreSQL Integration Tests
-            scope: integration
-            paths: >-
-              tests/integration/
-              tests/pg_comprehensive_test.py
-              tests/pg_issue_regression_test.py
-              tests/pg_smoke_test.py
-          - name: PostgreSQL Route & Service Tests
-            scope: routes-services
-            paths: >-
-              tests/routes/
-              tests/services/
-              tests/tasks/
-              tests/utils/
-              tests/test_address_book_update_poi.py
-              tests/test_address_book_vendor_sync.py
-              tests/test_analytics_routes.py
-              tests/test_analytics_service.py
-              tests/test_config_root_path.py
-              tests/test_currency.py
-              tests/test_fuel_enums.py
-              tests/test_html_base.py
-              tests/test_oidc_issuer_trailing_slash.py
-              tests/test_oidc_prefix_urls.py
-              tests/test_units.py
-          - name: PostgreSQL Unit Tests
-            scope: unit
-            paths: >-
-              tests/unit/
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-
-      - name: Build test image (cached via gha)
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile.test
-          tags: mygarage-test:local
-          load: true
-          cache-from: type=gha,scope=pg-tests
-          cache-to: type=gha,scope=pg-tests,mode=max
-
-      - name: Bring up PostgreSQL sidecar
-        env:
-          MYGARAGE_TEST_UID: "1001"
-          MYGARAGE_TEST_GID: "1001"
-        run: |
-          docker compose -f docker-compose.test.yml \
-            -p "mygarage-test-${{ matrix.scope }}" up -d postgres-test
-
-      - name: Wait for postgres healthy
-        run: |
-          for _ in $(seq 1 30); do
-            health=$(docker compose -f docker-compose.test.yml \
-              -p "mygarage-test-${{ matrix.scope }}" ps postgres-test \
-              --format '{{.Health}}' || true)
-            if [ "$health" = "healthy" ]; then
-              echo "postgres-test healthy"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "postgres-test did not become healthy in 60s" >&2
-          docker compose -f docker-compose.test.yml \
-            -p "mygarage-test-${{ matrix.scope }}" logs postgres-test
-          exit 1
-
-      - name: Run pytest against PG sidecar
-        env:
-          MYGARAGE_TEST_UID: "1001"
-          MYGARAGE_TEST_GID: "1001"
-          PG_PYTEST_PATH: ${{ matrix.paths }}
-        run: |
-          # Word-splitting on $PG_PYTEST_PATH is intentional
-          # shellcheck disable=SC2086
-          docker compose -f docker-compose.test.yml \
-            -p "mygarage-test-${{ matrix.scope }}" run --rm \
-            mygarage-test \
-            pytest $PG_PYTEST_PATH -v --tb=short
-
-      - name: Tear down stack
-        if: always()
-        run: |
-          docker compose -f docker-compose.test.yml \
-            -p "mygarage-test-${{ matrix.scope }}" down -v || true

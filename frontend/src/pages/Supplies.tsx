@@ -15,7 +15,7 @@ import { vehicleLabel } from '@/utils/vehicleLabel'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
 import {
-  costDecimals, displayDecimals, supplyDisplayUnit, toDisplay, unitCostToDisplay, unitLabel,
+  costDecimals, formatSupplyQuantity, supplyDisplayUnit, unitCostToDisplay, unitLabel,
   type SupplyUnit, type SupplyVolumeUnit,
 } from '@/utils/supplyUnits'
 import { UNIT_OPTION_LABELS, type VolumeUnit } from '@/types/units'
@@ -148,13 +148,8 @@ export default function Supplies() {
   // The stored token wins; only a supply without one falls back to qt or L by preference.
   const unitFor = (supply: Supply): SupplyUnit => supplyDisplayUnit(supply, system)
 
-  const formatOnHand = (supply: Supply, unit: SupplyUnit): string => {
-    const value = toDisplay(Number(supply.on_hand), unit)
-    if (unit === 'count') {
-      return Math.round(value).toLocaleString(getActiveLocale())
-    }
-    return `${value.toFixed(displayDecimals(unit))} ${unitLabel(unit)}`
-  }
+  const formatOnHand = (supply: Supply, unit: SupplyUnit): string =>
+    formatSupplyQuantity(Number(supply.on_hand), unit, getActiveLocale())
 
   const avgCostLabel = (unit: SupplyUnit): string => {
     const label = unitLabel(unit)

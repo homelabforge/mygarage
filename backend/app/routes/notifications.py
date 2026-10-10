@@ -55,7 +55,7 @@ class TelegramFuelStatus(BaseModel):
 
 @router.get("/telegram/fuel-commands", response_model=TelegramFuelStatus)
 async def get_telegram_fuel_status(
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> TelegramFuelStatus:
     """Whether Telegram fuel commands are being fetched, and the last error if not."""
     return TelegramFuelStatus(**telegram_poller.status)
@@ -64,7 +64,7 @@ async def get_telegram_fuel_status(
 @router.post("/test/ntfy")
 async def test_ntfy_connection(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Test ntfy server connection."""
     try:
@@ -106,7 +106,7 @@ async def test_ntfy_connection(
 @router.post("/test/gotify")
 async def test_gotify_connection(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Test Gotify server connection."""
     try:
@@ -147,7 +147,7 @@ async def test_gotify_connection(
 @router.post("/test/pushover")
 async def test_pushover_connection(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Test Pushover connection."""
     try:
@@ -201,7 +201,7 @@ async def test_pushover_connection(
 @router.post("/test/slack")
 async def test_slack_connection(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Test Slack webhook connection."""
     try:
@@ -245,7 +245,7 @@ async def test_slack_connection(
 @router.post("/test/discord")
 async def test_discord_connection(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Test Discord webhook connection."""
     try:
@@ -287,7 +287,7 @@ async def test_discord_connection(
 @router.post("/test/matrix")
 async def test_matrix_connection(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Test Matrix homeserver connection."""
     try:
@@ -324,7 +324,7 @@ async def test_matrix_connection(
 @router.post("/test/telegram")
 async def test_telegram_connection(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Test Telegram bot connection."""
     try:
@@ -376,7 +376,7 @@ async def test_telegram_connection(
 @router.post("/test/email")
 async def test_email_connection(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Test email SMTP connection."""
     try:

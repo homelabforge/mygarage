@@ -32,7 +32,7 @@ class RecallService:
     async def list_recalls(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
         status: str | None = None,
     ) -> RecallListResponse:
         """Get all recalls for a vehicle with optional status filtering.
@@ -87,7 +87,7 @@ class RecallService:
     async def check_nhtsa(
         self,
         vin: str,
-        current_user: User,
+        current_user: User | None,
     ) -> RecallListResponse:
         """Fetch recalls from NHTSA API, store new ones, and return updated list.
 
@@ -215,7 +215,7 @@ class RecallService:
         self,
         vin: str,
         data: RecallCreate,
-        current_user: User,
+        current_user: User | None,
     ) -> RecallResponse:
         """Create a new recall manually.
 
@@ -284,7 +284,7 @@ class RecallService:
         self,
         vin: str,
         recall_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> RecallResponse:
         """Get a specific recall by ID.
 
@@ -329,7 +329,7 @@ class RecallService:
         vin: str,
         recall_id: int,
         data: RecallUpdate,
-        current_user: User,
+        current_user: User | None,
     ) -> RecallResponse:
         """Update an existing recall.
 
@@ -408,7 +408,7 @@ class RecallService:
         self,
         vin: str,
         recall_id: int,
-        current_user: User,
+        current_user: User | None,
     ) -> None:
         """Delete a recall.
 

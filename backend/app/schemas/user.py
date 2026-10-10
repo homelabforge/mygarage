@@ -594,6 +594,12 @@ class Token(BaseModel):
     csrf_token: str | None = None
 
 
+class HasUsersResponse(BaseModel):
+    """Public first-user check: whether anyone has registered yet."""
+
+    has_users: bool
+
+
 class TokenData(BaseModel):
     """Token data schema."""
 

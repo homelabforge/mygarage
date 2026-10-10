@@ -760,7 +760,9 @@ class TestCallbackGuards:
         assert response.status_code == 302, response.text
         location = urlsplit(response.headers["location"])
         assert location.path == "/auth/oidc/success"
-        assert set(parse_qs(location.query)) == {"csrf_token"}
+        # The CSRF token rides in the fragment, which never goes to a server or its logs.
+        assert location.query == ""
+        assert set(parse_qs(location.fragment)) == {"csrf_token"}
         assert sets_auth_cookie(response)
         assert await _refusal_rows(test_sessionmaker, user_agent) == []
 
@@ -1011,7 +1013,8 @@ class TestEmailStepEndToEnd:
         assert not sets_auth_cookie(response)
         location = urlsplit(response.headers["location"])
         assert location.path == "/auth/link-account"
-        token = parse_qs(location.query)["token"][0]
+        assert location.query == ""
+        token = parse_qs(location.fragment)["token"][0]
 
         pending = await _stored_pending_link(test_sessionmaker, token)
         assert pending is not None
@@ -1028,6 +1031,58 @@ class TestEmailStepEndToEnd:
         assert linked.auth_method == "oidc"
         assert await _stored_pending_link(test_sessionmaker, token) is None
         assert await _refusal_rows(test_sessionmaker, user_agent) == []
+
+    async def test_the_pending_link_token_stays_out_of_the_log(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        made_users: list[_Account],
+        user_agent: str,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """The redirect line used to log the whole link URL, live token and all."""
+        caplog.set_level(logging.INFO)
+        target = await _account(db_session, made_users)
+
+        with _idp(_claims(email=target.email)):
+            response = await _callback(client, user_agent)
+
+        assert response.status_code == 302, response.text
+        # Read from the row, not the Location, so this holds whatever the URL looks like.
+        async with test_sessionmaker() as fresh:
+            token = (
+                await fresh.execute(
+                    select(OIDCPendingLink.token).where(OIDCPendingLink.username == target.username)
+                )
+            ).scalar_one()
+        logged = [r.getMessage() for r in caplog.records if r.levelno >= logging.INFO]
+        # The username line proves the capture saw this callback at all.
+        assert any(target.username in m for m in logged), logged
+        assert [m for m in logged if token in m] == []
+
+    async def test_the_link_redirect_names_the_username_once(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        made_users: list[_Account],
+        user_agent: str,
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """It used to log the pending link and then the redirect, the same event twice."""
+        caplog.set_level(logging.INFO, logger="app.routes.oidc")
+        target = await _account(db_session, made_users)
+
+        with _idp(_claims(email=target.email)):
+            response = await _callback(client, user_agent)
+
+        assert response.status_code == 302, response.text
+        named = [
+            r.getMessage()
+            for r in caplog.records
+            if r.name == "app.routes.oidc" and target.username in r.getMessage()
+        ]
+        assert named == [f"Pending link required for username: {target.username}"]
 
 
 class TestArmedRelinkThroughTheCallback:

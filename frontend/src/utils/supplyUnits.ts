@@ -99,6 +99,31 @@ export function displayDecimals(unit: SupplyUnit): number {
   return unit === 'mL' || unit === 'count' ? 0 : 2
 }
 
+// Storage holds 0.001 L, which is 0.0003 gal at worst, so four decimals always show it.
+const MAX_AMOUNT_DECIMALS = 4
+
+/**
+ * A canonical amount as text in the unit, in the picked language. A volume that
+ * would round to zero at the unit's decimals gets more, so 3 mL reads 0.003 L.
+ * Counts stay whole.
+ */
+export function formatSupplyAmount(canonical: number, unit: SupplyUnit, locale: string): string {
+  // + 0 turns -0 into 0 so it never prints a sign; NaN stays NaN.
+  const value = toDisplay(canonical, unit) + 0
+  let decimals = displayDecimals(unit)
+  while (unit !== 'count' && decimals < MAX_AMOUNT_DECIMALS && value !== 0 && Number(value.toFixed(decimals)) === 0) {
+    decimals++
+  }
+  return value.toLocaleString(locale, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+}
+
+/** formatSupplyAmount plus the unit label; a count has none. */
+export function formatSupplyQuantity(canonical: number, unit: SupplyUnit, locale: string): string {
+  const label = unitLabel(unit)
+  const text = formatSupplyAmount(canonical, unit, locale)
+  return label ? `${text} ${label}` : text
+}
+
 /** Fraction digits for a unit cost. A mL costs fractions of a cent, so it gets four. */
 export function costDecimals(unit: SupplyUnit): number {
   return unit === 'mL' ? 4 : RATE_DIGITS

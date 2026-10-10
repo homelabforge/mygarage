@@ -1,7 +1,18 @@
 import type { ComponentProps } from 'react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '../../../__tests__/test-utils'
+
+const h = vi.hoisted(() => ({ authMode: 'local' }))
+
+vi.mock('../../../contexts/AuthContext', () => ({
+  useAuth: () => ({ authMode: h.authMode }),
+}))
+
 import VehicleActionsToolbar from '../VehicleActionsToolbar'
+
+beforeEach(() => {
+  h.authMode = 'local'
+})
 
 function setup(overrides: Partial<ComponentProps<typeof VehicleActionsToolbar>> = {}) {
   const props: ComponentProps<typeof VehicleActionsToolbar> = {
@@ -58,5 +69,22 @@ describe('VehicleActionsToolbar', () => {
     setup({ hasStandardEquipment: true, hasOptionalEquipment: false })
     expect(screen.getByRole('button', { name: 'detail.hero.standard' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'detail.hero.optional' })).not.toBeInTheDocument()
+  })
+
+  // With sign-in off there's no user to share as, and the server 400s the
+  // share anyway (A-12). isAdmin is false there too, so Transfer stays gone.
+  it('hides Share and Transfer with sign-in off (A-12)', () => {
+    h.authMode = 'none'
+    setup({ isAdmin: false })
+    expect(screen.queryByRole('button', { name: 'detail.share' })).not.toBeInTheDocument()
+    expect(screen.queryByTitle('detail.shareTooltip')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('detail.misc.transferTooltip')).not.toBeInTheDocument()
+  })
+
+  it.each(['local', 'oidc'])('shows Share with auth mode %s and opens the sharing modal', (mode) => {
+    h.authMode = mode
+    const props = setup({ isAdmin: false })
+    fireEvent.click(screen.getByRole('button', { name: 'detail.share' }))
+    expect(props.onOpenModal).toHaveBeenCalledWith('sharing')
   })
 })

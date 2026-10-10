@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, within, waitFor } from '../../__tests__/test-utils'
 import type { Supply } from '../../types/supplies'
 import { presetUnitsFor, type UnitSet } from '../../types/units'
+import { setActiveLocale } from '../../constants/i18n'
 
 // Mock the supplies query hooks so this stays a unit test — no real network
 // calls needed. The api layer itself is already mocked globally (setup.ts
@@ -522,6 +523,31 @@ describe('Supplies page: each supply shows its own unit', () => {
     expect(screen.getByText('supplies.avgCostPerUnit (fl oz)')).toBeInTheDocument()
     expect(screen.getByText('$0.50')).toBeInTheDocument()
     expect(screen.queryByText('$16.91')).not.toBeInTheDocument()
+  })
+
+  it('a 3 mL on-hand reads 0.003 L, not 0.00 L', () => {
+    useSuppliesMock.mockReturnValue({
+      data: { supplies: [{ ...mockSupply, on_hand: '0.003' }], total: 1 },
+      isLoading: false,
+      error: null,
+    })
+    render(<Supplies />)
+
+    expect(screen.getByText('0.003 L')).toBeInTheDocument()
+    expect(screen.queryByText('0.00 L')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'supplies.listView' }))
+    expect(within(screen.getByRole('table')).getByText('0.003 L')).toBeInTheDocument()
+  })
+
+  it('on-hand follows the picked language, not toFixed', () => {
+    setActiveLocale('de')
+    try {
+      render(<Supplies />)
+      expect(screen.getByText('10,50 L')).toBeInTheDocument()
+    } finally {
+      setActiveLocale('en')
+    }
   })
 
   it('a mL supply shows whole millilitres', () => {

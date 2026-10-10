@@ -19,10 +19,10 @@ import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
 import {
   costDecimals,
-  displayDecimals,
+  formatSupplyAmount,
+  formatSupplyQuantity,
   supplyDisplayUnit,
   toCanonical,
-  toDisplay,
   unitCostToDisplay,
   unitLabel,
   type SupplyUnit,
@@ -52,22 +52,14 @@ interface SupplyHistoryModalProps {
 const RECEIPT_ACCEPT = '.jpg,.jpeg,.png,.gif,.pdf'
 
 
-/** Canonical to display magnitude in the supply's unit: whole numbers for count, displayDecimals otherwise. */
-function formatMagnitude(value: number, unit: SupplyUnit): string {
-  const display = toDisplay(value, unit)
-  return unit === 'count' ? Math.round(display).toLocaleString(getActiveLocale()) : display.toFixed(displayDecimals(unit))
-}
-
 function formatQuantity(raw: string, unit: SupplyUnit): string {
-  const label = unitLabel(unit)
-  const formatted = formatMagnitude(Number(raw), unit)
-  return label ? `${formatted} ${label}` : formatted
+  return formatSupplyQuantity(Number(raw), unit, getActiveLocale())
 }
 
 function formatSignedQuantity(raw: string, unit: SupplyUnit): string {
   const value = Number(raw)
   const label = unitLabel(unit)
-  const magnitude = formatMagnitude(Math.abs(value), unit)
+  const magnitude = formatSupplyAmount(Math.abs(value), unit, getActiveLocale())
   const sign = value < 0 ? '-' : '+'
   return `${sign}${magnitude}${label ? ` ${label}` : ''}`
 }

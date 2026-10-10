@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import restore_staging
+from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.settings_service import SettingsService
 from app.utils.default_unit_prefs import (
     DEFAULT_UNIT_PREFS_KEY,
@@ -477,6 +478,18 @@ class BackupService:
                     except Exception:
                         logger.warning(
                             "Skipping %s during restore: not a valid IANA time zone",
+                            sanitize_for_log(key),
+                        )
+                        continue
+
+                # The SSO settings re-send this pin with every save, so a bad
+                # one would 422 all of them, the auth-mode switch included.
+                if key == OIDC_REDIRECT_URI_KEY:
+                    try:
+                        checked_redirect_uri(value or "")
+                    except ValueError:
+                        logger.warning(
+                            "Skipping %s during restore: not a blank or absolute http(s) URL",
                             sanitize_for_log(key),
                         )
                         continue
