@@ -4,20 +4,25 @@ import { Car, Loader, CheckCircle } from 'lucide-react'
 import api, { setCSRFToken } from '../services/api'
 import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
 import { withBase } from '../utils/basePath'
+import { readHashParam } from '../utils/hashParams'
 
 export default function OIDCSuccess() {
   const { t } = useTranslation('common')
 
   useEffect(() => {
+    // Store the CSRF token, then strip it from the address bar. StrictMode runs
+    // this twice and the second pass finds no hash, so it leaves the stored one alone.
+    const csrfToken = readHashParam('csrf_token')
+    if (csrfToken) {
+      setCSRFToken(csrfToken)
+    }
+    window.history.replaceState(
+      window.history.state,
+      '',
+      window.location.pathname + window.location.search,
+    )
+
     const redirect = async () => {
-      // Extract CSRF token from URL parameter (Security Enhancement v2.10.0)
-      const params = new URLSearchParams(window.location.search)
-      const csrfToken = params.get('csrf_token')
-
-      if (csrfToken) {
-        setCSRFToken(csrfToken)
-      }
-
       // Cookie is already set by backend — fetch user to determine redirect target.
       // Retry once if cookie hasn't propagated yet (same pattern as AuthContext login).
       let user: { mobile_quick_entry_enabled?: boolean } = {}

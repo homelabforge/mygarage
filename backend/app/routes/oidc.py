@@ -455,11 +455,13 @@ async def oidc_callback(
             e.config,
         )
 
-        # Redirect to link account page with token (#107: prefix-aware)
+        # Redirect to link account page with token (#107: prefix-aware). The token
+        # rides in the fragment, which a browser never sends to a server, so proxy
+        # and access logs never see it.
         frontend_url = _frontend_base(request)
-        redirect_url = f"{frontend_url}/auth/link-account?token={pending_token}"
+        redirect_url = f"{frontend_url}/auth/link-account#token={pending_token}"
 
-        logger.info("Redirecting to link account page: %s", redirect_url)
+        logger.info("Redirecting to the link account page for %s", sanitize_for_log(e.username))
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     except OIDCLoginRefusedError as e:
         await _audit_login_refused(db, request, e.message, e.username, details=e.details)
@@ -503,9 +505,10 @@ async def oidc_callback(
     logger.info("OIDC login successful for user: %s", sanitize_for_log(user.username))
 
     # Set httpOnly cookie and redirect with CSRF token (Security Enhancement v2.10.0)
-    # Frontend needs CSRF token for state-changing requests (#107: prefix-aware)
+    # Frontend needs CSRF token for state-changing requests (#107: prefix-aware).
+    # Fragment, not query, for the same reason as the link token above.
     frontend_url = _frontend_base(request)
-    redirect_url = f"{frontend_url}/auth/oidc/success?csrf_token={csrf_token_value}"
+    redirect_url = f"{frontend_url}/auth/oidc/success#csrf_token={csrf_token_value}"
 
     redirect_response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     redirect_response.set_cookie(

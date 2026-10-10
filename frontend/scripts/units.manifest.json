@@ -2704,8 +2704,8 @@
     {
       "path": "src/pages/LinkAccount.tsx",
       "disposition": "no unit behaviour",
-      "digest": "1647eac09388c7b3047b28ed8512191fac7e83f99954b63e21e39140489c7b90",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
+      "digest": "eb12a6efc0730dd1b4378f8233fe151037c751e78666a2fd2fe7f4c46418304b",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-09 (security batch A-11): the pending link token is read once from the URL fragment through readHashParam, and an effect strips the fragment with history.replaceState. No quantity, unit or conversion code changed."
     },
     {
       "path": "src/pages/Login.tsx",
@@ -2716,8 +2716,8 @@
     {
       "path": "src/pages/OIDCSuccess.tsx",
       "disposition": "no unit behaviour",
-      "digest": "c7663a56c0415d657fb6db376854bfbfb45d3a01724eed1bd9517f9cb305eba4",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
+      "digest": "4fb7519d690b4a5896876a60d97845ef8456c5e8f20555722d043c8f631b2938",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-09 (security batch A-11): the CSRF token is read from the URL fragment through readHashParam and stored before history.replaceState strips the fragment. No quantity, unit or conversion code changed."
     },
     {
       "path": "src/pages/POIFinder.tsx",
@@ -3272,6 +3272,12 @@
       "disposition": "no unit behaviour",
       "digest": "68a001f9d98ccc04cae2292a9cae7db53a5a5cc5721b02e679909952fc4fb277",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. Re-reviewed 2026-09-21: formatWithIntl calls cachedCurrencyFormat instead of constructing a formatter per call. Still no unit behaviour: this formats a money value with no quantity and no unit label. The construction stays INSIDE the existing try, and the cache stores nothing when the factory throws, so an invalid currency code still falls back exactly as before. 2026-09-30 (money-fits B7): plain amounts use the currency's own fraction digits (CURRENCY_DIGITS) and currencyCode is now required in the option type. Still no unit behaviour: money only, and rates keep their own explicit-precision formatters in units.ts and unitFormat.ts. 2026-09-30 (money-fits B7 fix 1): adds a fractionDigits option and RATE_DIGITS, so a rate shown through formatCurrency keeps explicit digits while a plain amount keeps the currency's own. Still money only, no unit behaviour."
+    },
+    {
+      "path": "src/utils/hashParams.ts",
+      "disposition": "no unit behaviour",
+      "digest": "6c9be465c16df6ee0afe0fcaca75f8ed3c23ff5d450d085e7e648136122591bc",
+      "reason": "NEW 2026-10-09 (security batch A-11). One function, `readHashParam`, reads a named parameter from the URL fragment and has no side effects. LinkAccount and OIDCSuccess read the SSO tokens with it, since the callback now sends them in the fragment instead of the query. No rendering, and no unit, quantity or user-visible string."
     },
     {
       "path": "src/utils/httpErrorHandler.ts",

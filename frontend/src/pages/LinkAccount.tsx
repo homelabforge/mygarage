@@ -1,5 +1,5 @@
 import { useState, useEffect, type SyntheticEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Car, Lock, AlertCircle, Loader } from 'lucide-react'
 import api, { setCSRFToken } from '../services/api'
@@ -7,16 +7,27 @@ import { useAuth } from '../contexts/AuthContext'
 import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
 import { withBase } from '../utils/basePath'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { readHashParam } from '../utils/hashParams'
 
 export default function LinkAccount() {
   const { t } = useTranslation('common')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { refreshUser } = useAuth()
-  const token = searchParams.get('token')
+  // Read once. The effect below strips the fragment, so a re-read would find nothing.
+  const [token] = useState(() => readHashParam('token'))
+
+  // Get the token out of the address bar and history. Passing the current state
+  // keeps React Router's entry intact, and a second strip is a no-op.
+  useEffect(() => {
+    window.history.replaceState(
+      window.history.state,
+      '',
+      window.location.pathname + window.location.search,
+    )
+  }, [])
 
   // Redirect to login if no token
   useEffect(() => {
