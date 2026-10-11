@@ -555,6 +555,86 @@ async def test_an_existing_items_link_changed_to_a_dropped_item_clears(
     assert items[repair]["triggered_by_inspection_id"] is None
 
 
+async def _two_inspection_visit(
+    client: AsyncClient, headers: dict[str, str], vin: str
+) -> tuple[int, int, int, int]:
+    """A visit with failed inspections A and B, and a repair linked to A."""
+    r = await client.post(
+        f"/api/vehicles/{vin}/service-visits",
+        json={
+            "date": "2026-03-05",
+            "line_items": [
+                {
+                    "temp_id": -1,
+                    "description": "Brake inspection",
+                    "is_inspection": True,
+                    "inspection_result": "failed",
+                },
+                {
+                    "temp_id": -2,
+                    "description": "Tire inspection",
+                    "is_inspection": True,
+                    "inspection_result": "failed",
+                },
+                {
+                    "description": "Front pads",
+                    "category": "Maintenance",
+                    "triggered_by_inspection_id": -1,
+                },
+            ],
+        },
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    a, b, repair = body["line_items"]
+    assert repair["triggered_by_inspection_id"] == a["id"]
+    return body["id"], a["id"], b["id"], repair["id"]
+
+
+@pytest.mark.parametrize("shape", ["api", "form"])
+@pytest.mark.parametrize("with_new_item", [False, True])
+async def test_a_repair_moved_off_a_dropped_inspection_keeps_its_new_link(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    test_vehicle: dict[str, object],
+    shape: str,
+    with_new_item: bool,
+) -> None:
+    """Remove inspection A and point its repair at B instead.
+
+    Deleting A must not clear the link the request just set, whatever else
+    the PUT carries. The "api" shape sends no supplies_used and so nothing
+    else flushes before the links are set.
+    """
+    vin = str(test_vehicle["vin"])
+    visit_id, a, b, repair = await _two_inspection_visit(client, auth_headers, vin)
+    before = await _items(client, auth_headers, vin, visit_id)
+    if shape == "api":
+        line_items: list[dict[str, Any]] = [
+            {"id": b, "description": "Tire inspection"},
+            {"id": repair, "description": "Front pads", "triggered_by_inspection_id": b},
+        ]
+    else:
+        line_items = [
+            _as_form(before[b]),
+            _as_form(before[repair], triggered_by_inspection_id=b),
+        ]
+    if with_new_item:
+        line_items.append({"description": "Wipers"})
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={"line_items": line_items},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+
+    items = await _items(client, auth_headers, vin, visit_id)
+    assert a not in items
+    assert items[repair]["triggered_by_inspection_id"] == b
+
+
 async def test_a_new_visit_keeps_its_temp_id_link(
     client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
 ) -> None:

@@ -465,6 +465,9 @@ class ServiceVisitService:
                 for item_id, item in existing.items():
                     if item_id not in submitted_ids:
                         await self.db.delete(item)
+                # Flushed now: deleting an item nulls the links to it, and done
+                # at the final flush that would wipe a link pass 2 just set.
+                await self.db.flush()
 
                 # Pass 1: Update existing, create new — build temp_id map
                 temp_id_map: dict[int, int] = {}
