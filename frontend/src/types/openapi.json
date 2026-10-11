@@ -12010,6 +12010,23 @@
         "additionalProperties": false,
         "description": "A closed period the tire spent on a corner, recorded after the fact.\n\nClosed only: an open period is what Mount creates, and it is the one whose\ncorner `tires.position` holds. Odometers optional, dates required, the\ndismount no later than tomorrow (a day of slack for a user whose calendar\nis ahead of the server's).",
         "properties": {
+          "dismounted_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismounted Hours"
+          },
           "dismounted_odometer_km": {
             "anyOf": [
               {
@@ -12030,6 +12047,23 @@
             "format": "date",
             "title": "Dismounted On",
             "type": "string"
+          },
+          "mounted_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted Hours"
           },
           "mounted_odometer_km": {
             "anyOf": [
@@ -12086,6 +12120,18 @@
       "MountPeriodResponse": {
         "description": "One interval a tire spent mounted at one position.",
         "properties": {
+          "dismounted_hours": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismounted Hours"
+          },
           "dismounted_odometer_km": {
             "anyOf": [
               {
@@ -12117,6 +12163,18 @@
           "is_assumed": {
             "title": "Is Assumed",
             "type": "boolean"
+          },
+          "mounted_hours": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted Hours"
           },
           "mounted_odometer_km": {
             "anyOf": [
@@ -12188,6 +12246,23 @@
         "additionalProperties": false,
         "description": "Correct one mount period's bounds or notes.\n\nEvery field optional, `exclude_unset` semantics: a key absent from the\nbody is untouched, a key sent as null is cleared to unknown. `position`\nis deliberately not here (D14: only mount, dismount and rotate write it),\nand forbid-extra makes sending it a 422 rather than a silent ignore.",
         "properties": {
+          "dismounted_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismounted Hours"
+          },
           "dismounted_odometer_km": {
             "anyOf": [
               {
@@ -12215,6 +12290,23 @@
               }
             ],
             "title": "Dismounted On"
+          },
+          "mounted_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted Hours"
           },
           "mounted_odometer_km": {
             "anyOf": [
@@ -21073,6 +21165,23 @@
             ],
             "title": "Model Name"
           },
+          "mounted_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted Hours"
+          },
           "mounted_odometer_km": {
             "anyOf": [
               {
@@ -21198,6 +21307,23 @@
         "additionalProperties": false,
         "description": "Take a tire off the vehicle.",
         "properties": {
+          "dismounted_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismounted Hours"
+          },
           "dismounted_odometer_km": {
             "anyOf": [
               {
@@ -21279,6 +21405,23 @@
         "additionalProperties": false,
         "description": "Mount a tire at a position.",
         "properties": {
+          "mounted_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted Hours"
+          },
           "mounted_odometer_km": {
             "anyOf": [
               {
@@ -21389,8 +21532,26 @@
         "type": "object"
       },
       "TireReadingCreate": {
-        "description": "Record a tread/pressure reading (updates the parent tire's latest depth).\n\nTread is OPTIONAL (#152): the reporter tracks a slow pressure leak and owns\nno tread gauge, and a required tread beside an optional odometer meant they\ncould not record a pressure at all. What is required is that a reading carry\nat least one measurement (see ``_at_least_one_measurement``).",
+        "additionalProperties": false,
+        "description": "Record a tread/pressure reading (updates the parent tire's latest depth).\n\nTread is OPTIONAL (#152): the reporter tracks a slow pressure leak and owns\nno tread gauge, and a required tread beside an optional odometer meant they\ncould not record a pressure at all. What is required is that a reading carry\nat least one measurement (see ``_at_least_one_measurement``).\n\nForbids extras like every other tire write schema, so a misspelt field is\na 422 and not a silent drop.",
         "properties": {
+          "engine_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Hours"
+          },
           "notes": {
             "anyOf": [
               {
@@ -21471,6 +21632,18 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "engine_hours": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Hours"
           },
           "id": {
             "title": "Id",
@@ -21914,6 +22087,23 @@
         "additionalProperties": false,
         "description": "Move several tires at once.\n\nAll or nothing. A partial rotation would leave the vehicle in an\narrangement the user did not ask for and cannot easily read back, which\nfor something done four tires at a time is worse than a refusal.",
         "properties": {
+          "engine_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Hours"
+          },
           "moves": {
             "items": {
               "$ref": "#/components/schemas/TireRotationMove"
@@ -22022,6 +22212,23 @@
         "additionalProperties": false,
         "description": "Fit every tire in a set, each at the corner it was last on.\n\nThe odometer is a reading of the VEHICLE and applies to the whole swap: it\ncloses the periods of everything coming off and opens the periods of\neverything going on. One number, because that is what the user reads off\nthe dash once.",
         "properties": {
+          "engine_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Hours"
+          },
           "mounted_on": {
             "anyOf": [
               {

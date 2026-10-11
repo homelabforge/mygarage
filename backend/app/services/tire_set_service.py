@@ -35,7 +35,9 @@ from app.services.tire_service import (
     ODOMETER_SOURCE_SET,
     TireService,
     apply_mount_moves,
+    publish_tire_hours,
     publish_tire_odometer,
+    refuse_untracked,
 )
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.household_time import household_today
@@ -216,7 +218,8 @@ class TireSetService:
         vin = vin.upper().strip()
         await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
         await lock_vehicle_for_write(self.db, vin)
-        format_distance = await TireService(self.db).request_distance_formatter(current_user, vin)
+        axes = await TireService(self.db).request_axes(current_user, vin)
+        refuse_untracked(axes, odometers=(data.odometer_km,), hours=(data.engine_hours,))
         tire_set = await self._get_set(vin, set_id)
 
         members = [tire for tire in (tire_set.tires or []) if tire.retired_on is None]
@@ -294,7 +297,8 @@ class TireSetService:
         # so a displaced tire can end up dismounted before it was mounted.
         touched = {tire.id: tire for tire in [*displaced, *moving]}
         befores = {
-            tid: fault_map(t.mount_periods or [], t.readings or []) for tid, t in touched.items()
+            tid: fault_map(t.mount_periods or [], t.readings or [], axes=axes.captured)
+            for tid, t in touched.items()
         }
         open_before = {tid: TireService.open_period_ids(t) for tid, t in touched.items()}
 
@@ -304,6 +308,7 @@ class TireSetService:
             assign=[(tire, destinations[tire.id]) for tire in moving],
             when=when,
             odometer_km=data.odometer_km,
+            engine_hours=data.engine_hours,
             notes=data.notes,
         )
         for tid, tire in touched.items():
@@ -311,7 +316,7 @@ class TireSetService:
                 tire,
                 befores[tid],
                 open_before[tid] | TireService.open_period_ids(tire),
-                format_distance,
+                axes,
             )
         # ONE reading for the whole swap. Marked as a set fit rather than as a
         # per-tire operation, so deleting any one tire in the set does not take
@@ -319,6 +324,9 @@ class TireSetService:
         # tire event: a day that already has a record keeps it untouched.
         await publish_tire_odometer(
             self.db, vin, when, data.odometer_km, ODOMETER_SOURCE_SET, tire_set.id
+        )
+        await publish_tire_hours(
+            self.db, vin, when, data.engine_hours, ODOMETER_SOURCE_SET, tire_set.id
         )
         await self.db.commit()
         logger.info(

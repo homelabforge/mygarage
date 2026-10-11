@@ -435,13 +435,16 @@ def test_a_clean_projection_still_reports_its_lifetime_blocker():
     """
     from app.services.tire_history import format_km
     from app.services.tire_service import TireService
+    from app.services.usage_axis import VehicleAxes
 
     tire = _migrated_then_remounted_tire()
     # `_to_response` is a pure formatting method: it reads the tire and the
     # two calculations and touches no session. Constructed without __init__
     # so the test needs no database.
     service = TireService.__new__(TireService)
-    payload = service._to_response(tire, format_km, current_odometer=Decimal("12000"))
+    payload = service._to_response(
+        tire, VehicleAxes.distance_only(format_km), current_odometer=Decimal("12000")
+    )
 
     assert payload.wear_status == "projected"
     assert payload.distance_status == "incomplete"
@@ -553,10 +556,13 @@ def test_wear_blockers_are_not_masked_by_lifetime_blockers():
     """
     from app.services.tire_history import format_km
     from app.services.tire_service import TireService
+    from app.services.usage_axis import VehicleAxes
 
     tire = _overlapping_periods_tire()
     service = TireService.__new__(TireService)
-    payload = service._to_response(tire, format_km, current_odometer=Decimal("12000"))
+    payload = service._to_response(
+        tire, VehicleAxes.distance_only(format_km), current_odometer=Decimal("12000")
+    )
 
     assert payload.wear_status == "no_distance_on_tire"
     assert payload.distance_status == "incomplete"

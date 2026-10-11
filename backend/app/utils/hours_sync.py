@@ -8,6 +8,10 @@ gives service-sourced rows a stable identity so they can be removed by FK
 cascade (``ON DELETE CASCADE``) when their parent service visit is deleted,
 rather than orphaning the way the odometer track does today.
 
+The exception is ``publish_marked_hours``, for tire events, which have no FK:
+their rows carry the event's marker, ``source`` set to the tire source, both
+FKs null, so the FK paths here never see them (#217).
+
 The caller composes this into an outer transaction (the fuel/service create
 and update flows), so both helpers accept a ``commit`` flag: ``True``
 (default) commits and refreshes within its own unit of work; ``False`` only
@@ -16,6 +20,7 @@ subsequent queries inside the same transaction, and the caller commits once
 at the end — mirroring ``odometer_sync``'s ``commit`` flag.
 """
 
+from collections.abc import Sequence
 from datetime import date as date_type
 from decimal import Decimal
 
@@ -23,6 +28,8 @@ from sqlalchemy import ColumnElement, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import HoursRecord
+from app.utils.hours_tolerance import hours_below
+from app.utils.odometer_sync import auto_sync_marker
 
 # The only source identities a synced hours row can carry. Exhaustive on
 # purpose: an unrecognized source_type must fail loudly rather than silently
@@ -183,3 +190,46 @@ async def remove_synced_hours(
     )
     if result.rowcount:
         await _commit_or_flush(db, commit=commit)
+
+
+async def same_day_hours(db: AsyncSession, vin: str, date: date_type) -> Sequence[HoursRecord]:
+    """Every hours row of `vin` on `date`, newest first. By SQL, so flush a pending move first."""
+    result = await db.execute(
+        select(HoursRecord)
+        .where(HoursRecord.vin == vin, HoursRecord.date == date)
+        .order_by(HoursRecord.id.desc())
+    )
+    return result.scalars().all()
+
+
+async def publish_marked_hours(
+    db: AsyncSession,
+    vin: str,
+    date: date_type,
+    engine_hours: Decimal | None,
+    source_type: str,
+    source_id: int,
+) -> HoursRecord | None:
+    """Record an event's hour meter as a row it owns by marker, for events with no FK (#217).
+
+    Same rules as the tire odometer publish: update our own row on that day,
+    publish nothing when another row that day reads at or above the figure,
+    otherwise add our row. FKs stay null. Flushes, never commits.
+    """
+    if engine_hours is None:
+        return None
+    marker = auto_sync_marker(source_type, source_id)
+    same_day = await same_day_hours(db, vin, date)
+    existing = next((row for row in same_day if row.notes == marker), None)
+    if existing is not None:
+        existing.engine_hours = engine_hours
+        await db.flush()
+        return existing
+    if any(not hours_below(row.engine_hours, engine_hours) for row in same_day):
+        return None
+    record = HoursRecord(
+        vin=vin, date=date, engine_hours=engine_hours, notes=marker, source=source_type
+    )
+    db.add(record)
+    await db.flush()
+    return record

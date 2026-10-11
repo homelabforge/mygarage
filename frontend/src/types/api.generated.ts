@@ -12814,6 +12814,8 @@ export interface components {
          *     is ahead of the server's).
          */
         MountPeriodCreate: {
+            /** Dismounted Hours */
+            dismounted_hours?: number | string | null;
             /** Dismounted Odometer Km */
             dismounted_odometer_km?: number | string | null;
             /**
@@ -12821,6 +12823,8 @@ export interface components {
              * Format: date
              */
             dismounted_on: string;
+            /** Mounted Hours */
+            mounted_hours?: number | string | null;
             /** Mounted Odometer Km */
             mounted_odometer_km?: number | string | null;
             /**
@@ -12841,6 +12845,8 @@ export interface components {
          * @description One interval a tire spent mounted at one position.
          */
         MountPeriodResponse: {
+            /** Dismounted Hours */
+            dismounted_hours?: string | null;
             /** Dismounted Odometer Km */
             dismounted_odometer_km: string | null;
             /** Dismounted On */
@@ -12849,6 +12855,8 @@ export interface components {
             id: number;
             /** Is Assumed */
             is_assumed: boolean;
+            /** Mounted Hours */
+            mounted_hours?: string | null;
             /** Mounted Odometer Km */
             mounted_odometer_km: string | null;
             /** Mounted On */
@@ -12870,10 +12878,14 @@ export interface components {
          *     and forbid-extra makes sending it a 422 rather than a silent ignore.
          */
         MountPeriodUpdate: {
+            /** Dismounted Hours */
+            dismounted_hours?: number | string | null;
             /** Dismounted Odometer Km */
             dismounted_odometer_km?: number | string | null;
             /** Dismounted On */
             dismounted_on?: string | null;
+            /** Mounted Hours */
+            mounted_hours?: number | string | null;
             /** Mounted Odometer Km */
             mounted_odometer_km?: number | string | null;
             /** Mounted On */
@@ -16215,6 +16227,8 @@ export interface components {
             min_tread_mm: number | string | null;
             /** Model Name */
             model_name?: string | null;
+            /** Mounted Hours */
+            mounted_hours?: number | string | null;
             /** Mounted Odometer Km */
             mounted_odometer_km?: number | string | null;
             /** Mounted On */
@@ -16242,6 +16256,8 @@ export interface components {
          * @description Take a tire off the vehicle.
          */
         TireDismountRequest: {
+            /** Dismounted Hours */
+            dismounted_hours?: number | string | null;
             /** Dismounted Odometer Km */
             dismounted_odometer_km?: number | string | null;
             /** Dismounted On */
@@ -16266,6 +16282,8 @@ export interface components {
          * @description Mount a tire at a position.
          */
         TireMountRequest: {
+            /** Mounted Hours */
+            mounted_hours?: number | string | null;
             /** Mounted Odometer Km */
             mounted_odometer_km?: number | string | null;
             /** Mounted On */
@@ -16345,8 +16363,13 @@ export interface components {
          *     no tread gauge, and a required tread beside an optional odometer meant they
          *     could not record a pressure at all. What is required is that a reading carry
          *     at least one measurement (see ``_at_least_one_measurement``).
+         *
+         *     Forbids extras like every other tire write schema, so a misspelt field is
+         *     a 422 and not a silent drop.
          */
         TireReadingCreate: {
+            /** Engine Hours */
+            engine_hours?: number | string | null;
             /** Notes */
             notes?: string | null;
             /** Odometer Km */
@@ -16371,6 +16394,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Engine Hours */
+            engine_hours?: string | null;
             /** Id */
             id: number;
             /** Mount Period Id */
@@ -16502,6 +16527,8 @@ export interface components {
          *     for something done four tires at a time is worse than a refusal.
          */
         TireRotationRequest: {
+            /** Engine Hours */
+            engine_hours?: number | string | null;
             /** Moves */
             moves: components["schemas"]["TireRotationMove"][];
             /** Notes */
@@ -16545,6 +16572,8 @@ export interface components {
          *     the dash once.
          */
         TireSetMountRequest: {
+            /** Engine Hours */
+            engine_hours?: number | string | null;
             /** Mounted On */
             mounted_on?: string | null;
             /** Notes */
