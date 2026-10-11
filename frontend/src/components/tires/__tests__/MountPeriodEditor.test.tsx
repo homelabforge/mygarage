@@ -16,6 +16,9 @@ let nearestSuccess = false
 vi.mock('../../../hooks/queries/useOdometerRecords', () => ({
   useNearestOdometer: () => ({ data: nearestData, isSuccess: nearestSuccess }),
 }))
+vi.mock('../../../hooks/queries/useHoursRecords', () => ({
+  useNearestHours: () => ({ data: undefined, isSuccess: false }),
+}))
 
 /** Overridden per test; defaults to metric, matching every pre-existing
  *  test's fixed odometers. */
@@ -122,5 +125,25 @@ describe('MountPeriodEditor', () => {
     fireEvent.change(input('period-notes'), { target: { value: 'rotated in' } })
     fireEvent.click(drawer().getByText('common:save'))
     expect(mutate.mock.calls[0][0].mounted_odometer_km).toBe(100000)
+  })
+
+  it('on an hours-only vehicle edits the hour meter and sends only hours', () => {
+    const HOURS_CLOSED = { ...CLOSED, mounted_odometer_km: null, dismounted_odometer_km: null, mounted_hours: '100.0', dismounted_hours: '150.0' }
+    render(
+      <MountPeriodEditor vin={VIN} tire={TIRE as never} period={HOURS_CLOSED as never} open onClose={vi.fn()} labelFor={labelFor} tracksDistance={false} tracksHours />
+    )
+    expect(document.getElementById('period-mount-odometer')).toBeNull()
+    expect(input('period-mount-hours')).toHaveValue(100)
+    fireEvent.change(input('period-dismount-hours'), { target: { value: '155' } })
+    fireEvent.click(drawer().getByText('common:save'))
+    expect(mutate.mock.calls[0][0]).toEqual({
+      tireId: 9,
+      periodId: 4,
+      mounted_on: '2026-01-10',
+      mounted_hours: 100,
+      dismounted_on: '2026-03-10',
+      dismounted_hours: 155,
+      notes: 'first winter',
+    })
   })
 })

@@ -1,8 +1,11 @@
+import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
+import { useNearestHours } from '../../hooks/queries/useHoursRecords'
 import { useNearestOdometer } from '../../hooks/queries/useOdometerRecords'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../../utils/dateUtils'
+import { formatHours } from '../../utils/hoursFormat'
 import { seedUnitField, type UnitFieldOrigin } from '../../utils/unitFormat'
 import { Button, Field, Input } from '../ui'
 
@@ -27,7 +30,7 @@ export const EMPTY_ODOMETER: OdometerFieldValue = {
 
 interface MountEventFieldsProps {
   vin: string
-  /** Prefix for the two input ids and the suggestion's test id. */
+  /** Prefix for the input ids and the suggestions' test ids. */
   idPrefix: string
   dateLabel: string
   /** YYYY-MM-DD. The caller defaults it to today with `formatDateForInput()`. */
@@ -39,10 +42,26 @@ interface MountEventFieldsProps {
    *  value it was last seeded from. */
   odometer: OdometerFieldValue
   onOdometerChange: (next: OdometerFieldValue) => void
+  /** Whether the vehicle takes an odometer. Defaults to true. */
+  tracksDistance?: boolean
+  /** Whether the vehicle takes an hour meter. Defaults to false. */
+  tracksHours?: boolean
+  /** The hour meter as typed. Hours are never converted. */
+  hours?: string
+  onHoursChange?: (next: string) => void
+  hoursHint?: string
+}
+
+/** How far a suggested reading sits from the date asked about. */
+function dayOffset(t: TFunction, daysAway: number): string {
+  if (daysAway === 0) return t('tireList.suggestionSameDay')
+  if (daysAway < 0) return t('tireList.suggestionEarlier', { count: -daysAway })
+  return t('tireList.suggestionLater', { count: daysAway })
 }
 
 /**
  * A date and an odometer, with the vehicle's nearest reading offered beneath.
+ * Since #217 it shows the odometer, the hour meter or both, whichever the vehicle takes.
  *
  * Used by every dialog that records where a tire went and when: Add Tire on
  * a corner, Mount, Dismount, Retire, Rotate, Set fit, and both halves of the
@@ -71,18 +90,12 @@ export default function MountEventFields({
   odometerHint,
   odometer,
   onOdometerChange,
+  tracksDistance = true,
+  tracksHours = false,
+  hours = '',
+  onHoursChange,
+  hoursHint,
 }: MountEventFieldsProps) {
-  const { t } = useTranslation('vehicles')
-  const u = useUnitFormat()
-  const nearest = useNearestOdometer(vin, date)
-  const reading = nearest.isSuccess ? (nearest.data ?? null) : undefined
-
-  const offset = (daysAway: number): string => {
-    if (daysAway === 0) return t('tireList.suggestionSameDay')
-    if (daysAway < 0) return t('tireList.suggestionEarlier', { count: -daysAway })
-    return t('tireList.suggestionLater', { count: daysAway })
-  }
-
   return (
     <div className="space-y-3">
       <Field id={`${idPrefix}-date`} label={dateLabel}>
@@ -93,13 +106,61 @@ export default function MountEventFields({
           onChange={(e) => onDateChange(e.target.value)}
         />
       </Field>
-      <Field id={`${idPrefix}-odometer`} label={odometerLabel} hint={odometerHint}>
+      {tracksDistance && (
+        <OdometerField
+          vin={vin}
+          idPrefix={idPrefix}
+          date={date}
+          label={odometerLabel}
+          hint={odometerHint}
+          odometer={odometer}
+          onChange={onOdometerChange}
+        />
+      )}
+      {tracksHours && (
+        <HoursField
+          vin={vin}
+          idPrefix={idPrefix}
+          date={date}
+          hint={hoursHint}
+          hours={hours}
+          onChange={onHoursChange ?? (() => undefined)}
+        />
+      )}
+    </div>
+  )
+}
+
+interface OdometerFieldProps {
+  vin: string
+  idPrefix: string
+  date: string
+  label: string
+  hint?: string
+  odometer: OdometerFieldValue
+  onChange: (next: OdometerFieldValue) => void
+}
+
+/**
+ * The odometer and its nearest-reading suggestion. A component of its own so
+ * a vehicle without an odometer never asks for one: hooks can't be skipped,
+ * components can.
+ */
+function OdometerField({ vin, idPrefix, date, label, hint, odometer, onChange }: OdometerFieldProps) {
+  const { t } = useTranslation('vehicles')
+  const u = useUnitFormat()
+  const nearest = useNearestOdometer(vin, date)
+  const reading = nearest.isSuccess ? (nearest.data ?? null) : undefined
+
+  return (
+    <>
+      <Field id={`${idPrefix}-odometer`} label={label} hint={hint}>
         <Input
           id={`${idPrefix}-odometer`}
           type="number"
           step={u.distance.step}
           value={odometer.typed}
-          onChange={(e) => onOdometerChange({ typed: e.target.value, origin: odometer.origin })}
+          onChange={(e) => onChange({ typed: e.target.value, origin: odometer.origin })}
         />
       </Field>
       {reading ? (
@@ -111,7 +172,7 @@ export default function MountEventFields({
             {t('tireList.suggestion', {
               odometer: u.distance.format(Number(reading.odometer_km)),
               date: formatDateForDisplay(reading.date),
-              offset: offset(reading.days_away),
+              offset: dayOffset(t, reading.days_away),
             })}
           </span>
           <Button
@@ -119,7 +180,7 @@ export default function MountEventFields({
             variant="ghost"
             onClick={() => {
               const seed = seedUnitField(Number(reading.odometer_km), u.distance)
-              onOdometerChange({ typed: seed.display, origin: seed })
+              onChange({ typed: seed.display, origin: seed })
             }}
           >
             {t('tireList.suggestionUse')}
@@ -128,6 +189,55 @@ export default function MountEventFields({
       ) : reading === null ? (
         <p className="text-sm text-text-mute">{t('tireList.suggestionNone')}</p>
       ) : null}
-    </div>
+    </>
+  )
+}
+
+interface HoursFieldProps {
+  vin: string
+  idPrefix: string
+  date: string
+  hint?: string
+  hours: string
+  onChange: (next: string) => void
+}
+
+/** The hour meter and its nearest-reading suggestion. Use seeds one decimal, the way the meter reads. */
+function HoursField({ vin, idPrefix, date, hint, hours, onChange }: HoursFieldProps) {
+  const { t } = useTranslation('vehicles')
+  const nearest = useNearestHours(vin, date)
+  const reading = nearest.isSuccess ? (nearest.data ?? null) : undefined
+
+  return (
+    <>
+      <Field id={`${idPrefix}-hours`} label={t('common:engineHours')} unit="hr" hint={hint}>
+        <Input
+          id={`${idPrefix}-hours`}
+          type="number"
+          step="0.1"
+          value={hours}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </Field>
+      {reading ? (
+        <div
+          data-testid={`${idPrefix}-hours-suggestion`}
+          className="flex flex-wrap items-center gap-2 text-sm text-text-mute"
+        >
+          <span>
+            {t('tireList.suggestionHours', {
+              hours: formatHours(reading.engine_hours),
+              date: formatDateForDisplay(reading.date),
+              offset: dayOffset(t, reading.days_away),
+            })}
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => onChange(Number(reading.engine_hours).toFixed(1))}>
+            {t('tireList.suggestionUse')}
+          </Button>
+        </div>
+      ) : reading === null ? (
+        <p className="text-sm text-text-mute">{t('tireList.suggestionNoneHours')}</p>
+      ) : null}
+    </>
   )
 }

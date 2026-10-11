@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { useUpdateMountPeriod } from '../../hooks/queries/useTires'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
 import type { MountedPosition, Tire, TireMountPeriod, TirePosition } from '../../types/tire'
+import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { canonicalFromUnitField, seedUnitField } from '../../utils/unitFormat'
 import { Button, Drawer, Field, Input } from '../ui'
@@ -18,13 +19,19 @@ interface MountPeriodEditorProps {
   open: boolean
   onClose: () => void
   labelFor: (position: TirePosition) => string
+  /** Whether the vehicle takes an odometer. Defaults to true. */
+  tracksDistance?: boolean
+  /** Whether the vehicle takes an hour meter. Defaults to false. */
+  tracksHours?: boolean
 }
 
 interface EditorState {
   mounted_on: string
   mounted_odometer_km: OdometerFieldValue
+  mounted_hours: string
   dismounted_on: string
   dismounted_odometer_km: OdometerFieldValue
+  dismounted_hours: string
   notes: string
 }
 
@@ -46,6 +53,8 @@ export default function MountPeriodEditor({
   open,
   onClose,
   labelFor,
+  tracksDistance = true,
+  tracksHours = false,
 }: MountPeriodEditorProps) {
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
@@ -60,8 +69,10 @@ export default function MountPeriodEditor({
     return {
       mounted_on: period.mounted_on ?? '',
       mounted_odometer_km: { typed: mount.display, origin: mount },
+      mounted_hours: period.mounted_hours != null ? Number(period.mounted_hours).toFixed(1) : '',
       dismounted_on: period.dismounted_on ?? '',
       dismounted_odometer_km: { typed: dismount.display, origin: dismount },
+      dismounted_hours: period.dismounted_hours != null ? Number(period.dismounted_hours).toFixed(1) : '',
       notes: period.notes ?? '',
     }
   })
@@ -77,20 +88,30 @@ export default function MountPeriodEditor({
       tireId: tire.id,
       periodId: period.id,
       mounted_on: form.mounted_on || null,
-      mounted_odometer_km: canonicalFromUnitField(
-        form.mounted_odometer_km.typed,
-        form.mounted_odometer_km.origin,
-        u.distance
-      ),
+      ...(tracksDistance
+        ? {
+            mounted_odometer_km: canonicalFromUnitField(
+              form.mounted_odometer_km.typed,
+              form.mounted_odometer_km.origin,
+              u.distance
+            ),
+          }
+        : {}),
+      ...(tracksHours ? { mounted_hours: hoursFromField(form.mounted_hours) } : {}),
       notes: form.notes.trim() || null,
       ...(closed
         ? {
             dismounted_on: form.dismounted_on,
-            dismounted_odometer_km: canonicalFromUnitField(
-              form.dismounted_odometer_km.typed,
-              form.dismounted_odometer_km.origin,
-              u.distance
-            ),
+            ...(tracksDistance
+              ? {
+                  dismounted_odometer_km: canonicalFromUnitField(
+                    form.dismounted_odometer_km.typed,
+                    form.dismounted_odometer_km.origin,
+                    u.distance
+                  ),
+                }
+              : {}),
+            ...(tracksHours ? { dismounted_hours: hoursFromField(form.dismounted_hours) } : {}),
           }
         : {}),
     }
@@ -138,6 +159,10 @@ export default function MountPeriodEditor({
           odometerLabel={odometerLabel}
           odometer={form.mounted_odometer_km}
           onOdometerChange={(next) => setForm({ ...form, mounted_odometer_km: next })}
+          tracksDistance={tracksDistance}
+          tracksHours={tracksHours}
+          hours={form.mounted_hours}
+          onHoursChange={(next) => setForm({ ...form, mounted_hours: next })}
         />
         {closed && (
           <MountEventFields
@@ -149,6 +174,10 @@ export default function MountPeriodEditor({
             odometerLabel={odometerLabel}
             odometer={form.dismounted_odometer_km}
             onOdometerChange={(next) => setForm({ ...form, dismounted_odometer_km: next })}
+            tracksDistance={tracksDistance}
+            tracksHours={tracksHours}
+            hours={form.dismounted_hours}
+            onHoursChange={(next) => setForm({ ...form, dismounted_hours: next })}
           />
         )}
         <Field id="period-notes" label={t('tireList.notes')}>

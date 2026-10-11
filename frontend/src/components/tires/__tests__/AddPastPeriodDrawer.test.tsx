@@ -16,6 +16,9 @@ let nearestSuccess = false
 vi.mock('../../../hooks/queries/useOdometerRecords', () => ({
   useNearestOdometer: () => ({ data: nearestData, isSuccess: nearestSuccess }),
 }))
+vi.mock('../../../hooks/queries/useHoursRecords', () => ({
+  useNearestHours: () => ({ data: undefined, isSuccess: false }),
+}))
 
 /** Overridden per test; defaults to metric. */
 let units: UnitSet = METRIC_UNITS
@@ -125,5 +128,22 @@ describe('AddPastPeriodDrawer', () => {
     fireEvent.click(within(screen.getByTestId('past-mount-suggestion')).getByText('tireList.suggestionUse'))
     fireEvent.click(drawer().getByText('common:save'))
     expect(mutate.mock.calls[0][0].mounted_odometer_km).toBe(100000)
+  })
+
+  it('on an hours-only vehicle records the hour meter and no odometer', () => {
+    render(
+      <AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} tracksDistance={false} tracksHours />
+    )
+    fireEvent.click(drawer().getByText('pos-RL'))
+    fireEvent.change(input('past-mount-date'), { target: { value: '2025-06-01' } })
+    fireEvent.change(input('past-dismount-date'), { target: { value: '2025-09-01' } })
+    fireEvent.change(input('past-mount-hours'), { target: { value: '40' } })
+    fireEvent.change(input('past-dismount-hours'), { target: { value: '95.5' } })
+    fireEvent.click(drawer().getByText('common:save'))
+    const payload = mutate.mock.calls[0][0]
+    expect(payload.mounted_hours).toBe(40)
+    expect(payload.dismounted_hours).toBe(95.5)
+    expect(payload).not.toHaveProperty('mounted_odometer_km')
+    expect(payload).not.toHaveProperty('dismounted_odometer_km')
   })
 })

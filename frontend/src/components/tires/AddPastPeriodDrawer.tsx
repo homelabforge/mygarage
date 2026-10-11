@@ -7,6 +7,7 @@ import { useCreateMountPeriod } from '../../hooks/queries/useTires'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { POSITIONS } from '../../types/tire'
 import type { MountedPosition, Tire, TirePosition } from '../../types/tire'
+import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { canonicalFromUnitField } from '../../utils/unitFormat'
 import { Button, Chip, Drawer, Field, Input } from '../ui'
@@ -18,6 +19,10 @@ interface AddPastPeriodDrawerProps {
   open: boolean
   onClose: () => void
   labelFor: (position: TirePosition) => string
+  /** Whether the vehicle takes an odometer. Defaults to true. */
+  tracksDistance?: boolean
+  /** Whether the vehicle takes an hour meter. Defaults to false. */
+  tracksHours?: boolean
 }
 
 /**
@@ -38,6 +43,8 @@ export default function AddPastPeriodDrawer({
   open,
   onClose,
   labelFor,
+  tracksDistance = true,
+  tracksHours = false,
 }: AddPastPeriodDrawerProps) {
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
@@ -46,8 +53,10 @@ export default function AddPastPeriodDrawer({
   const [position, setPosition] = useState<MountedPosition | null>(null)
   const [mountedOn, setMountedOn] = useState('')
   const [mountedOdometer, setMountedOdometer] = useState<OdometerFieldValue>(EMPTY_ODOMETER)
+  const [mountedHours, setMountedHours] = useState('')
   const [dismountedOn, setDismountedOn] = useState('')
   const [dismountedOdometer, setDismountedOdometer] = useState<OdometerFieldValue>(EMPTY_ODOMETER)
+  const [dismountedHours, setDismountedHours] = useState('')
   const [notes, setNotes] = useState('')
 
   const odometerLabel = t('tireList.odometerWithUnit', { unit: u.distance.label })
@@ -67,16 +76,26 @@ export default function AddPastPeriodDrawer({
         position,
         mounted_on: mountedOn,
         dismounted_on: dismountedOn,
-        mounted_odometer_km: canonicalFromUnitField(
-          mountedOdometer.typed,
-          mountedOdometer.origin,
-          u.distance
-        ),
-        dismounted_odometer_km: canonicalFromUnitField(
-          dismountedOdometer.typed,
-          dismountedOdometer.origin,
-          u.distance
-        ),
+        ...(tracksDistance
+          ? {
+              mounted_odometer_km: canonicalFromUnitField(
+                mountedOdometer.typed,
+                mountedOdometer.origin,
+                u.distance
+              ),
+              dismounted_odometer_km: canonicalFromUnitField(
+                dismountedOdometer.typed,
+                dismountedOdometer.origin,
+                u.distance
+              ),
+            }
+          : {}),
+        ...(tracksHours
+          ? {
+              mounted_hours: hoursFromField(mountedHours),
+              dismounted_hours: hoursFromField(dismountedHours),
+            }
+          : {}),
         notes: notes.trim() || null,
       },
       {
@@ -129,6 +148,10 @@ export default function AddPastPeriodDrawer({
           odometerLabel={odometerLabel}
           odometer={mountedOdometer}
           onOdometerChange={setMountedOdometer}
+          tracksDistance={tracksDistance}
+          tracksHours={tracksHours}
+          hours={mountedHours}
+          onHoursChange={setMountedHours}
         />
         <MountEventFields
           vin={vin}
@@ -139,6 +162,10 @@ export default function AddPastPeriodDrawer({
           odometerLabel={odometerLabel}
           odometer={dismountedOdometer}
           onOdometerChange={setDismountedOdometer}
+          tracksDistance={tracksDistance}
+          tracksHours={tracksHours}
+          hours={dismountedHours}
+          onHoursChange={setDismountedHours}
         />
         <Field id="past-notes" label={t('tireList.notes')}>
           <Input id="past-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />

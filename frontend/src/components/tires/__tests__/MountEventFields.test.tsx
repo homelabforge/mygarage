@@ -9,6 +9,10 @@ const useNearestMock = vi.fn()
 vi.mock('../../../hooks/queries/useOdometerRecords', () => ({
   useNearestOdometer: (vin: string, date: string) => useNearestMock(vin, date),
 }))
+const useNearestHoursMock = vi.fn()
+vi.mock('../../../hooks/queries/useHoursRecords', () => ({
+  useNearestHours: (vin: string, date: string) => useNearestHoursMock(vin, date),
+}))
 
 // Imperial, the default for every new account: 100000 km does not survive
 // mile rounding (100000 / 1.609344 -> 62137 mi, and back -> 99999.808128 km),
@@ -104,6 +108,44 @@ describe('MountEventFields', () => {
     renderField()
     expect(screen.queryByTestId('mount-suggestion')).toBeNull()
     expect(screen.queryByText('tireList.suggestionNone')).toBeNull()
+  })
+})
+
+describe('MountEventFields on the hour meter (#217)', () => {
+  beforeEach(() => {
+    // Reset, not just re-stubbed: the suite above has already called the
+    // odometer hook, and the first case here says it was never asked.
+    useNearestMock.mockReset()
+    useNearestMock.mockReturnValue({ data: undefined, isSuccess: false })
+    useNearestHoursMock.mockReset()
+    useNearestHoursMock.mockReturnValue({ data: undefined, isSuccess: false })
+  })
+
+  it('shows only the hour meter on an hours-only vehicle', () => {
+    renderField({ tracksDistance: false, tracksHours: true, hours: '', onHoursChange: vi.fn() })
+    expect(document.getElementById('mount-odometer')).toBeNull()
+    expect(document.getElementById('mount-hours')).not.toBeNull()
+    expect(useNearestMock).not.toHaveBeenCalled()
+  })
+
+  it('offers the nearest hours reading and seeds it with one decimal on Use', () => {
+    useNearestHoursMock.mockReturnValue({
+      data: { date: '2026-04-01', engine_hours: '100.0', source: 'manual', days_away: -9 },
+      isSuccess: true,
+    })
+    const onHoursChange = vi.fn()
+    renderField({ tracksDistance: false, tracksHours: true, hours: '', onHoursChange })
+    expect(useNearestHoursMock).toHaveBeenCalledWith(VIN, '2026-04-10')
+    expect(screen.getByTestId('mount-hours-suggestion')).toHaveTextContent('tireList.suggestionHours')
+    fireEvent.click(screen.getByText('tireList.suggestionUse'))
+    // One decimal, the way the meter reads: '100.0', not '100'.
+    expect(onHoursChange).toHaveBeenCalledWith('100.0')
+  })
+
+  it('a dual vehicle gets both fields', () => {
+    renderField({ tracksHours: true, hours: '', onHoursChange: vi.fn() })
+    expect(document.getElementById('mount-odometer')).not.toBeNull()
+    expect(document.getElementById('mount-hours')).not.toBeNull()
   })
 })
 
