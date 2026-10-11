@@ -15,7 +15,7 @@ vi.mock('../../services/api', () => ({
   setApiAuthMode: vi.fn(),
 }))
 
-import api from '../../services/api'
+import api, { setApiAuthMode } from '../../services/api'
 
 const mockedApi = vi.mocked(api)
 const ADMIN = { id: 1, username: 'alice', is_admin: true }
@@ -61,6 +61,24 @@ describe('AuthContext follows the sign-in mode', () => {
     screen.getByRole('button').click()
 
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('none:false:false'))
+  })
+
+  it('a refresh that finds sign-in on tells the api before it asks for the user', async () => {
+    serve('none')
+    render(<AuthProvider><Probe /></AuthProvider>)
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('none:false:false'))
+
+    serve('local')
+    screen.getByRole('button').click()
+
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('local:true:true'))
+    // In none mode a 401 doesn't send anyone to /login, so /auth/me has to go out in the new mode.
+    const setMode = vi.mocked(setApiAuthMode).mock
+    const localAt = setMode.calls.findIndex(([mode]) => mode === 'local')
+    const meAt = mockedApi.get.mock.calls.findIndex(([url]) => url === '/auth/me')
+    expect(localAt).toBeGreaterThanOrEqual(0)
+    expect(meAt).toBeGreaterThanOrEqual(0)
+    expect(setMode.invocationCallOrder[localAt]).toBeLessThan(mockedApi.get.mock.invocationCallOrder[meAt])
   })
 
   it('a visibility refresh that finds another mode reloads the user', async () => {

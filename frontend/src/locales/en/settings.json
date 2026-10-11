@@ -170,7 +170,7 @@
     "confirmNone": "Turn off sign-in? Anyone who can reach MyGarage will be able to see and change everything.",
     "confirmLocal": "Switch to local sign-in? Everyone signs in with a username and password, and accounts that only use SSO can't sign in.",
     "confirmLocalFirstUser": "Switch to local sign-in? Nobody has an account yet, so the first person to register becomes the admin. Register yours right away.",
-    "confirmOidc": "Switch to SSO? Sign in through {{provider}} right after. If that fails, an account with a password can still sign in.",
+    "confirmOidc": "Switch to SSO? Sign in through {{provider}} right after. If that fails, only an account with a password can still sign in.",
     "confirmOidcFirstUser": "Switch to SSO? Sign in through {{provider}} right after. Nobody has an account yet, so if SSO fails, register one from the sign-in page. The first account becomes the admin.",
     "oidcNotReady": "Save an issuer URL and client ID under Configure OIDC first.",
     "switched": "Sign-in mode changed",

@@ -24,6 +24,13 @@ type OIDCAdminConfig = components['schemas']['OIDCAdminConfig']
 
 const AUTH_MODES: AuthMode[] = ['none', 'local', 'oidc']
 
+// Left out, the stored Callback URL stays as it is. Re-sending it would put an
+// old pin through today's rule and fail a switch over an unrelated field.
+function ssoPayload(config: OIDCAdminConfig, enabled: boolean): Omit<OIDCAdminConfig, 'redirect_uri'> {
+  const { redirect_uri: _pin, ...sso } = config
+  return { ...sso, enabled }
+}
+
 /**
  * Settings > System: what applies to the whole instance, for admins, plus the
  * few cards that are each person's own (mobile quick entry, fuel defaults,
@@ -58,7 +65,9 @@ export default function SettingsSystemTab() {
   const [serverDefaultZone, setServerDefaultZone] = useState<string | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const [authenticatorDetected, setAuthenticatorDetected] = useState<boolean | null>(null)
-  const [authEverEnabled, setAuthEverEnabled] = useState(false)
+  // null until /auth/users/count answers, and if it never does. The confirms read
+  // unknown as "accounts exist", so nobody gets told to register on a full instance.
+  const [authEverEnabled, setAuthEverEnabled] = useState<boolean | null>(null)
   const [dashboardStats, setDashboardStats] = useState<DashboardResponse | null>(null)
 
   // Modal state
@@ -162,7 +171,7 @@ export default function SettingsSystemTab() {
         const countData = countResponse.data
         setAuthEverEnabled(countData.has_users === true)
       } catch {
-        setAuthEverEnabled(false)
+        setAuthEverEnabled(null)
       }
       return { mode, oidc }
     } catch {
@@ -279,33 +288,32 @@ export default function SettingsSystemTab() {
   }
 
   const switchAuthMode = async (target: AuthMode): Promise<void> => {
+    const from = savedAuthMode
+    // Only a switch into or out of SSO touches the SSO config, so only those need it.
+    if ((target === 'oidc' || from === 'oidc') && !oidcConfig) return
+    const provider = oidcConfig?.provider_name || 'SSO'
     const message =
       target === 'none'
         ? t('auth.confirmNone')
         : target === 'local'
-          ? authEverEnabled
-            ? t('auth.confirmLocal')
-            : t('auth.confirmLocalFirstUser')
-          : authEverEnabled
-            ? t('auth.confirmOidc', { provider: oidcConfig?.provider_name || 'SSO' })
-            : t('auth.confirmOidcFirstUser', { provider: oidcConfig?.provider_name || 'SSO' })
+          ? authEverEnabled === false
+            ? t('auth.confirmLocalFirstUser')
+            : t('auth.confirmLocal')
+          : authEverEnabled === false
+            ? t('auth.confirmOidcFirstUser', { provider })
+            : t('auth.confirmOidc', { provider })
     if (!confirm(message)) return
-
-    if (!oidcConfig) return
-    // Left out, the stored Callback URL stays as it is. Re-sending it would put an
-    // old pin through today's rule and fail a switch over an unrelated field.
-    const { redirect_uri: _pin, ...sso } = oidcConfig
 
     setSwitchingMode(true)
     try {
       // Into SSO: turn OIDC on before the mode, or the mode points at nothing.
       // Out of SSO: the mode goes first, so a failure can't leave SSO mode with SSO off.
-      if (target === 'oidc') {
-        await api.put('/auth/oidc/config/admin', { ...sso, enabled: true })
+      if (target === 'oidc' && oidcConfig) {
+        await api.put('/auth/oidc/config/admin', ssoPayload(oidcConfig, true))
       }
       await api.post('/settings/batch', { settings: { auth_mode: target } })
-      if (target !== 'oidc' && sso.enabled) {
-        await api.put('/auth/oidc/config/admin', { ...sso, enabled: false })
+      if (target !== 'oidc' && oidcConfig?.enabled) {
+        await api.put('/auth/oidc/config/admin', ssoPayload(oidcConfig, false))
       }
     } catch {
       // The re-read below says what actually landed.
@@ -316,12 +324,18 @@ export default function SettingsSystemTab() {
     await refreshUser()
     const now = await loadSettings()
     setSwitchingMode(false)
+    // Turning sign-in on from none: this browser has no session in the new mode, so
+    // /settings 401s and the page is off to /login. A real failure still shows the error box.
+    if (now === null && from === 'none' && target !== 'none') return
     if (now?.mode !== target) toast.error(t('auth.switchFailed'))
     else if (target !== 'oidc' && now.oidc?.enabled) toast.warning(t('auth.ssoStillOn'))
     else toast.success(t('auth.switched'))
   }
 
   const oidcReady = Boolean(oidcConfig?.issuer_url && oidcConfig?.client_id)
+  // Going into or out of SSO writes the SSO config, so those switches wait for it.
+  // None to local and back doesn't, so a failed config read can't block turning sign-in off.
+  const needsOidcConfig = shownMode === 'oidc' || savedAuthMode === 'oidc'
 
   const modeLabel = (mode: AuthMode): string =>
     mode === 'none' ? t('auth.none') : mode === 'local' ? t('auth.local') : t('auth.oidc')
@@ -739,7 +753,8 @@ export default function SettingsSystemTab() {
                   <div className="flex-1">
                     <strong className="text-sm font-semibold text-garage-text">{t('auth.localTitle')}</strong>
                     <p className="mt-1 text-sm text-garage-text">
-                      {authEverEnabled
+                      {/* Unknown gets the plain description: it claims nothing either way. */}
+                      {authEverEnabled === true
                         ? t('auth.localConfigured')
                         : t('auth.localDescription')}
                     </p>
@@ -783,12 +798,18 @@ export default function SettingsSystemTab() {
 
           {shownMode !== savedAuthMode && (
             <div className="mt-4 space-y-2">
-              {shownMode === 'oidc' && !oidcReady && (
+              {shownMode === 'oidc' && oidcConfig !== null && !oidcReady && (
                 <p className="text-xs text-garage-text-muted">{t('auth.oidcNotReady')}</p>
               )}
+              {/* Until /settings loads, the saved mode is only a placeholder. */}
               <button
                 onClick={() => void switchAuthMode(shownMode)}
-                disabled={switchingMode || oidcConfig === null || (shownMode === 'oidc' && !oidcReady)}
+                disabled={
+                  switchingMode ||
+                  loadedFormData === null ||
+                  (needsOidcConfig && oidcConfig === null) ||
+                  (shownMode === 'oidc' && !oidcReady)
+                }
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
               >
                 {shownMode === 'none'

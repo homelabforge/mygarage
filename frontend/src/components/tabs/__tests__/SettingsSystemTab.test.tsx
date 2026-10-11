@@ -106,6 +106,20 @@ function serveSettings(mode: string, hasUsers = true, oidc: Partial<Record<strin
   })
 }
 
+// Makes one endpoint fail on top of whatever serveSettings set up.
+function failGet(failing: string, error: unknown = new Error('down')): void {
+  const served = mockedApi.get.getMockImplementation()
+  if (!served) throw new Error('call serveSettings first')
+  mockedApi.get.mockImplementation((url: string) => (url === failing ? Promise.reject(error) : served(url)))
+}
+
+// The Switch button renders before the settings land, disabled. Clicking it then does nothing.
+async function clickWhenEnabled(name: string): Promise<void> {
+  const button = await screen.findByRole('button', { name })
+  await waitFor(() => expect(button).toBeEnabled())
+  fireEvent.click(button)
+}
+
 describe('SettingsSystemTab: a save sends only what changed', () => {
   const OIDC_ADMIN = {
     enabled: false, provider_name: '', issuer_url: '', client_id: '', client_secret: '',
@@ -266,7 +280,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     serveSettings('none')
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToOidc' }))
+    await clickWhenEnabled('auth.switchToOidc')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(confirmSpy).toHaveBeenCalledWith('auth.confirmOidc|Rauthy')
@@ -285,7 +299,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     serveSettings('oidc')
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToLocal' }))
+    await clickWhenEnabled('auth.switchToLocal')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(mockedApi.post.mock.invocationCallOrder[0]).toBeLessThan(
@@ -302,7 +316,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     serveSettings('local')
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToNone' }))
+    await clickWhenEnabled('auth.switchToNone')
 
     expect(confirmSpy).toHaveBeenCalledWith('auth.confirmNone')
     expect(mockedApi.post).not.toHaveBeenCalled()
@@ -314,15 +328,16 @@ describe('SettingsSystemTab: switching the mode', () => {
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
 
-    expect(await screen.findByRole('button', { name: 'auth.switchToOidc' })).toBeDisabled()
-    expect(screen.getByText('auth.oidcNotReady')).toBeInTheDocument()
+    // The hint needs the loaded config, so the button below is off for the right reason.
+    expect(await screen.findByText('auth.oidcNotReady')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'auth.switchToOidc' })).toBeDisabled()
   })
 
   it('warns that the first person to register becomes admin when nobody has an account', async () => {
     serveSettings('none', false)
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToLocal' }))
+    await clickWhenEnabled('auth.switchToLocal')
 
     await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith('auth.confirmLocalFirstUser'))
   })
@@ -331,7 +346,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     serveSettings('none', false)
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToOidc' }))
+    await clickWhenEnabled('auth.switchToOidc')
 
     await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith('auth.confirmOidcFirstUser|Rauthy'))
   })
@@ -341,7 +356,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     serveSettings('local')
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToNone' }))
+    await clickWhenEnabled('auth.switchToNone')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: /auth\.local/ })).toHaveTextContent('auth.current')
@@ -357,7 +372,7 @@ describe('SettingsSystemTab: switching the mode', () => {
     mockedApi.put.mockRejectedValue(new Error('boom'))
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToLocal' }))
+    await clickWhenEnabled('auth.switchToLocal')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: /auth\.local/ })).toHaveTextContent('auth.current')
@@ -373,11 +388,74 @@ describe('SettingsSystemTab: switching the mode', () => {
     })
     renderTab()
     fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToNone' }))
+    await clickWhenEnabled('auth.switchToNone')
 
     await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: /auth\.none/ })).toHaveTextContent('auth.current')
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('auth.switched'))
+  })
+
+  it('turning sign-in on from none reports no failure when /settings then 401s', async () => {
+    serveSettings('none')
+    // What AuthContext does for real: the refresh flips the api to local mode,
+    // and this browser has no session there, so the admin-only GET 401s.
+    refreshUser.mockImplementationOnce(async () => {
+      failGet('/settings', { isAxiosError: true, response: { status: 401 } })
+    })
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
+    await clickWhenEnabled('auth.switchToLocal')
+
+    expect(await screen.findByText('common:errors.generic')).toBeInTheDocument()
+    expect(mockedApi.post).toHaveBeenCalledWith('/settings/batch', { settings: { auth_mode: 'local' } })
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('with the SSO config unreadable, sign-in can still be turned off', async () => {
+    serveSettings('local')
+    failGet('/auth/oidc/config/admin')
+    renderTab()
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/auth/oidc/config/admin'))
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
+    await clickWhenEnabled('auth.switchToNone')
+
+    await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
+    expect(mockedApi.post).toHaveBeenCalledWith('/settings/batch', { settings: { auth_mode: 'none' } })
+    expect(mockedApi.put).not.toHaveBeenCalled()
+  })
+
+  it('with the SSO config unreadable, the OIDC tab does not point at a dead Configure button', async () => {
+    serveSettings('none')
+    failGet('/auth/oidc/config/admin')
+    renderTab()
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/auth/oidc/config/admin'))
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+
+    expect(await screen.findByRole('button', { name: 'auth.configureOIDC' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'auth.switchToOidc' })).toBeDisabled()
+    expect(screen.queryByText('auth.oidcNotReady')).not.toBeInTheDocument()
+  })
+
+  it('an account count that never loaded gets the SSO confirm that assumes accounts exist', async () => {
+    serveSettings('none')
+    failGet('/auth/users/count')
+    renderTab()
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/auth/users/count'))
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    await clickWhenEnabled('auth.switchToOidc')
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith('auth.confirmOidc|Rauthy'))
+  })
+
+  it('a failed settings load leaves Switch off, since the saved mode is unknown', async () => {
+    serveSettings('oidc')
+    failGet('/settings')
+    renderTab()
+    await screen.findByText('common:errors.generic')
+    fireEvent.click(screen.getByRole('button', { name: /auth\.local/ }))
+
+    expect(await screen.findByRole('button', { name: 'auth.switchToLocal' })).toBeDisabled()
   })
 })
 
