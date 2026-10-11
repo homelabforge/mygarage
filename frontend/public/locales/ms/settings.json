@@ -146,7 +146,6 @@
   "auth": {
     "title": "Mod Pengesahan",
     "description": "Konfigurasikan cara pengguna mengakses dan mengesahkan identiti dengan MyGarage.",
-    "restartWarning": "⚠️ Memerlukan aplikasi dimulakan semula untuk berkuat kuasa.",
     "none": "Tiada",
     "local": "Setempat",
     "oidc": "OIDC",

@@ -18,6 +18,7 @@ vi.mock('@/contexts/AuthContext', () => ({
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+import { familyService } from '@/services/familyService'
 import FamilyManagementModal from '../FamilyManagementModal'
 
 beforeEach(() => {
@@ -37,5 +38,21 @@ describe('FamilyManagementModal outside multi-user mode', () => {
 
     await waitFor(() => expect(get).toHaveBeenCalledWith('/auth/users/count'))
     await waitFor(() => expect(get).toHaveBeenCalledWith('/auth/users'))
+  })
+
+  it('lists nobody and asks for no accounts when has_users says nobody exists', async () => {
+    get.mockImplementation((url: string) => {
+      if (url === '/settings') return Promise.resolve({ data: { settings: [{ key: 'auth_mode', value: 'none' }] } })
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: false } })
+      if (url === '/auth/users') return Promise.resolve({ data: [] })
+      return Promise.resolve({ data: {} })
+    })
+
+    render(<FamilyManagementModal isOpen onClose={vi.fn()} />)
+
+    // Members load after the accounts branch, so once they're asked for, that branch is done.
+    await waitFor(() => expect(vi.mocked(familyService.getDashboardMembers)).toHaveBeenCalled())
+    expect(get).toHaveBeenCalledWith('/auth/users/count')
+    expect(get).not.toHaveBeenCalledWith('/auth/users')
   })
 })

@@ -124,7 +124,6 @@
   "auth": {
     "title": "Mode d'authentification",
     "description": "Configurez la façon dont les utilisateurs accèdent à MyGarage et s'y authentifient.",
-    "restartWarning": "⚠️ Nécessite un redémarrage de l'application pour prendre effet.",
     "none": "Aucune",
     "local": "Local",
     "oidc": "OIDC",

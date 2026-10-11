@@ -1,6 +1,6 @@
-import { useEffect, type ComponentProps } from 'react'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { useEffect } from 'react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 
@@ -14,8 +14,10 @@ vi.mock('@/services/api', () => ({
 
 // See SettingsNotificationsTab.test.tsx: the global setup mock returns a fresh
 // `t` per call, which re-fires load effects forever. Pin a stable reference.
+// A `provider` option is appended, so a test can check the name made it in.
 vi.mock('react-i18next', () => {
-  const stableT = (key: string) => key
+  const stableT = (key: string, opts?: Record<string, unknown>) =>
+    opts && 'provider' in opts ? `${key}|${String(opts.provider)}` : key
   return {
     useTranslation: () => ({
       t: stableT,
@@ -26,36 +28,31 @@ vi.mock('react-i18next', () => {
   }
 })
 
+const refreshUser = vi.hoisted(() => vi.fn())
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     isAuthenticated: true,
     isAdmin: true,
     user: { unit_preference: 'imperial', language: 'en', currency_code: 'USD' },
-    refreshUser: vi.fn(),
+    refreshUser,
     refreshPublicSettings: vi.fn(),
     householdTimeZone: null,
   }),
 }))
 
-// The OIDC modal renders nothing here; its last props are kept so a test can
-// read the form it was handed and edit through its onFormDataChange.
-const oidcModal = vi.hoisted(() => ({ props: null as OIDCModalProps | null }))
+// SettingsContext uses `loading` and hands its id back to success/error.
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), loading: vi.fn(() => 'id') },
+}))
 
 // Children with their own data fetching; not under test here.
 vi.mock('@/components/ArchivedVehiclesList', () => ({ default: () => null }))
-vi.mock('@/components/modals/OIDCModal', () => ({
-  default: (props: OIDCModalProps) => {
-    oidcModal.props = props
-    return null
-  },
-}))
+vi.mock('@/components/modals/OIDCModal', () => ({ default: () => null }))
 vi.mock('@/components/modals/FamilyManagementModal', () => ({ default: () => null }))
 
-import type OIDCModal from '@/components/modals/OIDCModal'
 import api from '@/services/api'
+import { toast } from 'sonner'
 import SettingsSystemTab from '../SettingsSystemTab'
-
-type OIDCModalProps = ComponentProps<typeof OIDCModal>
 
 const mockedApi = vi.mocked(api)
 
@@ -78,109 +75,36 @@ function renderTab(): void {
   )
 }
 
-/**
- * The OIDC admin PUT is a separate call from the settings batch that carries
- * auth_mode, and saving is auto-triggered by any edit on this tab. If the PUT
- * fires unconditionally, an unrelated edit is coupled to it — the exact shape
- * of the bug that stranded auth_mode at "none".
- */
-describe('SettingsSystemTab — OIDC config is only written when OIDC changed', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockedApi.get.mockImplementation((url: string) => {
-      if (url === '/settings') {
-        return Promise.resolve({
-          data: {
-            settings: [
-              { key: 'timezone', value: 'UTC' },
-              { key: 'auth_mode', value: 'oidc' },
-            ],
-          },
-        })
-      }
-      if (url === '/auth/oidc/config/admin') {
-        return Promise.resolve({
-          data: {
-            enabled: true,
-            provider_name: 'Rauthy',
-            issuer_url: 'https://auth.example.com',
-            client_id: 'client-id',
-            client_secret: '********',
-            scopes: 'openid profile email',
-            auto_create_users: true,
-            admin_group: '',
-            username_claim: 'preferred_username',
-            email_claim: 'email',
-            full_name_claim: 'name',
-          },
-        })
-      }
-      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
-      if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
-      if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
-      return Promise.resolve({ data: {} })
-    })
-    mockedApi.post.mockResolvedValue({ data: { settings: [], total: 0 } })
-    mockedApi.put.mockResolvedValue({ data: {} })
+function serveSettings(mode: string, hasUsers = true, oidc: Partial<Record<string, unknown>> = {}): void {
+  mockedApi.get.mockImplementation((url: string) => {
+    if (url === '/settings') {
+      return Promise.resolve({
+        data: { settings: [{ key: 'timezone', value: 'UTC' }, { key: 'auth_mode', value: mode }] },
+      })
+    }
+    if (url === '/auth/oidc/config/admin') {
+      return Promise.resolve({
+        data: {
+          enabled: mode === 'oidc',
+          provider_name: 'Rauthy',
+          issuer_url: 'https://auth.example.com',
+          client_id: 'client-id',
+          client_secret: '********',
+          redirect_uri: '',
+          scopes: 'openid profile email',
+          auto_create_users: true,
+          admin_group: '',
+          username_claim: 'preferred_username',
+          email_claim: 'email',
+          full_name_claim: 'name',
+          ...oidc,
+        },
+      })
+    }
+    if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: hasUsers } })
+    return Promise.resolve({ data: {} })
   })
-
-  it('does not PUT the OIDC config when only a non-OIDC setting changed', async () => {
-    renderTab()
-    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/settings'))
-
-    const timezone = await screen.findByDisplayValue('UTC')
-    fireEvent.change(timezone, { target: { value: 'America/Chicago' } })
-
-    await waitFor(
-      () =>
-        expect(mockedApi.post).toHaveBeenCalledWith(
-          '/settings/batch',
-          expect.objectContaining({
-            settings: expect.objectContaining({ timezone: 'America/Chicago' }),
-          }),
-        ),
-      { timeout: 3000 },
-    )
-
-    expect(mockedApi.put).not.toHaveBeenCalledWith(
-      '/auth/oidc/config/admin',
-      expect.anything(),
-    )
-  })
-
-  it('PUTs the OIDC config before the settings batch when the auth mode changes', async () => {
-    renderTab()
-    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/settings'))
-
-    // Switching modes sets oidc_enabled alongside auth_mode, so OIDC is dirty.
-    fireEvent.click(await screen.findByText('auth.local'))
-
-    await waitFor(
-      () =>
-        expect(mockedApi.put).toHaveBeenCalledWith(
-          '/auth/oidc/config/admin',
-          expect.objectContaining({ enabled: false }),
-        ),
-      { timeout: 3000 },
-    )
-    await waitFor(
-      () =>
-        expect(mockedApi.post).toHaveBeenCalledWith(
-          '/settings/batch',
-          expect.objectContaining({
-            settings: expect.objectContaining({ auth_mode: 'local' }),
-          }),
-        ),
-      { timeout: 3000 },
-    )
-
-    // Config must land before the mode flips, or OIDC is enabled against
-    // settings that never saved.
-    const putOrder = mockedApi.put.mock.invocationCallOrder[0]
-    const postOrder = mockedApi.post.mock.invocationCallOrder[0]
-    expect(putOrder).toBeLessThan(postOrder)
-  })
-})
+}
 
 describe('SettingsSystemTab: a save sends only what changed', () => {
   const OIDC_ADMIN = {
@@ -280,84 +204,6 @@ describe('SettingsSystemTab: a save sends only what changed', () => {
   })
 })
 
-describe('SettingsSystemTab: the SSO Callback URL round-trips through the admin config', () => {
-  const PINNED = 'https://pinned.example.com/api/auth/oidc/callback'
-  const OIDC_ADMIN = {
-    enabled: true, provider_name: 'Rauthy', issuer_url: 'https://auth.example.com',
-    client_id: 'client-id', client_secret: '********', redirect_uri: PINNED,
-    scopes: 'openid profile email', auto_create_users: true, admin_group: '',
-    username_claim: 'preferred_username', email_claim: 'email', full_name_claim: 'name',
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    oidcModal.props = null
-    mockedApi.get.mockImplementation((url: string) => {
-      if (url === '/settings') {
-        return Promise.resolve({
-          data: {
-            settings: [
-              { key: 'auth_mode', value: 'oidc' },
-              // A stale copy, so the test can tell which source the form read.
-              { key: 'oidc_redirect_uri', value: 'https://stale.example.com/api/auth/oidc/callback' },
-            ],
-          },
-        })
-      }
-      if (url === '/auth/oidc/config/admin') return Promise.resolve({ data: OIDC_ADMIN })
-      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
-      if (url === '/dashboard') return Promise.resolve({ data: { total_vehicles: 0 } })
-      if (url === '/health') return Promise.resolve({ data: { authenticator_detected: false } })
-      return Promise.resolve({ data: {} })
-    })
-    mockedApi.post.mockResolvedValue({ data: { settings: [], total: 0 } })
-    mockedApi.put.mockResolvedValue({ data: {} })
-  })
-
-  const loadedModal = async (): Promise<OIDCModalProps> => {
-    renderTab()
-    await waitFor(() => expect(oidcModal.props?.formData.oidc_provider_name).toBe('Rauthy'))
-    return oidcModal.props as OIDCModalProps
-  }
-
-  it('hands the modal the redirect_uri from the admin GET', async () => {
-    const props = await loadedModal()
-
-    expect(props.formData.oidc_redirect_uri).toBe(PINNED)
-  })
-
-  it('PUTs an edited Callback URL as redirect_uri', async () => {
-    const edited = 'https://garage.example.com/api/auth/oidc/callback'
-    const props = await loadedModal()
-
-    act(() => props.onFormDataChange({ oidc_redirect_uri: edited }))
-
-    await waitFor(
-      () =>
-        expect(mockedApi.put).toHaveBeenCalledWith(
-          '/auth/oidc/config/admin',
-          expect.objectContaining({ redirect_uri: edited }),
-        ),
-      { timeout: 3000 },
-    )
-  })
-
-  it('sends the pinned value back with any other OIDC edit, so a save never clears it', async () => {
-    const props = await loadedModal()
-
-    act(() => props.onFormDataChange({ oidc_provider_name: 'Keycloak' }))
-
-    await waitFor(
-      () =>
-        expect(mockedApi.put).toHaveBeenCalledWith(
-          '/auth/oidc/config/admin',
-          expect.objectContaining({ provider_name: 'Keycloak', redirect_uri: PINNED }),
-        ),
-      { timeout: 3000 },
-    )
-  })
-})
-
 describe('SettingsSystemTab: the local-auth card reads has_users', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -374,5 +220,166 @@ describe('SettingsSystemTab: the local-auth card reads has_users', () => {
     renderTab()
 
     expect(await screen.findByText('auth.localConfigured')).toBeInTheDocument()
+  })
+})
+
+describe('SettingsSystemTab: the auth tabs only show a panel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('clicking OIDC on a none-mode instance writes nothing, even after the auto-save delay', async () => {
+    serveSettings('none')
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+
+    expect(await screen.findByRole('button', { name: 'auth.configureOIDC' })).toBeInTheDocument()
+    // Past the 1 s auto-save, the same real wait this file's failed-load test uses.
+    await new Promise((resolve) => setTimeout(resolve, 1300))
+    expect(mockedApi.post).not.toHaveBeenCalled()
+    expect(mockedApi.put).not.toHaveBeenCalled()
+  })
+
+  it('marks the saved mode as current', async () => {
+    serveSettings('local')
+    renderTab()
+
+    const local = await screen.findByRole('button', { name: /auth\.local/ })
+    expect(local).toHaveTextContent('auth.current')
+  })
+})
+
+describe('SettingsSystemTab: switching the mode', () => {
+  let confirmSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedApi.put.mockResolvedValue({ data: {} })
+    mockedApi.post.mockResolvedValue({ data: {} })
+    confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+  })
+  afterEach(() => {
+    confirmSpy.mockRestore()
+  })
+
+  it('to SSO: enables OIDC first, then saves the mode, then re-reads auth', async () => {
+    serveSettings('none')
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToOidc' }))
+
+    await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
+    expect(confirmSpy).toHaveBeenCalledWith('auth.confirmOidc|Rauthy')
+    const putOrder = mockedApi.put.mock.invocationCallOrder[0]
+    const postOrder = mockedApi.post.mock.invocationCallOrder[0]
+    expect(putOrder).toBeLessThan(postOrder)
+    expect(mockedApi.put).toHaveBeenCalledWith(
+      '/auth/oidc/config/admin',
+      expect.objectContaining({ enabled: true, issuer_url: 'https://auth.example.com' }),
+    )
+    expect(mockedApi.post).toHaveBeenCalledWith('/settings/batch', { settings: { auth_mode: 'oidc' } })
+    expect(mockedApi.put.mock.calls[0][1]).not.toHaveProperty('redirect_uri')
+  })
+
+  it('away from SSO: saves the mode first, then turns OIDC off', async () => {
+    serveSettings('oidc')
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToLocal' }))
+
+    await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
+    expect(mockedApi.post.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedApi.put.mock.invocationCallOrder[0],
+    )
+    expect(mockedApi.put).toHaveBeenCalledWith(
+      '/auth/oidc/config/admin',
+      expect.objectContaining({ enabled: false }),
+    )
+  })
+
+  it('a cancelled confirm writes nothing', async () => {
+    confirmSpy.mockReturnValue(false)
+    serveSettings('local')
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToNone' }))
+
+    expect(confirmSpy).toHaveBeenCalledWith('auth.confirmNone')
+    expect(mockedApi.post).not.toHaveBeenCalled()
+    expect(mockedApi.put).not.toHaveBeenCalled()
+  })
+
+  it('Switch to SSO stays off until an issuer URL and client ID are saved', async () => {
+    serveSettings('none', true, { issuer_url: '', client_id: '' })
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+
+    expect(await screen.findByRole('button', { name: 'auth.switchToOidc' })).toBeDisabled()
+    expect(screen.getByText('auth.oidcNotReady')).toBeInTheDocument()
+  })
+
+  it('warns that the first person to register becomes admin when nobody has an account', async () => {
+    serveSettings('none', false)
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToLocal' }))
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith('auth.confirmLocalFirstUser'))
+  })
+
+  it('a mode write that never landed: shows the saved mode and still re-reads auth', async () => {
+    mockedApi.post.mockRejectedValue(new Error('boom'))
+    serveSettings('local')
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToNone' }))
+
+    await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('button', { name: /auth\.local/ })).toHaveTextContent('auth.current')
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
+  })
+
+  it('the mode landed but turning OIDC off failed: shows the new mode and says SSO is still on', async () => {
+    serveSettings('oidc')
+    mockedApi.post.mockImplementation(() => {
+      serveSettings('local', true, { enabled: true }) // mode is local, SSO still on
+      return Promise.resolve({ data: {} })
+    })
+    mockedApi.put.mockRejectedValue(new Error('boom'))
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.local/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToLocal' }))
+
+    await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('button', { name: /auth\.local/ })).toHaveTextContent('auth.current')
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('auth.ssoStillOn'))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('the mode write committed but its reply was lost: shows the new mode and re-reads auth', async () => {
+    serveSettings('local')
+    mockedApi.post.mockImplementation(() => {
+      serveSettings('none') // committed server-side
+      return Promise.reject(new Error('network'))
+    })
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.none/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToNone' }))
+
+    await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('button', { name: /auth\.none/ })).toHaveTextContent('auth.current')
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('auth.switched'))
+  })
+})
+
+describe('SettingsSystemTab: the local panel reads has_users (S1a-13 control)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('describes local auth when nobody has registered yet', async () => {
+    serveSettings('local', false)
+    renderTab()
+
+    expect(await screen.findByText('auth.localDescription')).toBeInTheDocument()
+    expect(screen.queryByText('auth.localConfigured')).not.toBeInTheDocument()
   })
 })

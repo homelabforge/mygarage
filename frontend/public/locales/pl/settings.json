@@ -123,7 +123,6 @@
   "auth": {
     "title": "Tryb uwierzytelniania",
     "description": "Skonfiguruj sposób dostępu i uwierzytelniania użytkowników w MyGarage.",
-    "restartWarning": "⚠️ Aby zmiany odniosły skutek, wymagane jest ponowne uruchomienie aplikacji.",
     "none": "Brak",
     "local": "Lokalne",
     "oidc": "OIDC",

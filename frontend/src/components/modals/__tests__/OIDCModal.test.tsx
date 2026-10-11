@@ -3,23 +3,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { render } from '../../../__tests__/test-utils'
 import { withBase } from '@/utils/basePath'
+import api from '@/services/api'
+import { toast } from 'sonner'
 import formsEn from '../../../locales/en/forms.json'
 import OIDCModal from '../OIDCModal'
 
-type OIDCFormData = ComponentProps<typeof OIDCModal>['formData']
+vi.mock('@/services/api', () => ({ default: { put: vi.fn(), post: vi.fn(), get: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-const FORM: OIDCFormData = {
-  oidc_provider_name: 'Rauthy',
-  oidc_issuer_url: 'https://auth.example.com',
-  oidc_client_id: 'client-id',
-  oidc_client_secret: '********',
-  oidc_redirect_uri: '',
-  oidc_scopes: 'openid profile email',
-  oidc_auto_create_users: 'true',
-  oidc_admin_group: '',
-  oidc_username_claim: 'preferred_username',
-  oidc_email_claim: 'email',
-  oidc_full_name_claim: 'name',
+type OIDCAdminConfig = ComponentProps<typeof OIDCModal>['config']
+
+const CONFIG: OIDCAdminConfig = {
+  enabled: false,
+  provider_name: 'Rauthy',
+  issuer_url: 'https://auth.example.com',
+  client_id: 'client-id',
+  client_secret: '********',
+  redirect_uri: '',
+  scopes: 'openid profile email',
+  auto_create_users: true,
+  admin_group: '',
+  username_claim: 'preferred_username',
+  email_claim: 'email',
+  full_name_claim: 'name',
 }
 
 const PINNED = 'https://garage.example.com/api/auth/oidc/callback'
@@ -27,17 +33,12 @@ const PINNED = 'https://garage.example.com/api/auth/oidc/callback'
 const COMPUTED = `${window.location.origin}${withBase('/api/auth/oidc/callback')}`
 
 const writeText = vi.fn()
-const onFormDataChange = vi.fn()
+const onSaved = vi.fn()
+const onClose = vi.fn()
+const mockedPut = vi.mocked(api.put)
 
-function renderModal(formData: Partial<OIDCFormData> = {}): void {
-  render(
-    <OIDCModal
-      isOpen
-      onClose={vi.fn()}
-      formData={{ ...FORM, ...formData }}
-      onFormDataChange={onFormDataChange}
-    />,
-  )
+function renderModal(config: Partial<OIDCAdminConfig> = {}): void {
+  render(<OIDCModal isOpen onClose={onClose} config={{ ...CONFIG, ...config }} onSaved={onSaved} />)
 }
 
 const callbackInput = (): HTMLInputElement =>
@@ -50,23 +51,24 @@ describe('OIDCModal: the Callback URL pins oidc_redirect_uri', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
   })
 
-  it('is an editable field that reports what is typed', () => {
+  it('is an editable field that holds what is typed, and writes nothing on its own', () => {
     renderModal()
 
     expect(callbackInput()).not.toHaveAttribute('readonly')
     fireEvent.change(callbackInput(), { target: { value: PINNED } })
-    expect(onFormDataChange).toHaveBeenCalledWith({ oidc_redirect_uri: PINNED })
+    expect(callbackInput().value).toBe(PINNED)
+    expect(mockedPut).not.toHaveBeenCalled()
   })
 
   it('shows the pinned value, with the computed callback as its placeholder', () => {
-    renderModal({ oidc_redirect_uri: PINNED })
+    renderModal({ redirect_uri: PINNED })
 
     expect(callbackInput().value).toBe(PINNED)
     expect(callbackInput().placeholder).toBe(COMPUTED)
   })
 
   it('Copy copies the pinned URL when one is set', async () => {
-    renderModal({ oidc_redirect_uri: `  ${PINNED}  ` })
+    renderModal({ redirect_uri: `  ${PINNED}  ` })
 
     fireEvent.click(screen.getByRole('button', { name: 'modal.oidc.copy' }))
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(PINNED))
@@ -78,6 +80,53 @@ describe('OIDCModal: the Callback URL pins oidc_redirect_uri', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'modal.oidc.copy' }))
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(COMPUTED))
+  })
+})
+
+describe('OIDCModal: Save writes the draft once', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('PUTs the edited config, then reports and closes', async () => {
+    mockedPut.mockResolvedValue({ data: {} })
+    renderModal()
+    fireEvent.change(callbackInput(), { target: { value: PINNED } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'modal.oidc.save' }))
+
+    await waitFor(() =>
+      expect(mockedPut).toHaveBeenCalledWith('/auth/oidc/config/admin', { ...CONFIG, redirect_uri: PINNED }),
+    )
+    expect(onSaved).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(toast.success).toHaveBeenCalledWith('modal.oidc.saved')
+  })
+
+  it('keeps the draft and shows the field error when the Callback URL is refused', async () => {
+    mockedPut.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 422, data: { detail: 'redirect_uri must be an absolute http(s) URL with no #fragment' } },
+    })
+    renderModal()
+    fireEvent.change(callbackInput(), { target: { value: 'https:/half' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'modal.oidc.save' }))
+
+    expect(await screen.findByText('modal.oidc.redirectUriInvalid')).toBeInTheDocument()
+    expect(callbackInput().value).toBe('https:/half')
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('Cancel throws the draft away', () => {
+    renderModal()
+    fireEvent.change(callbackInput(), { target: { value: PINNED } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'modal.oidc.cancel' }))
+
+    expect(mockedPut).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
 

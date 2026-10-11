@@ -146,7 +146,6 @@
   "auth": {
     "title": "Authentication Mode",
     "description": "Configure how users access and authenticate with MyGarage.",
-    "restartWarning": "⚠️ Requires application restart to take effect.",
     "none": "None",
     "local": "Local",
     "oidc": "OIDC",
@@ -162,7 +161,20 @@
     "oidcTitle": "OpenID Connect (OIDC) Authentication",
     "oidcConfigured": "Configured with {{provider}}",
     "oidcDescription": "Configure single sign-on with your identity provider (Authentik, Keycloak, Auth0, Okta, etc.)",
-    "configureOIDC": "Configure OIDC"
+    "configureOIDC": "Configure OIDC",
+    "appliesImmediately": "A change applies as soon as you switch.",
+    "current": "Current",
+    "switchToNone": "Turn off sign-in",
+    "switchToLocal": "Switch to local sign-in",
+    "switchToOidc": "Switch to SSO",
+    "confirmNone": "Turn off sign-in? Anyone who can reach MyGarage will be able to see and change everything.",
+    "confirmLocal": "Switch to local sign-in? Everyone signs in with a username and password, and accounts that only use SSO can't sign in.",
+    "confirmLocalFirstUser": "Switch to local sign-in? Nobody has an account yet, so the first person to register becomes the admin. Register yours right away.",
+    "confirmOidc": "Switch to SSO? Sign in through {{provider}} right after. If that fails, an account with a password can still sign in.",
+    "oidcNotReady": "Save an issuer URL and client ID under Configure OIDC first.",
+    "switched": "Sign-in mode changed",
+    "ssoStillOn": "Sign-in mode changed, but SSO couldn't be turned off, so the sign-in page still offers it. Switch to SSO and back to retry.",
+    "switchFailed": "Couldn't change the sign-in mode"
   },
   "archive": {
     "title": "Archived Vehicles",
