@@ -38,6 +38,19 @@ from app.utils.odometer_sync import remove_synced_odometer, sync_odometer_from_r
 
 logger = logging.getLogger(__name__)
 
+# An update leaves these alone on an existing line item unless it sends them
+# (Ruling 11): omitted keeps the value, null clears it. The form sends null
+# for every blank field.
+_KEPT_WHEN_OMITTED = (
+    "category",
+    "cost",
+    "notes",
+    "is_inspection",
+    "inspection_result",
+    "inspection_severity",
+    "triggered_by_inspection_id",
+)
+
 
 def service_visit_full_load_options():
     """Loader options for building a full ServiceVisitResponse: line_items →
@@ -334,9 +347,10 @@ class ServiceVisitService:
         # Pass 2: Resolve triggered_by_inspection_id and create reminders
         for item_data, line_item in created_items:
             if item_data.triggered_by_inspection_id is not None:
-                ref = item_data.triggered_by_inspection_id
+                # Every item here is new, so only a temp id can link; a
+                # positive id would point outside this visit.
                 line_item.triggered_by_inspection_id = temp_id_map.get(
-                    ref, ref if ref > 0 else None
+                    item_data.triggered_by_inspection_id
                 )
 
             if item_data.reminder:
@@ -429,12 +443,22 @@ class ServiceVisitService:
                 existing = {item.id: item for item in visit.line_items}
                 submitted_ids = {item.id for item in submitted if item.id}
 
-                # Reject unknown IDs — fail fast
+                # Reject unknown IDs, and links to items outside this visit,
+                # before anything is written. A link to an item this PUT drops
+                # is fine: deleting that item clears the link.
                 for item_data in submitted:
                     if item_data.id is not None and item_data.id not in existing:
                         raise HTTPException(
                             status_code=400,
                             detail=f"Line item {item_data.id} does not belong to this service visit",
+                        )
+                    # None when omitted, so an existing item's link is only
+                    # checked when it's sent. Negative refs are temp ids.
+                    ref = item_data.triggered_by_inspection_id
+                    if ref is not None and ref > 0 and ref not in existing:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Line item {ref} does not belong to this service visit",
                         )
 
                 # Delete removed items (ON DELETE SET NULL detaches reminders)
@@ -444,28 +468,27 @@ class ServiceVisitService:
 
                 # Pass 1: Update existing, create new — build temp_id map
                 temp_id_map: dict[int, int] = {}
+                effective_cats: list[str] = []
                 new_items: list[tuple[ServiceLineItemUpdate, ServiceLineItem]] = []
 
                 for item_data in submitted:
                     if item_data.id and item_data.id in existing:
-                        # Update in place
                         row = existing[item_data.id]
-                        row.category = item_data.category
                         row.description = item_data.description
-                        if "maintenance_type" in item_data.model_fields_set:
+                        sent = item_data.model_fields_set
+                        for field in _KEPT_WHEN_OMITTED:
+                            if field in sent:
+                                setattr(row, field, getattr(item_data, field))
+                        if "maintenance_type" in sent:
                             row.maintenance_type = item_data.maintenance_type
                         elif row.maintenance_type is None:
                             row.maintenance_type = resolve_type(None, item_data.description)
-                        row.cost = item_data.cost
-                        row.notes = item_data.notes
-                        row.is_inspection = item_data.is_inspection
-                        row.inspection_result = item_data.inspection_result
-                        row.inspection_severity = item_data.inspection_severity
-                        row.triggered_by_inspection_id = item_data.triggered_by_inspection_id
                         # Omitted = keep (G1-D5): an API client that leaves the
                         # field out must not delete the item's usages. [] clears.
-                        if "supplies_used" in item_data.model_fields_set:
+                        if "supplies_used" in sent:
                             await self._sync_line_item_supplies(row, item_data.supplies_used, vin)
+                        if row.category:
+                            effective_cats.append(row.category)
                         # reminder ignored for existing items
                     else:
                         # New item added during edit
@@ -488,10 +511,13 @@ class ServiceVisitService:
                         if item_data.temp_id is not None:
                             temp_id_map[item_data.temp_id] = line_item.id
                         new_items.append((item_data, line_item))
+                        if line_item.category:
+                            effective_cats.append(line_item.category)
 
                 # Pass 2: Resolve triggered_by_inspection_id for new items
                 for item_data, line_item in new_items:
                     if item_data.triggered_by_inspection_id is not None:
+                        # A positive ref was checked against this visit above.
                         ref = item_data.triggered_by_inspection_id
                         line_item.triggered_by_inspection_id = temp_id_map.get(
                             ref, ref if ref > 0 else None
@@ -502,10 +528,9 @@ class ServiceVisitService:
                             self.db, vin, line_item, visit, item_data.reminder
                         )
 
-                # Auto-derive service_category from submitted items
-                submitted_cats = [i.category for i in submitted if i.category]
-                if submitted_cats:
-                    visit.service_category = submitted_cats[0]
+                # From the items' categories as they are now, kept or sent.
+                if effective_cats:
+                    visit.service_category = effective_cats[0]
 
             # Always recompute total_cost from line items + supplies + fees (denormalized cache)
             await self.db.flush()
@@ -873,8 +898,14 @@ class ServiceVisitService:
         Required before any read of those properties (async: unloaded
         relationships raise, they never lazy-load). populate_existing=True
         overwrites already-loaded identity-map collections so a just-mutated
-        visit reflects its new usages (R1-F1).
+        visit reflects its new usages (R1-F1). It also reverts any attribute
+        set since the last flush, since sessions don't autoflush, so it flushes
+        first.
         """
+        # populate_existing overwrites loaded objects with the database's
+        # values, and sessions don't autoflush: flush first, or an attribute set
+        # since the last flush (a new item's temp-id link) silently reverts.
+        await self.db.flush()
         result = await self.db.execute(
             select(ServiceVisit)
             .options(

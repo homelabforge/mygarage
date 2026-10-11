@@ -14721,6 +14721,11 @@ export interface components {
          * ServiceLineItemUpdate
          * @description Line item shape for diff-based visit updates.
          *
+         *     An existing item (`id` set) keeps any field the request leaves out. A
+         *     nullable field sent as null is cleared; `is_inspection` takes false, not
+         *     null; `supplies_used` takes [] to remove every usage (null is refused);
+         *     `description` is always required.
+         *
          *     temp_id: negative int assigned by client for new items so other new items
          *     can reference them via triggered_by_inspection_id before flush.
          */

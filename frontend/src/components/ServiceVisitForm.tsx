@@ -551,21 +551,23 @@ export default function ServiceVisitForm({
 
       if (isEdit && visit) {
         // Diff-based update — include id for existing items, temp_id for new
+        // Null, not undefined, for a blank field: an existing line item keeps
+        // any field the request leaves out, so a cleared one is sent as null.
         const updateLineItems: ServiceLineItemUpdate[] = formData.line_items.map((item) => ({
           id: item.id,
           temp_id: item.id ? undefined : item.tempId,
           description: item.description,
-          category: (item.category as ServiceCategory) || undefined,
+          category: (item.category as ServiceCategory) || null,
           // Sent even when blank (null): the backend keeps a blank as
           // "classify from the description" only for a NEW item; for an
           // existing item an explicit value, blank included, is the edit.
           maintenance_type: item.maintenance_type || null,
-          cost: item.cost,
-          notes: item.notes || undefined,
+          cost: item.cost ?? null,
+          notes: item.notes || null,
           is_inspection: item.is_inspection,
-          inspection_result: item.inspection_result || undefined,
-          inspection_severity: item.inspection_severity || undefined,
-          triggered_by_inspection_id: item.triggered_by_inspection_id,
+          inspection_result: item.inspection_result || null,
+          inspection_severity: item.inspection_severity || null,
+          triggered_by_inspection_id: item.triggered_by_inspection_id ?? null,
           // Always sent, even []: that's how a supply the user removed gets
           // cleared. Leaving the field out would keep the item's old usages.
           supplies_used: mapSuppliesUsedForSubmit(item),
