@@ -47,6 +47,7 @@ from app.utils.household_time import (
 )
 from app.utils.render_context import render_context_for_vehicle, render_context_for_vehicle_row
 from app.utils.unit_adapters import adapter_for
+from app.utils.usage_tracking import tracks_distance
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,9 @@ async def check_odometer_milestones() -> None:
             ).all()
 
             for vehicle, owner in rows:
+                # No odometer, no odometer milestones, whatever rows a tire wrote (#217).
+                if not tracks_distance(vehicle.usage_unit, vehicle.secondary_usage_enabled):
+                    continue
                 try:
                     # Get latest odometer_km
                     odo_result = await db.execute(

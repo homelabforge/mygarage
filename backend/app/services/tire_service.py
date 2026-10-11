@@ -243,6 +243,11 @@ def refuse_untracked(
         raise HTTPException(status_code=422, detail=UNTRACKED_HOURS)
 
 
+def past_retirement(retired_on: dt.date) -> str:
+    """The 409 for a period that runs past the tire's retirement (G4-71)."""
+    return f"This tire was retired on {retired_on.isoformat()}. A mount period can't run past that."
+
+
 async def apply_mount_moves(
     db: AsyncSession,
     *,
@@ -1661,7 +1666,8 @@ class TireService:
         judged like any other write, with only the new period touched, so it
         is refused when it contradicts the tire's existing periods or readings.
         It never changes where the tire is now, and it is allowed on a retired
-        tire: that tire's history is still its history.
+        tire: that tire's history is still its history. It just can't end
+        after the retirement.
         """
         from app.services.auth import get_vehicle_or_403
 
@@ -1675,6 +1681,8 @@ class TireService:
             hours=(data.mounted_hours, data.dismounted_hours),
         )
         tire = await self._get_tire_for_update(vin, tire_id)
+        if tire.retired_on is not None and data.dismounted_on > tire.retired_on:
+            raise HTTPException(status_code=409, detail=past_retirement(tire.retired_on))
 
         before = fault_map(tire.mount_periods or [], tire.readings or [], axes=axes.captured)
         period = TireMountPeriod(
@@ -1788,6 +1796,11 @@ class TireService:
         # date stays as the record of what the migration knew.
         if fields.get("mounted_on") is not None and period.is_assumed:
             period.is_assumed = False
+        if tire.retired_on is not None and any(
+            day is not None and day > tire.retired_on
+            for day in (period.mounted_on, period.dismounted_on)
+        ):
+            raise HTTPException(status_code=409, detail=past_retirement(tire.retired_on))
 
         await self.db.flush()
         self.refuse_contradictions(tire, before, {period.id}, axes)

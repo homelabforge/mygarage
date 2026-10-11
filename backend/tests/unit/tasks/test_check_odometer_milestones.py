@@ -65,6 +65,11 @@ _EXPECTED_OWNER_MESSAGE = f"Congratulations! {_OWNED_NICKNAME} has reached 60,00
 _EXPECTED_OWNER_STAMP = Decimal("96560.64")
 _EXPECTED_DEFAULT_MESSAGE = f"Congratulations! {_OWNERLESS_NICKNAME} has reached 100,000 km!"
 
+_HOURS_VIN = f"{_VIN_PREFIX}03"
+_HOURS_NICKNAME = "Milestone Units Hours"
+_DUAL_VIN = f"{_VIN_PREFIX}04"
+_DUAL_NICKNAME = "Milestone Units Dual"
+
 
 class _PassthroughSessionContext:
     """Hand `check_odometer_milestones` the fixture's open session as-is.
@@ -217,6 +222,55 @@ async def seeded_vehicles(db_session: AsyncSession):
         await db_session.execute(delete(Vehicle).where(Vehicle.vin.like(f"{_VIN_PREFIX}%")))
         await db_session.execute(delete(User).where(User.username == _OWNER_USERNAME))
         await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def hours_vehicles(db_session: AsyncSession, seeded_vehicles):
+    """An hours-only ATV carrying a junk odometer row from before #217, and an
+    hours vehicle that also tracks distance, both ownerless at 100,000 km.
+
+    Rides on `seeded_vehicles`, whose teardown removes every row under this
+    module's VIN prefix.
+    """
+    db_session.add_all(
+        [
+            Vehicle(
+                vin=_HOURS_VIN,
+                user_id=None,
+                nickname=_HOURS_NICKNAME,
+                vehicle_type="ATV",
+                usage_unit="hours",
+            ),
+            Vehicle(
+                vin=_DUAL_VIN,
+                user_id=None,
+                nickname=_DUAL_NICKNAME,
+                vehicle_type="ATV",
+                usage_unit="hours",
+                secondary_usage_enabled=True,
+            ),
+        ]
+    )
+    await db_session.commit()
+    db_session.add_all(
+        [
+            OdometerRecord(
+                vin=_HOURS_VIN,
+                date=_READING_DATE,
+                odometer_km=_ODOMETER_KM,
+                source="tire_mount",
+                notes="[AUTO-SYNC from tire_mount #1]",
+            ),
+            OdometerRecord(
+                vin=_DUAL_VIN,
+                date=_READING_DATE,
+                odometer_km=_ODOMETER_KM,
+                source="manual",
+            ),
+        ]
+    )
+    await db_session.commit()
+    yield
 
 
 def _messages_for(mock: AsyncMock, nickname: str) -> list[str]:
@@ -419,3 +473,32 @@ class TestCheckOdometerMilestonesUnits:
         await check_odometer_milestones()
 
         assert _messages_for(mock, _OWNERLESS_NICKNAME) == []
+
+    async def test_an_hours_only_vehicle_gets_no_distance_milestone(
+        self,
+        patch_session,
+        enable_milestones,
+        metric_instance_default,
+        hours_vehicles,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """#217: a junk odometer row on an ATV with no odometer congratulated it on 100,000 km."""
+        mock = AsyncMock(return_value={"ntfy": True})
+        monkeypatch.setattr(
+            "app.services.notifications.dispatcher.NotificationDispatcher.dispatch", mock
+        )
+
+        await check_odometer_milestones()
+
+        assert _messages_for(mock, _HOURS_NICKNAME) == []
+        db_session.expire_all()
+        vehicle = await db_session.get(Vehicle, _HOURS_VIN)
+        assert vehicle is not None
+        assert vehicle.last_milestone_notified_km is None
+        # The controls: a distance vehicle, and an hours vehicle that also
+        # tracks distance, still get theirs in the same sweep.
+        assert _messages_for(mock, _OWNERLESS_NICKNAME) == [_EXPECTED_DEFAULT_MESSAGE]
+        assert _messages_for(mock, _DUAL_NICKNAME) == [
+            f"Congratulations! {_DUAL_NICKNAME} has reached 100,000 km!"
+        ]
