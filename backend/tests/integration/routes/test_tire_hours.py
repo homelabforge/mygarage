@@ -167,7 +167,7 @@ class TestTheHoursVehicle:
         assert "below its mount hours of 150.0 hr" in refused.json()["detail"]
         assert len(await _hours_rows(db_session, vin)) == 1
 
-    async def test_hours_are_checked_at_the_stored_tenth(
+    async def test_mount_echoes_the_stored_tenth_and_refuses_a_lower_dismount(
         self, client, auth_headers, db_session, make_vehicle
     ):
         # The mount echoes the tenth it stored (100.2), and a dismount below that is

@@ -1,6 +1,6 @@
 """Reminder notifications in the vehicle owner's units, and the R2 boundary.
 
-`_build_reminder_message` owns three kinds of content and treats each
+`_build_reminder_message` owns four kinds of content and treats each
 differently on purpose:
 
 1. `due_mileage_km` is canonical km and is RENDERED in the reader's distance
@@ -8,13 +8,14 @@ differently on purpose:
 2. `due_hours` is dimensionless (R6). It is not a `UnitSet` quantity,
    `adapter_for(..., "hours")` raises `KeyError` by design, and it keeps a
    fixed `"hr"` formatter outside the unit system.
-3. `notes` is stored prose and is passed through BYTE-IDENTICALLY.
+3. A low-tread reminder's `tread_depth_mm` and `tread_threshold_mm` are
+   canonical mm and are RENDERED in the reader's tread unit, as one
+   `Tread:` line.
+4. `notes` is stored prose and is passed through BYTE-IDENTICALLY.
 
-Point 3 is the one worth pinning. A low-tread reminder's tread is not in
-`notes`: it renders from the reminder's own `tread_depth_mm` and
-`tread_threshold_mm` columns in the reader's tread unit. Stored notes still
-pass through untouched, since rewriting them would save display text that
-goes stale when the reader changes units.
+Point 4 is the one worth pinning. Rewriting stored notes would save display
+text that goes stale when the reader changes units, so a low-tread
+reminder's notes come back untouched beside its rendered tread line.
 
 `test_low_tread_notes_pass_through_byte_identically` therefore pins the
 boundary in both directions, so a later change cannot quietly start rewriting
@@ -67,9 +68,10 @@ _DUE_MILEAGE_KM = Decimal("50000")
 # A settings row a test's "other connection" writes and removes again.
 _PROBE_KEY = "reminder_units_probe"
 
-# Exactly the shape `tire_service._sync_low_tread_reminder` writes: metric
-# prose, both quantities inside `notes`, and no `due_mileage_km` at all.
-_LOW_TREAD_NOTES = "Tread 3.0 mm ≤ threshold 4.0 mm. ~12000 km remaining."
+# The sentence the low-tread sync used to write, with a person's edit on the
+# end. Migration 127 only clears exact copies, so this one stays, and it's
+# prose that must pass through untouched.
+_LOW_TREAD_NOTES = "Tread 3.0 mm ≤ threshold 4.0 mm. ~12000 km remaining. Rotated in spring."
 
 
 @pytest.mark.unit
@@ -129,12 +131,10 @@ class TestBuildReminderMessageUnits:
     def test_low_tread_notes_pass_through_byte_identically(self) -> None:
         """The R2 boundary, pinned in both directions.
 
-        A low-tread reminder carries its tread depth and projected distance
-        only in stored prose, with `due_mileage_km=None`. Both readers must
-        get that prose back unaltered -- the imperial reader included, whose
-        message keeps `3.0 mm` and `~12000 km` verbatim. This test fails the
-        moment anything starts rewriting stored notes, which is the outcome
-        it exists to prevent.
+        The tread line renders from the reminder's own columns in each
+        reader's unit, but the notes are a person's prose and come back
+        byte-identical, so the imperial message still reads `3.0 mm` and
+        `~12000 km` in them.
         """
         reminder = Reminder(
             vin=_OWNED_VIN,
@@ -144,19 +144,20 @@ class TestBuildReminderMessageUnits:
             due_mileage_km=None,
             notes=_LOW_TREAD_NOTES,
             status="pending",
+            source="low_tread",
+            tread_depth_mm=Decimal("3.00"),
+            tread_threshold_mm=Decimal("4.00"),
         )
 
         metric_message = _build_reminder_message(reminder, _METRIC_CTX)
         imperial_message = _build_reminder_message(reminder, _IMPERIAL_CTX)
 
-        expected = (
-            "Service reminder: Tire tread low (FL)\n"
-            "Due date: 2020-01-01\n"
-            f"Notes: {_LOW_TREAD_NOTES}"
-        )
-        assert metric_message == expected
-        assert imperial_message == expected
+        head = "Service reminder: Tire tread low (FL)\nDue date: 2020-01-01\n"
+        notes = f"Notes: {_LOW_TREAD_NOTES}"
+        assert metric_message == f"{head}Tread: 3.00 mm (minimum 4.00 mm)\n{notes}"
+        assert imperial_message == f"{head}Tread: 4/32 in (minimum 5/32 in)\n{notes}"
         # The notes segment, isolated: byte-identical to what was stored.
+        assert metric_message.split("Notes: ", 1)[1] == _LOW_TREAD_NOTES
         assert imperial_message.split("Notes: ", 1)[1] == _LOW_TREAD_NOTES
         # And specifically not converted in place.
         assert "3.0 mm" in imperial_message
