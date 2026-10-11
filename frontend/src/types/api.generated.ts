@@ -9241,7 +9241,7 @@ export interface components {
             description: string;
             /**
              * Estimated Severity Level
-             * @description Severity level: 1=minor, 2=moderate, 3=serious, 4=critical
+             * @description Severity level: 2=moderate, 3=serious, 4=critical (1=minor is unused by the bundled data)
              * @default 2
              */
             estimated_severity_level: number;
