@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/api/auth/users/count` returns `has_users` only
 - The SSO setup guide is no longer Authentik-specific, and lists Rauthy as a supported provider
 - An API update to a service visit that leaves out a line item's `supplies_used` keeps its supply usages; send `[]` to remove them
+- An API update to a service visit also keeps the other line-item fields it leaves out; send null to clear one
+- The API refuses (400) a line-item link to an item outside its visit when updating a visit or adding a line item, and ignores one when creating a visit
+- Manufacturer-specific codes (P1xxx, B1xxx and so on) no longer show one maker's meaning; the DTC card says the code is manufacturer-specific
 
 ### Fixed
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
@@ -28,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A reminder on a vehicle that has barely moved no longer breaks the reminder list, the due counts, the calendar or the daily reminder notifications
 - A tire with almost no tread wear between two readings no longer breaks the tire list, tire analytics or saving a tire; it shows the distance left without a wear date
 - A LiveLink HTTPS upload with a timestamp offset is stored in UTC instead of being dropped (PostgreSQL) or shifted (SQLite)
+- Diagnostic trouble code descriptions were wrong from about P0126 on (P0300 read "Cylinder 12 Contribution"); the built-in list is now 9,341 correct generic codes, fresh installs get it, and existing installs are corrected on upgrade
+- Codes recorded before the list was installed get their description
+- The DTC tab's Cleared and All filters show cleared codes, and the category follows your language
+- A repair added together with the inspection that found it stays linked to it when the visit is saved
+- Editing a visit to add a failed inspection and point an existing repair at it no longer fails to save, and a repair moved off an inspection you remove keeps its new link
+- Drivvo imports read a Mileage column in the unit you pick, and find columns whatever their capitalisation
+- A Fuelio, Drivvo or Tesla import with a row that has more cells than headers no longer fails the whole file
+- A JSON backup row with a missing or bad date says so instead of "could not be imported"
+- A window sticker delete that fails keeps the sticker file
 
 ### Security
 - POI provider settings are admin-only
