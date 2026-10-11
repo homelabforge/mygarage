@@ -31,6 +31,7 @@ from app.schemas.tire import (
     TireMountRequest,
     TireReadingCreate,
     TireReadingResponse,
+    TireReadingUpdate,
     TireResponse,
     TireRotationRequest,
     TireUpdate,
@@ -665,6 +666,20 @@ def _same_measure(a: Decimal | None, b: Decimal | None) -> bool:
     column compare equal. An unknown on either side is never the same.
     """
     return a is not None and b is not None and Decimal(a) == Decimal(b)
+
+
+def _newest_measure(readings: Sequence[TireReading], measure: str) -> Decimal | None:
+    """The newest reading's value of `measure`, skipping readings that do not take it.
+
+    Newest by (recorded_at, id), the order `add_reading` and `delete_reading`
+    already define "newest" by. `measure` is `"tread_depth_mm"` or
+    `"pressure_kpa"`; None when no reading measures it.
+    """
+    for reading in sorted(readings, key=lambda r: (r.recorded_at, r.id or 0), reverse=True):
+        value = getattr(reading, measure)
+        if value is not None:
+            return value
+    return None
 
 
 def _low_tread_title(position: str | None) -> str:
@@ -1864,10 +1879,10 @@ class TireService:
     ) -> None:
         """Delete one reading, for one logged with the wrong odometer or date.
 
-        The repair for a mistyped reading. The writers that validate the mount
-        history refuse any write that leaves a period contradicting a reading,
-        and that refusal names the reading to delete; there is no reading edit,
-        so the user re-logs the correct one.
+        For a reading that should not exist at all. The writers that validate
+        the mount history refuse any write that leaves a period contradicting a
+        reading, and that refusal names the reading; a reading with a wrong
+        value is corrected in place by `update_reading` instead.
 
         No vehicle write lock, for the reason `add_reading` takes none: it
         writes no position, retirement or period row, which is what the lock
@@ -1952,6 +1967,115 @@ class TireService:
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    async def update_reading(
+        self,
+        vin: str,
+        tire_id: int,
+        reading_id: int,
+        data: TireReadingUpdate,
+        current_user: User | None,
+    ) -> TireResponse:
+        """Correct one reading in place: its date, tread, pressure, odometer or notes.
+
+        Before this the only repair for a mistyped reading was to delete it and
+        log it again, and a reading logged without an odometer could never be
+        given one. A reading leaves three things behind, and each follows the
+        corrected values:
+
+        1. The tire's tread and pressure, one measure at a time. When the tire
+           held the newest reading's value of a measure before the edit, it
+           holds the newest one after it, so a corrected newest reading moves
+           the tire, and a reading moved to an older date hands the tire back
+           to the one now newest. When the tire held something else (a value
+           set by Add or Edit, which carries no date), it is left alone,
+           unless the corrected reading is now the newest to take that
+           measure and its value or date changed: that is what logging it
+           fresh would have done (`add_reading`). A measure no reading takes
+           any more falls back to unknown, never to a stale value, as
+           `delete_reading` does.
+        2. The vehicle odometer record the reading published, when the date or
+           the odometer changed: withdrawn exactly as `delete_reading`
+           withdraws it, then published again for the corrected values.
+        3. The low-tread reminder, through `_reload_and_sync`.
+
+        Under the vehicle write lock, unlike `add_reading` and
+        `delete_reading`: neither of those validates against the mount history,
+        and this does. A correction that makes a period contradict this
+        reading when it did not before is refused with 409 by the same
+        incremental rule the period editor applies, with no period touched,
+        so an existing contradiction elsewhere never blocks it and a
+        correction that removes one goes through. A result that measures
+        nothing is a 422, the rule `TireReadingCreate` applies to a new one.
+        """
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        await lock_vehicle_for_write(self.db, vin)
+        format_distance = await self.request_distance_formatter(current_user, vin)
+        tire = await self._get_tire_for_update(vin, tire_id)
+        # Looked up inside THIS tire's readings, so another tire's or another
+        # vehicle's reading id is a 404, never an edit.
+        reading = next((r for r in tire.readings or [] if r.id == reading_id), None)
+        if reading is None:
+            raise HTTPException(status_code=404, detail="Reading not found")
+
+        fields = data.model_dump(exclude_unset=True)
+        readings = list(tire.readings or [])
+        before = fault_map(tire.mount_periods or [], readings)
+        measures = ("tread_depth_mm", "pressure_kpa")
+        newest_before = {m: _newest_measure(readings, m) for m in measures}
+        old_values = {m: getattr(reading, m) for m in measures}
+        old_day, old_odometer = reading.recorded_at, reading.odometer_km
+
+        # Withdrawn BEFORE the reading changes: `_withdraw_reading_odometer`
+        # identifies the record by the reading's date and odometer as they
+        # were published.
+        odometer_moves = any(
+            key in fields and fields[key] != value
+            for key, value in (("recorded_at", old_day), ("odometer_km", old_odometer))
+        )
+        if odometer_moves:
+            others = sorted(
+                (r for r in readings if r.id != reading.id),
+                key=lambda r: (r.recorded_at, r.id),
+                reverse=True,
+            )
+            await self._withdraw_reading_odometer(vin, tire.id, reading, others)
+
+        for key, value in fields.items():
+            setattr(reading, key, value)
+        if reading.tread_depth_mm is None and reading.pressure_kpa is None:
+            raise HTTPException(
+                status_code=422, detail="A reading needs a tread depth, a pressure, or both"
+            )
+
+        await self.db.flush()
+        self.refuse_contradictions(tire, before, set(), format_distance)
+
+        moved = reading.recorded_at != old_day
+        for measure in measures:
+            newest_after = _newest_measure(readings, measure)
+            if _same_measure(getattr(tire, measure), newest_before[measure]):
+                setattr(tire, measure, newest_after)
+                continue
+            value = getattr(reading, measure)
+            changed = moved or not _same_measure(value, old_values[measure])
+            is_newest = value is not None and all(
+                r.recorded_at <= reading.recorded_at
+                for r in readings
+                if r.id != reading.id and getattr(r, measure) is not None
+            )
+            if changed and is_newest:
+                setattr(tire, measure, value)
+
+        if odometer_moves:
+            await self._publish_odometer(
+                vin, reading.recorded_at, reading.odometer_km, ODOMETER_SOURCE_TIRE, tire.id
+            )
+        await self.db.commit()
+        return await self._reload_and_sync(tire.id, vin, format_distance)
 
     async def _withdraw_reading_odometer(
         self,

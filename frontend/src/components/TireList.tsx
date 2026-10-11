@@ -4,7 +4,14 @@ import { Plus, Trash2, Gauge, AlertTriangle, Pencil, RotateCw, Layers } from 'lu
 import { toast } from 'sonner'
 import { formatDateForDisplay, formatDateForInput } from '../utils/dateUtils'
 import { POSITIONS } from '../types/tire'
-import type { MountedPosition, Tire, TireMountPeriod, TirePosition, TireSet } from '../types/tire'
+import type {
+  MountedPosition,
+  Tire,
+  TireMountPeriod,
+  TirePosition,
+  TireReading,
+  TireSet,
+} from '../types/tire'
 import {
   useTires,
   useCreateTire,
@@ -30,6 +37,7 @@ import {
   type UnitFieldOrigin,
 } from '../utils/unitFormat'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { normaliseTreadEntry } from '../utils/treadEntry'
 import {
   Button,
   IconButton,
@@ -46,6 +54,8 @@ import ClickableCard from './ClickableCard'
 import AddPastPeriodDrawer from './tires/AddPastPeriodDrawer'
 import MountEventFields, { EMPTY_ODOMETER, type OdometerFieldValue } from './tires/MountEventFields'
 import MountPeriodEditor from './tires/MountPeriodEditor'
+import ReadingEditor from './tires/ReadingEditor'
+import TreadField from './tires/TreadField'
 import TireHistoryDrawer, { needsFix } from './tires/TireHistoryDrawer'
 
 /**
@@ -295,6 +305,7 @@ export default function TireList({ vin }: TireListProps) {
   const [readingTireId, setReadingTireId] = useState<number | null>(null)
   const [historyTireId, setHistoryTireId] = useState<number | null>(null)
   const [editingPeriod, setEditingPeriod] = useState<TireMountPeriod | null>(null)
+  const [editingReading, setEditingReading] = useState<TireReading | null>(null)
   const [addingPeriod, setAddingPeriod] = useState(false)
   const [form, setForm] = useState<TireFormState>(() => seedTireForm(null, 'FL'))
   const [readingForm, setReadingForm] = useState<ReadingFormState>(emptyReadingForm)
@@ -626,7 +637,7 @@ export default function TireList({ vin }: TireListProps) {
       size: form.size || null,
       dot_code: form.dot_code || null,
       tread_depth_mm: canonicalFromUnitField(
-        form.tread_depth_mm,
+        normaliseTreadEntry(form.tread_depth_mm, u.tread),
         form.origins.tread_depth_mm,
         u.tread
       ),
@@ -636,7 +647,11 @@ export default function TireList({ vin }: TireListProps) {
         u.pressure
       ),
       min_tread_mm:
-        canonicalFromUnitField(form.min_tread_mm, form.origins.min_tread_mm, u.tread) ??
+        canonicalFromUnitField(
+          normaliseTreadEntry(form.min_tread_mm, u.tread),
+          form.origins.min_tread_mm,
+          u.tread
+        ) ??
         DEFAULT_MIN_TREAD_MM,
       notes: form.notes || null,
     }
@@ -857,7 +872,7 @@ export default function TireList({ vin }: TireListProps) {
      * text that is not a number, so `null` here means "blank" and nothing else
      * reaches it. */
     const tread = canonicalFromUnitField(
-      readingForm.tread_depth_mm,
+      normaliseTreadEntry(readingForm.tread_depth_mm, u.tread),
       readingForm.origins.tread_depth_mm,
       u.tread
     )
@@ -1852,15 +1867,12 @@ export default function TireList({ vin }: TireListProps) {
                 onChange={(e) => setForm({ ...form, dot_code: e.target.value })}
               />
             </Field>
-            <Field id="tire-tread" label={treadLabel}>
-              <Input
-                id="tire-tread"
-                type="number"
-                step={u.tread.step}
-                value={form.tread_depth_mm}
-                onChange={(e) => setForm({ ...form, tread_depth_mm: e.target.value })}
-              />
-            </Field>
+            <TreadField
+              id="tire-tread"
+              label={treadLabel}
+              value={form.tread_depth_mm}
+              onChange={(next) => setForm((prev) => ({ ...prev, tread_depth_mm: next }))}
+            />
             <Field id="tire-pressure" label={pressureLabel}>
               <Input
                 id="tire-pressure"
@@ -1870,15 +1882,12 @@ export default function TireList({ vin }: TireListProps) {
                 onChange={(e) => setForm({ ...form, pressure_kpa: e.target.value })}
               />
             </Field>
-            <Field id="tire-min" label={minTreadLabel}>
-              <Input
-                id="tire-min"
-                type="number"
-                step={u.tread.step}
-                value={form.min_tread_mm}
-                onChange={(e) => setForm({ ...form, min_tread_mm: e.target.value })}
-              />
-            </Field>
+            <TreadField
+              id="tire-min"
+              label={minTreadLabel}
+              value={form.min_tread_mm}
+              onChange={(next) => setForm((prev) => ({ ...prev, min_tread_mm: next }))}
+            />
           </div>
         </div>
       </Drawer>
@@ -1916,15 +1925,12 @@ export default function TireList({ vin }: TireListProps) {
               onChange={(e) => setReadingForm({ ...readingForm, recorded_at: e.target.value })}
             />
           </Field>
-          <Field id="reading-tread" label={treadLabel}>
-            <Input
-              id="reading-tread"
-              type="number"
-              step={u.tread.step}
-              value={readingForm.tread_depth_mm}
-              onChange={(e) => setReadingForm({ ...readingForm, tread_depth_mm: e.target.value })}
-            />
-          </Field>
+          <TreadField
+            id="reading-tread"
+            label={treadLabel}
+            value={readingForm.tread_depth_mm}
+            onChange={(next) => setReadingForm((prev) => ({ ...prev, tread_depth_mm: next }))}
+          />
           <Field id="reading-pressure" label={pressureLabel}>
             <Input
               id="reading-pressure"
@@ -1952,10 +1958,12 @@ export default function TireList({ vin }: TireListProps) {
         open={historyTire !== null}
         onClose={() => {
           setEditingPeriod(null)
+          setEditingReading(null)
           setAddingPeriod(false)
           setHistoryTireId(null)
         }}
         onEditPeriod={setEditingPeriod}
+        onEditReading={setEditingReading}
         onAddPeriod={() => setAddingPeriod(true)}
         labelFor={labelFor}
       />
@@ -1968,6 +1976,18 @@ export default function TireList({ vin }: TireListProps) {
           period={editingPeriod}
           open
           onClose={() => setEditingPeriod(null)}
+          labelFor={labelFor}
+        />
+      )}
+
+      {historyTire && editingReading && (
+        <ReadingEditor
+          key={editingReading.id}
+          vin={vin}
+          tire={historyTire}
+          reading={editingReading}
+          open
+          onClose={() => setEditingReading(null)}
           labelFor={labelFor}
         />
       )}

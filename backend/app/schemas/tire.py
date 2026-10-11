@@ -209,6 +209,30 @@ class TireReadingCreate(BaseModel):
         return self
 
 
+class TireReadingUpdate(BaseModel):
+    """Correct one reading's date, measurements, odometer or notes.
+
+    Every field optional, `exclude_unset` semantics as in `MountPeriodUpdate`:
+    a key absent from the body is untouched, a key sent as null clears the
+    value. Two things this schema cannot judge alone. The date can never be
+    cleared: a reading with no day is not a reading. And the reading must
+    still measure something, tread or pressure, which is judged on the
+    RESULT in `TireService.update_reading`, because a body that clears the
+    tread is fine when the reading keeps its pressure. Forbid-extra, so a
+    misspelt key is a 422 rather than a silent no-op.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    recorded_at: date_type | None = None
+    odometer_km: Decimal | None = Field(None, ge=0)
+    tread_depth_mm: Decimal | None = Field(None, ge=0, le=30)
+    pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
+    notes: str | None = None
+
+    _no_null = reject_null("recorded_at")
+
+
 class TireReadingResponse(BaseModel):
     """Tire reading response."""
 

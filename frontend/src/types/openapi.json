@@ -21573,6 +21573,87 @@
         "title": "TireReadingResponse",
         "type": "object"
       },
+      "TireReadingUpdate": {
+        "additionalProperties": false,
+        "description": "Correct one reading's date, measurements, odometer or notes.\n\nEvery field optional, `exclude_unset` semantics as in `MountPeriodUpdate`:\na key absent from the body is untouched, a key sent as null clears the\nvalue. Two things this schema cannot judge alone. The date can never be\ncleared: a reading with no day is not a reading. And the reading must\nstill measure something, tread or pressure, which is judged on the\nRESULT in `TireService.update_reading`, because a body that clears the\ntread is fine when the reading keeps its pressure. Forbid-extra, so a\nmisspelt key is a 422 rather than a silent no-op.",
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Km"
+          },
+          "pressure_kpa": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Kpa"
+          },
+          "recorded_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded At"
+          },
+          "tread_depth_mm": {
+            "anyOf": [
+              {
+                "maximum": 30.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tread Depth Mm"
+          }
+        },
+        "title": "TireReadingUpdate",
+        "type": "object"
+      },
       "TireResponse": {
         "additionalProperties": false,
         "description": "A tire, with where it is now and what is known about its wear.\n\n`position` is RE-DECLARED here as nullable rather than inherited: it left\nthe write schema (D2c) but is still part of every read. Declaring it only\non the base would have made it required on writes; omitting it entirely\nwould have dropped it from responses. Neither is what a reader wants.\n\n`installed_date` is DERIVED, not stored (D12): the `mounted_on` of the\nearliest period **that has one**. When the earliest period is the migrated\nassumed one with a null start, this is null -- NOT the next known remount\ndate. A plain MIN(mounted_on) would skip the unknown and report a later\ndate as the installation date, which is worse than reporting nothing.",
@@ -50472,6 +50553,80 @@
           }
         ],
         "summary": "Delete Tire Reading",
+        "tags": [
+          "tires"
+        ]
+      },
+      "put": {
+        "description": "Correct one reading's date, tread, pressure, odometer or notes.\n\nAbsent keys are untouched; null clears a value, except the date, which a\nreading always has. 404 when the reading is not this tire's, 409 when the\ncorrection contradicts a mount period it did not contradict before, 422\nwhen the reading would measure neither tread nor pressure. The tire's\ntread and pressure, the odometer record the reading published and the\nlow-tread reminder follow the corrected values. Returns the whole tire.",
+        "operationId": "update_tire_reading_api_vehicles__vin__tires__tire_id__readings__reading_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tire_id",
+            "required": true,
+            "schema": {
+              "title": "Tire Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reading_id",
+            "required": true,
+            "schema": {
+              "title": "Reading Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireReadingUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Tire Reading",
         "tags": [
           "tires"
         ]

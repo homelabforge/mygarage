@@ -16,6 +16,7 @@ from app.schemas.tire import (
     TireListResponse,
     TireMountRequest,
     TireReadingCreate,
+    TireReadingUpdate,
     TireResponse,
     TireRotationRequest,
     TireSetCreate,
@@ -228,6 +229,27 @@ async def add_tire_reading(
 ) -> TireResponse:
     """Append a tread/pressure reading and refresh wear projection + reminders."""
     return await TireService(db).add_reading(vin, tire_id, data, current_user)
+
+
+@router.put("/{vin}/tires/{tire_id}/readings/{reading_id}", response_model=TireResponse)
+async def update_tire_reading(
+    vin: str,
+    tire_id: int,
+    reading_id: int,
+    data: TireReadingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+) -> TireResponse:
+    """Correct one reading's date, tread, pressure, odometer or notes.
+
+    Absent keys are untouched; null clears a value, except the date, which a
+    reading always has. 404 when the reading is not this tire's, 409 when the
+    correction contradicts a mount period it did not contradict before, 422
+    when the reading would measure neither tread nor pressure. The tire's
+    tread and pressure, the odometer record the reading published and the
+    low-tread reminder follow the corrected values. Returns the whole tire.
+    """
+    return await TireService(db).update_reading(vin, tire_id, reading_id, data, current_user)
 
 
 @router.delete("/{vin}/tires/{tire_id}/readings/{reading_id}", status_code=204)

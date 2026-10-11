@@ -680,7 +680,7 @@ class TestFaultMessages:
         assert self._message([p], [_reading(D(2026, 3, 1), "150000.00")]) == (
             "The FL period mounted 2026-01-01 contradicts the reading dated 2026-03-01 at "
             "150,000 km: the vehicle's odometer would have to run backwards. If that reading "
-            "is wrong, delete it from the tire's history."
+            "is wrong, correct or delete it in the tire's history."
         )
 
     def test_the_earliest_contradicting_reading_is_named_whatever_the_input_order(self):

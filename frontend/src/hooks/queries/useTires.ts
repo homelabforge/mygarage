@@ -17,6 +17,7 @@ import type {
   TireListResponse,
   TireMountRequest,
   TireReadingCreate,
+  TireReadingUpdate,
   TireRotationRequest,
   TireSet,
   TireSetCreate,
@@ -235,6 +236,33 @@ export function useAddTireReading(vin: string) {
     mutationFn: async ({ tireId, ...payload }: TireReadingCreate & { tireId: number }) => {
       const { data } = await api.post<Tire>(
         `/vehicles/${vin}/tires/${tireId}/readings`,
+        payload
+      )
+      return data
+    },
+    onSuccess: () => invalidateTireViews(queryClient, vin),
+  })
+}
+
+/**
+ * Correct one reading's date, measurements, odometer or notes.
+ *
+ * Absent keys are untouched and null clears a value, as the period editor's
+ * update does. The server answers with the whole tire; like a delete it may
+ * move the tire's tread and pressure, the odometer record the reading
+ * published and the low-tread reminder, so every view the helper covers is
+ * stale afterwards.
+ */
+export function useUpdateTireReading(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      tireId,
+      readingId,
+      ...payload
+    }: TireReadingUpdate & { tireId: number; readingId: number }) => {
+      const { data } = await api.put<Tire>(
+        `/vehicles/${vin}/tires/${tireId}/readings/${readingId}`,
         payload
       )
       return data

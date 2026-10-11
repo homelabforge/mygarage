@@ -161,7 +161,7 @@ class TestTheWayOutOfAMistypedReading:
         assert refused.json()["detail"] == (
             "The FL period mounted 2026-01-01 contradicts the reading dated 2026-03-01 at "
             "93,205.7 mi: the vehicle's odometer would have to run backwards. If that reading "
-            "is wrong, delete it from the tire's history."
+            "is wrong, correct or delete it in the tire's history."
         )
 
         gone = await client.delete(_url(vehicle, ids["FL"], typo), headers=auth_headers)

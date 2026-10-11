@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - SSO settings have a Callback URL field, so `oidc_redirect_uri` can be pinned from Settings
+- Tire readings can be edited from the tire's history, so a wrong value is fixed in place and an odometer can be added later
+- A tread gauge reading in inches (0.346) typed into a 32nds field is converted to 32nds (11/32)
 - Common Torque Pro extended PIDs, such as OBD adapter voltage and turbo boost, have readable names
 
 ### Changed

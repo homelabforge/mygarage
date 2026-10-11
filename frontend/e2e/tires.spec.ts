@@ -453,6 +453,82 @@ test.describe('Tires', () => {
     expect(tire.mount_periods[0].dismounted_on).not.toBeNull()
   })
 
+  test('a gauge decimal logged as 32nds reads as inches, and the reading is corrected in place', async ({
+    page,
+    request,
+  }) => {
+    const vin = await tireVehicle(request, 'reading-edit')
+    const admin = await adminSession()
+    // Pinned: the tread field means 32nds of an inch only on imperial.
+    const units = await request.put(`${API_BASE}/auth/me/units`, {
+      data: { unit_preference: 'imperial' },
+      headers: admin.headers,
+    })
+    expect(units.ok(), `pin to imperial failed: ${units.status()} ${await units.text()}`).toBeTruthy()
+
+    const created = await request.post(`${API_BASE}/vehicles/${vin}/tires/create-and-mount`, {
+      headers: admin.headers,
+      data: {
+        vin,
+        position: 'FL',
+        brand: 'E2E Gauge',
+        tread_depth_mm: 8,
+        mounted_on: '2026-01-01',
+        mounted_odometer_km: 10000,
+      },
+    })
+    expect(created.status(), await created.text()).toBe(201)
+    const tireId = (await created.json()).id
+
+    await openTires(page, vin)
+    const card = page.locator('.rounded-card', { hasText: 'E2E Gauge' }).first()
+    await expect(card).toBeVisible({ timeout: 10000 })
+
+    // The report: a digital gauge's 0.346 in typed into the 32nds field.
+    await card.getByRole('button', { name: 'Log Reading' }).click()
+    const logDrawer = page.getByRole('dialog', { name: /^Log Reading/ })
+    const tread = logDrawer.locator('#reading-tread')
+    await tread.fill('.346')
+    await tread.blur()
+    await expect(tread).toHaveValue('11')
+    await expect(logDrawer.getByText('Converted .346 in to 11/32 in.')).toBeVisible()
+    await logDrawer.getByRole('button', { name: 'Save' }).click()
+    await expect(logDrawer).toBeHidden({ timeout: 10000 })
+    await expect(card.getByText('11/32 in')).toBeVisible({ timeout: 10000 })
+
+    const tireNow = async () => {
+      const listed = await request.get(`${API_BASE}/vehicles/${vin}/tires`, { headers: admin.headers })
+      return (await listed.json()).tires.find((t: { id: number }) => t.id === tireId)
+    }
+    const logged = await tireNow()
+    expect(logged.readings).toHaveLength(1)
+    const readingId = logged.readings[0].id
+    // 11 x 25.4 / 32 = 8.73125 mm, stored at two places.
+    expect(Number(logged.readings[0].tread_depth_mm)).toBeCloseTo(8.73, 2)
+    expect(logged.readings[0].odometer_km).toBeNull()
+
+    // Corrected from the history, with an odometer added after the fact.
+    await card.getByText('E2E Gauge', { exact: true }).click()
+    const history = page.getByRole('dialog', { name: /^History/ })
+    await history.getByRole('button', { name: /^Edit the reading of / }).click()
+    const editor = page.getByRole('dialog', { name: /^Edit reading/ })
+    await expect(editor.locator('#reading-edit-tread')).toHaveValue('11')
+    await editor.locator('#reading-edit-tread').fill('10')
+    await editor.locator('#reading-edit-odometer').fill('7000')
+    await editor.getByRole('button', { name: 'Save' }).click()
+    await expect(editor).toBeHidden({ timeout: 10000 })
+    await expect(history.getByText('10/32 in')).toBeVisible({ timeout: 10000 })
+    await expect(history.getByText('7,000 mi')).toBeVisible()
+
+    const corrected = await tireNow()
+    // The same reading, edited rather than replaced.
+    expect(corrected.readings.map((r: { id: number }) => r.id)).toEqual([readingId])
+    // 10/32 in = 7.9375 mm; 7,000 mi = 11,265.408 km.
+    expect(Number(corrected.readings[0].tread_depth_mm)).toBeCloseTo(7.94, 2)
+    expect(Number(corrected.readings[0].odometer_km)).toBeCloseTo(11265.41, 2)
+    expect(Number(corrected.tread_depth_mm)).toBeCloseTo(7.94, 2)
+  })
+
   test('a past period is recorded from the history drawer, closed, and does not move the current mount', async ({
     page,
     request,

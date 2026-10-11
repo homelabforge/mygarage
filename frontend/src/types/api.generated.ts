@@ -7073,7 +7073,18 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Update Tire Reading
+         * @description Correct one reading's date, tread, pressure, odometer or notes.
+         *
+         *     Absent keys are untouched; null clears a value, except the date, which a
+         *     reading always has. 404 when the reading is not this tire's, 409 when the
+         *     correction contradicts a mount period it did not contradict before, 422
+         *     when the reading would measure neither tread nor pressure. The tire's
+         *     tread and pressure, the odometer record the reading published and the
+         *     low-tread reminder follow the corrected values. Returns the whole tire.
+         */
+        put: operations["update_tire_reading_api_vehicles__vin__tires__tire_id__readings__reading_id__put"];
         post?: never;
         /**
          * Delete Tire Reading
@@ -16394,6 +16405,31 @@ export interface components {
             tread_depth_mm: string | null;
             /** Vin */
             vin: string;
+        };
+        /**
+         * TireReadingUpdate
+         * @description Correct one reading's date, measurements, odometer or notes.
+         *
+         *     Every field optional, `exclude_unset` semantics as in `MountPeriodUpdate`:
+         *     a key absent from the body is untouched, a key sent as null clears the
+         *     value. Two things this schema cannot judge alone. The date can never be
+         *     cleared: a reading with no day is not a reading. And the reading must
+         *     still measure something, tread or pressure, which is judged on the
+         *     RESULT in `TireService.update_reading`, because a body that clears the
+         *     tread is fine when the reading keeps its pressure. Forbid-extra, so a
+         *     misspelt key is a 422 rather than a silent no-op.
+         */
+        TireReadingUpdate: {
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km?: number | string | null;
+            /** Pressure Kpa */
+            pressure_kpa?: number | string | null;
+            /** Recorded At */
+            recorded_at?: string | null;
+            /** Tread Depth Mm */
+            tread_depth_mm?: number | string | null;
         };
         /**
          * TireResponse
@@ -31539,6 +31575,43 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_tire_reading_api_vehicles__vin__tires__tire_id__readings__reading_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                tire_id: number;
+                reading_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireReadingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

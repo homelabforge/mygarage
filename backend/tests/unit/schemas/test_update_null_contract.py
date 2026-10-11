@@ -44,7 +44,7 @@ from app.models.spot_rental import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
 from app.models.supply import Supply
 from app.models.tax import TaxRecord
-from app.models.tire import Tire, TireMountPeriod, TireSet
+from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.toll import TollTag, TollTransaction
 from app.models.user import User
 from app.models.vehicle import TrailerDetails, Vehicle
@@ -85,7 +85,7 @@ from app.schemas.spot_rental import SpotRentalUpdate
 from app.schemas.spot_rental_billing import SpotRentalBillingUpdate
 from app.schemas.supply import SupplyUpdate
 from app.schemas.tax import TaxRecordUpdate
-from app.schemas.tire import MountPeriodUpdate, TireSetUpdate, TireUpdate
+from app.schemas.tire import MountPeriodUpdate, TireReadingUpdate, TireSetUpdate, TireUpdate
 from app.schemas.toll import TollTagUpdate, TollTransactionUpdate
 from app.schemas.torque import LocationTrackingUpdate
 from app.schemas.user import (
@@ -174,6 +174,7 @@ REGISTRY: dict[type[BaseModel], Entry] = {
     SpotRentalUpdate: Entry(SpotRental),
     SupplyUpdate: Entry(Supply),
     TaxRecordUpdate: Entry(TaxRecord),
+    TireReadingUpdate: Entry(TireReading),
     TireSetUpdate: Entry(TireSet),
     TireUpdate: Entry(Tire),
     TollTagUpdate: Entry(TollTag),

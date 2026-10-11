@@ -363,9 +363,9 @@ def validate_period_history(
     # 5: the projection's own monotonicity rule, the same function it calls.
     # One fault per period, naming the EARLIEST reading it contradicts, so the
     # sentence is stable whatever order the readings were loaded in. The
-    # message says what to do, because until readings could be deleted a
-    # mistyped one refused every honest dismount, retire, rotation, set fit
-    # and remount of its tire with no way out.
+    # message says what to do, because until readings could be corrected or
+    # deleted a mistyped one refused every honest dismount, retire, rotation,
+    # set fit and remount of its tire with no way out.
     in_order = sorted(readings, key=lambda r: (r.recorded_at, r.id or 0))
     for p, reading in odometer_contradictions(sorted(periods, key=lambda p: p.id or 0), in_order):
         # `odometer_contradictions` pairs only readings with an odometer.
@@ -376,7 +376,7 @@ def validate_period_history(
             CONTRADICTS_READING,
             f"{_label(p, capital=True)} contradicts the reading dated {reading.recorded_at} at "
             f"{format_distance(odometer)}: the vehicle's odometer would have to run backwards. "
-            "If that reading is wrong, delete it from the tire's history.",
+            "If that reading is wrong, correct or delete it in the tire's history.",
         )
     return faults
 

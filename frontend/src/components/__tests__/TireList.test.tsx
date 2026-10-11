@@ -397,6 +397,22 @@ describe('TireList', () => {
       expect(payload.pressure_kpa).toBe(248.211262554)
     })
 
+    it('reads a gauge decimal typed into Log Reading as inches, not as 32nds', () => {
+      const mutate = vi.fn()
+      useAddTireReadingMock.mockReturnValue({ mutate, isPending: false })
+
+      render(<TireList vin="1HGCM82633A004352" />)
+      fireEvent.click(screen.getByText('tireList.addReading'))
+      fireEvent.change(screen.getByLabelText('tireList.treadWithUnit'), {
+        target: { value: '.346' },
+      })
+      fireEvent.click(screen.getByText('common:save'))
+
+      // 0.346 in is 11/32 in, 8.73125 mm. Read as 32nds it was 0.27 mm, a
+      // healthy tire stored as bald.
+      expect(mutate.mock.calls[0][0].tread_depth_mm).toBe(8.73125)
+    })
+
     it('reads the card tread in the same unit the form accepts', () => {
       render(<TireList vin="1HGCM82633A004352" />)
 
