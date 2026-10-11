@@ -19,35 +19,15 @@ list after a flush and before the commit.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 
 from app.models.tire import TireMountPeriod, TireReading
+from app.services.usage_axis import DistanceFormatter as DistanceFormatter
+from app.services.usage_axis import distance_formatter as distance_formatter
+from app.services.usage_axis import format_km as format_km
 from app.utils.odometer_tolerance import odometer_above, odometer_below
-from app.utils.unit_adapters import ADAPTERS, UnitAdapter
-
-DistanceFormatter = Callable[[Decimal], str]
-
-
-def distance_formatter(adapter: UnitAdapter) -> DistanceFormatter:
-    """Render a canonical km odometer for a message, in `adapter`'s unit.
-
-    One decimal place, trailing zeros dropped, rather than the adapter's own
-    display precision: a message says one odometer is below another, and at
-    whole miles 16,093.4 km and 16,094 km both print as 10,000 mi.
-    """
-
-    def render(value: Decimal) -> str:
-        display = adapter.to_display(value)
-        assert display is not None
-        shown = display.quantize(Decimal("0.1")).normalize()
-        return f"{shown:,f} {adapter.label}"
-
-    return render
-
-
-format_km: DistanceFormatter = distance_formatter(ADAPTERS["km"])
 
 REVERSED_DATES = "reversed_dates"
 REVERSED_ODOMETER = "reversed_odometer"
