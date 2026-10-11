@@ -208,6 +208,16 @@ def _own_row(rows: list[Row], km: str, source: str) -> None:
     assert notes is not None and notes.startswith(f"[AUTO-SYNC from {source} #")
 
 
+async def _read_odometer(client: AsyncClient, headers, vin: str, tire_id: int, km: str) -> dict:
+    logged = await client.post(
+        f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+        headers=headers,
+        json={"recorded_at": DAY.isoformat(), "odometer_km": km, "tread_depth_mm": "7.0"},
+    )
+    assert logged.status_code == 201, logged.text
+    return logged.json()
+
+
 @pytest.mark.asyncio
 class TestAnotherSourcesReadingIsNeverTakenOver:
     @pytest.mark.parametrize(
@@ -811,6 +821,75 @@ class TestATireEventStillKeepsItsOwnRecord:
                 ODOMETER_SOURCE_TIRE,
             ),
             (DAY, Decimal("50100"), "hand", "manual"),
+        ]
+
+
+@pytest.mark.asyncio
+class TestATiresRowKeepsTheDaysHighest:
+    """Every reading of a tire publishes under the tire's marker, so one row stands for all of
+    them that day. A lower one logged later leaves it alone (#224). A period's row holds one
+    event, and the editor still corrects it down."""
+
+    async def test_a_lower_reading_of_the_tire_that_day_leaves_its_row(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        stored = await client.post(
+            f"/api/vehicles/{vehicle}/tires", headers=auth_headers, json={"vin": vehicle}
+        )
+        assert stored.status_code == 201, stored.text
+        tire_id = stored.json()["id"]
+        await _read_odometer(client, auth_headers, vehicle, tire_id, "50100")
+        logged = await _read_odometer(client, auth_headers, vehicle, tire_id, "50000")
+
+        assert sorted(Decimal(r["odometer_km"]) for r in logged["readings"]) == [
+            Decimal("50000"),
+            Decimal("50100"),
+        ]
+        assert await _rows(db_session, vehicle) == [
+            (
+                DAY,
+                Decimal("50100"),
+                auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id),
+                ODOMETER_SOURCE_TIRE,
+            )
+        ]
+        assert await latest_odometer_km_and_date(db_session, vehicle) == (Decimal("50100"), DAY)
+
+    async def test_the_period_editor_still_corrects_a_mount_down(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        tire_id = await _create_and_mount(
+            client,
+            auth_headers,
+            vehicle,
+            "FL",
+            mounted_on=DAY.isoformat(),
+            mounted_odometer_km="50100",
+        )
+        (period_id,) = (
+            (
+                await db_session.execute(
+                    select(TireMountPeriod.id).where(TireMountPeriod.tire_id == tire_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        edited = await client.put(
+            f"/api/vehicles/{vehicle}/tires/{tire_id}/mount-periods/{period_id}",
+            headers=auth_headers,
+            json={"mounted_on": DAY.isoformat(), "mounted_odometer_km": "50000"},
+        )
+        assert edited.status_code == 200, edited.text
+
+        assert await _rows(db_session, vehicle) == [
+            (
+                DAY,
+                Decimal("50000"),
+                auto_sync_marker(ODOMETER_SOURCE_TIRE_MOUNT, period_id),
+                ODOMETER_SOURCE_TIRE_MOUNT,
+            )
         ]
 
 

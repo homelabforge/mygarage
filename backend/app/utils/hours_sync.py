@@ -212,9 +212,10 @@ async def publish_marked_hours(
 ) -> HoursRecord | None:
     """Record an event's hour meter as a row it owns by marker, for events with no FK (#217).
 
-    Same rules as the tire odometer publish: update our own row on that day,
-    publish nothing when another row that day reads at or above the figure,
-    otherwise add our row. FKs stay null. Flushes, never commits.
+    Update our own row on that day, publish nothing when another row that day
+    reads at or above the figure, otherwise add our row. FKs stay null.
+    Flushes, never commits. The tire publish (`publish_tire_hours`) never sends
+    a figure below our own row, so a lower same-day event can't lower it (#224).
     """
     if engine_hours is None:
         return None

@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clearing the date in a tire dialog asks for a date instead of failing with an error
 - A past mount period can no longer run past the day its tire was retired, and a tire can't be retired before the end of its mount history
 - The hours list shows a reading a tire recorded as Tire instead of Manual
+- A tire reading logged after a higher one the same day no longer lowers the vehicle's odometer or hours for that day, and deleting a tire reading leaves the day at the highest reading still on file
 
 ### Security
 - POI provider settings are admin-only

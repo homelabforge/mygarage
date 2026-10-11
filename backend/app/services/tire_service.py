@@ -54,7 +54,7 @@ from app.services.tire_results import (
     WearResult,
     WearStatus,
 )
-from app.services.usage_axis import DISTANCE, UsageAxis, VehicleAxes
+from app.services.usage_axis import DISTANCE, HOURS, UsageAxis, VehicleAxes
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.hours_sync import publish_marked_hours, same_day_hours
 from app.utils.household_time import household_today
@@ -106,7 +106,12 @@ async def publish_tire_odometer(
     record carrying its own marker, `auto_sync_marker(source_type,
     source_id)`, and never touches any other. On `when`:
 
-    1. A record with that marker has its value updated.
+    1. A record with that marker has its value updated, unless the figure is
+       below it beyond the same-reading tolerance. One marker can stand for
+       several events that day (every reading of a tire publishes under the
+       tire's), so the record keeps the highest (#224). Only a reading delete
+       lowers it (`_withdraw_reading_usage`); the period editor corrects a
+       period's record by moving it itself.
     2. Otherwise, when another record on the day (manual, a service visit's,
        a fuel-up's, LiveLink's, another tire event's) reads at or above the
        figure, within the same-reading tolerance, nothing is published: the
@@ -131,16 +136,7 @@ async def publish_tire_odometer(
     middle of a mount, a rotation or a retire splits the operation in half.
     A null odometer is a no-op.
     """
-    await sync_odometer_from_record(
-        db,
-        vin,
-        when,
-        odometer_km,
-        source_type,
-        source_id,
-        commit=False,
-        claim_other_records=False,
-    )
+    await _publish_tire_usage(db, vin, when, odometer_km, source_type, source_id, DISTANCE)
 
 
 async def publish_tire_hours(
@@ -151,8 +147,11 @@ async def publish_tire_hours(
     source_type: str,
     source_id: int,
 ) -> None:
-    """`publish_tire_odometer` for the hour meter: same marker, same rules, on `hours_records`."""
-    await publish_marked_hours(db, vin, when, engine_hours, source_type, source_id)
+    """`publish_tire_odometer` for the hour meter: same marker, same rules, on `hours_records`.
+
+    A lower figure never lowers its own row on that day here either (#224).
+    """
+    await _publish_tire_usage(db, vin, when, engine_hours, source_type, source_id, HOURS)
 
 
 async def _owned_usage_record(
@@ -203,6 +202,31 @@ def _move_usage_record(record: OdometerRecord | HoursRecord, when: dt.date, valu
         record.engine_hours = value
     else:
         record.odometer_km = value
+
+
+async def _publish_tire_usage(
+    db: AsyncSession,
+    vin: str,
+    when: dt.date,
+    value: Decimal | None,
+    source_type: str,
+    source_id: int,
+    axis: UsageAxis,
+) -> None:
+    """The one door behind both tire publishers: `publish_tire_odometer`'s rules, on `axis`."""
+    if value is None:
+        return
+    marker = auto_sync_marker(source_type, source_id)
+    same_day = await _same_day_usage(db, vin, axis, when)
+    own = next((record for record in same_day if record.notes == marker), None)
+    if own is not None and axis.below(value, _usage_value(own)):
+        return
+    if axis.is_hours:
+        await publish_marked_hours(db, vin, when, value, source_type, source_id)
+    else:
+        await sync_odometer_from_record(
+            db, vin, when, value, source_type, source_id, commit=False, claim_other_records=False
+        )
 
 
 def normalise_storage_location(value: str | None) -> str | None:
@@ -2223,10 +2247,11 @@ class TireService:
         `add_reading` publishes with `ODOMETER_SOURCE_TIRE` keyed by the TIRE,
         so the marker alone does not say which reading a record came from: a
         reading creates the tire's record only when no record on its day reads
-        at or above it, and a later reading of the same tire on that day
-        updates it in place. A record is this reading's only when it carries this tire's
-        marker, sits on the reading's date, still holds the reading's
-        odometer, and no remaining reading of this tire has that same date and
+        at or above it, and a later, higher reading of the same tire on that
+        day raises it in place (a lower one leaves it). A record is this
+        reading's only when it carries this tire's marker, sits on the
+        reading's date, still holds the reading's odometer, and no remaining
+        reading of this tire has that same date and
         odometer to keep it true. Anything else (a manual row, another tire's,
         a rotation's or a service visit's record, a legacy row another tire
         had taken over, a row on another day) is left alone, and nothing is
@@ -2239,13 +2264,13 @@ class TireService:
         published nothing.
         Removing it alone would drop the vehicle's latest odometer back to an
         older day and make every mounted tire's distance confidently too low.
-        So when a record is deleted, the newest remaining reading of this
-        VEHICLE on that date that carries an odometer (by id, the order they
-        were published in) is published again, under its own tire's marker;
-        a later same-day reading of the same tire at another odometer is
-        covered the same way. The delete is flushed first: request sessions do
-        not autoflush, and the publish looks for a same-day row by SQL, where
-        an unflushed delete would still show it this one.
+        So when a record is deleted, the highest remaining reading of this
+        VEHICLE on that date on this axis (the newest on a tie) is published
+        again, under its own tire's marker, so the day never reads below a
+        reading still on file (#224); a lower same-day reading of the same
+        tire is covered the same way. The delete is flushed first: request
+        sessions do not autoflush, and the publish looks for a same-day row by
+        SQL, where an unflushed delete would still show it this one.
 
         Per axis (#217).
         """
@@ -2281,7 +2306,7 @@ class TireService:
                     column.is_not(None),
                     TireReading.id != reading.id,
                 )
-                .order_by(TireReading.id.desc())
+                .order_by(column.desc(), TireReading.id.desc())
                 .limit(1)
             )
         ).scalar_one_or_none()

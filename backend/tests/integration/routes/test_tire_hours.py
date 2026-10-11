@@ -107,6 +107,16 @@ async def _manual_hours(client, headers, vin, value: str) -> None:
     assert made.status_code == 201, made.text
 
 
+async def _log_hours(client, headers, vin, tire_id, hours: str) -> dict:
+    logged = await client.post(
+        f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+        headers=headers,
+        json={"recorded_at": DAY.isoformat(), "tread_depth_mm": "7.0", "engine_hours": hours},
+    )
+    assert logged.status_code == 201, logged.text
+    return logged.json()
+
+
 @pytest.mark.asyncio
 class TestTheHoursVehicle:
     async def test_create_and_mount_takes_the_hour_meter(
@@ -340,6 +350,35 @@ class TestPublishing:
         assert [(r[1], r[2]) for r in await _hours_rows(db_session, vin)] == [
             (Decimal("30.0"), auto_sync_marker("tire", tire["id"]))
         ]
+
+    async def test_a_lower_reading_of_the_tire_that_day_leaves_its_row(
+        self, client, auth_headers, db_session, make_vehicle
+    ):
+        # Logged out of order. Both readings stay, and the day keeps the higher one (#224).
+        vin = await make_vehicle("hours")
+        tire = (await _create_and_mount(client, auth_headers, vin)).json()
+        await _log_hours(client, auth_headers, vin, tire["id"], "105.0")
+        logged = await _log_hours(client, auth_headers, vin, tire["id"], "100.0")
+        assert sorted(Decimal(r["engine_hours"]) for r in logged["readings"]) == [
+            Decimal("100.0"),
+            Decimal("105.0"),
+        ]
+        assert [(r[1], r[2]) for r in await _hours_rows(db_session, vin)] == [
+            (Decimal("105.0"), auto_sync_marker("tire", tire["id"]))
+        ]
+        assert await latest_engine_hours_and_date(db_session, vin) == (Decimal("105.0"), DAY)
+
+    async def test_a_higher_reading_of_the_tire_that_day_raises_its_row(
+        self, client, auth_headers, db_session, make_vehicle
+    ):
+        vin = await make_vehicle("hours")
+        tire = (await _create_and_mount(client, auth_headers, vin)).json()
+        await _log_hours(client, auth_headers, vin, tire["id"], "105.0")
+        await _log_hours(client, auth_headers, vin, tire["id"], "110.0")
+        assert [(r[1], r[2]) for r in await _hours_rows(db_session, vin)] == [
+            (Decimal("110.0"), auto_sync_marker("tire", tire["id"]))
+        ]
+        assert await latest_engine_hours_and_date(db_session, vin) == (Decimal("110.0"), DAY)
 
 
 @pytest.mark.asyncio

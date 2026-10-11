@@ -531,6 +531,40 @@ class TestTheDaysRecordOtherReadingsStillSupport:
 
         assert await self._day(maker, vehicle, _SESSION_DAY) == [(Decimal("11000"), marker)]
 
+    async def test_the_highest_reading_left_that_day_backs_the_record(self, test_engine, vehicle):
+        # B and C published nothing under A's 11,050 km. With A's reading gone, B's 11,020
+        # is the day's highest, though C's 11,000 was logged last (#224).
+        maker = self._maker(test_engine)
+        ids: list[int] = []
+        for brand in ("A", "B", "C"):
+            async with maker() as db:
+                made = await TireService(db).create_tire(
+                    vehicle, TireCreate(vin=vehicle, brand=brand), None
+                )
+            ids.append(made.id)
+        a, b, c = ids
+        readings = [
+            await self._log(
+                maker,
+                vehicle,
+                tire_id,
+                recorded_at=_SESSION_DAY,
+                odometer_km=Decimal(km),
+                tread_depth_mm=Decimal("7.0"),
+            )
+            for tire_id, km in ((a, "11050"), (b, "11020"), (c, "11000"))
+        ]
+        assert await self._day(maker, vehicle, _SESSION_DAY) == [
+            (Decimal("11050"), auto_sync_marker(ODOMETER_SOURCE_TIRE, a))
+        ]
+
+        async with maker() as db:
+            await TireService(db).delete_reading(vehicle, a, readings[0], None)
+
+        assert await self._day(maker, vehicle, _SESSION_DAY) == [
+            (Decimal("11020"), auto_sync_marker(ODOMETER_SOURCE_TIRE, b))
+        ]
+
 
 @pytest.mark.asyncio
 class TestTheLowTreadReminder:

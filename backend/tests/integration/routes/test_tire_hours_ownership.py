@@ -20,6 +20,7 @@ from app.models.hours import HoursRecord
 from app.models.odometer import OdometerRecord
 from app.models.tire import TireMountPeriod, TireReading
 from app.models.vehicle import Vehicle
+from app.services.hours_service import latest_engine_hours_and_date
 from app.utils.odometer_sync import auto_sync_marker
 
 DAY = date(2026, 6, 21)
@@ -91,6 +92,10 @@ async def _reading(client, headers, vin, tire_id, day, hours):
     return made.json()
 
 
+def _reading_id(tire, hours):
+    return next(r["id"] for r in tire["readings"] if Decimal(r["engine_hours"]) == Decimal(hours))
+
+
 @pytest.mark.asyncio
 class TestThePeriodEditor:
     async def test_new_hours_update_the_owned_row(self, client, auth_headers, db_session, vin):
@@ -99,6 +104,16 @@ class TestThePeriodEditor:
         edited = await _edit(client, auth_headers, vin, tire, mounted_hours="105.0")
         assert edited.status_code == 200, edited.text
         assert await _rows(db_session, vin) == [(DAY, Decimal("105.0"), marker)]
+
+    async def test_lower_hours_correct_the_owned_row_down(
+        self, client, auth_headers, db_session, vin
+    ):
+        # A period's row holds one event, so unlike a reading's it can be corrected down (#224).
+        tire = await _tire(client, auth_headers, vin, mounted_hours="105.0")
+        marker = auto_sync_marker("tire_mount", tire["mount_periods"][0]["id"])
+        edited = await _edit(client, auth_headers, vin, tire, mounted_hours="100.0")
+        assert edited.status_code == 200, edited.text
+        assert await _rows(db_session, vin) == [(DAY, Decimal("100.0"), marker)]
 
     async def test_a_new_date_moves_the_owned_row(self, client, auth_headers, db_session, vin):
         tire = await _tire(client, auth_headers, vin, mounted_hours="100.0")
@@ -243,3 +258,55 @@ class TestDeletes:
         assert await _rows(db_session, vin) == [
             (DAY, Decimal("120.0"), auto_sync_marker("tire", second["id"]))
         ]
+
+    async def test_deleting_the_lower_of_two_readings_keeps_the_higher(
+        self, client, auth_headers, db_session, vin
+    ):
+        tire = await _tire(client, auth_headers, vin)
+        marker = auto_sync_marker("tire", tire["id"])
+        await _reading(client, auth_headers, vin, tire["id"], DAY, "105.0")
+        logged = await _reading(client, auth_headers, vin, tire["id"], DAY, "100.0")
+        assert await _rows(db_session, vin) == [(DAY, Decimal("105.0"), marker)]
+        lower = _reading_id(logged, "100.0")
+        gone = await client.delete(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/readings/{lower}", headers=auth_headers
+        )
+        assert gone.status_code == 204, gone.text
+        assert await _rows(db_session, vin) == [(DAY, Decimal("105.0"), marker)]
+
+    async def test_deleting_the_higher_of_two_readings_drops_the_day_to_the_lower(
+        self, client, auth_headers, db_session, vin
+    ):
+        tire = await _tire(client, auth_headers, vin)
+        marker = auto_sync_marker("tire", tire["id"])
+        await _reading(client, auth_headers, vin, tire["id"], DAY, "105.0")
+        logged = await _reading(client, auth_headers, vin, tire["id"], DAY, "100.0")
+        assert await _rows(db_session, vin) == [(DAY, Decimal("105.0"), marker)]
+        higher = _reading_id(logged, "105.0")
+        gone = await client.delete(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/readings/{higher}", headers=auth_headers
+        )
+        assert gone.status_code == 204, gone.text
+        assert await _rows(db_session, vin) == [(DAY, Decimal("100.0"), marker)]
+
+    async def test_the_highest_reading_left_that_day_backs_the_row(
+        self, client, auth_headers, db_session, vin
+    ):
+        # B and C published nothing under A's 105.0. With A's reading gone, B's 102.0 is
+        # the day's highest, though C's 100.0 was logged last (#224).
+        a, b, c = [await _tire(client, auth_headers, vin, corner) for corner in ("FL", "FR", "RL")]
+        logged = await _reading(client, auth_headers, vin, a["id"], DAY, "105.0")
+        await _reading(client, auth_headers, vin, b["id"], DAY, "102.0")
+        await _reading(client, auth_headers, vin, c["id"], DAY, "100.0")
+        assert await _rows(db_session, vin) == [
+            (DAY, Decimal("105.0"), auto_sync_marker("tire", a["id"]))
+        ]
+        gone = await client.delete(
+            f"/api/vehicles/{vin}/tires/{a['id']}/readings/{_reading_id(logged, '105.0')}",
+            headers=auth_headers,
+        )
+        assert gone.status_code == 204, gone.text
+        assert await _rows(db_session, vin) == [
+            (DAY, Decimal("102.0"), auto_sync_marker("tire", b["id"]))
+        ]
+        assert await latest_engine_hours_and_date(db_session, vin) == (Decimal("102.0"), DAY)
