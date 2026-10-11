@@ -95,7 +95,8 @@ SUBCATEGORY_RULES: dict[str, tuple[tuple[str, re.Pattern[str]], ...]] = {
     "U": (("can_bus", re.compile(r"\bbus\b|\(CAN\)", re.IGNORECASE)),),
 }
 SEVERITY_RULES: tuple[tuple[str, int, re.Pattern[str]], ...] = (
-    ("critical", 4, re.compile(r"\bfailure\b|\bdisabl|\bshut\s?down\b", re.IGNORECASE)),
+    # "Disabled", not "Disable": "Starter Disable Circuit" names a part.
+    ("critical", 4, re.compile(r"\bfailure\b|\bdisabled\b|\bshut\s?down\b", re.IGNORECASE)),
     ("warning", 3, _words("malfunction", "fault", "faulty", "stuck", "problem")),
     ("info", 2, _words("intermittent")),
 )

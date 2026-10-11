@@ -146,6 +146,9 @@ def test_derive_category_and_subcategory(
         ("Fuel Pump Module Failure", "critical", 4),
         ("Cylinder Deactivation Disabled", "critical", 4),
         ("Communication Fault - Forced Engine Shutdown", "critical", 4),
+        # A part named "Disable" is not a disabled system.
+        ("Starter Disable Circuit/Open", "warning", 2),
+        ("TCS Disable Switch", "warning", 2),
         ("Fuel Pump Circuit Malfunction", "warning", 3),
         ("Throttle Actuator Stuck Open", "warning", 3),
         ("Mass or Volume Air Flow Sensor A Circuit Intermittent", "info", 2),

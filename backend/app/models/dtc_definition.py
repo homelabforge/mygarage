@@ -14,8 +14,9 @@ from app.database import Base
 
 
 class DTCDefinition(Base):
-    """Bundled lookup of the generic (SAE-controlled) OBD-II codes: P0/P2/P34-P39,
-    B0/B3, C0/C3, U0/U3, built by tools/build_dtc_definitions.py.
+    """Bundled lookup of the generic (SAE-controlled) OBD-II codes: P0/P2/P34,
+    B0/B3, C0, U0/U3 (the source has no P35-P39 or C3 codes), built by
+    tools/build_dtc_definitions.py.
 
     Maker ranges (P1, P30-P33, B1/B2, C1/C2, U1/U2) are left out on purpose:
     each maker defines its own, so one maker's meaning would be wrong for the
