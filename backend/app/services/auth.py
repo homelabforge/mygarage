@@ -72,7 +72,7 @@ def _check_password(plain_password: str, hashed_password: str | None) -> bool | 
 
     None covers an SSO-only account, a pre-Argon2 bcrypt hash (bcrypt hasn't been
     a dependency since at least v2.14.0, so those never worked) and a damaged
-    row. It pays the dummy verify first, so timing doesn't single those out.
+    row. It pays the dummy verify before returning, so timing doesn't single those out.
     """
     if not hashed_password or not hashed_password.startswith("$argon2"):
         _verify_dummy(plain_password)

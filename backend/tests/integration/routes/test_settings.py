@@ -464,7 +464,7 @@ class TestSensitiveSettingMasking:
     async def test_unset_sensitive_value_stays_empty(
         self, client: AsyncClient, auth_headers, db_session
     ):
-        """An unset secret reads as '', not '********' — 'set' stays distinguishable."""
+        """An unset secret reads as '', not '********', so 'set' stays distinguishable."""
         await _set_setting(db_session, "gotify_token", "")
 
         response = await client.get("/api/settings", headers=auth_headers)
@@ -500,7 +500,7 @@ class TestSensitiveSettingMasking:
     async def test_batch_can_clear_sensitive_value(
         self, client: AsyncClient, auth_headers, db_session
     ):
-        """Empty means clear — masking must not make a secret unremovable."""
+        """Empty means clear: masking must not make a secret unremovable."""
         await _set_setting(db_session, "telegram_bot_token", "original-token")
 
         response = await client.post(

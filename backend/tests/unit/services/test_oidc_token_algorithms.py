@@ -101,6 +101,7 @@ async def test_an_eddsa_token_verifies_without_a_security_warning(ed_key: OKPKey
 
 @pytest.mark.unit
 async def test_the_rfc_9864_name_verifies_too(ed_key: OKPKey) -> None:
-    claims, _ = await _verify(ed_key, "Ed25519")
+    claims, security_warnings = await _verify(ed_key, "Ed25519")
 
     assert claims is not None and claims["sub"] == "u-1"
+    assert security_warnings == []

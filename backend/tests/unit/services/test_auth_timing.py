@@ -90,7 +90,9 @@ DAMAGED_HASHES = {
 
 
 @pytest_asyncio.fixture(params=sorted(DAMAGED_HASHES))
-async def damaged_hash_user(request, db_session: AsyncSession) -> AsyncGenerator[User]:
+async def damaged_hash_user(
+    request: pytest.FixtureRequest, db_session: AsyncSession
+) -> AsyncGenerator[User]:
     """A password account whose stored hash is damaged, removed afterwards."""
     await db_session.execute(delete(User).where(User.username == _DAMAGED_USERNAME))
     user = User(
@@ -202,7 +204,11 @@ async def test_damaged_hash_is_a_miss_that_pays_the_dummy(
 
 @pytest.mark.unit
 @pytest.mark.auth
-@pytest.mark.parametrize("stored", [None, "$2b$12$abc", *DAMAGED_HASHES.values()])
+@pytest.mark.parametrize(
+    "stored",
+    [None, "$2b$12$abc", *DAMAGED_HASHES.values()],
+    ids=["none", "bcrypt", *DAMAGED_HASHES],
+)
 def test_verify_password_never_raises(stored: str | None) -> None:
     """Every caller (login, change password, SSO linking) gets a plain False."""
     assert auth.verify_password("whatever-password", stored) is False

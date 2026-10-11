@@ -131,7 +131,7 @@ async def write_oidc_config(db: AsyncSession, payload: dict[str, str]) -> None:
 
     Keys are stored with the `oidc_` prefix in the generic settings table.
     Caller is responsible for enforcing the §5.4 contract (mask handling,
-    issuer rstrip, etc.) — this is the raw KV writer.
+    issuer rstrip, etc.); this is the raw KV writer.
     """
     now = dt.datetime.now()
     for clean_key, value in payload.items():

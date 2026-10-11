@@ -47,7 +47,9 @@ def _reset_rate_limits() -> None:
 
 
 @pytest_asyncio.fixture(params=list(UNREADABLE_HASHES))
-async def unreadable_user(request, db_session: AsyncSession) -> AsyncGenerator[User]:
+async def unreadable_user(
+    request: pytest.FixtureRequest, db_session: AsyncSession
+) -> AsyncGenerator[User]:
     """A password account whose stored hash Argon2 can't read (pre-Argon2 or damaged)."""
     await db_session.execute(delete(User).where(User.username == _UNREADABLE))
     user = User(
