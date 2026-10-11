@@ -132,6 +132,12 @@ class TestTheDualVehicle:
         await _mount(
             client, auth_headers, vin, "2026-01-01", mounted_odometer_km="1000", mounted_hours="50"
         )
+        odometer = await client.post(
+            f"/api/vehicles/{vin}/odometer",
+            headers=auth_headers,
+            json={"vin": vin, "date": "2026-03-01", "odometer_km": "3000"},
+        )
+        assert odometer.status_code == 201, odometer.text
         listed = await _list(client, auth_headers, vin)
         assert (listed["usage_axis"], listed["tracks_distance"], listed["tracks_hours"]) == (
             "distance",
@@ -140,6 +146,7 @@ class TestTheDualVehicle:
         )
         [card] = listed["tires"]
         assert card["usage_axis"] == "distance"
+        assert Decimal(card["usage_on_tire"]) == Decimal("2000")
         assert card["usage_on_tire"] == card["distance_km"]
 
     async def test_a_unit_switch_flips_the_figures_and_back(

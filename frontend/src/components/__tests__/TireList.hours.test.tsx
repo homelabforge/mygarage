@@ -228,6 +228,67 @@ describe('A cleared date blocks Save (G4-52)', () => {
   })
 })
 
+describe('Every tire move sends the hour meter on an hours-only vehicle (#217)', () => {
+  const mutate = vi.fn()
+  beforeEach(() => {
+    mutate.mockReset()
+    writeMock.mockReturnValue({ mutate, isPending: false })
+    useAddTireReadingMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useTireSetsMock.mockReturnValue({
+      data: { sets: [{ id: 7, vin: VIN, name: 'Winter', notes: null, created_at: '2026-01-01T00:00:00', tire_ids: [5], mounted_count: 0 }], total: 1 },
+      isLoading: false,
+      error: null,
+    })
+    list(FULL, HOURS)
+  })
+
+  // Each dialog opened and saved the way the G4-52 cases drive it.
+  const openSet = (): void => {
+    fireEvent.click(screen.getByText('tireList.sets'))
+    fireEvent.click(dialog().getByText('tireList.setFit'))
+  }
+  const saveSet = (): void => {
+    const fits = dialog().getAllByText('tireList.setFit')
+    fireEvent.click(fits[fits.length - 1])
+  }
+  it.each([
+    {
+      name: 'Mount', hoursKey: 'mounted_hours', odometerKey: 'mounted_odometer_km', id: 'mount-hours',
+      open: () => fireEvent.click(screen.getByText('tireList.mount')),
+      save: () => fireEvent.click(dialog().getByText('tireList.mount')),
+    },
+    {
+      name: 'Dismount', hoursKey: 'dismounted_hours', odometerKey: 'dismounted_odometer_km', id: 'dismount-hours',
+      open: () => fireEvent.click(screen.getAllByText('tireList.dismount')[0]),
+      save: () => fireEvent.click(dialog().getByText('tireList.dismount')),
+    },
+    {
+      name: 'Retire', hoursKey: 'dismounted_hours', odometerKey: 'dismounted_odometer_km', id: 'retire-hours',
+      open: () => fireEvent.click(screen.getAllByText('tireList.retire')[0]),
+      save: () => fireEvent.click(dialog().getByText('tireList.retire')),
+    },
+    {
+      name: 'Rotate', hoursKey: 'engine_hours', odometerKey: 'odometer_km', id: 'rotate-hours',
+      open: () => fireEvent.click(screen.getByText('tireList.rotate')),
+      save: () => fireEvent.click(dialog().getByText('tireList.rotate')),
+    },
+    {
+      name: 'Set fit', hoursKey: 'engine_hours', odometerKey: 'odometer_km', id: 'set-fit-7-hours',
+      open: openSet,
+      save: saveSet,
+    },
+  ])('$name sends $hoursKey and no odometer', ({ hoursKey, odometerKey, id, open, save }) => {
+    render(<TireList vin={VIN} />)
+    open()
+    fireEvent.change(field(id), { target: { value: '212.3' } })
+    save()
+    expect(mutate).toHaveBeenCalledTimes(1)
+    const payload = mutate.mock.calls[0][0]
+    expect(payload[hoursKey]).toBe(212.3)
+    expect(payload).not.toHaveProperty(odometerKey)
+  })
+})
+
 describe('The card on the hour meter (#217)', () => {
   beforeEach(() => {
     writeMock.mockReturnValue({ mutate: vi.fn(), isPending: false })

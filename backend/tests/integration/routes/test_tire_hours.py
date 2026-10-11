@@ -170,7 +170,8 @@ class TestTheHoursVehicle:
     async def test_hours_are_checked_at_the_stored_tenth(
         self, client, auth_headers, db_session, make_vehicle
     ):
-        # Unrounded, 100.10 passes against 100.15 and both store reversed (100.2 -> 100.1).
+        # The mount echoes the tenth it stored (100.2), and a dismount below that is
+        # refused. The rounding inside one write is pinned by the next test.
         vin = await make_vehicle("hours")
         tire = (await _create_and_mount(client, auth_headers, vin, mounted_hours="100.15")).json()
         assert tire["mount_periods"][0]["mounted_hours"] == "100.2"

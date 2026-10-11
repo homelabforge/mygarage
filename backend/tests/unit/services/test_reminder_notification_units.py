@@ -10,16 +10,11 @@ differently on purpose:
    fixed `"hr"` formatter outside the unit system.
 3. `notes` is stored prose and is passed through BYTE-IDENTICALLY.
 
-Point 3 is the one worth pinning. An auto-generated low-tread reminder
-(`tire_service._sync_low_tread_reminder`) writes `due_mileage_km=None` and
-puts its tread depth and projected distance ONLY into `notes`, so this task
-converting a reminder's own fields converts nothing at all in that message.
-Rewriting the stored notes instead would persist display text: it would go
-stale the moment a user changed preferences and would never refresh, because
-notes are written once at creation and the reminder completes only when tread
-recovers. Correct low-tread units are blocked on the tire workstream's
-migration A gaining structured tread and distance columns (recorded in
-`2026-08-25-tire-mount-periods-design.md` under "Low-tread reminder units").
+Point 3 is the one worth pinning. A low-tread reminder's tread is not in
+`notes`: it renders from the reminder's own `tread_depth_mm` and
+`tread_threshold_mm` columns in the reader's tread unit. Stored notes still
+pass through untouched, since rewriting them would save display text that
+goes stale when the reader changes units.
 
 `test_low_tread_notes_pass_through_byte_identically` therefore pins the
 boundary in both directions, so a later change cannot quietly start rewriting
