@@ -1134,8 +1134,8 @@ class TestVehicleJsonImportHours:
         assert body["errors"] == [
             "Hours record 0: engine hours are required",
             "Hours record 1: engine_hours must be at most 999999999.9, not 1000000000.0",
-            "Hours record 2: could not be imported",
-            "Hours record 3: could not be imported",
+            "Hours record 2: date is missing",
+            "Hours record 3: date is not a valid date (expected YYYY-MM-DD)",
         ]
         rows = await _hours_rows(db_session, own_vehicle.vin)
         assert [(r.date, r.engine_hours) for r in rows] == [(date(2026, 9, 5), Decimal("7.0"))]
@@ -1213,6 +1213,39 @@ class TestVehicleJsonImportHours:
         assert [(r.date, r.engine_hours) for r in rows] == [
             (date(2026, 8, 1), Decimal("100.0")),
             (date(2026, 8, 10), Decimal("105.3")),
+        ]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestVehicleJsonImportDates:
+    """A backup row with no date or a bad one says what's wrong, not just "could not be imported"."""
+
+    @pytest.mark.parametrize(
+        ("section", "label"),
+        [
+            ("service_records", "Service record"),
+            ("fuel_records", "Fuel record"),
+            ("def_records", "DEF record"),
+            ("odometer_records", "Odometer record"),
+            ("hours_records", "Hours record"),
+        ],
+    )
+    async def test_a_dated_section_names_a_bad_date(
+        self, client: AsyncClient, auth_headers, own_vehicle, section: str, label: str
+    ):
+        rows = [{}, {"date": ""}, {"date": None}, {"date": 20260901}, {"date": "2026-13-01"}]
+        payload = {"export_version": "3", "units": "metric", section: rows}
+        response = await _post_backup(client, auth_headers, own_vehicle.vin, payload)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body[section]["error_count"] == 5
+        assert body["errors"] == [
+            f"{label} 0: date is missing",
+            f"{label} 1: date is missing",
+            f"{label} 2: date is missing",
+            f"{label} 3: date is not a valid date (expected YYYY-MM-DD)",
+            f"{label} 4: date is not a valid date (expected YYYY-MM-DD)",
         ]
 
 

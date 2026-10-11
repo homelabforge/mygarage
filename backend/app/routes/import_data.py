@@ -289,6 +289,19 @@ class _InsuranceRowError(_RowError):
     """An insurance row that cannot be imported, with a user-facing reason."""
 
 
+def _json_row_date(record_data: dict[str, Any]) -> date_type:
+    """The row's `date`, or a row error that says what's wrong with it."""
+    raw = record_data.get("date")
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        raise _RowError("date is missing")
+    if not isinstance(raw, str):
+        raise _RowError("date is not a valid date (expected YYYY-MM-DD)")
+    try:
+        return datetime.fromisoformat(raw).date()
+    except ValueError as e:
+        raise _RowError("date is not a valid date (expected YYYY-MM-DD)") from e
+
+
 def _whole_cents(value: Decimal | None, column: str) -> Decimal | None:
     """The amount, or a row error when it has a fraction of a cent."""
     if value is None:
@@ -1686,6 +1699,7 @@ async def import_vehicle_json(
         for model in (ServiceVisit, FuelRecord, DEFRecord, OdometerRecord)
     }
 
+    errors: list[str] = []
     results = {
         "service_records": {"success": 0, "errors": 0, "skipped": 0},
         "fuel_records": {"success": 0, "errors": 0, "skipped": 0},
@@ -1695,13 +1709,13 @@ async def import_vehicle_json(
         "reminders": {"success": 0, "errors": 0, "skipped": 0},
         "notes": {"success": 0, "errors": 0, "skipped": 0},
         "insurance_policies": {"success": 0, "errors": 0, "skipped": 0},
-        "errors": [],
+        "errors": errors,
     }
 
     # Import service records (creates ServiceVisit + ServiceLineItem + Vendor)
     for idx, record_data in enumerate(sections["service_records"]):
         try:
-            date = datetime.fromisoformat(record_data["date"]).date()
+            date = _json_row_date(record_data)
 
             # Legacy v2 used "mileage" (miles); v3 uses "odometer_km" (km).
             imported_odometer_km = _maybe_mi_to_km(
@@ -1738,7 +1752,7 @@ async def import_vehicle_json(
             raw_category = record_data.get("service_category")
             if raw_category and raw_category not in VALID_SERVICE_CATEGORIES:
                 results["service_records"]["errors"] += 1
-                results["errors"].append(
+                errors.append(
                     f"Service record {idx}: service_category {raw_category!r} is not "
                     "a recognized category"
                 )
@@ -1784,18 +1798,18 @@ async def import_vehicle_json(
                 )
                 db.add(line_item)
             results["service_records"]["success"] += 1
-        except _ImportBoundError as e:
+        except _RowError as e:
             results["service_records"]["errors"] += 1
-            results["errors"].append(f"Service record {idx}: {e.reason}")
+            errors.append(f"Service record {idx}: {e.reason}")
         except Exception as e:
             results["service_records"]["errors"] += 1
             logger.warning("Import: service record %s failed: %s", idx, sanitize_for_log(e))
-            results["errors"].append(f"Service record {idx}: could not be imported")
+            errors.append(f"Service record {idx}: could not be imported")
 
     # Import fuel records
     for idx, record_data in enumerate(sections["fuel_records"]):
         try:
-            date = datetime.fromisoformat(record_data["date"]).date()
+            date = _json_row_date(record_data)
 
             # v3 uses "odometer_km"/"liters"; legacy v2 uses "mileage"/"gallons"
             # in imperial — convert via the helpers above.
@@ -1886,11 +1900,11 @@ async def import_vehicle_json(
             results["fuel_records"]["success"] += 1
         except _RowError as e:
             results["fuel_records"]["errors"] += 1
-            results["errors"].append(f"Fuel record {idx}: {e.reason}")
+            errors.append(f"Fuel record {idx}: {e.reason}")
         except Exception as e:
             results["fuel_records"]["errors"] += 1
             logger.warning("Import: fuel record %s failed: %s", idx, sanitize_for_log(e))
-            results["errors"].append(f"Fuel record {idx}: could not be imported")
+            errors.append(f"Fuel record {idx}: could not be imported")
 
     # Import DEF records
     # Deliberately NOT gated by ensure_def_capable (unlike import_def_csv and
@@ -1902,7 +1916,7 @@ async def import_vehicle_json(
     # safety feature.
     for idx, record_data in enumerate(sections["def_records"]):
         try:
-            date = datetime.fromisoformat(record_data["date"]).date()
+            date = _json_row_date(record_data)
 
             # v3 uses "odometer_km"/"liters"; legacy v2 uses "mileage"/"gallons".
             imported_odometer_km = _maybe_mi_to_km(
@@ -1963,18 +1977,18 @@ async def import_vehicle_json(
             async with db.begin_nested():
                 db.add(record)
             results["def_records"]["success"] += 1
-        except _ImportBoundError as e:
+        except _RowError as e:
             results["def_records"]["errors"] += 1
-            results["errors"].append(f"DEF record {idx}: {e.reason}")
+            errors.append(f"DEF record {idx}: {e.reason}")
         except Exception as e:
             results["def_records"]["errors"] += 1
             logger.warning("Import: DEF record %s failed: %s", idx, sanitize_for_log(e))
-            results["errors"].append(f"DEF record {idx}: could not be imported")
+            errors.append(f"DEF record {idx}: could not be imported")
 
     # Import odometer records
     for idx, record_data in enumerate(sections["odometer_records"]):
         try:
-            date = datetime.fromisoformat(record_data["date"]).date()
+            date = _json_row_date(record_data)
 
             # v2 used "reading" (miles), v3 uses "odometer_km".
             imported_odometer_km = _maybe_mi_to_km(
@@ -2012,24 +2026,24 @@ async def import_vehicle_json(
             async with db.begin_nested():
                 db.add(record)
             results["odometer_records"]["success"] += 1
-        except _ImportBoundError as e:
+        except _RowError as e:
             results["odometer_records"]["errors"] += 1
-            results["errors"].append(f"Odometer record {idx}: {e.reason}")
+            errors.append(f"Odometer record {idx}: {e.reason}")
         except Exception as e:
             results["odometer_records"]["errors"] += 1
             logger.warning("Import: odometer record %s failed: %s", idx, sanitize_for_log(e))
-            results["errors"].append(f"Odometer record {idx}: could not be imported")
+            errors.append(f"Odometer record {idx}: could not be imported")
 
     # Import engine-hours readings. Always manual rows with no FKs, like the
     # CSV importer: a file can't carry a live link to this vehicle's fuel or
     # service rows. Dimensionless, so no legacy-v2 conversion.
     for idx, record_data in enumerate(sections["hours_records"]):
         try:
-            date = datetime.fromisoformat(record_data["date"]).date()
+            date = _json_row_date(record_data)
             raw_hours = record_data.get("engine_hours")
             if raw_hours is None or raw_hours == "":
                 results["hours_records"]["errors"] += 1
-                results["errors"].append(f"Hours record {idx}: engine hours are required")
+                errors.append(f"Hours record {idx}: engine hours are required")
                 continue
             engine_hours = Decimal(str(raw_hours))
             _within_api_bounds(HoursRecordCreate, engine_hours=engine_hours)
@@ -2056,13 +2070,13 @@ async def import_vehicle_json(
             async with db.begin_nested():
                 db.add(record)
             results["hours_records"]["success"] += 1
-        except _ImportBoundError as e:
+        except _RowError as e:
             results["hours_records"]["errors"] += 1
-            results["errors"].append(f"Hours record {idx}: {e.reason}")
+            errors.append(f"Hours record {idx}: {e.reason}")
         except Exception as e:
             results["hours_records"]["errors"] += 1
             logger.warning("Import: hours record %s failed: %s", idx, sanitize_for_log(e))
-            results["errors"].append(f"Hours record {idx}: could not be imported")
+            errors.append(f"Hours record {idx}: could not be imported")
 
     # Import reminders → map to vehicle_reminders
     for idx, reminder_data in enumerate(sections["reminders"]):
@@ -2085,7 +2099,7 @@ async def import_vehicle_json(
                 _within_api_bounds(ReminderCreate, due_mileage_km=Decimal(str(recurrence_miles)))
             if has_miles and Decimal(str(recurrence_miles)) <= 0:
                 results["reminders"]["errors"] += 1
-                results["errors"].append(f"Reminder {idx}: recurrence_miles must be positive")
+                errors.append(f"Reminder {idx}: recurrence_miles must be positive")
                 continue
 
             if has_date and has_miles:
@@ -2122,11 +2136,11 @@ async def import_vehicle_json(
             results["reminders"]["success"] += 1
         except _ImportBoundError as e:
             results["reminders"]["errors"] += 1
-            results["errors"].append(f"Reminder {idx}: {e.reason}")
+            errors.append(f"Reminder {idx}: {e.reason}")
         except Exception as e:
             results["reminders"]["errors"] += 1
             logger.warning("Import: reminder %s failed: %s", idx, sanitize_for_log(e))
-            results["errors"].append(f"Reminder {idx}: could not be imported")
+            errors.append(f"Reminder {idx}: could not be imported")
 
     # Import notes
     for idx, note_data in enumerate(sections["notes"]):
@@ -2148,7 +2162,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["notes"]["errors"] += 1
             logger.warning("Import: note %s failed: %s", idx, sanitize_for_log(e))
-            results["errors"].append(f"Note {idx}: could not be imported")
+            errors.append(f"Note {idx}: could not be imported")
 
     # Import insurance: each entry is THIS vehicle's place on a household policy.
     insurance_access = await InsuranceService(db).access_for(current_user)
@@ -2191,11 +2205,11 @@ async def import_vehicle_json(
             results["insurance_policies"]["success" if imported else "skipped"] += 1
         except (_InsuranceRowError, _ImportBoundError) as e:
             results["insurance_policies"]["errors"] += 1
-            results["errors"].append(f"Insurance policy {idx}: {e.reason}")
+            errors.append(f"Insurance policy {idx}: {e.reason}")
         except Exception as e:
             results["insurance_policies"]["errors"] += 1
             logger.warning("Import: insurance policy %s failed: %s", idx, sanitize_for_log(e))
-            results["errors"].append(f"Insurance policy {idx}: could not be imported")
+            errors.append(f"Insurance policy {idx}: could not be imported")
 
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once.
