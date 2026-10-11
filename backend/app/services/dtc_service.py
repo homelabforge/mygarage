@@ -96,9 +96,10 @@ class DTCService:
     ) -> list[VehicleDTC]:
         """Process DTCs reported by a WiCAN device.
 
-        This creates new DTC records for codes not seen before,
-        updates last_seen for existing codes, and can mark codes as
-        cleared if they disappear from the list.
+        An active row for the code gets its last_seen bumped. Anything else
+        gets a new row, so a code that comes back after a clear starts a
+        fresh record and the cleared one stays as history. Codes missing
+        from the list are left alone.
 
         Args:
             vin: Vehicle VIN
@@ -116,15 +117,12 @@ class DTCService:
             if not code:
                 continue
 
-            # Check if DTC already exists for this vehicle
+            # Only an active row counts; a cleared one is history
             existing = await self._get_vehicle_dtc(vin, code)
 
             if existing:
                 # Update last_seen
                 existing.last_seen = now
-                if not existing.is_active:
-                    existing.is_active = True
-                    existing.cleared_at = None
                 processed.append(existing)
             else:
                 # Create new DTC record

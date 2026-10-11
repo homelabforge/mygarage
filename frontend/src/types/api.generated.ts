@@ -5115,6 +5115,7 @@ export interface paths {
          *
          *     **Query Parameters:**
          *     - **include_cleared**: Include cleared DTCs (default false)
+         *     - **cleared_only**: Only cleared DTCs, filtered before the limit (default false)
          *     - **limit**: Max results
          *
          *     **Security:**
@@ -28042,6 +28043,8 @@ export interface operations {
             query?: {
                 /** @description Include cleared DTCs */
                 include_cleared?: boolean;
+                /** @description Only cleared DTCs (filtered before the limit) */
+                cleared_only?: boolean;
                 limit?: number;
             };
             header?: never;

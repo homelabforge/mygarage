@@ -55,8 +55,6 @@ export type DriveSessionListResponse = components['schemas']['DriveSessionListRe
 export type DriveSessionDetail = components['schemas']['DriveSessionDetailResponse']
 
 // -- DTC Types --
-export type DTCDefinition = components['schemas']['DTCDefinitionResponse']
-export type DTCSearchResponse = components['schemas']['DTCSearchResponse']
 export type VehicleDTC = components['schemas']['VehicleDTCResponse']
 export type VehicleDTCUpdate = components['schemas']['VehicleDTCUpdate']
 export type VehicleDTCListResponse = components['schemas']['VehicleDTCListResponse']

@@ -24,8 +24,6 @@ import type {
   VehicleDTC,
   VehicleDTCUpdate,
   VehicleDTCListResponse,
-  DTCDefinition,
-  DTCSearchResponse,
   DTCClearRequest,
   DTCClearResponse,
   MQTTSettings,
@@ -50,6 +48,8 @@ import type {
   TopicMap,
   TopicMapCreate,
 } from '@/types/livelinkTopicMap'
+
+export type DTCListFilter = 'active' | 'cleared' | 'all'
 
 export const livelinkService = {
 
@@ -319,28 +319,6 @@ export const livelinkService = {
   },
 
   // ===========================================================================
-  // DTC Definitions (lookup database)
-  // ===========================================================================
-
-  /**
-   * Look up a single DTC code
-   */
-  async getDTCDefinition(code: string): Promise<DTCDefinition> {
-    const response = await api.get<DTCDefinition>(`/livelink/dtc-definitions/${encodeURIComponent(code)}`)
-    return response.data
-  },
-
-  /**
-   * Search DTC definitions
-   */
-  async searchDTCDefinitions(query: string, limit = 50): Promise<DTCSearchResponse> {
-    const response = await api.get<DTCSearchResponse>('/livelink/dtc-definitions', {
-      params: { q: query, limit },
-    })
-    return response.data
-  },
-
-  // ===========================================================================
   // Vehicle LiveLink Status (live dashboard)
   // ===========================================================================
 
@@ -473,18 +451,14 @@ export const livelinkService = {
   /**
    * Get DTCs for a vehicle
    */
-  async getVehicleDTCs(vin: string, activeOnly = false): Promise<VehicleDTCListResponse> {
-    const response = await api.get<VehicleDTCListResponse>(`/vehicles/${vin}/livelink/dtcs`, {
-      params: { active_only: activeOnly },
-    })
-    return response.data
-  },
-
-  /**
-   * Get DTC history for a vehicle
-   */
-  async getVehicleDTCHistory(vin: string): Promise<VehicleDTCListResponse> {
-    const response = await api.get<VehicleDTCListResponse>(`/vehicles/${vin}/livelink/dtcs/history`)
+  async getVehicleDTCs(vin: string, filter: DTCListFilter): Promise<VehicleDTCListResponse> {
+    // The route returns active codes unless asked; cleared_only filters before
+    // the limit, so recent active rows can't crowd the cleared ones out.
+    const params =
+      filter === 'all' ? { include_cleared: true }
+      : filter === 'cleared' ? { include_cleared: true, cleared_only: true }
+      : {}
+    const response = await api.get<VehicleDTCListResponse>(`/vehicles/${vin}/livelink/dtcs`, { params })
     return response.data
   },
 

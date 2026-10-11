@@ -44079,7 +44079,7 @@
     },
     "/api/vehicles/{vin}/livelink/dtcs": {
       "get": {
-        "description": "Get DTCs for a vehicle.\n\n**Path Parameters:**\n- **vin**: Vehicle VIN\n\n**Query Parameters:**\n- **include_cleared**: Include cleared DTCs (default false)\n- **limit**: Max results\n\n**Security:**\n- Requires authentication",
+        "description": "Get DTCs for a vehicle.\n\n**Path Parameters:**\n- **vin**: Vehicle VIN\n\n**Query Parameters:**\n- **include_cleared**: Include cleared DTCs (default false)\n- **cleared_only**: Only cleared DTCs, filtered before the limit (default false)\n- **limit**: Max results\n\n**Security:**\n- Requires authentication",
         "operationId": "list_vehicle_dtcs_api_vehicles__vin__livelink_dtcs_get",
         "parameters": [
           {
@@ -44100,6 +44100,18 @@
               "default": false,
               "description": "Include cleared DTCs",
               "title": "Include Cleared",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only cleared DTCs (filtered before the limit)",
+            "in": "query",
+            "name": "cleared_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only cleared DTCs (filtered before the limit)",
+              "title": "Cleared Only",
               "type": "boolean"
             }
           },

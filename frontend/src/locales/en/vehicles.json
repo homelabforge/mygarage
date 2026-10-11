@@ -761,6 +761,12 @@
     },
     "dtcs": {
       "addNotesPlaceholder": "Add notes...",
+      "categories": {
+        "body": "Body",
+        "chassis": "Chassis",
+        "network": "Network",
+        "powertrain": "Powertrain"
+      },
       "category": "Category",
       "clearError": "Failed to clear DTC",
       "cleared": "Cleared",
@@ -773,6 +779,7 @@
       "fixGuidance": "Fix guidance",
       "lastSeen": "Last seen",
       "loadError": "Failed to load diagnostic trouble codes",
+      "manufacturerSpecific": "Manufacturer-specific code: its meaning depends on the make",
       "markAsCleared": "Mark as cleared",
       "markedCleared": "{{code}} marked as cleared",
       "needMoreInfo": "Need more information?",

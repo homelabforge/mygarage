@@ -4,11 +4,17 @@ Integration tests for vehicle-specific LiveLink routes.
 Tests status, telemetry, sessions, DTCs, and export endpoints.
 """
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.vehicle import Vehicle
+from app.models.vehicle_dtc import VehicleDTC
+from app.utils.datetime_utils import utc_now
 
 
 @pytest.mark.integration
@@ -202,6 +208,62 @@ class TestVehicleDTCs:
         data = response.json()
         assert data["dtcs"] == []
         assert data["active_count"] == 0
+
+    async def test_cleared_only_filters_before_the_limit(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        test_user: dict[str, object],
+    ):
+        """cleared_only returns cleared codes even when newer active ones fill the limit."""
+        vin = "DTC" + uuid.uuid4().hex[:14].upper()
+        db_session.add(
+            Vehicle(
+                vin=vin,
+                user_id=test_user["id"],
+                nickname="DTC Filter Test",
+                vehicle_type="Car",
+                year=2020,
+                make="Honda",
+                model="Civic",
+            )
+        )
+        await db_session.flush()
+        now = utc_now()
+        rows = [
+            ("P0300", True, now - timedelta(minutes=5), None),
+            ("P0171", True, now, None),
+            ("P0420", False, now - timedelta(days=2), now - timedelta(days=1)),
+        ]
+        for code, active, seen, cleared in rows:
+            db_session.add(
+                VehicleDTC(
+                    vin=vin,
+                    device_id="dtc-filter-dev",
+                    code=code,
+                    severity="warning",
+                    first_seen=seen,
+                    last_seen=seen,
+                    is_active=active,
+                    cleared_at=cleared,
+                )
+            )
+        await db_session.commit()
+        url = f"/api/vehicles/{vin}/livelink/dtcs"
+
+        cleared = await client.get(
+            url, params={"cleared_only": "true", "limit": 1}, headers=auth_headers
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert [(d["code"], d["is_active"]) for d in cleared.json()["dtcs"]] == [("P0420", False)]
+
+        # Today's history order: newest last_seen first, active or not.
+        history = await client.get(
+            url, params={"include_cleared": "true", "limit": 1}, headers=auth_headers
+        )
+        assert history.status_code == 200, history.text
+        assert [d["code"] for d in history.json()["dtcs"]] == ["P0171"]
 
 
 @pytest.mark.integration

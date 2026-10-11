@@ -513,6 +513,7 @@ async def get_session_detail(
 async def list_vehicle_dtcs(
     vin: str,
     include_cleared: bool = Query(False, description="Include cleared DTCs"),
+    cleared_only: bool = Query(False, description="Only cleared DTCs (filtered before the limit)"),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
@@ -525,6 +526,7 @@ async def list_vehicle_dtcs(
 
     **Query Parameters:**
     - **include_cleared**: Include cleared DTCs (default false)
+    - **cleared_only**: Only cleared DTCs, filtered before the limit (default false)
     - **limit**: Max results
 
     **Security:**
@@ -535,7 +537,9 @@ async def list_vehicle_dtcs(
 
     dtc_service = DTCService(db)
 
-    if include_cleared:
+    if cleared_only:
+        dtcs = await dtc_service.get_dtc_history(vin, include_active=False, limit=limit)
+    elif include_cleared:
         dtcs = await dtc_service.get_dtc_history(vin, include_active=True, limit=limit)
     else:
         dtcs = await dtc_service.get_active_dtcs(vin)
