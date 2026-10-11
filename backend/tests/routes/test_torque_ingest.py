@@ -129,6 +129,24 @@ async def test_get_ingest_stores_telemetry_and_session(
 
 
 @pytest.mark.asyncio
+async def test_unpadded_pids_are_stored_under_canonical_keys(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """#223: `kc`/`kd` from Torque Pro 1.12 land as ENGINE_RPM/SPEED, not as raw `KC`/`KD`."""
+    vin, _device, token = await _make_torque_source(db_session)
+    t = datetime.now(UTC) - timedelta(seconds=5)
+
+    r = await client.get(
+        f"/api/v1/torque/{token}/upload",
+        params={"session": "S223", "id": "abc", "time": _epoch_ms(t), "kc": "2549", "kd": "48"},
+    )
+
+    assert r.status_code == 200
+    param_keys = {row.param_key for row in await _telemetry_rows(db_session, vin)}
+    assert param_keys == {"ENGINE_RPM", "SPEED"}
+
+
+@pytest.mark.asyncio
 async def test_minimal_test_request_returns_ok_with_no_pids(
     client: AsyncClient, db_session: AsyncSession
 ):

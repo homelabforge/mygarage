@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - SSO settings have a Callback URL field, so `oidc_redirect_uri` can be pinned from Settings
+- Common Torque Pro extended PIDs, such as OBD adapter voltage and turbo boost, have readable names
 
 ### Changed
 - CI splits the test suites across parallel runners (shared-workflows v1.7.0)
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sign-in for accounts still on a pre-Argon2 (bcrypt) password hash. bcrypt hasn't shipped since at least v2.14.0, so such accounts couldn't sign in anyway. An admin resets the password, and the log names the account
 
 ### Fixed
+- Torque Pro uploads that send PIDs without a leading zero (`kc`, `kd`) are stored as Engine RPM, Speed and so on instead of `KC`, `KD` (#223)
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
 - Small supply amounts (a few mL in L, qt or gal) no longer show as 0.00, and supply amounts follow the selected language
 - With sign-in off, creating a user and resetting a password no longer error after saving, the family pages no longer error, and Share is hidden on the vehicle page
