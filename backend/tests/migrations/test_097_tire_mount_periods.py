@@ -82,6 +82,19 @@ def _load_migration_126():
     return module
 
 
+def _load_migration_128():
+    migration_128_path = (
+        Path(__file__).parent.parent.parent
+        / "app"
+        / "migrations"
+        / "128_drop_reminder_projected_distance.py"
+    )
+    spec = importlib.util.spec_from_file_location("m128", migration_128_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _legacy_schema(path: Path) -> None:
     """The v3.2.0 shape of every table 097 touches."""
     conn = sqlite3.connect(path)
@@ -423,12 +436,14 @@ class TestSchemaParity:
         _seed_tire(legacy_db, tire_id=1, vin="VINAAA00000000001", position="FL")
         upgraded = create_engine(f"sqlite:///{legacy_db}")
         _load_migration().upgrade(upgraded)
-        # Also run migrations 100, 101, 103 and 126 to match the current model
-        # (storage_location; the reminder lifecycle columns; snoozed_until; the tire hour columns).
+        # Also run migrations 100, 101, 103, 126 and 128 to match the current model
+        # (storage_location; the reminder lifecycle columns; snoozed_until; the tire hour
+        # columns; dropping the dead projected_distance_km).
         _load_migration_100().upgrade(upgraded)
         _load_migration_101().upgrade(upgraded)
         _load_migration_103().upgrade(upgraded)
         _load_migration_126().upgrade(upgraded)
+        _load_migration_128().upgrade(upgraded)
 
         fresh_path = tmp_path / "fresh_parity.db"
         fresh = create_engine(f"sqlite:///{fresh_path}")

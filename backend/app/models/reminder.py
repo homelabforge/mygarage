@@ -61,11 +61,11 @@ class Reminder(Base):
     # What created this reminder: 'low_tread' for the tire sync, NULL for a
     # reminder a human made. The sync never adopts a row whose source is NULL.
     source: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    # Canonical snapshots taken when a low-tread reminder was raised, so the
-    # notification can say what it saw without re-deriving it later.
+    # Canonical tread figures on a low-tread reminder. The sync sets them when it
+    # raises the reminder and keeps them current while it's pending, and the
+    # notification renders them in the reader's units.
     tread_depth_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     tread_threshold_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
-    projected_distance_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
