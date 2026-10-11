@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SSO sign-in through Rauthy no longer logs a SecurityWarning about the EdDSA algorithm name, and providers that use the newer Ed25519 name work too
 - The Callback URL refuses invisible characters, an address with no host, and a port that isn't a number
 - Tires on an hours-only vehicle no longer ask for an odometer, and the hour meter typed there no longer ends up in hidden odometer readings
-- Hour meter readings typed into a tire's odometer before this release stay in the vehicle's odometer history; turn on distance tracking for the vehicle to see and delete them
+- Hour meter readings typed into a tire's odometer before this release stay in the vehicle's odometer history; turn on distance tracking for the vehicle to see and delete them. They stay on the tire's mount periods and readings too, where Edit on the period or deleting the reading clears them while distance tracking is on
 - An hours-only vehicle no longer gets odometer milestone notifications
 - Clearing the date in a tire dialog asks for a date instead of failing with an error
 - A past mount period can no longer run past the day its tire was retired, and a tire can't be retired before the end of its mount history

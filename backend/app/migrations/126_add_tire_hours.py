@@ -29,6 +29,7 @@ _COLUMNS: tuple[tuple[str, str, str], ...] = (
 
 
 def _get_fallback_engine() -> Engine:
+    """Build a SQLite engine from environment for standalone execution."""
     db_path = os.environ.get("DATABASE_PATH")
     if db_path:
         return create_engine(f"sqlite:///{db_path}")
@@ -37,6 +38,7 @@ def _get_fallback_engine() -> Engine:
 
 
 def upgrade(engine: Engine | None = None) -> None:
+    """Add the hour columns to tire mount periods and readings where missing."""
     if engine is None:
         engine = _get_fallback_engine()
 
@@ -59,6 +61,7 @@ def upgrade(engine: Engine | None = None) -> None:
 
 
 def downgrade() -> None:  # pragma: no cover
+    """Rollback not supported."""
     raise NotImplementedError("Migration 126 is forward-only.")
 
 

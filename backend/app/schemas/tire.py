@@ -229,7 +229,7 @@ class TireReadingCreate(BaseModel):
     def _at_least_one_measurement(self) -> TireReadingCreate:
         """Reject a reading that measures nothing.
 
-        ``odometer_km`` and ``engine_hours`` deliberately do not count. It is
+        ``odometer_km`` and ``engine_hours`` deliberately do not count. They are
         context for the wear projection, not an observation of the tire, so a
         date-plus-odometer row would add a history entry that says nothing
         about the tire and would still be picked up by ``_project_wear`` as

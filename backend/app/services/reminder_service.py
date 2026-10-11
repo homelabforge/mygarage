@@ -1098,7 +1098,7 @@ async def check_due_reminders(db: AsyncSession) -> None:
 def _build_reminder_message(reminder: ReminderMessageSource, ctx: RenderContext) -> str:
     """Build the notification message for a due reminder, rendered in ``ctx``.
 
-    Three kinds of content, three deliberately different treatments:
+    Four kinds of content, four deliberately different treatments:
 
     - ``due_mileage_km`` is canonical km and renders in ``ctx``'s distance
       unit, gaining a parenthetical counterpart when ``ctx.show_both``.
