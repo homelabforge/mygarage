@@ -36,10 +36,12 @@ OIDC_REDIRECT_URI_KEY = "oidc_redirect_uri"
 def checked_redirect_uri(raw: str) -> str:
     """The SSO callback pin to store: stripped, and blank or an absolute http(s) URL.
 
-    Absolute means an http or https scheme, a host and no fragment. Whitespace or
-    a control character anywhere inside is refused too: urlsplit drops tabs and
-    newlines before it parses, so it saw a fine URL while the raw value got
-    stored. The path isn't checked, since a proxy may rewrite it (create_authorization_url
+    Absolute means an http or https scheme, a host name, a port that parses if
+    there is one, and no fragment. Whitespace or any Unicode "other" character
+    (controls, format characters like U+200B or U+202E, surrogates, private use)
+    anywhere inside is refused too: urlsplit drops tabs and newlines before it
+    parses, and a format character makes two different URLs look the same. The
+    path isn't checked, since a proxy may rewrite it (create_authorization_url
     already warns on a missing root_path prefix). Every writer of the row calls
     this: the SSO settings PUT, the settings routes and the settings restore.
 
@@ -50,13 +52,15 @@ def checked_redirect_uri(raw: str) -> str:
     if not value:
         return ""
     rule = "must be blank or an absolute http(s) URL"
-    if any(ch.isspace() or unicodedata.category(ch) == "Cc" for ch in value):
+    if any(ch.isspace() or unicodedata.category(ch).startswith("C") for ch in value):
         raise ValueError(rule)
     try:
         parts = urlsplit(value)
+        _port = parts.port  # a bad port only raises when it's read
     except ValueError as exc:
         raise ValueError(rule) from exc
-    if parts.scheme not in ("http", "https") or not parts.netloc:
+    # netloc alone let "https://@/" and "https://:8080/" through: neither names a host.
+    if parts.scheme not in ("http", "https") or not parts.hostname:
         raise ValueError(rule)
     # A redirect URI can't carry a fragment (RFC 6749 3.1.2), and an IdP will
     # refuse the whole login over it. A bare trailing "#" counts too.

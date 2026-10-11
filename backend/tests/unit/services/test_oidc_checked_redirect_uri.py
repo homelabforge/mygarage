@@ -1,9 +1,9 @@
 """checked_redirect_uri: the one rule every writer of the SSO callback pin uses.
 
-Blank or an absolute http(s) URL, with no whitespace, control character or
-fragment inside. urlsplit quietly drops tabs and newlines before it parses, so
-its view of the URL alone said "https://x\\n.evil" was fine while the raw value
-got stored.
+Blank or an absolute http(s) URL with a host and a valid port, with no
+whitespace, Unicode control or format character, or fragment inside. urlsplit
+quietly drops tabs and newlines before it parses, so its view of the URL alone
+said "https://x\\n.evil" was fine while the raw value got stored.
 """
 
 import pytest
@@ -21,8 +21,20 @@ class TestCheckedRedirectUri:
 
     @pytest.mark.parametrize(
         "good",
-        [PINNED, "http://garage.lan:8686/api/auth/oidc/callback", "HTTPS://Garage.example.com/cb"],
-        ids=["https", "http-with-port", "upper-case-scheme"],
+        [
+            PINNED,
+            "http://garage.lan:8686/api/auth/oidc/callback",
+            "HTTPS://Garage.example.com/cb",
+            "https://[::1]:8443/cb",
+            "https://user@garage.example.com/cb",
+        ],
+        ids=[
+            "https",
+            "http-with-port",
+            "upper-case-scheme",
+            "ipv6-with-port",
+            "user-info-is-legal",
+        ],
     )
     def test_an_absolute_http_url_is_kept(self, good: str) -> None:
         assert checked_redirect_uri(good) == good
@@ -49,7 +61,17 @@ class TestCheckedRedirectUri:
             "https://garage.example.com/\x9bcb",
             "https://garage.example.com/cb#frag",
             "https://garage.example.com/cb#",
-            "https://garage.example.com/ cb",
+            "https://garage.example.com/\u00a0cb",
+            "https://@/",
+            "https://:8080/",
+            "https://user@/cb",
+            "https://garage\u200b.example.com/cb",
+            "https://garage.example.com/cb\u202e",
+            "https://garage\u00ad.example.com/cb",
+            "https://garage.example.com/\ue000cb",
+            "https://garage.example.com/\ud800cb",
+            "https://garage.example.com:99999/cb",
+            "https://garage.example.com:abc/cb",
         ],
         ids=[
             "ftp",
@@ -69,6 +91,16 @@ class TestCheckedRedirectUri:
             "fragment",
             "empty-fragment",
             "no-break-space",
+            "hostless-at",
+            "hostless-port",
+            "hostless-userinfo",
+            "zero-width-space",
+            "rtl-override",
+            "soft-hyphen",
+            "private-use",
+            "lone-surrogate",
+            "port-out-of-range",
+            "port-not-a-number",
         ],
     )
     def test_anything_else_is_refused(self, bad: str) -> None:
