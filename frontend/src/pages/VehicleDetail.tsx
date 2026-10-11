@@ -87,13 +87,7 @@ import { VehicleUnitScope } from '../contexts/VehicleUnitScope'
 import { forgetCachedVehicle, readCachedVehicle, rememberVehicle } from '../utils/vehicleCache'
 import { useSyncQuickEntryVehicle } from '../hooks/queries/useQuickEntryVehicles'
 import { useVehicleDetailStats } from '../hooks/queries/useVehicleDetailStats'
-
-/** Per-record-type tallies returned by the JSON import endpoint. */
-type ImportSectionResult = {
-  success_count: number
-  skipped_count: number
-  error_count: number
-}
+import { buildImportSummary } from '../utils/importSummary'
 
 export type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | 'torqueSource' | null
 export type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'fuel' | 'tracking' | 'financial' | 'livelink'
@@ -355,31 +349,8 @@ export default function VehicleDetail() {
           'Content-Type': 'multipart/form-data',
         },
       })
-      const result = response.data
-
-      // Show results
-      const sections: Array<[string, ImportSectionResult | undefined]> = [
-        [t('detail.misc.importServiceRecords'), result.service_records],
-        [t('detail.misc.importFuelRecords'), result.fuel_records],
-        [t('detail.misc.importOdometerRecords'), result.odometer_records],
-        [t('detail.misc.importMaintenanceRecords'), result.reminders],
-        [t('noteList.title'), result.notes],
-      ]
-
-      let message = `${t('detail.misc.importSummaryHeading')}\n`
-      for (const [label, section] of sections) {
-        if (!section) continue
-        message += `\n${label}: ✓ ${t('detail.misc.importedCount', { count: section.success_count })}`
-        if (section.skipped_count > 0) {
-          message += `, ○ ${t('detail.misc.skippedCount', { count: section.skipped_count })}`
-        }
-        if (section.error_count > 0) {
-          message += `, ✗ ${t('detail.misc.errorCount', { count: section.error_count })}`
-        }
-      }
-
       toast.success(t('detail.importSuccess'), {
-        description: message
+        description: buildImportSummary(response.data, t)
       })
 
       // Reload the vehicle data
@@ -867,12 +838,17 @@ export default function VehicleDetail() {
       {openModal === 'windowSticker' && vin && (
         <WindowStickerUpload
           vin={vin}
+          hasExistingSticker={!!vehicle?.window_sticker_file_path}
           onSuccess={() => {
             setOpenModal(null)
             loadVehicle()
             toast.success(t('detail.windowStickerUploaded'))
           }}
-          onClose={() => setOpenModal(null)}
+          onClose={(uploaded) => {
+            setOpenModal(null)
+            // A cancelled review still left the new sticker on file.
+            if (uploaded) loadVehicle()
+          }}
         />
       )}
     </div>

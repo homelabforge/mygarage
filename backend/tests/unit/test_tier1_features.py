@@ -26,7 +26,7 @@ class _Reading:
         self.tread_depth_mm = tread_depth_mm
 
 
-def _tire_with(readings, min_tread, *, bounded=True):
+def _tire_with(readings, min_tread, *, bounded=True, mounted_on: date = date(2025, 1, 1)):
     """A tire whose mount history supports (or does not support) a projection.
 
     v3.3.0 made the projection period-aware: the distance is the tire's own,
@@ -42,7 +42,7 @@ def _tire_with(readings, min_tread, *, bounded=True):
     tire.mount_periods = [
         TireMountPeriod(
             position="FL",
-            mounted_on=date(2025, 1, 1),
+            mounted_on=mounted_on,
             mounted_odometer_km=Decimal("9000") if bounded else None,
         )
     ]
@@ -115,6 +115,32 @@ def test_project_wear():
     assert result.status is WearStatus.PROJECTED
     assert result.km_remaining == Decimal("2000.0")
     assert result.wear_date is not None
+
+
+def test_project_wear_dates_an_in_range_projection():
+    # 1 mm per 1,000 km at 10 km/day with 3 mm left: 300 days after the newer reading.
+    readings = [
+        _Reading(date(2026, 4, 11), Decimal("11000"), Decimal("5.0")),
+        _Reading(date(2026, 1, 1), Decimal("10000"), Decimal("6.0")),
+    ]
+    result = project_wear(_tire_with(readings, Decimal("2.0")), Decimal("11000"), readings)
+    assert result.status is WearStatus.PROJECTED
+    assert result.km_remaining == Decimal("3000.0")
+    assert result.wear_date == date(2027, 2, 5)
+
+
+def test_project_wear_past_the_calendar_has_no_date():
+    """0.01 mm in nine years with 10 mm left is 3,287,000 days out, past
+    9999-12-31. The km figure still stands; only the date is unavailable."""
+    readings = [
+        _Reading(date(2026, 6, 1), Decimal("100000"), Decimal("12.00")),
+        _Reading(date(2017, 6, 1), Decimal("10000"), Decimal("12.01")),
+    ]
+    tire = _tire_with(readings, Decimal("2.0"), mounted_on=date(2017, 1, 1))
+    result = project_wear(tire, Decimal("100000"), readings)
+    assert result.status is WearStatus.PROJECTED
+    assert result.km_remaining == Decimal("90000000.0")
+    assert result.wear_date is None
 
 
 def test_project_wear_needs_two_readings():
@@ -746,6 +772,80 @@ class TestParseOptions:
         rows = parse_drivvo(csv_data, ParseOptions(odometer_unit="mi"))
         assert rows[0]["odometer_km"] == Decimal("12345")
 
+    @pytest.mark.parametrize(
+        ("pick", "expected"),
+        [("km", Decimal("12345")), ("mi", Decimal("12345") * Decimal("1.609344"))],
+    )
+    def test_drivvo_mileage_follows_the_pick(self, pick, expected):
+        """A bare Mileage column says nothing about its unit, same as in Fuelio and Tesla."""
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = "Date,Mileage,Liters\n2026-01-15,12345,40\n"
+        rows = parse_drivvo(csv_data, ParseOptions(odometer_unit=pick))
+        assert rows[0]["odometer_km"] == expected
+
+    # Tesla exports can carry a per-row "Odometer Unit" cell beside a bare
+    # Odometer. The import drawer now defaults a miles vehicle to a mi pick, so
+    # a km cell has to beat that pick the same way a mi cell beats a km one.
+    TESLA_UNIT_CELL = (
+        "Charge End Date,Odometer,Odometer Unit,Energy Added (kWh)\n2026-03-01,12345,{unit},42.5\n"
+    )
+
+    def test_tesla_km_unit_cell_beats_a_miles_pick(self):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = self.TESLA_UNIT_CELL.format(unit="km")
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit="mi"))
+        assert rows[0]["odometer_km"] == Decimal("12345")
+
+    @pytest.mark.parametrize("unit", ["Kilometers", "kilometres", "KM"])
+    def test_tesla_spelled_out_km_unit_cell_beats_a_miles_pick(self, unit):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = self.TESLA_UNIT_CELL.format(unit=unit)
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit="mi"))
+        assert rows[0]["odometer_km"] == Decimal("12345")
+
+    @pytest.mark.parametrize("unit", ["mi", "Miles"])
+    def test_tesla_miles_unit_cell_still_beats_a_km_pick(self, unit):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = self.TESLA_UNIT_CELL.format(unit=unit)
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit="km"))
+        assert rows[0]["odometer_km"] == Decimal("12345") * Decimal("1.609344")
+
+    @pytest.mark.parametrize(
+        ("pick", "expected"),
+        [("km", Decimal("12345")), ("mi", Decimal("12345") * Decimal("1.609344"))],
+    )
+    def test_tesla_unit_cell_naming_both_leaves_the_pick(self, pick, expected):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = self.TESLA_UNIT_CELL.format(unit="km/mi")
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit=pick))
+        assert rows[0]["odometer_km"] == expected
+
+    @pytest.mark.parametrize(
+        ("header", "unit", "pick", "expected"),
+        [
+            ("Odometer (km)", "mi", "km", Decimal("12345")),
+            ("Odometer (mi)", "km", "mi", Decimal("12345") * Decimal("1.609344")),
+        ],
+    )
+    def test_tesla_explicit_header_beats_the_unit_cell(self, header, unit, pick, expected):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = f"Charge End Date,{header},Odometer Unit,Energy Added (kWh)\n2026-03-01,12345,{unit},42.5\n"
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit=pick))
+        assert rows[0]["odometer_km"] == expected
+
+    def test_tesla_without_a_unit_cell_follows_a_miles_pick(self):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = "Charge End Date,Odometer,Energy Added (kWh)\n2026-03-01,12345,42.5\n"
+        rows = parse_tesla(csv_data, ParseOptions(odometer_unit="mi"))
+        assert rows[0]["odometer_km"] == Decimal("12345") * Decimal("1.609344")
+
     def test_defaults_are_metric_and_dot(self):
         from app.services.import_adapters.fuel_csv import ParseOptions
 
@@ -771,3 +871,75 @@ def test_odometro_alone_is_not_classified_drivvo():
 
 def test_drivvo_pt_still_detected():
     assert detect_format("Data,Odômetro,Quantidade (litros)\n2026-01-15,45000,35.2\n") == "drivvo"
+
+
+def test_drivvo_headers_match_in_any_case():
+    """detect_format lowercases headers, so the parser has to find them in any case too."""
+    csv_data = (
+        "DATE,ODOMETER (KM),QUANTITY (LITERS),PRICE/LITER,TOTAL COST\n"
+        "15/01/2026,20000,35.2,1.55,54.56\n"
+    )
+    assert detect_format(csv_data) == "drivvo"
+    rows = parse_drivvo(csv_data)
+    assert len(rows) == 1
+    assert rows[0]["odometer_km"] == Decimal("20000")
+    assert rows[0]["liters"] == Decimal("35.2")
+
+
+@pytest.mark.parametrize(
+    ("parse", "header"),
+    [
+        (parse_fuelio, "Date,Odometer (km),Volume(l),Total cost"),
+        (parse_drivvo, "Date,Odometer (km),Quantity (liters),Total cost"),
+    ],
+    ids=["fuelio", "drivvo"],
+)
+def test_a_row_with_more_cells_than_headers_still_imports(parse, header):
+    """DictReader puts the extra cells under None as a list; no header names them."""
+    rows = parse(f"{header}\n2026-01-15,12345,40.5,60.71,stray\n")
+    assert len(rows) == 1
+    assert rows[0]["odometer_km"] == Decimal("12345")
+    assert rows[0]["liters"] == Decimal("40.5")
+    assert rows[0]["cost"] == Decimal("60.71")
+
+
+def test_a_row_with_fewer_cells_than_headers_still_parses():
+    csv_data = (
+        "Date,Odometer (km),Volume(l),Price,Total cost,Full tank,Notes\n2026-01-15,12345,40.5\n"
+    )
+    rows = parse_fuelio(csv_data)
+    assert len(rows) == 1
+    assert rows[0]["odometer_km"] == Decimal("12345")
+    assert rows[0]["liters"] == Decimal("40.5")
+    assert rows[0]["cost"] is None
+    assert rows[0]["notes"] is None
+    assert rows[0]["is_full_tank"] is True
+
+
+def test_fuelio_full_tank_any_case():
+    csv_data = "Date,Odometer,Volume(l),Full TANK\n2026-01-15,12345,40,0\n"
+    rows = parse_fuelio(csv_data)
+    assert rows[0]["is_full_tank"] is False
+
+
+def test_every_row_lookup_literal_is_casefolded() -> None:
+    import ast
+    from pathlib import Path
+
+    from app.services.import_adapters import fuel_csv
+
+    tree = ast.parse(Path(fuel_csv.__file__).read_text(encoding="utf-8"))
+    keys = [
+        node.args[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "row"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    ]
+    assert len(keys) > 60  # the scan really found the parsers' lookups (83 before 1d)
+    assert [k for k in keys if k != k.casefold()] == []

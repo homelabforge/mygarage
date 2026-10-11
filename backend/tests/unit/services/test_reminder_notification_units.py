@@ -36,19 +36,22 @@ down in `finally`, and the VIN/username are scoped to this module.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date
 from decimal import Decimal
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet, field_to_column
 from app.models.reminder import Reminder
 from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.services import reminder_service
 from app.services.reminder_service import _build_reminder_message, check_due_reminders
 from app.utils.default_unit_prefs import DEFAULT_UNIT_PREFS_KEY
 from app.utils.render_context import RenderContext
@@ -65,6 +68,9 @@ _IMPERIAL_CTX = RenderContext(units=IMPERIAL_PRESET, show_both=False)
 # suite that shares one database.
 _DUE_DATE = date(2020, 1, 1)
 _DUE_MILEAGE_KM = Decimal("50000")
+
+# A settings row a test's "other connection" writes and removes again.
+_PROBE_KEY = "reminder_units_probe"
 
 # Exactly the shape `tire_service._sync_low_tread_reminder` writes: metric
 # prose, both quantities inside `notes`, and no `due_mileage_km` at all.
@@ -352,3 +358,243 @@ class TestCheckDueRemindersUnits:
             "Due date: 2020-01-01\n"
             "Due mileage: 50,000 km"
         ]
+
+    async def test_one_failing_reminder_does_not_stop_the_sweep(
+        self,
+        db_session: AsyncSession,
+        seeded_reminders,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """An error evaluating one reminder (a projection overflow, say) is
+        logged and skipped: the others still notify, and the run still
+        commits their cooldown stamps."""
+        sent = self._stub_dispatcher(monkeypatch)
+        failing_id = (
+            await db_session.execute(select(Reminder.id).where(Reminder.vin == _OWNED_VIN))
+        ).scalar_one()
+        real_is_snoozed = reminder_service.is_reminder_snoozed
+
+        def _snoozed_or_raise(reminder: Reminder, today: date | None = None) -> bool:
+            if reminder.id == failing_id:
+                raise RuntimeError("evaluation blew up")
+            return real_is_snoozed(reminder, today)
+
+        monkeypatch.setattr(reminder_service, "is_reminder_snoozed", _snoozed_or_raise)
+
+        with caplog.at_level(logging.ERROR, logger="app.services.reminder_service"):
+            await check_due_reminders(db_session)
+
+        assert self._own(sent, "Reminder Units Owned Service") == []
+        assert len(self._own(sent, "Reminder Units Ownerless Service")) == 1
+        # A second session sees only what was committed.
+        async with test_sessionmaker() as fresh:
+            stamped = (
+                await fresh.execute(
+                    select(Reminder.last_notified_at).where(Reminder.vin == _OWNERLESS_VIN)
+                )
+            ).scalar_one()
+        assert stamped is not None
+        failures = [
+            r for r in caplog.records if r.getMessage() == f"Reminder {failing_id} check failed"
+        ]
+        assert len(failures) == 1
+        assert failures[0].exc_info is not None
+
+    @pytest.mark.parametrize(
+        "failing_vin, healthy_vin, healthy_title",
+        [
+            (_OWNED_VIN, _OWNERLESS_VIN, "Reminder Units Ownerless Service"),
+            (_OWNERLESS_VIN, _OWNED_VIN, "Reminder Units Owned Service"),
+        ],
+        ids=["owned-fails", "ownerless-fails"],
+    )
+    async def test_a_failed_query_rolls_back_only_its_own_reminder(
+        self,
+        db_session: AsyncSession,
+        seeded_reminders,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+        failing_vin: str,
+        healthy_vin: str,
+        healthy_title: str,
+    ) -> None:
+        """A database error checking one reminder stays in that reminder's
+        savepoint. Without one, PostgreSQL leaves the transaction aborted and
+        every later check and the final commit fail with it. Both ways round,
+        so the failure lands before and after a stamp the run still has to
+        commit."""
+        sent = self._stub_dispatcher(monkeypatch)
+        real_mileage = reminder_service.get_current_mileage
+
+        async def _mileage_or_bad_sql(vin: str, db: AsyncSession) -> Decimal | None:
+            if vin == failing_vin:
+                await db.execute(text("SELECT no_such_column FROM vehicle_reminders"))
+            return await real_mileage(vin, db)
+
+        monkeypatch.setattr(reminder_service, "get_current_mileage", _mileage_or_bad_sql)
+
+        await check_due_reminders(db_session)
+
+        assert len(self._own(sent, healthy_title)) == 1
+        # A second session sees only what was committed.
+        async with test_sessionmaker() as fresh:
+            rows = await fresh.execute(
+                select(Reminder.vin, Reminder.last_notified_at).where(
+                    Reminder.vin.in_([failing_vin, healthy_vin])
+                )
+            )
+            stamps = {vin: stamped for vin, stamped in rows.all()}
+        assert stamps[healthy_vin] is not None
+        assert stamps[failing_vin] is None
+
+    async def test_no_backend_call_holds_the_sqlite_write_lock(
+        self,
+        db_session: AsyncSession,
+        seeded_reminders,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """While a notification goes out, another connection can still write.
+
+        A stamp written before the last send takes SQLite's database-wide
+        write lock and keeps it through every later backend call, and a dead
+        backend outlasts prod's 30s busy_timeout.
+        """
+        if db_session.get_bind().dialect.name != "sqlite":
+            pytest.skip("SQLite's write lock is database-wide; PostgreSQL locks only the rows")
+        outcomes: dict[str, str] = {}
+
+        class _ProbingDispatcher:
+            def __init__(self, db: AsyncSession) -> None:
+                pass
+
+            async def dispatch(self, event_type: str, title: str, message: str) -> None:
+                async with test_sessionmaker() as other:
+                    previous = (await other.execute(text("PRAGMA busy_timeout"))).scalar_one()
+                    await other.execute(text("PRAGMA busy_timeout = 100"))
+                    try:
+                        # Matches nothing, but still needs the write lock.
+                        await other.execute(text("UPDATE settings SET key = key WHERE 1 = 0"))
+                        await other.commit()
+                        outcomes[title] = "ok"
+                    except OperationalError as e:
+                        await other.rollback()
+                        outcomes[title] = str(e.orig)
+                    finally:
+                        await other.execute(text(f"PRAGMA busy_timeout = {int(previous)}"))
+
+        monkeypatch.setattr(
+            "app.services.notifications.dispatcher.NotificationDispatcher", _ProbingDispatcher
+        )
+
+        await check_due_reminders(db_session)
+
+        assert outcomes["Reminder Due: Reminder Units Owned Service"] == "ok"
+        assert outcomes["Reminder Due: Reminder Units Ownerless Service"] == "ok"
+        # Anything else the shared database had due went out without the lock too.
+        assert set(outcomes.values()) == {"ok"}
+
+    async def test_a_failed_check_cannot_cost_the_stamps_when_someone_else_writes(
+        self,
+        db_session: AsyncSession,
+        seeded_reminders,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """One check fails, then another connection commits while a notification
+        is going out: the run still commits the stamps for what it sent.
+
+        On SQLite a rolled-back savepoint is never released, so the checking
+        transaction stays open on its old read snapshot. A stamp written in it
+        after someone else committed fails with "database is locked" straight
+        away (no busy retry for a stale snapshot), and every stamp goes with it.
+        """
+        sent: list[str] = []
+
+        class _WritingDispatcher:
+            def __init__(self, db: AsyncSession) -> None:
+                pass
+
+            async def dispatch(self, event_type: str, title: str, message: str) -> None:
+                # A real committed change from elsewhere, the way telemetry
+                # ingest writes while a backend call is in flight.
+                async with test_sessionmaker() as other:
+                    other.add(Setting(key=_PROBE_KEY, value="x", category="general"))
+                    await other.commit()
+                    await other.execute(delete(Setting).where(Setting.key == _PROBE_KEY))
+                    await other.commit()
+                sent.append(message)
+
+        monkeypatch.setattr(
+            "app.services.notifications.dispatcher.NotificationDispatcher", _WritingDispatcher
+        )
+        real_mileage = reminder_service.get_current_mileage
+
+        async def _read_then_fail(vin: str, db: AsyncSession) -> Decimal | None:
+            # Reads first, so the failed savepoint leaves a snapshot behind.
+            value = await real_mileage(vin, db)
+            if vin == _OWNED_VIN:
+                raise RuntimeError("check blew up after a read")
+            return value
+
+        monkeypatch.setattr(reminder_service, "get_current_mileage", _read_then_fail)
+
+        await check_due_reminders(db_session)
+
+        assert self._own(sent, "Reminder Units Owned Service") == []
+        assert len(self._own(sent, "Reminder Units Ownerless Service")) == 1
+        async with test_sessionmaker() as fresh:
+            rows = await fresh.execute(
+                select(Reminder.vin, Reminder.last_notified_at).where(
+                    Reminder.vin.in_([_OWNED_VIN, _OWNERLESS_VIN])
+                )
+            )
+            stamps = {vin: stamped for vin, stamped in rows.all()}
+        assert stamps[_OWNERLESS_VIN] is not None
+        assert stamps[_OWNED_VIN] is None
+
+    @pytest.mark.parametrize(
+        "failing_vin, healthy_vin, healthy_title",
+        [
+            (_OWNED_VIN, _OWNERLESS_VIN, "Reminder Units Ownerless Service"),
+            (_OWNERLESS_VIN, _OWNED_VIN, "Reminder Units Owned Service"),
+        ],
+        ids=["owned-fails", "ownerless-fails"],
+    )
+    async def test_a_failed_query_while_sending_costs_only_that_send(
+        self,
+        db_session: AsyncSession,
+        seeded_reminders,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        monkeypatch: pytest.MonkeyPatch,
+        failing_vin: str,
+        healthy_vin: str,
+        healthy_title: str,
+    ) -> None:
+        """A database error while one notification goes out costs only that one:
+        the rest still send and get stamped. PostgreSQL keeps the transaction
+        aborted after the error until something rolls it back."""
+        sent = self._stub_dispatcher(monkeypatch)
+        real_context = reminder_service.render_context_for_vehicle
+
+        async def _context_or_bad_sql(db: AsyncSession, vin: str) -> RenderContext:
+            if vin == failing_vin:
+                await db.execute(text("SELECT no_such_column FROM vehicle_reminders"))
+            return await real_context(db, vin)
+
+        monkeypatch.setattr(reminder_service, "render_context_for_vehicle", _context_or_bad_sql)
+
+        await check_due_reminders(db_session)
+
+        assert len(self._own(sent, healthy_title)) == 1
+        async with test_sessionmaker() as fresh:
+            rows = await fresh.execute(
+                select(Reminder.vin, Reminder.last_notified_at).where(
+                    Reminder.vin.in_([failing_vin, healthy_vin])
+                )
+            )
+            stamps = {vin: stamped for vin, stamped in rows.all()}
+        assert stamps[healthy_vin] is not None
+        assert stamps[failing_vin] is None

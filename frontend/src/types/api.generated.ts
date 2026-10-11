@@ -5115,6 +5115,7 @@ export interface paths {
          *
          *     **Query Parameters:**
          *     - **include_cleared**: Include cleared DTCs (default false)
+         *     - **cleared_only**: Only cleared DTCs, filtered before the limit (default false)
          *     - **limit**: Max results
          *
          *     **Security:**
@@ -7521,7 +7522,9 @@ export interface paths {
          * Upload Window Sticker
          * @description Upload a window sticker file and extract data using OCR.
          *
-         *     The file will be saved and OCR extraction will be attempted.
+         *     The scan fills only the sticker fields that are empty. With `replace` and a
+         *     sticker already on file, the old sticker's fields are cleared first. A scan
+         *     that read nothing changes no field and says so in `scan_read_nothing`.
          *     Extracted data can be edited via the PATCH endpoint.
          */
         post: operations["upload_window_sticker_api_vehicles__vin__window_sticker_upload_post"];
@@ -8582,6 +8585,11 @@ export interface components {
         Body_upload_window_sticker_api_vehicles__vin__window_sticker_upload_post: {
             /** File */
             file: string;
+            /**
+             * Replace
+             * @default false
+             */
+            replace: boolean;
         };
         /**
          * CalendarEvent
@@ -9255,7 +9263,7 @@ export interface components {
             description: string;
             /**
              * Estimated Severity Level
-             * @description Severity level: 1=minor, 2=moderate, 3=serious, 4=critical
+             * @description Severity level: 2=moderate, 3=serious, 4=critical (1=minor is unused by the bundled data)
              * @default 2
              */
             estimated_severity_level: number;
@@ -14776,6 +14784,11 @@ export interface components {
          * ServiceLineItemUpdate
          * @description Line item shape for diff-based visit updates.
          *
+         *     An existing item (`id` set) keeps any field the request leaves out. A
+         *     nullable field sent as null is cleared; `is_inspection` takes false, not
+         *     null; `supplies_used` takes [] to remove every usage (null is refused);
+         *     `description` is always required.
+         *
          *     temp_id: negative int assigned by client for new items so other new items
          *     can reference them via triggered_by_inspection_id before flush.
          */
@@ -14807,7 +14820,7 @@ export interface components {
             reminder?: components["schemas"]["ReminderCreate"] | null;
             /**
              * Supplies Used
-             * @description Supplies consumed by this line item
+             * @description Supplies consumed by this line item. Omit to keep the current ones; send [] to remove them.
              */
             supplies_used?: components["schemas"]["SupplyUsageInput"][];
             /**
@@ -19820,7 +19833,7 @@ export interface components {
             status?: components["schemas"]["WiCANStatus"] | null;
             /**
              * Timestamp
-             * @description Optional device timestamp for replay support
+             * @description Optional device timestamp for replay support; naive values are read as UTC
              */
             timestamp?: string | null;
         };
@@ -20197,6 +20210,11 @@ export interface components {
             optional_equipment: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Scan Read Nothing
+             * @default false
+             */
+            scan_read_nothing: boolean;
             /** Standard Equipment */
             standard_equipment: {
                 [key: string]: unknown;
@@ -28103,6 +28121,8 @@ export interface operations {
             query?: {
                 /** @description Include cleared DTCs */
                 include_cleared?: boolean;
+                /** @description Only cleared DTCs (filtered before the limit) */
+                cleared_only?: boolean;
                 limit?: number;
             };
             header?: never;

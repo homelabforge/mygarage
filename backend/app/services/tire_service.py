@@ -644,9 +644,13 @@ def project_wear(
         km_per_day = km_delta / Decimal(day_delta)
         if km_per_day > 0:
             days_left = int(km_left / km_per_day)
-            wear_date = newer.recorded_at + timedelta(days=max(days_left, 0))
-    # `wear_date` stays None for same-day readings: the km figure is still
-    # valid, so status is PROJECTED and the date is simply unavailable.
+            # A near-zero wear rate lands past the calendar, and `timedelta`
+            # would raise OverflowError.
+            if days_left <= (dt.date.max - newer.recorded_at).days:
+                wear_date = newer.recorded_at + timedelta(days=max(days_left, 0))
+    # `wear_date` stays None for same-day readings, or for a date past the
+    # calendar: the km figure is still valid, so status is PROJECTED and the
+    # date is simply unavailable.
     return WearResult(
         status=WearStatus.PROJECTED,
         km_remaining=km_left.quantize(Decimal("0.1")),

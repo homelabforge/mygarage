@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.livelink import ECUStatusType
 from app.utils.autopid_normalizer import normalize_autopid_data
+from app.utils.datetime_utils import to_naive_utc
 
 
 class WiCANConfigEntry(BaseModel):
@@ -120,8 +121,15 @@ class WiCANPayload(BaseModel):
 
     # Optional timestamp for future replay/buffer support
     timestamp: datetime | None = Field(
-        None, description="Optional device timestamp for replay support"
+        None,
+        description="Optional device timestamp for replay support; naive values are read as UTC",
     )
+
+    @field_validator("timestamp")
+    @classmethod
+    def normalize_timestamp(cls, v: datetime | None) -> datetime | None:
+        """Store the UTC wall clock: the telemetry columns are naive UTC."""
+        return to_naive_utc(v) if v is not None else None
 
     @field_validator("autopid_data", mode="before")
     @classmethod

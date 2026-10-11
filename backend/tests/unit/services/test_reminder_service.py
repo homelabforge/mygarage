@@ -37,6 +37,7 @@ from app.services.reminder_service import (
     ReminderStart,
     _build_reminder_message,
     calculate_hours_driving_rate,
+    calculate_smart_estimated_date,
     check_due_reminders,
     classify_pending_reminders,
     count_pending_reminders,
@@ -424,6 +425,23 @@ class TestExpectedDueDate:
 
     def test_nothing_to_go_on_is_none(self):
         assert expected_due_date(_pending(), None, None, None, None, TODAY) is None
+
+
+@pytest.mark.unit
+class TestCalculateSmartEstimatedDate:
+    """The scheduler's smart estimate, capped at the reminder's hard date."""
+
+    def test_a_rate_too_slow_to_project_is_the_hard_date(self):
+        """5,000 km at 0.0001 km/day is past 9999-12-31; the cap is the answer."""
+        assert calculate_smart_estimated_date(
+            Decimal("0"), Decimal("5000"), 0.0001, date(2027, 1, 1)
+        ) == date(2027, 1, 1)
+
+    def test_a_nan_rate_is_the_hard_date(self):
+        # Pins the isfinite half of the guard: NaN slips past the day bound.
+        assert calculate_smart_estimated_date(
+            Decimal("0"), Decimal("1"), float("nan"), date(2027, 1, 1)
+        ) == date(2027, 1, 1)
 
 
 @pytest.mark.unit

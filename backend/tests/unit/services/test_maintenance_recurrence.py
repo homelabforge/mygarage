@@ -147,3 +147,29 @@ class TestProjectUsageDate:
 
     def test_no_rate_is_none(self):
         assert project_usage_date(Decimal("1"), Decimal("2"), 0.0, date(2026, 9, 16)) is None
+
+    def test_in_range_projection_is_a_date(self):
+        # 100 km at 1 km/day: the control for the overflow cases below.
+        today = date(2026, 10, 10)
+        assert project_usage_date(Decimal("0"), Decimal("100"), 1.0, today) == date(2027, 1, 18)
+
+    @pytest.mark.parametrize(
+        "target, rate",
+        [
+            # Two readings 0.01 km apart across 89 days drive about this slow.
+            (Decimal("5000"), 0.0001),
+            # Small enough that the day count itself is infinite.
+            (Decimal("1"), 5e-324),
+        ],
+        ids=["near-zero", "infinite-days"],
+    )
+    def test_past_the_calendar_is_none(self, target: Decimal, rate: float):
+        """Past 9999-12-31 is "can't project", not an OverflowError."""
+        assert project_usage_date(Decimal("0"), target, rate, date(2026, 10, 10)) is None
+
+    def test_nan_rate_is_none(self):
+        # Pins the isfinite half of the guard: NaN compares False to the day
+        # bound, so without it timedelta raises ValueError.
+        assert (
+            project_usage_date(Decimal("0"), Decimal("1"), float("nan"), date(2026, 10, 10)) is None
+        )

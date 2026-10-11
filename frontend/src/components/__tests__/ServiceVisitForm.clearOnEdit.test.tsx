@@ -111,12 +111,50 @@ const visit = {
   ],
 } as unknown as ServiceVisit
 
+// An inspection (601) and the repair it triggered (602).
+const inspectionVisit = {
+  ...visit,
+  line_item_count: 2,
+  line_items: [
+    {
+      id: 601,
+      visit_id: 900,
+      description: 'Brake inspection',
+      category: 'Inspection',
+      cost: null,
+      created_at: '2026-07-01T00:00:00',
+      is_failed_inspection: true,
+      is_inspection: true,
+      inspection_result: 'failed',
+      inspection_severity: 'red',
+      needs_followup: true,
+      notes: null,
+      triggered_by_inspection_id: null,
+      supply_usages: [],
+    },
+    {
+      id: 602,
+      visit_id: 900,
+      description: 'Front pads',
+      category: 'Maintenance',
+      cost: '80.00',
+      created_at: '2026-07-01T00:00:00',
+      is_failed_inspection: false,
+      is_inspection: false,
+      needs_followup: false,
+      notes: 'Old item notes',
+      triggered_by_inspection_id: 601,
+      supply_usages: [],
+    },
+  ],
+} as unknown as ServiceVisit
+
 const input = (id: string) => document.getElementById(id) as HTMLInputElement
 
-async function renderEdit() {
+async function renderEdit(v: ServiceVisit = visit): Promise<void> {
   // Dual tracking, so both the odometer and the engine-hours inputs mount.
   mockedApiGet.mockResolvedValue({ data: { usage_unit: 'distance', secondary_usage_enabled: true } })
-  render(<ServiceVisitForm vin={VIN} visit={visit} onClose={vi.fn()} onSuccess={vi.fn()} />)
+  render(<ServiceVisitForm vin={VIN} visit={v} onClose={vi.fn()} onSuccess={vi.fn()} />)
   await waitFor(() => expect(input('service-engine-hours')).toBeInTheDocument())
 }
 
@@ -166,6 +204,73 @@ describe('ServiceVisitForm: clearing a field on edit', () => {
       tax_amount: 4.5,
       shop_supplies: 3.25,
       misc_fees: 2,
+    })
+  })
+})
+
+// An existing line item keeps any field the update leaves out, so a field the
+// user blanked has to go out as null too, or the old value comes back.
+describe('ServiceVisitForm: clearing a line item field on edit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedApiPut.mockResolvedValue({ data: {} })
+  })
+
+  const lineItems = (body: Record<string, unknown>): Record<string, unknown>[] =>
+    body.line_items as Record<string, unknown>[]
+
+  const found = (el: Element | null | undefined): Element => {
+    if (!el) throw new Error('control not found')
+    return el
+  }
+
+  it('sends null for each line-item field the user cleared', async () => {
+    await renderEdit(inspectionVisit)
+
+    const cost = found(screen.getAllByText('lineItemEditor.cost')[1].parentElement?.querySelector('input[type="number"]'))
+    const notes = screen.getAllByPlaceholderText('lineItemEditor.misc.notesPlaceholder')[1]
+    const category = found(screen.getAllByText('lineItemEditor.misc.categoryLabel')[1].parentElement?.querySelector('select'))
+    const triggeredBy = found(screen.getByText('lineItemEditor.misc.triggeredByFailedInspection').parentElement?.querySelector('select'))
+    fireEvent.change(cost, { target: { value: '' } })
+    fireEvent.change(notes, { target: { value: '' } })
+    fireEvent.change(category, { target: { value: '' } })
+    fireEvent.change(triggeredBy, { target: { value: '' } })
+
+    const repair = lineItems(await submittedBody())[1]
+    expect(repair).toHaveProperty('id', 602)
+    expect(repair).toHaveProperty('category', null)
+    expect(repair).toHaveProperty('cost', null)
+    expect(repair).toHaveProperty('notes', null)
+    expect(repair).toHaveProperty('triggered_by_inspection_id', null)
+  })
+
+  it('sends null result and severity when the inspection box is unticked', async () => {
+    await renderEdit(inspectionVisit)
+
+    fireEvent.click(found(document.getElementById('inspection-0')))
+
+    const inspection = lineItems(await submittedBody())[0]
+    expect(inspection).toHaveProperty('id', 601)
+    expect(inspection).toHaveProperty('is_inspection', false)
+    expect(inspection).toHaveProperty('inspection_result', null)
+    expect(inspection).toHaveProperty('inspection_severity', null)
+  })
+
+  it('still sends the stored line-item values when nothing was touched', async () => {
+    await renderEdit(inspectionVisit)
+
+    const [inspection, repair] = lineItems(await submittedBody())
+    expect(repair).toMatchObject({
+      id: 602,
+      category: 'Maintenance',
+      cost: 80,
+      notes: 'Old item notes',
+      triggered_by_inspection_id: 601,
+    })
+    expect(inspection).toMatchObject({
+      id: 601,
+      inspection_result: 'failed',
+      inspection_severity: 'red',
     })
   })
 })

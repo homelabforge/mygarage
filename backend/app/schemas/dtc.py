@@ -17,7 +17,8 @@ class DTCDefinitionResponse(BaseModel):
     subcategory: str | None = Field(None, description="Subcategory for grouping")
     severity: str = Field("warning", description="Severity: info, warning, critical")
     estimated_severity_level: int = Field(
-        2, description="Severity level: 1=minor, 2=moderate, 3=serious, 4=critical"
+        2,
+        description="Severity level: 2=moderate, 3=serious, 4=critical (1=minor is unused by the bundled data)",
     )
     is_emissions_related: bool = Field(False, description="Whether emissions-related")
 

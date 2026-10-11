@@ -35,7 +35,7 @@ class VehicleDTC(Base):
     code: Mapped[str] = mapped_column(String(10), nullable=False)  # e.g., "P0657"
     description: Mapped[str | None] = mapped_column(
         Text
-    )  # Pulled from dtc_definitions, user-editable for manufacturer-specific
+    )  # Copied from dtc_definitions when the row is created; the user can override it
     severity: Mapped[str] = mapped_column(String(20), default="warning")
 
     # User notes

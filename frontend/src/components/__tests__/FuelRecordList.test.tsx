@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { FuelRecord } from '../../types/fuel'
 
 // Query hooks + api mocked so this stays a unit test (no QueryClient/network).
@@ -7,14 +9,21 @@ const useFuelRecordsMock = vi.fn()
 const useDeleteFuelRecordMock = vi.fn()
 const useImportFuelCSVMock = vi.fn()
 const apiGetMock = vi.fn()
+const apiPostMock = vi.fn()
 const deleteMutate = vi.fn()
 
 vi.mock('../../hooks/queries/useFuelRecords', () => ({
   useFuelRecords: () => useFuelRecordsMock(),
   useDeleteFuelRecord: () => useDeleteFuelRecordMock(),
-  useImportFuelCSV: () => useImportFuelCSVMock(),
+  // The vin is forwarded so the import cases can hand this to the real hook.
+  useImportFuelCSV: (vin: string) => useImportFuelCSVMock(vin),
 }))
-vi.mock('../../services/api', () => ({ default: { get: (...a: unknown[]) => apiGetMock(...a) } }))
+vi.mock('../../services/api', () => ({
+  default: {
+    get: (...a: unknown[]) => apiGetMock(...a),
+    post: (...a: unknown[]) => apiPostMock(...a),
+  },
+}))
 // Mutable so the unit-aware volume-header test (B7) can toggle metric/imperial;
 // every other test leaves it at the metric default set in beforeEach.
 const unitPrefMock = vi.hoisted(() => ({
@@ -56,10 +65,17 @@ vi.mock('react-i18next', () => ({
     // `value` as well as `unit`: fix round 1 routed the volume-total and
     // avg-cost captions through `t()` with an interpolated NUMBER, and a mock
     // that dropped it would render the same key for 10.4 gal and 47.3 L.
-    t: (key: string, options?: { unit?: string; value?: string }) =>
-      options?.unit !== undefined || options?.value !== undefined
-        ? `${key} (${options.unit ?? options.value})`
-        : key,
+    // `format` for the import options drawer's title, so a dropped or wrong
+    // format name shows. `message` (with `errors`) for the import error toast,
+    // which wraps the summary line and the row errors in one key.
+    t: (
+      key: string,
+      options?: { unit?: string; value?: string; format?: string; message?: string; errors?: string | number },
+    ) => {
+      if (options?.message !== undefined) return `${key} (${options.message} | ${options.errors})`
+      const echoed = options?.unit ?? options?.value ?? options?.format
+      return echoed !== undefined ? `${key} (${echoed})` : key
+    },
     i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
   }),
   Trans: ({ children }: { children: React.ReactNode }) => children,
@@ -76,7 +92,9 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+import { toast } from 'sonner'
 import { IMPERIAL_UNITS, METRIC_UNITS, UK_IMPERIAL_UNITS } from '../../__tests__/factories'
+import vehiclesEn from '../../locales/en/vehicles.json'
 import { binarySystemFor } from '../../types/units'
 import { UnitConverter } from '../../utils/units'
 import FuelRecordList from '../FuelRecordList'
@@ -581,4 +599,201 @@ describe('FuelRecordList — a rate keeps its decimals in yen', () => {
     // 0.925 at two decimals, as before the currency-digits change.
     expect(within(table()).getByText('$0.93')).toBeInTheDocument()
   })
+})
+
+describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82)', () => {
+  // The importers take odometer_unit and decimal_separator, and the list never
+  // sent either: a miles export landed as km, 38% short, and "35,2" read as 352.
+  // These run the REAL import hook against a mocked api.post, so the path and
+  // the FormData asserted are exactly what ships.
+  const VIN = DEFAULT_PROPS.vin
+  const MILES_VEHICLE = { ...METRIC_UNITS, distance: 'mi' as const, speed: 'mph' as const }
+  const csvFile = (): File => new File(['Date,Odometer\n2026-01-01,1000\n'], 'export.csv', { type: 'text/csv' })
+  const fileInput = (): HTMLInputElement => {
+    const el = document.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!el) throw new Error('the hidden file input is gone')
+    return el
+  }
+  const formatSelect = (): HTMLElement => screen.getByRole('combobox', { name: 'fuelList.importFormat' })
+  const optionsDrawer = (): HTMLElement | null =>
+    screen.queryByRole('dialog', { name: /^fuelList\.importOptions\.title/ })
+  // The title names the picked format, through the local mock's `format` echo.
+  const FORMAT_LABEL_KEY = {
+    fuelio: 'fuelList.importFormatFuelio',
+    drivvo: 'fuelList.importFormatDrivvo',
+    tesla: 'fuelList.importFormatTesla',
+    external: 'fuelList.importFormatAuto',
+  } as const
+  const posted = (): { path: string; form: FormData } => {
+    expect(apiPostMock).toHaveBeenCalledTimes(1)
+    const [path, form] = apiPostMock.mock.calls[0] as [string, FormData]
+    return { path, form }
+  }
+  const renderList = (): void => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <FuelRecordList {...DEFAULT_PROPS} />
+      </QueryClientProvider>,
+    )
+  }
+
+  beforeEach(async () => {
+    const actual = await vi.importActual<typeof import('../../hooks/queries/useFuelRecords')>(
+      '../../hooks/queries/useFuelRecords',
+    )
+    useImportFuelCSVMock.mockImplementation((vin: string) => actual.useImportFuelCSV(vin))
+    apiPostMock.mockResolvedValue({ data: { success_count: 1, skipped_count: 0, error_count: 0, errors: [] } })
+  })
+
+  it('Fuelio on a miles vehicle: choosing a file opens the drawer instead of posting, and Import posts mi and dot', async () => {
+    // Litres with miles, so the default has to come from the vehicle's
+    // distance unit and not from a system collapsed off the volume. The
+    // account stays on km, so the mi can only come from the vehicle scope.
+    unitPrefMock.units = MILES_VEHICLE
+    unitPrefMock.accountUnits = METRIC_UNITS
+    const user = userEvent.setup()
+    renderList()
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+    fireEvent.change(formatSelect(), { target: { value: 'fuelio' } })
+    const file = csvFile()
+    await user.upload(fileInput(), file)
+
+    const drawer = optionsDrawer()
+    expect(drawer).toBeInTheDocument()
+    expect(drawer).toHaveAccessibleName(`fuelList.importOptions.title (${FORMAT_LABEL_KEY.fuelio})`)
+    // The mock echoes the option, so the English has to keep its slot too.
+    expect(vehiclesEn.fuelList.importOptions.title).toContain('{{format}}')
+    expect(apiPostMock).not.toHaveBeenCalled()
+
+    await user.click(within(drawer!).getByRole('button', { name: 'fuelList.importOptions.confirm' }))
+
+    await waitFor(() => expect(apiPostMock).toHaveBeenCalled())
+    const { path, form } = posted()
+    expect(path).toBe(`/import/vehicles/${VIN}/fuel/fuelio`)
+    expect(form.get('file')).toBe(file)
+    expect(form.get('skip_duplicates')).toBe('true')
+    expect(form.get('odometer_unit')).toBe('mi')
+    expect(form.get('decimal_separator')).toBe('dot')
+    await waitFor(() => expect(optionsDrawer()).not.toBeInTheDocument())
+  })
+
+  it.each(['drivvo', 'tesla', 'external'] as const)(
+    '%s on a km vehicle with a miles account posts km and the comma picked in the drawer',
+    async (format) => {
+      // The mirror of the Fuelio case: the vehicle's km has to beat the account's mi.
+      unitPrefMock.units = METRIC_UNITS
+      unitPrefMock.accountUnits = IMPERIAL_UNITS
+      const user = userEvent.setup()
+      renderList()
+      await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+      fireEvent.change(formatSelect(), { target: { value: format } })
+      const file = csvFile()
+      await user.upload(fileInput(), file)
+
+      const drawer = optionsDrawer()
+      expect(drawer).toBeInTheDocument()
+      expect(drawer).toHaveAccessibleName(`fuelList.importOptions.title (${FORMAT_LABEL_KEY[format]})`)
+      expect(apiPostMock).not.toHaveBeenCalled()
+      await user.selectOptions(within(drawer!).getByLabelText('fuelList.importOptions.decimalsLabel'), 'comma')
+      await user.click(within(drawer!).getByRole('button', { name: 'fuelList.importOptions.confirm' }))
+
+      await waitFor(() => expect(apiPostMock).toHaveBeenCalled())
+      const { path, form } = posted()
+      expect(path).toBe(`/import/vehicles/${VIN}/fuel/${format}`)
+      expect(form.get('file')).toBe(file)
+      expect(form.get('skip_duplicates')).toBe('true')
+      expect(form.get('odometer_unit')).toBe('km')
+      expect(form.get('decimal_separator')).toBe('comma')
+    },
+  )
+
+  it('a double click on Import posts once', async () => {
+    // The drawer stays clickable through its slide-out, after the file has
+    // already been handed off.
+    const user = userEvent.setup()
+    renderList()
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+    fireEvent.change(formatSelect(), { target: { value: 'fuelio' } })
+    await user.upload(fileInput(), csvFile())
+    await user.dblClick(within(optionsDrawer()!).getByRole('button', { name: 'fuelList.importOptions.confirm' }))
+
+    await waitFor(() => expect(optionsDrawer()).not.toBeInTheDocument())
+    expect(apiPostMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('an import with row errors toasts the summary and the errors through fuelList.importErrors', async () => {
+    // The errors used to be glued on with a hardcoded English ' - Errors: '.
+    apiPostMock.mockResolvedValue({
+      data: { success_count: 2, skipped_count: 0, error_count: 2, errors: ['Row 3: bad date', 'Row 7: no odometer'] },
+    })
+    const user = userEvent.setup()
+    renderList()
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+    await user.upload(fileInput(), csvFile())
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    expect(toast.error).toHaveBeenCalledWith(
+      'fuelList.importErrors (fuelList.importCompleted | Row 3: bad date, Row 7: no odometer)',
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+    // And the English keeps both slots, so neither half can fall out of the bundle.
+    expect(vehiclesEn.fuelList.importErrors).toContain('{{message}}')
+    expect(vehiclesEn.fuelList.importErrors).toContain('{{errors}}')
+  })
+
+  it('MyGarage CSV still posts at once with no drawer and no unit fields (control: passes on main)', async () => {
+    // Its headers carry their own units, so there is nothing to ask.
+    unitPrefMock.units = MILES_VEHICLE
+    const user = userEvent.setup()
+    renderList()
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+    expect(formatSelect()).toHaveValue('csv')
+
+    const file = csvFile()
+    await user.upload(fileInput(), file)
+
+    await waitFor(() => expect(apiPostMock).toHaveBeenCalled())
+    expect(optionsDrawer()).not.toBeInTheDocument()
+    const { path, form } = posted()
+    expect(path).toBe(`/import/vehicles/${VIN}/fuel/csv`)
+    expect(form.get('file')).toBe(file)
+    expect(form.get('skip_duplicates')).toBe('true')
+    expect(form.has('odometer_unit')).toBe(false)
+    expect(form.has('decimal_separator')).toBe(false)
+  })
+
+  it.each([
+    ['Cancel', async (user: ReturnType<typeof userEvent.setup>, drawer: HTMLElement) =>
+      user.click(within(drawer).getByRole('button', { name: 'common:cancel' }))],
+    ['Escape', async (user: ReturnType<typeof userEvent.setup>) => user.keyboard('{Escape}')],
+    // The backdrop hands its MouseEvent to onClose; the close has to ignore it.
+    ['the backdrop', async (user: ReturnType<typeof userEvent.setup>) =>
+      user.click(screen.getByTestId('drawer-backdrop'))],
+  ] as const)(
+    '%s closes the drawer, posts nothing, and clears the file input so the same file can be picked again',
+    async (_route, close) => {
+      const user = userEvent.setup()
+      renderList()
+      await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+      fireEvent.change(formatSelect(), { target: { value: 'fuelio' } })
+      await user.upload(fileInput(), csvFile())
+      const drawer = optionsDrawer()
+      expect(drawer).toBeInTheDocument()
+      // Still holding the pick, and a browser fires no `change` for the same
+      // file again until this is cleared.
+      expect(fileInput().value).not.toBe('')
+
+      await close(user, drawer!)
+
+      await waitFor(() => expect(optionsDrawer()).not.toBeInTheDocument())
+      expect(fileInput().value).toBe('')
+      expect(apiPostMock).not.toHaveBeenCalled()
+    },
+  )
 })

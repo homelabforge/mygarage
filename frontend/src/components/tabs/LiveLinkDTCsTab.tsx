@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { toast } from 'sonner'
 import {
   AlertTriangle,
@@ -15,8 +16,9 @@ import {
   FileText,
   RefreshCw,
 } from 'lucide-react'
-import { livelinkService } from '@/services/livelinkService'
+import { livelinkService, type DTCListFilter } from '@/services/livelinkService'
 import type { VehicleDTC, VehicleDTCListResponse } from '@/types/livelink'
+import { isManufacturerCode } from '@/utils/dtc'
 import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 import { Card, Chip, IconButton, Button, Input, Mono, EmptyState } from '../ui'
 
@@ -24,20 +26,29 @@ interface LiveLinkDTCsTabProps {
   vin: string
 }
 
-type FilterType = 'all' | 'active' | 'cleared'
+// Stored lowercase by the definitions. Four literal calls so the usage gate sees each key.
+function categoryLabel(t: TFunction, category: string): string {
+  switch (category) {
+    case 'powertrain': return t('livelink.dtcs.categories.powertrain')
+    case 'body': return t('livelink.dtcs.categories.body')
+    case 'chassis': return t('livelink.dtcs.categories.chassis')
+    case 'network': return t('livelink.dtcs.categories.network')
+    default: return category
+  }
+}
 
 export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
   const { t } = useTranslation('vehicles')
   const [dtcs, setDtcs] = useState<VehicleDTCListResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<FilterType>('active')
+  const [filter, setFilter] = useState<DTCListFilter>('active')
   const [editingNotes, setEditingNotes] = useState<number | null>(null)
   const [notesValue, setNotesValue] = useState('')
 
   const fetchDTCs = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await livelinkService.getVehicleDTCs(vin, filter === 'active')
+      const data = await livelinkService.getVehicleDTCs(vin, filter)
       setDtcs(data)
     } catch (err) {
       console.error('Failed to fetch DTCs:', err)
@@ -100,12 +111,14 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
     }
   }
 
-  const filterLabels: Record<FilterType, string> = {
+  const filterLabels: Record<DTCListFilter, string> = {
     all: t('livelinkDtcs.filterAll'),
     active: t('livelinkDtcs.filterActive'),
     cleared: t('livelinkDtcs.filterCleared'),
   }
 
+  // A second guard: the route filters too, but the old list is still held for
+  // the render between a filter click and its refetch.
   const filteredDTCs = dtcs?.dtcs.filter((dtc) => {
     if (filter === 'all') return true
     if (filter === 'active') return dtc.is_active
@@ -171,7 +184,12 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                         <Chip tone="warning">{t('livelink.dtcs.emissions')}</Chip>
                       )}
                     </div>
-                    <p className="text-text mt-1">{dtc.description || t('livelink.dtcs.unknownCode')}</p>
+                    <p className="text-text mt-1">
+                      {dtc.description ||
+                        (isManufacturerCode(dtc.code)
+                          ? t('livelink.dtcs.manufacturerSpecific')
+                          : t('livelink.dtcs.unknownCode'))}
+                    </p>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-text-mute">
                       <span>
                         {t('livelink.dtcs.firstSeen')}:{' '}
@@ -187,7 +205,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                           <Mono size="xs">{formatAPITimestamp(dtc.cleared_at, (d) => d.toLocaleDateString())}</Mono>
                         </span>
                       )}
-                      {dtc.category && <span>{t('livelink.dtcs.category')}: {dtc.category}</span>}
+                      {dtc.category && <span>{t('livelink.dtcs.category')}: {categoryLabel(t, dtc.category)}</span>}
                     </div>
                     {(dtc.common_causes?.length || dtc.symptoms?.length || dtc.fix_guidance) && (
                       <div className="mt-3 space-y-2 text-sm">

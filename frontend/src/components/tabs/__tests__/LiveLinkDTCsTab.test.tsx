@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactNode } from 'react'
-import { render, screen, waitFor } from '../../../__tests__/test-utils'
+import { render, screen, waitFor, within } from '../../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { VehicleDTC, VehicleDTCListResponse } from '../../../types/livelink'
+import type { DTCListFilter } from '@/services/livelinkService'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Harness note (mirrors the Task-1 LiveLinkLiveTab precedent: assertions/fixtures
@@ -37,7 +38,7 @@ const clearVehicleDTC = vi.fn().mockResolvedValue({})
 const updateVehicleDTC = vi.fn().mockResolvedValue({})
 vi.mock('@/services/livelinkService', () => ({
   livelinkService: {
-    getVehicleDTCs: (vin: string, activeOnly: boolean) => getVehicleDTCs(vin, activeOnly),
+    getVehicleDTCs: (vin: string, filter: DTCListFilter) => getVehicleDTCs(vin, filter),
     clearVehicleDTC: (vin: string, id: number) => clearVehicleDTC(vin, id),
     updateVehicleDTC: (vin: string, id: number, update: unknown) => updateVehicleDTC(vin, id, update),
   },
@@ -79,7 +80,7 @@ beforeEach(() => {
 describe('LiveLinkDTCsTab — rendering + status markers', () => {
   it('fetches active DTCs on mount and renders the code + description (fails if the default fetch or the list render breaks)', async () => {
     render(<LiveLinkDTCsTab vin="V1" />)
-    await waitFor(() => expect(getVehicleDTCs.mock.calls).toStrictEqual([['V1', true]]))
+    await waitFor(() => expect(getVehicleDTCs.mock.calls).toStrictEqual([['V1', 'active']]))
     expect(await screen.findByText('P0301')).toBeInTheDocument()
     expect(screen.getByText('Cylinder 1 Misfire')).toBeInTheDocument()
   })
@@ -115,12 +116,12 @@ describe('LiveLinkDTCsTab — rendering + status markers', () => {
   it('shows the cleared marker (and no emissions/critical) after switching to the Cleared filter (fails if the filter refetch or the cleared render breaks)', async () => {
     // B2: the component starts on the ACTIVE filter and locally drops is_active:false rows, so a cleared
     // DTC can only reach the DOM via the Cleared filter. CLICK filterCleared → the refetch is
-    // getVehicleDTCs('V1', false); mock THAT response to a cleared (is_active:false) DTC, then assert.
+    // getVehicleDTCs('V1', 'cleared'); mock THAT response to a cleared (is_active:false) DTC, then assert.
     render(<LiveLinkDTCsTab vin="V1" />)
     await screen.findByText('P0301') // initial active fetch rendered
     getVehicleDTCs.mockResolvedValue(list({ dtcs: [clearedDtc], active_count: 0, critical_count: 0, total: 1 }))
     fireEvent.click(screen.getByRole('button', { name: 'livelinkDtcs.filterCleared' }))
-    await waitFor(() => expect(getVehicleDTCs.mock.calls).toStrictEqual([['V1', true], ['V1', false]]))
+    await waitFor(() => expect(getVehicleDTCs.mock.calls).toStrictEqual([['V1', 'active'], ['V1', 'cleared']]))
     expect(await screen.findByText('livelink.dtcs.cleared')).toBeInTheDocument()
     expect(screen.queryByText('livelink.dtcs.emissions')).not.toBeInTheDocument()
     expect(screen.queryByText('livelink.dtcs.criticalCount')).not.toBeInTheDocument()
@@ -157,11 +158,11 @@ describe('LiveLinkDTCsTab — notes edit + filter + a11y', () => {
     await waitFor(() => expect(updateVehicleDTC.mock.calls).toStrictEqual([['V1', 42, { user_notes: 'oil leak' }]]))
   })
 
-  it('switching to the Cleared filter refetches with active_only=false (fails if the filter no longer drives the fetch)', async () => {
+  it('switching to the Cleared filter refetches with the cleared filter (fails if the filter no longer drives the fetch)', async () => {
     render(<LiveLinkDTCsTab vin="V1" />)
-    await waitFor(() => expect(getVehicleDTCs.mock.calls).toStrictEqual([['V1', true]]))
+    await waitFor(() => expect(getVehicleDTCs.mock.calls).toStrictEqual([['V1', 'active']]))
     fireEvent.click(screen.getByRole('button', { name: 'livelinkDtcs.filterCleared' }))
-    await waitFor(() => expect(getVehicleDTCs.mock.calls).toStrictEqual([['V1', true], ['V1', false]]))
+    await waitFor(() => expect(getVehicleDTCs.mock.calls).toStrictEqual([['V1', 'active'], ['V1', 'cleared']]))
   })
 
   it('the row action buttons expose aria-label (a11y gain from IconButton — genuine RED pre-restyle)', async () => {
@@ -169,5 +170,34 @@ describe('LiveLinkDTCsTab — notes edit + filter + a11y', () => {
     await screen.findByText('P0301')
     expect(screen.getByRole('button', { name: 'livelink.dtcs.searchOnline' })).toHaveAttribute('aria-label', 'livelink.dtcs.searchOnline')
     expect(screen.getByRole('button', { name: 'livelink.dtcs.markAsCleared' })).toHaveAttribute('aria-label', 'livelink.dtcs.markAsCleared')
+  })
+})
+
+describe('LiveLinkDTCsTab: card text for codes with no definition', () => {
+  // The bundled definitions leave out the maker ranges, so a P1 code with no
+  // description is expected, not unknown. A generic code still reads unknown.
+  const noDescription = (id: number, code: string) =>
+    ({
+      ...activeInfoDtc, id, code, description: null,
+    }) satisfies VehicleDTC
+
+  it('a maker-range code says it is manufacturer-specific and a generic one stays unknown', async () => {
+    getVehicleDTCs.mockResolvedValue(
+      list({ dtcs: [noDescription(1, 'P1131'), noDescription(2, 'P0420')], active_count: 2, critical_count: 0, total: 2 }),
+    )
+    render(<LiveLinkDTCsTab vin="V1" />)
+    const makerRow = (await screen.findByText('P1131')).closest('.flex.items-start.gap-3') as HTMLElement
+    const genericRow = screen.getByText('P0420').closest('.flex.items-start.gap-3') as HTMLElement
+    expect(within(makerRow).getByText('livelink.dtcs.manufacturerSpecific')).toBeInTheDocument()
+    expect(within(makerRow).queryByText('livelink.dtcs.unknownCode')).not.toBeInTheDocument()
+    expect(within(genericRow).getByText('livelink.dtcs.unknownCode')).toBeInTheDocument()
+    expect(within(genericRow).queryByText('livelink.dtcs.manufacturerSpecific')).not.toBeInTheDocument()
+  })
+
+  it('the stored category goes through t()', async () => {
+    getVehicleDTCs.mockResolvedValue(list({ dtcs: [{ ...activeInfoDtc, category: 'powertrain' }], critical_count: 0 }))
+    render(<LiveLinkDTCsTab vin="V1" />)
+    await screen.findByText('P0420')
+    expect(screen.getByText(/livelink\.dtcs\.categories\.powertrain/)).toBeInTheDocument()
   })
 })

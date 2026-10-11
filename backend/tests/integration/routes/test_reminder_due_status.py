@@ -206,3 +206,66 @@ async def test_the_list_and_the_hero_count_the_same_reminders(
     assert belt["progress_basis"] == "distance"
     assert belt["progress"] == pytest.approx(0.95)
     assert Decimal(belt["km_until_due"]) == Decimal("500")
+
+
+async def test_a_near_zero_rate_leaves_the_row_unestimated(
+    client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+):
+    """0.01 km in 89 days puts a 5,000 km target past 9999-12-31: no estimate, not a 500."""
+    vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH192003")
+    today = household_today()
+    db_session.add_all(
+        [
+            OdometerRecord(
+                vin=vin, date=today - timedelta(days=89), odometer_km=Decimal("50000.00")
+            ),
+            OdometerRecord(vin=vin, date=today, odometer_km=Decimal("50000.01")),
+            Reminder(
+                vin=vin,
+                title="Crawling",
+                reminder_type="mileage",
+                status="pending",
+                due_mileage_km=Decimal("55000"),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    (row,) = await _list(client, non_admin_headers, vin)
+    assert row["title"] == "Crawling"
+    assert row["estimated_due_date"] is None
+
+
+async def test_past_the_calendar_falls_back_to_progress(
+    client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+):
+    """D2 decides once the projection reads as none: 91% of the way there is due soon."""
+    vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH192004")
+    today = household_today()
+    created = today - timedelta(days=200)
+    db_session.add_all(
+        [
+            # The start, outside the 90-day rate window, so the rate stays 0.01 km in 89 days.
+            OdometerRecord(vin=vin, date=created, odometer_km=Decimal("10000.00")),
+            OdometerRecord(
+                vin=vin, date=today - timedelta(days=89), odometer_km=Decimal("50000.00")
+            ),
+            OdometerRecord(vin=vin, date=today, odometer_km=Decimal("50000.01")),
+            Reminder(
+                vin=vin,
+                title="Nearly there",
+                reminder_type="mileage",
+                status="pending",
+                due_mileage_km=Decimal("54000"),
+                created_at=_created_on_day(created),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    (row,) = await _list(client, non_admin_headers, vin)
+    assert row["estimated_due_date"] is None
+    assert row["progress_basis"] == "distance"
+    # 40,000.01 of 44,000 km from the start.
+    assert row["progress"] == pytest.approx(0.90909, abs=1e-5)
+    assert row["due_status"] == "due_soon"

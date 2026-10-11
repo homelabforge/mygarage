@@ -2108,6 +2108,11 @@
             "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
+          },
+          "replace": {
+            "default": false,
+            "title": "Replace",
+            "type": "boolean"
           }
         },
         "required": [
@@ -3629,7 +3634,7 @@
           },
           "estimated_severity_level": {
             "default": 2,
-            "description": "Severity level: 1=minor, 2=moderate, 3=serious, 4=critical",
+            "description": "Severity level: 2=moderate, 3=serious, 4=critical (1=minor is unused by the bundled data)",
             "title": "Estimated Severity Level",
             "type": "integer"
           },
@@ -17047,7 +17052,7 @@
         "type": "object"
       },
       "ServiceLineItemUpdate": {
-        "description": "Line item shape for diff-based visit updates.\n\ntemp_id: negative int assigned by client for new items so other new items\ncan reference them via triggered_by_inspection_id before flush.",
+        "description": "Line item shape for diff-based visit updates.\n\nAn existing item (`id` set) keeps any field the request leaves out. A\nnullable field sent as null is cleared; `is_inspection` takes false, not\nnull; `supplies_used` takes [] to remove every usage (null is refused);\n`description` is always required.\n\ntemp_id: negative int assigned by client for new items so other new items\ncan reference them via triggered_by_inspection_id before flush.",
         "properties": {
           "category": {
             "anyOf": [
@@ -17174,7 +17179,7 @@
             ]
           },
           "supplies_used": {
-            "description": "Supplies consumed by this line item",
+            "description": "Supplies consumed by this line item. Omit to keep the current ones; send [] to remove them.",
             "items": {
               "$ref": "#/components/schemas/SupplyUsageInput"
             },
@@ -30160,7 +30165,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional device timestamp for replay support",
+            "description": "Optional device timestamp for replay support; naive values are read as UTC",
             "title": "Timestamp"
           }
         },
@@ -31415,6 +31420,11 @@
               }
             ],
             "title": "Optional Equipment"
+          },
+          "scan_read_nothing": {
+            "default": false,
+            "title": "Scan Read Nothing",
+            "type": "boolean"
           },
           "standard_equipment": {
             "anyOf": [
@@ -44169,7 +44179,7 @@
     },
     "/api/vehicles/{vin}/livelink/dtcs": {
       "get": {
-        "description": "Get DTCs for a vehicle.\n\n**Path Parameters:**\n- **vin**: Vehicle VIN\n\n**Query Parameters:**\n- **include_cleared**: Include cleared DTCs (default false)\n- **limit**: Max results\n\n**Security:**\n- Requires authentication",
+        "description": "Get DTCs for a vehicle.\n\n**Path Parameters:**\n- **vin**: Vehicle VIN\n\n**Query Parameters:**\n- **include_cleared**: Include cleared DTCs (default false)\n- **cleared_only**: Only cleared DTCs, filtered before the limit (default false)\n- **limit**: Max results\n\n**Security:**\n- Requires authentication",
         "operationId": "list_vehicle_dtcs_api_vehicles__vin__livelink_dtcs_get",
         "parameters": [
           {
@@ -44190,6 +44200,18 @@
               "default": false,
               "description": "Include cleared DTCs",
               "title": "Include Cleared",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only cleared DTCs (filtered before the limit)",
+            "in": "query",
+            "name": "cleared_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only cleared DTCs (filtered before the limit)",
+              "title": "Cleared Only",
               "type": "boolean"
             }
           },
@@ -52212,7 +52234,7 @@
     },
     "/api/vehicles/{vin}/window-sticker/upload": {
       "post": {
-        "description": "Upload a window sticker file and extract data using OCR.\n\nThe file will be saved and OCR extraction will be attempted.\nExtracted data can be edited via the PATCH endpoint.",
+        "description": "Upload a window sticker file and extract data using OCR.\n\nThe scan fills only the sticker fields that are empty. With `replace` and a\nsticker already on file, the old sticker's fields are cleared first. A scan\nthat read nothing changes no field and says so in `scan_read_nothing`.\nExtracted data can be edited via the PATCH endpoint.",
         "operationId": "upload_window_sticker_api_vehicles__vin__window_sticker_upload_post",
         "parameters": [
           {

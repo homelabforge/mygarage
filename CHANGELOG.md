@@ -14,12 +14,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI splits the test suites across parallel runners (shared-workflows v1.7.0)
 - `/api/auth/users/count` returns `has_users` only
 - The SSO setup guide is no longer Authentik-specific, and lists Rauthy as a supported provider
+- An API update to a service visit that leaves out a line item's `supplies_used` keeps its supply usages; send `[]` to remove them
+- An API update to a service visit also keeps the other line-item fields it leaves out; send null to clear one
+- The API refuses (400) a line-item link to an item outside its visit when updating a visit or adding a line item, and ignores one when creating a visit
+- The API refuses a line item that links to itself
+- Manufacturer-specific codes (P1xxx, B1xxx and so on) no longer show one maker's meaning; the DTC card says the code is manufacturer-specific
 
 ### Fixed
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
 - Small supply amounts (a few mL in L, qt or gal) no longer show as 0.00, and supply amounts follow the selected language
 - With sign-in off, creating a user and resetting a password no longer error after saving, the family pages no longer error, and Share is hidden on the vehicle page
 - Test Connection in the SSO settings works with sign-in off
+- Uploading a window sticker again fills only empty fields, so your edits stay; turn off "Keep the values already saved" to replace them
+- A failed window sticker upload no longer deletes the sticker already saved, and a sticker whose text can't be read says so
+- Fuelio, Drivvo, Tesla and Auto-detect imports ask which odometer unit and decimal style the file uses, instead of assuming kilometres and dot decimals
+- Importing a vehicle's JSON export brings back its engine-hours readings, and the import summary lists DEF, engine hours and insurance too
+- A reminder on a vehicle that has barely moved no longer breaks the reminder list, the due counts, the calendar or the daily reminder notifications
+- A tire with almost no tread wear between two readings no longer breaks the tire list, tire analytics or saving a tire; it shows the distance left without a wear date
+- A LiveLink HTTPS upload with a timestamp offset is stored in UTC instead of being dropped (PostgreSQL) or shifted (SQLite)
+- Diagnostic trouble code descriptions were wrong from about P0126 on (P0300 read "Cylinder 12 Contribution"); the built-in list is now 9,341 correct generic codes, fresh installs get it, and existing installs are corrected on upgrade
+- Codes recorded before the list was installed get their description, and codes recorded with the old wrong text are corrected
+- The DTC tab's Cleared and All filters show cleared codes, and the category shows as a readable label instead of the raw value
+- A repair added together with the inspection that found it stays linked to it when the visit is saved
+- Editing a visit to add a failed inspection and point an existing repair at it no longer fails to save, and a repair moved off an inspection you remove keeps its new link
+- Drivvo imports read a Mileage column in the unit you pick, and find columns whatever their capitalisation
+- A Fuelio, Drivvo or Tesla import with a row that has more cells than headers no longer fails the whole file
+- A JSON backup row with a missing or bad date says so instead of "could not be imported"
+- A window sticker delete that fails keeps the sticker file
 
 ### Security
 - POI provider settings are admin-only
@@ -39,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Supplies: search, filters, sort, grouping, a list view, out of stock highlights, and log purchase and adjustment from the card (#191)
 - Supplies: category suggestions in the supply form (#191)
 - Supplies: pick a volume unit per supply (mL, fl oz, qt, gal, in US or UK flavour); changing it affects display only (#191)
+- Malay language (#198) and Italian language (#201)
+- Malaysian Ringgit (MYR) currency (#197)
 - Toll tags: pick a country, then its toll system (United States, Malaysia and now Italy); Other saves the name you type
 
 ### Changed
@@ -49,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A mileage or hours reminder with no recent driving rate to project from counts as due soon once it's 90% of the way to its target (#192)
 - Note: volumes UK users logged as quarts were stored as US quarts and stay as stored; a picked unit applies from now on (#191)
 - A new toll tag no longer starts on EZ TAG; the country is preselected from your currency or language when only one fits
+- `MYGARAGE_DATABASE_URL`'s path is now URL-decoded, so a literal `%` in it must be written `%25`
 
 ### Deprecated
 - The spending-anomaly `message` field in the analytics API is deprecated; the app builds its own sentence from `amount`, `baseline` and `deviation_percent`
@@ -61,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Theme and accent apply before first paint in production: the CSP now allows the shell's inline script by hash instead of refusing it
 - The smallest font subset was inlined as a data: URL and refused by the CSP; fonts are always emitted as files
 - The dashboard sort trigger read "Sort: Sort by Name"; the order is now "Name" in every language, and the French trigger is translated
+- French relative dates ("3 months ago") are in French (#203)
 - Recall "Resolved" and document "Uploaded" dates rendered as "Invalid Date"
 - Garage analytics 3- and 6-month average lines skip months with only insurance or financing instead of counting them as zero
 - CSV, JSON and third-party imports refuse the negative, out-of-range and NaN values the app itself refuses, instead of storing them
@@ -150,7 +175,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Build
 - Backend dependencies bumped: sqlalchemy 2.1.2 (with its asyncio extra), pyjwt 2.15.1, ruff 0.16.10 and pillow-heif 1.8.0.
-- `MYGARAGE_DATABASE_URL`'s path is now URL-decoded, so a literal `%` in it must be written `%25`.
 
 ## [3.7.0] - 2026-09-24
 

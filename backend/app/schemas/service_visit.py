@@ -121,6 +121,11 @@ class ServiceLineItemCreate(ServiceLineItemBase):
 class ServiceLineItemUpdate(BaseModel):
     """Line item shape for diff-based visit updates.
 
+    An existing item (`id` set) keeps any field the request leaves out. A
+    nullable field sent as null is cleared; `is_inspection` takes false, not
+    null; `supplies_used` takes [] to remove every usage (null is refused);
+    `description` is always required.
+
     temp_id: negative int assigned by client for new items so other new items
     can reference them via triggered_by_inspection_id before flush.
     """
@@ -138,7 +143,11 @@ class ServiceLineItemUpdate(BaseModel):
     triggered_by_inspection_id: int | None = None
     reminder: ReminderCreate | None = None
     supplies_used: list[SupplyUsageInput] = Field(
-        default_factory=list, description="Supplies consumed by this line item"
+        default_factory=list,
+        description=(
+            "Supplies consumed by this line item. Omit to keep the current ones; "
+            "send [] to remove them."
+        ),
     )
 
     @field_validator("maintenance_type")
@@ -278,6 +287,8 @@ class ServiceVisitCreate(ServiceVisitBase):
                 ref = item.triggered_by_inspection_id
                 if ref < 0 and ref not in temp_id_set:
                     raise ValueError(f"triggered_by_inspection_id {ref} references unknown temp_id")
+                if ref == item.temp_id:
+                    raise ValueError(f"line item with temp_id {ref} cannot link to itself")
         return self
 
     model_config = {
@@ -357,6 +368,8 @@ class ServiceVisitUpdate(BaseModel):
                 ref = item.triggered_by_inspection_id
                 if ref < 0 and ref not in temp_id_set:
                     raise ValueError(f"triggered_by_inspection_id {ref} references unknown temp_id")
+                if ref == item.temp_id:
+                    raise ValueError(f"line item with temp_id {ref} cannot link to itself")
                 if ref > 0 and item.id and ref not in existing_ids:
                     # Positive ref to a real ID that's not in this payload is fine —
                     # it could be an existing DB ID not being edited in this payload.
