@@ -2,21 +2,25 @@
 
 Add past period and the period editor both took a period that ran past
 `retired_on`, which describes a tire on the car after it was thrown away.
+Retire took a date before the tire's last dismount, which made the same thing.
 """
 
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 
+from app.models.odometer import OdometerRecord
+from app.models.tire import Tire, TireMountPeriod
 from app.models.vehicle import Vehicle
 
 
 @pytest_asyncio.fixture
-async def retired(client, auth_headers, db_session, test_user):
+async def vehicle(db_session, test_user):
     vin = f"RET{uuid.uuid4().hex[:14].upper()}"
     db_session.add(
         Vehicle(
@@ -30,22 +34,61 @@ async def retired(client, auth_headers, db_session, test_user):
         )
     )
     await db_session.commit()
-    tire = (
-        await client.post(
-            f"/api/vehicles/{vin}/tires/create-and-mount",
-            headers=auth_headers,
-            json={"vin": vin, "position": "FL", "mounted_on": "2026-01-01"},
-        )
-    ).json()
+    yield vin
+    await db_session.execute(delete(OdometerRecord).where(OdometerRecord.vin == vin))
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+    await db_session.commit()
+
+
+async def _mount(client, auth_headers, vin: str) -> dict:
+    made = await client.post(
+        f"/api/vehicles/{vin}/tires/create-and-mount",
+        headers=auth_headers,
+        json={"vin": vin, "position": "FL", "mounted_on": "2026-01-01"},
+    )
+    assert made.status_code == 201, made.text
+    return made.json()
+
+
+@pytest_asyncio.fixture
+async def retired(client, auth_headers, vehicle):
+    tire = await _mount(client, auth_headers, vehicle)
     gone = await client.post(
-        f"/api/vehicles/{vin}/tires/{tire['id']}/retire",
+        f"/api/vehicles/{vehicle}/tires/{tire['id']}/retire",
         headers=auth_headers,
         json={"dismounted_on": "2026-03-01"},
     )
     assert gone.status_code == 200, gone.text
-    yield vin, gone.json()
-    await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+    return vehicle, gone.json()
+
+
+@pytest_asyncio.fixture
+async def legacy(retired, db_session):
+    """A period that runs past the retirement, written before G4-71 was closed."""
+    vin, tire = retired
+    period = TireMountPeriod(
+        tire_id=tire["id"],
+        position="RL",
+        mounted_on=date(2026, 3, 5),
+        dismounted_on=date(2026, 3, 10),
+        is_assumed=False,
+    )
+    db_session.add(period)
     await db_session.commit()
+    return vin, tire["id"], period.id
+
+
+@pytest_asyncio.fixture
+async def stored(client, auth_headers, vehicle):
+    """A tire that came off on 2026-03-10 and sits in storage."""
+    tire = await _mount(client, auth_headers, vehicle)
+    off = await client.post(
+        f"/api/vehicles/{vehicle}/tires/{tire['id']}/dismount",
+        headers=auth_headers,
+        json={"dismounted_on": "2026-03-10"},
+    )
+    assert off.status_code == 200, off.text
+    return vehicle, tire["id"]
 
 
 @pytest.mark.asyncio
@@ -142,3 +185,69 @@ class TestRetiredHistory:
             json={"position": "RL", "mounted_on": "2026-02-01", "dismounted_on": "2026-03-01"},
         )
         assert added.status_code == 201, added.text
+
+    async def test_a_legacy_period_past_retirement_still_takes_a_notes_fix(
+        self, client, auth_headers, legacy
+    ):
+        """Junk from before the fix shouldn't lock the user out of the period."""
+        vin, tire_id, period_id = legacy
+        saved = await client.put(
+            f"/api/vehicles/{vin}/tires/{tire_id}/mount-periods/{period_id}",
+            headers=auth_headers,
+            json={"notes": "Logged on the wrong tire"},
+        )
+        assert saved.status_code == 200, saved.text
+        period = next(p for p in saved.json()["mount_periods"] if p["id"] == period_id)
+        assert period["notes"] == "Logged on the wrong tire"
+
+    async def test_moving_one_date_still_checks_the_other(self, client, auth_headers, legacy):
+        """The mount moves back to the retirement day, but the dismount is still past it."""
+        vin, tire_id, period_id = legacy
+        refused = await client.put(
+            f"/api/vehicles/{vin}/tires/{tire_id}/mount-periods/{period_id}",
+            headers=auth_headers,
+            json={"mounted_on": "2026-03-01"},
+        )
+        assert refused.status_code == 409, refused.text
+        assert "retired on 2026-03-01" in refused.json()["detail"]
+
+
+@pytest.mark.asyncio
+class TestRetireAfterHistory:
+    async def test_a_stored_tire_cannot_retire_before_its_last_dismount(
+        self, client, auth_headers, db_session, stored
+    ):
+        vin, tire_id = stored
+        refused = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/retire",
+            headers=auth_headers,
+            json={"dismounted_on": "2026-03-01", "dismounted_odometer_km": "12000"},
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"] == (
+            "This tire was retired on 2026-03-01. A mount period can't run past that."
+        )
+        retired_on = (
+            await db_session.execute(select(Tire.retired_on).where(Tire.id == tire_id))
+        ).scalar_one()
+        assert retired_on is None
+        published = (
+            await db_session.execute(
+                select(func.count()).select_from(OdometerRecord).where(OdometerRecord.vin == vin)
+            )
+        ).scalar_one()
+        assert published == 0
+
+    async def test_a_mounted_tire_cannot_retire_before_its_mount(
+        self, client, auth_headers, vehicle
+    ):
+        tire = await _mount(client, auth_headers, vehicle)
+        refused = await client.post(
+            f"/api/vehicles/{vehicle}/tires/{tire['id']}/retire",
+            headers=auth_headers,
+            json={"dismounted_on": "2025-12-01"},
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"] == (
+            "This tire was retired on 2025-12-01. A mount period can't run past that."
+        )
