@@ -30,9 +30,10 @@ export function invalidateMaintenanceQueries(queryClient: QueryClient, vin: stri
 
 /**
  * Everything a new or changed reading moves (#192): the reading lists and the
- * latest readings, each pending reminder's progress, chip and order, and the
- * hero's counts and latest reading. One set for every reading write, since the
- * server syncs odometer and hours rows from fuel, DEF, service and tire writes.
+ * latest readings, each pending reminder's progress, chip and order, the
+ * hero's counts and latest reading, and the tire list, whose open periods end
+ * at the current reading. One set for every reading write, since the server
+ * syncs odometer and hours rows from fuel, DEF, service and tire writes.
  */
 export function invalidateReadingViews(queryClient: QueryClient, vin: string): void {
   for (const key of [
@@ -42,6 +43,7 @@ export function invalidateReadingViews(queryClient: QueryClient, vin: string): v
     'latestHours',
     'reminders',
     'vehicleDetailStats',
+    'tires',
   ]) {
     void queryClient.invalidateQueries({ queryKey: [key, vin] })
   }

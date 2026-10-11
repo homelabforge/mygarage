@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatHours } from '../utils/hoursFormat'
 import { Clock, Plus, Edit, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { HoursRecord, HoursSource } from '../types/hours'
@@ -48,12 +49,9 @@ export default function HoursRecordList({ vin, onAddClick, onEditClick }: HoursR
     return formatDateForDisplay(dateString)
   }
 
-  const formatHours = (value: number | string): string => {
-    const num = typeof value === 'string' ? parseFloat(value) : value
-    return `${num.toFixed(1)} hr`
-  }
-
   const sourceLabel = (source: string): string => {
+    // Tire events publish under their own sources (#217).
+    if (source.startsWith('tire')) return t('hoursList.sourceTire')
     switch (source as HoursSource) {
       case 'fuel':
         return t('hoursList.sourceFuel')

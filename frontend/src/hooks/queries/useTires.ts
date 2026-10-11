@@ -74,12 +74,13 @@ export function useTires(vin: string, includeRetired = false) {
  * tests because they mock these hooks away.
  */
 function invalidateTireViews(queryClient: ReturnType<typeof useQueryClient>, vin: string) {
-  queryClient.invalidateQueries({ queryKey: ['tires', vin] })
   queryClient.invalidateQueries({ queryKey: ['tire-sets', vin] })
   // Every tire write publishes, moves or deletes a vehicle odometer record
   // (the nearest-reading suggestion lives under that prefix too), which moves
   // the reminders and the hero. Missing odometerRecords until v3.4.0 is why
   // the Odometer tab showed a stale reading for thirty seconds after a mount.
+  // The tire list comes from there too since #217; naming it here as well
+  // fetched it twice.
   invalidateReadingViews(queryClient, vin)
 }
 

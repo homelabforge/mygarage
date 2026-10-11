@@ -173,6 +173,7 @@ export default function VehicleDetail() {
   }, [loadVehicle])
 
   const syncQuickEntryVehicle = useSyncQuickEntryVehicle()
+  const queryClient = useQueryClient()
   /**
    * Every sidecar save lands here, not in `setVehicle` (#172). Each one gets
    * the server's fresh row, which can carry an odometer unit changed on
@@ -181,10 +182,14 @@ export default function VehicleDetail() {
   const handleVehicleUpdated = useCallback(
     (updated: Vehicle) => {
       setVehicle(updated)
-      if (vin) rememberVehicle(vin, updated)
+      if (vin) {
+        rememberVehicle(vin, updated)
+        // Tracking distance or hours changes the tire dialogs and figures (#217).
+        void queryClient.invalidateQueries({ queryKey: ['tires', vin] })
+      }
       syncQuickEntryVehicle(updated)
     },
-    [vin, syncQuickEntryVehicle]
+    [vin, syncQuickEntryVehicle, queryClient]
   )
 
   // What this vehicle's LiveLink sources can actually do. Gates both the
@@ -243,7 +248,6 @@ export default function VehicleDetail() {
   // one (codex R1-M2); and a write for A that finishes after navigating to B
   // only marks A stale, since A has no observer left to refetch for (codex
   // R2-M1). A failed refresh keeps the last good stats.
-  const queryClient = useQueryClient()
   const { data: detailStats = null } = useVehicleDetailStats(vin ?? '')
 
   // Handle URL tab parameter from calendar navigation

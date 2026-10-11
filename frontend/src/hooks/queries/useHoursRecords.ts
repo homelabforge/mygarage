@@ -1,7 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import { invalidateReadingViews } from '@/hooks/useReminders'
-import type { HoursRecordListResponse, HoursRecordCreate, HoursRecordUpdate } from '@/types/hours'
+import type {
+  HoursRecordListResponse,
+  HoursRecordCreate,
+  HoursRecordUpdate,
+  NearestHours,
+} from '@/types/hours'
 
 /**
  * Engine-hours analog of hooks/queries/useOdometerRecords.ts
@@ -56,5 +61,30 @@ export function useDeleteHoursRecord(vin: string) {
     onSuccess: () => {
       invalidateReadingViews(queryClient, vin)
     },
+  })
+}
+
+/**
+ * The vehicle's hours reading nearest to a date, for the hour meter field on
+ * every tire dialog. Under the `['hoursRecords', vin]` prefix so every reading
+ * write refreshes it; a 404 means no readings yet and resolves to null.
+ */
+export function useNearestHours(vin: string, date: string) {
+  return useQuery({
+    queryKey: ['hoursRecords', vin, 'nearest', date],
+    queryFn: async (): Promise<NearestHours | null> => {
+      try {
+        const { data } = await api.get<NearestHours>(`/vehicles/${vin}/hours/nearest`, {
+          params: { date },
+        })
+        return data
+      } catch (err) {
+        const status = (err as { response?: { status?: number } }).response?.status
+        if (status === 404) return null
+        throw err
+      }
+    },
+    enabled: Boolean(vin) && /^\d{4}-\d{2}-\d{2}$/.test(date),
+    retry: false,
   })
 }

@@ -16,6 +16,9 @@ export type TireUpdate = components['schemas']['TireUpdate']
 export type TireReadingCreate = components['schemas']['TireReadingCreate']
 export type HistoryFault = components['schemas']['HistoryFaultResponse']
 
+/** Which reading a tire's figures run on (#217). */
+export type UsageAxis = Tire['usage_axis']
+
 /**
  * Where a tire is mounted, or `null`/`undefined` when it is in storage.
  *

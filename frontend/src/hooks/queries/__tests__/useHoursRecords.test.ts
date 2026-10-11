@@ -7,6 +7,7 @@ import {
   useCreateHoursRecord,
   useUpdateHoursRecord,
   useDeleteHoursRecord,
+  useNearestHours,
 } from '../useHoursRecords'
 import api from '../../../services/api'
 
@@ -112,5 +113,34 @@ describe('useDeleteHoursRecord', () => {
 
     expect(api.delete).toHaveBeenCalledWith('/vehicles/1HGCM82633A004352/hours/9')
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['hoursRecords', '1HGCM82633A004352'] })
+  })
+})
+
+describe('useNearestHours', () => {
+  it('asks for the reading nearest the date', async () => {
+    const reading = { date: '2026-04-01', engine_hours: '100.0', source: 'manual', days_away: -9 }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: reading } as { data: unknown })
+    const { Wrap } = wrapper()
+    const { result } = renderHook(() => useNearestHours('1HGCM82633A004352', '2026-04-10'), { wrapper: Wrap })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(api.get).toHaveBeenCalledWith('/vehicles/1HGCM82633A004352/hours/nearest', {
+      params: { date: '2026-04-10' },
+    })
+    expect(result.current.data).toEqual(reading)
+  })
+
+  it('reads a 404 as no readings yet', async () => {
+    vi.mocked(api.get).mockRejectedValueOnce({ response: { status: 404 } })
+    const { Wrap } = wrapper()
+    const { result } = renderHook(() => useNearestHours('1HGCM82633A004352', '2026-04-10'), { wrapper: Wrap })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toBeNull()
+  })
+
+  it('waits for a whole date', () => {
+    const { Wrap } = wrapper()
+    const { result } = renderHook(() => useNearestHours('1HGCM82633A004352', '2026-04'), { wrapper: Wrap })
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(api.get).not.toHaveBeenCalled()
   })
 })

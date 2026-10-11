@@ -196,3 +196,20 @@ describe('useTires across the Show retired toggle', () => {
     expect(result.current.isLoading).toBe(true)
   })
 })
+
+describe('a tire write refreshes the tire list once (#217)', () => {
+  it('names the list once, since invalidateReadingViews already covers it', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: {} })
+    const { queryClient, wrapper } = harness()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const { result } = renderHook(() => useMountTire(VIN), { wrapper })
+    await act(async () => {
+      await result.current.mutateAsync({ tireId: 1, position: 'FL' })
+    })
+    // Two invalidations in one tick fetch the list twice.
+    const listCalls = invalidate.mock.calls.filter(
+      ([filters]) => JSON.stringify(filters?.queryKey) === JSON.stringify(['tires', VIN])
+    )
+    expect(listCalls).toHaveLength(1)
+  })
+})

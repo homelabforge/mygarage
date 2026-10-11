@@ -85,3 +85,23 @@ describe('HoursRecordList — row actions + empty state', () => {
     expect(onAddClick).toHaveBeenCalled()
   })
 })
+
+describe('HoursRecordList: rows a tire published (#217)', () => {
+  it('calls a tire row a tire, not manual', () => {
+    const tireRow = {
+      ...record,
+      id: 3,
+      source: 'tire_mount',
+      notes: '[AUTO-SYNC from tire_mount #7]',
+    } as unknown as HoursRecord
+    useHoursRecordsMock.mockReturnValue({
+      data: { records: [tireRow], latest_engine_hours: '812.4' },
+      isLoading: false,
+      error: null,
+    })
+    render(<HoursRecordList {...PROPS} />)
+    const row = within(table()).getByText('812.4 hr').closest('tr') as HTMLElement
+    expect(within(row).getByText('hoursList.sourceTire')).toBeInTheDocument()
+    expect(within(row).queryByText('hoursList.sourceManual')).toBeNull()
+  })
+})

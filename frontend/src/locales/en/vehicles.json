@@ -601,6 +601,7 @@
     "sourceFuel": "Fuel",
     "sourceManual": "Manual",
     "sourceServiceVisit": "Service",
+    "sourceTire": "Tire",
     "tableCaption": "Engine hours reading history",
     "title": "Engine Hours Readings",
     "loadAction": "load engine hours readings"
