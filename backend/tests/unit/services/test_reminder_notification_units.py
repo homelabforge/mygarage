@@ -68,8 +68,8 @@ _DUE_MILEAGE_KM = Decimal("50000")
 # A settings row a test's "other connection" writes and removes again.
 _PROBE_KEY = "reminder_units_probe"
 
-# The sentence the low-tread sync used to write, with a person's edit on the
-# end. Migration 127 only clears exact copies, so this one stays, and it's
+# Shaped like the sentence the low-tread sync used to write, with a person's
+# edit on the end. Migration 127 only clears exact copies, so this one stays, and it's
 # prose that must pass through untouched.
 _LOW_TREAD_NOTES = "Tread 3.0 mm ≤ threshold 4.0 mm. ~12000 km remaining. Rotated in spring."
 

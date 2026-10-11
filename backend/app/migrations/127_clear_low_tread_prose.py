@@ -5,7 +5,7 @@ always 0. The tread now lives in the reminder's own columns and renders in
 each reader's units, so the old sentence would only repeat it. Exact matches
 only: a note someone edited stays.
 
-Non-FATAL: no model maps anything new, and a skipped run only leaves the old
+Non-FATAL: no model maps anything new, and a failed run only leaves the old
 sentence on screen.
 """
 

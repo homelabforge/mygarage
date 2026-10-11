@@ -3,7 +3,7 @@
 097 added it for the distance a low-tread reminder projected the tire had
 left. The low-tread change stopped writing it, and nothing ever read it.
 
-Non-FATAL: a skipped run leaves a nullable column no model maps and nothing
+Non-FATAL: a failed run leaves a nullable column no model maps and nothing
 reads.
 
 SQLite takes the DROP COLUMN as is (3.35+) because no CHECK, index or FK names
