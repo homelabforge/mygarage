@@ -5,6 +5,7 @@ return before any Argon2 work, while a real password account paid for a full
 verify. So the response time told you which usernames exist.
 """
 
+import logging
 from collections.abc import AsyncGenerator, Generator
 from unittest import mock
 
@@ -75,6 +76,38 @@ async def legacy_bcrypt_user(db_session: AsyncSession) -> AsyncGenerator[User]:
     await db_session.commit()
 
 
+_DAMAGED_USERNAME = "c1_damaged_hash"
+
+# A real live-cost hash, cut or corrupted. Each fails before Argon2 does any work.
+_GOOD = auth.ph.hash("irrelevant")
+DAMAGED_HASHES = {
+    "truncated": _GOOD[:40],
+    "garbage-after-tag": "$argon2id$garbage",
+    "bad-base64": _GOOD[:-5] + "!!!!!",
+    "unknown-type-tag": "$argon2zz$v=19$m=1,t=1,p=1$abc$def",
+    "non-ascii": "$argon2id$v=19$m=102400,t=2,p=8$é",
+}
+
+
+@pytest_asyncio.fixture(params=sorted(DAMAGED_HASHES))
+async def damaged_hash_user(request, db_session: AsyncSession) -> AsyncGenerator[User]:
+    """A password account whose stored hash is damaged, removed afterwards."""
+    await db_session.execute(delete(User).where(User.username == _DAMAGED_USERNAME))
+    user = User(
+        username=_DAMAGED_USERNAME,
+        email=f"{_DAMAGED_USERNAME}@example.com",
+        hashed_password=DAMAGED_HASHES[request.param],
+        auth_method="local",
+        is_active=True,
+        is_admin=False,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    yield user
+    await db_session.execute(delete(User).where(User.username == _DAMAGED_USERNAME))
+    await db_session.commit()
+
+
 def _verified_hashes(spy: mock.MagicMock) -> list[str]:
     """The hash each verify ran against. autospec hands the spy `self` first."""
     return [call.args[1] for call in spy.call_args_list]
@@ -123,7 +156,7 @@ async def test_legacy_bcrypt_miss_runs_one_argon2_verify(
     argon2_verify: mock.MagicMock,
     password: str,
 ) -> None:
-    """A bcrypt hash fails with no Argon2 work, so it pays the dummy like the rest."""
+    """A bcrypt hash is no hash Argon2 can read: a miss that pays the dummy like the rest."""
     result = await authenticate_user(db_session, legacy_bcrypt_user.username, password)
 
     assert result is None
@@ -153,3 +186,39 @@ async def test_known_user_right_password_still_logs_in(
     assert result is not None
     assert result.id == test_user["id"]
     assert argon2_verify.call_count == 1
+
+
+@pytest.mark.unit
+@pytest.mark.auth
+async def test_damaged_hash_is_a_miss_that_pays_the_dummy(
+    db_session: AsyncSession, damaged_hash_user: User, argon2_verify: mock.MagicMock
+) -> None:
+    """A damaged row used to raise out of verify (a 500), or skip the dummy."""
+    result = await authenticate_user(db_session, damaged_hash_user.username, "whatever-password")
+
+    assert result is None
+    assert _verified_hashes(argon2_verify).count(auth._DUMMY_HASH) == 1
+
+
+@pytest.mark.unit
+@pytest.mark.auth
+@pytest.mark.parametrize("stored", [None, "$2b$12$abc", *DAMAGED_HASHES.values()])
+def test_verify_password_never_raises(stored: str | None) -> None:
+    """Every caller (login, change password, SSO linking) gets a plain False."""
+    assert auth.verify_password("whatever-password", stored) is False
+
+
+@pytest.mark.unit
+@pytest.mark.auth
+async def test_damaged_hash_logs_a_reset_hint(
+    db_session: AsyncSession, damaged_hash_user: User, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An admin needs to know this account can't sign in until its password is reset."""
+    caplog.set_level(logging.WARNING, logger="app.services.auth")
+    await authenticate_user(db_session, damaged_hash_user.username, "whatever-password")
+
+    lines = [r.getMessage() for r in caplog.records if "can't be read as Argon2" in r.getMessage()]
+    assert lines == [
+        f"Password hash for {_DAMAGED_USERNAME} can't be read as Argon2 "
+        "(pre-Argon2 or damaged); an admin has to reset this password"
+    ]

@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from argon2 import PasswordHasher
-from argon2.exceptions import InvalidHashError, VerifyMismatchError
+from argon2.exceptions import VerificationError, VerifyMismatchError
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from joserfc import jwt
@@ -59,44 +59,42 @@ ph = PasswordHasher(time_cost=2, memory_cost=102400, parallelism=8)
 _DUMMY_HASH = ph.hash(secrets.token_urlsafe(16))
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against a hash.
+def _verify_dummy(password: str) -> None:
+    """One full-cost Argon2 verify that can't match, so every miss costs the same."""
+    try:
+        ph.verify(_DUMMY_HASH, password)
+    except VerifyMismatchError:
+        pass
 
-    Supports both Argon2 (new) and bcrypt (legacy) hashes for gradual migration.
-    Argon2 hashes start with '$argon2', bcrypt hashes start with '$2b$'.
+
+def _check_password(plain_password: str, hashed_password: str | None) -> bool | None:
+    """True or False against a readable Argon2 hash, None when there isn't one.
+
+    None covers an SSO-only account, a pre-Argon2 bcrypt hash (bcrypt hasn't been
+    a dependency since at least v2.14.0, so those never worked) and a damaged
+    row. It pays the dummy verify first, so timing doesn't single those out.
     """
-    import logging
+    if not hashed_password or not hashed_password.startswith("$argon2"):
+        _verify_dummy(plain_password)
+        return None
+    try:
+        return ph.verify(hashed_password, plain_password)
+    except VerifyMismatchError:
+        return False
+    except VerificationError, ValueError:
+        # A damaged value fails to decode (VerificationError) or parse
+        # (InvalidHashError, UnicodeEncodeError: both ValueErrors) with no Argon2 work.
+        _verify_dummy(plain_password)
+        return None
 
-    logger = logging.getLogger(__name__)
 
-    # Detect hash type
-    if hashed_password.startswith("$argon2"):
-        # Argon2 hash - use argon2-cffi
-        try:
-            ph.verify(hashed_password, plain_password)
-            return True
-        except VerifyMismatchError, InvalidHashError:
-            return False
-    else:
-        # Legacy bcrypt hash - use bcrypt for verification
-        # This allows gradual migration without breaking existing passwords
-        try:
-            import bcrypt
+def verify_password(plain_password: str, hashed_password: str | None) -> bool:
+    """Whether a password matches a stored Argon2 hash.
 
-            password_bytes = plain_password.encode("utf-8")
-
-            # bcrypt v5.0+ has 72-byte limitation
-            if len(password_bytes) > 72:
-                logger.debug("Password verification failed: exceeds 72 bytes (bcrypt legacy)")
-                return False
-
-            return bcrypt.checkpw(password_bytes, hashed_password.encode("utf-8"))
-        except ImportError:
-            logger.warning("bcrypt not installed; cannot verify legacy hash")
-            return False
-        except (ValueError, TypeError) as e:
-            logger.error("Error verifying bcrypt password: %s", e)
-            return False
+    No hash, or one Argon2 can't read, is a plain miss after the same work as
+    any other miss.
+    """
+    return _check_password(plain_password, hashed_password) is True
 
 
 def hash_password(password: str) -> str:
@@ -277,7 +275,8 @@ def sign_in_required(action: str) -> HTTPException:
 async def authenticate_user(db: AsyncSession, username: str, password: str) -> User | None:
     """Authenticate a user by username and password.
 
-    Auto-rehashes legacy bcrypt passwords to Argon2 on successful login.
+    Every miss costs one full Argon2 verify, so response time doesn't say which
+    accounts exist.
     """
     import logging
 
@@ -286,9 +285,8 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
 
-    # Both misses burn a dummy verify, or response time says which accounts exist.
     if not user:
-        verify_password(password, _DUMMY_HASH)
+        _verify_dummy(password)
         return None
 
     # SECURITY: Reject password login for OIDC-only users (no password set)
@@ -296,24 +294,18 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> U
         logger.warning(
             "Password login attempted for OIDC-only user: %s", sanitize_for_log(username)
         )
-        verify_password(password, _DUMMY_HASH)
+        _verify_dummy(password)
         return None
 
-    if not verify_password(password, user.hashed_password):
-        # A legacy bcrypt hash fails without any Argon2 work (bcrypt isn't a
-        # dependency), so pay the dummy too or old accounts stand out.
-        if not user.hashed_password.startswith("$argon2"):
-            verify_password(password, _DUMMY_HASH)
-        return None
-
-    # Auto-migrate legacy bcrypt hashes to Argon2
-    if not user.hashed_password.startswith("$argon2"):
-        logger.info(
-            "Auto-migrating password hash to Argon2 for user: %s", sanitize_for_log(username)
+    checked = _check_password(password, user.hashed_password)
+    if checked is None:
+        logger.warning(
+            "Password hash for %s can't be read as Argon2 (pre-Argon2 or damaged); "
+            "an admin has to reset this password",
+            sanitize_for_log(username),
         )
-        user.hashed_password = hash_password(password)
-        await db.commit()
-
+    if not checked:
+        return None
     return user
 
 

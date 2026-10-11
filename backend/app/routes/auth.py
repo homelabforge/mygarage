@@ -437,6 +437,13 @@ async def update_password(
     db: AsyncSession = Depends(get_db),
 ):
     """Update current user password."""
+    # An SSO-only account has no password here to check or change.
+    if current_user.hashed_password is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account signs in through SSO and has no password to change",
+        )
+
     # Verify current password
     if not verify_password(password_update.current_password, current_user.hashed_password):
         raise HTTPException(

@@ -12,6 +12,10 @@ Migration strategy:
 
 After all users have logged in and passwords are migrated, the bcrypt
 dependency can be removed from pyproject.toml.
+
+Update 2026-10 (PR 1c): bcrypt verification is gone. bcrypt was never a
+dependency in this repo, so a leftover bcrypt hash can't sign in; an admin
+resets that password, and the login log names the account.
 """
 
 import os

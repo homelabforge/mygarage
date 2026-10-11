@@ -80,19 +80,9 @@ class TestPasswordHashing:
         assert verify_password(long_password, hashed) is True
 
     def test_verify_password_legacy_bcrypt(self):
-        """Test that verify_password handles legacy bcrypt hashes."""
-        # Pre-computed bcrypt hash for "testpassword123"
-        # Generated with: bcrypt.hashpw(b"testpassword123", bcrypt.gensalt())
+        """A pre-Argon2 bcrypt hash isn't supported: a plain miss, even with the right password."""
         bcrypt_hash = "$2b$12$K9v3M5qVxPZYH.fQz9J9/.kN7xN8YE9Xw5qKjN8QrXj9zKzN8QrX."
-
-        # This should work with the backward compatibility code
-        # Note: The hash above is a sample format; actual verification depends on bcrypt being installed
-        password = "testpassword123"
-
-        # The function should handle bcrypt hashes gracefully
-        # If bcrypt is not installed, it should return False without crashing
-        result = verify_password(password, bcrypt_hash)
-        assert isinstance(result, bool)
+        assert verify_password("testpassword123", bcrypt_hash) is False
 
 
 @pytest.mark.unit
