@@ -43,6 +43,7 @@ from app.services.tire_history import (
     fault_map,
     new_or_touched_faults,
     odometer_contradictions,
+    reading_contradiction_message,
     validate_period_history,
 )
 from app.services.tire_results import (
@@ -2001,12 +2002,15 @@ class TireService:
 
         Under the vehicle write lock, unlike `add_reading` and
         `delete_reading`: neither of those validates against the mount history,
-        and this does. A correction that makes a period contradict this
-        reading when it did not before is refused with 409 by the same
-        incremental rule the period editor applies, with no period touched,
-        so an existing contradiction elsewhere never blocks it and a
-        correction that removes one goes through. A result that measures
-        nothing is a 422, the rule `TireReadingCreate` applies to a new one.
+        and this does. A correction that makes a period contradict THIS
+        reading when it did not before is refused with 409, judged on the
+        reading's own (period, reading) pairs rather than on the history's
+        fault keys: those keep one contradiction flag per period, so a period
+        an older bad reading already flags would hide a new one. A contradiction the reading already had, or another
+        reading's, never blocks the edit, so a repair can go one field at a
+        time. Periods do not change here, so no other fault can appear. A
+        result that measures nothing is a 422, the rule `TireReadingCreate`
+        applies to a new one.
         """
         from app.services.auth import get_vehicle_or_403
 
@@ -2023,7 +2027,12 @@ class TireService:
 
         fields = data.model_dump(exclude_unset=True)
         readings = list(tire.readings or [])
-        before = fault_map(tire.mount_periods or [], readings)
+        periods = sorted(tire.mount_periods or [], key=lambda p: p.id)
+        contradicted_before = {
+            period.id
+            for period, other in odometer_contradictions(periods, readings)
+            if other.id == reading.id
+        }
         measures = ("tread_depth_mm", "pressure_kpa")
         newest_before = {m: _newest_measure(readings, m) for m in measures}
         old_values = {m: getattr(reading, m) for m in measures}
@@ -2052,7 +2061,18 @@ class TireService:
             )
 
         await self.db.flush()
-        self.refuse_contradictions(tire, before, set(), format_distance)
+        newly_contradicted = [
+            period
+            for period, other in odometer_contradictions(periods, readings)
+            if other.id == reading.id and period.id not in contradicted_before
+        ]
+        if newly_contradicted:
+            raise HTTPException(
+                status_code=409,
+                detail=reading_contradiction_message(
+                    newly_contradicted[0], reading, format_distance=format_distance
+                ),
+            )
 
         moved = reading.recorded_at != old_day
         for measure in measures:
@@ -2062,8 +2082,10 @@ class TireService:
                 continue
             value = getattr(reading, measure)
             changed = moved or not _same_measure(value, old_values[measure])
+            # Newest by (recorded_at, id), the order `_newest_measure` uses: a
+            # later same-day reading still outranks this one.
             is_newest = value is not None and all(
-                r.recorded_at <= reading.recorded_at
+                (r.recorded_at, r.id) < (reading.recorded_at, reading.id)
                 for r in readings
                 if r.id != reading.id and getattr(r, measure) is not None
             )

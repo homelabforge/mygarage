@@ -266,6 +266,32 @@ class TestTheTiresTreadAndPressure:
         assert corrected.status_code == 200, corrected.text
         assert _dec(corrected.json()["tread_depth_mm"]) == Decimal("6.5")
 
+    async def test_the_older_of_two_same_day_readings_does_not_take_over_a_value_set_on_the_tire(
+        self, client: AsyncClient, auth_headers, vehicle
+    ):
+        """Newest is (recorded_at, id): a later same-day reading still outranks this one."""
+        tire_id = await _tire(client, auth_headers, vehicle, None)
+        older = await _reading(
+            client, auth_headers, vehicle, tire_id, recorded_at="2026-01-10", tread_depth_mm="8.0"
+        )
+        await _reading(
+            client, auth_headers, vehicle, tire_id, recorded_at="2026-01-10", tread_depth_mm="7.0"
+        )
+        edited = await client.put(
+            f"/api/vehicles/{vehicle}/tires/{tire_id}",
+            headers=auth_headers,
+            json={"tread_depth_mm": "6.5"},
+        )
+        assert _dec(edited.json()["tread_depth_mm"]) == Decimal("6.5")
+
+        corrected = await client.put(
+            _url(vehicle, tire_id, older), headers=auth_headers, json={"tread_depth_mm": "7.5"}
+        )
+
+        assert corrected.status_code == 200, corrected.text
+        assert _dec(_reading_in(corrected.json(), older)["tread_depth_mm"]) == Decimal("7.5")
+        assert _dec(corrected.json()["tread_depth_mm"]) == Decimal("6.5")
+
     async def test_a_pressure_cleared_from_the_only_reading_that_had_one_leaves_it_unknown(
         self, client: AsyncClient, auth_headers, vehicle
     ):
@@ -424,6 +450,64 @@ class TestTheMountHistory:
         stored = await db_session.get(TireReading, reading)
         assert stored is not None and stored.odometer_km == Decimal("11000")
         assert await _records(db_session, vehicle) == records_before
+
+    async def test_a_new_contradiction_is_refused_beside_an_old_one_on_the_same_period(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """The validator keeps one flag per period, so an old bad reading must not hide a new one."""
+        tire_id = await _tire(client, auth_headers, vehicle)
+        # Log Reading does not validate, so a legacy contradiction can exist:
+        # 9,000 km two months after a mount at 10,000 km.
+        await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-03-01",
+            odometer_km="9000",
+            tread_depth_mm="7.0",
+        )
+        healthy = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-04-01",
+            odometer_km="12000",
+            tread_depth_mm="6.8",
+        )
+
+        refused = await client.put(
+            _url(vehicle, tire_id, healthy), headers=auth_headers, json={"odometer_km": "9500"}
+        )
+
+        assert refused.status_code == 409, refused.text
+        assert "contradicts the reading dated 2026-04-01" in refused.json()["detail"]
+        db_session.expire_all()
+        stored = await db_session.get(TireReading, healthy)
+        assert stored is not None and stored.odometer_km == Decimal("12000")
+
+    async def test_a_reading_that_already_contradicted_a_period_can_still_be_edited(
+        self, client: AsyncClient, auth_headers, vehicle
+    ):
+        """An existing contradiction never blocks an edit, so a repair can go one field at a time."""
+        tire_id = await _tire(client, auth_headers, vehicle)
+        legacy = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-03-01",
+            odometer_km="9000",
+            tread_depth_mm="7.0",
+        )
+
+        notes = await client.put(
+            _url(vehicle, tire_id, legacy), headers=auth_headers, json={"notes": "check this"}
+        )
+
+        assert notes.status_code == 200, notes.text
+        assert _reading_in(notes.json(), legacy)["notes"] == "check this"
 
     async def test_correcting_a_typo_that_blocked_a_dismount_unblocks_it(
         self, client: AsyncClient, auth_headers, vehicle

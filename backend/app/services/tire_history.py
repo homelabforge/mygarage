@@ -181,6 +181,28 @@ def odometer_contradictions(
     return pairs
 
 
+def reading_contradiction_message(
+    period: TireMountPeriod,
+    reading: TireReading,
+    *,
+    format_distance: DistanceFormatter = format_km,
+) -> str:
+    """The sentence for a period that contradicts a reading (rule 5).
+
+    One wording for both places that refuse it: the history validator, and a
+    reading edit that makes a period newly contradict the reading it corrects.
+    The reading must carry an odometer, as every pair `odometer_contradictions`
+    returns does.
+    """
+    odometer = reading.odometer_km
+    assert odometer is not None
+    return (
+        f"{_label(period, capital=True)} contradicts the reading dated {reading.recorded_at} at "
+        f"{format_distance(odometer)}: the vehicle's odometer would have to run backwards. "
+        "If that reading is wrong, correct or delete it in the tire's history."
+    )
+
+
 def validate_period_history(
     periods: Sequence[TireMountPeriod],
     readings: Sequence[TireReading],
@@ -368,15 +390,10 @@ def validate_period_history(
     # set fit and remount of its tire with no way out.
     in_order = sorted(readings, key=lambda r: (r.recorded_at, r.id or 0))
     for p, reading in odometer_contradictions(sorted(periods, key=lambda p: p.id or 0), in_order):
-        # `odometer_contradictions` pairs only readings with an odometer.
-        odometer = reading.odometer_km
-        assert odometer is not None
         add(
             p,
             CONTRADICTS_READING,
-            f"{_label(p, capital=True)} contradicts the reading dated {reading.recorded_at} at "
-            f"{format_distance(odometer)}: the vehicle's odometer would have to run backwards. "
-            "If that reading is wrong, correct or delete it in the tire's history.",
+            reading_contradiction_message(p, reading, format_distance=format_distance),
         )
     return faults
 
