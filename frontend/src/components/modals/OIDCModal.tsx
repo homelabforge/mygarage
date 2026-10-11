@@ -37,8 +37,11 @@ interface OIDCModalProps {
   onClose: () => void
   /** What's stored, as GET /auth/oidc/config/admin returns it. The modal edits a copy. */
   config: OIDCAdminConfig
-  /** After a Save went through, so the parent can re-read what's stored. */
-  onSaved: () => void
+  /**
+   * After a Save went through, so the parent can re-read what's stored. The modal
+   * waits for it before closing, so nothing can act on the old config meanwhile.
+   */
+  onSaved: () => Promise<unknown> | void
 }
 
 export default function OIDCModal({ isOpen, onClose, config, onSaved }: OIDCModalProps) {
@@ -119,8 +122,10 @@ export default function OIDCModal({ isOpen, onClose, config, onSaved }: OIDCModa
     setRedirectUriError(null)
     try {
       await api.put('/auth/oidc/config/admin', draft)
+      // Stay open (and Save stays off) until the parent has the new config. Closing
+      // first left Switch to SSO live on the old one, which would write it back.
+      await onSaved()
       toast.success(t('modal.oidc.saved'))
-      onSaved()
       handleClose()
     } catch (error) {
       const detail = (error as AxiosError<{ detail?: unknown }>).response?.data?.detail

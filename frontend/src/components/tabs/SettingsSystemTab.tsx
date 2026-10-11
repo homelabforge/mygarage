@@ -873,7 +873,7 @@ export default function SettingsSystemTab() {
           isOpen={showOIDCModal}
           onClose={() => setShowOIDCModal(false)}
           config={oidcConfig}
-          onSaved={() => void loadOidcConfig()}
+          onSaved={loadOidcConfig}
         />
       )}
     </div>

@@ -45,9 +45,17 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), loading: vi.fn(() => 'id') },
 }))
 
-// Children with their own data fetching; not under test here.
+// Children with their own data fetching; not under test here. The SSO modal
+// keeps its props, so a test can call the onSaved the tab hands it.
+type OIDCModalProps = { onSaved: () => Promise<unknown> | void }
+const oidcModal = vi.hoisted(() => ({ props: null as OIDCModalProps | null }))
 vi.mock('@/components/ArchivedVehiclesList', () => ({ default: () => null }))
-vi.mock('@/components/modals/OIDCModal', () => ({ default: () => null }))
+vi.mock('@/components/modals/OIDCModal', () => ({
+  default: (props: OIDCModalProps) => {
+    oidcModal.props = props
+    return null
+  },
+}))
 vi.mock('@/components/modals/FamilyManagementModal', () => ({ default: () => null }))
 
 import api from '@/services/api'
@@ -565,6 +573,41 @@ describe('SettingsSystemTab: switching the mode', () => {
     fireEvent.click(screen.getByRole('button', { name: /auth\.local/ }))
 
     expect(await screen.findByRole('button', { name: 'auth.switchToLocal' })).toBeDisabled()
+  })
+})
+
+describe('SettingsSystemTab: the SSO modal waits for the re-read', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    oidcModal.props = null
+  })
+
+  it("onSaved settles only once the saved config is back, so Switch can't act on the old one", async () => {
+    serveSettings('oidc')
+    renderTab()
+    await waitFor(() => expect(oidcModal.props).not.toBeNull())
+
+    // Hold the next config read open.
+    const served = mockedApi.get.getMockImplementation()
+    if (!served) throw new Error('call serveSettings first')
+    const hold: { release: (() => void) | null } = { release: null }
+    mockedApi.get.mockImplementation((url: string) =>
+      url === '/auth/oidc/config/admin'
+        ? new Promise((resolve) => {
+            hold.release = () => resolve(served(url))
+          })
+        : served(url),
+    )
+    let settled = false
+    void Promise.resolve(oidcModal.props?.onSaved()).then(() => {
+      settled = true
+    })
+
+    await waitFor(() => expect(hold.release).not.toBeNull())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(settled).toBe(false)
+    hold.release?.()
+    await waitFor(() => expect(settled).toBe(true))
   })
 })
 

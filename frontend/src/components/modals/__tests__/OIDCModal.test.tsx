@@ -103,6 +103,30 @@ describe('OIDCModal: Save writes the draft once', () => {
     expect(toast.success).toHaveBeenCalledWith('modal.oidc.saved')
   })
 
+  it("waits for the parent's re-read before it reports and closes", async () => {
+    mockedPut.mockResolvedValue({ data: {} })
+    const reload: { finish: (() => void) | null } = { finish: null }
+    onSaved.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          reload.finish = resolve
+        }),
+    )
+    renderModal()
+
+    fireEvent.click(screen.getByRole('button', { name: 'modal.oidc.save' }))
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(onClose).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'modal.oidc.saving' })).toBeDisabled()
+
+    reload.finish?.()
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(toast.success).toHaveBeenCalledWith('modal.oidc.saved')
+  })
+
   it('keeps the draft and shows the field error when the Callback URL is refused', async () => {
     mockedPut.mockRejectedValue({
       isAxiosError: true,
