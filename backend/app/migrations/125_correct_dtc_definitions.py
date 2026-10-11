@@ -5,10 +5,11 @@ misaligned from about P0126 on (P0300 read "Cylinder 12 Contribution/Range
 Fault") and whose maker-range rows are one maker's meanings with no maker
 named. The shipped file is now the SAE generic ranges only, built by
 tools/build_dtc_definitions.py. In one transaction this makes the table match
-it: delete codes it doesn't carry, upsert every code by its key, re-apply
-091's enrichment (it describes the real meanings; same SQL as 091, which
-stays frozen), and give vehicle DTCs recorded while the table was empty their
-description, plus the severity if it is still the no-definition default.
+it: reset vehicle DTCs that copied their code's old text, delete codes it
+doesn't carry, upsert every code by its key, re-apply 091's enrichment (it
+describes the real meanings; same SQL as 091, which stays frozen), and give
+vehicle DTCs without a description the new one, plus the severity if it is
+still the no-definition default.
 
 Non-FATAL, and it swallows its own errors (INDEX.md): reference data must
 never stop the migrations queued behind it. A failure rolls back, logs at
@@ -70,6 +71,20 @@ _ENRICH = text(
     UPDATE dtc_definitions
     SET common_causes = :causes, symptoms = :symptoms, fix_guidance = :guidance
     WHERE code = :code
+    """
+)
+# Runs against the old rows: a DTC whose text matches its code's definition
+# copied it, so it goes back to no description and, if copied too, the
+# no-definition severity. _FILL_VEHICLE_DTCS then fills it from the new rows.
+_UNCOPY_VEHICLE_DTCS = text(
+    """
+    UPDATE vehicle_dtcs
+    SET severity = CASE WHEN severity =
+                (SELECT d.severity FROM dtc_definitions d WHERE d.code = vehicle_dtcs.code)
+            THEN 'warning' ELSE severity END,
+        description = NULL
+    WHERE description =
+        (SELECT d.description FROM dtc_definitions d WHERE d.code = vehicle_dtcs.code)
     """
 )
 # 'warning' is what a DTC gets when no definition existed at the time
@@ -152,6 +167,7 @@ def _correct(engine: Engine) -> None:
     ]
     has_vehicle_dtcs = inspector.has_table("vehicle_dtcs")
     with engine.begin() as conn:
+        reset = conn.execute(_UNCOPY_VEHICLE_DTCS).rowcount if has_vehicle_dtcs else 0
         before = {str(c) for c in conn.execute(text("SELECT code FROM dtc_definitions")).scalars()}
         stale = sorted(before - wanted)
         if stale:
@@ -164,10 +180,12 @@ def _correct(engine: Engine) -> None:
             conn.execute(_ENRICH, enrichment)
         filled = conn.execute(_FILL_VEHICLE_DTCS).rowcount if has_vehicle_dtcs else 0
     logger.info(
-        "125: dtc_definitions now %d codes (%d added, %d removed); %d vehicle DTCs filled",
+        "125: dtc_definitions now %d codes (%d added, %d removed); "
+        "%d vehicle DTCs reset from the old text, %d filled",
         len(wanted),
         len(wanted - before),
         len(stale),
+        reset,
         filled,
     )
 

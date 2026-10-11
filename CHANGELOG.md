@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A tire with almost no tread wear between two readings no longer breaks the tire list, tire analytics or saving a tire; it shows the distance left without a wear date
 - A LiveLink HTTPS upload with a timestamp offset is stored in UTC instead of being dropped (PostgreSQL) or shifted (SQLite)
 - Diagnostic trouble code descriptions were wrong from about P0126 on (P0300 read "Cylinder 12 Contribution"); the built-in list is now 9,341 correct generic codes, fresh installs get it, and existing installs are corrected on upgrade
-- Codes recorded before the list was installed get their description
+- Codes recorded before the list was installed get their description, and codes recorded with the old wrong text are corrected
 - The DTC tab's Cleared and All filters show cleared codes, and the category shows as a readable label instead of the raw value
 - A repair added together with the inspection that found it stays linked to it when the visit is saved
 - Editing a visit to add a failed inspection and point an existing repair at it no longer fails to save, and a repair moved off an inspection you remove keeps its new link

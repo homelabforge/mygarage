@@ -3,7 +3,8 @@
 033 seeded a table whose generic P0 descriptions were shifted and whose maker
 rows named no maker. 125 makes the table match the shipped file in one
 transaction: delete what the file doesn't carry, upsert by code, re-apply 091's
-enrichment, and fill vehicle_dtcs rows recorded while the table was empty.
+enrichment, and fill vehicle_dtcs rows recorded while the table was empty or
+correct the ones that copied the old text.
 The tables come from the models' create_all shape, which is what prod and
 init_db have. Parameterised over SQLite and PostgreSQL via `engine_for_migration`.
 """
@@ -68,15 +69,21 @@ def _make_tables(engine: Engine) -> None:
     cast(Table, VehicleDTC.__table__).create(engine)
 
 
-def _define(engine: Engine, code: str, description: str, causes: str | None = None) -> None:
+def _define(
+    engine: Engine,
+    code: str,
+    description: str,
+    causes: str | None = None,
+    severity: str = "warning",
+) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
                 "INSERT INTO dtc_definitions (code, description, category, severity, "
                 "estimated_severity_level, is_emissions_related, common_causes) "
-                "VALUES (:c, :d, 'powertrain', 'warning', 2, :e, :cc)"
+                "VALUES (:c, :d, 'powertrain', :s, 2, :e, :cc)"
             ),
-            {"c": code, "d": description, "e": False, "cc": causes},
+            {"c": code, "d": description, "s": severity, "e": False, "cc": causes},
         )
 
 
@@ -222,7 +229,7 @@ def test_125_seeds_an_empty_table(
     assert p0300["common_causes"] is not None
     assert (
         f"125: dtc_definitions now {len(file)} codes ({len(file)} added, 0 removed); "
-        "0 vehicle DTCs filled"
+        "0 vehicle DTCs reset from the old text, 0 filled"
     ) in caplog.text
 
     # Raw SQLite hands back 1/0 and PG hands back bool, so compare truthiness.
@@ -260,18 +267,97 @@ def test_125_fills_vehicle_dtcs_recorded_without_a_definition(
     ]
 
 
+def test_125_corrects_a_vehicle_dtc_that_copied_a_shifted_definition(
+    engine_for_migration: tuple[str, Engine, str],
+) -> None:
+    """Recorded from the shifted table, so it copied that text and severity; both are corrected."""
+    _dialect, engine, _url = engine_for_migration
+    file = _file()
+    # The old definition said critical, so a copied severity left alone fails below.
+    assert file["P0300"]["severity"] != "critical"
+    _make_tables(engine)
+    _define(engine, "P0300", _SHIFTED_P0300, severity="critical")
+    _vehicle_dtc(engine, "P0300", _SHIFTED_P0300, "critical")
+
+    _load().upgrade(engine)
+
+    assert _vehicle_row(engine, "P0300") == (
+        file["P0300"]["description"],
+        file["P0300"]["severity"],
+    )
+
+
+def test_125_resets_a_vehicle_dtc_that_copied_a_maker_definition(
+    engine_for_migration: tuple[str, Engine, str], caplog: pytest.LogCaptureFixture
+) -> None:
+    """P1000 leaves the table, so the card falls back to "Manufacturer-specific code"."""
+    _dialect, engine, _url = engine_for_migration
+    assert "P1000" not in _file()
+    _make_tables(engine)
+    _define(engine, "P1000", _MAKER_P1000, severity="critical")
+    _vehicle_dtc(engine, "P1000", _MAKER_P1000, "critical")
+
+    with caplog.at_level(logging.INFO):
+        _load().upgrade(engine)
+
+    assert _vehicle_row(engine, "P1000") == (None, "warning")
+    assert "1 vehicle DTCs reset from the old text, 0 filled" in caplog.text
+
+
+def test_125_keeps_vehicle_dtcs_that_did_not_copy_a_definition(
+    engine_for_migration: tuple[str, Engine, str],
+) -> None:
+    """A description the user wrote, and one whose code has no definition, stay as they are."""
+    _dialect, engine, _url = engine_for_migration
+    assert "P1131" not in _file()
+    _make_tables(engine)
+    _define(engine, "P0420", _SHIFTED_P0420, severity="critical")
+    _vehicle_dtc(engine, "P0420", "My own description", "critical")
+    _vehicle_dtc(engine, "P1131", "Seen on my truck", "critical")
+
+    _load().upgrade(engine)
+
+    assert _vehicle_rows(engine) == [
+        ("P0420", "My own description", "critical"),
+        ("P1131", "Seen on my truck", "critical"),
+    ]
+
+
+def test_125_keeps_a_severity_set_on_purpose_on_a_copied_dtc(
+    engine_for_migration: tuple[str, Engine, str],
+) -> None:
+    """The text was copied but the severity isn't the old definition's, so it was set on purpose."""
+    _dialect, engine, _url = engine_for_migration
+    file = _file()
+    assert file["P0300"]["severity"] != "critical"
+    _make_tables(engine)
+    _define(engine, "P0300", _SHIFTED_P0300)
+    _vehicle_dtc(engine, "P0300", _SHIFTED_P0300, "critical")
+
+    _load().upgrade(engine)
+
+    assert _vehicle_row(engine, "P0300") == (file["P0300"]["description"], "critical")
+
+
 def test_125_is_idempotent(engine_for_migration: tuple[str, Engine, str]) -> None:
     _dialect, engine, _url = engine_for_migration
+    file = _file()
     _make_tables(engine)
     _define(engine, "P0300", _SHIFTED_P0300)
     _vehicle_dtc(engine, "P0104", None, "warning")
+    _vehicle_dtc(engine, "P0300", _SHIFTED_P0300, "warning")
     mod = _load()
 
     mod.upgrade(engine)
     first = _dump(engine)
-    assert _description(engine, "P0300") == _file()["P0300"]["description"]
-    assert _vehicle_row(engine, "P0104")[0] == _file()["P0104"]["description"]
+    assert _description(engine, "P0300") == file["P0300"]["description"]
+    assert _vehicle_row(engine, "P0104")[0] == file["P0104"]["description"]
+    assert _vehicle_row(engine, "P0300") == (
+        file["P0300"]["description"],
+        file["P0300"]["severity"],
+    )
 
+    # Both vehicle rows now match the new text, so this run resets them and fills them back.
     mod.upgrade(engine)
 
     assert _dump(engine) == first
@@ -380,12 +466,13 @@ def test_125_rolls_back_a_failure_after_the_writes_start(
     caplog: pytest.LogCaptureFixture,
     statement: str,
 ) -> None:
-    """The DELETE and the upsert have run when this statement fails; all of it rolls back."""
+    """The reset, the DELETE and the upsert have run when this fails; all of it rolls back."""
     _dialect, engine, _url = engine_for_migration
     _make_tables(engine)
     _define(engine, "P0300", _SHIFTED_P0300)
     _define(engine, "P1000", _MAKER_P1000)
     _vehicle_dtc(engine, "P0104", None, "warning")
+    _vehicle_dtc(engine, "P0300", _SHIFTED_P0300, "warning")
     mod = _load()
     setattr(mod, statement, text("UPDATE no_such_table SET x = 1"))
 
@@ -396,6 +483,7 @@ def test_125_rolls_back_a_failure_after_the_writes_start(
     assert _description(engine, "P0300") == _SHIFTED_P0300
     assert _count(engine) == 2
     assert _vehicle_row(engine, "P0104") == (None, "warning")
+    assert _vehicle_row(engine, "P0300") == (_SHIFTED_P0300, "warning")
     assert _not_corrected_has_traceback(caplog) == [True]
 
 
