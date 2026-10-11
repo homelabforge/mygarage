@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - SSO settings have a Callback URL field, so `oidc_redirect_uri` can be pinned from Settings
+- Tires on a vehicle that tracks engine hours use the hour meter: mounts, dismounts, rotations, set fits and readings take hours, and hours on the tire and the wear estimate are worked out in hours (#217)
+- A vehicle that tracks both distance and hours records both on each tire event, the second one optional, and its tire figures stay on distance
 
 ### Changed
 - CI splits the test suites across parallel runners (shared-workflows v1.7.0)
@@ -19,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The API refuses (400) a line-item link to an item outside its visit when updating a visit or adding a line item, and ignores one when creating a visit
 - The API refuses a line item that links to itself
 - Manufacturer-specific codes (P1xxx, B1xxx and so on) no longer show one maker's meaning; the DTC card says the code is manufacturer-specific
+- The tire API refuses (422) an odometer on a vehicle that doesn't track distance, and engine hours on one that doesn't track hours
+- Low-tread reminders show the tread and the minimum in your units, in the reminder list and in the notification, instead of a note in millimetres
 
 ### Removed
 - Sign-in for accounts still on a pre-Argon2 (bcrypt) password hash. bcrypt hasn't shipped since at least v2.14.0, so such accounts couldn't sign in anyway. An admin resets the password, and the log names the account
@@ -52,6 +56,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A signed-out page load no longer logs an ERROR line
 - SSO sign-in through Rauthy no longer logs a SecurityWarning about the EdDSA algorithm name, and providers that use the newer Ed25519 name work too
 - The Callback URL refuses invisible characters, an address with no host, and a port that isn't a number
+- Tires on an hours-only vehicle no longer ask for an odometer, and the hour meter typed there no longer ends up in hidden odometer readings
+- Hour meter readings typed into a tire's odometer before this release stay in the vehicle's odometer history; turn on distance tracking for the vehicle to see and delete them
+- An hours-only vehicle no longer gets odometer milestone notifications
+- Clearing the date in a tire dialog asks for a date instead of failing with an error
+- A past mount period can no longer run past the day its tire was retired, and a tire can't be retired before the end of its mount history
+- The hours list shows a reading a tire recorded as Tire instead of Manual
 
 ### Security
 - POI provider settings are admin-only
