@@ -2145,7 +2145,7 @@ async def import_vehicle_json(
     # Import notes
     for idx, note_data in enumerate(sections["notes"]):
         try:
-            date = datetime.fromisoformat(note_data["date"]).date()
+            date = _json_row_date(note_data)
 
             note = Note(
                 vin=vin,
@@ -2159,6 +2159,9 @@ async def import_vehicle_json(
             async with db.begin_nested():
                 db.add(note)
             results["notes"]["success"] += 1
+        except _RowError as e:
+            results["notes"]["errors"] += 1
+            errors.append(f"Note {idx}: {e.reason}")
         except Exception as e:
             results["notes"]["errors"] += 1
             logger.warning("Import: note %s failed: %s", idx, sanitize_for_log(e))

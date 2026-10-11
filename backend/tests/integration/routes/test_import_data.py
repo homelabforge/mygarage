@@ -1229,6 +1229,7 @@ class TestVehicleJsonImportDates:
             ("def_records", "DEF record"),
             ("odometer_records", "Odometer record"),
             ("hours_records", "Hours record"),
+            ("notes", "Note"),
         ],
     )
     async def test_a_dated_section_names_a_bad_date(
