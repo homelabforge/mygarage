@@ -833,6 +833,85 @@ async def test_delete_still_clears_every_sticker_column(
         assert await _stored(test_sessionmaker, vin, column) is None, column
 
 
+@pytest.mark.integration
+async def test_delete_keeps_the_file_when_the_commit_fails(
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog
+):
+    """The row still points at the file, so the file has to stay too."""
+    vin = own_vehicle.vin
+    commits: list[str] = []
+
+    async def refuse(self: AsyncSession) -> None:
+        commits.append("refused")
+        raise SQLAlchemyError("disk I/O error")
+
+    # This request only: the fixtures' own commits have to work afterwards.
+    with _route_log_captured(caplog), pytest.MonkeyPatch.context() as mp:
+        mp.setattr(AsyncSession, "commit", refuse)
+        deleted = await client.delete(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
+
+    assert deleted.status_code == 500, deleted.text
+    assert commits == ["refused"]
+    assert sticker_on_file.read_bytes() == OLD_BYTES
+    assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") == str(sticker_on_file)
+    assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
+    (error,) = _route_errors(caplog)
+    assert error.getMessage() == f"Window sticker delete failed for {vin}"
+    assert error.exc_info is not None and error.exc_info[0] is SQLAlchemyError
+
+
+@pytest.mark.integration
+async def test_delete_removes_the_file_after_the_commit(
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker
+):
+    vin = own_vehicle.vin
+    real_commit = AsyncSession.commit
+    file_there_at_commit: list[bool] = []
+
+    async def look_then_commit(self: AsyncSession) -> None:
+        file_there_at_commit.append(sticker_on_file.exists())
+        await real_commit(self)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(AsyncSession, "commit", look_then_commit)
+        deleted = await client.delete(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
+
+    assert deleted.status_code == 204, deleted.text
+    assert file_there_at_commit == [True]
+    assert not sticker_on_file.exists()
+    assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") is None
+    assert await _stored(test_sessionmaker, vin, "msrp_base") is None
+
+
+@pytest.mark.integration
+async def test_delete_survives_an_unlink_failure(
+    client, auth_headers, own_vehicle, sticker_on_file, test_sessionmaker, caplog
+):
+    """The delete has worked once it commits; a file it can't remove is an orphan."""
+    vin = own_vehicle.vin
+    real_unlink = Path.unlink
+
+    def refuse(self: Path, missing_ok: bool = False) -> None:
+        if self == sticker_on_file:
+            raise OSError("permission denied")
+        real_unlink(self, missing_ok=missing_ok)
+
+    with _route_log_captured(caplog), pytest.MonkeyPatch.context() as mp:
+        mp.setattr(Path, "unlink", refuse)
+        deleted = await client.delete(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
+
+    assert deleted.status_code == 204, deleted.text
+    assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") is None
+    assert await _stored(test_sessionmaker, vin, "msrp_base") is None
+    assert sticker_on_file.exists()
+    assert [(r.levelno, r.getMessage()) for r in caplog.records if r.name == ROUTE_LOGGER] == [
+        (
+            logging.WARNING,
+            f"Failed to delete window sticker file {sticker_on_file}: permission denied",
+        )
+    ]
+
+
 def test_the_field_lists_cover_what_upload_and_delete_wrote():
     """The upload fills from the same two lists, so a field missing here
     would silently stop being read off the sticker."""

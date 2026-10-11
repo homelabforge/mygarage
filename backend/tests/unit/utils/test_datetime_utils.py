@@ -1,5 +1,7 @@
 """Tests for the naive-UTC datetime helpers."""
 
+import os
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
@@ -29,3 +31,16 @@ def test_a_utc_value_keeps_its_wall_clock() -> None:
 
     assert result == datetime(2026, 10, 10, 10)
     assert result.tzinfo is None
+
+
+@pytest.fixture
+def env_marker(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """A patch made before the clock fixture, checked at its own teardown."""
+    monkeypatch.setenv("MYGARAGE_TEST_MARKER", "set")
+    yield
+    assert os.environ.get("MYGARAGE_TEST_MARKER") == "set"
+
+
+@pytest.mark.usefixtures("env_marker", "local_clock_off_utc")
+def test_the_clock_fixture_leaves_other_patches_alone() -> None:
+    assert os.environ["TZ"] == "EST5"

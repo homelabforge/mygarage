@@ -108,14 +108,15 @@ def mock_user_data():
 
 
 @pytest.fixture
-def local_clock_off_utc(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def local_clock_off_utc() -> Iterator[None]:
     """Put the process clock five hours west of UTC for one test.
 
     A naive value fed to `astimezone` is read as LOCAL time, so in a UTC
-    container a naive-as-local bug looks right and no test can tell.
+    container a naive-as-local bug looks right and no test can tell. Its own
+    MonkeyPatch, so undoing it can't undo the test's other patches.
     """
-    monkeypatch.setenv("TZ", "EST5")
-    time.tzset()
-    yield
-    monkeypatch.undo()
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("TZ", "EST5")
+        time.tzset()
+        yield
     time.tzset()

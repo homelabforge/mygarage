@@ -513,16 +513,7 @@ async def delete_window_sticker(
     if not vehicle.window_sticker_file_path:
         raise HTTPException(status_code=404, detail="No window sticker found for this vehicle")
 
-    # Delete file
-    file_path = Path(vehicle.window_sticker_file_path)
-    if file_path.exists():
-        try:
-            file_path.unlink()
-            logger.info("Deleted window sticker: %s", file_path)
-        except Exception as e:
-            logger.error("Failed to delete window sticker file: %s", e)
-
-    # Clear all window sticker data
+    old_path = Path(vehicle.window_sticker_file_path)
     for field in (
         "window_sticker_file_path",
         "window_sticker_uploaded_at",
@@ -530,8 +521,14 @@ async def delete_window_sticker(
         *STICKER_SCAN_FIELDS,
     ):
         setattr(vehicle, field, None)
-
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.exception("Window sticker delete failed for %s", sanitize_for_log(vin))
+        raise HTTPException(status_code=500, detail="Failed to delete window sticker") from e
+    # Only now is the file unreferenced (the upload swaps files the same way).
+    _unlink_quietly(old_path)
 
 
 @router.get("/{vin}/window-sticker/file")
