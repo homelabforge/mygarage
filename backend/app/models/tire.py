@@ -79,6 +79,10 @@ class TireMountPeriod(Base):
     dismounted_on: Mapped[dt.date | None] = mapped_column(Date)
     mounted_odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     dismounted_odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    # The hour meter at the mount and the dismount (#217, migration 126).
+    # Beside the odometer, not instead of it: a dual vehicle records both.
+    mounted_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1))
+    dismounted_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1))
     # True for the period 097 invents for an existing tire. Such a period
     # asserts only "this tire was mounted here as of the migration date"; its
     # start is unknown, which is why `distance_on_tire` reports
@@ -207,6 +211,9 @@ class TireReading(Base):
     )
     recorded_at: Mapped[dt.date] = mapped_column(Date, nullable=False)
     odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    # The hour meter when the reading was taken (#217, migration 126). Context
+    # for wear on an hours vehicle, like `odometer_km` on a distance one.
+    engine_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1))
     # Nullable since migration 094: a reader with no tread gauge logs pressure
     # alone (#152). ``TireReadingCreate`` still refuses a reading that carries
     # neither, and ``TireService.add_reading`` leaves the parent tire's tread

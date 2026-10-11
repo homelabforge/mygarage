@@ -135,3 +135,4 @@ migrations must swallow their own operational errors.
 | `123_add_user_oidc_relink_until` | **FATAL** — Add users.oidc_relink_until: when an admin-approved SSO relink closes. |
 | `124_supply_volume_unit` | **FATAL** — Add supplies.volume_unit, the per-supply display unit token (#191). |
 | `125_correct_dtc_definitions` | Correct the DTC definitions by code, and fill DTCs recorded without one (1d). |
+| `126_add_tire_hours` | **FATAL** — Add the hour meter beside the odometer on tire mounts and readings (#217). |
