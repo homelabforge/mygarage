@@ -329,6 +329,8 @@ export default function SettingsSystemTab() {
     const now = await loadSettings()
     // SSO went on but the mode didn't, so the sign-in page would offer SSO anyway.
     // Turn it back off from the fresh config, not the one this click started with.
+    // A mode write that dropped but commits after this re-read would still end in SSO
+    // mode with SSO off. Only a server-side rule can close that, so it's left for later.
     let ssoLeftOn = false
     if (turningSsoOn && now !== null && now.mode !== 'oidc' && now.oidc?.enabled) {
       try {

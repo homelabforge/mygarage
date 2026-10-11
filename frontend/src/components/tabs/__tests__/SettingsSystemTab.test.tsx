@@ -482,6 +482,25 @@ describe('SettingsSystemTab: switching the mode', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
+  // Documents the unknown-state branch. Dropping `now !== null` won't compile, so no kill check.
+  it('to SSO from local, the mode write failed and the re-read failed too: no rollback on an unknown state', async () => {
+    serveSettings('local')
+    mockedApi.put.mockImplementationOnce(() => {
+      serveSettings('local', true, { enabled: true })
+      return Promise.resolve({ data: {} })
+    })
+    mockedApi.post.mockRejectedValue(new Error('boom'))
+    refreshUser.mockImplementationOnce(async () => {
+      failGet('/settings')
+    })
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    await clickWhenEnabled('auth.switchToOidc')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
+    expect(mockedApi.put).toHaveBeenCalledTimes(1)
+  })
+
   it('to SSO with SSO already on and the mode write failing: leaves SSO on, since this switch did not turn it on', async () => {
     serveSettings('local', true, { enabled: true })
     mockedApi.post.mockRejectedValue(new Error('boom'))
