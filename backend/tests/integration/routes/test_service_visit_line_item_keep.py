@@ -379,6 +379,82 @@ async def test_update_refuses_to_link_an_existing_item_to_another_visit(
     assert items[repair]["triggered_by_inspection_id"] == insp
 
 
+async def test_update_refuses_an_item_linked_to_itself(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """An existing item sent with its own id as the link is a 400, and nothing is written."""
+    vin = str(test_vehicle["vin"])
+    visit_id, insp, repair = await _visit(client, auth_headers, vin)
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "notes": "Should not stick",
+            "line_items": [
+                {"id": insp, "description": "Brake inspection", "notes": "Should not stick"},
+                {"id": repair, "description": "Front pads", "triggered_by_inspection_id": repair},
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 400, r.text
+    assert r.json()["detail"] == f"Line item {repair} cannot link to itself"
+
+    visit = await client.get(f"/api/vehicles/{vin}/service-visits/{visit_id}", headers=auth_headers)
+    assert visit.json()["notes"] is None
+    items = await _items(client, auth_headers, vin, visit_id)
+    assert items[insp]["notes"] == "Front pads 4 mm"
+    assert items[repair]["triggered_by_inspection_id"] == insp
+
+
+async def test_update_refuses_a_new_item_linked_to_its_own_temp_id(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """A new item can't name its own temp id as the link either."""
+    vin = str(test_vehicle["vin"])
+    visit_id, insp, repair = await _visit(client, auth_headers, vin)
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "line_items": [
+                {"id": insp, "description": "Brake inspection"},
+                {"id": repair, "description": "Front pads"},
+                {"temp_id": -1, "description": "Rotors", "triggered_by_inspection_id": -1},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 422, r.text
+    assert "cannot link to itself" in r.text
+
+    items = await _items(client, auth_headers, vin, visit_id)
+    assert sorted(items) == sorted([insp, repair])
+
+
+async def test_create_refuses_an_item_linked_to_its_own_temp_id(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """A new visit's item can't name its own temp id as the link, and no visit is made."""
+    vin = str(test_vehicle["vin"])
+    url = f"/api/vehicles/{vin}/service-visits"
+    before = (await client.get(url, headers=auth_headers)).json()["total"]
+
+    r = await client.post(
+        url,
+        json={
+            "date": "2026-03-06",
+            "line_items": [
+                {"temp_id": -1, "description": "Rotors", "triggered_by_inspection_id": -1}
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 422, r.text
+    assert "cannot link to itself" in r.text
+    assert (await client.get(url, headers=auth_headers)).json()["total"] == before
+
+
 async def test_update_links_new_items_by_temp_id(
     client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
 ) -> None:
@@ -558,29 +634,28 @@ async def test_an_existing_items_link_changed_to_a_dropped_item_clears(
 async def _two_inspection_visit(
     client: AsyncClient, headers: dict[str, str], vin: str
 ) -> tuple[int, int, int, int]:
-    """A visit with failed inspections A and B, and a repair linked to A."""
+    """A visit with failed inspections A and B, and a repair linked to A.
+
+    The link is set by a PUT with real ids, so this also stands on v3.8.0,
+    where a temp-id link made on create was lost.
+    """
+    url = f"/api/vehicles/{vin}/service-visits"
     r = await client.post(
-        f"/api/vehicles/{vin}/service-visits",
+        url,
         json={
             "date": "2026-03-05",
             "line_items": [
                 {
-                    "temp_id": -1,
                     "description": "Brake inspection",
                     "is_inspection": True,
                     "inspection_result": "failed",
                 },
                 {
-                    "temp_id": -2,
                     "description": "Tire inspection",
                     "is_inspection": True,
                     "inspection_result": "failed",
                 },
-                {
-                    "description": "Front pads",
-                    "category": "Maintenance",
-                    "triggered_by_inspection_id": -1,
-                },
+                {"description": "Front pads", "category": "Maintenance"},
             ],
         },
         headers=headers,
@@ -588,24 +663,41 @@ async def _two_inspection_visit(
     assert r.status_code == 201, r.text
     body = r.json()
     a, b, repair = body["line_items"]
-    assert repair["triggered_by_inspection_id"] == a["id"]
+    r = await client.put(
+        f"{url}/{body['id']}",
+        json={
+            "line_items": [
+                _as_form(a),
+                _as_form(b),
+                _as_form(repair, triggered_by_inspection_id=a["id"]),
+            ]
+        },
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    items = await _items(client, headers, vin, body["id"])
+    assert items[repair["id"]]["triggered_by_inspection_id"] == a["id"]
     return body["id"], a["id"], b["id"], repair["id"]
 
 
 @pytest.mark.parametrize("shape", ["api", "form"])
 @pytest.mark.parametrize("with_new_item", [False, True])
+@pytest.mark.parametrize("order", ["b_first", "repair_first"])
 async def test_a_repair_moved_off_a_dropped_inspection_keeps_its_new_link(
     client: AsyncClient,
     auth_headers: dict[str, str],
     test_vehicle: dict[str, object],
     shape: str,
     with_new_item: bool,
+    order: str,
 ) -> None:
     """Remove inspection A and point its repair at B instead.
 
     Deleting A must not clear the link the request just set, whatever else
     the PUT carries. The "api" shape sends no supplies_used and so nothing
-    else flushes before the links are set.
+    else flushes before the links are set. The form lists items in id order,
+    so the repair comes first when B was added after it: v3.8.0 lost the
+    link in that order.
     """
     vin = str(test_vehicle["vin"])
     visit_id, a, b, repair = await _two_inspection_visit(client, auth_headers, vin)
@@ -620,6 +712,8 @@ async def test_a_repair_moved_off_a_dropped_inspection_keeps_its_new_link(
             _as_form(before[b]),
             _as_form(before[repair], triggered_by_inspection_id=b),
         ]
+    if order == "repair_first":
+        line_items.reverse()
     if with_new_item:
         line_items.append({"description": "Wipers"})
 

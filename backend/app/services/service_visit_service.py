@@ -443,9 +443,9 @@ class ServiceVisitService:
                 existing = {item.id: item for item in visit.line_items}
                 submitted_ids = {item.id for item in submitted if item.id}
 
-                # Reject unknown IDs, and links to items outside this visit,
-                # before anything is written. A link to an item this PUT drops
-                # is fine: deleting that item clears the link.
+                # Reject unknown IDs, self-links and links to items outside this
+                # visit, before anything is written. A link to an item this PUT
+                # drops is fine: deleting that item clears the link.
                 for item_data in submitted:
                     if item_data.id is not None and item_data.id not in existing:
                         raise HTTPException(
@@ -455,6 +455,11 @@ class ServiceVisitService:
                     # None when omitted, so an existing item's link is only
                     # checked when it's sent. Negative refs are temp ids.
                     ref = item_data.triggered_by_inspection_id
+                    if ref is not None and ref == item_data.id:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Line item {ref} cannot link to itself",
+                        )
                     if ref is not None and ref > 0 and ref not in existing:
                         raise HTTPException(
                             status_code=400,
@@ -465,8 +470,8 @@ class ServiceVisitService:
                 for item_id, item in existing.items():
                     if item_id not in submitted_ids:
                         await self.db.delete(item)
-                # Flushed now: deleting an item nulls the links to it, and done
-                # at the final flush that would wipe a link pass 2 just set.
+                # Flushed now: deleting an item nulls the links to it, and left
+                # to the final flush that would wipe a link pass 2 just set.
                 await self.db.flush()
 
                 # Pass 1: Update existing, create new — build temp_id map

@@ -287,6 +287,8 @@ class ServiceVisitCreate(ServiceVisitBase):
                 ref = item.triggered_by_inspection_id
                 if ref < 0 and ref not in temp_id_set:
                     raise ValueError(f"triggered_by_inspection_id {ref} references unknown temp_id")
+                if ref == item.temp_id:
+                    raise ValueError(f"line item with temp_id {ref} cannot link to itself")
         return self
 
     model_config = {
@@ -366,6 +368,8 @@ class ServiceVisitUpdate(BaseModel):
                 ref = item.triggered_by_inspection_id
                 if ref < 0 and ref not in temp_id_set:
                     raise ValueError(f"triggered_by_inspection_id {ref} references unknown temp_id")
+                if ref == item.temp_id:
+                    raise ValueError(f"line item with temp_id {ref} cannot link to itself")
                 if ref > 0 and item.id and ref not in existing_ids:
                     # Positive ref to a real ID that's not in this payload is fine —
                     # it could be an existing DB ID not being edited in this payload.
