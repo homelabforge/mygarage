@@ -886,6 +886,36 @@ def test_drivvo_headers_match_in_any_case():
     assert rows[0]["liters"] == Decimal("35.2")
 
 
+@pytest.mark.parametrize(
+    ("parse", "header"),
+    [
+        (parse_fuelio, "Date,Odometer (km),Volume(l),Total cost"),
+        (parse_drivvo, "Date,Odometer (km),Quantity (liters),Total cost"),
+    ],
+    ids=["fuelio", "drivvo"],
+)
+def test_a_row_with_more_cells_than_headers_still_imports(parse, header):
+    """DictReader puts the extra cells under None as a list; no header names them."""
+    rows = parse(f"{header}\n2026-01-15,12345,40.5,60.71,stray\n")
+    assert len(rows) == 1
+    assert rows[0]["odometer_km"] == Decimal("12345")
+    assert rows[0]["liters"] == Decimal("40.5")
+    assert rows[0]["cost"] == Decimal("60.71")
+
+
+def test_a_row_with_fewer_cells_than_headers_still_parses():
+    csv_data = (
+        "Date,Odometer (km),Volume(l),Price,Total cost,Full tank,Notes\n2026-01-15,12345,40.5\n"
+    )
+    rows = parse_fuelio(csv_data)
+    assert len(rows) == 1
+    assert rows[0]["odometer_km"] == Decimal("12345")
+    assert rows[0]["liters"] == Decimal("40.5")
+    assert rows[0]["cost"] is None
+    assert rows[0]["notes"] is None
+    assert rows[0]["is_full_tank"] is True
+
+
 def test_fuelio_full_tank_any_case():
     csv_data = "Date,Odometer,Volume(l),Full TANK\n2026-01-15,12345,40,0\n"
     rows = parse_fuelio(csv_data)

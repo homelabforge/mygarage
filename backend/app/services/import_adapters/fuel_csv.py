@@ -162,8 +162,9 @@ def _rows(csv_data: str) -> Iterator[dict[str, str]]:
     reader = csv.DictReader(io.StringIO(csv_data))
     for row in reader:
         # Headers casefolded: exports differ in capitalisation and detect_format
-        # already compares lowercased.
-        yield {(k or "").strip().casefold(): (v or "").strip() for k, v in row.items()}
+        # already compares lowercased. Cells past the last header come back
+        # under None as a list; no header names them, so they're dropped.
+        yield {k.strip().casefold(): (v or "").strip() for k, v in row.items() if k is not None}
 
 
 def detect_format(csv_data: str) -> str | None:
