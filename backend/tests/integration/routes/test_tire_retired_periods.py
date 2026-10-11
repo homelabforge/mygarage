@@ -189,12 +189,21 @@ class TestRetiredHistory:
     async def test_a_legacy_period_past_retirement_still_takes_a_notes_fix(
         self, client, auth_headers, legacy
     ):
-        """Junk from before the fix shouldn't lock the user out of the period."""
+        """Junk from before the fix shouldn't lock the user out of the period.
+
+        The editor's real payload: both dates and figures go back unchanged with every save.
+        """
         vin, tire_id, period_id = legacy
         saved = await client.put(
             f"/api/vehicles/{vin}/tires/{tire_id}/mount-periods/{period_id}",
             headers=auth_headers,
-            json={"notes": "Logged on the wrong tire"},
+            json={
+                "mounted_on": "2026-03-05",
+                "mounted_odometer_km": None,
+                "notes": "Logged on the wrong tire",
+                "dismounted_on": "2026-03-10",
+                "dismounted_odometer_km": None,
+            },
         )
         assert saved.status_code == 200, saved.text
         period = next(p for p in saved.json()["mount_periods"] if p["id"] == period_id)
@@ -225,7 +234,7 @@ class TestRetireAfterHistory:
         )
         assert refused.status_code == 409, refused.text
         assert refused.json()["detail"] == (
-            "This tire was retired on 2026-03-01. A mount period can't run past that."
+            "This tire's mount history runs to 2026-03-10, so it can't be retired before that."
         )
         retired_on = (
             await db_session.execute(select(Tire.retired_on).where(Tire.id == tire_id))
@@ -249,5 +258,17 @@ class TestRetireAfterHistory:
         )
         assert refused.status_code == 409, refused.text
         assert refused.json()["detail"] == (
-            "This tire was retired on 2025-12-01. A mount period can't run past that."
+            "This tire's mount history runs to 2026-01-01, so it can't be retired before that."
         )
+
+    async def test_a_stored_tire_may_retire_on_its_last_dismount(
+        self, client, auth_headers, stored
+    ):
+        vin, tire_id = stored
+        gone = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/retire",
+            headers=auth_headers,
+            json={"dismounted_on": "2026-03-10"},
+        )
+        assert gone.status_code == 200, gone.text
+        assert gone.json()["retired_on"] == "2026-03-10"

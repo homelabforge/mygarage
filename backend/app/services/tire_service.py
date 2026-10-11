@@ -248,16 +248,24 @@ def past_retirement(retired_on: dt.date) -> str:
     return f"This tire was retired on {retired_on.isoformat()}. A mount period can't run past that."
 
 
-def runs_past(retired_on: dt.date, periods: Iterable[TireMountPeriod]) -> bool:
-    """Whether any of these periods has a known date after `retired_on`.
+def retired_before_history(last_day: dt.date) -> str:
+    """The 409 for a retire dated before the tire's last known period date (G4-71)."""
+    return (
+        f"This tire's mount history runs to {last_day.isoformat()}, "
+        "so it can't be retired before that."
+    )
 
-    An open period's missing dismount isn't judged: retiring closes it on the
-    retirement day.
-    """
-    return any(
-        day is not None and day > retired_on
-        for period in periods
-        for day in (period.mounted_on, period.dismounted_on)
+
+def last_known_day(periods: Iterable[TireMountPeriod]) -> dt.date | None:
+    """The latest mount or dismount date these periods know, if any."""
+    return max(
+        (
+            day
+            for period in periods
+            for day in (period.mounted_on, period.dismounted_on)
+            if day is not None
+        ),
+        default=None,
     )
 
 
@@ -1615,8 +1623,10 @@ class TireService:
         # One date for the closed period and the retirement both, so a retire
         # that runs across midnight cannot record two.
         retired_on = data.dismounted_on or household_today()
-        if runs_past(retired_on, tire.mount_periods or []):
-            raise HTTPException(status_code=409, detail=past_retirement(retired_on))
+        # An open period's missing dismount is skipped: retiring closes it on retired_on.
+        last_day = last_known_day(tire.mount_periods or [])
+        if last_day is not None and last_day > retired_on:
+            raise HTTPException(status_code=409, detail=retired_before_history(last_day))
 
         closed_period: TireMountPeriod | None = None
         if tire.position is not None:
@@ -1805,18 +1815,22 @@ class TireService:
             )
             for axis in axes.captured
         }
+        old_dates = (period.mounted_on, period.dismounted_on)
         for key, value in fields.items():
             setattr(period, key, value)
         # A user who supplies the mount date is asserting it. The observed
         # date stays as the record of what the migration knew.
         if fields.get("mounted_on") is not None and period.is_assumed:
             period.is_assumed = False
-        # Only an edit that sets a date is judged, so a period already past
-        # the retirement from before G4-71 still takes a notes fix.
+        # Judged only when a date changed, for the same reason as `old`: a
+        # period already past the retirement from before G4-71 still takes a
+        # notes fix.
+        last_day = last_known_day([period])
         if (
             tire.retired_on is not None
-            and ("mounted_on" in fields or "dismounted_on" in fields)
-            and runs_past(tire.retired_on, [period])
+            and (period.mounted_on, period.dismounted_on) != old_dates
+            and last_day is not None
+            and last_day > tire.retired_on
         ):
             raise HTTPException(status_code=409, detail=past_retirement(tire.retired_on))
 
