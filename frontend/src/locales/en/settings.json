@@ -175,7 +175,8 @@
     "oidcNotReady": "Save an issuer URL and client ID under Configure OIDC first.",
     "switched": "Sign-in mode changed",
     "ssoStillOn": "Sign-in mode changed, but SSO couldn't be turned off, so the sign-in page still offers it. Switch to SSO and back to retry.",
-    "switchFailed": "Couldn't change the sign-in mode"
+    "switchFailed": "Couldn't change the sign-in mode",
+    "ssoLeftOn": "Couldn't change the sign-in mode, and SSO couldn't be turned back off, so the sign-in page still offers it. Try the switch again."
   },
   "archive": {
     "title": "Archived Vehicles",

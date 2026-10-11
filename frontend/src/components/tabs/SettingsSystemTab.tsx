@@ -304,11 +304,15 @@ export default function SettingsSystemTab() {
             : t('auth.confirmOidc', { provider })
     if (!confirm(message)) return
 
+    // Whether this switch is the one turning SSO on, so a failed mode write can undo it.
+    // Set before the PUT, since a lost reply can still have committed. The re-read decides.
+    let turningSsoOn = false
     setSwitchingMode(true)
     try {
       // Into SSO: turn OIDC on before the mode, or the mode points at nothing.
       // Out of SSO: the mode goes first, so a failure can't leave SSO mode with SSO off.
       if (target === 'oidc' && oidcConfig) {
+        turningSsoOn = !oidcConfig.enabled
         await api.put('/auth/oidc/config/admin', ssoPayload(oidcConfig, true))
       }
       await api.post('/settings/batch', { settings: { auth_mode: target } })
@@ -323,11 +327,23 @@ export default function SettingsSystemTab() {
     setViewedMode(null)
     await refreshUser()
     const now = await loadSettings()
+    // SSO went on but the mode didn't, so the sign-in page would offer SSO anyway.
+    // Turn it back off from the fresh config, not the one this click started with.
+    let ssoLeftOn = false
+    if (turningSsoOn && now !== null && now.mode !== 'oidc' && now.oidc?.enabled) {
+      try {
+        await api.put('/auth/oidc/config/admin', ssoPayload(now.oidc, false))
+      } catch {
+        ssoLeftOn = true
+      }
+      await loadOidcConfig()
+    }
     setSwitchingMode(false)
     // Turning sign-in on from none: this browser has no session in the new mode, so
     // /settings 401s and the page is off to /login. A real failure still shows the error box.
     if (now === null && from === 'none' && target !== 'none') return
-    if (now?.mode !== target) toast.error(t('auth.switchFailed'))
+    if (ssoLeftOn) toast.error(t('auth.ssoLeftOn'))
+    else if (now?.mode !== target) toast.error(t('auth.switchFailed'))
     else if (target !== 'oidc' && now.oidc?.enabled) toast.warning(t('auth.ssoStillOn'))
     else toast.success(t('auth.switched'))
   }

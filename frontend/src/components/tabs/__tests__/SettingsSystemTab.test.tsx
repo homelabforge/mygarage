@@ -268,8 +268,10 @@ describe('SettingsSystemTab: switching the mode', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedApi.put.mockResolvedValue({ data: {} })
-    mockedApi.post.mockResolvedValue({ data: {} })
+    // Reset, not just clear: a test that fails early leaves its queued Once replies
+    // behind, and the next test would get them.
+    mockedApi.put.mockReset().mockResolvedValue({ data: {} })
+    mockedApi.post.mockReset().mockResolvedValue({ data: {} })
     confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
   afterEach(() => {
@@ -378,6 +380,113 @@ describe('SettingsSystemTab: switching the mode', () => {
     expect(await screen.findByRole('button', { name: /auth\.local/ })).toHaveTextContent('auth.current')
     await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('auth.ssoStillOn'))
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('to SSO, SSO went on but the mode write failed: turns SSO back off from the re-read config', async () => {
+    serveSettings('local')
+    mockedApi.put.mockImplementationOnce(() => {
+      // The scopes are new, so a rollback built from the click-time config shows up.
+      serveSettings('local', true, { enabled: true, scopes: 'openid email' })
+      return Promise.resolve({ data: {} })
+    })
+    mockedApi.post.mockRejectedValue(new Error('boom'))
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    await clickWhenEnabled('auth.switchToOidc')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
+    expect(mockedApi.put).toHaveBeenCalledTimes(2)
+    const rollback = mockedApi.put.mock.calls[1]
+    expect(rollback[0]).toBe('/auth/oidc/config/admin')
+    expect(rollback[1]).toEqual(expect.objectContaining({ enabled: false, scopes: 'openid email' }))
+    expect(rollback[1]).not.toHaveProperty('redirect_uri')
+    const rollbackOrder = mockedApi.put.mock.invocationCallOrder[1]
+    expect(mockedApi.post.mock.invocationCallOrder[0]).toBeLessThan(rollbackOrder)
+    // And the card re-reads the SSO config after the rollback.
+    const configReads = mockedApi.get.mock.calls.flatMap(([url], i) =>
+      url === '/auth/oidc/config/admin' ? [mockedApi.get.mock.invocationCallOrder[i]] : [],
+    )
+    expect(Math.max(...configReads)).toBeGreaterThan(rollbackOrder)
+  })
+
+  it('to SSO, the mode write failed and so did the rollback: says the sign-in page still offers SSO', async () => {
+    serveSettings('local')
+    mockedApi.put
+      .mockImplementationOnce(() => {
+        serveSettings('local', true, { enabled: true })
+        return Promise.resolve({ data: {} })
+      })
+      .mockRejectedValueOnce(new Error('still down'))
+    mockedApi.post.mockRejectedValue(new Error('boom'))
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    await clickWhenEnabled('auth.switchToOidc')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.ssoLeftOn'))
+    expect(mockedApi.put).toHaveBeenCalledTimes(2)
+    expect(toast.error).not.toHaveBeenCalledWith('auth.switchFailed')
+  })
+
+  it('to SSO, the enable committed but its reply was lost: still turns SSO back off', async () => {
+    serveSettings('local')
+    mockedApi.put.mockImplementationOnce(() => {
+      serveSettings('local', true, { enabled: true }) // committed server-side
+      return Promise.reject(new Error('network'))
+    })
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    await clickWhenEnabled('auth.switchToOidc')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
+    expect(mockedApi.post).not.toHaveBeenCalled()
+    expect(mockedApi.put).toHaveBeenCalledTimes(2)
+    expect(mockedApi.put.mock.calls[1][1]).toEqual(expect.objectContaining({ enabled: false }))
+  })
+
+  it('to SSO, the enable itself failed: nothing to roll back', async () => {
+    serveSettings('local')
+    mockedApi.put.mockRejectedValueOnce(new Error('boom'))
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    await clickWhenEnabled('auth.switchToOidc')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
+    expect(mockedApi.post).not.toHaveBeenCalled()
+    expect(mockedApi.put).toHaveBeenCalledTimes(1)
+  })
+
+  it('to SSO, both writes landed: SSO stays on', async () => {
+    serveSettings('local')
+    mockedApi.put.mockImplementationOnce(() => {
+      serveSettings('local', true, { enabled: true })
+      return Promise.resolve({ data: {} })
+    })
+    mockedApi.post.mockImplementationOnce(() => {
+      serveSettings('oidc')
+      return Promise.resolve({ data: {} })
+    })
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    await clickWhenEnabled('auth.switchToOidc')
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('auth.switched'))
+    expect(mockedApi.put).toHaveBeenCalledTimes(1)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('to SSO with SSO already on and the mode write failing: leaves SSO on, since this switch did not turn it on', async () => {
+    serveSettings('local', true, { enabled: true })
+    mockedApi.post.mockRejectedValue(new Error('boom'))
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    await clickWhenEnabled('auth.switchToOidc')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('auth.switchFailed'))
+    expect(mockedApi.put).toHaveBeenCalledTimes(1)
+    expect(mockedApi.put).toHaveBeenCalledWith(
+      '/auth/oidc/config/admin',
+      expect.objectContaining({ enabled: true }),
+    )
   })
 
   it('the mode write committed but its reply was lost: shows the new mode and re-reads auth', async () => {
