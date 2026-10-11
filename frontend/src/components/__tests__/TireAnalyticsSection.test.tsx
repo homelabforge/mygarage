@@ -377,3 +377,60 @@ describe('TireAnalyticsSection tread trend', () => {
     expect(series).toEqual(['FL - Plots'])
   })
 })
+
+describe('TireAnalyticsSection on the hour meter (#217)', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('projects in hours, heads the column with hours and explains a missing hour meter reading', async () => {
+    apiGet.mockResolvedValue({
+      data: {
+        readiness: { ...EMPTY_READINESS, total: 1, can_project: 1 },
+        usage_axis: 'hours',
+        has_usage_record: false,
+        has_odometer_record: true,
+        tires: [
+          tire({
+            brand: 'Maxxis',
+            tread_depth_mm: '7.00',
+            usage_axis: 'hours',
+            wear_status: 'projected',
+            projected_usage_remaining: '250.0',
+            projected_km_remaining: null,
+            projected_wear_date: null,
+            distance_status: 'complete',
+            usage_on_tire: '60.0',
+            distance_km: null,
+          }),
+        ],
+      },
+    })
+    render(<TireAnalyticsSection vin={VIN} />)
+    expect(await screen.findByText('~250.0 hr')).toBeInTheDocument()
+    expect(screen.getByText('60.0 hr')).toBeInTheDocument()
+    expect(screen.getByText('vehicle.tires.colHours')).toBeInTheDocument()
+    expect(screen.getByText('vehicle.tires.noHoursRecord')).toBeInTheDocument()
+    expect(screen.queryByText('vehicle.tires.noOdometerRecord')).toBeNull()
+  })
+
+  it('asks for the hour meter, not the odometer, in the next action and the table', async () => {
+    apiGet.mockResolvedValue({
+      data: {
+        readiness: { ...EMPTY_READINESS, total: 1, needs_reading_odometer: 1 },
+        usage_axis: 'hours',
+        has_usage_record: true,
+        has_odometer_record: false,
+        tires: [
+          tire({ usage_axis: 'hours', wear_status: 'no_reading_odometers', distance_status: 'nothing_bounded' }),
+          tire({ id: 2, position: 'FR', usage_axis: 'hours', distance_status: 'incomplete', known_usage: '40.0', known_usage_since: '2026-02-01' }),
+        ],
+      },
+    })
+    render(<TireAnalyticsSection vin={VIN} />)
+    expect(await screen.findByText(/nextAction: vehicle\.tires\.actionReadingHours/)).toBeInTheDocument()
+    expect(screen.getByText(/^40\.0 hr \(/)).toBeInTheDocument()
+    expect(screen.getByText('vehicle.tires.actionReadingHours')).toBeInTheDocument()
+    expect(screen.getByText('vehicle.tires.actionMountHours')).toBeInTheDocument()
+    expect(screen.queryByText(/actionReadingOdometer|actionMountOdometer/)).toBeNull()
+    expect(screen.queryByText(/noOdometerRecord|noHoursRecord/)).toBeNull()
+  })
+})

@@ -35,6 +35,7 @@ import type { Tire, TireReading } from '@/types/tire'
 import type { components } from '@/types/api.generated'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatHours } from '../utils/hoursFormat'
 
 type TireAnalytics = components['schemas']['TireAnalyticsSummary']
 type TireReadiness = components['schemas']['TireReadiness']
@@ -103,6 +104,10 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
      generated type, because the backend always sends the whole block. */
   const readiness: TireReadiness | undefined = data?.readiness
   const live = tires.filter((tire) => tire.retired_on == null)
+  /* The vehicle's tires all run on one axis: hours on an hours-only vehicle (#217). */
+  const onHours = data?.usage_axis === 'hours'
+  const usageText = (value: number | string): string =>
+    onHours ? formatHours(value) : u.distance.format(num(value))
 
   const label = (tire: Tire): string => {
     const where = tire.position ?? t('vehicle.tires.inStorage')
@@ -159,20 +164,25 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
       case 'actionSecondReading':
         return t('vehicle.tires.actionSecondReading', { count: best[0] })
       case 'actionReadingOdometer':
-        return t('vehicle.tires.actionReadingOdometer', { count: best[0] })
+        return onHours
+          ? t('vehicle.tires.actionReadingHours', { count: best[0] })
+          : t('vehicle.tires.actionReadingOdometer', { count: best[0] })
       case 'actionMinimumTread':
         return t('vehicle.tires.actionMinimumTread', { count: best[0] })
       default:
-        return t('vehicle.tires.actionMountOdometer', { count: best[0] })
+        return onHours
+          ? t('vehicle.tires.actionMountHours', { count: best[0] })
+          : t('vehicle.tires.actionMountOdometer', { count: best[0] })
     }
   })()
 
   /** What to show for a projection, per `WearStatus`. Exhaustive by design. */
   const projection = (tire: Tire): string => {
+    const remaining = tire.projected_usage_remaining ?? tire.projected_km_remaining
     switch (tire.wear_status) {
       case 'projected':
-        return tire.projected_km_remaining != null
-          ? `~${u.distance.format(num(tire.projected_km_remaining))}` +
+        return remaining != null
+          ? `~${usageText(remaining)}` +
               (tire.projected_wear_date
                 ? ` · ${formatDateForDisplay(tire.projected_wear_date)}`
                 : '')
@@ -184,13 +194,17 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
       case 'insufficient_readings':
         return t('vehicle.tires.actionSecondReading', { count: 1 })
       case 'no_reading_odometers':
-        return t('vehicle.tires.actionReadingOdometer', { count: 1 })
+        return onHours
+          ? t('vehicle.tires.actionReadingHours', { count: 1 })
+          : t('vehicle.tires.actionReadingOdometer', { count: 1 })
       case 'no_distance_on_tire':
       case 'unverified_mount_history':
         // The legacy raw-delta figure is SUPPRESSED, not labelled: an
         // "estimate" badge does not communicate that 648,000 km is
         // structurally invalid rather than merely imprecise.
-        return t('vehicle.tires.actionMountOdometer', { count: 1 })
+        return onHours
+          ? t('vehicle.tires.actionMountHours', { count: 1 })
+          : t('vehicle.tires.actionMountOdometer', { count: 1 })
       default:
         return '—'
     }
@@ -198,18 +212,22 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
 
   /** What to show for distance, per `DistanceStatus`. Never a bare zero. */
   const distance = (tire: Tire): string => {
+    const total = tire.usage_on_tire ?? tire.distance_km
+    const known = tire.known_usage ?? tire.known_distance_km
+    const since = tire.known_usage_since ?? tire.known_distance_since
+    const mountPrompt = onHours
+      ? t('vehicle.tires.actionMountHours', { count: 1 })
+      : t('vehicle.tires.actionMountOdometer', { count: 1 })
     switch (tire.distance_status) {
       case 'complete':
-        return tire.distance_km != null ? u.distance.format(num(tire.distance_km)) : '—'
+        return total != null ? usageText(total) : '—'
       case 'incomplete':
-        return tire.known_distance_km != null
-          ? `${u.distance.format(num(tire.known_distance_km))} (${
-              tire.known_distance_since ? formatDateForDisplay(tire.known_distance_since) : ''
-            })`
-          : t('vehicle.tires.actionMountOdometer', { count: 1 })
+        return known != null
+          ? `${usageText(known)} (${since ? formatDateForDisplay(since) : ''})`
+          : mountPrompt
       case 'nothing_bounded':
       case 'no_periods':
-        return t('vehicle.tires.actionMountOdometer', { count: 1 })
+        return mountPrompt
       case 'spare_only':
         return t('vehicle.tires.inStorage')
       case 'odometer_rollback':
@@ -251,10 +269,10 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
           {/* Explained once, not per tire: an open period's upper bound is the
               vehicle's latest odometer record, so with none there is no
               distance for any fitted tire however complete its history. */}
-          {data?.has_odometer_record === false && (
+          {(data?.has_usage_record ?? data?.has_odometer_record) === false && (
             <p className="mt-2 flex items-start gap-2 text-sm text-garage-text-muted">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-              {t('vehicle.tires.noOdometerRecord')}
+              {onHours ? t('vehicle.tires.noHoursRecord') : t('vehicle.tires.noOdometerRecord')}
             </p>
           )}
         </div>
@@ -301,7 +319,9 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
               <th className="py-2 pr-4 font-medium">{t('vehicle.tires.colTire')}</th>
               <th className="py-2 pr-4 font-medium">{t('vehicle.tires.colTread')}</th>
               <th className="py-2 pr-4 font-medium">{t('vehicle.tires.colProjection')}</th>
-              <th className="py-2 font-medium">{t('vehicle.tires.colDistance')}</th>
+              <th className="py-2 font-medium">
+                {onHours ? t('vehicle.tires.colHours') : t('vehicle.tires.colDistance')}
+              </th>
             </tr>
           </thead>
           <tbody>

@@ -1,7 +1,8 @@
 /**
  * #217 on the tire dialogs: an hours-only vehicle is asked for the hour meter
  * and never the odometer, a dual vehicle for both, and a cleared date blocks
- * every Save (G4-52) instead of posting '' for a 422.
+ * every Save (G4-52) instead of posting '' for a 422. The card shows an
+ * hours tire's figures in hours.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
@@ -224,5 +225,70 @@ describe('A cleared date blocks Save (G4-52)', () => {
     fireEvent.change(field('reading-date'), { target: { value: '' } })
     fireEvent.click(dialog().getByText('common:save'))
     refused()
+  })
+})
+
+describe('The card on the hour meter (#217)', () => {
+  beforeEach(() => {
+    writeMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useAddTireReadingMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useTireSetsMock.mockReturnValue({ data: { sets: [], total: 0 }, isLoading: false, error: null })
+  })
+
+  const hoursTire = (overrides: Record<string, unknown> = {}) => ({
+    ...tire(1, 'FL'),
+    usage_axis: 'hours',
+    wear_status: 'projected',
+    projected_usage_remaining: '250.0',
+    projected_km_remaining: null,
+    projected_wear_date: '2026-03-02',
+    distance_status: 'complete',
+    usage_on_tire: '60.0',
+    distance_km: null,
+    ...overrides,
+  })
+
+  it('shows hours on the tire and the projection in hours', () => {
+    list([hoursTire()], HOURS)
+    render(<TireList vin={VIN} />)
+    expect(screen.getByText('tireList.hoursOnTire')).toBeInTheDocument()
+    expect(screen.queryByText('tireList.distanceOnTire')).toBeNull()
+    expect(screen.getByText('60.0 hr')).toBeInTheDocument()
+    expect(screen.getByText(/^~250\.0 hr/)).toBeInTheDocument()
+  })
+
+  it('asks for the hour meter when the readings lack it', () => {
+    list([hoursTire({ wear_status: 'no_reading_odometers', projected_usage_remaining: null })], HOURS)
+    render(<TireList vin={VIN} />)
+    expect(screen.getByText('tireList.wear.needsReadingHours')).toBeInTheDocument()
+    expect(screen.queryByText('tireList.wear.needsReadingOdometer')).toBeNull()
+  })
+
+  it('asks for the hour meter on the mount when nothing is bounded', () => {
+    list([hoursTire({ distance_status: 'nothing_bounded', usage_on_tire: null })], HOURS)
+    render(<TireList vin={VIN} />)
+    expect(screen.getByText('tireList.distance.nothingBoundedHours')).toBeInTheDocument()
+  })
+
+  it('says hours, not odometer, when the mount date is known and its hours are not', () => {
+    list([hoursTire()], HOURS)
+    render(<TireList vin={VIN} />)
+    expect(screen.getByText('tireList.mountedDateOnlyHours')).toBeInTheDocument()
+    expect(screen.queryByText('tireList.mountedDateOnly')).toBeNull()
+  })
+
+  it('bounds the mount line by the period hours', () => {
+    const t1 = hoursTire()
+    list([{ ...t1, mount_periods: [{ ...t1.mount_periods[0], mounted_hours: '120.0' }] }], HOURS)
+    render(<TireList vin={VIN} />)
+    expect(screen.getByText('tireList.mountedLine')).toBeInTheDocument()
+    expect(screen.queryByText('tireList.mountedDateOnlyHours')).toBeNull()
+  })
+
+  it('reads the known hours on a partial history', () => {
+    list([hoursTire({ distance_status: 'incomplete', usage_on_tire: null, known_usage: '40.0', known_usage_since: '2026-02-01' })], HOURS)
+    render(<TireList vin={VIN} />)
+    expect(screen.getByText('tireList.distance.since')).toBeInTheDocument()
+    expect(screen.queryByText('tireList.distance.nothingBoundedHours')).toBeNull()
   })
 })

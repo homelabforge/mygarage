@@ -30,7 +30,7 @@ import {
   type UnitFieldOrigin,
 } from '../utils/unitFormat'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { hoursFromField } from '../utils/hoursFormat'
+import { formatHours, hoursFromField } from '../utils/hoursFormat'
 import {
   Button,
   IconButton,
@@ -268,6 +268,10 @@ export default function TireList({ vin }: TireListProps) {
   const num = (v: number | string | null | undefined): number | null =>
     v === null || v === undefined || v === '' ? null : Number(v)
 
+  /** A figure on the tire's own axis: hours on an hours-only vehicle, else the reader's distance unit. */
+  const usageText = (tire: Tire, value: number | string): string =>
+    tire.usage_axis === 'hours' ? formatHours(value) : u.distance.format(num(value))
+
   /**
    * Populate the tire form, recording what each unit-bearing field came from.
    *
@@ -450,9 +454,10 @@ export default function TireList({ vin }: TireListProps) {
    * replace.
    */
   const wearSummary = (tire: Tire): string => {
+    const remaining = tire.projected_usage_remaining ?? tire.projected_km_remaining
     const projection = (): string =>
-      tire.projected_km_remaining != null
-        ? `~${u.distance.format(num(tire.projected_km_remaining))}` +
+      remaining != null
+        ? `~${usageText(tire, remaining)}` +
             (tire.projected_wear_date
               ? ` · ${formatDateForDisplay(tire.projected_wear_date)}`
               : '')
@@ -468,12 +473,16 @@ export default function TireList({ vin }: TireListProps) {
       case 'insufficient_readings':
         return t('tireList.wear.needsSecondReading')
       case 'no_reading_odometers':
-        return t('tireList.wear.needsReadingOdometer')
+        return tire.usage_axis === 'hours'
+          ? t('tireList.wear.needsReadingHours')
+          : t('tireList.wear.needsReadingOdometer')
       case 'tread_not_decreasing':
         return t('tireList.wear.treadNotDecreasing')
       case 'no_distance_on_tire':
       case 'unverified_mount_history':
-        return t('tireList.wear.needsMountOdometer')
+        return tire.usage_axis === 'hours'
+          ? t('tireList.wear.needsMountHours')
+          : t('tireList.wear.needsMountOdometer')
       default:
         // No status on the payload at all: a response cached by a client that
         // predates v3.3.0, or any future member this switch has not learned
@@ -485,20 +494,25 @@ export default function TireList({ vin }: TireListProps) {
   }
 
   const distanceSummary = (tire: Tire): string => {
+    const total = tire.usage_on_tire ?? tire.distance_km
+    const known = tire.known_usage ?? tire.known_distance_km
+    const since = tire.known_usage_since ?? tire.known_distance_since
+    const nothingBounded =
+      tire.usage_axis === 'hours'
+        ? t('tireList.distance.nothingBoundedHours')
+        : t('tireList.distance.nothingBounded')
     switch (tire.distance_status) {
       case 'complete':
-        return tire.distance_km != null ? u.distance.format(num(tire.distance_km)) : '—'
+        return total != null ? usageText(tire, total) : '—'
       case 'incomplete':
-        return tire.known_distance_km != null
+        return known != null
           ? t('tireList.distance.since', {
-              distance: u.distance.format(num(tire.known_distance_km)),
-              date: tire.known_distance_since
-                ? formatDateForDisplay(tire.known_distance_since)
-                : '',
+              distance: usageText(tire, known),
+              date: since ? formatDateForDisplay(since) : '',
             })
-          : t('tireList.distance.nothingBounded')
+          : nothingBounded
       case 'nothing_bounded':
-        return t('tireList.distance.nothingBounded')
+        return nothingBounded
       case 'no_periods':
         return t('tireList.distance.noPeriods')
       case 'spare_only':
@@ -523,12 +537,18 @@ export default function TireList({ vin }: TireListProps) {
   const mountedLine = (tire: Tire): string => {
     const p = openPeriod(tire)
     if (!p) return '—'
+    const onHours = tire.usage_axis === 'hours'
     const date = p.mounted_on ? formatDateForDisplay(p.mounted_on) : null
-    const odometer = p.mounted_odometer_km != null ? u.distance.format(num(p.mounted_odometer_km)) : null
+    const bound = onHours ? p.mounted_hours : p.mounted_odometer_km
+    const odometer = bound != null ? usageText(tire, bound) : null
     if (date && odometer) return t('tireList.mountedLine', { date, odometer })
-    if (date) return t('tireList.mountedDateOnly', { date })
+    if (date) {
+      return onHours
+        ? t('tireList.mountedDateOnlyHours', { date })
+        : t('tireList.mountedDateOnly', { date })
+    }
     if (odometer) return t('tireList.mountedOdometerOnly', { odometer })
-    return t('tireList.mountedUnknown')
+    return onHours ? t('tireList.mountedUnknownHours') : t('tireList.mountedUnknown')
   }
 
   const storedLine = (tire: Tire): string => {
@@ -1081,7 +1101,9 @@ export default function TireList({ vin }: TireListProps) {
                   stored one. It is the number this whole release exists to
                   make correct, and leaving it off the card people actually
                   look at made the feature invisible on real data. */}
-              <dt className="text-text-mute">{t('tireList.distanceOnTire')}</dt>
+              <dt className="text-text-mute">
+                {tire.usage_axis === 'hours' ? t('tireList.hoursOnTire') : t('tireList.distanceOnTire')}
+              </dt>
               <dd className="flex items-center gap-2 font-mono text-xs">
                 <span>{distanceSummary(tire)}</span>
                 {/* "Add an odometer to this tire's mount" was an instruction
@@ -1174,7 +1196,9 @@ export default function TireList({ vin }: TireListProps) {
                   <dd className="font-mono">
                     {tire.tread_depth_mm != null ? u.tread.format(num(tire.tread_depth_mm)) : '—'}
                   </dd>
-                  <dt className="text-text-mute">{t('tireList.distanceOnTire')}</dt>
+                  <dt className="text-text-mute">
+                    {tire.usage_axis === 'hours' ? t('tireList.hoursOnTire') : t('tireList.distanceOnTire')}
+                  </dt>
                   <dd className="flex items-center gap-2 font-mono">
                     <span>{distanceSummary(tire)}</span>
                     {needsFix(tire) && (
@@ -1241,7 +1265,9 @@ export default function TireList({ vin }: TireListProps) {
                   <dd className="font-mono">
                     {tire.tread_depth_mm != null ? u.tread.format(num(tire.tread_depth_mm)) : '—'}
                   </dd>
-                  <dt className="text-text-mute">{t('tireList.distanceOnTire')}</dt>
+                  <dt className="text-text-mute">
+                    {tire.usage_axis === 'hours' ? t('tireList.hoursOnTire') : t('tireList.distanceOnTire')}
+                  </dt>
                   <dd className="font-mono">{distanceSummary(tire)}</dd>
                 </dl>
                 <div className="flex flex-wrap gap-2">
@@ -2050,6 +2076,8 @@ export default function TireList({ vin }: TireListProps) {
         onEditPeriod={setEditingPeriod}
         onAddPeriod={() => setAddingPeriod(true)}
         labelFor={labelFor}
+        tracksDistance={tracksDistance}
+        tracksHours={tracksHours}
       />
 
       {historyTire && editingPeriod && (

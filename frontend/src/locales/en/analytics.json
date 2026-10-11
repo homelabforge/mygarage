@@ -358,11 +358,14 @@
       "nextAction": "Next",
       "actionSecondReading": "Log a second tread reading on {{count}} tires. One reading is a point, not a trend.",
       "actionReadingOdometer": "Add the odometer to the tread readings on {{count}} tires. Wear is measured against distance.",
+      "actionReadingHours": "Add the hour meter to the tread readings on {{count}} tires. Wear is measured against hours.",
       "actionMinimumTread": "Set a minimum tread on {{count}} tires. Nothing can be projected without one.",
       "actionMountOdometer": "Record a mount odometer for {{count}} tires. Distance on a tire is summed over the times it was fitted.",
+      "actionMountHours": "Record a mount hour meter reading for {{count}} tires. Hours on a tire are summed over the times it was fitted.",
       "actionUnderMinimum": "{{count}} tires are at or below their minimum tread. Replace them.",
       "allAnswered": "Every tire can answer every question.",
       "noOdometerRecord": "This vehicle has no odometer reading, so any tire still fitted has no upper bound for its distance. Log one and these figures fill in.",
+      "noHoursRecord": "This vehicle has no hour meter reading, so any tire still fitted has no upper bound for its hours. Log one and these figures fill in.",
       "trendTitle": "Tread over time",
       "trendEmpty": "No tire has two tread readings yet, so there is nothing to plot.",
       "tableTitle": "Per tire",
@@ -370,6 +373,7 @@
       "colTread": "Tread",
       "colProjection": "Projected life",
       "colDistance": "Distance on tire",
+      "colHours": "Hours on tire",
       "retiredOn": "Retired {{date}}",
       "inStorage": "In storage"
     }

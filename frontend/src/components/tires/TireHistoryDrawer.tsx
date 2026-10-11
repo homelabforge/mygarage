@@ -11,8 +11,10 @@ import type {
   TireMountPeriod,
   TirePosition,
   TireReading,
+  UsageAxis,
 } from '../../types/tire'
 import { formatDateForDisplay } from '../../utils/dateUtils'
+import { formatHours } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { Badge, Button, Drawer, EmptyState, ListRow } from '../ui'
 
@@ -25,6 +27,10 @@ interface TireHistoryDrawerProps {
   onAddPeriod: () => void
   /** The card's position label, passed in so the five t() calls stay in one place. */
   labelFor: (position: TirePosition) => string
+  /** Whether the vehicle takes an odometer. Defaults to true, as before #217. */
+  tracksDistance?: boolean
+  /** Whether the vehicle takes an hour meter (#217). */
+  tracksHours?: boolean
 }
 
 /**
@@ -39,6 +45,13 @@ interface TireHistoryDrawerProps {
 export function needsOdometer(period: TireMountPeriod): boolean {
   if (period.mounted_odometer_km == null) return true
   return period.dismounted_on != null && period.dismounted_odometer_km == null
+}
+
+/** Whether a period lacks the bound its tire's figures run on (#217). */
+export function needsReading(period: TireMountPeriod, axis: UsageAxis): boolean {
+  if (axis !== 'hours') return needsOdometer(period)
+  if (period.mounted_hours == null) return true
+  return period.dismounted_on != null && period.dismounted_hours == null
 }
 
 /**
@@ -67,6 +80,8 @@ export default function TireHistoryDrawer({
   onEditPeriod,
   onAddPeriod,
   labelFor,
+  tracksDistance = true,
+  tracksHours = false,
 }: TireHistoryDrawerProps) {
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
@@ -93,12 +108,26 @@ export default function TireHistoryDrawer({
   }
   const first = periods[0]
 
+  const axis: UsageAxis = tire?.usage_axis ?? 'distance'
   const odometer = (v: number | string | null | undefined): string =>
     v != null ? u.distance.format(num(v)) : t('tireList.odometerUnknown')
+  const hoursText = (v: number | string | null | undefined): string =>
+    v != null ? formatHours(v) : t('tireList.hoursUnknown')
   const day = (v: string | null | undefined): string =>
     v ? formatDateForDisplay(v) : t('tireList.dateUnknown')
-  const bound = (d: string | null | undefined, o: number | string | null | undefined): string =>
-    `${day(d)} @ ${odometer(o)}`
+  const bound = (
+    d: string | null | undefined,
+    o: number | string | null | undefined,
+    h: number | string | null | undefined
+  ): string => {
+    const figures = [...(tracksDistance ? [odometer(o)] : []), ...(tracksHours ? [hoursText(h)] : [])]
+    return `${day(d)} @ ${figures.join(' · ')}`
+  }
+  /* A period with a figure on the other axis only: the vehicle switched, or one was left out. */
+  const missingAxis =
+    axis === 'hours'
+      ? periods.some((p) => p.mounted_odometer_km != null && p.mounted_hours == null)
+      : periods.some((p) => p.mounted_hours != null && p.mounted_odometer_km == null)
 
   /* The way out of a reading logged with the wrong odometer or date: the
      server refuses a dismount, retire, rotation or set fit that contradicts
@@ -144,11 +173,17 @@ export default function TireHistoryDrawer({
               {t('tireList.addPastPeriod')}
             </Button>
           </div>
+          {missingAxis && (
+            <p className="text-sm text-text-mute">
+              {axis === 'hours' ? t('tireList.axisNeedsHours') : t('tireList.axisNeedsOdometer')}
+            </p>
+          )}
           <p className="text-sm">
             {tire?.installed_date && first
               ? t('tireList.firstInstalled', {
                   date: formatDateForDisplay(tire.installed_date),
-                  odometer: odometer(first.mounted_odometer_km),
+                  odometer:
+                    axis === 'hours' ? hoursText(first.mounted_hours) : odometer(first.mounted_odometer_km),
                 })
               : t('tireList.firstInstalledUnknown')}
           </p>
@@ -176,19 +211,25 @@ export default function TireHistoryDrawer({
                     <div className="font-mono text-xs">
                       {period.dismounted_on == null
                         ? t('tireList.periodSince', {
-                            from: bound(period.mounted_on, period.mounted_odometer_km),
+                            from: bound(period.mounted_on, period.mounted_odometer_km, period.mounted_hours),
                           })
                         : t('tireList.periodRange', {
-                            from: bound(period.mounted_on, period.mounted_odometer_km),
-                            to: bound(period.dismounted_on, period.dismounted_odometer_km),
+                            from: bound(period.mounted_on, period.mounted_odometer_km, period.mounted_hours),
+                            to: bound(
+                              period.dismounted_on,
+                              period.dismounted_odometer_km,
+                              period.dismounted_hours
+                            ),
                           })}
                     </div>
                     {(period.is_assumed || flagged) && (
                       <div className="flex flex-wrap gap-2">
                         {period.is_assumed && <Badge tone="info">{t('tireList.periodAssumed')}</Badge>}
                         {flagged &&
-                          (blocking.has(period.id) && needsOdometer(period) ? (
-                            <Badge tone="warning">{t('tireList.periodNeedsOdometer')}</Badge>
+                          (blocking.has(period.id) && needsReading(period, axis) ? (
+                            <Badge tone="warning">
+                              {axis === 'hours' ? t('tireList.periodNeedsHours') : t('tireList.periodNeedsOdometer')}
+                            </Badge>
                           ) : (
                             <Badge tone="danger">{t('tireList.periodCheck')}</Badge>
                           ))}
@@ -260,12 +301,20 @@ export default function TireHistoryDrawer({
                       reading.pressure_kpa != null ? u.pressure.format(num(reading.pressure_kpa)) : '—'
                     }
                   />
-                  <ListRow
-                    label={t('tireList.odometer')}
-                    value={
-                      reading.odometer_km != null ? u.distance.format(num(reading.odometer_km)) : '—'
-                    }
-                  />
+                  {tracksDistance && (
+                    <ListRow
+                      label={t('tireList.odometer')}
+                      value={
+                        reading.odometer_km != null ? u.distance.format(num(reading.odometer_km)) : '—'
+                      }
+                    />
+                  )}
+                  {tracksHours && (
+                    <ListRow
+                      label={t('common:engineHours')}
+                      value={reading.engine_hours != null ? formatHours(reading.engine_hours) : '—'}
+                    />
+                  )}
                   {reading.notes ? <p className="text-sm text-text-mute">{reading.notes}</p> : null}
                 </li>
               ))}
