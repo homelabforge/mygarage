@@ -327,6 +327,15 @@ describe('SettingsSystemTab: switching the mode', () => {
     await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith('auth.confirmLocalFirstUser'))
   })
 
+  it('tells a fresh install to register if SSO fails, since nobody has a password yet', async () => {
+    serveSettings('none', false)
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'auth.switchToOidc' }))
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledWith('auth.confirmOidcFirstUser|Rauthy'))
+  })
+
   it('a mode write that never landed: shows the saved mode and still re-reads auth', async () => {
     mockedApi.post.mockRejectedValue(new Error('boom'))
     serveSettings('local')

@@ -286,7 +286,9 @@ export default function SettingsSystemTab() {
           ? authEverEnabled
             ? t('auth.confirmLocal')
             : t('auth.confirmLocalFirstUser')
-          : t('auth.confirmOidc', { provider: oidcConfig?.provider_name || 'SSO' })
+          : authEverEnabled
+            ? t('auth.confirmOidc', { provider: oidcConfig?.provider_name || 'SSO' })
+            : t('auth.confirmOidcFirstUser', { provider: oidcConfig?.provider_name || 'SSO' })
     if (!confirm(message)) return
 
     if (!oidcConfig) return

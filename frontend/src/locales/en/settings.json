@@ -171,6 +171,7 @@
     "confirmLocal": "Switch to local sign-in? Everyone signs in with a username and password, and accounts that only use SSO can't sign in.",
     "confirmLocalFirstUser": "Switch to local sign-in? Nobody has an account yet, so the first person to register becomes the admin. Register yours right away.",
     "confirmOidc": "Switch to SSO? Sign in through {{provider}} right after. If that fails, an account with a password can still sign in.",
+    "confirmOidcFirstUser": "Switch to SSO? Sign in through {{provider}} right after. Nobody has an account yet, so if SSO fails, register one from the sign-in page. The first account becomes the admin.",
     "oidcNotReady": "Save an issuer URL and client ID under Configure OIDC first.",
     "switched": "Sign-in mode changed",
     "ssoStillOn": "Sign-in mode changed, but SSO couldn't be turned off, so the sign-in page still offers it. Switch to SSO and back to retry.",
