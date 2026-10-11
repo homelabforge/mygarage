@@ -167,6 +167,33 @@ class TestBuildReminderMessageUnits:
         assert "3.0 mm" in imperial_message
         assert "~12000 km" in imperial_message
 
+    @pytest.mark.parametrize(
+        ("ctx", "line"),
+        [
+            (_METRIC_CTX, "Tread: 1.50 mm (minimum 2.00 mm)"),
+            (_IMPERIAL_CTX, "Tread: 2/32 in (minimum 3/32 in)"),
+        ],
+        ids=["metric", "imperial"],
+    )
+    def test_low_tread_renders_its_tread_in_the_readers_unit(
+        self, ctx: RenderContext, line: str
+    ) -> None:
+        """G3a-21: the tread comes from the reminder's own columns, so an imperial reader reads 32nds."""
+        reminder = Reminder(
+            vin=_OWNED_VIN,
+            title="Tire tread low (FL)",
+            reminder_type="date",
+            due_date=_DUE_DATE,
+            status="pending",
+            source="low_tread",
+            tread_depth_mm=Decimal("1.50"),
+            tread_threshold_mm=Decimal("2.00"),
+        )
+
+        message = _build_reminder_message(reminder, ctx)
+
+        assert message == f"Service reminder: Tire tread low (FL)\nDue date: 2020-01-01\n{line}"
+
 
 def _user_unit_columns(units: UnitSet) -> dict[str, str]:
     """Explicit overrides for all eleven quantities (`field_to_column` owns
@@ -357,6 +384,37 @@ class TestCheckDueRemindersUnits:
             "Service reminder: Reminder Units Ownerless Service\n"
             "Due date: 2020-01-01\n"
             "Due mileage: 50,000 km"
+        ]
+
+    async def test_a_low_tread_reminder_reads_in_the_owners_tread_unit(
+        self,
+        db_session: AsyncSession,
+        metric_instance_default,
+        seeded_reminders,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """G3a-21: the sweep copies the tread columns out, and the imperial owner reads 32nds."""
+        db_session.add(
+            Reminder(
+                vin=_OWNED_VIN,
+                title="Reminder Units Tread low (FL)",
+                reminder_type="date",
+                due_date=_DUE_DATE,
+                status="pending",
+                source="low_tread",
+                tread_depth_mm=Decimal("1.50"),
+                tread_threshold_mm=Decimal("2.00"),
+            )
+        )
+        await db_session.commit()
+        sent = self._stub_dispatcher(monkeypatch)
+
+        await check_due_reminders(db_session)
+
+        assert self._own(sent, "Reminder Units Tread low (FL)") == [
+            "Service reminder: Reminder Units Tread low (FL)\n"
+            "Due date: 2020-01-01\n"
+            "Tread: 2/32 in (minimum 3/32 in)"
         ]
 
     async def test_one_failing_reminder_does_not_stop_the_sweep(

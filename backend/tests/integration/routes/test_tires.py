@@ -214,6 +214,14 @@ class TestTireRoutes:
         assert reminders.status_code == 200
         titles = [r["title"] for r in reminders.json()]
         assert "Tire tread low (RR)" in titles
+        [low] = [r for r in reminders.json() if r["title"] == "Tire tread low (RR)"]
+        # G3a-21: facts in columns, no unit-baked prose.
+        assert (low["source"], low["tire_id"]) == ("low_tread", tire["id"])
+        assert (Decimal(low["tread_depth_mm"]), Decimal(low["tread_threshold_mm"])) == (
+            Decimal("1.8"),
+            Decimal("2.0"),
+        )
+        assert low["notes"] is None
 
     async def test_update_tire_metadata(self, client: AsyncClient, auth_headers, test_vehicle):
         vin = test_vehicle["vin"]

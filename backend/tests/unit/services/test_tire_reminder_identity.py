@@ -171,6 +171,27 @@ class TestTheOwnedReminderFollowsTheTire:
         assert rows[0].id == first.id
         assert rows[0].title == "Tire tread low (FR)"
 
+    async def test_a_new_tread_moves_the_snapshot(self, db_session, vin):
+        """G3a-21: the notification and the list read these columns, so they follow the tire."""
+        tire = await _tire(db_session, vin, position="FL", tread="1.8")
+        await _sync(db_session, tire)
+        first = (await _pending(db_session, vin))[0]
+
+        tire.tread_depth_mm = Decimal("1.2")
+        tire.min_tread_mm = Decimal("1.6")
+        await db_session.commit()
+        await _sync(db_session, tire)
+        # Only what the sync committed survives this.
+        await db_session.rollback()
+
+        rows = await _pending(db_session, vin)
+        assert [r.id for r in rows] == [first.id]
+        assert (rows[0].tread_depth_mm, rows[0].tread_threshold_mm) == (
+            Decimal("1.2"),
+            Decimal("1.6"),
+        )
+        assert rows[0].title == "Tire tread low (FL)"
+
     async def test_a_stale_none_title_is_repaired(self, db_session, vin):
         tire = await _tire(db_session, vin, position="FL", tread="1.5")
         db_session.add(

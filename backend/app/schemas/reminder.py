@@ -134,6 +134,12 @@ class ReminderResponse(BaseModel):
     due_hours: Decimal | None
     status: str
     notes: str | None
+    #: What made this reminder: "low_tread" for the tire sync, null for one a person wrote.
+    source: str | None = None
+    tire_id: int | None = None
+    #: A low-tread reminder's tread and minimum, canonical mm, rendered by each reader (G3a-21).
+    tread_depth_mm: Decimal | None = None
+    tread_threshold_mm: Decimal | None = None
     #: Hide-until-date snooze. The due fields above stay real; while
     #: household "today" is before this date the reminder is out of every
     #: overdue/due-soon count and notification. The frontend derives

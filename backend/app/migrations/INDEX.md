@@ -136,3 +136,4 @@ migrations must swallow their own operational errors.
 | `124_supply_volume_unit` | **FATAL** — Add supplies.volume_unit, the per-supply display unit token (#191). |
 | `125_correct_dtc_definitions` | Correct the DTC definitions by code, and fill DTCs recorded without one (1d). |
 | `126_add_tire_hours` | **FATAL** — Add the hour meter beside the odometer on tire mounts and readings (#217). |
+| `127_clear_low_tread_prose` | Clear the prose the low-tread sync used to write into reminder notes (G3a-21). |

@@ -891,6 +891,10 @@ class ReminderMessageSource(Protocol):
     def due_hours(self) -> Decimal | None: ...
     @property
     def notes(self) -> str | None: ...
+    @property
+    def tread_depth_mm(self) -> Decimal | None: ...
+    @property
+    def tread_threshold_mm(self) -> Decimal | None: ...
 
 
 @dataclass(frozen=True)
@@ -908,6 +912,8 @@ class _DueNotification:
     due_mileage_km: Decimal | None
     due_hours: Decimal | None
     notes: str | None
+    tread_depth_mm: Decimal | None
+    tread_threshold_mm: Decimal | None
 
     @classmethod
     def of(cls, reminder: Reminder) -> _DueNotification:
@@ -920,6 +926,8 @@ class _DueNotification:
             due_mileage_km=reminder.due_mileage_km,
             due_hours=reminder.due_hours,
             notes=reminder.notes,
+            tread_depth_mm=reminder.tread_depth_mm,
+            tread_threshold_mm=reminder.tread_threshold_mm,
         )
 
 
@@ -1098,6 +1106,8 @@ def _build_reminder_message(reminder: ReminderMessageSource, ctx: RenderContext)
       quantity, so it keeps ``format_hours``'s fixed ``hr`` label, the same
       helper the vehicle PDF renders this field with.
     - ``notes`` is stored prose, passed through byte-identically (see below).
+      A low-tread reminder's tread is a fourth kind: its own columns, rendered
+      in ``ctx``'s tread unit.
 
     ``ctx`` is supplied by the caller rather than resolved here, so this stays
     pure and synchronous and can be unit-tested against any unit set.
@@ -1109,23 +1119,13 @@ def _build_reminder_message(reminder: ReminderMessageSource, ctx: RenderContext)
         parts.append(f"Due mileage: {format_quantity(reminder.due_mileage_km, ctx, 'distance')}")
     if reminder.due_hours:
         parts.append(f"Due hours: {format_hours(reminder.due_hours)}")
+    if reminder.tread_depth_mm is not None and reminder.tread_threshold_mm is not None:
+        parts.append(
+            f"Tread: {format_quantity(reminder.tread_depth_mm, ctx, 'tread')}"
+            f" (minimum {format_quantity(reminder.tread_threshold_mm, ctx, 'tread')})"
+        )
     if reminder.notes:
-        # Byte-identical passthrough, deliberate and NOT an oversight.
-        #
-        # An auto-generated low-tread reminder (TireService._sync_low_tread_
-        # reminder) stores due_mileage_km=None and puts its tread depth and
-        # projected remaining distance ONLY in this prose, so there is nothing
-        # in such a message for the conversion above to reach. Rewriting the
-        # stored text here instead would persist display units: it would go
-        # stale the moment the reader changed preferences and would never
-        # refresh, because notes are written once at creation and the reminder
-        # is completed only when tread recovers.
-        #
-        # Correct low-tread units are therefore a hard PREREQUISITE on the
-        # tire workstream: migration A gains structured tread and distance
-        # columns on vehicle_reminders (with an explicit legacy-row policy),
-        # after which these values are rendered at read time from those
-        # columns. Recorded in 2026-08-25-tire-mount-periods-design.md under
-        # "Low-tread reminder units".
+        # Stored prose passes through byte-identically. A low-tread reminder's
+        # tread renders above from its own columns (G3a-21), never from here.
         parts.append(f"Notes: {reminder.notes}")
     return "\n".join(parts)

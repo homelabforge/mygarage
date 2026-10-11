@@ -455,6 +455,16 @@ export default function ReminderList({ vin }: ReminderListProps) {
                         </p>
                       )}
                       {anchor && <p className="text-xs text-text-mute mt-1">{anchor}</p>}
+                      {reminder.source === 'low_tread' &&
+                        reminder.tread_depth_mm != null &&
+                        reminder.tread_threshold_mm != null && (
+                          <p className="text-xs text-text-mute mt-1">
+                            {t('reminderList.lowTreadLine', {
+                              tread: u.tread.format(Number(reminder.tread_depth_mm)),
+                              minimum: u.tread.format(Number(reminder.tread_threshold_mm)),
+                            })}
+                          </p>
+                        )}
                       {reminder.notes && (
                         <p className="text-xs text-text-mute mt-1 truncate">{reminder.notes}</p>
                       )}

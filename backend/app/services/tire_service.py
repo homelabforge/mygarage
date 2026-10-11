@@ -2389,8 +2389,8 @@ class TireService:
             # them unsorted, so `newer` was the OLDEST reading, `tread_delta`
             # came out negative, and this projection has been silently absent
             # from every low-tread reminder ever raised.
-            wear = project_wear(tire, await self._current_odometer(tire.vin))
-            km_left, wear_date = wear.km_remaining, wear.wear_date
+            # Below the minimum the projection reads no distance, so no current figure is needed.
+            wear = project_wear(tire, None)
             reminder = Reminder(
                 vin=tire.vin,
                 # Which tire, and that WE made this. The sync never adopts a
@@ -2402,7 +2402,6 @@ class TireService:
                 source="low_tread",
                 tread_depth_mm=tire.tread_depth_mm,
                 tread_threshold_mm=tire.min_tread_mm,
-                projected_distance_km=km_left,
                 title=title,
                 # Always "date". `km_remaining` is a distance REMAINING, not
                 # an absolute odometer target, so there is nothing to put in
@@ -2410,25 +2409,26 @@ class TireService:
                 # for "both". The ORM insert bypasses that validator, so the
                 # old row landed and then rejected every ordinary edit.
                 reminder_type="date",
-                due_date=wear_date or due,
+                due_date=wear.wear_date or due,
                 due_mileage_km=None,
                 status="pending",
-                notes=(
-                    f"Tread {tire.tread_depth_mm} mm ≤ threshold {tire.min_tread_mm} mm."
-                    + (f" ~{km_left} km remaining." if km_left is not None else "")
-                ),
             )
             self.db.add(reminder)
             dirty = True
         elif known and not below and existing is not None:
             existing.status = "done"
             dirty = True
-        elif below and existing is not None and existing.title != title:
-            # A rotation or a dismount renames the corner. The row is the
-            # same warning about the same tire, so it is renamed rather than
-            # left beside a new duplicate.
-            existing.title = title
-            dirty = True
+        elif below and existing is not None:
+            # A rotation or a dismount renames the corner, and a new reading moves the tread.
+            if existing.title != title:
+                existing.title = title
+                dirty = True
+            if not _same_measure(existing.tread_depth_mm, tire.tread_depth_mm):
+                existing.tread_depth_mm = tire.tread_depth_mm
+                dirty = True
+            if not _same_measure(existing.tread_threshold_mm, tire.min_tread_mm):
+                existing.tread_threshold_mm = tire.min_tread_mm
+                dirty = True
 
         if dirty:
             await self.db.commit()

@@ -14366,12 +14366,20 @@ export interface components {
             rule_id?: number | null;
             /** Snoozed Until */
             snoozed_until?: string | null;
+            /** Source */
+            source?: string | null;
             /** Status */
             status: string;
             /** Superseded By Id */
             superseded_by_id?: number | null;
+            /** Tire Id */
+            tire_id?: number | null;
             /** Title */
             title: string;
+            /** Tread Depth Mm */
+            tread_depth_mm?: string | null;
+            /** Tread Threshold Mm */
+            tread_threshold_mm?: string | null;
             /**
              * Updated At
              * Format: date-time

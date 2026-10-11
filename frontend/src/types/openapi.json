@@ -16203,6 +16203,17 @@
             ],
             "title": "Snoozed Until"
           },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -16218,9 +16229,44 @@
             ],
             "title": "Superseded By Id"
           },
+          "tire_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tire Id"
+          },
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "tread_depth_mm": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tread Depth Mm"
+          },
+          "tread_threshold_mm": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tread Threshold Mm"
           },
           "updated_at": {
             "format": "date-time",

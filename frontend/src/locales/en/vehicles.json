@@ -1055,6 +1055,7 @@
     "dueAtHours": "due at {{n}} hr",
     "estimated": "Est",
     "linkedToService": "Linked to service record",
+    "lowTreadLine": "Tread {{tread}}, minimum {{minimum}}",
     "loading": "Loading reminders...",
     "markDone": "Mark done",
     "markDoneError": "Failed to mark reminder as done",
