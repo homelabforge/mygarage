@@ -32,7 +32,7 @@ class ParseOptions:
     "Odometer" or "Price" column, so guessing corrupts data silently: a US
     export read as km understates distance by 38 percent, and a European
     "35,2" read as dot-decimal becomes 352. The caller declares intent and an
-    unambiguous header (an explicit "(mi)" or "Gallons") still wins.
+    unambiguous header (an explicit "(km)", "(mi)" or "Gallons") still wins.
     """
 
     odometer_unit: str = "km"
@@ -72,15 +72,18 @@ def _odometer_km(
     """
     sep = opts.decimal_separator
     for key in mi_keys:
-        if row.get(key):
-            value = _dec(row.get(key), sep)
+        raw = row.get(key.casefold())
+        if raw:
+            value = _dec(raw, sep)
             return value * MI_TO_KM if value is not None else None
     for key in km_keys:
-        if row.get(key):
-            return _dec(row.get(key), sep)
+        raw = row.get(key.casefold())
+        if raw:
+            return _dec(raw, sep)
     for key in ambiguous_keys:
-        if row.get(key):
-            value = _dec(row.get(key), sep)
+        raw = row.get(key.casefold())
+        if raw:
+            value = _dec(raw, sep)
             if value is None:
                 return None
             return value * MI_TO_KM if opts.odometer_unit == "mi" else value
@@ -158,7 +161,9 @@ def _parse_datetime(raw: str | None) -> datetime | None:
 def _rows(csv_data: str) -> Iterator[dict[str, str]]:
     reader = csv.DictReader(io.StringIO(csv_data))
     for row in reader:
-        yield {(k or "").strip(): (v or "").strip() for k, v in row.items()}
+        # Headers casefolded: exports differ in capitalisation and detect_format
+        # already compares lowercased.
+        yield {(k or "").strip().casefold(): (v or "").strip() for k, v in row.items()}
 
 
 def detect_format(csv_data: str) -> str | None:
@@ -192,7 +197,7 @@ def parse_fuelio(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
     records: list[dict[str, Any]] = []
     for row in _rows(csv_data):
         # Skip Fuelio header junk / vehicle info rows
-        raw_when = row.get("Date") or row.get("date") or row.get("Data")
+        raw_when = row.get("date") or row.get("data")
         date_val = _parse_date(raw_when)
         if not date_val:
             continue
@@ -203,20 +208,20 @@ def parse_fuelio(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
             opts,
             km_keys=("Odometer (km)",),
             mi_keys=("Miles", "Odometer (mi)"),
-            ambiguous_keys=("Odometer", "odometer", "Mileage"),
+            ambiguous_keys=("Odometer", "Mileage"),
         )
-        volume_l = _dec(row.get("Volume(l)") or row.get("Volume (l)") or row.get("Liters"), sep)
-        gallons = _dec(row.get("Gallons") or row.get("Volume(gal)"), sep)
-        cost = _dec(row.get("Total cost") or row.get("Total Cost") or row.get("Cost"), sep)
-        price = _dec(row.get("Price") or row.get("Price/L") or row.get("Price/Gal"), sep)
-        full = (row.get("Full tank") or row.get("Full Tank") or "1").lower() in {
+        volume_l = _dec(row.get("volume(l)") or row.get("volume (l)") or row.get("liters"), sep)
+        gallons = _dec(row.get("gallons") or row.get("volume(gal)"), sep)
+        cost = _dec(row.get("total cost") or row.get("cost"), sep)
+        price = _dec(row.get("price") or row.get("price/l") or row.get("price/gal"), sep)
+        full = (row.get("full tank") or "1").lower() in {
             "1",
             "true",
             "yes",
             "y",
         }
-        notes = row.get("Notes") or row.get("Note") or None
-        fuel_type = (row.get("Fuel Type") or row.get("Fuel type") or "").lower()
+        notes = row.get("notes") or row.get("note") or None
+        fuel_type = (row.get("fuel type") or "").lower()
 
         liters = volume_l
         price_basis = "per_volume"
@@ -226,7 +231,7 @@ def parse_fuelio(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
             if price is not None:
                 price = price / GAL_TO_L
         if "electr" in fuel_type or "kwh" in fuel_type:
-            kwh = liters or _dec(row.get("kWh") or row.get("Energy"), sep)
+            kwh = liters or _dec(row.get("kwh") or row.get("energy"), sep)
             liters = None
             price_basis = "per_kwh"
 
@@ -254,7 +259,7 @@ def parse_drivvo(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
     sep = opts.decimal_separator
     records: list[dict[str, Any]] = []
     for row in _rows(csv_data):
-        raw_when = row.get("Date") or row.get("Data") or row.get("date")
+        raw_when = row.get("date") or row.get("data")
         date_val = _parse_date(raw_when)
         if not date_val:
             continue
@@ -264,39 +269,39 @@ def parse_drivvo(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
             row,
             opts,
             km_keys=("Odometer (km)",),
-            mi_keys=("Odometer (mi)", "Mileage"),
-            ambiguous_keys=("Odometer", "Odômetro", "Odometro"),
+            mi_keys=("Odometer (mi)",),
+            ambiguous_keys=("Odometer", "Mileage", "Odômetro", "Odometro"),
         )
 
         liters = _dec(
-            row.get("Quantity (liters)")
-            or row.get("Liters")
-            or row.get("Quantidade (litros)")
-            or row.get("Volume"),
+            row.get("quantity (liters)")
+            or row.get("liters")
+            or row.get("quantidade (litros)")
+            or row.get("volume"),
             sep,
         )
-        gallons = _dec(row.get("Quantity (gallons)") or row.get("Gallons"), sep)
+        gallons = _dec(row.get("quantity (gallons)") or row.get("gallons"), sep)
         price = _dec(
-            row.get("Price/liter")
-            or row.get("Price per liter")
-            or row.get("Preço/litro")
-            or row.get("Price"),
+            row.get("price/liter")
+            or row.get("price per liter")
+            or row.get("preço/litro")
+            or row.get("price"),
             sep,
         )
         cost = _dec(
-            row.get("Total cost") or row.get("Total") or row.get("Custo total") or row.get("Cost"),
+            row.get("total cost") or row.get("total") or row.get("custo total") or row.get("cost"),
             sep,
         )
-        full = (row.get("Full tank") or row.get("Tanque cheio") or "yes").lower() in {
+        full = (row.get("full tank") or row.get("tanque cheio") or "yes").lower() in {
             "1",
             "true",
             "yes",
             "y",
             "sim",
         }
-        notes = row.get("Notes") or row.get("Observações") or row.get("Note") or None
+        notes = row.get("notes") or row.get("observações") or row.get("note") or None
         fuel_type = (
-            row.get("Fuel type") or row.get("Tipo de combustível") or row.get("Type") or ""
+            row.get("fuel type") or row.get("tipo de combustível") or row.get("type") or ""
         ).lower()
 
         price_basis = "per_volume"
@@ -306,7 +311,7 @@ def parse_drivvo(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
             if price is not None:
                 price = price / GAL_TO_L
         if "electr" in fuel_type or "elétr" in fuel_type or "eletr" in fuel_type:
-            kwh = liters or _dec(row.get("kWh") or row.get("Energy"), sep)
+            kwh = liters or _dec(row.get("kwh") or row.get("energy"), sep)
             liters = None
             price_basis = "per_kwh"
 
@@ -339,10 +344,10 @@ def parse_tesla(csv_data: str, opts: ParseOptions | None = None) -> list[dict[st
     records: list[dict[str, Any]] = []
     for row in _rows(csv_data):
         raw_when = (
-            row.get("Charge End Date")
-            or row.get("Charge Start Date")
-            or row.get("Date")
-            or row.get("End Date")
+            row.get("charge end date")
+            or row.get("charge start date")
+            or row.get("date")
+            or row.get("end date")
         )
         date_val = _parse_date(raw_when)
         if not date_val:
@@ -352,10 +357,10 @@ def parse_tesla(csv_data: str, opts: ParseOptions | None = None) -> list[dict[st
         filled_at = _parse_datetime(raw_when)
 
         kwh = _dec(
-            row.get("Energy Added (kWh)")
-            or row.get("Energy Added")
-            or row.get("kWh")
-            or row.get("Energy (kWh)"),
+            row.get("energy added (kwh)")
+            or row.get("energy added")
+            or row.get("kwh")
+            or row.get("energy (kwh)"),
             sep,
         )
         odo = _odometer_km(
@@ -368,31 +373,31 @@ def parse_tesla(csv_data: str, opts: ParseOptions | None = None) -> list[dict[st
         # An Odometer Unit cell beats the declared unit either way round, but
         # only when the value came from a bare header; an explicit (km) or (mi)
         # column already said what it is.
-        cell_unit = _unit_cell(row.get("Odometer Unit"))
+        cell_unit = _unit_cell(row.get("odometer unit"))
         if (
             odo is not None
             and cell_unit is not None
-            and not row.get("Odometer (km)")
-            and not row.get("Odometer (mi)")
+            and not row.get("odometer (km)")
+            and not row.get("odometer (mi)")
         ):
-            raw_odo = _dec(row.get("Odometer") or row.get("Mileage"), sep) or Decimal(0)
+            raw_odo = _dec(row.get("odometer") or row.get("mileage"), sep) or Decimal(0)
             odo = raw_odo * MI_TO_KM if cell_unit == "mi" else raw_odo
 
-        cost = _dec(row.get("Cost") or row.get("Total Cost") or row.get("Fee"), sep)
-        price = _dec(row.get("Price/kWh") or row.get("Rate") or row.get("Cost per kWh"), sep)
+        cost = _dec(row.get("cost") or row.get("total cost") or row.get("fee"), sep)
+        price = _dec(row.get("price/kwh") or row.get("rate") or row.get("cost per kwh"), sep)
         soc_start = _dec(
-            row.get("Starting SOC")
-            or row.get("Start SOC")
-            or row.get("SOC Start")
+            row.get("starting soc")
+            or row.get("start soc")
+            or row.get("soc start")
             or row.get("soc_start"),
             sep,
         )
         soc_end = _dec(
-            row.get("Ending SOC") or row.get("End SOC") or row.get("SOC End") or row.get("soc_end"),
+            row.get("ending soc") or row.get("end soc") or row.get("soc end") or row.get("soc_end"),
             sep,
         )
         charge_type = (
-            row.get("Charge Type") or row.get("Charger") or row.get("Level") or ""
+            row.get("charge type") or row.get("charger") or row.get("level") or ""
         ).upper()
         charge_level = None
         if "DC" in charge_type or "SUPER" in charge_type or "DCFC" in charge_type:
@@ -402,14 +407,14 @@ def parse_tesla(csv_data: str, opts: ParseOptions | None = None) -> list[dict[st
         elif "L1" in charge_type or "LEVEL 1" in charge_type:
             charge_level = "L1"
 
-        location_raw = (row.get("Location") or row.get("Site") or "").lower()
+        location_raw = (row.get("location") or row.get("site") or "").lower()
         charge_location = None
         if "home" in location_raw:
             charge_location = "home"
         elif location_raw:
             charge_location = "public"
 
-        notes = row.get("Notes") or row.get("Description") or None
+        notes = row.get("notes") or row.get("description") or None
 
         records.append(
             {

@@ -772,6 +772,18 @@ class TestParseOptions:
         rows = parse_drivvo(csv_data, ParseOptions(odometer_unit="mi"))
         assert rows[0]["odometer_km"] == Decimal("12345")
 
+    @pytest.mark.parametrize(
+        ("pick", "expected"),
+        [("km", Decimal("12345")), ("mi", Decimal("12345") * Decimal("1.609344"))],
+    )
+    def test_drivvo_mileage_follows_the_pick(self, pick, expected):
+        """A bare Mileage column says nothing about its unit, same as in Fuelio and Tesla."""
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = "Date,Mileage,Liters\n2026-01-15,12345,40\n"
+        rows = parse_drivvo(csv_data, ParseOptions(odometer_unit=pick))
+        assert rows[0]["odometer_km"] == expected
+
     # Tesla exports can carry a per-row "Odometer Unit" cell beside a bare
     # Odometer. The import drawer now defaults a miles vehicle to a mi pick, so
     # a km cell has to beat that pick the same way a mi cell beats a km one.
@@ -859,3 +871,45 @@ def test_odometro_alone_is_not_classified_drivvo():
 
 def test_drivvo_pt_still_detected():
     assert detect_format("Data,Odômetro,Quantidade (litros)\n2026-01-15,45000,35.2\n") == "drivvo"
+
+
+def test_drivvo_headers_match_in_any_case():
+    """detect_format lowercases headers, so the parser has to find them in any case too."""
+    csv_data = (
+        "DATE,ODOMETER (KM),QUANTITY (LITERS),PRICE/LITER,TOTAL COST\n"
+        "15/01/2026,20000,35.2,1.55,54.56\n"
+    )
+    assert detect_format(csv_data) == "drivvo"
+    rows = parse_drivvo(csv_data)
+    assert len(rows) == 1
+    assert rows[0]["odometer_km"] == Decimal("20000")
+    assert rows[0]["liters"] == Decimal("35.2")
+
+
+def test_fuelio_full_tank_any_case():
+    csv_data = "Date,Odometer,Volume(l),Full TANK\n2026-01-15,12345,40,0\n"
+    rows = parse_fuelio(csv_data)
+    assert rows[0]["is_full_tank"] is False
+
+
+def test_every_row_lookup_literal_is_casefolded() -> None:
+    import ast
+    from pathlib import Path
+
+    from app.services.import_adapters import fuel_csv
+
+    tree = ast.parse(Path(fuel_csv.__file__).read_text(encoding="utf-8"))
+    keys = [
+        node.args[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "row"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    ]
+    assert len(keys) > 60  # the scan really found the parsers' lookups (83 before 1d)
+    assert [k for k in keys if k != k.casefold()] == []
