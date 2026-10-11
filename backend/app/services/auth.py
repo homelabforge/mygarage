@@ -141,8 +141,8 @@ async def get_current_user(
     )
 
     if not token:
-        # Enhanced logging to help diagnose authentication issues
-        logger.error("No credentials provided - %s %s", request.method, request.url.path)
+        # Every signed-out page load lands here through /auth/me. Routine.
+        logger.debug("No credentials provided - %s %s", request.method, request.url.path)
         raise credentials_exception
 
     # Security: Do not log token data
@@ -163,20 +163,20 @@ async def get_current_user(
         username: str | None = claims.get("username")
 
         if user_id_str is None or username is None:
-            logger.error("Token missing user_id or username")
+            logger.warning("Token missing user_id or username")
             raise credentials_exception
 
         try:
             user_id = int(user_id_str)
         except ValueError, TypeError:
-            logger.error("Invalid user_id format: %s", user_id_str)
+            logger.warning("Invalid user_id format: %s", sanitize_for_log(user_id_str))
             raise credentials_exception
 
         # Security: Do not log decoded token contents
         logger.debug("Token decoded successfully")
         token_data = TokenData(user_id=user_id, username=username)
     except JoseError as e:
-        logger.error("JWT decode error: %s", e)
+        logger.warning("JWT decode error: %s", e)
         raise credentials_exception
 
     result = await db.execute(select(User).where(User.id == token_data.user_id))
