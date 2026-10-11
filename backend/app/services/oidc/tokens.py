@@ -5,11 +5,12 @@ using JWKS, and fetching user information from the provider's userinfo endpoint.
 """
 
 import logging
+import warnings
 from typing import Any
 
 import httpx
 from joserfc import jwt
-from joserfc.errors import JoseError
+from joserfc.errors import JoseError, SecurityWarning
 from joserfc.jwk import KeySet
 
 from app.exceptions import SSRFProtectionError
@@ -18,6 +19,13 @@ from app.utils.url_validation import validate_oidc_url
 from .config import provider_json
 
 logger = logging.getLogger(__name__)
+
+#: Accepted ID token algorithms. Rauthy signs as "EdDSA"; RFC 9864 renames that
+#: "Ed25519" (same signature), so both names are in. RS256 covers the rest.
+ID_TOKEN_ALGORITHMS = ["EdDSA", "Ed25519", "RS256"]
+
+#: joserfc's warning on the old name. Matched as a regex prefix, so keep it plain.
+_EDDSA_NAME_WARNING = "EdDSA is deprecated via RFC 9864"
 
 
 # Canonical placeholder returned by admin GET endpoints when a client_secret is
@@ -198,10 +206,11 @@ async def verify_id_token(
             logger.error("JWKS has the wrong shape: %s", type(e).__name__)
             return None  # Intentional fallback
 
-        # Decode and verify signature with an explicit algorithm allowlist.
-        # Rauthy issues EdDSA by default; we also accept RS256 for providers
-        # that haven't switched (Authentik, Keycloak default, etc.).
-        token_obj = jwt.decode(id_token, key_set, algorithms=["EdDSA", "RS256"])
+        # Rauthy still names its signature "EdDSA", and joserfc warns about the
+        # name on every token. Same key, same signature, so drop just that one.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=_EDDSA_NAME_WARNING, category=SecurityWarning)
+            token_obj = jwt.decode(id_token, key_set, algorithms=ID_TOKEN_ALGORITHMS)
         claims = token_obj.claims
 
         # Validate standard + provider-specific claims (iss/aud/nonce) and
@@ -211,7 +220,7 @@ async def verify_id_token(
         # admin typed. OIDC Core §3.1.3.7(2) requires the claim to exactly equal the
         # provider's Issuer Identifier, and that is what the metadata document reports.
         # The stored setting is not a reliable stand-in: routes/oidc.py rstrips a
-        # trailing slash on save, while Rauthy's issuer ends in one — so the stored
+        # trailing slash on save, while Rauthy's issuer ends in one, so the stored
         # value can never match and every login fails with
         # `invalid_claim: 'iss'`. Falls back to the stored value only if a provider
         # omits `issuer` from its metadata.
