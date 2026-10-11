@@ -32,6 +32,18 @@ _SHIFTED_P0300 = "Cylinder 12 Contribution/Range Fault"
 _SHIFTED_P0420 = 'Secondary Air Injection System Relay "B" Circuit Malfunction'
 _MAKER_P1000 = "OBD-II Monitor Testing Not Complete"
 _NOT_CORRECTED = "125: DTC definitions not corrected"
+_DATA_COLUMNS = (
+    "description",
+    "category",
+    "subcategory",
+    "severity",
+    "estimated_severity_level",
+    "is_emissions_related",
+)
+# Existing rows the shifted-table test corrects. Between them, every data column
+# _define writes (powertrain, NULL, warning, 2, False) is wrong somewhere: P0104
+# is info, P0363 critical/4, P0420 emissions, U0100 network.
+_CORRECTED = ("P0104", "P0300", "P0363", "P0420", "U0100")
 
 
 def _load(name: str = _NAME) -> ModuleType:
@@ -98,12 +110,27 @@ def _description(engine: Engine, code: str) -> str | None:
     return None if row is None else row["description"]
 
 
+def _data_columns(row: dict[str, Any]) -> dict[str, Any]:
+    """The six columns the upsert owns; emissions as bool (SQLite hands back 1/0)."""
+    picked = {column: row[column] for column in _DATA_COLUMNS}
+    picked["is_emissions_related"] = bool(picked["is_emissions_related"])
+    return picked
+
+
 def _vehicle_row(engine: Engine, code: str) -> tuple[str | None, str]:
     with engine.connect() as conn:
         row = conn.execute(
             text("SELECT description, severity FROM vehicle_dtcs WHERE code = :c"), {"c": code}
         ).one()
     return row[0], row[1]
+
+
+def _vehicle_rows(engine: Engine) -> list[tuple[str, str | None, str]]:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT code, description, severity FROM vehicle_dtcs ORDER BY id")
+        ).all()
+    return [(r[0], r[1], r[2]) for r in rows]
 
 
 def _dump(engine: Engine) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]]]:
@@ -117,12 +144,32 @@ def _errors(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
 
 
+def _not_corrected_has_traceback(caplog: pytest.LogCaptureFixture) -> list[bool]:
+    """One entry per "not corrected" ERROR: whether it carries the traceback."""
+    return [
+        r.exc_info is not None
+        for r in caplog.records
+        if r.levelno == logging.ERROR and _NOT_CORRECTED in r.getMessage()
+    ]
+
+
 def test_125_corrects_a_shifted_table(engine_for_migration: tuple[str, Engine, str]) -> None:
     _dialect, engine, _url = engine_for_migration
     _make_tables(engine)
     _define(engine, "P0300", _SHIFTED_P0300)
     _define(engine, "P0420", _SHIFTED_P0420)
     _define(engine, "P1000", _MAKER_P1000)
+    for code in ("P0104", "P0363", "U0100"):
+        _define(engine, code, "anything")
+    file = _file()
+    before: dict[str, dict[str, Any]] = {}
+    for code in _CORRECTED:
+        row = _definition(engine, code)
+        assert row is not None
+        before[code] = _data_columns(row)
+    # Each column is wrong at t=0 on some row, so an upsert that skips one fails below.
+    for column in _DATA_COLUMNS:
+        assert any(before[c][column] != file[c][column] for c in _CORRECTED), column
 
     _load().upgrade(engine)
 
@@ -131,14 +178,14 @@ def test_125_corrects_a_shifted_table(engine_for_migration: tuple[str, Engine, s
         _description(engine, "P0420") or ""
     )
     assert _definition(engine, "P1000") is None
-    assert _count(engine) == len(_file())
+    assert _count(engine) == len(file)
+    for code in _CORRECTED:
+        row = _definition(engine, code)
+        assert row is not None
+        assert _data_columns(row) == {column: file[code][column] for column in _DATA_COLUMNS}, code
 
     p0300 = _definition(engine, "P0300")
     assert p0300 is not None
-    wanted = _file()["P0300"]
-    assert p0300["severity"] == wanted["severity"]
-    assert p0300["estimated_severity_level"] == wanted["estimated_severity_level"]
-    assert bool(p0300["is_emissions_related"]) == wanted["is_emissions_related"]
     # 091's enrichment lands in the same transaction as the correction.
     assert p0300["common_causes"] is not None
 
@@ -198,19 +245,19 @@ def test_125_fills_vehicle_dtcs_recorded_without_a_definition(
     _make_tables(engine)
     _vehicle_dtc(engine, "P0104", None, "warning")
     _vehicle_dtc(engine, "P0300", None, "critical")
-    _vehicle_dtc(engine, "P0171", "My note", "warning")
+    _vehicle_dtc(engine, "P0104", "My note", "warning")
     _vehicle_dtc(engine, "P1131", None, "warning")
 
     _load().upgrade(engine)
 
-    assert _vehicle_row(engine, "P0104") == (
-        file["P0104"]["description"],
-        file["P0104"]["severity"],
-    )
-    # A severity other than the no-definition default was set on purpose.
-    assert _vehicle_row(engine, "P0300") == (file["P0300"]["description"], "critical")
-    assert _vehicle_row(engine, "P0171") == ("My note", "warning")
-    assert _vehicle_row(engine, "P1131") == (None, "warning")
+    assert _vehicle_rows(engine) == [
+        ("P0104", file["P0104"]["description"], file["P0104"]["severity"]),
+        # A severity other than the no-definition default was set on purpose.
+        ("P0300", file["P0300"]["description"], "critical"),
+        # Described already, so its default severity stays too: same code, not filled.
+        ("P0104", "My note", "warning"),
+        ("P1131", None, "warning"),
+    ]
 
 
 def test_125_is_idempotent(engine_for_migration: tuple[str, Engine, str]) -> None:
@@ -324,7 +371,7 @@ def test_125_swallows_a_bad_data_file(
 
     assert _description(engine, "P0300") == _SHIFTED_P0300
     assert _count(engine) == 1
-    assert any(_NOT_CORRECTED in message for message in _errors(caplog))
+    assert _not_corrected_has_traceback(caplog) == [True]
 
 
 @pytest.mark.parametrize("statement", ["_ENRICH", "_FILL_VEHICLE_DTCS"])
@@ -349,7 +396,7 @@ def test_125_rolls_back_a_failure_after_the_writes_start(
     assert _description(engine, "P0300") == _SHIFTED_P0300
     assert _count(engine) == 2
     assert _vehicle_row(engine, "P0104") == (None, "warning")
-    assert any(_NOT_CORRECTED in message for message in _errors(caplog))
+    assert _not_corrected_has_traceback(caplog) == [True]
 
 
 def test_125_is_not_fatal() -> None:

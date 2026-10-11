@@ -24,7 +24,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import Engine, create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -96,20 +96,26 @@ def _get_fallback_engine() -> Engine:
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
+def _objects(loaded: list[object]) -> list[dict[str, Any]]:
+    """The JSON objects in a parsed list; JSON keys are always strings."""
+    return [cast(dict[str, Any], item) for item in loaded if isinstance(item, dict)]
+
+
 def _entries() -> list[dict[str, Any]]:
-    entries = json.loads(_DATA.read_text(encoding="utf-8"))
-    if not isinstance(entries, list) or not entries:
+    loaded = json.loads(_DATA.read_text(encoding="utf-8"))
+    if not isinstance(loaded, list) or not loaded:
         raise ValueError("dtc_definitions.json is not a non-empty list")
-    for entry in entries:
-        if not isinstance(entry, dict) or frozenset(entry) != _KEYS:
-            raise ValueError("dtc_definitions.json has an entry with the wrong keys")
+    items = cast(list[object], loaded)
+    entries = _objects(items)
+    if len(entries) != len(items) or any(frozenset(e) != _KEYS for e in entries):
+        raise ValueError("dtc_definitions.json has an entry with the wrong keys")
     return entries
 
 
 def _enrichment() -> list[dict[str, Any]]:
     """091's rows as 091 binds them: lists stored as JSON text."""
-    rows = json.loads(_ENRICHMENT.read_text(encoding="utf-8"))
-    if not isinstance(rows, list):
+    loaded = json.loads(_ENRICHMENT.read_text(encoding="utf-8"))
+    if not isinstance(loaded, list):
         raise ValueError("dtc_phase2_enrichment.json is not a list")
     return [
         {
@@ -118,8 +124,8 @@ def _enrichment() -> list[dict[str, Any]]:
             "symptoms": json.dumps(row.get("symptoms") or []),
             "guidance": row.get("fix_guidance"),
         }
-        for row in rows
-        if isinstance(row, dict) and row.get("code")
+        for row in _objects(cast(list[object], loaded))
+        if row.get("code")
     ]
 
 
@@ -173,4 +179,4 @@ def upgrade(engine: Engine | None = None) -> None:
     try:
         _correct(engine)
     except (OSError, ValueError, KeyError, TypeError, SQLAlchemyError) as e:
-        logger.error("125: DTC definitions not corrected, the old rows stay: %s", e)
+        logger.error("125: DTC definitions not corrected, the old rows stay: %s", e, exc_info=True)
