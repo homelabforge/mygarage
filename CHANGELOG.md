@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Manufacturer-specific codes (P1xxx, B1xxx and so on) no longer show one maker's meaning; the DTC card says the code is manufacturer-specific
 
 ### Removed
-- Sign-in for accounts still on a pre-Argon2 (bcrypt) password hash. bcrypt hasn't shipped since at least v2.14.0, so such accounts couldn't sign in anyway. An admin resets the password, and the log names the account.
+- Sign-in for accounts still on a pre-Argon2 (bcrypt) password hash. bcrypt hasn't shipped since at least v2.14.0, so such accounts couldn't sign in anyway. An admin resets the password, and the log names the account
 
 ### Fixed
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
@@ -44,14 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A Fuelio, Drivvo or Tesla import with a row that has more cells than headers no longer fails the whole file
 - A JSON backup row with a missing or bad date says so instead of "could not be imported"
 - A window sticker delete that fails keeps the sticker file
-- Clicking an authentication mode no longer switches to it. Each mode has a Switch button that asks first, and Switch to SSO waits until an issuer URL and client ID are saved.
-- The SSO settings save with a Save button instead of on every keystroke, and a bad Callback URL shows its error under the field.
-- Turning sign-in off drops the signed-in session in that browser at once. Other open tabs catch up when you return to them, checked at most once a minute.
-- Signing in to an account whose stored password hash is damaged answers 'Incorrect username or password' instead of an error, and costs the same time as any other miss.
-- Changing the password of an account that only signs in through SSO answers with a clear message instead of an error.
-- A signed-out page load no longer logs an ERROR line.
-- SSO sign-in through Rauthy no longer logs a SecurityWarning about the EdDSA algorithm name, and providers that use the newer Ed25519 name work too.
-- The Callback URL refuses invisible characters, an address with no host, and a port that isn't a number.
+- Clicking an authentication mode no longer switches to it. Each mode has a Switch button that asks first, and Switch to SSO waits until an issuer URL and client ID are saved
+- The SSO settings save with a Save button instead of on every keystroke, and a bad Callback URL shows its error under the field
+- Turning sign-in off drops the signed-in session in that browser at once. Other open tabs catch up when you return to them, checked at most once a minute
+- Signing in to an account whose stored password hash is damaged answers 'Incorrect username or password' instead of an error, and costs the same time as any other miss
+- Changing the password of an account that only signs in through SSO answers with a clear message instead of an error
+- A signed-out page load no longer logs an ERROR line
+- SSO sign-in through Rauthy no longer logs a SecurityWarning about the EdDSA algorithm name, and providers that use the newer Ed25519 name work too
+- The Callback URL refuses invisible characters, an address with no host, and a port that isn't a number
 
 ### Security
 - POI provider settings are admin-only
