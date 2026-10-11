@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An API update to a service visit that leaves out a line item's `supplies_used` keeps its supply usages; send `[]` to remove them
 - An API update to a service visit also keeps the other line-item fields it leaves out; send null to clear one
 - The API refuses (400) a line-item link to an item outside its visit when updating a visit or adding a line item, and ignores one when creating a visit
+- The API refuses a line item that links to itself
 - Manufacturer-specific codes (P1xxx, B1xxx and so on) no longer show one maker's meaning; the DTC card says the code is manufacturer-specific
 
 ### Fixed
@@ -33,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A LiveLink HTTPS upload with a timestamp offset is stored in UTC instead of being dropped (PostgreSQL) or shifted (SQLite)
 - Diagnostic trouble code descriptions were wrong from about P0126 on (P0300 read "Cylinder 12 Contribution"); the built-in list is now 9,341 correct generic codes, fresh installs get it, and existing installs are corrected on upgrade
 - Codes recorded before the list was installed get their description
-- The DTC tab's Cleared and All filters show cleared codes, and the category follows your language
+- The DTC tab's Cleared and All filters show cleared codes, and the category shows as a readable label instead of the raw value
 - A repair added together with the inspection that found it stays linked to it when the visit is saved
 - Editing a visit to add a failed inspection and point an existing repair at it no longer fails to save, and a repair moved off an inspection you remove keeps its new link
 - Drivvo imports read a Mileage column in the unit you pick, and find columns whatever their capitalisation
