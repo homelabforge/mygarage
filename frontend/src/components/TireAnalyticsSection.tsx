@@ -258,7 +258,9 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
             <li>{t('vehicle.tires.canTrend', { count: readiness?.can_trend ?? 0 })}</li>
             <li>{t('vehicle.tires.canProject', { count: readiness?.can_project ?? 0 })}</li>
             <li>
-              {t('vehicle.tires.canReportDistance', { count: readiness?.can_report_distance ?? 0 })}
+              {onHours
+                ? t('vehicle.tires.canReportHours', { count: readiness?.can_report_distance ?? 0 })
+                : t('vehicle.tires.canReportDistance', { count: readiness?.can_report_distance ?? 0 })}
             </li>
           </ul>
           <p className="mt-2 text-sm text-garage-text">
@@ -267,8 +269,8 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
             </strong>
           </p>
           {/* Explained once, not per tire: an open period's upper bound is the
-              vehicle's latest odometer record, so with none there is no
-              distance for any fitted tire however complete its history. */}
+              vehicle's latest odometer or hour meter record, so with none there
+              is no figure for any fitted tire however complete its history. */}
           {(data?.has_usage_record ?? data?.has_odometer_record) === false && (
             <p className="mt-2 flex items-start gap-2 text-sm text-garage-text-muted">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />

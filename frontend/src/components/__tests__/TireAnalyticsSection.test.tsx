@@ -433,4 +433,26 @@ describe('TireAnalyticsSection on the hour meter (#217)', () => {
     expect(screen.queryByText(/actionReadingOdometer|actionMountOdometer/)).toBeNull()
     expect(screen.queryByText(/noOdometerRecord|noHoursRecord/)).toBeNull()
   })
+
+  it('counts the tires that can report hours, and distance on a distance vehicle', async () => {
+    const summary = (axis: string) => ({
+      data: {
+        readiness: { ...EMPTY_READINESS, total: 1, can_report_distance: 1 },
+        usage_axis: axis,
+        has_usage_record: true,
+        has_odometer_record: true,
+        tires: [tire({ usage_axis: axis })],
+      },
+    })
+    apiGet.mockResolvedValue(summary('hours'))
+    const { unmount } = render(<TireAnalyticsSection vin={VIN} />)
+    expect(await screen.findByText('vehicle.tires.canReportHours')).toBeInTheDocument()
+    expect(screen.queryByText('vehicle.tires.canReportDistance')).toBeNull()
+    unmount()
+
+    apiGet.mockResolvedValue(summary('distance'))
+    render(<TireAnalyticsSection vin={VIN} />)
+    expect(await screen.findByText('vehicle.tires.canReportDistance')).toBeInTheDocument()
+    expect(screen.queryByText('vehicle.tires.canReportHours')).toBeNull()
+  })
 })

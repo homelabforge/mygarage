@@ -355,6 +355,7 @@
       "canTrend": "{{count}} can show a tread trend",
       "canProject": "{{count}} can project remaining life",
       "canReportDistance": "{{count}} can report distance on tire",
+      "canReportHours": "{{count}} can report hours on tire",
       "nextAction": "Next",
       "actionSecondReading": "Log a second tread reading on {{count}} tires. One reading is a point, not a trend.",
       "actionReadingOdometer": "Add the odometer to the tread readings on {{count}} tires. Wear is measured against distance.",
