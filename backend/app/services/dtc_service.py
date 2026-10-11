@@ -234,14 +234,17 @@ class DTCService:
     # Query Methods
     # =========================================================================
 
-    async def get_active_dtcs(self, vin: str) -> list[VehicleDTC]:
-        """Get all active DTCs for a vehicle."""
-        result = await self.db.execute(
+    async def get_active_dtcs(self, vin: str, limit: int | None = None) -> list[VehicleDTC]:
+        """Get a vehicle's active DTCs, newest first seen first; at most `limit` when set."""
+        query = (
             select(VehicleDTC)
             .where(VehicleDTC.vin == vin)
             .where(VehicleDTC.is_active == True)  # noqa: E712
             .order_by(VehicleDTC.first_seen.desc())
         )
+        if limit is not None:
+            query = query.limit(limit)
+        result = await self.db.execute(query)
         return list(result.scalars().all())
 
     async def get_dtc_history(

@@ -542,7 +542,7 @@ async def list_vehicle_dtcs(
     elif include_cleared:
         dtcs = await dtc_service.get_dtc_history(vin, include_active=True, limit=limit)
     else:
-        dtcs = await dtc_service.get_active_dtcs(vin)
+        dtcs = await dtc_service.get_active_dtcs(vin, limit=limit)
 
     counts = await dtc_service.get_dtc_counts(vin)
 

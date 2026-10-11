@@ -173,6 +173,42 @@ class TestVehicleSessions:
         assert response.status_code == 404
 
 
+async def _dtc_vehicle(
+    db_session: AsyncSession,
+    test_user: dict[str, object],
+    rows: list[tuple[str, bool, datetime, datetime | None]],
+) -> str:
+    """A vehicle of the test user's with these DTC rows: (code, active, seen, cleared)."""
+    vin = "DTC" + uuid.uuid4().hex[:14].upper()
+    db_session.add(
+        Vehicle(
+            vin=vin,
+            user_id=test_user["id"],
+            nickname="DTC Filter Test",
+            vehicle_type="Car",
+            year=2020,
+            make="Honda",
+            model="Civic",
+        )
+    )
+    await db_session.flush()
+    for code, active, seen, cleared in rows:
+        db_session.add(
+            VehicleDTC(
+                vin=vin,
+                device_id="dtc-filter-dev",
+                code=code,
+                severity="warning",
+                first_seen=seen,
+                last_seen=seen,
+                is_active=active,
+                cleared_at=cleared,
+            )
+        )
+    await db_session.commit()
+    return vin
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestVehicleDTCs:
@@ -217,39 +253,16 @@ class TestVehicleDTCs:
         test_user: dict[str, object],
     ):
         """cleared_only returns cleared codes even when newer active ones fill the limit."""
-        vin = "DTC" + uuid.uuid4().hex[:14].upper()
-        db_session.add(
-            Vehicle(
-                vin=vin,
-                user_id=test_user["id"],
-                nickname="DTC Filter Test",
-                vehicle_type="Car",
-                year=2020,
-                make="Honda",
-                model="Civic",
-            )
-        )
-        await db_session.flush()
         now = utc_now()
-        rows = [
-            ("P0300", True, now - timedelta(minutes=5), None),
-            ("P0171", True, now, None),
-            ("P0420", False, now - timedelta(days=2), now - timedelta(days=1)),
-        ]
-        for code, active, seen, cleared in rows:
-            db_session.add(
-                VehicleDTC(
-                    vin=vin,
-                    device_id="dtc-filter-dev",
-                    code=code,
-                    severity="warning",
-                    first_seen=seen,
-                    last_seen=seen,
-                    is_active=active,
-                    cleared_at=cleared,
-                )
-            )
-        await db_session.commit()
+        vin = await _dtc_vehicle(
+            db_session,
+            test_user,
+            [
+                ("P0300", True, now - timedelta(minutes=5), None),
+                ("P0171", True, now, None),
+                ("P0420", False, now - timedelta(days=2), now - timedelta(days=1)),
+            ],
+        )
         url = f"/api/vehicles/{vin}/livelink/dtcs"
 
         cleared = await client.get(
@@ -264,6 +277,34 @@ class TestVehicleDTCs:
         )
         assert history.status_code == 200, history.text
         assert [d["code"] for d in history.json()["dtcs"]] == ["P0171"]
+
+    async def test_active_view_honours_the_limit(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        test_user: dict[str, object],
+    ):
+        """The default (active) view stops at limit too, newest first seen first."""
+        now = utc_now()
+        vin = await _dtc_vehicle(
+            db_session,
+            test_user,
+            [
+                ("P0300", True, now - timedelta(minutes=10), None),
+                ("P0171", True, now, None),
+                ("P0128", True, now - timedelta(minutes=5), None),
+            ],
+        )
+
+        r = await client.get(
+            f"/api/vehicles/{vin}/livelink/dtcs", params={"limit": 2}, headers=auth_headers
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert [d["code"] for d in body["dtcs"]] == ["P0171", "P0128"]
+        # The counts still cover every active code.
+        assert body["active_count"] == 3
 
 
 @pytest.mark.integration
