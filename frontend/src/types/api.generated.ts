@@ -5019,6 +5019,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/hours/nearest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Nearest Hours Reading
+         * @description The hours reading closest to a date, for prefilling a tire dialog. 404 when there are none.
+         */
+        get: operations["nearest_hours_reading_api_vehicles__vin__hours_nearest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/hours/{record_id}": {
         parameters: {
             query?: never;
@@ -12918,6 +12938,23 @@ export interface components {
             value: string;
         };
         /**
+         * NearestHoursResponse
+         * @description The hours reading closest to a requested day, for the tire dialogs' suggestion.
+         */
+        NearestHoursResponse: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Days Away */
+            days_away: number;
+            /** Engine Hours */
+            engine_hours: string;
+            /** Source */
+            source: string;
+        };
+        /**
          * NearestOdometerResponse
          * @description The reading closest to a requested day, for the tire dialogs' suggestion.
          */
@@ -16170,9 +16207,20 @@ export interface components {
              * @default false
              */
             has_odometer_record: boolean;
+            /**
+             * Has Usage Record
+             * @default false
+             */
+            has_usage_record: boolean;
             readiness?: components["schemas"]["TireReadiness"];
             /** Tires */
             tires?: components["schemas"]["TireResponse"][];
+            /**
+             * Usage Axis
+             * @default distance
+             * @enum {string}
+             */
+            usage_axis: "distance" | "hours";
         };
         /**
          * TireCreate
@@ -16276,6 +16324,22 @@ export interface components {
             tires: components["schemas"]["TireResponse"][];
             /** Total */
             total: number;
+            /**
+             * Tracks Distance
+             * @default true
+             */
+            tracks_distance: boolean;
+            /**
+             * Tracks Hours
+             * @default false
+             */
+            tracks_hours: boolean;
+            /**
+             * Usage Axis
+             * @default distance
+             * @enum {string}
+             */
+            usage_axis: "distance" | "hours";
         };
         /**
          * TireMountRequest
@@ -16466,6 +16530,10 @@ export interface components {
             known_distance_km?: string | null;
             /** Known Distance Since */
             known_distance_since?: string | null;
+            /** Known Usage */
+            known_usage?: string | null;
+            /** Known Usage Since */
+            known_usage_since?: string | null;
             /**
              * Min Tread Mm
              * @description Wear-out threshold in mm; drives reminder hooks
@@ -16484,6 +16552,8 @@ export interface components {
             pressure_kpa?: string | null;
             /** Projected Km Remaining */
             projected_km_remaining?: string | null;
+            /** Projected Usage Remaining */
+            projected_usage_remaining?: string | null;
             /** Projected Wear Date */
             projected_wear_date?: string | null;
             /** Readings */
@@ -16500,6 +16570,14 @@ export interface components {
             tread_depth_mm?: string | null;
             /** Updated At */
             updated_at?: string | null;
+            /**
+             * Usage Axis
+             * @default distance
+             * @enum {string}
+             */
+            usage_axis: "distance" | "hours";
+            /** Usage On Tire */
+            usage_on_tire?: string | null;
             /** Vin */
             vin: string;
             /** Wear Status */
@@ -27930,6 +28008,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HoursRecordResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    nearest_hours_reading_api_vehicles__vin__hours_nearest_get: {
+        parameters: {
+            query: {
+                date: string;
+            };
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NearestHoursResponse"];
                 };
             };
             /** @description Validation Error */

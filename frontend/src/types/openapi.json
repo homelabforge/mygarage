@@ -12393,6 +12393,37 @@
         "title": "NamedFieldResponse",
         "type": "object"
       },
+      "NearestHoursResponse": {
+        "description": "The hours reading closest to a requested day, for the tire dialogs' suggestion.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "days_away": {
+            "title": "Days Away",
+            "type": "integer"
+          },
+          "engine_hours": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Engine Hours",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "engine_hours",
+          "source",
+          "days_away"
+        ],
+        "title": "NearestHoursResponse",
+        "type": "object"
+      },
       "NearestOdometerResponse": {
         "description": "The reading closest to a requested day, for the tire dialogs' suggestion.",
         "properties": {
@@ -20952,6 +20983,11 @@
             "title": "Has Odometer Record",
             "type": "boolean"
           },
+          "has_usage_record": {
+            "default": false,
+            "title": "Has Usage Record",
+            "type": "boolean"
+          },
           "readiness": {
             "$ref": "#/components/schemas/TireReadiness"
           },
@@ -20961,6 +20997,15 @@
             },
             "title": "Tires",
             "type": "array"
+          },
+          "usage_axis": {
+            "default": "distance",
+            "enum": [
+              "distance",
+              "hours"
+            ],
+            "title": "Usage Axis",
+            "type": "string"
           }
         },
         "title": "TireAnalyticsSummary",
@@ -21392,6 +21437,25 @@
           "total": {
             "title": "Total",
             "type": "integer"
+          },
+          "tracks_distance": {
+            "default": true,
+            "title": "Tracks Distance",
+            "type": "boolean"
+          },
+          "tracks_hours": {
+            "default": false,
+            "title": "Tracks Hours",
+            "type": "boolean"
+          },
+          "usage_axis": {
+            "default": "distance",
+            "enum": [
+              "distance",
+              "hours"
+            ],
+            "title": "Usage Axis",
+            "type": "string"
           }
         },
         "required": [
@@ -21859,6 +21923,30 @@
             ],
             "title": "Known Distance Since"
           },
+          "known_usage": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Known Usage"
+          },
+          "known_usage_since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Known Usage Since"
+          },
           "min_tread_mm": {
             "anyOf": [
               {
@@ -21943,6 +22031,18 @@
               }
             ],
             "title": "Projected Km Remaining"
+          },
+          "projected_usage_remaining": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected Usage Remaining"
           },
           "projected_wear_date": {
             "anyOf": [
@@ -22031,6 +22131,27 @@
               }
             ],
             "title": "Updated At"
+          },
+          "usage_axis": {
+            "default": "distance",
+            "enum": [
+              "distance",
+              "hours"
+            ],
+            "title": "Usage Axis",
+            "type": "string"
+          },
+          "usage_on_tire": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage On Tire"
           },
           "vin": {
             "title": "Vin",
@@ -44057,6 +44178,64 @@
           }
         ],
         "summary": "Create Hours Record",
+        "tags": [
+          "Hours Records"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/hours/nearest": {
+      "get": {
+        "description": "The hours reading closest to a date, for prefilling a tire dialog. 404 when there are none.",
+        "operationId": "nearest_hours_reading_api_vehicles__vin__hours_nearest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NearestHoursResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Nearest Hours Reading",
         "tags": [
           "Hours Records"
         ]

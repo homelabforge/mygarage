@@ -923,13 +923,20 @@ class TireService:
         # Same wire names as before v3.3.0. A single-value result type would
         # have silently dropped `projected_wear_date`, which the tire card
         # renders beside the km figure.
-        payload.projected_km_remaining = wear.km_remaining
         payload.projected_wear_date = wear.wear_date
         payload.wear_status = wear.status.value
-        payload.distance_km = distance.all_time_value
-        payload.known_distance_km = distance.known_value
-        payload.known_distance_since = distance.known_since
         payload.distance_status = distance.status.value
+        payload.usage_axis = axis.kind
+        payload.usage_on_tire = distance.all_time_value
+        payload.known_usage = distance.known_value
+        payload.known_usage_since = distance.known_since
+        payload.projected_usage_remaining = wear.km_remaining
+        # The km names stay for existing readers, empty on the hours axis.
+        on_distance = not axis.is_hours
+        payload.projected_km_remaining = wear.km_remaining if on_distance else None
+        payload.distance_km = distance.all_time_value if on_distance else None
+        payload.known_distance_km = distance.known_value if on_distance else None
+        payload.known_distance_since = distance.known_since if on_distance else None
         # Union, not `or`. These are blockers for two DIFFERENT figures:
         # `distance_status` is the tire's lifetime, `wear_status` is the
         # interval between the two readings. `or` masked the wear blockers
@@ -994,7 +1001,13 @@ class TireService:
             responses = [
                 self._to_response(t, axes, current_odometer=current_odometer) for t in tires
             ]
-            return TireListResponse(tires=responses, total=len(responses))
+            return TireListResponse(
+                tires=responses,
+                total=len(responses),
+                usage_axis=axes.primary.kind,
+                tracks_distance=axes.tracks("distance"),
+                tracks_hours=axes.tracks("hours"),
+            )
         except HTTPException:
             raise
         except OperationalError as e:

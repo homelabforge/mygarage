@@ -21,6 +21,8 @@ from app.utils.household_time import household_today
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
 TirePosition = Literal["FL", "FR", "RL", "RR", "SPARE"]
+#: Which reading a tire's figures run on (#217). Same values as `usage_axis.UsageKind`.
+UsageAxisName = Literal["distance", "hours"]
 # For TireResponse: `tires.position` has no CHECK, so a corner we don't know
 # reads as null (like a stored tire) instead of 500ing the tire list.
 LenientTirePosition = Annotated[
@@ -395,6 +397,13 @@ class TireResponse(TireBase):
     known_distance_since: date_type | None = None
     # Why the distance is or is not available. See DistanceStatus.
     distance_status: str | None = None
+    #: Which reading the figures run on: the hour meter on an hours-only vehicle (#217).
+    usage_axis: UsageAxisName = "distance"
+    #: The figures on `usage_axis`, km or hours. The km fields above are null on the hours axis.
+    usage_on_tire: Decimal | None = None
+    known_usage: Decimal | None = None
+    known_usage_since: date_type | None = None
+    projected_usage_remaining: Decimal | None = None
     # The periods a user must supply a number for, so the UI can link to the
     # exact one instead of saying "record a mount".
     blocking_period_ids: list[int] = Field(default_factory=list)
@@ -413,6 +422,10 @@ class TireListResponse(BaseModel):
 
     tires: list[TireResponse]
     total: int
+    usage_axis: UsageAxisName = "distance"
+    #: Which readings this vehicle takes, so the dialogs show the right fields.
+    tracks_distance: bool = True
+    tracks_hours: bool = False
 
 
 class TireSetCreate(BaseModel):

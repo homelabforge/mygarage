@@ -122,3 +122,13 @@ class HoursRecordListResponse(BaseModel):
             ]
         }
     }
+
+
+class NearestHoursResponse(BaseModel):
+    """The hours reading closest to a requested day, for the tire dialogs' suggestion."""
+
+    date: date_type
+    engine_hours: Decimal
+    source: str
+    #: Signed days from the requested date to the reading. Negative is before.
+    days_away: int

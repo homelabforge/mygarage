@@ -600,6 +600,18 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.livelink_alerts.alert_band",
         "every branch returns a constant",
     ),
+    ("TireAnalyticsSummary", "usage_axis"): (
+        "app.routes.analytics.get_tire_analytics",
+        "copies TireListResponse.usage_axis",
+    ),
+    ("TireListResponse", "usage_axis"): (
+        "app.services.tire_service.TireService.list_tires",
+        "the primary axis's kind, one of two constants",
+    ),
+    ("TireResponse", "usage_axis"): (
+        "app.services.tire_service.TireService._to_response",
+        "the primary axis's kind, one of two constants",
+    ),
     **{
         ("UnitSet", quantity): (
             "app.utils.unit_resolution.resolve_units",

@@ -535,3 +535,7 @@ class TireAnalyticsSummary(BaseModel):
     #: OPEN mount period unbounded however complete its history is. Its own
     #: empty state, explained once rather than per tire.
     has_odometer_record: bool = False
+    #: The axis every tire figure here runs on (#217).
+    usage_axis: Literal["distance", "hours"] = "distance"
+    #: False when the vehicle has no reading at all on `usage_axis`. The page reads this one.
+    has_usage_record: bool = False

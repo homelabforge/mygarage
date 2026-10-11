@@ -69,6 +69,7 @@ from app.services.analytics_service.tires import tire_readiness
 from app.services.auth import get_vehicle_or_403, require_auth, visible_vehicles_filter
 from app.services.def_service import DEFRecordService
 from app.services.fuel_service import calculate_average_hours_economy
+from app.services.hours_service import latest_engine_hours_and_date
 from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.service_visit_service import service_visit_cost_load_options
 from app.services.tire_service import TireService
@@ -1529,11 +1530,16 @@ async def get_tire_analytics(
     """
     await get_vehicle_or_403(vin, user, db)
     listed = await TireService(db).list_tires(vin, user, include_retired=True)
-    odometer_km, _ = await latest_odometer_km_and_date(db, vin.upper().strip())
+    normalized = vin.upper().strip()
+    odometer_km, _ = await latest_odometer_km_and_date(db, normalized)
+    engine_hours, _ = await latest_engine_hours_and_date(db, normalized)
+    current = engine_hours if listed.usage_axis == "hours" else odometer_km
     return TireAnalyticsSummary(
-        readiness=tire_readiness(listed.tires),
+        readiness=tire_readiness(listed.tires, listed.usage_axis),
         tires=listed.tires,
         has_odometer_record=odometer_km is not None,
+        usage_axis=listed.usage_axis,
+        has_usage_record=current is not None,
     )
 
 

@@ -1,6 +1,7 @@
 """Hours Record CRUD API endpoints."""
 
 import logging
+from datetime import date as date_type
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import delete, func, select
@@ -15,9 +16,10 @@ from app.schemas.hours import (
     HoursRecordListResponse,
     HoursRecordResponse,
     HoursRecordUpdate,
+    NearestHoursResponse,
 )
 from app.services.auth import get_vehicle_or_403, require_auth
-from app.services.hours_service import latest_engine_hours_and_date
+from app.services.hours_service import latest_engine_hours_and_date, nearest_hours_record
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -85,6 +87,28 @@ async def list_hours_records(
             sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+
+# Above `/{record_id}`, or FastAPI reads "nearest" as a record id and answers 422.
+@router.get("/nearest", response_model=NearestHoursResponse)
+async def nearest_hours_reading(
+    vin: str,
+    on: date_type = Query(..., alias="date"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+) -> NearestHoursResponse:
+    """The hours reading closest to a date, for prefilling a tire dialog. 404 when there are none."""
+    vin = vin.upper().strip()
+    await get_vehicle_or_403(vin, current_user, db)
+    record = await nearest_hours_record(db, vin, on)
+    if record is None:
+        raise HTTPException(status_code=404, detail="No engine hours readings for this vehicle")
+    return NearestHoursResponse(
+        date=record.date,
+        engine_hours=record.engine_hours,
+        source=record.source,
+        days_away=(record.date - on).days,
+    )
 
 
 @router.get("/{record_id}", response_model=HoursRecordResponse)

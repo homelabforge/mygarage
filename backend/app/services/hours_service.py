@@ -49,14 +49,8 @@ async def latest_engine_hours_and_date(
     return row[0], row[1]
 
 
-async def nearest_hours(db: AsyncSession, vin: str, on: date) -> Decimal | None:
-    """The engine-hours reading closest to `on` by day distance, or None.
-
-    The mirror of ``odometer_service.nearest_odometer``: the latest reading on
-    or before `on` and the earliest after it, then the smaller day distance,
-    a tie going to the earlier one. Lives here because this module is the one
-    home for hours reads.
-    """
+async def nearest_hours_record(db: AsyncSession, vin: str, on: date) -> HoursRecord | None:
+    """The hours row closest to `on` by day distance, a tie going to the earlier one."""
     before = (
         await db.execute(
             select(HoursRecord)
@@ -76,12 +70,24 @@ async def nearest_hours(db: AsyncSession, vin: str, on: date) -> Decimal | None:
         )
     ).scalar_one_or_none()
     if before is None:
-        return after.engine_hours if after is not None else None
+        return after
     if after is None:
-        return before.engine_hours
+        return before
     if (on - before.date).days <= (after.date - on).days:
-        return before.engine_hours
-    return after.engine_hours
+        return before
+    return after
+
+
+async def nearest_hours(db: AsyncSession, vin: str, on: date) -> Decimal | None:
+    """The engine-hours reading closest to `on` by day distance, or None.
+
+    The mirror of ``odometer_service.nearest_odometer``: the latest reading on
+    or before `on` and the earliest after it, then the smaller day distance,
+    a tie going to the earlier one. Lives here because this module is the one
+    home for hours reads.
+    """
+    record = await nearest_hours_record(db, vin, on)
+    return record.engine_hours if record is not None else None
 
 
 async def set_manual_current_hours(

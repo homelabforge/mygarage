@@ -16,6 +16,7 @@ user about one problem and hide the other.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from decimal import Decimal
 
 from app.schemas.analytics import TireReadiness
 from app.schemas.tire import TireReadingResponse, TireResponse
@@ -37,6 +38,11 @@ _DISTANCE_NEEDS_ODOMETER = frozenset(
 _WEAR_HAS_FIGURE = frozenset({WearStatus.PROJECTED, WearStatus.AT_OR_BELOW_MINIMUM})
 
 
+def _axis_value(reading: TireReadingResponse, axis: str) -> Decimal | None:
+    """The reading's figure on the vehicle's axis (#217)."""
+    return reading.engine_hours if axis == "hours" else reading.odometer_km
+
+
 def _tread_bearing(tire: TireResponse) -> list[TireReadingResponse]:
     """Readings that carry a tread depth, newest first.
 
@@ -52,7 +58,7 @@ def _tread_bearing(tire: TireResponse) -> list[TireReadingResponse]:
     )
 
 
-def tire_readiness(tires: Sequence[TireResponse]) -> TireReadiness:
+def tire_readiness(tires: Sequence[TireResponse], axis: str = "distance") -> TireReadiness:
     """Count what this vehicle's live tires can and cannot answer.
 
     Retired tires are excluded from every count (B10). Their distance and wear
@@ -62,6 +68,7 @@ def tire_readiness(tires: Sequence[TireResponse]) -> TireReadiness:
 
     Args:
         tires: Every tire for the vehicle, retired ones included.
+        axis: The vehicle's tire axis, `"distance"` or `"hours"`.
 
     Returns:
         The counts, over non-retired tires only.
@@ -89,7 +96,7 @@ def tire_readiness(tires: Sequence[TireResponse]) -> TireReadiness:
         # The newest two are the pair `project_wear` differences, so those are
         # the two whose odometers matter. A third, older reading without one
         # costs nothing.
-        if readings[0].odometer_km is None or readings[1].odometer_km is None:
+        if _axis_value(readings[0], axis) is None or _axis_value(readings[1], axis) is None:
             needs_reading_odometer += 1
 
     return TireReadiness(
