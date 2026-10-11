@@ -52,6 +52,7 @@ from app.services.tire_results import (
     WearResult,
     WearStatus,
 )
+from app.services.usage_axis import DISTANCE, UsageAxis
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
@@ -61,7 +62,6 @@ from app.utils.odometer_sync import (
     same_day_records,
     sync_odometer_from_record,
 )
-from app.utils.odometer_tolerance import odometer_above, odometer_below
 from app.utils.render_context import render_context_for_request
 from app.utils.unit_adapters import adapter_for
 
@@ -240,12 +240,17 @@ async def apply_mount_moves(
     await db.flush()
 
 
-def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceResult:
+def distance_on_tire(
+    tire: Tire, current_odometer: Decimal | None, axis: UsageAxis = DISTANCE
+) -> DistanceResult:
     """Distance driven ON THIS TIRE, summed over its mount periods.
 
     This is the calculation the whole mount-period model exists for. The old
     one took the raw odometer delta between two readings, which for anyone
     running a second seasonal set counts the distance driven on the OTHER set.
+
+    `axis` picks the columns; `current_odometer` is the vehicle's current figure
+    on that axis (#217).
 
     Args:
         tire: The tire, with `mount_periods` loaded.
@@ -273,14 +278,12 @@ def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceRe
     blocking: list[int] = []
 
     for period in rolling:
-        start = period.mounted_odometer_km
-        end = (
-            period.dismounted_odometer_km if period.dismounted_on is not None else current_odometer
-        )
+        start = axis.mounted(period)
+        end = axis.dismounted(period) if period.dismounted_on is not None else current_odometer
         if start is None or end is None:
             blocking.append(period.id)
             continue
-        if odometer_below(end, start):
+        if axis.below(end, start):
             return DistanceResult(
                 status=DistanceStatus.ODOMETER_ROLLBACK,
                 blocking_period_ids=[period.id],
@@ -289,9 +292,9 @@ def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceRe
         # reading in two spellings (a figure saved before v3.4.0 and the same
         # figure typed today): within the band that is a period that rolled
         # nothing, as `distance_between` counts an interval with no length.
-        # The zero carries the odometer columns' scale, so a figure made of it
+        # The zero carries the axis's column scale, so a figure made of it
         # alone serialises like every other distance ("0.00", not "0").
-        known += max(end - start, Decimal("0.00"))
+        known += max(end - start, axis.zero)
         contributed += 1
         # Only a period that CONTRIBUTED can date the known figure, and its
         # `mounted_on` may still be null on a migrated assumed period.
@@ -318,7 +321,9 @@ def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceRe
     )
 
 
-def _overlapping_period_ids(contributions: list[tuple[Decimal, Decimal, int]]) -> list[int]:
+def _overlapping_period_ids(
+    contributions: list[tuple[Decimal, Decimal, int]], axis: UsageAxis = DISTANCE
+) -> list[int]:
     """Ids of contributing spans that claim the same kilometres.
 
     Touching endpoints are not an overlap: a dismount at 12,000 and a
@@ -338,12 +343,14 @@ def _overlapping_period_ids(contributions: list[tuple[Decimal, Decimal, int]]) -
     is kept by a plain comparison: one that moved only once an end cleared
     the band would lag a span ending within the band above it, and miss a
     later span overlapping that one beyond the band.
+
+    The band is `axis`'s: on the hour meter, `app.utils.hours_tolerance` (#217).
     """
     clashing: set[int] = set()
     running_hi: Decimal | None = None
     running_id: int | None = None
     for lo, hi, period_id in sorted(contributions, key=lambda c: c[0]):
-        if running_hi is not None and running_id is not None and odometer_below(lo, running_hi):
+        if running_hi is not None and running_id is not None and axis.below(lo, running_hi):
             clashing.update({running_id, period_id})
         if running_hi is None or hi > running_hi:
             running_hi, running_id = hi, period_id
@@ -351,7 +358,9 @@ def _overlapping_period_ids(contributions: list[tuple[Decimal, Decimal, int]]) -
 
 
 def _odometer_goes_backwards(
-    periods: list[TireMountPeriod], readings: tuple[TireReading, ...]
+    periods: list[TireMountPeriod],
+    readings: tuple[TireReading, ...],
+    axis: UsageAxis = DISTANCE,
 ) -> list[int]:
     """C5: periods whose odometer bounds contradict a reading's date, by id.
 
@@ -361,7 +370,7 @@ def _odometer_goes_backwards(
     withhold a figure over; the write-time validator names the reading from
     the same pairs, so the two cannot disagree about what contradicts.
     """
-    return sorted({period.id for period, _ in odometer_contradictions(periods, readings)})
+    return sorted({period.id for period, _ in odometer_contradictions(periods, readings, axis)})
 
 
 def distance_between(
@@ -369,6 +378,7 @@ def distance_between(
     older: TireReading,
     newer: TireReading,
     current_odometer: Decimal | None,
+    axis: UsageAxis = DISTANCE,
 ) -> IntervalResult:
     """Distance driven on this tire BETWEEN two readings.
 
@@ -391,6 +401,8 @@ def distance_between(
         newer: The later tread-bearing reading, and the upper bound.
         current_odometer: The vehicle's latest odometer, used for a period
             still open. May be None on a vehicle with no readings.
+        axis: Which columns and band to read (#217). On the hours axis every
+            figure here, `current_odometer` and `km` included, is hours.
 
     Returns:
         An `IntervalResult`. `km` is populated only for COMPLETE; every
@@ -400,12 +412,12 @@ def distance_between(
         life, and too large overstates it, which is the dangerous direction
         and is exactly the defect this replaces.
     """
-    a_odo, b_odo = older.odometer_km, newer.odometer_km
+    a_odo, b_odo = axis.reading(older), axis.reading(newer)
     # Every odometer ordering below is judged outside the same-reading band
     # (`app.utils.odometer_tolerance`), the one the history validator uses, so
     # a boundary the validator accepts never withholds a figure here. Two
     # readings within the band of each other are one odometer, not a distance.
-    if a_odo is None or b_odo is None or not odometer_below(a_odo, b_odo):
+    if a_odo is None or b_odo is None or not axis.below(a_odo, b_odo):
         return IntervalResult(status=IntervalStatus.NO_DISTANCE)
 
     periods = list(tire.mount_periods or [])
@@ -420,9 +432,9 @@ def distance_between(
     contributions: list[tuple[Decimal, Decimal, int]] = []
 
     for period in rolling:
-        start = period.mounted_odometer_km
+        start = axis.mounted(period)
         if period.dismounted_on is not None:
-            end = period.dismounted_odometer_km
+            end = axis.dismounted(period)
         elif current_odometer is not None:
             # C4. An open period has no recorded dismount, so a reading at
             # `b_odo` is itself evidence the tire was mounted at `b_odo`.
@@ -441,7 +453,7 @@ def distance_between(
         # faulted. Both bounds must be non-null for "reversed" to mean
         # anything; a period missing one still falls through to C2 and then
         # to the null-bound handling below, unchanged.
-        if start is not None and end is not None and odometer_below(end, start):
+        if start is not None and end is not None and axis.below(end, start):
             # NOT `max(0, hi - lo)`: clamping contributes a silent zero for a
             # faulted period while another period supplies a positive total,
             # publishing a confident figure over known-corrupt data.
@@ -450,9 +462,9 @@ def distance_between(
 
         # C2. Provable disjointness, from the near bound only. A near bound
         # within the band of the reading is at the reading.
-        if end is not None and not odometer_above(end, a_odo):
+        if end is not None and not axis.above(end, a_odo):
             continue
-        if start is not None and not odometer_below(start, b_odo):
+        if start is not None and not axis.below(start, b_odo):
             continue
 
         # Past here the period may overlap, so both bounds are load-bearing.
@@ -466,7 +478,7 @@ def distance_between(
         if hi > lo:
             contributions.append((lo, hi, period.id))
 
-    overlapping = _overlapping_period_ids(contributions)
+    overlapping = _overlapping_period_ids(contributions, axis)
     if overlapping:
         return IntervalResult(
             status=IntervalStatus.OVERLAPPING_HISTORY, blocking_period_ids=overlapping
@@ -480,7 +492,7 @@ def distance_between(
     # HISTORY_CONTRADICTS for both and swallow the specific diagnosis. All
     # three suppress, so precedence changes no number, only the repair the
     # user is pointed at.
-    contradicting = _odometer_goes_backwards(rolling, (older, newer))
+    contradicting = _odometer_goes_backwards(rolling, (older, newer), axis)
     if contradicting:
         return IntervalResult(
             status=IntervalStatus.HISTORY_CONTRADICTS, blocking_period_ids=contradicting
@@ -499,6 +511,7 @@ def project_wear(
     tire: Tire,
     current_odometer: Decimal | None,
     readings: list[TireReading] | None = None,
+    axis: UsageAxis = DISTANCE,
 ) -> WearResult:
     """Estimate remaining tread life, with the reason when there is none.
 
@@ -523,6 +536,8 @@ def project_wear(
         current_odometer: The vehicle's latest odometer, for open periods.
         readings: Override for the reading list; defaults to the tire's own.
             Passed in by callers that already loaded them.
+        axis: Which columns the rate runs on (#217). On the hours axis
+            `km_remaining` holds hours.
 
     Returns:
         A `WearResult`. Its `status` is exhaustive: every current null exit of
@@ -576,7 +591,7 @@ def project_wear(
         return WearResult(status=WearStatus.INSUFFICIENT_READINGS)
 
     newer, older = with_tread[0], with_tread[1]
-    if newer.odometer_km is None or older.odometer_km is None:
+    if axis.reading(newer) is None or axis.reading(older) is None:
         return WearResult(status=WearStatus.NO_READING_ODOMETERS)
 
     newer_tread, older_tread = newer.tread_depth_mm, older.tread_depth_mm
@@ -597,7 +612,7 @@ def project_wear(
     # is period-GATED, not period-aware: `DistanceStatus.COMPLETE` is a
     # LIFETIME predicate, not "both readings fall in one period", so the
     # guard admitted exactly the two-set owner it was built to exclude.
-    interval = distance_between(tire, older, newer, current_odometer)
+    interval = distance_between(tire, older, newer, current_odometer, axis)
     if interval.status is IntervalStatus.COMPLETE and interval.km is not None:
         km_delta = interval.km
     elif interval.status is IntervalStatus.UNVERIFIED:
