@@ -40,7 +40,8 @@ logger = logging.getLogger(__name__)
 
 # An update leaves these alone on an existing line item unless it sends them
 # (Ruling 11): omitted keeps the value, null clears it. The form sends null
-# for every blank field.
+# for every blank field. triggered_by_inspection_id follows the same rule but
+# is resolved in pass 2, once new items have ids.
 _KEPT_WHEN_OMITTED = (
     "category",
     "cost",
@@ -48,7 +49,6 @@ _KEPT_WHEN_OMITTED = (
     "is_inspection",
     "inspection_result",
     "inspection_severity",
-    "triggered_by_inspection_id",
 )
 
 
@@ -470,6 +470,8 @@ class ServiceVisitService:
                 temp_id_map: dict[int, int] = {}
                 effective_cats: list[str] = []
                 new_items: list[tuple[ServiceLineItemUpdate, ServiceLineItem]] = []
+                # Every link the request sends, set in pass 2.
+                links: list[tuple[ServiceLineItem, int | None]] = []
 
                 for item_data in submitted:
                     if item_data.id and item_data.id in existing:
@@ -479,6 +481,8 @@ class ServiceVisitService:
                         for field in _KEPT_WHEN_OMITTED:
                             if field in sent:
                                 setattr(row, field, getattr(item_data, field))
+                        if "triggered_by_inspection_id" in sent:
+                            links.append((row, item_data.triggered_by_inspection_id))
                         if "maintenance_type" in sent:
                             row.maintenance_type = item_data.maintenance_type
                         elif row.maintenance_type is None:
@@ -511,17 +515,21 @@ class ServiceVisitService:
                         if item_data.temp_id is not None:
                             temp_id_map[item_data.temp_id] = line_item.id
                         new_items.append((item_data, line_item))
+                        links.append((line_item, item_data.triggered_by_inspection_id))
                         if line_item.category:
                             effective_cats.append(line_item.category)
 
-                # Pass 2: Resolve triggered_by_inspection_id for new items
+                # Pass 2: a temp id names a new item; a real id (checked above)
+                # keeps the link only if this PUT keeps that item.
+                for linked, ref in links:
+                    if ref is None:
+                        linked.triggered_by_inspection_id = None
+                    elif ref < 0:
+                        linked.triggered_by_inspection_id = temp_id_map.get(ref)
+                    else:
+                        linked.triggered_by_inspection_id = ref if ref in submitted_ids else None
+
                 for item_data, line_item in new_items:
-                    if item_data.triggered_by_inspection_id is not None:
-                        # A positive ref was checked against this visit above.
-                        ref = item_data.triggered_by_inspection_id
-                        line_item.triggered_by_inspection_id = temp_id_map.get(
-                            ref, ref if ref > 0 else None
-                        )
                     await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
                     if item_data.reminder:
                         await maintenance_service.create_reminder_for_line_item(
@@ -759,6 +767,14 @@ class ServiceVisitService:
             # rule: serialise with every other rule writer before the first read.
             await lock_vehicle_for_write(self.db, vin)
             visit = await self.get_service_visit(vin, visit_id, current_user)
+
+            # The link must name an item already on this visit (no temp ids here).
+            ref = item_data.triggered_by_inspection_id
+            if ref is not None and ref not in {item.id for item in visit.line_items}:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Line item {ref} does not belong to this service visit",
+                )
 
             line_item = ServiceLineItem(
                 visit_id=visit.id,

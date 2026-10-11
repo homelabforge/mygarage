@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -61,6 +61,25 @@ async def _items(
 def _cost(item: dict[str, Any]) -> Decimal | None:
     """A line item's cost as a Decimal (the API sends money as a string)."""
     return None if item["cost"] is None else Decimal(str(item["cost"]))
+
+
+_FORM_FIELDS = (
+    "description",
+    "category",
+    "maintenance_type",
+    "cost",
+    "notes",
+    "is_inspection",
+    "inspection_result",
+    "inspection_severity",
+    "triggered_by_inspection_id",
+)
+
+
+def _as_form(item: dict[str, Any], **changes: Any) -> dict[str, Any]:
+    """A stored item as the edit form sends it back: every field, plus changes."""
+    sent = {"id": item["id"], **{k: item[k] for k in _FORM_FIELDS}, "supplies_used": []}
+    return {**sent, **changes}
 
 
 async def test_omitted_fields_keep_their_values(
@@ -391,6 +410,151 @@ async def test_update_links_new_items_by_temp_id(
     assert by_name["Tires"]["triggered_by_inspection_id"] == by_name["Tire inspection"]["id"]
 
 
+async def test_form_shaped_put_with_nothing_changed_keeps_everything(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """The form sends every field back, the repair's link included: all kept."""
+    vin = str(test_vehicle["vin"])
+    visit_id, insp, repair = await _visit(client, auth_headers, vin)
+    before = await _items(client, auth_headers, vin, visit_id)
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={"line_items": [_as_form(before[insp]), _as_form(before[repair])]},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+
+    after = await _items(client, auth_headers, vin, visit_id)
+    for item_id in (insp, repair):
+        for field in _FORM_FIELDS:
+            assert after[item_id][field] == before[item_id][field], field
+    assert after[repair]["triggered_by_inspection_id"] == insp
+
+
+async def test_an_existing_repair_can_link_to_a_new_inspection(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """The form's edit: add a failed inspection and point the existing repair at it."""
+    vin = str(test_vehicle["vin"])
+    visit_id, insp, repair = await _visit(client, auth_headers, vin)
+    before = await _items(client, auth_headers, vin, visit_id)
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "line_items": [
+                _as_form(before[insp]),
+                _as_form(before[repair], triggered_by_inspection_id=-1),
+                {
+                    "temp_id": -1,
+                    "description": "Rotor inspection",
+                    "category": "Inspection",
+                    "maintenance_type": None,
+                    "cost": None,
+                    "notes": None,
+                    "is_inspection": True,
+                    "inspection_result": "failed",
+                    "inspection_severity": "red",
+                    "triggered_by_inspection_id": None,
+                    "supplies_used": [],
+                },
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+
+    items = await _items(client, auth_headers, vin, visit_id)
+    (new_insp,) = [li for li in items.values() if li["description"] == "Rotor inspection"]
+    assert items[repair]["triggered_by_inspection_id"] == new_insp["id"]
+
+
+async def test_a_new_item_before_a_kept_repair_whose_inspection_is_dropped(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """The repair's link, sent unchanged, still clears when a new item comes first."""
+    vin = str(test_vehicle["vin"])
+    visit_id, insp, repair = await _visit(client, auth_headers, vin)
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "line_items": [
+                {"description": "Wipers"},
+                {"id": repair, "description": "Front pads", "triggered_by_inspection_id": insp},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+
+    items = await _items(client, auth_headers, vin, visit_id)
+    assert insp not in items
+    assert items[repair]["triggered_by_inspection_id"] is None
+    assert [li["description"] for li in items.values()].count("Wipers") == 1
+
+
+async def test_a_new_items_link_to_a_dropped_item_clears(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """A new item linked to an item this PUT drops is saved unlinked."""
+    vin = str(test_vehicle["vin"])
+    visit_id, insp, repair = await _visit(client, auth_headers, vin)
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "line_items": [
+                {"id": repair, "description": "Front pads"},
+                {"description": "Rotors", "triggered_by_inspection_id": insp},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+
+    items = await _items(client, auth_headers, vin, visit_id)
+    assert insp not in items
+    (rotors,) = [li for li in items.values() if li["description"] == "Rotors"]
+    assert rotors["triggered_by_inspection_id"] is None
+    assert items[repair]["triggered_by_inspection_id"] is None
+
+
+async def test_an_existing_items_link_changed_to_a_dropped_item_clears(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """An unlinked item pointed at an item this PUT drops stays unlinked."""
+    vin = str(test_vehicle["vin"])
+    visit_id, insp, repair = await _visit(client, auth_headers, vin)
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "line_items": [
+                {"id": insp, "description": "Brake inspection"},
+                {"id": repair, "description": "Front pads", "triggered_by_inspection_id": None},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+
+    r = await client.put(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}",
+        json={
+            "line_items": [
+                {"id": repair, "description": "Front pads", "triggered_by_inspection_id": insp}
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200, r.text
+
+    items = await _items(client, auth_headers, vin, visit_id)
+    assert insp not in items
+    assert items[repair]["triggered_by_inspection_id"] is None
+
+
 async def test_a_new_visit_keeps_its_temp_id_link(
     client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
 ) -> None:
@@ -451,3 +615,47 @@ async def test_service_category_follows_effective_categories(
     )
     assert r.status_code == 200, r.text
     assert r.json()["service_category"] == "Detailing"
+
+
+async def _add_item(
+    client: AsyncClient, headers: dict[str, str], vin: str, visit_id: int, ref: int
+) -> Response:
+    """POST one line item to the visit, linked to `ref`."""
+    return await client.post(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}/line-items",
+        json={"description": "Rotors", "triggered_by_inspection_id": ref},
+        headers=headers,
+    )
+
+
+@pytest.mark.parametrize("which", ["other_visit", "negative"])
+async def test_add_line_item_refuses_a_link_outside_the_visit(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    test_vehicle: dict[str, object],
+    which: str,
+) -> None:
+    """Adding an item checks its link like an update does, before anything is written."""
+    vin = str(test_vehicle["vin"])
+    visit_id, insp, repair = await _visit(client, auth_headers, vin)
+    _other_visit, other_insp, _other_repair = await _visit(client, auth_headers, vin)
+    ref = other_insp if which == "other_visit" else -1
+
+    r = await _add_item(client, auth_headers, vin, visit_id, ref)
+    assert r.status_code == 400, r.text
+    assert r.json()["detail"] == f"Line item {ref} does not belong to this service visit"
+    assert set(await _items(client, auth_headers, vin, visit_id)) == {insp, repair}
+
+
+async def test_add_line_item_links_this_visits_inspection(
+    client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, object]
+) -> None:
+    """A link to an item already on the visit is kept."""
+    vin = str(test_vehicle["vin"])
+    visit_id, insp, _repair = await _visit(client, auth_headers, vin)
+
+    r = await _add_item(client, auth_headers, vin, visit_id, insp)
+    assert r.status_code == 201, r.text
+    assert r.json()["triggered_by_inspection_id"] == insp
+    items = await _items(client, auth_headers, vin, visit_id)
+    assert items[r.json()["id"]]["triggered_by_inspection_id"] == insp
