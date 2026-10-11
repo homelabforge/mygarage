@@ -32,14 +32,19 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 }))
 vi.mock('../../hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '12h' }) }))
 vi.mock('../../components/GarageAnalyticsHelpDrawer', () => ({ default: () => null }))
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
-  }),
-  Trans: ({ children }: { children: ReactNode }) => children,
-  initReactI18next: { type: '3rdParty', init: () => {} },
-}))
+// Real react-i18next keeps `t` stable. A new one per render re-runs the page's
+// [t] fetch effect, which flips it back to loading and remounts the header.
+vi.mock('react-i18next', () => {
+  const stableT = (key: string) => key
+  return {
+    useTranslation: () => ({
+      t: stableT,
+      i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
+    }),
+    Trans: ({ children }: { children: ReactNode }) => children,
+    initReactI18next: { type: '3rdParty', init: () => {} },
+  }
+})
 
 import api from '../../services/api'
 import GarageAnalytics from '../GarageAnalytics'
@@ -208,6 +213,8 @@ describe('GarageAnalytics — financing in the CSV export', () => {
     try {
       render(<GarageAnalytics />)
       await screen.findByText('garage.table.financing')
+      // One fetch: a second one remounts the header and closes the menu.
+      expect(mockedGet).toHaveBeenCalledTimes(1)
       fireEvent.click(screen.getByRole('button', { name: /export/i }))
       fireEvent.click(await screen.findByRole('menuitem', { name: 'CSV' }))
       await waitFor(() => expect(blobs).toHaveLength(1))

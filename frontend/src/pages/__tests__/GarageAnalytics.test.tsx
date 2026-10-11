@@ -43,14 +43,19 @@ vi.mock('../../hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat
 vi.mock('../../components/GarageAnalyticsHelpDrawer', () => ({ default: () => null }))
 vi.mock('../../components/ExportMenu', () => ({ default: () => null }))
 // t() returns the key (deterministic); data values render as themselves.
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
-  }),
-  Trans: ({ children }: { children: ReactNode }) => children,
-  initReactI18next: { type: '3rdParty', init: () => {} },
-}))
+// Real react-i18next keeps `t` stable. A new one per render re-runs the page's
+// [t] fetch effect, which flips it back to loading and remounts the header.
+vi.mock('react-i18next', () => {
+  const stableT = (key: string) => key
+  return {
+    useTranslation: () => ({
+      t: stableT,
+      i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
+    }),
+    Trans: ({ children }: { children: ReactNode }) => children,
+    initReactI18next: { type: '3rdParty', init: () => {} },
+  }
+})
 
 import api from '../../services/api'
 import GarageAnalytics from '../GarageAnalytics'
