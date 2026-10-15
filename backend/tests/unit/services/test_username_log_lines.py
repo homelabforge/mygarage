@@ -9,7 +9,6 @@ import logging
 import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from unittest import mock
 
 import pytest
 import pytest_asyncio
@@ -232,13 +231,11 @@ async def test_the_sso_only_login_line(
     assert cast.sso_only.logged in _line(caplog, "OIDC-only user")
 
 
-async def test_the_rehash_line(
+async def test_the_unreadable_hash_line(
     db_session: AsyncSession, cast: _Cast, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """bcrypt isn't installed here, so the legacy hash's verify is stubbed to pass."""
+    """The legacy account's bcrypt hash can't be read, and the line says whose it is."""
     caplog.set_level(logging.INFO)
-    with mock.patch("app.services.auth.verify_password", return_value=True):
-        user = await authenticate_user(db_session, cast.legacy.user.username, "testpassword123")
+    assert await authenticate_user(db_session, cast.legacy.user.username, "testpassword123") is None
 
-    assert user is not None
-    assert cast.legacy.logged in _line(caplog, "Auto-migrating password hash")
+    assert cast.legacy.logged in _line(caplog, "can't be read as Argon2")

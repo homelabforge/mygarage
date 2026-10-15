@@ -344,7 +344,6 @@
     "writeDescription": "Schreiben - Kann Einträge und Fotos hinzufügen",
     "writePermDescription": "Alle Leseberechtigungen plus Hinzufügen von Serviceberichten, Kraftstoffprotokollen und Fotos",
     "oidc": {
-      "close": "Schließen",
       "infoTitle": "OpenID Connect (OIDC) Authentifizierung",
       "infoDesc": "Konfiguriere Single Sign-On mit deinem Identity-Provider. Zu den unterstützten Anbietern gehören:",
       "providerName": "Anbietername",

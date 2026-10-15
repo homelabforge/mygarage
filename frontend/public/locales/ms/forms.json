@@ -422,7 +422,6 @@
     "writeDescription": "Tulis - Boleh menambah rekod dan foto",
     "writePermDescription": "Semua kebenaran baca, serta boleh menambah rekod servis, log bahan api dan foto",
     "oidc": {
-      "close": "Tutup",
       "infoTitle": "Pengesahan OpenID Connect (OIDC)",
       "infoDesc": "Konfigurasikan log masuk tunggal dengan penyedia identiti anda. Penyedia yang disokong termasuk:",
       "providerName": "Nama Penyedia",

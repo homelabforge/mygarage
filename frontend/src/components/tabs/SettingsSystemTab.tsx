@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useCanManageInstance } from '@/hooks/useCanManageInstance'
 import type { DashboardResponse } from '@/types/dashboard'
+import type { components } from '@/types/api.generated'
 import api from '@/services/api'
 import { toast } from 'sonner'
 import OIDCModal from '@/components/modals/OIDCModal'
@@ -16,6 +17,18 @@ import { Select, Toggle } from '../ui'
 type RawSetting = {
   key: string
   value?: string | null
+}
+
+type AuthMode = 'none' | 'local' | 'oidc'
+type OIDCAdminConfig = components['schemas']['OIDCAdminConfig']
+
+const AUTH_MODES: AuthMode[] = ['none', 'local', 'oidc']
+
+// Left out, the stored Callback URL stays as it is. Re-sending it would put an
+// old pin through today's rule and fail a switch over an unrelated field.
+function ssoPayload(config: OIDCAdminConfig, enabled: boolean): Omit<OIDCAdminConfig, 'redirect_uri'> {
+  const { redirect_uri: _pin, ...sso } = config
+  return { ...sso, enabled }
 }
 
 /**
@@ -37,20 +50,14 @@ export default function SettingsSystemTab() {
   const [formData, setFormData] = useState({
     timezone: 'UTC',
     family_friends_enabled: 'false',
-    auth_mode: 'none', // local, none, oidc
-    oidc_enabled: 'false',
-    oidc_provider_name: '',
-    oidc_issuer_url: '',
-    oidc_client_id: '',
-    oidc_client_secret: '',
-    oidc_redirect_uri: '',
-    oidc_scopes: 'openid profile email',
-    oidc_auto_create_users: 'true',
-    oidc_admin_group: '',
-    oidc_username_claim: 'preferred_username',
-    oidc_email_claim: 'email',
-    oidc_full_name_claim: 'name',
   })
+  // Saved on their own, never by the auto-save: switching modes and the SSO
+  // modal each have a button, because a stray click here can lock people out.
+  const [savedAuthMode, setSavedAuthMode] = useState<AuthMode>('none')
+  const [viewedMode, setViewedMode] = useState<AuthMode | null>(null)
+  const [switchingMode, setSwitchingMode] = useState(false)
+  const [oidcConfig, setOidcConfig] = useState<OIDCAdminConfig | null>(null)
+  const shownMode: AuthMode = viewedMode ?? savedAuthMode
   const [loadedFormData, setLoadedFormData] = useState<typeof formData | null>(null)
   // The server's own default zone, known only when the page loaded with no zone
   // stored (the zone in effect then IS the default). With a stored zone it
@@ -58,7 +65,9 @@ export default function SettingsSystemTab() {
   const [serverDefaultZone, setServerDefaultZone] = useState<string | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const [authenticatorDetected, setAuthenticatorDetected] = useState<boolean | null>(null)
-  const [authEverEnabled, setAuthEverEnabled] = useState(false)
+  // null until /auth/users/count answers, and if it never does. The confirms read
+  // unknown as "accounts exist", so nobody gets told to register on a full instance.
+  const [authEverEnabled, setAuthEverEnabled] = useState<boolean | null>(null)
   const [dashboardStats, setDashboardStats] = useState<DashboardResponse | null>(null)
 
   // Modal state
@@ -113,8 +122,22 @@ export default function SettingsSystemTab() {
     'Pacific/Auckland',
   ]
 
-  // Load settings
-  const loadSettings = useCallback(async () => {
+  // The SSO config, from its admin endpoint (the secret comes back as "********").
+  // Its own callback so the modal's onSaved can re-read just this.
+  const loadOidcConfig = useCallback(async (): Promise<OIDCAdminConfig | null> => {
+    try {
+      const response = await api.get('/auth/oidc/config/admin')
+      const config = response.data as OIDCAdminConfig
+      setOidcConfig(config)
+      return config
+    } catch {
+      setOidcConfig(null)
+      return null
+    }
+  }, [])
+
+  // Load settings. Returns what it read, so a mode switch can tell what landed.
+  const loadSettings = useCallback(async (): Promise<{ mode: AuthMode; oidc: OIDCAdminConfig | null } | null> => {
     try {
       const response = await api.get('/settings')
       const data = response.data
@@ -124,54 +147,21 @@ export default function SettingsSystemTab() {
         settingsMap[s.key] = s.value || ''
       })
 
-      // OIDC settings come from the dedicated admin endpoint so client_secret is
-      // returned as the canonical "********" placeholder per plan §5.4(3).
-      let oidcAdmin: {
-        enabled: boolean
-        provider_name: string
-        issuer_url: string
-        client_id: string
-        client_secret: string
-        redirect_uri: string
-        scopes: string
-        auto_create_users: boolean
-        admin_group: string
-        username_claim: string
-        email_claim: string
-        full_name_claim: string
-      } | null = null
-      try {
-        const oidcResponse = await api.get('/auth/oidc/config/admin')
-        oidcAdmin = oidcResponse.data
-      } catch {
-        // If the admin OIDC config cannot be read, fall back to the public minimal config.
-        oidcAdmin = null
-      }
-
       const newFormData = {
         // '' is "Server default". Seeding the zone in effect here saved it on
         // the next save and froze the env/container fallback into the setting.
         timezone: settingsMap.timezone || '',
         family_friends_enabled: settingsMap.family_friends_enabled || 'false',
-        auth_mode: settingsMap.auth_mode || 'none',
-        oidc_enabled: oidcAdmin ? (oidcAdmin.enabled ? 'true' : 'false') : settingsMap.oidc_enabled || 'false',
-        oidc_provider_name: oidcAdmin?.provider_name ?? (settingsMap.oidc_provider_name || ''),
-        oidc_issuer_url: oidcAdmin?.issuer_url ?? (settingsMap.oidc_issuer_url || ''),
-        oidc_client_id: oidcAdmin?.client_id ?? (settingsMap.oidc_client_id || ''),
-        oidc_client_secret: oidcAdmin?.client_secret ?? '',
-        oidc_redirect_uri: oidcAdmin?.redirect_uri ?? (settingsMap.oidc_redirect_uri || ''),
-        oidc_scopes: oidcAdmin?.scopes ?? (settingsMap.oidc_scopes || 'openid profile email'),
-        oidc_auto_create_users: oidcAdmin
-          ? (oidcAdmin.auto_create_users ? 'true' : 'false')
-          : settingsMap.oidc_auto_create_users || 'true',
-        oidc_admin_group: oidcAdmin?.admin_group ?? (settingsMap.oidc_admin_group || ''),
-        oidc_username_claim: oidcAdmin?.username_claim ?? (settingsMap.oidc_username_claim || 'preferred_username'),
-        oidc_email_claim: oidcAdmin?.email_claim ?? (settingsMap.oidc_email_claim || 'email'),
-        oidc_full_name_claim: oidcAdmin?.full_name_claim ?? (settingsMap.oidc_full_name_claim || 'name'),
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
       setServerDefaultZone(settingsMap.timezone ? null : settingsMap.effective_timezone || null)
+
+      const mode: AuthMode = AUTH_MODES.includes(settingsMap.auth_mode as AuthMode)
+        ? (settingsMap.auth_mode as AuthMode)
+        : 'none'
+      setSavedAuthMode(mode)
+      const oidc = await loadOidcConfig()
 
       setAutoArchiveDays(settingsMap.auto_archive_inactive_days || '0')
 
@@ -181,12 +171,14 @@ export default function SettingsSystemTab() {
         const countData = countResponse.data
         setAuthEverEnabled(countData.has_users === true)
       } catch {
-        setAuthEverEnabled(false)
+        setAuthEverEnabled(null)
       }
+      return { mode, oidc }
     } catch {
       setLoadFailed(true)
+      return null
     }
-  }, [])
+  }, [loadOidcConfig])
 
   useEffect(() => {
     // Every key it reads is admin-only on the server.
@@ -230,9 +222,8 @@ export default function SettingsSystemTab() {
     detectAuthenticator()
   }, [canManageInstance])
 
-  // Save settings.
-  // OIDC settings go to the dedicated admin endpoint (enforces §5.4 contract:
-  // empty secret = preserve, issuer rstrip); everything else goes to /settings/batch.
+  // The auto-save: the timezone and the Family & Friends switch. The sign-in
+  // mode and the SSO config each save from their own button.
   const handleSave = useCallback(async () => {
     // Nothing loaded (or the load failed): the form holds hard-coded defaults,
     // and saving them would overwrite the real settings.
@@ -240,48 +231,20 @@ export default function SettingsSystemTab() {
 
     // Only the keys the user changed. Posting every key rewrote auth_mode and
     // the rest on each save, and froze whatever the form had seeded.
-    const nonOidcSettings: Record<string, string> = {}
+    const changed: Record<string, string> = {}
     for (const [key, value] of Object.entries(formData) as Array<[keyof typeof formData, string]>) {
-      if (!key.startsWith('oidc_') && value !== loadedFormData[key]) {
-        nonOidcSettings[key] = value
+      if (value !== loadedFormData[key]) {
+        changed[key] = value
       }
     }
 
-    // Only touch the OIDC admin endpoint when an OIDC field actually changed.
-    // Saving is auto-triggered by any edit on this tab, so without this guard an
-    // unrelated change (timezone, say) is blocked whenever the OIDC PUT fails
-    // — and auth_mode rides in the batch below, so a failure there strands the
-    // mode. The PUT still goes FIRST when OIDC is dirty: the provider config
-    // must land before auth_mode flips to 'oidc', or the mode is enabled against
-    // config that never saved.
-    const oidcDirty = (Object.keys(formData) as Array<keyof typeof formData>).some(
-      (key) => key.startsWith('oidc_') && formData[key] !== loadedFormData[key],
-    )
-
-    if (oidcDirty) {
-      await api.put('/auth/oidc/config/admin', {
-        enabled: formData.oidc_enabled === 'true',
-        provider_name: formData.oidc_provider_name,
-        issuer_url: formData.oidc_issuer_url,
-        client_id: formData.oidc_client_id,
-        client_secret: formData.oidc_client_secret,
-        redirect_uri: formData.oidc_redirect_uri,
-        scopes: formData.oidc_scopes,
-        auto_create_users: formData.oidc_auto_create_users === 'true',
-        admin_group: formData.oidc_admin_group,
-        username_claim: formData.oidc_username_claim,
-        email_claim: formData.oidc_email_claim,
-        full_name_claim: formData.oidc_full_name_claim,
-      })
-    }
-
-    if (Object.keys(nonOidcSettings).length > 0) {
-      await api.post('/settings/batch', { settings: nonOidcSettings })
+    if (Object.keys(changed).length > 0) {
+      await api.post('/settings/batch', { settings: changed })
     }
     // What's saved is the new baseline for the next diff.
     setLoadedFormData(formData)
 
-    if ('timezone' in nonOidcSettings) {
+    if ('timezone' in changed) {
       // The saved zone changes what "today" means for every open form;
       // update the browser store before leaving the saving state.
       await refreshPublicSettings()
@@ -323,6 +286,77 @@ export default function SettingsSystemTab() {
       setMobileQuickEntrySaving(false)
     }
   }
+
+  const switchAuthMode = async (target: AuthMode): Promise<void> => {
+    const from = savedAuthMode
+    // Only a switch into or out of SSO touches the SSO config, so only those need it.
+    if ((target === 'oidc' || from === 'oidc') && !oidcConfig) return
+    const provider = oidcConfig?.provider_name || 'SSO'
+    const message =
+      target === 'none'
+        ? t('auth.confirmNone')
+        : target === 'local'
+          ? authEverEnabled === false
+            ? t('auth.confirmLocalFirstUser')
+            : t('auth.confirmLocal')
+          : authEverEnabled === false
+            ? t('auth.confirmOidcFirstUser', { provider })
+            : t('auth.confirmOidc', { provider })
+    if (!confirm(message)) return
+
+    // Whether this switch is the one turning SSO on, so a failed mode write can undo it.
+    // Set before the PUT, since a lost reply can still have committed. The re-read decides.
+    let turningSsoOn = false
+    setSwitchingMode(true)
+    try {
+      // Into SSO: turn OIDC on before the mode, or the mode points at nothing.
+      // Out of SSO: the mode goes first, so a failure can't leave SSO mode with SSO off.
+      if (target === 'oidc' && oidcConfig) {
+        turningSsoOn = !oidcConfig.enabled
+        await api.put('/auth/oidc/config/admin', ssoPayload(oidcConfig, true))
+      }
+      await api.post('/settings/batch', { settings: { auth_mode: target } })
+      if (target !== 'oidc' && oidcConfig?.enabled) {
+        await api.put('/auth/oidc/config/admin', ssoPayload(oidcConfig, false))
+      }
+    } catch {
+      // The re-read below says what actually landed.
+    }
+    // The server is the truth now, success or not: a write can commit and its
+    // reply still get lost. AuthContext first, so a 401 redirects before the card re-reads.
+    setViewedMode(null)
+    await refreshUser()
+    const now = await loadSettings()
+    // SSO went on but the mode didn't, so the sign-in page would offer SSO anyway.
+    // Turn it back off from the fresh config, not the one this click started with.
+    // A mode write that dropped but commits after this re-read would still end in SSO
+    // mode with SSO off. Only a server-side rule can close that, so it's left for later.
+    let ssoLeftOn = false
+    if (turningSsoOn && now !== null && now.mode !== 'oidc' && now.oidc?.enabled) {
+      try {
+        await api.put('/auth/oidc/config/admin', ssoPayload(now.oidc, false))
+      } catch {
+        ssoLeftOn = true
+      }
+      await loadOidcConfig()
+    }
+    setSwitchingMode(false)
+    // Turning sign-in on from none: this browser has no session in the new mode, so
+    // /settings 401s and the page is off to /login. A real failure still shows the error box.
+    if (now === null && from === 'none' && target !== 'none') return
+    if (ssoLeftOn) toast.error(t('auth.ssoLeftOn'))
+    else if (now?.mode !== target) toast.error(t('auth.switchFailed'))
+    else if (target !== 'oidc' && now.oidc?.enabled) toast.warning(t('auth.ssoStillOn'))
+    else toast.success(t('auth.switched'))
+  }
+
+  const oidcReady = Boolean(oidcConfig?.issuer_url && oidcConfig?.client_id)
+  // Going into or out of SSO writes the SSO config, so those switches wait for it.
+  // None to local and back doesn't, so a failed config read can't block turning sign-in off.
+  const needsOidcConfig = shownMode === 'oidc' || savedAuthMode === 'oidc'
+
+  const modeLabel = (mode: AuthMode): string =>
+    mode === 'none' ? t('auth.none') : mode === 'local' ? t('auth.local') : t('auth.oidc')
 
   // Register save handler
   useEffect(() => {
@@ -626,7 +660,7 @@ export default function SettingsSystemTab() {
       )}
 
       {/* Family Management Card */}
-      {isAdmin && (formData.auth_mode === 'local' || formData.auth_mode === 'oidc') && (
+      {isAdmin && (savedAuthMode === 'local' || savedAuthMode === 'oidc') && (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-6">
           <div className="flex items-start gap-3">
             <Users className="w-6 h-6 text-primary mt-1" />
@@ -666,52 +700,35 @@ export default function SettingsSystemTab() {
               <p className="text-sm text-garage-text-muted">
                 {t('auth.description')}
               </p>
-              <p className="text-xs text-warning-500 mt-2 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                <span>{t('auth.restartWarning')}</span>
-              </p>
+              <p className="text-xs text-garage-text-muted mt-2">{t('auth.appliesImmediately')}</p>
             </div>
           </div>
 
-          {/* Tab Switcher - Moved to top under header */}
+          {/* The tabs only pick a panel. Switching is the button inside it. */}
           <div className="flex border-b border-garage-border -mx-6 px-6">
-            <button
-              onClick={() => setFormData({ ...formData, auth_mode: 'none', oidc_enabled: 'false' })}
-              className={`px-6 py-4 font-medium transition-colors whitespace-nowrap border-b-2 ${
-                formData.auth_mode === 'none'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
-              }`}
-            >
-              {t('auth.none')}
-            </button>
-            <button
-              onClick={() => setFormData({ ...formData, auth_mode: 'local', oidc_enabled: 'false' })}
-              className={`px-6 py-4 font-medium transition-colors whitespace-nowrap border-b-2 ${
-                formData.auth_mode === 'local'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
-              }`}
-            >
-              {t('auth.local')}
-            </button>
-            <button
-              onClick={() => setFormData({ ...formData, auth_mode: 'oidc', oidc_enabled: 'true' })}
-              className={`px-6 py-4 font-medium transition-colors whitespace-nowrap border-b-2 ${
-                formData.auth_mode === 'oidc'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
-              }`}
-            >
-              {t('auth.oidc')}
-            </button>
+            {AUTH_MODES.map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewedMode(mode)}
+                className={`px-6 py-4 font-medium transition-colors whitespace-nowrap border-b-2 ${
+                  shownMode === mode
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
+                }`}
+              >
+                {modeLabel(mode)}
+                {savedAuthMode === mode && (
+                  <span className="ml-2 text-xs font-normal text-garage-text-muted">{t('auth.current')}</span>
+                )}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Tab Content */}
         <div className="p-6 min-h-[200px]">
           {/* None Mode Content */}
-          {formData.auth_mode === 'none' && (
+          {shownMode === 'none' && (
             <div className="space-y-4">
               {authenticatorDetected === true ? (
                 <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
@@ -746,7 +763,7 @@ export default function SettingsSystemTab() {
           )}
 
           {/* Local Mode Content */}
-          {formData.auth_mode === 'local' && (
+          {shownMode === 'local' && (
             <div className="space-y-4">
               <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
                 <div className="flex items-start gap-3">
@@ -754,7 +771,8 @@ export default function SettingsSystemTab() {
                   <div className="flex-1">
                     <strong className="text-sm font-semibold text-garage-text">{t('auth.localTitle')}</strong>
                     <p className="mt-1 text-sm text-garage-text">
-                      {authEverEnabled
+                      {/* Unknown gets the plain description: it claims nothing either way. */}
+                      {authEverEnabled === true
                         ? t('auth.localConfigured')
                         : t('auth.localDescription')}
                     </p>
@@ -771,7 +789,7 @@ export default function SettingsSystemTab() {
           )}
 
           {/* OIDC Mode Content */}
-          {formData.auth_mode === 'oidc' && (
+          {shownMode === 'oidc' && (
             <div className="space-y-4">
               <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
                 <div className="flex items-start gap-3">
@@ -779,19 +797,45 @@ export default function SettingsSystemTab() {
                   <div className="flex-1">
                     <strong className="text-sm font-semibold text-garage-text">{t('auth.oidcTitle')}</strong>
                     <p className="mt-1 text-sm text-garage-text">
-                      {formData.oidc_issuer_url
-                        ? t('auth.oidcConfigured', { provider: formData.oidc_provider_name || 'OIDC provider' })
+                      {oidcConfig?.issuer_url
+                        ? t('auth.oidcConfigured', { provider: oidcConfig.provider_name || 'OIDC provider' })
                         : t('auth.oidcDescription')}
                     </p>
                     <button
                       onClick={() => setShowOIDCModal(true)}
-                      className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                      disabled={oidcConfig === null}
+                      className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
                     >
                       {t('auth.configureOIDC')}
                     </button>
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {shownMode !== savedAuthMode && (
+            <div className="mt-4 space-y-2">
+              {shownMode === 'oidc' && oidcConfig !== null && !oidcReady && (
+                <p className="text-xs text-garage-text-muted">{t('auth.oidcNotReady')}</p>
+              )}
+              {/* Until /settings loads, the saved mode is only a placeholder. */}
+              <button
+                onClick={() => void switchAuthMode(shownMode)}
+                disabled={
+                  switchingMode ||
+                  loadedFormData === null ||
+                  (needsOidcConfig && oidcConfig === null) ||
+                  (shownMode === 'oidc' && !oidcReady)
+                }
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                {shownMode === 'none'
+                  ? t('auth.switchToNone')
+                  : shownMode === 'local'
+                    ? t('auth.switchToLocal')
+                    : t('auth.switchToOidc')}
+              </button>
             </div>
           )}
         </div>
@@ -826,24 +870,14 @@ export default function SettingsSystemTab() {
       />
 
       {/* OIDC Modal */}
-      <OIDCModal
-        isOpen={showOIDCModal}
-        onClose={() => setShowOIDCModal(false)}
-        formData={{
-          oidc_provider_name: formData.oidc_provider_name,
-          oidc_issuer_url: formData.oidc_issuer_url,
-          oidc_client_id: formData.oidc_client_id,
-          oidc_client_secret: formData.oidc_client_secret,
-          oidc_redirect_uri: formData.oidc_redirect_uri,
-          oidc_scopes: formData.oidc_scopes,
-          oidc_auto_create_users: formData.oidc_auto_create_users,
-          oidc_admin_group: formData.oidc_admin_group,
-          oidc_username_claim: formData.oidc_username_claim,
-          oidc_email_claim: formData.oidc_email_claim,
-          oidc_full_name_claim: formData.oidc_full_name_claim,
-        }}
-        onFormDataChange={(data) => setFormData({ ...formData, ...data })}
-      />
+      {oidcConfig && (
+        <OIDCModal
+          isOpen={showOIDCModal}
+          onClose={() => setShowOIDCModal(false)}
+          config={oidcConfig}
+          onSaved={loadOidcConfig}
+        />
+      )}
     </div>
   )
 }

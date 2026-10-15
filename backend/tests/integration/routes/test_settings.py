@@ -464,7 +464,7 @@ class TestSensitiveSettingMasking:
     async def test_unset_sensitive_value_stays_empty(
         self, client: AsyncClient, auth_headers, db_session
     ):
-        """An unset secret reads as '', not '********' — 'set' stays distinguishable."""
+        """An unset secret reads as '', not '********', so 'set' stays distinguishable."""
         await _set_setting(db_session, "gotify_token", "")
 
         response = await client.get("/api/settings", headers=auth_headers)
@@ -500,7 +500,7 @@ class TestSensitiveSettingMasking:
     async def test_batch_can_clear_sensitive_value(
         self, client: AsyncClient, auth_headers, db_session
     ):
-        """Empty means clear — masking must not make a secret unremovable."""
+        """Empty means clear: masking must not make a secret unremovable."""
         await _set_setting(db_session, "telegram_bot_token", "original-token")
 
         response = await client.post(
@@ -682,6 +682,12 @@ WRITE_ENDPOINTS = ("create_setting", "update_setting", "batch_update_settings")
 
 
 @pytest.mark.integration
+def test_write_endpoints_is_every_settings_writer_the_router_declares() -> None:
+    """Both validation classes below borrow WRITE_ENDPOINTS, so this guards them both."""
+    assert _settings_value_write_endpoints() == set(WRITE_ENDPOINTS)
+
+
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestDefaultUnitPrefsWriteValidation:
     """A `default_unit_prefs` written through the settings API must parse.
@@ -692,10 +698,6 @@ class TestDefaultUnitPrefsWriteValidation:
     value that silently reverts every anonymous client to the imperial fallback,
     with no error in the response and nothing but a warning in the log.
     """
-
-    async def test_every_write_path_the_router_declares_is_covered_here(self):
-        """The rejection cases below run against every writer, not one of three."""
-        assert _settings_value_write_endpoints() == set(WRITE_ENDPOINTS)
 
     @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
     @pytest.mark.parametrize("case", sorted(BAD_UNIT_PREFS))

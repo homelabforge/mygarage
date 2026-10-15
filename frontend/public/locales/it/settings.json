@@ -146,7 +146,6 @@
   "auth": {
     "title": "Modalità di autenticazione",
     "description": "Configura le modalità di accesso e autenticazione per MyGarage.",
-    "restartWarning": "⚠️ Richiede il riavvio dell'applicazione per avere effetto.",
     "none": "Nessuna",
     "local": "Locale",
     "oidc": "OIDC",

@@ -320,7 +320,6 @@
     "writeDescription": "Écriture - Peut ajouter des enregistrements et des photos",
     "writePermDescription": "Toutes les autorisations de lecture, plus l'ajout d'enregistrements d'entretien, de carburant et de photos",
     "oidc": {
-      "close": "Fermer",
       "infoTitle": "Authentification OpenID Connect (OIDC)",
       "infoDesc": "Configurez l'authentification unique avec votre fournisseur d'identité. Les fournisseurs pris en charge incluent :",
       "providerName": "Nom du fournisseur",

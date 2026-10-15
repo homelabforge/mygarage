@@ -95,6 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     clearCSRFToken() // Clear CSRF token on logout (Security Enhancement v2.10.0)
   }, [user])
 
+  // The mode the client last loaded, so a background refresh can spot a change.
+  const authModeRef = useRef('none')
+
   // Load user info with proper dependencies (cookie-based auth).
   //
   // Auth mode MUST be resolved from /settings/public BEFORE /auth/me is ever
@@ -127,13 +130,17 @@ export function AuthProvider({ children }: { children: ReactNode}) {
 
       const authModeSetting = publicSettings.find((s) => s.key === 'auth_mode')
       const fetchedAuthMode = authModeSetting?.value || 'none'
+      authModeRef.current = fetchedAuthMode
       setAuthMode(fetchedAuthMode)
       // Mirror into the api module so the response interceptor can suppress the
       // /login redirect on 401 when auth is disabled (bug #98).
       setApiAuthMode(fetchedAuthMode)
 
       // If auth is disabled, skip user loading entirely (no /auth/me probe).
+      // A user left over from before sign-in was turned off means nothing now.
       if (fetchedAuthMode === 'none') {
+        setUser(null)
+        setToken(null)
         return
       }
 
@@ -172,12 +179,17 @@ export function AuthProvider({ children }: { children: ReactNode}) {
       }
       setPublicSettingsLoaded(true)
       lastPublicRefreshRef.current = Date.now()
+      const mode = publicSettings.find((s) => s.key === 'auth_mode')?.value || 'none'
+      if (mode !== authModeRef.current) {
+        // Sign-in got turned on or off somewhere else: reload who's signed in.
+        await loadUser()
+      }
     } catch {
       // Keep the current values. The server stays authoritative for every
       // date it fills in or judges; the browser catches up on the next
       // successful refetch or reload.
     }
-  }, [])
+  }, [loadUser])
 
   // Another client (or a restore) can change the household zone while this
   // tab sits in the background: refetch when the document becomes visible,

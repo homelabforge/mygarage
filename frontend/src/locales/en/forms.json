@@ -423,7 +423,12 @@
     "writeDescription": "Write - Can add records and photos",
     "writePermDescription": "All read permissions, plus add service records, fuel logs, and photos",
     "oidc": {
-      "close": "Close",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "SSO settings saved",
+      "saveAction": "save the SSO settings",
+      "redirectUriInvalid": "Enter a full http:// or https:// URL with no #fragment, or leave it blank.",
       "infoTitle": "OpenID Connect (OIDC) Authentication",
       "infoDesc": "Configure single sign-on with your identity provider. Supported providers include:",
       "providerName": "Provider Name",

@@ -16,12 +16,17 @@ its own and becomes a None dependency too.
 The scanner first went blind on `Annotated`, so the self-tests feed it a
 snippet of every form, and `test_every_none_dependency_call_is_read` fails if
 the real tree has a form it can't read.
+
+Names resolve per module: an alias or an import rename means what its own
+module says, or what the scanned module it's imported from says. Class-instance
+dependencies (`Depends(SomeChecker())`) and `Depends(partial(...))` stay blind;
+nothing in app/ uses them.
 """
 
 import ast
 from collections import defaultdict
 from collections.abc import Iterator, Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
 import pytest
@@ -84,23 +89,6 @@ def _name(node: ast.expr | None) -> str | None:
     return None
 
 
-def _depends_call(node: ast.expr | None) -> ast.Call | None:
-    """`node` if it's a `Depends(...)` / `Security(...)` call."""
-    if isinstance(node, ast.Call) and _name(node.func) in _DEPENDS:
-        return node
-    return None
-
-
-def _dep_target(call: ast.Call) -> str | None:
-    """The dependency a Depends call names, positional or `dependency=`."""
-    if call.args:
-        return _name(call.args[0])
-    for kw in call.keywords:
-        if kw.arg == "dependency":
-            return _name(kw.value)
-    return None
-
-
 def _module_level(stmts: list[ast.stmt]) -> Iterator[ast.stmt]:
     """Module-level statements, including the ones under `if` / `try`."""
     for stmt in stmts:
@@ -145,6 +133,11 @@ def _raises_on_none(fn: _Func, param: str) -> bool:
     return False
 
 
+def _returns_exactly_none(fn: _Func) -> bool:
+    """`-> None`: a dependency run for a check or a side effect. It hands nobody a user."""
+    return isinstance(fn.returns, ast.Constant) and fn.returns.value is None
+
+
 class _Scanner:
     """One pass over a set of sources. Labels show up in findings as file names."""
 
@@ -156,66 +149,156 @@ class _Scanner:
             for fn in ast.walk(tree)
             if isinstance(fn, ast.FunctionDef | ast.AsyncFunctionDef)
         ]
-        # Module-level names, for `CurrentUser = Annotated[...]` and friends.
-        # A list, because the same name can be defined in two modules.
-        self.aliases: dict[str, list[ast.expr]] = defaultdict(list)
-        for tree in self.trees.values():
+        # Module-level names, keyed (module, name): `CurrentUser = Annotated[...]`,
+        # `auth_dep = require_auth`. A list, in case a module assigns one twice.
+        self.aliases: dict[tuple[str, str], list[ast.expr]] = defaultdict(list)
+        # `from app.x import y [as z]` between scanned modules: (module, z) -> (x, y).
+        self.imports: dict[tuple[str, str], tuple[str, str]] = {}
+        # Any `import y as z`, scanned or not: (module, z) -> y. So `Depends as D`
+        # and `require_auth as ra` still read as Depends and require_auth.
+        self.renames: dict[tuple[str, str], str] = {}
+        for label, tree in self.trees.items():
             for stmt in _module_level(tree.body):
-                if (
+                if isinstance(stmt, ast.ImportFrom):
+                    source = self._source_label(label, stmt)
+                    for alias in stmt.names:
+                        local = alias.asname or alias.name
+                        if alias.asname:
+                            self.renames[(label, local)] = alias.name
+                        if source is not None:
+                            self.imports[(label, local)] = (source, alias.name)
+                elif (
                     isinstance(stmt, ast.Assign)
                     and len(stmt.targets) == 1
                     and isinstance(stmt.targets[0], ast.Name)
                 ):
-                    self.aliases[stmt.targets[0].id].append(stmt.value)
+                    self.aliases[(label, stmt.targets[0].id)].append(stmt.value)
                 elif (
                     isinstance(stmt, ast.AnnAssign)
                     and isinstance(stmt.target, ast.Name)
                     and stmt.value is not None
                 ):
-                    self.aliases[stmt.target.id].append(stmt.value)
+                    self.aliases[(label, stmt.target.id)].append(stmt.value)
                 elif isinstance(stmt, ast.TypeAlias):
-                    self.aliases[stmt.name.id].append(stmt.value)
+                    self.aliases[(label, stmt.name.id)].append(stmt.value)
         # Depends calls we managed to tie to a param, by node id.
         self.bound: set[int] = set()
 
-    def _default_deps(self, default: ast.expr | None) -> list[str]:
-        """Dependencies named by a param's default: `Depends(f)`, or an alias of one."""
-        call = _depends_call(default)
-        if call is None and isinstance(default, ast.Name):
-            calls = [c for c in map(_depends_call, self.aliases.get(default.id, [])) if c]
+    def _source_label(self, label: str, stmt: ast.ImportFrom) -> str | None:
+        """The scanned module a `from ... import` reads, or None if it isn't one."""
+        if stmt.level:
+            if stmt.module is None:
+                return None
+            base = PurePosixPath(label).parent
+            for _ in range(stmt.level - 1):
+                base = base.parent
+            parts = [*base.parts, *stmt.module.split(".")]
+        elif stmt.module and stmt.module.startswith("app."):
+            parts = stmt.module.split(".")[1:]
         else:
-            calls = [call] if call else []
+            return None
+        stem = "/".join(p for p in parts if p not in ("", "."))
+        for candidate in (f"{stem}.py", f"{stem}/__init__.py"):
+            if candidate in self.trees:
+                return candidate
+        return None
+
+    def _resolve(
+        self, label: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()
+    ) -> list[tuple[str, ast.expr]]:
+        """(defining module, value) for a module-level name, through imports. Empty if none."""
+        key = (label, name)
+        if key in seen:
+            return []
+        if values := self.aliases.get(key):
+            return [(label, value) for value in values]
+        if key in self.imports:
+            return self._resolve(*self.imports[key], seen | {key})
+        return []
+
+    def _target_name(
+        self, label: str, name: str, seen: frozenset[tuple[str, str]] = frozenset()
+    ) -> str:
+        """The function a name stands for: through `import f as g`, re-exports and `g = f`."""
+        key = (label, name)
+        if key in seen:
+            return name
+        seen = seen | {key}
+        if key in self.imports:
+            # Imported from a scanned module: ask that module what its name is.
+            return self._target_name(*self.imports[key], seen)
+        if key in self.renames:
+            # `from outside import f as g`: g is f.
+            return self.renames[key]
+        for value in self.aliases.get(key, []):
+            if isinstance(value, ast.Name | ast.Attribute) and (inner := _name(value)):
+                return self._target_name(label, inner, seen)
+        return name
+
+    def _depends_call(self, label: str, node: ast.expr | None) -> ast.Call | None:
+        """`node` if it's a `Depends(...)` / `Security(...)` call, renamed or not."""
+        if not isinstance(node, ast.Call):
+            return None
+        name = _name(node.func)
+        if name is None:
+            return None
+        if name in _DEPENDS or self.renames.get((label, name)) in _DEPENDS:
+            return node
+        return None
+
+    def _dep_target(self, label: str, call: ast.Call) -> str | None:
+        """The dependency a Depends call names, positional or `dependency=`, resolved."""
+        node: ast.expr | None = call.args[0] if call.args else None
+        if node is None:
+            node = next((kw.value for kw in call.keywords if kw.arg == "dependency"), None)
+        name = _name(node)
+        return self._target_name(label, name) if name else None
+
+    def _default_deps(self, label: str, default: ast.expr | None) -> list[str]:
+        """Dependencies named by a param's default: `Depends(f)`, or an alias of one."""
+        calls: list[tuple[str, ast.Call]] = []
+        if call := self._depends_call(label, default):
+            calls = [(label, call)]
+        elif isinstance(default, ast.Name):
+            for def_label, value in self._resolve(label, default.id):
+                if c := self._depends_call(def_label, value):
+                    calls.append((def_label, c))
         deps: list[str] = []
-        for c in calls:
+        for def_label, c in calls:
             self.bound.add(id(c))
-            if target := _dep_target(c):
+            if target := self._dep_target(def_label, c):
                 deps.append(target)
         return deps
 
     def _readings(
-        self, ann: ast.expr | None, seen: frozenset[str] = frozenset()
-    ) -> list[tuple[ast.expr | None, str | None]]:
-        """Each (type, Annotated dependency or None) an annotation can mean.
-
-        More than one only when an alias name is defined twice.
-        """
+        self, label: str, ann: ast.expr | None, seen: frozenset[tuple[str, str]] = frozenset()
+    ) -> list[tuple[str, ast.expr | None, str | None]]:
+        """Each (module, type, Annotated dependency or None) an annotation can mean."""
         if isinstance(ann, ast.Constant) and isinstance(ann.value, str):
             try:
                 ann = ast.parse(ann.value, mode="eval").body
             except SyntaxError:
-                return [(ann, None)]
+                return [(label, ann, None)]
         if isinstance(ann, ast.Subscript) and _name(ann.value) == "Annotated":
             elts = ann.slice.elts if isinstance(ann.slice, ast.Tuple) else [ann.slice]
             dep = None
-            for call in filter(None, map(_depends_call, elts[1:])):
-                self.bound.add(id(call))
-                dep = dep or _dep_target(call)
-            return [(elts[0], dep)]
-        if isinstance(ann, ast.Name) and ann.id in self.aliases and ann.id not in seen:
-            return [r for d in self.aliases[ann.id] for r in self._readings(d, seen | {ann.id})]
-        return [(ann, None)]
+            for elt in elts[1:]:
+                if call := self._depends_call(label, elt):
+                    self.bound.add(id(call))
+                    dep = dep or self._dep_target(label, call)
+            return [(label, elts[0], dep)]
+        if isinstance(ann, ast.Name) and (label, ann.id) not in seen:
+            if bound := self._resolve(label, ann.id):
+                return [
+                    r
+                    for def_label, value in bound
+                    for r in self._readings(def_label, value, seen | {(label, ann.id)})
+                ]
+        return [(label, ann, None)]
 
-    def admits_none(self, ann: ast.expr | None, seen: frozenset[str] = frozenset()) -> bool:
+    def admits_none(
+        self, label: str, ann: ast.expr | None, seen: frozenset[tuple[str, str]] = frozenset()
+    ) -> bool:
         """Whether a type annotation lets None through. Missing counts as no."""
         if ann is None:
             return False
@@ -224,35 +307,43 @@ class _Scanner:
                 return True
             if isinstance(ann.value, str):
                 try:
-                    return self.admits_none(ast.parse(ann.value, mode="eval").body, seen)
+                    return self.admits_none(label, ast.parse(ann.value, mode="eval").body, seen)
                 except SyntaxError:
                     return False
             return False
         if isinstance(ann, ast.BinOp) and isinstance(ann.op, ast.BitOr):
-            return self.admits_none(ann.left, seen) or self.admits_none(ann.right, seen)
+            return self.admits_none(label, ann.left, seen) or self.admits_none(
+                label, ann.right, seen
+            )
         if isinstance(ann, ast.Subscript):
             base = _name(ann.value)
             elts = ann.slice.elts if isinstance(ann.slice, ast.Tuple) else [ann.slice]
             if base == "Optional":
                 return True
             if base == "Union":
-                return any(self.admits_none(e, seen) for e in elts)
+                return any(self.admits_none(label, e, seen) for e in elts)
             if base == "Annotated":
-                return self.admits_none(elts[0], seen)
+                return self.admits_none(label, elts[0], seen)
             return False
-        if isinstance(ann, ast.Name) and ann.id in self.aliases and ann.id not in seen:
-            return all(self.admits_none(d, seen | {ann.id}) for d in self.aliases[ann.id])
+        if isinstance(ann, ast.Name) and (label, ann.id) not in seen:
+            bound = self._resolve(label, ann.id)
+            return bool(bound) and all(
+                self.admits_none(def_label, value, seen | {(label, ann.id)})
+                for def_label, value in bound
+            )
         return False
 
-    def returns_none(self, fn: _Func) -> bool:
+    def returns_none(self, label: str, fn: _Func) -> bool:
         """Whether a dependency's value can be None. A generator's value is what it yields."""
         ret = fn.returns
         if isinstance(ret, ast.Subscript) and _name(ret.value) in _GENERATORS:
             ret = ret.slice.elts[0] if isinstance(ret.slice, ast.Tuple) else ret.slice
-        return self.admits_none(ret)
+        return self.admits_none(label, ret)
 
-    def depends_params(self, fn: _Func) -> Iterator[tuple[ast.arg, ast.expr | None, str]]:
-        """(param, its type, its dependency) for every param FastAPI fills from a Depends."""
+    def depends_params(
+        self, label: str, fn: _Func
+    ) -> Iterator[tuple[ast.arg, str, ast.expr | None, str]]:
+        """(param, its type's module, its type, its dependency) for every Depends-filled param."""
         a = fn.args
         positional = a.posonlyargs + a.args
         defaults: list[ast.expr | None] = [None] * (len(positional) - len(a.defaults))
@@ -260,15 +351,26 @@ class _Scanner:
         pairs = list(zip(positional, defaults, strict=True))
         pairs += list(zip(a.kwonlyargs, a.kw_defaults, strict=True))
         for arg, default in pairs:
-            default_deps = self._default_deps(default)
-            for typ, ann_dep in self._readings(arg.annotation):
+            default_deps = self._default_deps(label, default)
+            for type_label, typ, ann_dep in self._readings(label, arg.annotation):
                 for dep in default_deps or ([ann_dep] if ann_dep else []):
-                    yield arg, typ, dep
+                    yield arg, type_label, typ, dep
 
     def run(self, known: frozenset[str]) -> ScanResult:
         """Find the None dependencies, then every param and wrapper that hides one."""
-        none_deps = set(known) | {fn.name for _, fn in self.funcs if self.returns_none(fn)}
-        used = {dep for _, fn in self.funcs for _, _, dep in self.depends_params(fn)}
+        # A `-> None` dependency is a check or a side effect: nobody gets a user from it.
+        # Names are global here, so a name only counts when EVERY def of it is `-> None`;
+        # another module's same-named real dependency keeps it checked.
+        defs: dict[str, list[_Func]] = defaultdict(list)
+        for _, fn in self.funcs:
+            defs[fn.name].append(fn)
+        side_effect = {name for name, fns in defs.items() if all(map(_returns_exactly_none, fns))}
+        none_deps = set(known) | {
+            fn.name
+            for label, fn in self.funcs
+            if fn.name not in side_effect and self.returns_none(label, fn)
+        }
+        used = {dep for label, fn in self.funcs for *_, dep in self.depends_params(label, fn)}
         findings: list[Finding] = []
 
         # A wrapper dependency fed by a None dependency either admits None in its
@@ -278,17 +380,21 @@ class _Scanner:
         while changed:
             changed = False
             for label, fn in self.funcs:
-                if fn.name not in used or fn.name in none_deps:
+                if fn.name not in used or fn.name in none_deps or fn.name in side_effect:
                     continue
-                fed = [(arg, dep) for arg, _, dep in self.depends_params(fn) if dep in none_deps]
+                fed = [
+                    (arg, dep)
+                    for arg, _, _, dep in self.depends_params(label, fn)
+                    if dep in none_deps
+                ]
                 if fed and not all(_raises_on_none(fn, arg.arg) for arg, _ in fed):
                     findings.append(Finding(label, fn.lineno, fn.name, "return", fed[0][1]))
                     none_deps.add(fn.name)
                     changed = True
 
         for label, fn in self.funcs:
-            for arg, typ, dep in self.depends_params(fn):
-                if dep in none_deps and not self.admits_none(typ):
+            for arg, type_label, typ, dep in self.depends_params(label, fn):
+                if dep in none_deps and not self.admits_none(type_label, typ):
                     findings.append(Finding(label, arg.lineno, fn.name, arg.arg, dep))
 
         # The instrument check: every Depends on a None dependency should be one we
@@ -302,8 +408,9 @@ class _Scanner:
             f"{label}:{node.lineno}"
             for label, tree in self.trees.items()
             for node in ast.walk(tree)
-            if (call := _depends_call(node if isinstance(node, ast.expr) else None))
-            and _dep_target(call) in none_deps
+            if isinstance(node, ast.expr)
+            and (call := self._depends_call(label, node))
+            and self._dep_target(label, call) in none_deps
             and id(call) not in self.bound
             and id(call) not in in_dependencies_kw
         ]
@@ -329,8 +436,10 @@ class TestAppTree:
             pytest.fail(
                 f"{len(findings)} spots take a dependency that returns None when auth "
                 f"is off, but are typed as if it can't:\n{lines}\n"
-                f"Type the param `User | None` (and handle the None), or make the "
-                f"wrapper's return type admit None or raise on it.",
+                f"A param: type it `User | None` and handle the None. A `return` line "
+                f"is a dependency that takes one of these and returns a type without "
+                f"None: type its return `... | None`, or raise on a None user at the top "
+                f"(`if u is None: raise ...`).",
                 pytrace=False,
             )
 
@@ -345,9 +454,11 @@ class TestAppTree:
     def test_known_none_deps_still_return_none(self) -> None:
         """The hand-written list goes stale if one is renamed or starts raising."""
         scanner = _Scanner(_app_sources())
-        defined = {fn.name: fn for _, fn in scanner.funcs if fn.name in KNOWN_NONE_DEPS}
+        defined = {
+            fn.name: (label, fn) for label, fn in scanner.funcs if fn.name in KNOWN_NONE_DEPS
+        }
         assert set(defined) == KNOWN_NONE_DEPS
-        assert all(scanner.returns_none(fn) for fn in defined.values())
+        assert all(scanner.returns_none(label, fn) for label, fn in defined.values())
 
 
 def _lies(src: str) -> set[tuple[str, str]]:
@@ -383,6 +494,13 @@ async def quoted(u: "Annotated[User, Depends(require_auth)]"): ...
             ),
             pytest.param(
                 """
+async def doc_first(u: Annotated[User, Doc("x"), Depends(require_auth)]): ...
+""",
+                {("doc_first", "u")},
+                id="annotated-depends-not-second",
+            ),
+            pytest.param(
+                """
 async def attr(u: User = fastapi.Depends(auth.optional_auth)): ...
 async def sec(u: User = Security(require_auth, scopes=["x"])): ...
 async def kw(u: User = Depends(dependency=require_auth)): ...
@@ -415,6 +533,15 @@ async def g(u: Annotated["User | None", "meta"] = Depends(require_auth)): ...
             ),
             pytest.param(
                 """
+async def a(u: User | Admin = Depends(require_auth)): ...
+async def b(u: Union[User, Admin] = Depends(require_auth)): ...
+async def c(u: Annotated["User", "meta"] = Depends(require_auth)): ...
+""",
+                {("a", "u"), ("b", "u"), ("c", "u")},
+                id="none-spellings-fail",
+            ),
+            pytest.param(
+                """
 CurrentUser = Annotated[User, Depends(require_auth)]
 MaybeUser = Annotated[User | None, Depends(require_auth)]
 type AdminUser = Annotated[User, Depends(get_current_admin_user)]
@@ -431,6 +558,33 @@ async def e(u: OptUser = Depends(require_auth)): ...
             ),
             pytest.param(
                 """
+if TYPE_CHECKING:
+    HiddenUser = Annotated[User, Depends(require_auth)]
+try:
+    TriedUser = Annotated[User, Depends(require_auth)]
+except ImportError:
+    pass
+async def h(u: HiddenUser): ...
+async def t(u: TriedUser): ...
+""",
+                {("h", "u"), ("t", "u")},
+                id="aliases-under-if-and-try",
+            ),
+            pytest.param(
+                """
+from fastapi import Depends as D
+from app.services.auth import require_auth as ra
+auth_dep = require_auth
+async def a(u: User = D(require_auth)): ...
+async def b(u: User = Depends(ra)): ...
+async def c(u: User = Depends(auth_dep)): ...
+async def ok(u: User | None = D(ra)): ...
+""",
+                {("a", "u"), ("b", "u"), ("c", "u")},
+                id="renamed-imports-and-name-aliases",
+            ),
+            pytest.param(
+                """
 def token(c: Creds | None = Depends(security)) -> str | None: ...
 async def stream() -> AsyncGenerator[Session | None]:
     yield None
@@ -440,6 +594,17 @@ async def c(u: User = Depends(get_current_user)): ...
 """,
                 {("a", "t"), ("b", "s")},
                 id="derived-from-return-type",
+            ),
+            pytest.param(
+                """
+async def gate(db: Session = Depends(get_db)) -> None:
+    if not await enabled(db):
+        raise HTTPException(status_code=400)
+async def a(_=Depends(gate)): ...
+async def b(_: None = Depends(gate)): ...
+""",
+                set(),
+                id="side-effect-deps-are-not-none-deps",
             ),
         ],
     )
@@ -504,6 +669,34 @@ async def route(a: User = Depends(actor)): ...
 """
         assert _lies(src) == {("actor", "return"), ("route", "a")}
 
+    def test_a_guard_on_something_else_does_not_count(self) -> None:
+        src = """
+async def actor(u: User | None = Depends(require_auth)) -> User:
+    if not u.is_admin:
+        raise HTTPException(status_code=403)
+    return u
+async def route(a: User = Depends(actor)): ...
+"""
+        assert _lies(src) == {("actor", "return"), ("route", "a")}
+
+    def test_a_none_check_that_does_not_raise_does_not_count(self) -> None:
+        src = """
+async def actor(u: User | None = Depends(require_auth)) -> User:
+    if u is None:
+        logger.warning("no user")
+    return u
+async def route(a: User = Depends(actor)): ...
+"""
+        assert _lies(src) == {("actor", "return"), ("route", "a")}
+
+    def test_a_side_effect_wrapper_is_not_a_lying_wrapper(self) -> None:
+        src = """
+async def zone(u: User | None = Depends(require_auth)) -> None:
+    set_zone(u)
+async def route(_: None = Depends(zone)): ...
+"""
+        assert _lies(src) == set()
+
     def test_a_route_is_not_a_wrapper(self) -> None:
         # Nothing depends on a route handler, so its return type isn't a promise about None.
         src = """
@@ -524,3 +717,50 @@ async def b(u: User = wrap(Depends(require_auth))): ...
 """
         result = scan({"snippet.py": src})
         assert result.unbound == ["snippet.py:4"]
+
+
+class TestScannerModules:
+    """A name means what its own module, or the module it's imported from, says."""
+
+    def test_an_alias_only_counts_where_it_is_defined_or_imported(self) -> None:
+        result = scan(
+            {
+                "a.py": "Foo = User | None\n",
+                "b.py": "async def route(u: Foo = Depends(require_auth)): ...\n",
+                "c.py": "from app.a import Foo\nasync def ok(u: Foo = Depends(require_auth)): ...\n",
+                "d/e.py": "from ..a import Foo\nasync def rel(u: Foo = Depends(require_auth)): ...\n",
+            }
+        )
+        assert {(f.file, f.function) for f in result.findings} == {("b.py", "route")}
+
+    def test_a_re_exported_rename_is_followed(self) -> None:
+        result = scan(
+            {
+                "deps.py": "from app.services.auth import require_auth as ra\n",
+                "routes.py": "from app.deps import ra\nasync def r(u: User = Depends(ra)): ...\n",
+            }
+        )
+        assert {(f.file, f.function) for f in result.findings} == {("routes.py", "r")}
+
+    def test_a_same_named_side_effect_dep_does_not_hide_a_real_one(self) -> None:
+        result = scan(
+            {
+                "a.py": "async def actor(db: Session = Depends(get_db)) -> None: ...\n",
+                "b.py": (
+                    "async def actor(u: User | None = Depends(require_auth)) -> User | None:\n"
+                    "    return u\n"
+                    "async def route(x: User = Depends(actor)): ...\n"
+                ),
+            }
+        )
+        assert {(f.file, f.function) for f in result.findings} == {("b.py", "route")}
+
+    def test_an_imported_annotated_alias_is_read(self) -> None:
+        result = scan(
+            {
+                "deps.py": "CurrentUser = Annotated[User, Depends(require_auth)]\n",
+                "routes.py": "from app.deps import CurrentUser\nasync def r(u: CurrentUser): ...\n",
+            }
+        )
+        assert {(f.file, f.function) for f in result.findings} == {("routes.py", "r")}
+        assert result.unbound == []

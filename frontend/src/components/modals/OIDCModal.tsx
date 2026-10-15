@@ -1,6 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { AxiosError } from 'axios'
+import { toast } from 'sonner'
 import { Shield, Info, CheckCircle, AlertCircle, Eye, EyeOff, Loader } from 'lucide-react'
+import type { components } from '@/types/api.generated'
 import api from '@/services/api'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { withBase } from '@/utils/basePath'
@@ -27,34 +30,25 @@ const DISCOVERY_PATH = '/.well-known/openid-configuration'
 /** Example issuer URL shown in the field placeholder and hint. */
 const EXAMPLE_ISSUER_URL = 'https://rauthy.example.com/auth/v1'
 
-interface OIDCFormData {
-  oidc_provider_name: string
-  oidc_issuer_url: string
-  oidc_client_id: string
-  oidc_client_secret: string
-  oidc_redirect_uri: string
-  oidc_scopes: string
-  oidc_auto_create_users: string
-  oidc_admin_group: string
-  oidc_username_claim: string
-  oidc_email_claim: string
-  oidc_full_name_claim: string
-}
+type OIDCAdminConfig = components['schemas']['OIDCAdminConfig']
 
 interface OIDCModalProps {
   isOpen: boolean
   onClose: () => void
-  formData: OIDCFormData
-  onFormDataChange: (data: Partial<OIDCFormData>) => void
+  /** What's stored, as GET /auth/oidc/config/admin returns it. The modal edits a copy. */
+  config: OIDCAdminConfig
+  /**
+   * After a Save went through, so the parent can re-read what's stored. The modal
+   * waits for it before closing, so nothing can act on the old config meanwhile.
+   */
+  onSaved: () => Promise<unknown> | void
 }
 
-export default function OIDCModal({
-  isOpen,
-  onClose,
-  formData,
-  onFormDataChange,
-}: OIDCModalProps) {
+export default function OIDCModal({ isOpen, onClose, config, onSaved }: OIDCModalProps) {
   const { t } = useTranslation('forms')
+  const [draft, setDraft] = useState<OIDCAdminConfig>(config)
+  const [saving, setSaving] = useState(false)
+  const [redirectUriError, setRedirectUriError] = useState<string | null>(null)
   const [oidcTestLoading, setOidcTestLoading] = useState(false)
   const [oidcTestResult, setOidcTestResult] = useState<{
     ok: boolean
@@ -68,6 +62,16 @@ export default function OIDCModal({
 
   const callbackUrl = `${window.location.origin}${withBase('/api/auth/oidc/callback')}`
 
+  // Each time it opens, start from what's stored. Nothing is written until Save.
+  useEffect(() => {
+    if (isOpen) {
+      setDraft(config)
+      setRedirectUriError(null)
+    }
+  }, [isOpen, config])
+
+  const edit = (patch: Partial<OIDCAdminConfig>): void => setDraft((d) => ({ ...d, ...patch }))
+
   // Handle OIDC test connection. Returns canonical {ok, error, detail, issuer, algorithms_supported}.
   const handleOIDCTest = async () => {
     setOidcTestLoading(true)
@@ -75,9 +79,9 @@ export default function OIDCModal({
 
     try {
       const response = await api.post('/auth/oidc/test', {
-        issuer_url: formData.oidc_issuer_url,
-        client_id: formData.oidc_client_id,
-        client_secret: formData.oidc_client_secret,
+        issuer_url: draft.issuer_url,
+        client_id: draft.client_id,
+        client_secret: draft.client_secret,
       })
       const data = response.data as {
         ok: boolean
@@ -100,7 +104,7 @@ export default function OIDCModal({
 
   const handleCopyCallback = async () => {
     try {
-      await navigator.clipboard.writeText(formData.oidc_redirect_uri.trim() || callbackUrl)
+      await navigator.clipboard.writeText(draft.redirect_uri.trim() || callbackUrl)
       setCopiedCallback(true)
       setTimeout(() => setCopiedCallback(false), 1500)
     } catch {
@@ -113,6 +117,28 @@ export default function OIDCModal({
     onClose()
   }
 
+  const handleSave = async (): Promise<void> => {
+    setSaving(true)
+    setRedirectUriError(null)
+    try {
+      await api.put('/auth/oidc/config/admin', draft)
+      // Stay open (and Save stays off) until the parent has the new config. Closing
+      // first left Switch to SSO live on the old one, which would write it back.
+      await onSaved()
+      toast.success(t('modal.oidc.saved'))
+      handleClose()
+    } catch (error) {
+      const detail = (error as AxiosError<{ detail?: unknown }>).response?.data?.detail
+      if (typeof detail === 'string' && detail.startsWith('redirect_uri')) {
+        setRedirectUriError(t('modal.oidc.redirectUriInvalid'))
+      } else {
+        toast.error(getActionErrorMessage(error, t('modal.oidc.saveAction')))
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <FormModalWrapper
       title={t('modal.oidcAuth')}
@@ -121,12 +147,19 @@ export default function OIDCModal({
       width="md"
       icon={Shield}
       footer={
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
           <button
             onClick={handleClose}
             className="px-4 py-2 text-sm font-medium text-garage-text bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-surface-light transition-colors"
           >
-            {t('modal.oidc.close')}
+            {t('modal.oidc.cancel')}
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="px-4 py-2 text-sm font-medium bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {saving ? t('modal.oidc.saving') : t('modal.oidc.save')}
           </button>
         </div>
       }
@@ -163,8 +196,8 @@ export default function OIDCModal({
                 <input
                   id="oidc-provider-name"
                   type="text"
-                  value={formData.oidc_provider_name}
-                  onChange={(e) => onFormDataChange({ oidc_provider_name: e.target.value })}
+                  value={draft.provider_name}
+                  onChange={(e) => edit({ provider_name: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder={t('modal.oidc.providerNamePlaceholder')}
                 />
@@ -179,8 +212,8 @@ export default function OIDCModal({
                 <input
                   id="oidc-issuer-url"
                   type="url"
-                  value={formData.oidc_issuer_url}
-                  onChange={(e) => onFormDataChange({ oidc_issuer_url: e.target.value })}
+                  value={draft.issuer_url}
+                  onChange={(e) => edit({ issuer_url: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder={EXAMPLE_ISSUER_URL}
                 />
@@ -200,8 +233,8 @@ export default function OIDCModal({
                 <input
                   id="oidc-client-id"
                   type="text"
-                  value={formData.oidc_client_id}
-                  onChange={(e) => onFormDataChange({ oidc_client_id: e.target.value })}
+                  value={draft.client_id}
+                  onChange={(e) => edit({ client_id: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder={t('modal.oidc.clientIdPlaceholder')}
                 />
@@ -216,8 +249,8 @@ export default function OIDCModal({
                   <input
                     id="oidc-client-secret"
                     type={showClientSecret ? 'text' : 'password'}
-                    value={formData.oidc_client_secret}
-                    onChange={(e) => onFormDataChange({ oidc_client_secret: e.target.value })}
+                    value={draft.client_secret}
+                    onChange={(e) => edit({ client_secret: e.target.value })}
                     className="w-full px-3 py-2 pr-10 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     placeholder={t('modal.oidc.clientSecretPlaceholder')}
                   />
@@ -243,8 +276,8 @@ export default function OIDCModal({
                   <input
                     id="oidc-redirect-uri"
                     type="url"
-                    value={formData.oidc_redirect_uri}
-                    onChange={(e) => onFormDataChange({ oidc_redirect_uri: e.target.value })}
+                    value={draft.redirect_uri}
+                    onChange={(e) => edit({ redirect_uri: e.target.value })}
                     className="flex-1 min-w-0 px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     placeholder={callbackUrl}
                   />
@@ -259,6 +292,9 @@ export default function OIDCModal({
                 <p className="text-xs text-garage-text-muted mt-1">
                   {t('modal.oidc.redirectUriHint')}
                 </p>
+                {redirectUriError && (
+                  <p role="alert" className="mt-1 text-xs text-danger-500">{redirectUriError}</p>
+                )}
               </div>
 
               {/* OIDC protocol constants */}
@@ -281,8 +317,8 @@ export default function OIDCModal({
                 <input
                   id="oidc-scopes"
                   type="text"
-                  value={formData.oidc_scopes}
-                  onChange={(e) => onFormDataChange({ oidc_scopes: e.target.value })}
+                  value={draft.scopes}
+                  onChange={(e) => edit({ scopes: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder={DEFAULT_SCOPES}
                 />
@@ -294,8 +330,8 @@ export default function OIDCModal({
                 <input
                   id="oidc-auto-create"
                   type="checkbox"
-                  checked={formData.oidc_auto_create_users === 'true'}
-                  onChange={(e) => onFormDataChange({ oidc_auto_create_users: e.target.checked ? 'true' : 'false' })}
+                  checked={draft.auto_create_users}
+                  onChange={(e) => edit({ auto_create_users: e.target.checked })}
                   className="mt-1 w-4 h-4 text-primary bg-garage-surface border-garage-border rounded focus:ring-2 focus:ring-primary"
                 />
                 <div className="flex-1">
@@ -316,8 +352,8 @@ export default function OIDCModal({
                 <input
                   id="oidc-admin-group"
                   type="text"
-                  value={formData.oidc_admin_group}
-                  onChange={(e) => onFormDataChange({ oidc_admin_group: e.target.value })}
+                  value={draft.admin_group}
+                  onChange={(e) => edit({ admin_group: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="mygarage-admins"
                 />
@@ -337,8 +373,8 @@ export default function OIDCModal({
                   </label>
                   <Select
                     id="oidc-username-claim"
-                    value={formData.oidc_username_claim}
-                    onChange={(e) => onFormDataChange({ oidc_username_claim: e.target.value })}
+                    value={draft.username_claim}
+                    onChange={(e) => edit({ username_claim: e.target.value })}
                     options={[
                       { value: 'preferred_username', label: 'preferred_username' },
                       { value: 'email', label: 'email' },
@@ -354,8 +390,8 @@ export default function OIDCModal({
                   </label>
                   <Select
                     id="oidc-email-claim"
-                    value={formData.oidc_email_claim}
-                    onChange={(e) => onFormDataChange({ oidc_email_claim: e.target.value })}
+                    value={draft.email_claim}
+                    onChange={(e) => edit({ email_claim: e.target.value })}
                     options={[
                       { value: 'email', label: 'email' },
                       { value: 'mail', label: 'mail' },
@@ -370,8 +406,8 @@ export default function OIDCModal({
                   </label>
                   <Select
                     id="oidc-full-name-claim"
-                    value={formData.oidc_full_name_claim}
-                    onChange={(e) => onFormDataChange({ oidc_full_name_claim: e.target.value })}
+                    value={draft.full_name_claim}
+                    onChange={(e) => edit({ full_name_claim: e.target.value })}
                     options={[
                       { value: 'name', label: 'name' },
                       { value: 'given_name', label: 'given_name + family_name' },
@@ -422,7 +458,7 @@ export default function OIDCModal({
               <button
                 type="button"
                 onClick={handleOIDCTest}
-                disabled={oidcTestLoading || !formData.oidc_issuer_url || !formData.oidc_client_id || !formData.oidc_client_secret}
+                disabled={oidcTestLoading || !draft.issuer_url || !draft.client_id || !draft.client_secret}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-garage-surface border border-garage-border text-garage-text text-sm font-medium rounded-lg hover:bg-garage-bg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {oidcTestLoading ? (

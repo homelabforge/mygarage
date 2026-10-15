@@ -422,7 +422,6 @@
     "writeDescription": "Scrittura - Può aggiungere interventi e foto",
     "writePermDescription": "Tutti i permessi di lettura, più aggiunta registrazioni di manutenzione, carburante e foto",
     "oidc": {
-      "close": "Chiudi",
       "infoTitle": "Autenticazione OpenID Connect (OIDC)",
       "infoDesc": "Configura il single sign-on con il tuo fornitore di identità. Tra i fornitori supportati:",
       "providerName": "Nome fornitore",
