@@ -23,7 +23,7 @@ MUST_RUN_FIRST = ["tests/migrations/", "tests/pg_migration_path_test.py"]
 
 
 def _pg_paths() -> list[str]:
-    """The PG job's pytest paths, as ci.yml passes them."""
+    """The PG jobs' pytest paths, as ci.yml passes them."""
     if not CI_YML.exists():
         # The docker runners mount backend/ only. CI's Backend Tests job has
         # the whole checkout, so this can't skip there.
@@ -31,6 +31,15 @@ def _pg_paths() -> list[str]:
             pytest.fail(f"{CI_YML} is missing in CI")
         pytest.skip("ci.yml isn't mounted in this runner")
     workflow = yaml.safe_load(CI_YML.read_text(encoding="utf-8"))
+    jobs = workflow.get("jobs", {})
+    if "postgres-tests" in jobs:
+        matrix_include = (
+            jobs["postgres-tests"].get("strategy", {}).get("matrix", {}).get("include", [])
+        )
+        paths: list[str] = []
+        for item in matrix_include:
+            paths.extend(item.get("paths", "").split())
+        return paths
     return workflow["jobs"]["ci"]["with"]["pg-migrations-pytest-path"].split()
 
 
@@ -82,7 +91,26 @@ def _test_roots() -> set[str]:
 def test_every_test_root_runs_on_pg() -> None:
     """A new test dir or top-level file has to be added to ci.yml."""
     missing = sorted(_test_roots() - set(_pg_paths()))
-    assert missing == [], f"add to pg-migrations-pytest-path in ci.yml: {missing}"
+    assert missing == [], f"add to postgres-tests in ci.yml: {missing}"
+
+
+def test_postgres_matrix_jobs_have_descriptive_names() -> None:
+    """Every PostgreSQL test job must have a descriptive, distinct name."""
+    if not CI_YML.exists():
+        pytest.skip("ci.yml isn't mounted in this runner")
+    workflow = yaml.safe_load(CI_YML.read_text(encoding="utf-8"))
+    jobs = workflow.get("jobs", {})
+    if "postgres-tests" in jobs:
+        matrix_include = (
+            jobs["postgres-tests"].get("strategy", {}).get("matrix", {}).get("include", [])
+        )
+        assert len(matrix_include) >= 2, "PostgreSQL tests must be partitioned into multiple jobs"
+        names = [item.get("name", "") for item in matrix_include]
+        assert len(names) == len(set(names)), "Each matrix partition must have a unique name"
+        for name in names:
+            assert name.startswith("PostgreSQL "), (
+                f"Job name '{name}' must start with 'PostgreSQL '"
+            )
 
 
 def test_every_listed_path_exists() -> None:

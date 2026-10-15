@@ -209,6 +209,11 @@ class Settings(BaseSettings):
     # NHTSA API
     nhtsa_api_base_url: str = "https://vpic.nhtsa.dot.gov/api"
 
+    # European VIN API (AutoRef / European VIN decoders)
+    european_vin_enabled: bool = True
+    european_vin_api_base_url: str = "https://api-gateway.autoref.eu"
+    european_vin_api_key: str = ""  # Empty by default (supports free tier or configured API key)
+
     # TomTom Places API (optional - falls back to OSM if not configured)
     tomtom_api_key: str = ""  # Empty by default - graceful degradation
     tomtom_api_base_url: str = "https://api.tomtom.com/search/2"

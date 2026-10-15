@@ -78,7 +78,7 @@ describe('FuelRecordForm inside a mi vehicle on a km account', () => {
     )
     await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
 
-    expect(labelText('odometer_km')).toBe('common:mileage (mi)')
+    expect(labelText('odometer_km')).toBe('common:mileage * (mi)')
     expect(labelText('liters')).toBe('fuel.volume (L)')
 
     fireEvent.change(field('date'), { target: { value: '2026-02-10' } })

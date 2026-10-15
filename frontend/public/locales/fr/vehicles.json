@@ -1194,7 +1194,16 @@
       "cancel": "Annuler",
       "creating": "Création...",
       "createVehicle": "Créer le véhicule",
-      "createFailed": "Impossible de créer le véhicule"
+      "createFailed": "Impossible de créer le véhicule",
+      "makePlaceholder": "Rechercher ou sélectionner une marque...",
+      "useCustomMake": "Utiliser",
+      "noMakesFound": "Aucune marque trouvée",
+      "useCustomModel": "Utiliser",
+      "noModelsFound": "Aucun modèle trouvé pour cette marque",
+      "selectMakePrompt": "Sélectionnez une marque pour voir les modèles disponibles",
+      "selectMakeFirst": "Sélectionnez d'abord une marque ou saisissez le modèle",
+      "loadingOnlineModels": "Recherche de modèles en ligne...",
+      "fetchMoreModelsOnline": "Rechercher des modèles en ligne sur NHTSA"
     }
   },
   "serviceVisitAttachments": {

@@ -119,6 +119,7 @@ describe('FuelRecordForm — DEF tank level visibility (diesel-only gate)', () =
 const REC = { id: 1, vin: DEFAULT_PROPS.vin, date: '2026-04-30', filled_at: '2026-04-30T22:00' }
 const timeInput = () => document.getElementById('filled_at_time') as HTMLInputElement
 const dateInput = (id: string) => document.getElementById(id) as HTMLInputElement
+const odometerInput = () => document.getElementById('odometer_km') as HTMLInputElement | null
 
 describe('FuelRecordForm — fill-up time (issue #109 / time-format)', () => {
   beforeEach(() => {
@@ -140,6 +141,7 @@ describe('FuelRecordForm — fill-up time (issue #109 / time-format)', () => {
     await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
 
     fireEvent.change(dateInput('date'), { target: { value: '2026-04-30' } }) // required top field
+    fireEvent.change(odometerInput()!, { target: { value: '45000' } })
     await openMoreDetails(user)
     // Raw compact value, NO blur — the field still holds "2200" at submit time.
     fireEvent.change(timeInput(), { target: { value: '2200' } })
@@ -158,6 +160,7 @@ describe('FuelRecordForm — fill-up time (issue #109 / time-format)', () => {
     await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
 
     fireEvent.change(dateInput('date'), { target: { value: '2026-04-30' } })
+    fireEvent.change(odometerInput()!, { target: { value: '45000' } })
     await openMoreDetails(user)
     fireEvent.change(timeInput(), { target: { value: '2:30' } })
     fireEvent.click(screen.getByRole('button', { name: 'PM' }))
@@ -176,6 +179,7 @@ describe('FuelRecordForm — fill-up time (issue #109 / time-format)', () => {
     await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
 
     fireEvent.change(dateInput('date'), { target: { value: '2026-04-30' } })
+    fireEvent.change(odometerInput()!, { target: { value: '45000' } })
     await openMoreDetails(user)
     fireEvent.change(timeInput(), { target: { value: '12:00' } })
     fireEvent.click(screen.getByRole('button', { name: 'AM' }))
@@ -222,6 +226,7 @@ describe('FuelRecordForm — fill-up time (issue #109 / time-format)', () => {
     render(<FuelRecordForm {...DEFAULT_PROPS} />)
     await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
     fireEvent.change(dateInput('date'), { target: { value: '2026-04-30' } })
+    fireEvent.change(odometerInput()!, { target: { value: '45000' } })
     await openMoreDetails(user)
     fireEvent.change(timeInput(), { target: { value: '25:00' } }) // invalid, non-empty
     fireEvent.submit(drawerForm())
@@ -347,6 +352,7 @@ describe('FuelRecordForm — footer lift (P3 Task 4)', () => {
     await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
 
     fireEvent.change(dateInput('date'), { target: { value: '2026-04-30' } }) // only hard-required field
+    fireEvent.change(odometerInput()!, { target: { value: '45000' } })
     // Create lives in the sticky footer, a sibling of the <form>, wired via form="fuel-record-form".
     fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
 
@@ -451,6 +457,7 @@ describe('FuelRecordForm — cost field on NumberInput (Task 8)', () => {
     expect(screen.getByRole('textbox', { name: /common:totalCost/ })).toBe(costInput)
 
     fireEvent.change(dateInput('date'), { target: { value: '2026-04-30' } })
+    fireEvent.change(odometerInput()!, { target: { value: '45000' } })
     await user.type(costInput, '42,99')
     fireEvent.submit(drawerForm())
 

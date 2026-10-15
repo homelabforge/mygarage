@@ -742,7 +742,18 @@
     "title": "Adicionar novo veículo",
     "trim": "Versão / Acabamento",
     "vin": "VIN",
-    "year": "Ano de fabricação"
+    "year": "Ano de fabricação",
+    "misc": {
+      "makePlaceholder": "Pesquisar ou selecionar marca...",
+      "useCustomMake": "Usar",
+      "noMakesFound": "Nenhuma marca encontrada",
+      "useCustomModel": "Usar",
+      "noModelsFound": "Nenhum modelo encontrado para esta marca",
+      "selectMakePrompt": "Selecione uma marca para ver os modelos disponíveis",
+      "selectMakeFirst": "Selecione uma marca primeiro ou digite o modelo",
+      "loadingOnlineModels": "Buscando modelos online...",
+      "fetchMoreModelsOnline": "Pesquisar modelos online no NHTSA"
+    }
   },
   "hoursList": {
     "actions": "Ações",

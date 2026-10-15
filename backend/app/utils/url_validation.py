@@ -455,3 +455,38 @@ def validate_tomtom_url(url: str) -> ParseResult:
         block_private_ips=True,
         resolve_dns=True,
     )
+
+
+def validate_european_vin_url(url: str) -> ParseResult:
+    """Validate a URL for European VIN API endpoints (e.g. AutoRef, Vincario).
+
+    Convenience wrapper for European VIN API validation:
+    - Only allows https scheme
+    - Blocks private IPs and localhost
+    - Domain whitelist: api.autoref.eu, autoref.eu, *.autoref.eu, *.vincario.com
+
+    Args:
+        url: European VIN API URL
+
+    Returns:
+        Parsed URL object if validation passes
+
+    Raises:
+        SSRFProtectionError: If URL fails SSRF validation
+        ValueError: If URL is malformed
+    """
+    return validate_url_for_ssrf(
+        url,
+        allowed_schemes=["https"],
+        allowed_domains=[
+            "api.autoref.eu",
+            "autoref.eu",
+            "**.autoref.eu",
+            "api.vincario.com",
+            "vincario.com",
+            "**.vincario.com",
+        ],
+        require_https=True,
+        block_private_ips=True,
+        resolve_dns=True,
+    )

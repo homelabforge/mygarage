@@ -205,6 +205,19 @@ DEFAULT_SETTINGS = {
         "description": "Automatically extract data from uploaded window stickers using OCR",
         "encrypted": False,
     },
+    # European VIN Decoder (AutoRef) Integration
+    "european_vin_enabled": {
+        "value": "true",
+        "category": "integrations",
+        "description": "Enable European VIN Decoder integration",
+        "encrypted": False,
+    },
+    "european_vin_api_key": {
+        "value": "",
+        "category": "integrations",
+        "description": "European VIN Decoder API key (AutoRef)",
+        "encrypted": True,
+    },
     # ============================================
     # Multi-Service Notification Settings
     # ============================================

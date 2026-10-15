@@ -51,7 +51,17 @@ const optionalEnum = <T extends readonly [string, ...string[]]>(values: T) =>
     .optional()
     .transform((v) => (v === '' || v === undefined ? undefined : v))
 
-export const makeFuelRecordSchema = (t: TFunction, units: UnitSet) =>
+export interface FuelRecordSchemaOptions {
+  tracksDistance?: boolean
+  tracksHours?: boolean
+  isEdit?: boolean
+}
+
+export const makeFuelRecordSchema = (
+  t: TFunction,
+  units: UnitSet,
+  options?: FuelRecordSchemaOptions
+) =>
   z.object({
     date: makeDateSchema(t),
     filled_at: z.string().optional(),
@@ -173,7 +183,33 @@ export const makeFuelRecordSchema = (t: TFunction, units: UnitSet) =>
       .optional()
       .or(z.literal('')),
   })
-  .superRefine((data, ctx) => checkUnitPriceCap(t, ctx, data.price_per_unit, units, data.price_basis))
+  .superRefine((data, ctx) => {
+    checkUnitPriceCap(t, ctx, data.price_per_unit, units, data.price_basis)
+
+    const isCreate = !options?.isEdit
+    const requiresOdometer = isCreate && options?.tracksDistance === true
+    const requiresHours = isCreate && options?.tracksHours === true && !requiresOdometer
+
+    if (
+      requiresOdometer &&
+      (data.odometer_km === undefined || data.odometer_km === null || Number.isNaN(data.odometer_km))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['odometer_km'],
+        message: t('common:validation.odometer.required'),
+      })
+    } else if (
+      requiresHours &&
+      (data.engine_hours === undefined || data.engine_hours === null || Number.isNaN(data.engine_hours))
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['engine_hours'],
+        message: t('common:validation.engineHours.required'),
+      })
+    }
+  })
 
 // Export both input and output types for Zod v4 zodResolver compatibility
 // z.input = what the form supplies (unknown for coerce fields)

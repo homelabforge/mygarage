@@ -22,6 +22,8 @@ import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import vehicleService from '../services/vehicleService'
 import { makeVehicleEditSchema, vehicleTypeOptions, defaultUsageUnitForType, type VehicleEditFormData } from '../schemas/vehicle'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { MakeSelect, ModelSelect } from './vehicles'
+import { findMake } from '../services/carCatalogService'
 
 interface VehicleWizardProps {
   onClose: () => void
@@ -79,10 +81,23 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     const currentNickname = getValues('nickname')
     const generatedNickname = `${data.year || ''} ${data.make || ''} ${data.model || ''}`.trim()
 
+    // Canonical make matching
+    const matchedMake = data.make ? findMake(data.make) : undefined
+    const resolvedMake = matchedMake ? matchedMake.name : (data.make || null)
+
+    // Match model if known in catalog
+    let resolvedModel = data.model || null
+    if (matchedMake && data.model) {
+      const foundModel = matchedMake.models.find(m => m.toLowerCase() === data.model!.toLowerCase())
+      if (foundModel) {
+        resolvedModel = foundModel
+      }
+    }
+
     // Set all decoded values using setValue
     setValue('year', data.year || undefined)
-    setValue('make', data.make || null)
-    setValue('model', data.model || null)
+    setValue('make', resolvedMake)
+    setValue('model', resolvedModel)
     setValue('nickname', currentNickname || generatedNickname)
     setValue('trim', data.trim || null)
     setValue('body_class', data.body_class || null)
@@ -360,23 +375,28 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('wizard.make')}</label>
-                <input
-                  type="text"
-                  {...register('make')}
-                  className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
-                  placeholder="MITSUBISHI"
+                <label htmlFor="wizard-make" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.make')}</label>
+                <MakeSelect
+                  id="wizard-make"
+                  value={formData.make}
+                  onChange={(val) => {
+                    setValue('make', val || null, { shouldValidate: true })
+                  }}
+                  invalid={!!errors.make}
                 />
                 <FormError error={errors.make} />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('wizard.model')}</label>
-                <input
-                  type="text"
-                  {...register('model')}
-                  className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
-                  placeholder={t('wizard.misc.modelPlaceholder')}
+                <label htmlFor="wizard-model" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.model')}</label>
+                <ModelSelect
+                  id="wizard-model"
+                  make={formData.make}
+                  value={formData.model}
+                  onChange={(val) => {
+                    setValue('model', val || null, { shouldValidate: true })
+                  }}
+                  invalid={!!errors.model}
                 />
                 <FormError error={errors.model} />
               </div>

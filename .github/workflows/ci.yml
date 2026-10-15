@@ -2,13 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, 'release/**']
+    branches:
+      - main
+      - develop
+      - 'release/**'
+      - '!release/*local-push*'
   pull_request:
     branches: [main, develop]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
