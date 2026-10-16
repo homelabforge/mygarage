@@ -126,6 +126,7 @@ async def test_a_date_and_mileage_interval_with_no_reading_keeps_the_date_side(
         },
     )
     assert data["reminders"]["success_count"] == 1, data
+    assert data["errors"] == []
     (reminder,) = await _reminders(db_session, vin)
     assert reminder.reminder_type == "date"
     assert reminder.due_mileage_km is None
@@ -298,21 +299,24 @@ async def test_a_due_point_the_api_refuses_fails(
             "reminders": [
                 {"description": "Negative", "due_mileage": -5, "is_recurring": False},
                 {"description": "Past the cap", "is_recurring": True, "recurrence_miles": 99999999},
+                {"description": "Endless", "due_mileage": float("inf"), "is_recurring": False},
             ],
         },
     )
     assert data["reminders"]["success_count"] == 0, data
-    assert "Reminder 0: due_mileage_km must be more than 0, not -5" in data["errors"], data
+    # Rounded before the check, so it reads like the interval's message.
+    assert "Reminder 0: due_mileage_km must be more than 0, not -5.00" in data["errors"], data
     assert (
         "Reminder 1: due_mileage_km must be at most 99999999.99, not 100000999.00" in data["errors"]
     ), data
+    assert "Reminder 2: due_mileage_km must be a number" in data["errors"], data
     assert await _reminders(db_session, vin) == []
 
 
 async def test_a_due_point_is_rounded_to_the_cent_before_it_is_stored(
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
-    """A half cent rounds here, so SQLite's float round trip lands where PostgreSQL does."""
+    """A half cent rounds here, half to even, so SQLite and PostgreSQL store the same cent."""
     vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216110")
     yesterday = (household_today() - timedelta(days=1)).isoformat()
     data = await _import(
@@ -326,13 +330,96 @@ async def test_a_due_point_is_rounded_to_the_cent_before_it_is_stored(
             "reminders": [
                 {"description": "Own mileage", "due_mileage": 1000.015, "is_recurring": False},
                 {"description": "Interval", "is_recurring": True, "recurrence_miles": 19000.015},
+                {"description": "Own, even tie", "due_mileage": 2000.025, "is_recurring": False},
+                {
+                    "description": "Interval, even tie",
+                    "is_recurring": True,
+                    "recurrence_miles": 29000.025,
+                },
+            ],
+        },
+    )
+    assert data["reminders"]["success_count"] == 4, data
+    rows = await _reminders(db_session, vin)
+    # Unrounded, SQLite reads the .015s back as .01, and both dialects store the .025s as .03.
+    assert [r.due_mileage_km for r in rows] == [
+        Decimal("1000.02"),
+        Decimal("20000.02"),
+        Decimal("2000.02"),
+        Decimal("30000.02"),
+    ]
+
+
+async def test_a_legacy_zero_mileage_reads_as_no_mileage(
+    client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+):
+    """The v2 app saved 0 for no mileage, so it isn't a due odometer of zero."""
+    vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216111")
+    due = (household_today() + timedelta(days=30)).isoformat()
+    data = await _import(
+        client,
+        non_admin_headers,
+        vin,
+        {
+            "reminders": [
+                {"description": "Plates", "due_date": due, "due_mileage": 0, "is_recurring": False},
+                {
+                    "description": "Old wash",
+                    "is_completed": True,
+                    "completed_at": "2025-11-02T15:30:00",
+                    "due_date": "2025-11-01",
+                    "due_mileage": 0,
+                    "is_recurring": False,
+                },
+                {"description": "Zero only", "due_mileage": 0, "is_recurring": False},
+            ]
+        },
+    )
+    assert data["reminders"]["success_count"] == 2, data
+    assert data["errors"] == ["Reminder 2: no due date or mileage to import"], data
+    plates, wash = await _reminders(db_session, vin)
+    assert (plates.status, plates.reminder_type, plates.due_mileage_km) == ("pending", "date", None)
+    assert plates.due_date.isoformat() == due
+    assert (wash.status, wash.reminder_type, wash.due_mileage_km) == ("done", "date", None)
+
+
+async def test_a_blank_due_date_imports_on_the_mileage(
+    client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+):
+    """A blank due_date is no date, same as a missing one, so the mileage carries the row."""
+    vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216112")
+    data = await _import(
+        client,
+        non_admin_headers,
+        vin,
+        {
+            "export_version": "3",
+            "units": "metric",
+            "reminders": [
+                {
+                    "description": "Belt",
+                    "due_date": "",
+                    "due_mileage": 150000,
+                    "is_recurring": False,
+                },
+                {
+                    "description": "Coolant",
+                    "due_date": " ",
+                    "due_mileage": 160000,
+                    "is_recurring": False,
+                },
             ],
         },
     )
     assert data["reminders"]["success_count"] == 2, data
-    own, interval = await _reminders(db_session, vin)
-    # Unrounded, SQLite reads these back as 1000.01 and 20000.01.
-    assert (own.due_mileage_km, interval.due_mileage_km) == (
-        Decimal("1000.02"),
-        Decimal("20000.02"),
+    belt, coolant = await _reminders(db_session, vin)
+    assert (belt.reminder_type, belt.due_date, belt.due_mileage_km) == (
+        "mileage",
+        None,
+        Decimal("150000.00"),
+    )
+    assert (coolant.reminder_type, coolant.due_date, coolant.due_mileage_km) == (
+        "mileage",
+        None,
+        Decimal("160000.00"),
     )

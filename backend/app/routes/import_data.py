@@ -290,10 +290,15 @@ class _InsuranceRowError(_RowError):
     """An insurance row that cannot be imported, with a user-facing reason."""
 
 
+def _is_blank(raw: Any) -> bool:
+    """Whether a cell holds nothing: missing, null, or only whitespace."""
+    return raw is None or (isinstance(raw, str) and not raw.strip())
+
+
 def _json_row_date(record_data: dict[str, Any], key: str = "date") -> date_type:
     """The row's date under `key`, or a row error that says what's wrong with it."""
     raw = record_data.get(key)
-    if raw is None or (isinstance(raw, str) and not raw.strip()):
+    if _is_blank(raw):
         raise _RowError(f"{key} is missing")
     if not isinstance(raw, str):
         raise _RowError(f"{key} is not a valid date (expected YYYY-MM-DD)")
@@ -2108,14 +2113,19 @@ async def import_vehicle_json(
     ) -> tuple[date_type | None, Decimal | None]:
         """The due date and odometer the row was exported with, mileage in km."""
         due_date = (
-            _json_row_date(reminder_data, "due_date")
-            if reminder_data.get("due_date") is not None
-            else None
+            None
+            if _is_blank(reminder_data.get("due_date"))
+            else _json_row_date(reminder_data, "due_date")
         )
         due_km = _maybe_mi_to_km(reminder_data.get("due_mileage"))
-        _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
-        if due_km is not None:
+        # v2 saved 0 for no mileage.
+        if due_km == 0:
+            due_km = None
+        # Rounded first so the message shows the figure we'd store. Infinity
+        # can't round; the bounds check refuses it next.
+        if due_km is not None and due_km.is_finite():
             due_km = due_km.quantize(Decimal("0.01"))
+        _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
         return due_date, due_km
 
     # Import reminders → map to vehicle_reminders
@@ -2136,12 +2146,7 @@ async def import_vehicle_json(
                 has_date = bool(is_recurring and recurrence_days)
                 has_miles = bool(is_recurring and recurrence_miles)
 
-                # The database requires a positive due_mileage_km when one is set
-                # (check_due_mileage_km); reject a negative recurrence here
-                # rather than letting that CHECK reject the row. Not clamped: a
-                # negative value is reported, never silently corrected.
-                # Bounds first, so a NaN gets the specific message rather than
-                # failing the comparison below.
+                # A negative interval would import already overdue; the bounds check stops it.
                 if has_miles:
                     _within_api_bounds(
                         ReminderCreate, due_mileage_km=Decimal(str(recurrence_miles))
