@@ -304,7 +304,7 @@ async def test_a_due_point_the_api_refuses_fails(
         },
     )
     assert data["reminders"]["success_count"] == 0, data
-    # Rounded before the check, so it reads like the interval's message.
+    # The row's own mileage is rounded before its bounds check, so it shows the stored figure.
     assert "Reminder 0: due_mileage_km must be more than 0, not -5.00" in data["errors"], data
     assert (
         "Reminder 1: due_mileage_km must be at most 99999999.99, not 100000999.00" in data["errors"]

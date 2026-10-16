@@ -2147,6 +2147,8 @@ async def import_vehicle_json(
                 has_miles = bool(is_recurring and recurrence_miles)
 
                 # A negative interval would import already overdue; the bounds check stops it.
+                # It also runs first so a quiet NaN gets its message instead of raising in
+                # the <= 0 below.
                 if has_miles:
                     _within_api_bounds(
                         ReminderCreate, due_mileage_km=Decimal(str(recurrence_miles))

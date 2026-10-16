@@ -4,8 +4,8 @@ A hand-made reminder counted from the reading nearest the day it was made,
 looked up on every read, so a reading added or corrected that day moved its
 start and held the bar at zero. New reminders store both current readings
 when made; this adds the columns and fills them for pending unanchored rows
-from the latest reading dated on or before the creation day and entered
-before the reminder.
+from the latest reading dated on or before the creation day and entered at
+or before the reminder (a reading with no created_at counts too).
 
 It can't undo a reading changed in place after the reminder was made (a
 same-day fill-up taking over the day's row, LiveLink's daily row, the manual
