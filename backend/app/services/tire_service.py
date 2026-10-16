@@ -111,8 +111,8 @@ async def publish_tire_odometer(
        it: every reading of the tire that day shares that marker, so the
        record keeps the highest (#224) and only a reading delete lowers it
        (`_withdraw_reading_usage`). A set fit or rotation published again
-       lower is a correction and lowers its record; the period editor moves
-       a period's record itself.
+       lower is taken as a correction and lowers its record; the period
+       editor moves a period's record itself.
     2. Otherwise, when another record on the day (manual, a service visit's,
        a fuel-up's, LiveLink's, another tire event's) reads at or above the
        figure, within the same-reading tolerance, nothing is published: the
@@ -217,8 +217,8 @@ async def _publish_tire_usage(
     """The one door behind both tire publishers: `publish_tire_odometer`'s rules, on `axis`.
 
     Only the tire's own marker holds back a lower figure, since it stands for
-    every event of that tire on the day. A set fit or rotation marker is one
-    event, so a lower figure there is a correction and goes through.
+    every event of that tire on the day. A set fit or rotation published lower
+    the same day is taken as a correction and goes through.
     """
     if value is None:
         return
