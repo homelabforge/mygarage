@@ -9,6 +9,7 @@ from app.models.tire import TireMountPeriod, TireReading
 from app.services.tire_history import (
     OVERLAPPING_DATES,
     REVERSED_ODOMETER,
+    reading_contradictions,
     validate_period_history,
 )
 from app.services.usage_axis import DISTANCE, HOURS
@@ -102,3 +103,47 @@ def test_no_axes_means_distance_alone():
         dismounted_hours=Decimal("120.0"),
     )
     assert validate_period_history([p], []) == []
+
+
+def test_the_hour_meter_sentence_names_the_repair():
+    p = _period(1, mounted_hours=Decimal("100.0"))
+    r = TireReading(
+        tire_id=1, vin="V" * 17, recorded_at=dt.date(2026, 3, 1), engine_hours=Decimal("90.0")
+    )
+    r.id = 7
+    [fault] = validate_period_history([p], [r], axes=(HOURS,))
+    assert fault.message == (
+        "The FL period mounted 2026-01-01 contradicts the reading dated 2026-03-01 at 90.0 hr: "
+        "the vehicle's hour meter would have to run backwards. If that reading is wrong, "
+        "correct or delete it in the tire's history."
+    )
+
+
+def test_reading_contradictions_lists_each_axis_then_each_period_by_id():
+    """A reading edit judges its own pairs, so it needs every (axis, period) it contradicts."""
+    p = _period(
+        1,
+        dismounted_on=dt.date(2026, 6, 1),
+        mounted_odometer_km=Decimal("10000"),
+        dismounted_odometer_km=Decimal("20000"),
+        mounted_hours=Decimal("100.0"),
+    )
+    q = _period(
+        2, position="FR", mounted_on=dt.date(2026, 7, 1), mounted_odometer_km=Decimal("21000")
+    )
+    r = TireReading(
+        tire_id=1,
+        vin="V" * 17,
+        recorded_at=dt.date(2026, 3, 1),
+        odometer_km=Decimal("25000"),
+        engine_hours=Decimal("50.0"),
+    )
+    r.id = 7
+    # 25,000 km is past p's 20,000 km dismount before its date, and past q's mount
+    # before q started; 50.0 h is below p's 100.0 h mount after it.
+    pairs = reading_contradictions([q, p], r, (DISTANCE, HOURS))
+    assert [(axis.kind, period.id) for axis, period in pairs] == [
+        ("distance", 1),
+        ("distance", 2),
+        ("hours", 1),
+    ]

@@ -675,12 +675,12 @@ class TestFaultMessages:
 
     def test_a_reading_contradiction_names_the_reading_and_the_repair(self):
         """The typo that made every honest write to one tire a 409: the message
-        is the only place the user learns which reading to delete."""
+        is the only place the user learns which reading to correct or delete."""
         p = _period(1, start=D(2026, 1, 1), end=D(2026, 6, 1), start_odo="10000", end_odo="20000")
         assert self._message([p], [_reading(D(2026, 3, 1), "150000.00")]) == (
             "The FL period mounted 2026-01-01 contradicts the reading dated 2026-03-01 at "
             "150,000 km: the vehicle's odometer would have to run backwards. If that reading "
-            "is wrong, delete it from the tire's history."
+            "is wrong, correct or delete it in the tire's history."
         )
 
     def test_the_earliest_contradicting_reading_is_named_whatever_the_input_order(self):

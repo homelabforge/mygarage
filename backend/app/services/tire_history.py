@@ -136,7 +136,7 @@ def odometer_contradictions(
     projection needs only which periods to withhold a figure over (its
     `_odometer_goes_backwards` reduces these pairs to ids), while a write-time
     refusal has to name the READING, because a mistyped reading is as likely
-    as a mistyped period and deleting it is the repair. One rule, two callers.
+    as a mistyped period and correcting or deleting it is the repair. One rule, two callers.
     Each pair appears once however many implications it violates, in the
     order of `periods`, then of `readings`.
     """
@@ -163,6 +163,37 @@ def odometer_contradictions(
             if backwards:
                 pairs.append((period, reading))
     return pairs
+
+
+def reading_contradictions(
+    periods: Sequence[TireMountPeriod],
+    reading: TireReading,
+    axes: Sequence[UsageAxis],
+) -> list[tuple[UsageAxis, TireMountPeriod]]:
+    """Every (axis, period) whose bounds contradict this one reading, periods by id.
+
+    For a reading edit, which judges its own pairs: rule 5 keeps one fault per
+    period, so another reading's flag on a period would hide a new one.
+    """
+    by_id = sorted(periods, key=lambda p: p.id or 0)
+    return [
+        (axis, period)
+        for axis in axes
+        for period, _ in odometer_contradictions(by_id, [reading], axis)
+    ]
+
+
+def reading_contradiction_message(
+    period: TireMountPeriod, reading: TireReading, axis: UsageAxis
+) -> str:
+    """Rule 5's sentence, for the history check and a reading edit's 409 alike."""
+    value = axis.reading(reading)
+    assert value is not None  # only a reading with a figure on `axis` can contradict
+    return (
+        f"{_label(period, capital=True)} contradicts the reading dated {reading.recorded_at} at "
+        f"{axis.fmt(value)}: the vehicle's {axis.meter} would have to run backwards. "
+        "If that reading is wrong, correct or delete it in the tire's history."
+    )
 
 
 def _bounded_spans(
@@ -344,22 +375,14 @@ def validate_period_history(
     # 5: the projection's own monotonicity rule, the same function it calls.
     # One fault per period, naming the EARLIEST reading it contradicts, so the
     # sentence is stable whatever order the readings were loaded in. The
-    # message says what to do, because until readings could be deleted a
-    # mistyped one refused every honest dismount, retire, rotation, set fit
-    # and remount of its tire with no way out.
+    # message says what to do, because until readings could be corrected or
+    # deleted a mistyped one refused every honest dismount, retire, rotation,
+    # set fit and remount of its tire with no way out.
     in_order = sorted(readings, key=lambda r: (r.recorded_at, r.id or 0))
     by_id = sorted(periods, key=lambda p: p.id or 0)
     for axis in checked:
         for p, reading in odometer_contradictions(by_id, in_order, axis):
-            value = axis.reading(reading)
-            assert value is not None  # odometer_contradictions pairs only readings with one
-            add(
-                p,
-                axis.contradicts_code,
-                f"{_label(p, capital=True)} contradicts the reading dated {reading.recorded_at} at "
-                f"{axis.fmt(value)}: the vehicle's {axis.meter} would have to run backwards. "
-                "If that reading is wrong, delete it from the tire's history.",
-            )
+            add(p, axis.contradicts_code, reading_contradiction_message(p, reading, axis))
     return faults
 
 
