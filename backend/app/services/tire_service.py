@@ -7,6 +7,7 @@ import logging
 from collections.abc import Iterable, Sequence
 from datetime import timedelta
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import HTTPException
 from sqlalchemy import delete, select, update
@@ -831,6 +832,20 @@ def _same_measure(a: Decimal | None, b: Decimal | None) -> bool:
     column compare equal. An unknown on either side is never the same.
     """
     return a is not None and b is not None and Decimal(a) == Decimal(b)
+
+
+Measure = Literal["tread_depth_mm", "pressure_kpa"]
+#: What a reading measures about the tire. The odometer and hours are context, not these.
+MEASURES: tuple[Measure, ...] = ("tread_depth_mm", "pressure_kpa")
+
+
+def _newest_with(readings: Iterable[TireReading], measure: Measure) -> TireReading | None:
+    """The newest reading that takes `measure`, by (recorded_at, id) as `delete_reading` orders."""
+    return max(
+        (r for r in readings if getattr(r, measure) is not None),
+        key=lambda r: (r.recorded_at, r.id or 0),
+        default=None,
+    )
 
 
 def _low_tread_title(position: str | None) -> str:
@@ -2108,12 +2123,14 @@ class TireService:
             # to False and `_sync_low_tread_reminder` would mark a live
             # low-tread reminder done. Logging a pressure would have silently
             # dismissed the warning that the tire is worn out.
-            recorded_dates = [r.recorded_at for r in (tire.readings or [])]
-            if not recorded_dates or data.recorded_at >= max(recorded_dates):
-                if data.tread_depth_mm is not None:
-                    tire.tread_depth_mm = data.tread_depth_mm
-                if data.pressure_kpa is not None:
-                    tire.pressure_kpa = data.pressure_kpa
+            # Per measure, so a later pressure-only reading doesn't hold back a
+            # tread, and the other way round. A same-day reading wins: it has the
+            # highest id, so it's the newest by (recorded_at, id) too.
+            for measure in MEASURES:
+                value = getattr(data, measure)
+                newest = _newest_with(tire.readings or [], measure)
+                if value is not None and (newest is None or data.recorded_at >= newest.recorded_at):
+                    setattr(tire, measure, value)
             # A reading's odometer is vehicle context by this schema's own
             # words, not an observation of the tire. Without publishing it the
             # five writers above make things WORSE for someone who only records

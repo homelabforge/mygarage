@@ -348,6 +348,86 @@ class TestTireRoutes:
         # Numeric(5, 2) round-trips as "4.00": compare values, not formatting.
         assert Decimal(str(response.json()["tread_depth_mm"])) == Decimal("4.0")
 
+    async def test_a_later_pressure_only_reading_does_not_hold_back_a_tread(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Newest per measure: Log Reading and the reading edit agree on which reading is newest."""
+        vin = test_vehicle["vin"]
+        made = await client.post(
+            f"/api/vehicles/{vin}/tires", headers=auth_headers, json={"vin": vin}
+        )
+        assert made.status_code == 201, made.text
+        base = f"/api/vehicles/{vin}/tires/{made.json()['id']}/readings"
+        for body in (
+            {"recorded_at": "2026-03-01", "tread_depth_mm": "8.0", "pressure_kpa": "240"},
+            {"recorded_at": "2026-05-01", "pressure_kpa": "230"},
+        ):
+            logged = await client.post(base, headers=auth_headers, json=body)
+            assert logged.status_code == 201, logged.text
+        assert Decimal(str(logged.json()["tread_depth_mm"])) == Decimal("8.0")
+
+        response = await client.post(
+            base, headers=auth_headers, json={"recorded_at": "2026-04-01", "tread_depth_mm": "7.0"}
+        )
+
+        assert response.status_code == 201, response.text
+        # The newest tread, though a pressure was taken after it.
+        assert Decimal(str(response.json()["tread_depth_mm"])) == Decimal("7.0")
+        assert Decimal(str(response.json()["pressure_kpa"])) == Decimal("230")
+
+    async def test_a_later_tread_only_reading_does_not_hold_back_a_pressure(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        vin = test_vehicle["vin"]
+        made = await client.post(
+            f"/api/vehicles/{vin}/tires", headers=auth_headers, json={"vin": vin}
+        )
+        assert made.status_code == 201, made.text
+        base = f"/api/vehicles/{vin}/tires/{made.json()['id']}/readings"
+        for body in (
+            {"recorded_at": "2026-03-01", "tread_depth_mm": "8.0", "pressure_kpa": "240"},
+            {"recorded_at": "2026-05-01", "tread_depth_mm": "7.0"},
+        ):
+            logged = await client.post(base, headers=auth_headers, json=body)
+            assert logged.status_code == 201, logged.text
+        assert Decimal(str(logged.json()["pressure_kpa"])) == Decimal("240")
+
+        response = await client.post(
+            base, headers=auth_headers, json={"recorded_at": "2026-04-01", "pressure_kpa": "220"}
+        )
+
+        assert response.status_code == 201, response.text
+        assert Decimal(str(response.json()["pressure_kpa"])) == Decimal("220")
+        assert Decimal(str(response.json()["tread_depth_mm"])) == Decimal("7.0")
+
+    async def test_a_second_reading_on_the_same_day_sets_the_tire(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """A same-day tie goes to the later reading, as it does on main."""
+        vin = test_vehicle["vin"]
+        made = await client.post(
+            f"/api/vehicles/{vin}/tires", headers=auth_headers, json={"vin": vin}
+        )
+        assert made.status_code == 201, made.text
+        base = f"/api/vehicles/{vin}/tires/{made.json()['id']}/readings"
+        first = await client.post(
+            base,
+            headers=auth_headers,
+            json={"recorded_at": "2026-03-01", "tread_depth_mm": "8.0", "pressure_kpa": "240"},
+        )
+        assert first.status_code == 201, first.text
+        assert Decimal(str(first.json()["tread_depth_mm"])) == Decimal("8.0")
+
+        second = await client.post(
+            base,
+            headers=auth_headers,
+            json={"recorded_at": "2026-03-01", "tread_depth_mm": "7.0", "pressure_kpa": "230"},
+        )
+
+        assert second.status_code == 201, second.text
+        assert Decimal(str(second.json()["tread_depth_mm"])) == Decimal("7.0")
+        assert Decimal(str(second.json()["pressure_kpa"])) == Decimal("230")
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
