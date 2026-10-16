@@ -1,4 +1,4 @@
-from app.services.torque_pid_map import parse_torque_query
+from app.services.torque_pid_map import TORQUE_OBD_PID_MAP, parse_torque_query
 
 
 def test_maps_common_obd_pids_to_canonical_keys():
@@ -56,3 +56,41 @@ def test_test_request_minimal_params_no_readings():
 def test_non_numeric_values_ignored():
     r = parse_torque_query({"k0d": "NaN", "k0c": "", "k05": "abc"})
     assert r.obd == {}  # unparseable values dropped, not crashed
+
+
+def test_unpadded_obd_pids_map_like_padded_ones():
+    """#223: Torque Pro 1.12 uploads PIDs below 0x10 without the leading zero."""
+    # The reporter's upload, verbatim.
+    r = parse_torque_query(
+        {"k4": "8.6", "k5": "69.0", "kc": "2549.0", "kd": "48.0", "kf": "48.0", "k11": "16.47"}
+    )
+    assert r.obd == {
+        "ENGINE_LOAD": 8.6,
+        "COOLANT_TMP": 69.0,
+        "ENGINE_RPM": 2549.0,
+        "SPEED": 48.0,
+        "INTAKE_TEMP": 48.0,
+        "THROTTLE": 16.47,
+    }
+
+
+def test_every_padded_single_digit_pid_has_an_unpadded_spelling():
+    """Every `k0X` in the map is reachable as `kX` too, so no future entry is padded-only."""
+    padded = [k for k in TORQUE_OBD_PID_MAP if len(k) == 3 and k.startswith("k0")]
+    assert padded  # the map does carry single-digit PIDs; an empty list proves nothing
+    for key in padded:
+        assert parse_torque_query({f"k{key[2]}": "1"}).obd == {TORQUE_OBD_PID_MAP[key]: 1.0}
+
+
+def test_unpadded_pid_key_is_case_insensitive():
+    assert parse_torque_query({"KC": "900"}).obd == {"ENGINE_RPM": 900.0}
+
+
+def test_unmapped_unpadded_pid_keeps_its_own_key():
+    """Padding is only for the lookup: an unmapped `k3` stays `K3`, as it always was."""
+    assert parse_torque_query({"k3": "2"}).obd == {"K3": 2.0}
+
+
+def test_known_extended_pids_get_readable_names():
+    r = parse_torque_query({"kff1238": "14.1", "kff1202": "-9.5"})
+    assert r.obd == {"OBD_ADAPTER_VOLTAGE": 14.1, "TURBO_BOOST": -9.5}
