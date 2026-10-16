@@ -136,9 +136,10 @@ def odometer_contradictions(
     projection needs only which periods to withhold a figure over (its
     `_odometer_goes_backwards` reduces these pairs to ids), while a write-time
     refusal has to name the READING, because a mistyped reading is as likely
-    as a mistyped period and correcting or deleting it is the repair. One rule, two callers.
-    Each pair appears once however many implications it violates, in the
-    order of `periods`, then of `readings`.
+    as a mistyped period and correcting or deleting it is the repair. One rule
+    for the projection and every write-time refusal. Each pair appears once
+    however many implications it violates, in the order of `periods`, then
+    of `readings`.
     """
     pairs: list[tuple[TireMountPeriod, TireReading]] = []
     for period in periods:
