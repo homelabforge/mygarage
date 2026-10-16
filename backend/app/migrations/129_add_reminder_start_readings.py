@@ -56,6 +56,8 @@ _PENDING_UNANCHORED = text(
     "AND (start_odometer_km IS NULL OR start_hours IS NULL)"
 ).columns(id=Integer, created_at=DateTime)
 
+# RETURNING hands back the new start (NULL when no reading qualified, no row when
+# one was already stored), so the log counts rows that actually gained one.
 _FILL_ODOMETER = text(
     """
     UPDATE vehicle_reminders SET start_odometer_km = (
@@ -67,6 +69,7 @@ _FILL_ODOMETER = text(
         LIMIT 1
     )
     WHERE id = :id AND start_odometer_km IS NULL
+    RETURNING start_odometer_km
     """
 ).bindparams(bindparam("day", type_=Date))
 
@@ -83,6 +86,7 @@ _FILL_HOURS = text(
         LIMIT 1
     )
     WHERE id = :id AND start_hours IS NULL
+    RETURNING start_hours
     """
 ).bindparams(bindparam("day", type_=Date))
 
@@ -105,24 +109,26 @@ def _household_day(created_at: datetime, zone: ZoneInfo) -> date:
 
 def _backfill(conn: Connection, zone: ZoneInfo) -> int:
     """Fill the missing starts on pending unanchored reminders and return how many
-    rows it touched. A start already stored is never overwritten."""
+    gained at least one. A start already stored is never overwritten."""
     inspector = inspect(conn)
     has_odometer = inspector.has_table("odometer_records")
     has_hours = inspector.has_table("hours_records")
     if not (has_odometer or has_hours):
         return 0
 
-    touched = 0
+    filled = 0
     for reminder_id, created_at in conn.execute(_PENDING_UNANCHORED).all():
         if created_at is None:
             continue
         params = {"id": reminder_id, "day": _household_day(created_at, zone)}
+        gained = False
         if has_odometer:
-            conn.execute(_FILL_ODOMETER, params)
+            gained |= conn.execute(_FILL_ODOMETER, params).scalar() is not None
         if has_hours:
-            conn.execute(_FILL_HOURS, params)
-        touched += 1
-    return touched
+            gained |= conn.execute(_FILL_HOURS, params).scalar() is not None
+        if gained:
+            filled += 1
+    return filled
 
 
 def upgrade(engine: Engine | None = None) -> None:
@@ -148,7 +154,7 @@ def upgrade(engine: Engine | None = None) -> None:
             conn.execute(text(f"ALTER TABLE vehicle_reminders ADD COLUMN {name} {ddl}"))
             logger.info("Added vehicle_reminders.%s", name)
         filled = _backfill(conn, zone)
-    logger.info("Backfilled start readings on %d pending unanchored reminders", filled)
+    logger.info("Filled start readings on %d pending unanchored reminders", filled)
 
 
 def downgrade() -> None:  # pragma: no cover

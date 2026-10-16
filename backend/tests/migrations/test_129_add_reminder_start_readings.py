@@ -5,6 +5,7 @@ readings were on file when the reminder was made.
 """
 
 import importlib.util
+import logging
 from pathlib import Path
 
 import pytest
@@ -119,13 +120,18 @@ def test_129_adds_two_nullable_columns_at_the_anchor_scales(engine_for_migration
 
 
 def test_129_backfills_pending_unanchored_reminders_from_the_readings_on_file_then(
-    engine_for_migration,
+    engine_for_migration, caplog
 ):
     _dialect, engine, _url = engine_for_migration
     _make_tables(engine)
+    caplog.set_level(logging.INFO)
     with engine.begin() as conn:
         _odometer(conn, "2026-10-01", 1000, "2026-10-01 09:00:00")
+        # Higher, but an earlier day: the latest day wins.
+        _odometer(conn, "2026-10-04", 1300, "2026-10-04 09:00:00")
         _odometer(conn, "2026-10-05", 1200, "2026-10-05 11:00:00")
+        # Same day and on file too, but lower (and a higher id): the higher one wins.
+        _odometer(conn, "2026-10-05", 1150, "2026-10-05 10:00:00")
         # Entered after the reminders, though dated their day: never a start.
         _odometer(conn, "2026-10-05", 1500, "2026-10-05 13:00:00")
         # On file before them but dated after their day: never a start.
@@ -153,6 +159,24 @@ def test_129_backfills_pending_unanchored_reminders_from_the_readings_on_file_th
         (None, None),
         (None, None),
     ]
+    # Row 6 is looked at but finds nothing, so it isn't counted.
+    assert "Filled start readings on 3 pending unanchored reminders" in caplog.text
+
+
+def test_129_counts_a_reading_without_created_at_and_skips_a_reminder_without_one(
+    engine_for_migration,
+):
+    """A reading with no created_at can't be shown to be late, so it counts. A
+    reminder with no created_at has no creation day, so it's left alone."""
+    _dialect, engine, _url = engine_for_migration
+    _make_tables(engine)
+    with engine.begin() as conn:
+        _odometer(conn, "2026-10-04", 1100, None)
+        _hours(conn, "2026-10-04", 125.0, None)
+        _reminder(conn, due_mileage_km=2000)
+        _reminder(conn, due_mileage_km=2000, created_at=None)
+    _load().upgrade(engine)
+    assert _starts(engine) == [(1100.0, 125.0), (None, None)]
 
 
 def test_129_reads_the_creation_day_in_the_household_zone(engine_for_migration):
@@ -172,15 +196,30 @@ def test_129_is_idempotent_and_keeps_a_stored_start(engine_for_migration):
     _make_tables(engine)
     with engine.begin() as conn:
         _odometer(conn, "2026-10-01", 1000, "2026-10-01 09:00:00")
+        _hours(conn, "2026-10-01", 100.0, "2026-10-01 09:00:00")
+        _reminder(conn, due_mileage_km=2000)
         _reminder(conn, due_mileage_km=2000)
     mod = _load()
     mod.upgrade(engine)
+    # Each row keeps one start and loses the other, so the rerun picks it up and
+    # only that UPDATE's IS NULL guard keeps the stored one.
     with engine.begin() as conn:
-        conn.execute(text("UPDATE vehicle_reminders SET start_odometer_km = 999"))
+        conn.execute(
+            text(
+                "UPDATE vehicle_reminders SET start_odometer_km = 999, start_hours = NULL "
+                "WHERE id = 1"
+            )
+        )
+        conn.execute(
+            text(
+                "UPDATE vehicle_reminders SET start_odometer_km = NULL, start_hours = 99 "
+                "WHERE id = 2"
+            )
+        )
     mod.upgrade(engine)
     names = [c["name"] for c in inspect(engine).get_columns("vehicle_reminders")]
     assert names.count("start_odometer_km") == names.count("start_hours") == 1
-    assert _starts(engine) == [(999.0, None)]
+    assert _starts(engine) == [(999.0, 100.0), (1000.0, 99.0)]
 
 
 def test_129_adds_the_columns_without_reading_tables(engine_for_migration):
