@@ -31,8 +31,8 @@ import json
 import logging
 import operator
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
-from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
@@ -90,6 +90,7 @@ from app.services.fuel_side_effects import (
     invalidate_cache_for_vehicle,
 )
 from app.services.insurance_service import InsuranceService
+from app.services.reminder_service import start_readings
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.csv_units import (
     CONSUMPTION,
@@ -113,7 +114,7 @@ from app.utils.csv_units import (
 )
 from app.utils.def_sync import ensure_def_capable
 from app.utils.file_validation import validate_csv_upload
-from app.utils.household_time import household_today
+from app.utils.household_time import household_date, household_today
 from app.utils.insurance_coverages import (
     COVERAGE_BY_KEY,
     coverage_row,
@@ -289,17 +290,37 @@ class _InsuranceRowError(_RowError):
     """An insurance row that cannot be imported, with a user-facing reason."""
 
 
-def _json_row_date(record_data: dict[str, Any]) -> date_type:
-    """The row's `date`, or a row error that says what's wrong with it."""
-    raw = record_data.get("date")
+def _json_row_date(record_data: dict[str, Any], key: str = "date") -> date_type:
+    """The row's date under `key`, or a row error that says what's wrong with it."""
+    raw = record_data.get(key)
     if raw is None or (isinstance(raw, str) and not raw.strip()):
-        raise _RowError("date is missing")
+        raise _RowError(f"{key} is missing")
     if not isinstance(raw, str):
-        raise _RowError("date is not a valid date (expected YYYY-MM-DD)")
+        raise _RowError(f"{key} is not a valid date (expected YYYY-MM-DD)")
     try:
         return datetime.fromisoformat(raw).date()
     except ValueError as e:
-        raise _RowError("date is not a valid date (expected YYYY-MM-DD)") from e
+        raise _RowError(f"{key} is not a valid date (expected YYYY-MM-DD)") from e
+
+
+def _json_row_datetime(record_data: dict[str, Any], key: str) -> datetime | None:
+    """The row's timestamp under `key` as naive UTC, None when it's missing.
+
+    A naive value is read as UTC, like every timestamp column here. Anything
+    that won't parse is a row error.
+    """
+    raw = record_data.get(key)
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise _RowError(f"{key} is not a valid date and time")
+    try:
+        value = datetime.fromisoformat(raw)
+    except ValueError as e:
+        raise _RowError(f"{key} is not a valid date and time") from e
+    if value.tzinfo is not None:
+        value = value.astimezone(UTC).replace(tzinfo=None)
+    return value
 
 
 def _whole_cents(value: Decimal | None, column: str) -> Decimal | None:
@@ -2078,53 +2099,105 @@ async def import_vehicle_json(
             logger.warning("Import: hours record %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Hours record {idx}: could not be imported")
 
+    # Read once, here: the odometer and hours sections have flushed by now
+    # (each row leaves a savepoint), and no reminder row writes a reading.
+    start_km, start_hours = await start_readings(db, vin)
+
+    def _exported_due_point(
+        reminder_data: dict[str, Any],
+    ) -> tuple[date_type | None, Decimal | None]:
+        """The due date and odometer the row was exported with, mileage in km."""
+        due_date = (
+            _json_row_date(reminder_data, "due_date")
+            if reminder_data.get("due_date") is not None
+            else None
+        )
+        due_km = _maybe_mi_to_km(reminder_data.get("due_mileage"))
+        _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
+        if due_km is not None:
+            due_km = due_km.quantize(Decimal("0.01"))
+        return due_date, due_km
+
     # Import reminders → map to vehicle_reminders
     for idx, reminder_data in enumerate(sections["reminders"]):
         try:
-            # Determine reminder type from recurrence fields
-            is_recurring = reminder_data.get("is_recurring", False)
-            recurrence_days = reminder_data.get("recurrence_days", 0)
-            recurrence_miles = reminder_data.get("recurrence_miles")
+            is_completed = bool(reminder_data.get("is_completed"))
+            completed_at: datetime | None = None
+            if is_completed:
+                # Comes back as done, due where it was. Not logged as a
+                # service visit: the same import may already carry that work.
+                completed_at = _json_row_datetime(reminder_data, "completed_at")
+                due_date, due_km = _exported_due_point(reminder_data)
+            else:
+                is_recurring = reminder_data.get("is_recurring", False)
+                recurrence_days = reminder_data.get("recurrence_days", 0)
+                recurrence_miles = reminder_data.get("recurrence_miles")
 
-            has_date = bool(is_recurring and recurrence_days)
-            has_miles = bool(is_recurring and recurrence_miles)
+                has_date = bool(is_recurring and recurrence_days)
+                has_miles = bool(is_recurring and recurrence_miles)
 
-            # The database requires a positive due_mileage_km when one is set
-            # (check_due_mileage_km); reject a negative recurrence here
-            # rather than letting that CHECK reject the row. Not clamped: a
-            # negative value is reported, never silently corrected.
-            # Bounds first, so a NaN gets the specific message rather than
-            # failing the comparison below.
-            if has_miles:
-                _within_api_bounds(ReminderCreate, due_mileage_km=Decimal(str(recurrence_miles)))
-            if has_miles and Decimal(str(recurrence_miles)) <= 0:
-                results["reminders"]["errors"] += 1
-                errors.append(f"Reminder {idx}: recurrence_miles must be positive")
-                continue
+                # The database requires a positive due_mileage_km when one is set
+                # (check_due_mileage_km); reject a negative recurrence here
+                # rather than letting that CHECK reject the row. Not clamped: a
+                # negative value is reported, never silently corrected.
+                # Bounds first, so a NaN gets the specific message rather than
+                # failing the comparison below.
+                if has_miles:
+                    _within_api_bounds(
+                        ReminderCreate, due_mileage_km=Decimal(str(recurrence_miles))
+                    )
+                if has_miles and Decimal(str(recurrence_miles)) <= 0:
+                    results["reminders"]["errors"] += 1
+                    errors.append(f"Reminder {idx}: recurrence_miles must be positive")
+                    continue
 
-            if has_date and has_miles:
+                if not is_recurring:
+                    # A one-time reminder keeps the due point it was exported with.
+                    due_date, due_km = _exported_due_point(reminder_data)
+                else:
+                    due_date = None
+                    due_km = None
+                    interval_km = _maybe_mi_to_km(recurrence_miles) if has_miles else None
+                    if interval_km is not None:
+                        # The interval counts from the odometer after the import.
+                        # With no reading, a date side carries the row on its own
+                        # and the miles half drops; a miles-only row can't import.
+                        if start_km is not None:
+                            due_km = (start_km + interval_km).quantize(Decimal("0.01"))
+                            _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
+                        elif not has_date:
+                            raise _RowError("no odometer reading to count from")
+
+                    # Calculate due_date from recurrence_days
+                    if has_date and recurrence_days:
+                        # A date object, in the household zone. The previous code
+                        # assigned .isoformat() -- a str the Date column rejects at
+                        # flush -- so every recurring-days row errored out of the
+                        # import; the per-row savepoint made it look like bad data.
+                        due_date = household_today() + timedelta(days=recurrence_days)
+
+                # A pending reminder with nothing to come due on would never fire.
+                if due_date is None and due_km is None:
+                    raise _RowError("no due date or mileage to import")
+
+            if due_date is not None and due_km is not None:
                 reminder_type = "both"
-            elif has_miles:
+            elif due_km is not None:
                 reminder_type = "mileage"
             else:
                 reminder_type = "date"
-
-            # Calculate due_date from recurrence_days
-            due_date = None
-            if has_date and recurrence_days:
-                # A date object, in the household zone. The previous code
-                # assigned .isoformat() -- a str the Date column rejects at
-                # flush -- so every recurring-days row errored out of the
-                # import; the per-row savepoint made it look like bad data.
-                due_date = household_today() + timedelta(days=recurrence_days)
 
             reminder = Reminder(
                 vin=vin,
                 title=reminder_data["description"],
                 reminder_type=reminder_type,
                 due_date=due_date,
-                due_mileage_km=recurrence_miles if has_miles else None,
-                status="pending",
+                due_mileage_km=due_km,
+                start_odometer_km=start_km,
+                start_hours=start_hours,
+                status="done" if is_completed else "pending",
+                completed_at=completed_at,
+                completed_date=household_date(completed_at) if completed_at is not None else None,
                 notes=reminder_data.get("notes"),
                 maintenance_type=classify(reminder_data["description"]),
             )
@@ -2134,7 +2207,7 @@ async def import_vehicle_json(
             async with db.begin_nested():
                 db.add(reminder)
             results["reminders"]["success"] += 1
-        except _ImportBoundError as e:
+        except _RowError as e:
             results["reminders"]["errors"] += 1
             errors.append(f"Reminder {idx}: {e.reason}")
         except Exception as e:

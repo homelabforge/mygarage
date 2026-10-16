@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The hours list shows a reading a tire recorded as Tire instead of Manual
 - A tire reading logged after a higher one the same day no longer lowers the vehicle's odometer or hours for that day, and deleting a tire reading leaves the day at the highest reading still on file
 - A reminder you make counts its progress bar from the readings on file when you made it, so a reading added or corrected later that day no longer holds the bar at zero or hides it (thanks @Drisicato, PR #216)
+- Importing an old (pre-v3) vehicle backup counts a repeating reminder's mileage from the vehicle's odometer instead of saving the interval as the due odometer, keeps a one-time reminder's due date and mileage, and brings completed reminders back as done; a mileage-only reminder with no odometer reading to count from is reported instead
 
 ### Security
 - POI provider settings are admin-only
