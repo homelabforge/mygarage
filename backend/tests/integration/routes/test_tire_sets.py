@@ -28,6 +28,9 @@ from sqlalchemy import delete, select
 from app.models.odometer import OdometerRecord
 from app.models.tire import Tire, TireMountPeriod
 from app.models.vehicle import Vehicle
+from app.services.odometer_service import latest_odometer_km_and_date
+from app.services.tire_service import ODOMETER_SOURCE_SET
+from app.utils.odometer_sync import auto_sync_marker
 
 TODAY = date(2026, 4, 1)
 
@@ -425,6 +428,52 @@ class TestFittingASet:
         periods = first.json()["tires"][0]["mount_periods"]
         assert len(periods) == 1, periods
         assert periods[0]["dismounted_on"] is None
+
+    async def test_fitting_it_again_lower_the_same_day_corrects_the_reading(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """A refit is one event, so a lower figure is the user fixing a typo (#224).
+
+        The second fit moves nothing and only publishes. The period editor
+        can't reach the set's row, so a refit is how the user fixes it.
+        """
+        winter = await _set(client, auth_headers, vehicle, "Winter")
+        tire = await _mount(
+            client,
+            auth_headers,
+            vehicle,
+            "FL",
+            brand="Nokian",
+            mounted_on="2026-01-05",
+            mounted_odometer_km="40000",
+        )
+        await _assign(client, auth_headers, vehicle, tire["id"], winter["id"])
+        dismounted = await client.post(
+            f"/api/vehicles/{vehicle}/tires/{tire['id']}/dismount",
+            headers=auth_headers,
+            json={"dismounted_on": "2026-03-01", "dismounted_odometer_km": "45000"},
+        )
+        assert dismounted.status_code == 200, dismounted.text
+
+        for km in ("50200", "50100"):
+            fitted = await client.post(
+                f"/api/vehicles/{vehicle}/tire-sets/{winter['id']}/mount",
+                headers=auth_headers,
+                json={"mounted_on": TODAY.isoformat(), "odometer_km": km},
+            )
+            assert fitted.status_code == 200, fitted.text
+
+        rows = (
+            await db_session.execute(
+                select(OdometerRecord.odometer_km, OdometerRecord.notes).where(
+                    OdometerRecord.vin == vehicle, OdometerRecord.date == TODAY
+                )
+            )
+        ).all()
+        assert [tuple(row) for row in rows] == [
+            (Decimal("50100"), auto_sync_marker(ODOMETER_SOURCE_SET, winter["id"]))
+        ]
+        assert await latest_odometer_km_and_date(db_session, vehicle) == (Decimal("50100"), TODAY)
 
     async def test_the_most_recently_recorded_corner_wins(
         self, client: AsyncClient, auth_headers, vehicle, db_session

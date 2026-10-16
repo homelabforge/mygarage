@@ -214,8 +214,9 @@ async def publish_marked_hours(
 
     Update our own row on that day, publish nothing when another row that day
     reads at or above the figure, otherwise add our row. FKs stay null.
-    Flushes, never commits. The tire publish (`publish_tire_hours`) never sends
-    a figure below our own row, so a lower same-day event can't lower it (#224).
+    Flushes, never commits. The tire publish (`publish_tire_hours`) holds back
+    a figure below the tire marker's own row, so a lower reading of that tire
+    the same day can't lower it (#224).
     """
     if engine_hours is None:
         return None

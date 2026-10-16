@@ -106,12 +106,13 @@ async def publish_tire_odometer(
     record carrying its own marker, `auto_sync_marker(source_type,
     source_id)`, and never touches any other. On `when`:
 
-    1. A record with that marker has its value updated, unless the figure is
-       below it beyond the same-reading tolerance. One marker can stand for
-       several events that day (every reading of a tire publishes under the
-       tire's), so the record keeps the highest (#224). Only a reading delete
-       lowers it (`_withdraw_reading_usage`); the period editor corrects a
-       period's record by moving it itself.
+    1. A record with that marker has its value updated. Under the tire's own
+       marker a figure below it, beyond the same-reading tolerance, leaves
+       it: every reading of the tire that day shares that marker, so the
+       record keeps the highest (#224) and only a reading delete lowers it
+       (`_withdraw_reading_usage`). A set fit or rotation published again
+       lower is a correction and lowers its record; the period editor moves
+       a period's record itself.
     2. Otherwise, when another record on the day (manual, a service visit's,
        a fuel-up's, LiveLink's, another tire event's) reads at or above the
        figure, within the same-reading tolerance, nothing is published: the
@@ -149,7 +150,7 @@ async def publish_tire_hours(
 ) -> None:
     """`publish_tire_odometer` for the hour meter: same marker, same rules, on `hours_records`.
 
-    A lower figure never lowers its own row on that day here either (#224).
+    Under the tire's own marker a lower figure leaves its same-day row here too (#224).
     """
     await _publish_tire_usage(db, vin, when, engine_hours, source_type, source_id, HOURS)
 
@@ -213,14 +214,20 @@ async def _publish_tire_usage(
     source_id: int,
     axis: UsageAxis,
 ) -> None:
-    """The one door behind both tire publishers: `publish_tire_odometer`'s rules, on `axis`."""
+    """The one door behind both tire publishers: `publish_tire_odometer`'s rules, on `axis`.
+
+    Only the tire's own marker holds back a lower figure, since it stands for
+    every event of that tire on the day. A set fit or rotation marker is one
+    event, so a lower figure there is a correction and goes through.
+    """
     if value is None:
         return
-    marker = auto_sync_marker(source_type, source_id)
-    same_day = await _same_day_usage(db, vin, axis, when)
-    own = next((record for record in same_day if record.notes == marker), None)
-    if own is not None and axis.below(value, _usage_value(own)):
-        return
+    if source_type == ODOMETER_SOURCE_TIRE:
+        marker = auto_sync_marker(source_type, source_id)
+        same_day = await _same_day_usage(db, vin, axis, when)
+        own = next((record for record in same_day if record.notes == marker), None)
+        if own is not None and axis.below(value, _usage_value(own)):
+            return
     if axis.is_hours:
         await publish_marked_hours(db, vin, when, value, source_type, source_id)
     else:

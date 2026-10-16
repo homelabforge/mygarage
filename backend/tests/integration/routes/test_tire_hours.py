@@ -336,6 +336,44 @@ class TestPublishing:
             None,
         ) in rows
 
+    async def test_a_set_fit_again_lower_the_same_day_corrects_its_row(
+        self, client, auth_headers, db_session, make_vehicle
+    ):
+        # A refit is one event, so a lower figure is a correction, not a stale reading (#224).
+        vin = await make_vehicle("hours")
+        tire = (await _create_and_mount(client, auth_headers, vin)).json()
+        tire_set = (
+            await client.post(
+                f"/api/vehicles/{vin}/tire-sets", headers=auth_headers, json={"name": "Mud"}
+            )
+        ).json()
+        filed = await client.put(
+            f"/api/vehicles/{vin}/tires/{tire['id']}",
+            headers=auth_headers,
+            json={"set_id": tire_set["id"]},
+        )
+        assert filed.status_code == 200, filed.text
+        off = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/dismount",
+            headers=auth_headers,
+            json={"dismounted_on": DAY.isoformat(), "dismounted_hours": "10.0"},
+        )
+        assert off.status_code == 200, off.text
+        for hours in ("20.0", "15.0"):
+            fitted = await client.post(
+                f"/api/vehicles/{vin}/tire-sets/{tire_set['id']}/mount",
+                headers=auth_headers,
+                json={"mounted_on": DAY.isoformat(), "engine_hours": hours},
+            )
+            assert fitted.status_code == 200, fitted.text
+        rows = await _hours_rows(db_session, vin)
+        assert [(r[1], r[3]) for r in rows] == [
+            (Decimal("10.0"), "tire_dismount"),
+            (Decimal("15.0"), "tire_set"),
+        ]
+        assert rows[1][2] == auto_sync_marker("tire_set", tire_set["id"])
+        assert await latest_engine_hours_and_date(db_session, vin) == (Decimal("15.0"), DAY)
+
     async def test_a_reading_publishes_under_the_tire(
         self, client, auth_headers, db_session, make_vehicle
     ):
