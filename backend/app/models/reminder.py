@@ -96,6 +96,10 @@ class Reminder(Base):
     anchor_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     anchor_odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     anchor_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1), nullable=True)
+    # What an unanchored reminder counts from: the readings when it was made
+    # (migration 129). Not an anchor, so adoption and reconcile never read them.
+    start_odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    start_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1), nullable=True)
     # How and when it was closed. `completed_line_item_id` is the work that
     # closed it, which the successor then counts from.
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
