@@ -36,6 +36,7 @@ from app.services.reminder_service import (
     DueContext,
     ReminderStart,
     _build_reminder_message,
+    anchor_start,
     calculate_hours_driving_rate,
     calculate_smart_estimated_date,
     check_due_reminders,
@@ -789,7 +790,9 @@ class TestLoadReminderStarts:
         await _add_odometer_record(db_session, vin, date(2026, 9, 3), Decimal("1300"))
         reminder = await self._one_off(db_session, vin)
         with _household_zone("UTC"):
-            starts = await load_reminder_starts(db_session, vin, [reminder])
+            starts = await load_reminder_starts(
+                db_session, vin, [reminder], current_km=None, current_hours=None
+            )
         assert starts == {reminder.id: ReminderStart(date(2026, 9, 1), Decimal("1000"), None)}
 
     async def test_creation_day_is_the_households_not_utcs(
@@ -800,7 +803,9 @@ class TestLoadReminderStarts:
         await _add_odometer_record(db_session, vin, date(2026, 9, 3), Decimal("1300"))
         reminder = await self._one_off(db_session, vin, created_at=datetime(2026, 9, 1, 20, 0))
         with _household_zone("Pacific/Auckland"):
-            starts = await load_reminder_starts(db_session, vin, [reminder])
+            starts = await load_reminder_starts(
+                db_session, vin, [reminder], current_km=None, current_hours=None
+            )
         # 20:00 UTC on the 1st is 08:00 on the 2nd in Auckland, so the 3rd's reading is nearer.
         assert starts[reminder.id] == ReminderStart(date(2026, 9, 2), Decimal("1300"), None)
 
@@ -813,7 +818,9 @@ class TestLoadReminderStarts:
             db_session, vin, reminder_type="hours", due_mileage_km=None, due_hours=Decimal("200.0")
         )
         with _household_zone("UTC"):
-            starts = await load_reminder_starts(db_session, vin, [reminder])
+            starts = await load_reminder_starts(
+                db_session, vin, [reminder], current_km=None, current_hours=None
+            )
         assert starts[reminder.id] == ReminderStart(date(2026, 9, 1), None, Decimal("120.0"))
 
     async def test_a_date_reminder_looks_up_no_reading(
@@ -829,7 +836,9 @@ class TestLoadReminderStarts:
             due_date=date(2026, 12, 1),
         )
         with _household_zone("UTC"):
-            starts = await load_reminder_starts(db_session, test_vehicle["vin"], [reminder])
+            starts = await load_reminder_starts(
+                db_session, test_vehicle["vin"], [reminder], current_km=None, current_hours=None
+            )
         assert starts[reminder.id] == ReminderStart(date(2026, 9, 1), None, None)
         spy.assert_not_awaited()
 
@@ -845,7 +854,12 @@ class TestLoadReminderStarts:
             anchor_date=date(2026, 8, 1),
             anchor_odometer_km=Decimal("900"),
         )
-        assert await load_reminder_starts(db_session, test_vehicle["vin"], [reminder]) == {}
+        assert (
+            await load_reminder_starts(
+                db_session, test_vehicle["vin"], [reminder], current_km=None, current_hours=None
+            )
+            == {}
+        )
         spy.assert_not_awaited()
 
     async def test_one_lookup_per_creation_day(
@@ -860,9 +874,97 @@ class TestLoadReminderStarts:
             db_session, vin, title="Second", created_at=datetime(2026, 9, 1, 18, 0)
         )
         with _household_zone("UTC"):
-            starts = await load_reminder_starts(db_session, vin, [first, second])
+            starts = await load_reminder_starts(
+                db_session, vin, [first, second], current_km=None, current_hours=None
+            )
         assert starts[first.id].km == starts[second.id].km == Decimal("1000")
         assert spy.await_count == 1
+
+    async def test_a_stored_start_wins_over_the_nearest_reading(
+        self, db_session, test_vehicle, clean_odometer_records, clean_reminders, monkeypatch
+    ):
+        vin = test_vehicle["vin"]
+        await _add_odometer_record(db_session, vin, date(2026, 8, 31), Decimal("1000"))
+        await _add_odometer_record(db_session, vin, date(2026, 9, 3), Decimal("1300"))
+        spy = AsyncMock(wraps=reminder_service.nearest_odometer)
+        monkeypatch.setattr(reminder_service, "nearest_odometer", spy)
+        reminder = await self._one_off(db_session, vin, start_odometer_km=Decimal("1100"))
+        with _household_zone("UTC"):
+            starts = await load_reminder_starts(
+                db_session, vin, [reminder], current_km=Decimal("1300"), current_hours=None
+            )
+        assert starts[reminder.id] == ReminderStart(date(2026, 9, 1), Decimal("1100"), None)
+        spy.assert_not_awaited()
+
+    async def test_a_stored_start_above_the_current_reading_is_ignored(
+        self, db_session, test_vehicle, clean_odometer_records, clean_reminders
+    ):
+        vin = test_vehicle["vin"]
+        await _add_odometer_record(db_session, vin, date(2026, 8, 31), Decimal("1000"))
+        await _add_odometer_record(db_session, vin, date(2026, 9, 3), Decimal("1300"))
+        # A typo'd 5000 was on file when it was made and has been fixed since.
+        reminder = await self._one_off(db_session, vin, start_odometer_km=Decimal("5000"))
+        with _household_zone("UTC"):
+            starts = await load_reminder_starts(
+                db_session, vin, [reminder], current_km=Decimal("1300"), current_hours=None
+            )
+        assert starts[reminder.id] == ReminderStart(date(2026, 9, 1), Decimal("1000"), None)
+
+    async def test_a_stored_start_at_the_current_reading_or_with_none_is_used(
+        self, db_session, test_vehicle, clean_odometer_records, clean_reminders
+    ):
+        vin = test_vehicle["vin"]
+        await _add_odometer_record(db_session, vin, date(2026, 8, 31), Decimal("1000"))
+        await _add_odometer_record(db_session, vin, date(2026, 9, 3), Decimal("1300"))
+        reminder = await self._one_off(db_session, vin, start_odometer_km=Decimal("1300"))
+        with _household_zone("UTC"):
+            at = await load_reminder_starts(
+                db_session, vin, [reminder], current_km=Decimal("1300"), current_hours=None
+            )
+            without = await load_reminder_starts(
+                db_session, vin, [reminder], current_km=None, current_hours=None
+            )
+        # Equal isn't above, and with no current reading there's nothing to call it a typo.
+        assert at[reminder.id].km == without[reminder.id].km == Decimal("1300")
+
+    async def test_stored_hours_win_and_fall_back_the_same_way(
+        self, db_session, test_vehicle, clean_hours_records, clean_reminders
+    ):
+        vin = test_vehicle["vin"]
+        await _add_hours_record(db_session, vin, date(2026, 9, 1), Decimal("120.0"))
+        hours_only = {
+            "reminder_type": "hours",
+            "due_mileage_km": None,
+            "due_hours": Decimal("200.0"),
+        }
+        kept = await self._one_off(
+            db_session, vin, title="Kept", start_hours=Decimal("125.0"), **hours_only
+        )
+        above = await self._one_off(
+            db_session, vin, title="Above", start_hours=Decimal("140.0"), **hours_only
+        )
+        with _household_zone("UTC"):
+            starts = await load_reminder_starts(
+                db_session, vin, [kept, above], current_km=None, current_hours=Decimal("130.0")
+            )
+        assert starts[kept.id] == ReminderStart(date(2026, 9, 1), None, Decimal("125.0"))
+        assert starts[above.id] == ReminderStart(date(2026, 9, 1), None, Decimal("120.0"))
+
+    async def test_an_anchor_beats_a_stored_start(self, db_session, test_vehicle, clean_reminders):
+        vin = test_vehicle["vin"]
+        reminder = await self._one_off(
+            db_session,
+            vin,
+            anchor_kind="baseline",
+            anchor_date=date(2026, 8, 1),
+            anchor_odometer_km=Decimal("900"),
+            start_odometer_km=Decimal("1100"),
+        )
+        starts = await load_reminder_starts(
+            db_session, vin, [reminder], current_km=Decimal("1300"), current_hours=None
+        )
+        assert starts == {}
+        assert anchor_start(reminder) == ReminderStart(date(2026, 8, 1), Decimal("900"), None)
 
 
 @pytest.mark.unit
@@ -1314,6 +1416,45 @@ class TestCreateReminderHours:
         assert reminder.reminder_type == "smart"
         assert reminder.due_hours == Decimal("750.0")
         assert reminder.due_mileage_km is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestCreateReminderStoresItsStart:
+    async def test_a_one_off_stores_both_current_readings_whatever_its_targets(
+        self, db_session, test_vehicle, clean_odometer_records, clean_hours_records, clean_reminders
+    ):
+        from app.schemas.reminder import ReminderCreate
+
+        vin = test_vehicle["vin"]
+        await _add_odometer_record(db_session, vin, household_today(), Decimal("42000"))
+        await _add_hours_record(db_session, vin, household_today(), Decimal("300.0"))
+        for data in (
+            ReminderCreate(
+                title="Plates",
+                reminder_type="date",
+                due_date=household_today() + timedelta(days=30),
+            ),
+            ReminderCreate(title="Oil", reminder_type="mileage", due_mileage_km=Decimal("47000")),
+        ):
+            reminder = await create_reminder(vin, data, db_session)
+            await db_session.commit()
+            await db_session.refresh(reminder)
+            assert (reminder.start_odometer_km, reminder.start_hours) == (
+                Decimal("42000.00"),
+                Decimal("300.0"),
+            )
+
+    async def test_a_one_off_on_a_vehicle_with_no_readings_stores_none(
+        self, db_session, test_vehicle, clean_odometer_records, clean_hours_records, clean_reminders
+    ):
+        from app.schemas.reminder import ReminderCreate
+
+        data = ReminderCreate(title="Oil", reminder_type="mileage", due_mileage_km=Decimal("47000"))
+        reminder = await create_reminder(test_vehicle["vin"], data, db_session)
+        await db_session.commit()
+        await db_session.refresh(reminder)
+        assert (reminder.start_odometer_km, reminder.start_hours) == (None, None)
 
 
 # ---------------------------------------------------------------------------

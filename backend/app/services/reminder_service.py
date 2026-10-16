@@ -172,6 +172,12 @@ async def get_current_hours(vin: str, db: AsyncSession) -> Decimal | None:
     return engine_hours
 
 
+async def start_readings(db: AsyncSession, vin: str) -> tuple[Decimal | None, Decimal | None]:
+    """The odometer and hours an unanchored reminder made now counts from: the
+    vehicle's current readings, both, whatever targets it has (R5)."""
+    return await get_current_mileage(vin, db), await get_current_hours(vin, db)
+
+
 def is_reminder_overdue(
     reminder: Reminder,
     current_km: Decimal | None,
@@ -287,8 +293,8 @@ _BASIS_ORDER: tuple[ProgressBasis, ...] = ("distance", "hours", "date")
 @dataclass(frozen=True)
 class ReminderStart:
     """What a pending reminder counts from (#192 D4): its anchor, or for an
-    unanchored reminder the household day it was created and the readings
-    nearest that day."""
+    unanchored one the day it was made and the readings stored then (or,
+    without them, the readings nearest that day)."""
 
     day: date | None
     km: Decimal | None
@@ -297,8 +303,8 @@ class ReminderStart:
 
 @dataclass(frozen=True)
 class DueContext:
-    """One vehicle's readings and rates on one day, plus the derived starts of
-    its unanchored reminders by id. Built once per list or count, so every row
+    """One vehicle's readings and rates on one day, plus the starts of its
+    unanchored reminders by id. Built once per list or count, so every row
     reads the same values the badges count with."""
 
     today: date
@@ -326,7 +332,7 @@ def anchor_start(reminder: Reminder) -> ReminderStart | None:
 
 
 def reminder_start(reminder: Reminder, ctx: DueContext) -> ReminderStart | None:
-    """The reminder's anchor, else the start ``ctx`` derived for it."""
+    """The reminder's anchor, else the start ``ctx`` holds for it."""
     return anchor_start(reminder) or ctx.starts.get(reminder.id)
 
 
@@ -336,8 +342,9 @@ def progress_fractions(reminder: Reminder, ctx: DueContext) -> dict[ProgressBasi
 
     A dimension is left out when its start, its current reading or a positive
     span is missing. Unclamped both ways: past due reads above 1, and a reading
-    below the start (a typo, or a nearest reading taken after creation) reads
-    below 0. The bar clamps; the sort doesn't need to.
+    below the start (a typo, or a nearest reading taken after creation when
+    there's no stored start to use) reads below 0. The bar clamps; the sort
+    doesn't need to.
     """
     start = reminder_start(reminder, ctx)
     if start is None:
@@ -458,7 +465,7 @@ def classify_pending_reminders(
     """``tally_due_statuses`` from loose readings, for callers that hold them.
 
     ``None`` rates skip the usage projection, and an unanchored reminder gets no
-    derived start here, so a usage reminder is then due soon only through its
+    start here, so a usage reminder is then due soon only through its
     anchor (D2). The widget and the family dashboard call this without rates and
     read only overdue and upcoming, which D2 never moves.
     """
@@ -486,18 +493,29 @@ def created_on(reminder: Reminder) -> date | None:
     return household_date(created)
 
 
-async def load_reminder_starts(
-    db: AsyncSession, vin: str, reminders: Sequence[Reminder]
-) -> dict[int, ReminderStart]:
-    """Derived starts for the unanchored reminders among ``reminders``, by id (#192 D4).
+def _usable_start(stored: Decimal | None, current: Decimal | None) -> Decimal | None:
+    """The stored start, unless it's missing or above the current reading (R2)."""
+    if stored is None or (current is not None and stored > current):
+        return None
+    return stored
 
-    Such a reminder counts from the household day it was created, with the
-    odometer and hours readings nearest that day. Each reading is looked up
-    only for a target the reminder has, and once per day, so these lookups
-    (two queries each) grow with the number of distinct creation days, not
-    with the rows; the rates and current readings are once per list. Nothing is stored:
-    loose pending reminders are adoption candidates, and a stored anchor would
-    change what rule adoption (``_pick_keeper``) and ``reconcile_rule`` do.
+
+async def load_reminder_starts(
+    db: AsyncSession,
+    vin: str,
+    reminders: Sequence[Reminder],
+    *,
+    current_km: Decimal | None,
+    current_hours: Decimal | None,
+) -> dict[int, ReminderStart]:
+    """Starts for the unanchored reminders among ``reminders``, by id (#192 D4).
+
+    Each counts from the day it was made and the readings it stored then; a
+    missing stored reading, or one above the current reading (a typo since
+    fixed), falls back to the reading nearest that day, looked up once per day.
+    These are stored starts, not anchors: adoption (``_pick_keeper``) and
+    ``reconcile_rule`` read anchors only, so a loose reminder stays an adoption
+    candidate.
     """
     km_on: dict[date, Decimal | None] = {}
     hours_on: dict[date, Decimal | None] = {}
@@ -510,15 +528,19 @@ async def load_reminder_starts(
             continue
         km: Decimal | None = None
         if reminder.due_mileage_km is not None:
-            if day not in km_on:
-                record = await nearest_odometer(db, vin, day)
-                km_on[day] = record.odometer_km if record is not None else None
-            km = km_on[day]
+            km = _usable_start(reminder.start_odometer_km, current_km)
+            if km is None:
+                if day not in km_on:
+                    record = await nearest_odometer(db, vin, day)
+                    km_on[day] = record.odometer_km if record is not None else None
+                km = km_on[day]
         hours: Decimal | None = None
         if reminder.due_hours is not None:
-            if day not in hours_on:
-                hours_on[day] = await nearest_hours(db, vin, day)
-            hours = hours_on[day]
+            hours = _usable_start(reminder.start_hours, current_hours)
+            if hours is None:
+                if day not in hours_on:
+                    hours_on[day] = await nearest_hours(db, vin, day)
+                hours = hours_on[day]
         starts[reminder.id] = ReminderStart(day=day, km=km, hours=hours)
     return starts
 
@@ -552,7 +574,9 @@ async def due_context_for_readings(
         current_hours=current_hours,
         km_per_day=km_per_day,
         hours_per_day=hours_per_day,
-        starts=await load_reminder_starts(db, vin, pending),
+        starts=await load_reminder_starts(
+            db, vin, pending, current_km=current_km, current_hours=current_hours
+        ),
     )
 
 
@@ -590,7 +614,7 @@ async def count_pending_reminders(
     target and a reading to project from). The dashboard card, the fleet
     strip and the detail hero all count through here, so their badges agree;
     callers pass the readings they display, so a reading and the counts
-    beside it never disagree. Unanchored reminders get derived starts, so the
+    beside it never disagree. Unanchored reminders get their starts, so the
     D2 fallback counts here exactly as the list row shows it.
     """
     if today is None:
@@ -665,7 +689,8 @@ async def create_reminder(
     branches); a line item's reminder through
     ``maintenance_service.create_reminder_for_line_item``, which anchors it
     on the visit. The type is stored so duplicates of the same maintenance
-    are detectable even for a hand-made reminder.
+    are detectable even for a hand-made reminder. It stores both current
+    readings as its start, so a reading added or corrected later can't move it.
     """
     if data.recurrence is not None:
         raise HTTPException(
@@ -677,6 +702,7 @@ async def create_reminder(
 
     assert data.reminder_type is not None  # the schema requires it without a recurrence
     validate_reminder_state(data.reminder_type, data.due_date, data.due_mileage_km, data.due_hours)
+    start_km, start_hours = await start_readings(db, vin)
 
     reminder = Reminder(
         vin=vin,
@@ -688,6 +714,8 @@ async def create_reminder(
         due_hours=data.due_hours,
         notes=data.notes,
         maintenance_type=data.maintenance_type or classify(data.title),
+        start_odometer_km=start_km,
+        start_hours=start_hours,
     )
     db.add(reminder)
     return reminder

@@ -37,6 +37,7 @@ from app.schemas.tire import (
     TireUpdate,
 )
 from app.services.hours_service import latest_engine_hours_and_date
+from app.services.reminder_service import start_readings
 from app.services.tire_history import (
     DistanceFormatter,
     FaultMap,
@@ -2423,6 +2424,7 @@ class TireService:
             # from every low-tread reminder ever raised.
             # Below the minimum the projection reads no distance, so no current figure is needed.
             wear = project_wear(tire, None)
+            start_km, start_hours = await start_readings(self.db, tire.vin)
             reminder = Reminder(
                 vin=tire.vin,
                 # Which tire, and that WE made this. The sync never adopts a
@@ -2444,6 +2446,8 @@ class TireService:
                 due_date=wear.wear_date or due,
                 due_mileage_km=None,
                 status="pending",
+                start_odometer_km=start_km,
+                start_hours=start_hours,
             )
             self.db.add(reminder)
             dirty = True
