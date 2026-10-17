@@ -2307,6 +2307,18 @@
             "title": "Condition",
             "type": "string"
           },
+          "inner_pad_measured_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inner Pad Measured On"
+          },
           "inner_pad_mm": {
             "anyOf": [
               {
@@ -2378,6 +2390,18 @@
             },
             "title": "Measurements",
             "type": "array"
+          },
+          "outer_pad_measured_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outer Pad Measured On"
           },
           "outer_pad_mm": {
             "anyOf": [

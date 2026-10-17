@@ -8800,6 +8800,8 @@ export interface components {
              * @enum {string}
              */
             condition: "ok" | "due_soon" | "replace_now" | "unknown";
+            /** Inner Pad Measured On */
+            inner_pad_measured_on?: string | null;
             /** Inner Pad Mm */
             inner_pad_mm?: string | null;
             /** Jobs */
@@ -8813,6 +8815,8 @@ export interface components {
             measured_on?: string | null;
             /** Measurements */
             measurements?: components["schemas"]["BrakeMeasurementResponse"][];
+            /** Outer Pad Measured On */
+            outer_pad_measured_on?: string | null;
             /** Outer Pad Mm */
             outer_pad_mm?: string | null;
             /**
