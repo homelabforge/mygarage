@@ -86,11 +86,25 @@ def test_unpadded_pid_key_is_case_insensitive():
     assert parse_torque_query({"KC": "900"}).obd == {"ENGINE_RPM": 900.0}
 
 
-def test_unmapped_unpadded_pid_keeps_its_own_key():
-    """Padding is only for the lookup: an unmapped `k3` stays `K3`, as it always was."""
-    assert parse_torque_query({"k3": "2"}).obd == {"K3": 2.0}
+_HEX = "0123456789abcdef"
 
 
-def test_known_extended_pids_get_readable_names():
-    r = parse_torque_query({"kff1238": "14.1", "kff1202": "-9.5"})
-    assert r.obd == {"OBD_ADAPTER_VOLTAGE": 14.1, "TURBO_BOOST": -9.5}
+def test_an_unmapped_one_digit_pid_is_padded_too():
+    """F-3: `k3` and `ka` land where `k03` and `k0a` do, mapped or not."""
+    assert parse_torque_query({"k3": "2", "ka": "7"}).obd == {"K03": 2.0, "K0A": 7.0}
+
+
+def test_every_one_digit_pid_lands_on_its_padded_key():
+    for digit in _HEX:
+        unpadded = parse_torque_query({f"k{digit}": "1"}).obd
+        assert unpadded == parse_torque_query({f"k0{digit}": "1"}).obd, digit
+
+
+def test_extended_pids_keep_their_storage_keys():
+    """R1-M1: a new key would orphan a setting saved on the old one."""
+    r = parse_torque_query({"kff1238": "14.1", "kff1202": "-9.5", "kff1271": "3.79"})
+    assert r.obd == {"KFF1238": 14.1, "KFF1202": -9.5, "KFF1271": 3.79}
+
+
+def test_the_odometer_is_the_only_mapped_extended_pid():
+    assert [key for key in TORQUE_OBD_PID_MAP if key.startswith("kff")] == ["kff120c"]
