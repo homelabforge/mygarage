@@ -2341,14 +2341,11 @@ class TireService:
         moved = reading.recorded_at != old_day
         for m in MEASURES:
             value = getattr(reading, m)
+            changed = moved or not _same_measure(value, old_values[m])
             if _same_measure(getattr(tire, m), newest_before[m]):
                 # It tracked the newest reading, so it tracks the newest one now.
                 setattr(tire, m, _newest_value(readings, m))
-            elif (
-                value is not None
-                and (moved or not _same_measure(value, old_values[m]))
-                and _newest_with(readings, m) is reading
-            ):
+            elif changed and _newest_with(readings, m) is reading:
                 # A value set by hand gives way only to a changed reading that's
                 # now the newest, as logging it fresh would.
                 setattr(tire, m, value)
@@ -2432,7 +2429,7 @@ class TireService:
         await self.db.flush()
         column = TireReading.engine_hours if axis.is_hours else TireReading.odometer_km
         # The reading is still in the database here (a delete goes on the
-        # caller's commit, an edit only moved it), hence the id filter.
+        # caller's commit, and an edited reading is still there), hence the id filter.
         backer = (
             await self.db.execute(
                 select(TireReading)

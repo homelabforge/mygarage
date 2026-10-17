@@ -272,7 +272,7 @@ export function useUpdateTireReading(
 }
 
 /**
- * Delete one reading, for one logged with the wrong odometer or date.
+ * Delete one reading that shouldn't be there; a wrong value is fixed with useUpdateTireReading.
  *
  * Through the helper like every other tire write: the server may put the
  * tire's tread and pressure back to an older reading, delete the odometer
