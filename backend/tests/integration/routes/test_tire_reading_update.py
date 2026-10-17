@@ -10,18 +10,21 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import date
 from decimal import Decimal
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, Response
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
 from app.models.hours import HoursRecord
 from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireReading
 from app.models.vehicle import Vehicle
+from app.services.tire_service import ODOMETER_SOURCE_TIRE
+from app.utils.odometer_sync import auto_sync_marker
 
 MakeVehicle = Callable[..., Awaitable[str]]
 
@@ -142,6 +145,47 @@ async def _low_tread_statuses(db_session, tire_id: int) -> list[str]:
         )
     ).all()
     return [status for (status,) in rows]
+
+
+async def _records(db_session, vin: str) -> list[tuple[date, Decimal, str | None]]:
+    db_session.expire_all()
+    rows = (
+        (
+            await db_session.execute(
+                select(OdometerRecord)
+                .where(OdometerRecord.vin == vin)
+                .order_by(OdometerRecord.date, OdometerRecord.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [(r.date, r.odometer_km, r.notes) for r in rows]
+
+
+async def _hours_rows(db_session, vin: str) -> list[tuple[date, Decimal, str | None]]:
+    db_session.expire_all()
+    rows = (
+        (
+            await db_session.execute(
+                select(HoursRecord)
+                .where(HoursRecord.vin == vin)
+                .order_by(HoursRecord.date, HoursRecord.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [(r.date, r.engine_hours, r.notes) for r in rows]
+
+
+async def _odometer_count(db_session, vin: str) -> int:
+    db_session.expire_all()
+    return (
+        await db_session.execute(
+            select(func.count()).select_from(OdometerRecord).where(OdometerRecord.vin == vin)
+        )
+    ).scalar_one()
 
 
 @pytest.mark.asyncio
@@ -439,3 +483,253 @@ class TestTheUntrackedAxis:
         cleared = await _put(client, auth_headers, vin, tire_id, reading, odometer_km=None)
         assert cleared.status_code == 200, cleared.text
         assert _reading_in(cleared.json(), reading)["odometer_km"] is None
+
+
+@pytest.mark.asyncio
+class TestTheRowsTheReadingPublished:
+    DAY = date(2026, 2, 1)
+    SESSION = date(2026, 3, 1)
+
+    async def _day(self, db_session, vin: str) -> list[tuple[date, Decimal, str | None]]:
+        return [row for row in await _records(db_session, vin) if row[0] == self.SESSION]
+
+    async def _four_on_one_day(self, client, headers, vin: str) -> dict[str, tuple[int, int]]:
+        """Four tires read at 15,000 km on one day: one record, under the first one's marker."""
+        out: dict[str, tuple[int, int]] = {}
+        for pos in ("FL", "FR", "RL", "RR"):
+            tire_id = await _tire(client, headers, vin, pos)
+            out[pos] = (
+                tire_id,
+                await _reading(
+                    client,
+                    headers,
+                    vin,
+                    tire_id,
+                    recorded_at=self.SESSION.isoformat(),
+                    odometer_km="15000",
+                    tread_depth_mm="7.0",
+                ),
+            )
+        return out
+
+    async def test_an_odometer_added_later_is_published(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        tire_id = await _tire(client, auth_headers, vehicle, None)
+        reading = await _reading(
+            client, auth_headers, vehicle, tire_id, recorded_at="2026-02-01", tread_depth_mm="7.0"
+        )
+        assert await _records(db_session, vehicle) == []
+
+        added = await _put(client, auth_headers, vehicle, tire_id, reading, odometer_km="11000")
+
+        assert added.status_code == 200, added.text
+        marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
+        assert await _records(db_session, vehicle) == [(self.DAY, Decimal("11000"), marker)]
+
+    async def test_a_typo_corrected_down_replaces_the_record(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """Down on purpose: a higher figure raises the tire's own row anyway, a lower one needs the withdraw."""
+        tire_id = await _tire(client, auth_headers, vehicle, None)
+        reading = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-02-01",
+            odometer_km="150000",
+            tread_depth_mm="7.0",
+        )
+        marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
+        assert await _records(db_session, vehicle) == [(self.DAY, Decimal("150000"), marker)]
+
+        fixed = await _put(client, auth_headers, vehicle, tire_id, reading, odometer_km="15000")
+
+        assert fixed.status_code == 200, fixed.text
+        assert await _records(db_session, vehicle) == [(self.DAY, Decimal("15000"), marker)]
+
+    async def test_a_reading_moved_to_another_day_takes_its_record_along(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        tire_id = await _tire(client, auth_headers, vehicle, None)
+        reading = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-02-01",
+            odometer_km="11000",
+            tread_depth_mm="7.0",
+        )
+
+        moved = await _put(
+            client, auth_headers, vehicle, tire_id, reading, recorded_at="2026-02-03"
+        )
+
+        assert moved.status_code == 200, moved.text
+        marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
+        assert await _records(db_session, vehicle) == [(date(2026, 2, 3), Decimal("11000"), marker)]
+
+    async def test_a_manual_record_at_the_same_figure_on_the_old_day_survives(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        db_session.add(
+            OdometerRecord(vin=vehicle, date=self.DAY, odometer_km=Decimal("11000"), notes="hand")
+        )
+        await db_session.commit()
+        tire_id = await _tire(client, auth_headers, vehicle, None)
+        reading = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-02-01",
+            odometer_km="11000",
+            tread_depth_mm="7.0",
+        )
+        # The day already read 11,000 km, so the reading published nothing.
+        assert await _records(db_session, vehicle) == [(self.DAY, Decimal("11000"), "hand")]
+
+        moved = await _put(
+            client, auth_headers, vehicle, tire_id, reading, recorded_at="2026-02-03"
+        )
+
+        assert moved.status_code == 200, moved.text
+        marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
+        assert await _records(db_session, vehicle) == [
+            (self.DAY, Decimal("11000"), "hand"),
+            (date(2026, 2, 3), Decimal("11000"), marker),
+        ]
+
+    async def test_a_tread_only_edit_leaves_the_days_record_where_it_is(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        ids = await self._four_on_one_day(client, auth_headers, vehicle)
+        fl_tire, fl_reading = ids["FL"]
+        before = await self._day(db_session, vehicle)
+        assert [n for _, _, n in before] == [auto_sync_marker(ODOMETER_SOURCE_TIRE, fl_tire)]
+
+        # The editor resends the odometer it was seeded with.
+        edited = await _put(
+            client,
+            auth_headers,
+            vehicle,
+            fl_tire,
+            fl_reading,
+            tread_depth_mm="6.5",
+            odometer_km="15000.00",
+        )
+
+        assert edited.status_code == 200, edited.text
+        assert await self._day(db_session, vehicle) == before
+
+    async def test_the_first_tire_corrected_down_leaves_the_day_at_the_others_figure(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        ids = await self._four_on_one_day(client, auth_headers, vehicle)
+        fl_tire, fl_reading = ids["FL"]
+
+        fixed = await _put(client, auth_headers, vehicle, fl_tire, fl_reading, odometer_km="14990")
+
+        assert fixed.status_code == 200, fixed.text
+        # RR's reading was logged last: the highest figure that day, newest on the tie.
+        assert await self._day(db_session, vehicle) == [
+            (self.SESSION, Decimal("15000"), auto_sync_marker(ODOMETER_SOURCE_TIRE, ids["RR"][0]))
+        ]
+
+    async def test_the_first_tire_corrected_up_sits_beside_the_others(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        ids = await self._four_on_one_day(client, auth_headers, vehicle)
+        fl_tire, fl_reading = ids["FL"]
+
+        fixed = await _put(client, auth_headers, vehicle, fl_tire, fl_reading, odometer_km="15010")
+
+        assert fixed.status_code == 200, fixed.text
+        assert await self._day(db_session, vehicle) == [
+            (self.SESSION, Decimal("15000"), auto_sync_marker(ODOMETER_SOURCE_TIRE, ids["RR"][0])),
+            (self.SESSION, Decimal("15010"), auto_sync_marker(ODOMETER_SOURCE_TIRE, fl_tire)),
+        ]
+
+    async def test_an_hours_figure_corrected_moves_its_row_and_grows_no_odometer(
+        self, client: AsyncClient, auth_headers, make_vehicle, db_session
+    ):
+        vin = await make_vehicle("hours")
+        tire_id = await _tire(client, auth_headers, vin, None)
+        reading = await _reading(
+            client,
+            auth_headers,
+            vin,
+            tire_id,
+            recorded_at="2026-02-01",
+            tread_depth_mm="7.0",
+            engine_hours="150.0",
+        )
+        marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
+        assert await _hours_rows(db_session, vin) == [(self.DAY, Decimal("150.0"), marker)]
+
+        fixed = await _put(client, auth_headers, vin, tire_id, reading, engine_hours="140.0")
+
+        assert fixed.status_code == 200, fixed.text
+        assert await _hours_rows(db_session, vin) == [(self.DAY, Decimal("140.0"), marker)]
+        assert await _odometer_count(db_session, vin) == 0
+
+    async def test_a_junk_odometer_row_stays_put_on_an_hours_vehicle(
+        self, client: AsyncClient, auth_headers, make_vehicle, db_session
+    ):
+        vin = await make_vehicle("hours")
+        tire_id = await _tire(client, auth_headers, vin, None)
+        reading = await _reading(
+            client,
+            auth_headers,
+            vin,
+            tire_id,
+            recorded_at="2026-02-01",
+            tread_depth_mm="7.0",
+            engine_hours="150.0",
+        )
+        marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
+        # An hour figure typed as kilometres before #217, and the row it published.
+        stored = await db_session.get(TireReading, reading)
+        assert stored is not None
+        stored.odometer_km = Decimal("170.00")
+        db_session.add(
+            OdometerRecord(
+                vin=vin, date=self.DAY, odometer_km=Decimal("170.00"), notes=marker, source="tire"
+            )
+        )
+        await db_session.commit()
+        junk = [(self.DAY, Decimal("170.00"), marker)]
+
+        moved = await _put(client, auth_headers, vin, tire_id, reading, recorded_at="2026-02-03")
+        assert moved.status_code == 200, moved.text
+        assert await _hours_rows(db_session, vin) == [(date(2026, 2, 3), Decimal("150.0"), marker)]
+        assert await _records(db_session, vin) == junk
+
+        cleared = await _put(client, auth_headers, vin, tire_id, reading, odometer_km=None)
+        assert cleared.status_code == 200, cleared.text
+        assert await _records(db_session, vin) == junk
+
+    async def test_a_dual_vehicle_moves_both_rows(
+        self, client: AsyncClient, auth_headers, make_vehicle, db_session
+    ):
+        vin = await make_vehicle("distance", secondary=True)
+        tire_id = await _tire(client, auth_headers, vin, None)
+        reading = await _reading(
+            client,
+            auth_headers,
+            vin,
+            tire_id,
+            recorded_at="2026-02-01",
+            odometer_km="11000",
+            engine_hours="150.0",
+            tread_depth_mm="7.0",
+        )
+
+        moved = await _put(client, auth_headers, vin, tire_id, reading, recorded_at="2026-02-03")
+
+        assert moved.status_code == 200, moved.text
+        marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
+        assert await _records(db_session, vin) == [(date(2026, 2, 3), Decimal("11000"), marker)]
+        assert await _hours_rows(db_session, vin) == [(date(2026, 2, 3), Decimal("150.0"), marker)]

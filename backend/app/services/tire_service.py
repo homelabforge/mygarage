@@ -112,10 +112,10 @@ async def publish_tire_odometer(
     1. A record with that marker has its value updated. Under the tire's own
        marker a figure below it, beyond the same-reading tolerance, leaves
        it: every reading of the tire that day shares that marker, so the
-       record keeps the highest (#224) and only a reading delete lowers it
-       (`_withdraw_reading_usage`). A set fit or rotation published again
-       lower is taken as a correction and lowers its record; the period
-       editor moves a period's record itself.
+       record keeps the highest (#224) and only a reading delete or edit
+       lowers it (`_withdraw_reading_usage`). A set fit or rotation
+       published again lower is taken as a correction and lowers its record;
+       the period editor moves a period's record itself.
     2. Otherwise, when another record on the day (manual, a service visit's,
        a fuel-up's, LiveLink's, another tire event's) reads at or above the
        figure, within the same-reading tolerance, nothing is published: the
@@ -2239,7 +2239,15 @@ class TireService:
 
             # Each captured axis published its own row; a junk odometer on an hours vehicle stays put.
             for axis in axes.captured:
-                await self._withdraw_reading_usage(vin, tire.id, reading, remaining, axis)
+                await self._withdraw_reading_usage(
+                    vin,
+                    tire.id,
+                    reading.id,
+                    reading.recorded_at,
+                    axis.reading(reading),
+                    remaining,
+                    axis,
+                )
 
             # Removed from the loaded collection, not just `db.delete`d: the
             # reload below finds this tire in the identity map with `readings`
@@ -2276,7 +2284,8 @@ class TireService:
         """Correct one reading in place: its date, measurements, figures or notes (#225).
 
         Under the vehicle write lock, like the period editor. The tire's tread and
-        pressure and the low-tread reminder follow the corrected values.
+        pressure, the rows the reading published on each axis the vehicle tracks,
+        and the low-tread reminder follow the corrected values.
         """
         from app.services.auth import get_vehicle_or_403
 
@@ -2301,6 +2310,7 @@ class TireService:
         newest_before = {m: _newest_value(readings, m) for m in MEASURES}
         old_values = {m: getattr(reading, m) for m in MEASURES}
         old_day = reading.recorded_at
+        published = {axis.kind: axis.reading(reading) for axis in axes.captured}
 
         for key, value in fields.items():
             setattr(reading, key, value)
@@ -2321,6 +2331,18 @@ class TireService:
                 # now the newest, as logging it fresh would.
                 setattr(tire, m, value)
 
+        # Each captured axis moves its row only when its figure or the date changed;
+        # an untracked axis's junk stays put, as `delete_reading` leaves it.
+        others = [r for r in readings if r.id != reading.id]
+        for axis in axes.captured:
+            was, now = published[axis.kind], axis.reading(reading)
+            if (old_day, was) == (reading.recorded_at, now):
+                continue
+            await self._withdraw_reading_usage(vin, tire.id, reading.id, old_day, was, others, axis)
+            await self._publish_usage(
+                vin, reading.recorded_at, now, ODOMETER_SOURCE_TIRE, tire.id, axis
+            )
+
         await self.db.commit()
         # Read back at the columns' scale, so the echo says 170.00 and not 170.
         # Tire.readings cascades refresh, so this reloads the reading too.
@@ -2331,11 +2353,13 @@ class TireService:
         self,
         vin: str,
         tire_id: int,
-        reading: TireReading,
+        reading_id: int,
+        day: dt.date,
+        value: Decimal | None,
         remaining: Sequence[TireReading],
         axis: UsageAxis,
     ) -> None:
-        """Withdraw the vehicle odometer record a reading published, if it is still that.
+        """Withdraw the row a reading published on `day` at `value`, if it is still that.
 
         `add_reading` publishes with `ODOMETER_SOURCE_TIRE` keyed by the TIRE,
         so the marker alone does not say which reading a record came from: a
@@ -2365,21 +2389,18 @@ class TireService:
         sessions do not autoflush, and the publish looks for a same-day row by
         SQL, where an unflushed delete would still show it this one.
 
+        Takes the day and figure rather than the reading, so an edit can
+        withdraw what it published after the reading changed.
+
         Per axis (#217).
         """
-        value = axis.reading(reading)
         if value is None:
             return
-        if any(
-            r.recorded_at == reading.recorded_at and _same_measure(axis.reading(r), value)
-            for r in remaining
-        ):
+        if any(r.recorded_at == day and _same_measure(axis.reading(r), value) for r in remaining):
             return
         marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
         candidates = [
-            r
-            for r in await _same_day_usage(self.db, vin, axis, reading.recorded_at)
-            if r.notes == marker
+            r for r in await _same_day_usage(self.db, vin, axis, day) if r.notes == marker
         ]
         # Compared in Python, as Decimals: NUMERIC equality in SQL depends on the dialect.
         record = next((c for c in candidates if _same_measure(_usage_value(c), value)), None)
@@ -2388,16 +2409,16 @@ class TireService:
         await self.db.delete(record)
         await self.db.flush()
         column = TireReading.engine_hours if axis.is_hours else TireReading.odometer_km
-        # The reading being deleted is still in the database here (it goes on
-        # the caller's commit), hence the id filter.
+        # The reading is still in the database here (a delete goes on the
+        # caller's commit, an edit only moved it), hence the id filter.
         backer = (
             await self.db.execute(
                 select(TireReading)
                 .where(
                     TireReading.vin == vin,
-                    TireReading.recorded_at == reading.recorded_at,
+                    TireReading.recorded_at == day,
                     column.is_not(None),
-                    TireReading.id != reading.id,
+                    TireReading.id != reading_id,
                 )
                 .order_by(column.desc(), TireReading.id.desc())
                 .limit(1)
