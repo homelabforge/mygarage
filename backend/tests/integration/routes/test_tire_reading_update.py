@@ -733,3 +733,194 @@ class TestTheRowsTheReadingPublished:
         marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
         assert await _records(db_session, vin) == [(date(2026, 2, 3), Decimal("11000"), marker)]
         assert await _hours_rows(db_session, vin) == [(date(2026, 2, 3), Decimal("150.0"), marker)]
+
+
+@pytest.mark.asyncio
+class TestTheMountHistory:
+    async def test_a_correction_that_contradicts_the_mount_is_refused_and_changes_nothing(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        tire_id = await _tire(client, auth_headers, vehicle)
+        reading = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-03-01",
+            odometer_km="11000",
+            tread_depth_mm="7.0",
+        )
+        records_before = await _records(db_session, vehicle)
+
+        # Mounted at 10,000 km on 2026-01-01, so two months on it can't read 9,000 km.
+        refused = await _put(client, auth_headers, vehicle, tire_id, reading, odometer_km="9000")
+
+        assert refused.status_code == 409, refused.text
+        # The default test user reads miles: 9,000 km / 1.609344, to one decimal.
+        assert refused.json()["detail"] == (
+            "The FL period mounted 2026-01-01 contradicts the reading dated 2026-03-01 at "
+            "5,592.3 mi: the vehicle's odometer would have to run backwards. If that reading "
+            "is wrong, correct or delete it in the tire's history."
+        )
+        db_session.expire_all()
+        stored = await db_session.get(TireReading, reading)
+        assert stored is not None and stored.odometer_km == Decimal("11000")
+        assert await _records(db_session, vehicle) == records_before
+
+    async def test_a_new_contradiction_is_refused_beside_an_old_one_on_the_same_period(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """Rule 5 flags each period once, so an old bad reading mustn't hide a new one."""
+        tire_id = await _tire(client, auth_headers, vehicle)
+        # Log Reading doesn't validate, so a legacy contradiction can exist.
+        await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-03-01",
+            odometer_km="9000",
+            tread_depth_mm="7.0",
+        )
+        healthy = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-04-01",
+            odometer_km="12000",
+            tread_depth_mm="6.8",
+        )
+
+        refused = await _put(client, auth_headers, vehicle, tire_id, healthy, odometer_km="9500")
+
+        assert refused.status_code == 409, refused.text
+        assert "contradicts the reading dated 2026-04-01" in refused.json()["detail"]
+        db_session.expire_all()
+        stored = await db_session.get(TireReading, healthy)
+        assert stored is not None and stored.odometer_km == Decimal("12000")
+
+    async def test_a_reading_that_already_contradicted_a_period_can_still_be_edited(
+        self, client: AsyncClient, auth_headers, vehicle
+    ):
+        """An old contradiction never blocks an edit, so a repair can go one field at a time."""
+        tire_id = await _tire(client, auth_headers, vehicle)
+        legacy = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-03-01",
+            odometer_km="9000",
+            tread_depth_mm="7.0",
+        )
+
+        notes = await _put(client, auth_headers, vehicle, tire_id, legacy, notes="check this")
+
+        assert notes.status_code == 200, notes.text
+        assert _reading_in(notes.json(), legacy)["notes"] == "check this"
+
+    async def test_correcting_a_typo_that_blocked_a_dismount_unblocks_it(
+        self, client: AsyncClient, auth_headers, vehicle
+    ):
+        tire_id = await _tire(client, auth_headers, vehicle)
+        typo = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-03-01",
+            odometer_km="150000",
+            tread_depth_mm="7.0",
+        )
+        dismount = {"dismounted_on": "2026-06-01", "dismounted_odometer_km": "20000"}
+        base = f"/api/vehicles/{vehicle}/tires/{tire_id}"
+        refused = await client.post(f"{base}/dismount", headers=auth_headers, json=dismount)
+        assert refused.status_code == 409, refused.text
+
+        fixed = await _put(client, auth_headers, vehicle, tire_id, typo, odometer_km="15000")
+        assert fixed.status_code == 200, fixed.text
+
+        again = await client.post(f"{base}/dismount", headers=auth_headers, json=dismount)
+        assert again.status_code == 200, again.text
+        assert [r["id"] for r in again.json()["readings"]] == [typo]
+
+    async def test_an_hour_meter_run_backwards_is_refused_in_hours(
+        self, client: AsyncClient, auth_headers, make_vehicle, db_session
+    ):
+        vin = await make_vehicle("hours")
+        tire_id = await _tire(
+            client, auth_headers, vin, mounted_odometer_km=None, mounted_hours="100.0"
+        )
+        reading = await _reading(
+            client,
+            auth_headers,
+            vin,
+            tire_id,
+            recorded_at="2026-03-01",
+            tread_depth_mm="7.0",
+            engine_hours="150.0",
+        )
+        rows_before = await _hours_rows(db_session, vin)
+
+        refused = await _put(client, auth_headers, vin, tire_id, reading, engine_hours="90.0")
+
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"] == (
+            "The FL period mounted 2026-01-01 contradicts the reading dated 2026-03-01 at 90.0 hr: "
+            "the vehicle's hour meter would have to run backwards. If that reading is wrong, "
+            "correct or delete it in the tire's history."
+        )
+        assert await _hours_rows(db_session, vin) == rows_before
+
+    async def test_a_new_hours_contradiction_is_refused_beside_an_old_one(
+        self, client: AsyncClient, auth_headers, make_vehicle
+    ):
+        vin = await make_vehicle("hours")
+        tire_id = await _tire(
+            client, auth_headers, vin, mounted_odometer_km=None, mounted_hours="100.0"
+        )
+        await _reading(
+            client,
+            auth_headers,
+            vin,
+            tire_id,
+            recorded_at="2026-03-01",
+            tread_depth_mm="7.0",
+            engine_hours="90.0",
+        )
+        healthy = await _reading(
+            client,
+            auth_headers,
+            vin,
+            tire_id,
+            recorded_at="2026-04-01",
+            tread_depth_mm="6.8",
+            engine_hours="160.0",
+        )
+
+        refused = await _put(client, auth_headers, vin, tire_id, healthy, engine_hours="95.0")
+
+        assert refused.status_code == 409, refused.text
+        assert "contradicts the reading dated 2026-04-01 at 95.0 hr" in refused.json()["detail"]
+
+    async def test_a_dual_vehicle_refuses_an_hours_contradiction_its_odometer_doesnt_have(
+        self, client: AsyncClient, auth_headers, make_vehicle
+    ):
+        vin = await make_vehicle("distance", secondary=True)
+        tire_id = await _tire(client, auth_headers, vin, mounted_hours="100.0")
+        reading = await _reading(
+            client,
+            auth_headers,
+            vin,
+            tire_id,
+            recorded_at="2026-03-01",
+            odometer_km="11000",
+            engine_hours="150.0",
+            tread_depth_mm="7.0",
+        )
+
+        refused = await _put(client, auth_headers, vin, tire_id, reading, engine_hours="90.0")
+
+        assert refused.status_code == 409, refused.text
+        assert "the vehicle's hour meter would have to run backwards" in refused.json()["detail"]

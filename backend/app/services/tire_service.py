@@ -47,6 +47,8 @@ from app.services.tire_history import (
     fault_map,
     new_or_touched_faults,
     odometer_contradictions,
+    reading_contradiction_message,
+    reading_contradictions,
     validate_period_history,
 )
 from app.services.tire_results import (
@@ -2285,7 +2287,9 @@ class TireService:
 
         Under the vehicle write lock, like the period editor. The tire's tread and
         pressure, the rows the reading published on each axis the vehicle tracks,
-        and the low-tread reminder follow the corrected values.
+        and the low-tread reminder follow the corrected values. A change that makes
+        a mount period newly contradict the reading is a 409; one it already
+        contradicted never blocks it.
         """
         from app.services.auth import get_vehicle_or_403
 
@@ -2311,10 +2315,28 @@ class TireService:
         old_values = {m: getattr(reading, m) for m in MEASURES}
         old_day = reading.recorded_at
         published = {axis.kind: axis.reading(reading) for axis in axes.captured}
+        periods = list(tire.mount_periods or [])
+        contradicted = {
+            (axis.kind, period.id)
+            for axis, period in reading_contradictions(periods, reading, axes.captured)
+        }
 
         for key, value in fields.items():
             setattr(reading, key, value)
         await self.db.flush()
+
+        # Rule 5 flags each period once, so a period another reading already
+        # contradicts would hide a new one. This judges the reading's own pairs.
+        fresh = [
+            (axis, period)
+            for axis, period in reading_contradictions(periods, reading, axes.captured)
+            if (axis.kind, period.id) not in contradicted
+        ]
+        if fresh:
+            axis, period = fresh[0]
+            raise HTTPException(
+                status_code=409, detail=reading_contradiction_message(period, reading, axis)
+            )
 
         moved = reading.recorded_at != old_day
         for m in MEASURES:
