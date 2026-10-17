@@ -121,6 +121,7 @@ def _seed(engine) -> None:
             (
                 "param_key",
                 "display_name",
+                "unit",
                 "category",
                 "icon",
                 "warning_max",
@@ -128,14 +129,21 @@ def _seed(engine) -> None:
                 "archive_only",
             ),
             [
-                ("KC", "Kc", "other", None, 6000.0, False, False),
-                ("KD", "Road speed", "other", "gauge", 130.0, True, False),
-                ("SPEED", "Speed", "engine", None, None, True, False),
-                ("K5", "K5", "other", None, 120.0, True, False),
-                ("COOLANT_TMP", "Engine temp", "other", None, 110.0, True, False),
-                ("K3", "K3", "other", None, None, True, True),
-                ("KE", "Ke", "other", None, None, True, False),
-                ("K7", "Tank 7", "other", None, None, True, False),
+                ("KC", "Kc", None, "other", None, 6000.0, False, False),
+                ("KD", "Road speed", None, "drivetrain", "gauge", 130.0, True, False),
+                ("SPEED", "Speed", None, "engine", None, None, True, False),
+                # Set by hand, but COOLANT_TMP has its own of each, so none of it lands.
+                ("K5", "Coolant", None, "temperature", "thermometer", 120.0, True, False),
+                ("COOLANT_TMP", "Engine temp", "degC", "engine", "coolant", 110.0, True, False),
+                ("K3", "K3", None, "other", None, None, True, True),
+                ("KE", "Ke", None, "other", None, None, True, False),
+                ("K7", "Tank 7", None, "other", None, None, True, False),
+                # Each kept by one thing only: V3's latest, V3's summary, V3's
+                # raw reading, the WiCAN's odometer key.
+                ("K4", "K4", None, "other", None, None, True, False),
+                ("K6", "K6", None, "other", None, None, True, False),
+                ("K8", "K8", None, "other", None, None, True, False),
+                ("KA", "Ka", None, "other", None, None, True, False),
             ],
         )
         _rows(
@@ -163,6 +171,8 @@ def _seed(engine) -> None:
                 (V1, _TQ, "KD", 80.0, N2, N2),
                 (V2, _GONE, "K5", 69.0, T1, T1),
                 (V1, _WICAN, "KC", 900.0, T1, T1),
+                # Today's, so not summarised yet.
+                (V3, "aabbccdd0003", "K8", 8.0, "2026-10-02 09:00:00", "2026-10-02 09:00:00"),
             ],
         )
         _rows(
@@ -176,6 +186,10 @@ def _seed(engine) -> None:
                 (V1, "K5", 70.0, T3, T3),
                 (V1, "COOLANT_TMP", 60.0, T1, T1),
                 (V3, "KC", 900.0, T1, T1),
+                (V1, "K4", 30.0, T1, T1),
+                (V1, "K6", 6.0, T1, T1),
+                (V1, "K8", 8.0, T1, T1),
+                (V3, "K4", 31.0, T1, T1),
             ],
         )
         # DAY's summaries are what generate_daily_summary makes of the raw rows
@@ -207,6 +221,7 @@ def _seed(engine) -> None:
                 (V1, "KF", OLD, None, None, None, 0),
                 (V1, "INTAKE_TEMP", OLD, 18.0, 25.0, 20.0, 4),
                 (V3, "KC", DAY, 900.0, 900.0, 900.0, 1),
+                (V3, "K6", OLD, 6.0, 6.0, 6.0, 1),
             ],
         )
 
@@ -319,6 +334,7 @@ def test_130_moves_raw_telemetry_for_torque_sources_only(engine_for_migration):
             (_TQ, "SPEED", 80.0),
             (_GONE, "COOLANT_TMP", 69.0),
             (_WICAN, "KC", 900.0),
+            ("aabbccdd0003", "K8", 8.0),
         ]
     )
 
@@ -330,6 +346,10 @@ def test_130_keeps_the_newer_latest_value(engine_for_migration):
         (V1, "SPEED"): (51.0, T3),
         (V1, "COOLANT_TMP"): (70.0, T3),
         (V3, "KC"): (900.0, T1),
+        (V1, "ENGINE_LOAD"): (30.0, T1),
+        (V1, "K06"): (6.0, T1),
+        (V1, "K08"): (8.0, T1),
+        (V3, "K4"): (31.0, T1),
     }
 
 
@@ -360,6 +380,7 @@ def test_130_summaries_follow_the_raw_duplicates(engine_for_migration, caplog):
         (V1, "SPEED", "2026-06-01"): (10.0, 100.0, 65.0, 4),
         (V1, "INTAKE_TEMP", "2026-06-01"): (18.0, 25.0, 20.0, 4),
         (V3, "KC", "2026-10-01"): (900.0, 900.0, 900.0, 1),
+        (V3, "K6", "2026-06-01"): (6.0, 6.0, 6.0, 1),
     }
     assert [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING] == [
         "130: kept min and max for SPEED on 2026-07-01 (VIN130TO): raw no longer holds the whole day"
@@ -443,10 +464,22 @@ def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
             True,
             False,
         ),
-        # KD's name and icon, onto a row that had none; KD is gone, its line logged.
-        "SPEED": ("Road speed", "km/h", None, "engine", "gauge", None, None, None, True, False),
-        # Its own name and line stay; K5 is gone, its 120 logged.
-        "COOLANT_TMP": ("Engine temp", "°C", None, "other", None, None, None, 110.0, True, False),
+        # KD's name, category and icon, onto a row still on its defaults; KD is
+        # gone, its line logged.
+        "SPEED": ("Road speed", "km/h", None, "drivetrain", "gauge", None, None, None, True, False),
+        # Its own name, unit, category, icon and line stay; K5 is gone, its 120 logged.
+        "COOLANT_TMP": (
+            "Engine temp",
+            "degC",
+            None,
+            "engine",
+            "coolant",
+            None,
+            None,
+            110.0,
+            True,
+            False,
+        ),
         "K03": ("K03", None, None, "other", None, None, None, None, True, True),
         # Named by a topic map, so kept; its target is still made.
         "KE": ("Ke", None, None, "other", None, None, None, None, True, False),
@@ -462,7 +495,7 @@ def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
             True,
             True,
         ),
-        # Moved with no raw registry row: the summary's KF and the odometer's KA.
+        # Moved with no raw registry row: the summary's KF.
         "INTAKE_TEMP": (
             "Intake Temp",
             "°C",
@@ -476,6 +509,15 @@ def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
             False,
         ),
         "K0A": ("K0A", None, None, "other", None, None, None, None, True, True),
+        # Each still named by one thing (V3's latest, V3's summary, V3's raw
+        # reading, the WiCAN's odometer key), so kept; their targets are made.
+        "K4": ("K4", None, None, "other", None, None, None, None, True, False),
+        "ENGINE_LOAD": ("Engine Load", "%", None, "other", None, None, None, None, True, True),
+        "K6": ("K6", None, None, "other", None, None, None, None, True, False),
+        "K06": ("K06", None, None, "other", None, None, None, None, True, True),
+        "K8": ("K8", None, None, "other", None, None, None, None, True, False),
+        "K08": ("K08", None, None, "other", None, None, None, None, True, True),
+        "KA": ("Ka", None, None, "other", None, None, None, None, True, False),
         # Nothing of K7 moved: untouched, and no K07.
         "K7": ("Tank 7", None, None, "other", None, None, None, None, True, False),
     }
