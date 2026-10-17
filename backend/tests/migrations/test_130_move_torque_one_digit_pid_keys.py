@@ -24,6 +24,11 @@ SDAY = "2026-08-01 00:00:00"
 #: A duplicate on a day the new key has no summary for.
 N1, N2 = "2026-08-15 09:00:00", "2026-08-15 09:05:00"
 NDAY = "2026-08-15 00:00:00"
+#: Pruned to one reading, plus a duplicate that came in days later, after the
+#: summary was built, so the summary never counted it (Codex R1-H2).
+L1, L2 = "2026-09-01 09:00:00", "2026-09-01 09:10:00"
+LATE = "2026-09-03 12:00:00"
+LDAY = "2026-09-01 00:00:00"
 _TQ = "tq_0000a130"  # a Torque source on V1
 _GONE = "tq_0000dead"  # a deleted one: only its trip is left, on V2
 _WICAN = "aabbccdd0130"  # a WiCAN on V1 that happens to send a key named KC
@@ -169,6 +174,9 @@ def _seed(engine) -> None:
                 (V1, _TQ, "KD", 70.0, N1, N1),  # the SPEED reading at N1
                 (V1, _TQ, "SPEED", 70.0, N1, N1),
                 (V1, _TQ, "KD", 80.0, N2, N2),
+                (V1, _TQ, "KD", 50.0, L1, L1),  # what pruning left of 2026-09-01
+                (V1, _TQ, "KD", 100.0, L2, LATE),  # the SPEED reading at L2, both days late
+                (V1, _TQ, "SPEED", 100.0, L2, LATE),
                 (V2, _GONE, "K5", 69.0, T1, T1),
                 (V1, _WICAN, "KC", 900.0, T1, T1),
                 # Today's, so not summarised yet.
@@ -216,6 +224,8 @@ def _seed(engine) -> None:
                 (V1, "SPEED", SDAY, 20.0, 20.0, 20.0, 1),
                 # KD only: no SPEED summary that day.
                 (V1, "KD", NDAY, 70.0, 80.0, 75.0, 2),
+                # Ten KD readings at 50, built before the late 100 came in; no SPEED row.
+                (V1, "KD", LDAY, 50.0, 50.0, 50.0, 10),
                 (V1, "KD", OLD, 40.0, 100.0, 70.0, 3),
                 (V1, "SPEED", OLD, 10.0, 90.0, 50.0, 1),
                 (V1, "KF", OLD, None, None, None, 0),
@@ -332,6 +342,8 @@ def test_130_moves_raw_telemetry_for_torque_sources_only(engine_for_migration):
             (_TQ, "SPEED", 60.0),
             (_TQ, "SPEED", 70.0),  # KD's 70 at N1 was the duplicate
             (_TQ, "SPEED", 80.0),
+            (_TQ, "SPEED", 50.0),
+            (_TQ, "SPEED", 100.0),  # KD's late 100 at L2 was the duplicate
             (_GONE, "COOLANT_TMP", 69.0),
             (_WICAN, "KC", 900.0),
             ("aabbccdd0003", "K8", 8.0),
@@ -356,8 +368,9 @@ def test_130_keeps_the_newer_latest_value(engine_for_migration):
 def test_130_summaries_follow_the_raw_duplicates(engine_for_migration, caplog):
     """D10: a day with duplicates whose raw holds at least what its summaries
     counted is rebuilt from the readings that survive, a stale one included;
-    one whose raw was pruned loses the duplicates from its count and mean and
-    keeps its min and max, logged; a day with no raw merges as 059."""
+    one whose raw was pruned loses the duplicates received that day from its
+    count and mean and keeps its min and max, logged; a day with no raw merges
+    as 059."""
     _dialect, engine, _url = engine_for_migration
     with caplog.at_level(logging.WARNING):
         summaries = _summaries(_migrated(engine))
@@ -376,14 +389,19 @@ def test_130_summaries_follow_the_raw_duplicates(engine_for_migration, caplog):
         (V1, "SPEED", "2026-08-01"): (20.0, 60.0, 40.0, 2),
         # No SPEED row to merge into: KD's row is renamed and rebuilt.
         (V1, "SPEED", "2026-08-15"): (70.0, 80.0, 75.0, 2),
+        # Pruned, and its one duplicate came in after the summary was built, so
+        # it was never counted and nothing comes off.
+        (V1, "SPEED", "2026-09-01"): (50.0, 50.0, 50.0, 10),
         # Past retention: (210 + 50) / 4.
         (V1, "SPEED", "2026-06-01"): (10.0, 100.0, 65.0, 4),
         (V1, "INTAKE_TEMP", "2026-06-01"): (18.0, 25.0, 20.0, 4),
         (V3, "KC", "2026-10-01"): (900.0, 900.0, 900.0, 1),
         (V3, "K6", "2026-06-01"): (6.0, 6.0, 6.0, 1),
     }
-    assert [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING] == [
-        "130: kept min and max for SPEED on 2026-07-01 (VIN130TO): raw no longer holds the whole day"
+    assert sorted(r.getMessage() for r in caplog.records if r.levelno == logging.WARNING) == [
+        f"130: kept min and max for SPEED on {day} (VIN130TO): raw no longer holds the whole day, "
+        "so only duplicates received that day came off the count"
+        for day in ("2026-07-01", "2026-09-01")
     ]
 
 
@@ -435,7 +453,7 @@ def test_130_without_a_torque_source_changes_nothing(engine_for_migration):
 
 
 def test_130_without_the_tables_does_nothing(engine_for_migration, caplog):
-    """A bare database returns before any SQL, so nothing gets swallowed and logged."""
+    """A bare database returns before touching the tables, so nothing gets swallowed and logged."""
     _dialect, engine, _url = engine_for_migration
     with caplog.at_level(logging.ERROR):
         _load().upgrade(engine)

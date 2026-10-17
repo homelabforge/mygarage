@@ -10,7 +10,8 @@ parameter registry.
 A reading on file under both keys is one reading, so the raw key's copy goes,
 and the summaries follow: a day that lost a duplicate is rebuilt from the raw
 rows left when raw still holds the whole day, and otherwise loses the
-duplicates from its count and mean and keeps its min and max (logged).
+duplicates received that day from its count and mean and keeps its min and
+max (logged).
 
 Torque sources are kind 'torque' devices plus deleted ones, whose trips and
 telemetry are kept; their `tq_` ids are still on drive_sessions.
@@ -214,6 +215,8 @@ _Stats = tuple[float | None, float | None, float, int]
 class _Duplicates:
     """The readings D8 drops from one raw-key summary's day (vehicle, key, UTC day)."""
 
+    #: Only the ones received before the day ended: the daily job builds a day
+    #: once, the day after, so a later one was never in its summary.
     count: int
     total: float
     #: Raw holds at least what both keys' summaries counted that day (none counts 0).
@@ -283,9 +286,11 @@ def _find_duplicates(conn: Connection, ids: list[str], vins: list[str]) -> dict[
             {"raw": raw, "new": new, "vins": vins},
         ).all()
         for summary_id, vin, day, raw_count, new_count in days:
-            dropped, total = conn.execute(
+            seen, dropped, total = conn.execute(
                 text(
-                    "SELECT COUNT(*), SUM(r.value) FROM vehicle_telemetry r "
+                    "SELECT COUNT(*), COUNT(CASE WHEN r.received_at < :end THEN 1 END), "
+                    "COALESCE(SUM(CASE WHEN r.received_at < :end THEN r.value END), 0) "
+                    "FROM vehicle_telemetry r "
                     "WHERE r.vin = :vin AND r.device_id IN :ids AND r.param_key = :raw "
                     "AND r.timestamp >= :start AND r.timestamp < :end "
                     "AND EXISTS (SELECT 1 FROM vehicle_telemetry t WHERE t.device_id = r.device_id "
@@ -293,7 +298,7 @@ def _find_duplicates(conn: Connection, ids: list[str], vins: list[str]) -> dict[
                 ).bindparams(bindparam("ids", expanding=True), *_typed_day()),
                 {"vin": vin, "ids": ids, "raw": raw, "new": new, **_day_window(day)},
             ).one()
-            if not dropped:
+            if not seen:
                 continue
             # Pruning only removes rows, so raw at or above a summary's count
             # holds everything that summary saw, plus any rows that came later.
@@ -364,7 +369,8 @@ def _move_summaries(
             if dropped is not None:
                 old = _without(old, dropped)
                 logger.warning(
-                    "130: kept min and max for %s on %s (%s): raw no longer holds the whole day",
+                    "130: kept min and max for %s on %s (%s): raw no longer holds the whole day, "
+                    "so only duplicates received that day came off the count",
                     new,
                     day.date(),
                     vin[:8],
