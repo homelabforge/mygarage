@@ -33,6 +33,7 @@ from app.schemas.tire import (
     TireMountRequest,
     TireReadingCreate,
     TireReadingResponse,
+    TireReadingUpdate,
     TireResponse,
     TireRotationRequest,
     TireUpdate,
@@ -258,6 +259,7 @@ UNTRACKED_DISTANCE = (
 UNTRACKED_HOURS = (
     "This vehicle doesn't track engine hours, so a tire can't take an hour meter reading."
 )
+MEASURES_NOTHING = "A reading needs a tread depth, a pressure, or both"
 
 
 def refuse_untracked(
@@ -846,6 +848,12 @@ def _newest_with(readings: Iterable[TireReading], measure: Measure) -> TireReadi
         key=lambda r: (r.recorded_at, r.id or 0),
         default=None,
     )
+
+
+def _newest_value(readings: Iterable[TireReading], measure: Measure) -> Decimal | None:
+    """The newest reading's value of `measure`, or None when no reading takes it."""
+    newest = _newest_with(readings, measure)
+    return getattr(newest, measure) if newest is not None else None
 
 
 def _low_tread_title(position: str | None) -> str:
@@ -2166,12 +2174,10 @@ class TireService:
     async def delete_reading(
         self, vin: str, tire_id: int, reading_id: int, current_user: User | None
     ) -> None:
-        """Delete one reading, for one logged with the wrong odometer or date.
+        """Delete one reading, for one that shouldn't be there at all.
 
-        The repair for a mistyped reading. The writers that validate the mount
-        history refuse any write that leaves a period contradicting a reading,
-        and that refusal names the reading to delete; there is no reading edit,
-        so the user re-logs the correct one.
+        A reading with a wrong value is corrected in place by `update_reading`;
+        the writers that check the mount history name the reading either way.
 
         No vehicle write lock, for the reason `add_reading` takes none: it
         writes no position, retirement or period row, which is what the lock
@@ -2258,6 +2264,68 @@ class TireService:
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    async def update_reading(
+        self,
+        vin: str,
+        tire_id: int,
+        reading_id: int,
+        data: TireReadingUpdate,
+        current_user: User | None,
+    ) -> TireResponse:
+        """Correct one reading in place: its date, measurements, figures or notes (#225).
+
+        Under the vehicle write lock, like the period editor. The tire's tread and
+        pressure and the low-tread reminder follow the corrected values.
+        """
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        await lock_vehicle_for_write(self.db, vin)
+        axes = await self.request_axes(current_user, vin)
+        fields = data.model_dump(exclude_unset=True)
+        # The body's figures only: a junk figure already on the reading can't block an edit.
+        refuse_untracked(
+            axes, odometers=(fields.get("odometer_km"),), hours=(fields.get("engine_hours"),)
+        )
+        tire = await self._get_tire_for_update(vin, tire_id)
+        # Looked up inside this tire's readings, so another tire's reading is a 404.
+        reading = next((r for r in tire.readings or [] if r.id == reading_id), None)
+        if reading is None:
+            raise HTTPException(status_code=404, detail="Reading not found")
+        if all(fields.get(m, getattr(reading, m)) is None for m in MEASURES):
+            raise HTTPException(status_code=422, detail=MEASURES_NOTHING)
+
+        readings = list(tire.readings or [])
+        newest_before = {m: _newest_value(readings, m) for m in MEASURES}
+        old_values = {m: getattr(reading, m) for m in MEASURES}
+        old_day = reading.recorded_at
+
+        for key, value in fields.items():
+            setattr(reading, key, value)
+        await self.db.flush()
+
+        moved = reading.recorded_at != old_day
+        for m in MEASURES:
+            value = getattr(reading, m)
+            if _same_measure(getattr(tire, m), newest_before[m]):
+                # It tracked the newest reading, so it tracks the newest one now.
+                setattr(tire, m, _newest_value(readings, m))
+            elif (
+                value is not None
+                and (moved or not _same_measure(value, old_values[m]))
+                and _newest_with(readings, m) is reading
+            ):
+                # A value set by hand gives way only to a changed reading that's
+                # now the newest, as logging it fresh would.
+                setattr(tire, m, value)
+
+        await self.db.commit()
+        # Read back at the columns' scale, so the echo says 170.00 and not 170.
+        # Tire.readings cascades refresh, so this reloads the reading too.
+        await self.db.refresh(tire)
+        return await self._reload_and_sync(tire.id, vin, axes)
 
     async def _withdraw_reading_usage(
         self,

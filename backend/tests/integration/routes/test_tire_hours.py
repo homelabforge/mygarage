@@ -492,6 +492,7 @@ WRITERS = [
     "retire",
     "rotate",
     "reading",
+    "reading_edit",
     "past_period",
     "period_edit",
     "set_fit",
@@ -545,6 +546,19 @@ async def _attempt(client, headers, vin, writer, field, value, mounted, stored, 
         }
         return await client.post(
             f"{base}/tires/{stored['id']}/mount-periods", headers=headers, json=body
+        )
+    if writer == "reading_edit":
+        # A tread-only reading publishes nothing, so the counts before the edit hold.
+        logged = await client.post(
+            f"{base}/tires/{mounted['id']}/readings",
+            headers=headers,
+            json={"recorded_at": day, "tread_depth_mm": "7.0"},
+        )
+        assert logged.status_code == 201, logged.text
+        reading_id = logged.json()["readings"][0]["id"]
+        body = _figure(field, value, "odometer_km", "engine_hours")
+        return await client.put(
+            f"{base}/tires/{mounted['id']}/readings/{reading_id}", headers=headers, json=body
         )
     if writer == "period_edit":
         period_id = mounted["mount_periods"][0]["id"]

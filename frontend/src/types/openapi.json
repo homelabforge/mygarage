@@ -21856,6 +21856,104 @@
         "title": "TireReadingResponse",
         "type": "object"
       },
+      "TireReadingUpdate": {
+        "additionalProperties": false,
+        "description": "Correct one reading's date, measurements, odometer, hour meter or notes (#225).\n\n`exclude_unset`, like `MountPeriodUpdate`: an absent key is untouched, null\nclears it. The date can't be cleared, and the result must still measure\ntread or pressure, which `TireService.update_reading` judges on the merged values.",
+        "properties": {
+          "engine_hours": {
+            "anyOf": [
+              {
+                "maximum": 999999999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Hours"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Km"
+          },
+          "pressure_kpa": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Kpa"
+          },
+          "recorded_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded At"
+          },
+          "tread_depth_mm": {
+            "anyOf": [
+              {
+                "maximum": 30.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tread Depth Mm"
+          }
+        },
+        "title": "TireReadingUpdate",
+        "type": "object"
+      },
       "TireResponse": {
         "additionalProperties": false,
         "description": "A tire, with where it is now and what is known about its wear.\n\n`position` is RE-DECLARED here as nullable rather than inherited: it left\nthe write schema (D2c) but is still part of every read. Declaring it only\non the base would have made it required on writes; omitting it entirely\nwould have dropped it from responses. Neither is what a reader wants.\n\n`installed_date` is DERIVED, not stored (D12): the `mounted_on` of the\nearliest period **that has one**. When the earliest period is the migrated\nassumed one with a null start, this is null -- NOT the next known remount\ndate. A plain MIN(mounted_on) would skip the unknown and report a later\ndate as the installation date, which is worse than reporting nothing.",
@@ -50852,7 +50950,7 @@
     },
     "/api/vehicles/{vin}/tires/{tire_id}/readings/{reading_id}": {
       "delete": {
-        "description": "Delete one reading, for one logged with the wrong odometer or date.\n\n404 when the reading is not this tire's. The tire's tread and pressure fall\nback to the newest remaining reading when they still hold the deleted\nreading's value, the odometer record the reading published goes with it,\nand the low-tread reminder is re-synced.",
+        "description": "Delete one reading that shouldn't be there; a wrong value is fixed with the PUT above.\n\n404 when the reading is not this tire's. The tire's tread and pressure fall\nback to the newest remaining reading when they still hold the deleted\nreading's value, the odometer record the reading published goes with it,\nand the low-tread reminder is re-synced.",
         "operationId": "delete_tire_reading_api_vehicles__vin__tires__tire_id__readings__reading_id__delete",
         "parameters": [
           {
@@ -50904,6 +51002,80 @@
           }
         ],
         "summary": "Delete Tire Reading",
+        "tags": [
+          "tires"
+        ]
+      },
+      "put": {
+        "description": "Correct one reading's date, tread, pressure, odometer, hour meter or notes.\n\nAbsent keys stay; null clears one, except the date. 404 when the reading\nisn't this tire's, 422 when it would measure nothing or carries a figure the\nvehicle doesn't track. Returns the whole tire.",
+        "operationId": "update_tire_reading_api_vehicles__vin__tires__tire_id__readings__reading_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tire_id",
+            "required": true,
+            "schema": {
+              "title": "Tire Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reading_id",
+            "required": true,
+            "schema": {
+              "title": "Reading Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireReadingUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Tire Reading",
         "tags": [
           "tires"
         ]

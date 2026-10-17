@@ -22,7 +22,7 @@ import uuid
 import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -356,3 +356,36 @@ class TestEveryWriterTakesTheLock:
         assert r.status_code == 204, r.text
 
         assert lock_calls == [vin] * 10, lock_calls
+
+    async def test_a_reading_edit_locks_once(
+        self, client: AsyncClient, auth_headers, db_session, test_user, lock_calls
+    ):
+        """It's judged against the mount history, so it locks like the period editor."""
+        vin = f"LOCKR{uuid.uuid4().hex[:8].upper()}"
+        db_session.add(
+            Vehicle(vin=vin, user_id=test_user["id"], nickname="Lock", vehicle_type="Car")
+        )
+        await db_session.commit()
+        base = f"/api/vehicles/{vin}/tires"
+        # A stored tire and a reading, through the unlocked create and log.
+        made = await client.post(base, headers=auth_headers, json={"vin": vin, "brand": "R"})
+        assert made.status_code == 201, made.text
+        tire_id = made.json()["id"]
+        logged = await client.post(
+            f"{base}/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-02-01", "tread_depth_mm": "7.0"},
+        )
+        assert logged.status_code == 201, logged.text
+        assert lock_calls == []
+
+        edited = await client.put(
+            f"{base}/{tire_id}/readings/{logged.json()['readings'][0]['id']}",
+            headers=auth_headers,
+            json={"notes": "checked"},
+        )
+
+        assert edited.status_code == 200, edited.text
+        assert lock_calls == [vin]
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+        await db_session.commit()

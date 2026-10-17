@@ -16,6 +16,7 @@ from app.schemas.tire import (
     TireListResponse,
     TireMountRequest,
     TireReadingCreate,
+    TireReadingUpdate,
     TireResponse,
     TireRotationRequest,
     TireSetCreate,
@@ -230,6 +231,24 @@ async def add_tire_reading(
     return await TireService(db).add_reading(vin, tire_id, data, current_user)
 
 
+@router.put("/{vin}/tires/{tire_id}/readings/{reading_id}", response_model=TireResponse)
+async def update_tire_reading(
+    vin: str,
+    tire_id: int,
+    reading_id: int,
+    data: TireReadingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+) -> TireResponse:
+    """Correct one reading's date, tread, pressure, odometer, hour meter or notes.
+
+    Absent keys stay; null clears one, except the date. 404 when the reading
+    isn't this tire's, 422 when it would measure nothing or carries a figure the
+    vehicle doesn't track. Returns the whole tire.
+    """
+    return await TireService(db).update_reading(vin, tire_id, reading_id, data, current_user)
+
+
 @router.delete("/{vin}/tires/{tire_id}/readings/{reading_id}", status_code=204)
 async def delete_tire_reading(
     vin: str,
@@ -238,7 +257,7 @@ async def delete_tire_reading(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ) -> None:
-    """Delete one reading, for one logged with the wrong odometer or date.
+    """Delete one reading that shouldn't be there; a wrong value is fixed with the PUT above.
 
     404 when the reading is not this tire's. The tire's tread and pressure fall
     back to the newest remaining reading when they still hold the deleted

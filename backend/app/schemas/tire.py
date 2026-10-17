@@ -242,6 +242,27 @@ class TireReadingCreate(BaseModel):
         return self
 
 
+class TireReadingUpdate(BaseModel):
+    """Correct one reading's date, measurements, odometer, hour meter or notes (#225).
+
+    `exclude_unset`, like `MountPeriodUpdate`: an absent key is untouched, null
+    clears it. The date can't be cleared, and the result must still measure
+    tread or pressure, which `TireService.update_reading` judges on the merged values.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    recorded_at: date_type | None = None
+    odometer_km: Decimal | None = Field(None, ge=0)
+    engine_hours: HoursFigure | None = None
+    tread_depth_mm: Decimal | None = Field(None, ge=0, le=30)
+    pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
+    notes: str | None = None
+
+    # NOT NULL column: omitted keeps the stored date, null is a 422.
+    _no_null = reject_null("recorded_at")
+
+
 class TireReadingResponse(BaseModel):
     """Tire reading response."""
 
