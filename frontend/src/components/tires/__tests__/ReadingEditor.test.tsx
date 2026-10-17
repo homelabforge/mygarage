@@ -225,6 +225,8 @@ describe('ReadingEditor', () => {
     })
 
     it('a dual vehicle sends both, an untouched odometer exactly as stored', () => {
+      // In miles, where 15,000 km shows as 9321 and only the origin gets 15000 back.
+      units = IMPERIAL_UNITS
       renderEditor({ ...TYPO, odometer_km: '15000.00', engine_hours: '150.0' }, { tracksDistance: true, tracksHours: true })
       fireEvent.change(input('reading-edit-hours'), { target: { value: '' } })
       fireEvent.click(drawer().getByText('common:save'))
