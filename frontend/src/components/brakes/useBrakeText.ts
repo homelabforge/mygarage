@@ -23,7 +23,7 @@ export function formatMm(value: number | string): string {
   return `${shown} mm`
 }
 
-export interface BrakeText {
+interface BrakeText {
   /** "Front Left" and so on, from the tire screen's own corner names. */
   labelFor: (position: BrakePosition) => string
   /** "Disc" / "Drum". */
@@ -89,8 +89,13 @@ export function useBrakeText(): BrakeText {
           return corner.brake_type === 'drum' ? t('brakes.wear.newShoes') : t('brakes.wear.newPads')
         case 'insufficient_measurements':
           return t('brakes.wear.needsSecond')
-        case 'no_usage_figures':
+        case 'no_usage_figures': {
+          /* Either the newest measurement has no reading, or it has one and
+             no earlier measurement does: say which one needs it. */
+          const newestHasIt = (hours ? corner.measured_hours : corner.measured_odometer_km) != null
+          if (newestHasIt) return hours ? t('brakes.wear.needsEarlierHours') : t('brakes.wear.needsEarlierOdometer')
           return hours ? t('brakes.wear.needsHours') : t('brakes.wear.needsOdometer')
+        }
         case 'no_usage_between':
           return hours ? t('brakes.wear.needsLaterHours') : t('brakes.wear.needsLaterOdometer')
         case 'not_decreasing':

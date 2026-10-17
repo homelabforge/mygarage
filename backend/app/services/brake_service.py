@@ -318,7 +318,11 @@ class BrakeService:
                 duplicate.status = "done"
 
             if low:
-                due = min(reminder_due(c.wear, c.condition) or household_today() for c in low)
+                # Every LOW corner has a thinnest figure and its date, so each
+                # has a due date; none falls back to today (that would slide).
+                dues = [d for c in low if (d := reminder_due(c.wear, c.condition)) is not None]
+                assert dues, "a LOW corner always has a measured thinnest figure"
+                due = min(dues)
                 title = _reminder_title(setup)
                 if existing is None:
                     start_km, start_hours = await start_readings(self.db, vin)
@@ -341,7 +345,7 @@ class BrakeService:
                     existing.due_date = due
             elif ok and existing is not None and may_complete:
                 existing.status = "done"
-            elif existing is not None:
+            elif existing is not None and existing.title != _reminder_title(setup):
                 # Left pending: still name the axle's brakes as they're set up now.
                 existing.title = _reminder_title(setup)
 

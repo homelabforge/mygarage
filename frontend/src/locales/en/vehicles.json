@@ -1628,7 +1628,9 @@
       "needsHours": "Add an hour meter reading to the latest measurement",
       "needsLaterOdometer": "Needs a measurement at a later odometer",
       "needsLaterHours": "Needs a measurement at a later hour meter reading",
-      "notDecreasing": "No wear measured yet"
+      "notDecreasing": "No wear measured yet",
+      "needsEarlierOdometer": "Needs an earlier measurement with an odometer reading",
+      "needsEarlierHours": "Needs an earlier measurement with an hour meter reading"
     },
     "logTitle": "Log brake measurements",
     "logHint": "Leave a corner blank to skip it.",
@@ -1694,7 +1696,8 @@
     "jobUpdated": "Brake job updated",
     "updateAction": "save the change",
     "loadAction": "load brakes",
-    "carriedPad": "{{pad}}: last measured {{date}}"
+    "carriedPad": "{{pad}}: last measured {{date}}",
+    "otherTypeFigure": "{{figure}} {{value}}, from before the axle setup changed"
   },
   "warrantyList": {
     "addFirstWarranty": "Add Your First Warranty",

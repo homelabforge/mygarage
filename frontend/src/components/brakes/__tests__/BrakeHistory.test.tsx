@@ -97,7 +97,7 @@ beforeEach(() => {
 })
 
 describe('BrakeHistoryDrawer', () => {
-  it('lists the day of a brake job as old pads, the job, then the new pads', () => {
+  it('lists the day of a brake job newest first: the new pads, the job, then the old pads', () => {
     render(
       <BrakeHistoryDrawer
         vin={VIN}

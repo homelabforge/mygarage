@@ -54,13 +54,16 @@ interface AxleSetupDrawerProps {
 export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetupDrawerProps): ReactElement {
   const { t } = useTranslation('vehicles')
   const update = useUpdateBrakeAxle(vin)
-  const [forms, setForms] = useState<Record<BrakeAxleName, AxleForm>>(() => {
+  /* What each axle opened with, so Save writes only an axle that changed: an
+     untouched axle keeps having no setup of its own (`configured: false`). */
+  const [seeded] = useState<Record<BrakeAxleName, AxleForm>>(() => {
     const byAxle = Object.fromEntries(axles.map((axle) => [axle.axle, seed(axle)]))
     return {
       front: byAxle.front ?? { brake_type: 'disc', ...DEFAULTS.disc, limit: '' },
       rear: byAxle.rear ?? { brake_type: 'disc', ...DEFAULTS.disc, limit: '' },
     }
   })
+  const [forms, setForms] = useState<Record<BrakeAxleName, AxleForm>>(seeded)
 
   const set = (axle: BrakeAxleName, next: Partial<AxleForm>): void =>
     setForms((prev) => ({ ...prev, [axle]: { ...prev[axle], ...next } }))
@@ -72,8 +75,25 @@ export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetup
     set(axle, { brake_type: type, ...DEFAULTS[type], limit: '' })
   }
 
+  const changed = (axle: BrakeAxleName): boolean => {
+    const a = forms[axle]
+    const b = seeded[axle]
+    return (
+      a.brake_type !== b.brake_type ||
+      mm(a.min) !== mm(b.min) ||
+      mm(a.new) !== mm(b.new) ||
+      mm(a.limit) !== mm(b.limit)
+    )
+  }
+
   const handleSave = async (): Promise<void> => {
-    for (const axle of ['front', 'rear'] as const) {
+    const toSave = (['front', 'rear'] as const).filter(changed)
+    if (toSave.length === 0) {
+      onClose()
+      return
+    }
+    // Both checked before either is written, so a refusal can't leave one saved.
+    for (const axle of toSave) {
       const form = forms[axle]
       const min = mm(form.min)
       const fresh = mm(form.new)
@@ -87,7 +107,7 @@ export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetup
       }
     }
     try {
-      for (const axle of ['front', 'rear'] as const) {
+      for (const axle of toSave) {
         const form = forms[axle]
         const limit = mm(form.limit)
         await update.mutateAsync({
@@ -131,17 +151,19 @@ export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetup
           const drum = form.brake_type === 'drum'
           return (
             <section key={axle} className="space-y-3">
-              <h3 className="text-sm font-semibold">
-                {axle === 'front' ? t('brakes.frontAxle') : t('brakes.rearAxle')}
-              </h3>
-              <div className="flex gap-2">
-                <Chip selected={!drum} onClick={() => changeType(axle, 'disc')}>
-                  {t('brakes.disc')}
-                </Chip>
-                <Chip selected={drum} onClick={() => changeType(axle, 'drum')}>
-                  {t('brakes.drum')}
-                </Chip>
-              </div>
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-semibold">
+                  {axle === 'front' ? t('brakes.frontAxle') : t('brakes.rearAxle')}
+                </legend>
+                <div className="flex gap-2">
+                  <Chip selected={!drum} onClick={() => changeType(axle, 'disc')}>
+                    {t('brakes.disc')}
+                  </Chip>
+                  <Chip selected={drum} onClick={() => changeType(axle, 'drum')}>
+                    {t('brakes.drum')}
+                  </Chip>
+                </div>
+              </fieldset>
               <div className="grid grid-cols-2 gap-3">
                 <Field
                   id={`brake-setup-${axle}-new`}

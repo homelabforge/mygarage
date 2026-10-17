@@ -19,7 +19,7 @@ import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { canonicalFromUnitField, seedUnitField } from '../../utils/unitFormat'
 import MountEventFields, { type OdometerFieldValue } from '../tires/MountEventFields'
 import { Button, Chip, Drawer, Field, Input, Toggle } from '../ui'
-import { num } from './useBrakeText'
+import { formatMm, num } from './useBrakeText'
 
 type Figure = 'inner_pad_mm' | 'outer_pad_mm' | 'rotor_mm' | 'shoe_mm' | 'drum_mm'
 
@@ -151,6 +151,15 @@ export function MeasurementEditor({
             onHoursChange={setHours}
           />
         )}
+        {/* Figures from before the axle's type changed are kept and shown, but
+            the server refuses a figure of the other type, so they aren't fields. */}
+        {FIGURES[brakeType === 'disc' ? 'drum' : 'disc']
+          .filter((name) => measurement[name] != null)
+          .map((name) => (
+            <p key={name} className="text-sm text-text-mute">
+              {t('brakes.otherTypeFigure', { figure: labels[name], value: formatMm(measurement[name] ?? 0) })}
+            </p>
+          ))}
         {FIGURES[brakeType].map((name) => {
           const id = `brake-measurement-edit-${name}`
           return (
@@ -272,8 +281,8 @@ export function JobEditor({ vin, overview, job, open, onClose }: JobEditorProps)
           checked={friction}
           onChange={setFriction}
         />
-        <div className="space-y-2">
-          <div className="text-sm font-medium">{drum ? t('brakes.drums') : t('brakes.rotors')}</div>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">{drum ? t('brakes.drums') : t('brakes.rotors')}</legend>
           <div className="flex flex-wrap gap-2">
             <Chip selected={surface === null} onClick={() => setSurface(null)}>
               {t('brakes.surfaceNone')}
@@ -285,7 +294,7 @@ export function JobEditor({ vin, overview, job, open, onClose }: JobEditorProps)
               {t('brakes.surfaceResurfaced')}
             </Chip>
           </div>
-        </div>
+        </fieldset>
         <Field id="brake-job-edit-notes" label={t('brakes.notes')}>
           <Input id="brake-job-edit-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>

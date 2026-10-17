@@ -716,10 +716,10 @@ export default function VehicleDetail() {
         {activePrimaryTab === 'maintenance' && activeSubTab === 'odometer' && vin && <OdometerTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'hours' && vin && <HoursTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'tires' && vin && (
-          <TireList vin={vin} onLogBrakes={isMotorized ? openBrakeLog : undefined} />
+          <TireList key={vin} vin={vin} onLogBrakes={isMotorized ? openBrakeLog : undefined} />
         )}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'brakes' && vin && isMotorized && (
-          <BrakeList vin={vin} logOnOpen={brakeLogRequested} onLogOpened={clearBrakeLog} />
+          <BrakeList key={vin} vin={vin} logOnOpen={brakeLogRequested} onLogOpened={clearBrakeLog} />
         )}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <SafetyTab vin={vin} />}
 

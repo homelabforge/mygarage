@@ -46,6 +46,9 @@ export default function BrakeList({ vin, logOnOpen = false, onLogOpened }: Brake
   const [jobCorners, setJobCorners] = useState<BrakePosition[]>([])
   const [setupOpen, setSetupOpen] = useState(false)
   const [setupKey, setSetupKey] = useState(0)
+  /* The position outlives the close, like the other drawers' state, so the
+     history keeps its corner through the exit transition instead of flashing empty. */
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [historyPosition, setHistoryPosition] = useState<BrakePosition | null>(null)
   const [editingMeasurement, setEditingMeasurement] = useState<BrakeMeasurement | null>(null)
   const [editingJob, setEditingJob] = useState<BrakeJob | null>(null)
@@ -71,6 +74,10 @@ export default function BrakeList({ vin, logOnOpen = false, onLogOpened }: Brake
   const openSetup = (): void => {
     setSetupKey((k) => k + 1)
     setSetupOpen(true)
+  }
+  const openHistory = (position: BrakePosition): void => {
+    setHistoryPosition(position)
+    setHistoryOpen(true)
   }
   const axleOf = (name: BrakeAxleName) => data.axles.find((axle) => axle.axle === name) ?? data.axles[0]
   const historyCorner = data.corners.find((corner) => corner.position === historyPosition) ?? null
@@ -118,7 +125,7 @@ export default function BrakeList({ vin, logOnOpen = false, onLogOpened }: Brake
                   overview={data}
                   onLog={openLog}
                   onJob={() => openJob(corners.map((c) => c.position))}
-                  onHistory={() => setHistoryPosition(corner.position)}
+                  onHistory={() => openHistory(corner.position)}
                 />
               ))}
             </div>
@@ -153,11 +160,11 @@ export default function BrakeList({ vin, logOnOpen = false, onLogOpened }: Brake
         vin={vin}
         overview={data}
         corner={historyCorner}
-        open={historyCorner !== null}
+        open={historyOpen && historyCorner !== null}
         onClose={() => {
           setEditingMeasurement(null)
           setEditingJob(null)
-          setHistoryPosition(null)
+          setHistoryOpen(false)
         }}
         onEditMeasurement={setEditingMeasurement}
         onEditJob={setEditingJob}

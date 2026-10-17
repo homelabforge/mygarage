@@ -75,7 +75,7 @@ function overview(corners: Partial<Record<BrakeCorner['position'], Partial<Brake
     tracks_hours: false,
     axles: [
       { axle: 'front', brake_type: 'disc', min_thickness_mm: '3.00', new_thickness_mm: '10.00', configured: false, due_soon_mm: '4.75' },
-      { axle: 'rear', brake_type: 'drum', min_thickness_mm: '1.50', new_thickness_mm: '5.00', drum_max_mm: '230.00', configured: true, due_soon_mm: '2.375' },
+      { axle: 'rear', brake_type: 'drum', min_thickness_mm: '1.50', new_thickness_mm: '5.00', drum_max_mm: '230.00', configured: true, due_soon_mm: '2.38' },
     ],
     corners: (['FL', 'FR', 'RL', 'RR'] as const).map((p) => corner(p, corners[p])),
   }
@@ -190,7 +190,7 @@ describe('BrakeList', () => {
     ])
   })
 
-  it('axle setup saves both axles, and a type change starts from that type’s defaults', async () => {
+  it('axle setup saves the axle that changed, starting from its new type’s defaults', async () => {
     axleMock.mockResolvedValue({})
     useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
     render(<BrakeList vin={VIN} />)
@@ -203,7 +203,7 @@ describe('BrakeList', () => {
     expect(field('brake-setup-front-new').value).toBe('5')
     fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
 
-    await vi.waitFor(() => expect(axleMock).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(axleMock).toHaveBeenCalledTimes(1))
     expect(axleMock.mock.calls[0][0]).toEqual({
       axle: 'front',
       brake_type: 'drum',
@@ -212,7 +212,31 @@ describe('BrakeList', () => {
       rotor_min_mm: null,
       drum_max_mm: null,
     })
-    expect(axleMock.mock.calls[1][0]).toMatchObject({ axle: 'rear', brake_type: 'drum', drum_max_mm: 230 })
+  })
+
+  it('axle setup writes nothing when nothing changed', async () => {
+    useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
+    render(<BrakeList vin={VIN} />)
+    fireEvent.click(screen.getByRole('button', { name: 'brakes.axleSetup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
+    await Promise.resolve()
+    expect(axleMock).not.toHaveBeenCalled()
+  })
+
+  it('says which measurement needs an odometer', () => {
+    useBrakesMock.mockReturnValue({
+      data: overview({
+        // The newest has one; the earlier ones don't.
+        FL: { condition: 'ok', wear_status: 'no_usage_figures', inner_pad_mm: '8.00', thinnest_mm: '8.00', measured_on: '2026-09-04', measured_odometer_km: '1000.00' },
+        // The newest has none.
+        FR: { condition: 'ok', wear_status: 'no_usage_figures', inner_pad_mm: '8.00', thinnest_mm: '8.00', measured_on: '2026-09-04' },
+      }),
+      isLoading: false,
+      error: null,
+    })
+    render(<BrakeList vin={VIN} />)
+    expect(screen.getByText('brakes.wear.needsEarlierOdometer')).toBeInTheDocument()
+    expect(screen.getByText('brakes.wear.needsOdometer')).toBeInTheDocument()
   })
 
   it('opens Log measurements straight away when sent from the Tires page', () => {

@@ -19,8 +19,6 @@ export type BrakeJobUpdate = components['schemas']['BrakeJobUpdate']
 export type BrakePosition = BrakeCorner['position']
 export type BrakeAxleName = BrakeAxle['axle']
 export type BrakeType = BrakeAxle['brake_type']
-export type BrakeCondition = BrakeCorner['condition']
-export type BrakeWearStatus = BrakeCorner['wear_status']
 export type BrakeSurface = NonNullable<BrakeJob['surface']>
 
 /** The four corners, front to back, left to right. Brakes have no spare. */

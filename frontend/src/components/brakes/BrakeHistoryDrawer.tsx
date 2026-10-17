@@ -46,10 +46,10 @@ export default function BrakeHistoryDrawer({
   const removeMeasurement = useDeleteBrakeMeasurement(vin)
   const removeJob = useDeleteBrakeJob(vin)
 
-  /* Newest first. Within one day the old pads come first, then the job, then
-     the new pads it wrote, which is the order the work happened in and the
-     order the wear estimate reads them (a same-day measurement the job didn't
-     write is the old part). */
+  /* Newest first, so within one day the new pads the job wrote come first,
+     then the job, then the old pads: the reverse of the order the work
+     happened in, and of how the wear estimate reads them (a same-day
+     measurement the job didn't write is the old part). */
   const rank = (row: Row): number =>
     row.kind === 'job' ? 1 : row.measurement.brake_job_id != null ? 2 : 0
   const rows: Row[] = [

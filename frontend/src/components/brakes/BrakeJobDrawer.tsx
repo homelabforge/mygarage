@@ -162,8 +162,8 @@ export default function BrakeJobDrawer({
           onHoursChange={setHours}
         />
 
-        <div className="space-y-2">
-          <div className="text-sm font-medium">{t('brakes.corners')}</div>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">{t('brakes.corners')}</legend>
           <div className="flex flex-wrap gap-2">
             {BRAKE_POSITIONS.map((position) => (
               <Chip
@@ -186,7 +186,7 @@ export default function BrakeJobDrawer({
               {t('brakes.allFour')}
             </Button>
           </div>
-        </div>
+        </fieldset>
 
         <Toggle id="brake-job-friction" label={frictionLabel} checked={friction} onChange={setFriction} />
 
@@ -221,8 +221,8 @@ export default function BrakeJobDrawer({
             )
           })}
 
-        <div className="space-y-2">
-          <div className="text-sm font-medium">{surfaceLabel}</div>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">{surfaceLabel}</legend>
           <div className="flex flex-wrap gap-2">
             <Chip selected={surface === null} onClick={() => setSurface(null)}>
               {t('brakes.surfaceNone')}
@@ -234,7 +234,7 @@ export default function BrakeJobDrawer({
               {t('brakes.surfaceResurfaced')}
             </Chip>
           </div>
-        </div>
+        </fieldset>
 
         <Field id="brake-job-notes" label={t('brakes.notes')}>
           <Textarea id="brake-job-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
