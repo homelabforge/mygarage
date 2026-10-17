@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
@@ -417,8 +418,20 @@ def test_130_is_idempotent(engine_for_migration):
     assert (_telemetry(engine), _latest(engine), _summaries(engine)) == once
 
 
-def test_130_a_failure_moves_nothing_and_does_not_raise(engine_for_migration, monkeypatch, caplog):
-    """One transaction with no DDL, so the raw moves roll back with the failed step."""
+@pytest.mark.parametrize(
+    "error",
+    [
+        OperationalError("UPDATE telemetry_daily_summary", {}, Exception("boom")),
+        # What SQLite's DateTime result processor raises on an oddly formatted date.
+        ValueError("Couldn't parse datetime string: '01/10/2026 10:00'"),
+    ],
+    ids=["sqlalchemy", "value"],
+)
+def test_130_a_failure_moves_nothing_and_does_not_raise(
+    engine_for_migration, monkeypatch, caplog, error
+):
+    """One transaction with no DDL, so the raw moves roll back with the failed step.
+    Not only a database error: anything 125 swallows (D12)."""
     _dialect, engine, _url = engine_for_migration
     _make_tables(engine)
     _seed(engine)
@@ -426,7 +439,7 @@ def test_130_a_failure_moves_nothing_and_does_not_raise(engine_for_migration, mo
     mod = _load()
 
     def _boom(*_args, **_kwargs):
-        raise OperationalError("UPDATE telemetry_daily_summary", {}, Exception("boom"))
+        raise error
 
     monkeypatch.setattr(mod, "_move_summaries", _boom)
     with caplog.at_level(logging.ERROR):

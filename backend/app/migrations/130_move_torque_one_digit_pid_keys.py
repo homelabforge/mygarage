@@ -29,10 +29,10 @@ migration's, so it has no `from __future__ import annotations`: the runner
 loads it without registering it in sys.modules, where a frozen dataclass under
 that import fails (fable-plan/F-1).
 
-The raw telemetry UPDATE is the heavy part: one pass per key on
-uq_telemetry_dedup, about a million rows for an hour of driving a day over 90
-days of retention at one upload every five seconds. Back up first, through the
-backup API.
+The raw telemetry UPDATE is the heavy part: one pass per key on the
+(device_id, param_key, timestamp) unique index, about a million rows for an
+hour of driving a day over 90 days of retention at one upload every five
+seconds. Back up first, through the backup API.
 """
 
 import json
@@ -643,7 +643,7 @@ def upgrade(engine: Engine | None = None) -> None:
         engine = _get_fallback_engine()
     try:
         _move(engine)
-    except SQLAlchemyError as e:
+    except (OSError, ValueError, KeyError, TypeError, SQLAlchemyError) as e:
         logger.error("130: Torque keys not moved, the old ones stay: %s", e, exc_info=True)
 
 
