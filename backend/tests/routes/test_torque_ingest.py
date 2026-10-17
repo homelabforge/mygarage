@@ -16,11 +16,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
+from app.models.livelink_parameter import LiveLinkParameter
 from app.models.location_point import LocationPoint
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -494,3 +495,37 @@ async def test_an_upload_while_livelink_is_off_answers_ok_and_stores_nothing(
     assert resp.status_code == 200
     assert resp.text == "OK!"
     assert await _telemetry_rows(db_session, vin) == []
+
+
+@pytest.mark.asyncio
+async def test_readings_register_with_their_units_and_names(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """#223: INTAKE_PRESSURE registers in kPa and KFF1238 under its readable name."""
+    keys = ["INTAKE_PRESSURE", "KFF1238"]
+    # The registry is shared by the suite; start these two from nothing.
+    await db_session.execute(delete(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(keys)))
+    await db_session.commit()
+    _vin, _device, token = await _make_torque_source(db_session)
+
+    r = await client.get(
+        f"/api/v1/torque/{token}/upload",
+        params={
+            "session": "S223U",
+            "id": "abc",
+            "time": _epoch_ms(datetime.now(UTC) - timedelta(seconds=5)),
+            "kb": "62.0",
+            "kff1238": "14.1",
+        },
+    )
+
+    assert r.status_code == 200
+    rows = (
+        await db_session.execute(
+            select(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(keys))
+        )
+    ).scalars()
+    assert {p.param_key: (p.unit, p.display_name) for p in rows} == {
+        "INTAKE_PRESSURE": ("kPa", "Intake Pressure"),
+        "KFF1238": ("V", "OBD adapter voltage"),
+    }

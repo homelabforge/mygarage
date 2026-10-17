@@ -44,13 +44,82 @@ TORQUE_OBD_PID_MAP: dict[str, str] = {
     "kff120c": "TORQUE_ODOMETER",
 }
 
+# Readable names for Torque's own PIDs, by storage key. Names only: the key
+# stays KFF1238, so a setting saved on it keeps matching (R1-M1). The
+# dashboard classifies by key and unit (classifyTelemetryParam in
+# frontend/src/utils/telemetryUnits.ts), never by this name.
+TORQUE_PID_NAMES: dict[str, str] = {
+    "KFF1201": "Instant economy (mpg)",
+    "KFF1202": "Turbo boost",
+    "KFF1203": "Instant economy (km/L)",
+    "KFF1204": "Trip distance",
+    "KFF1205": "Trip economy (mpg)",
+    "KFF1206": "Trip economy (km/L)",
+    "KFF1207": "Instant economy (L/100 km)",
+    "KFF1208": "Trip economy (L/100 km)",
+    "KFF1220": "Acceleration X",
+    "KFF1221": "Acceleration Y",
+    "KFF1222": "Acceleration Z",
+    "KFF1223": "Acceleration total",
+    "KFF1225": "Engine torque",
+    "KFF1226": "Wheel horsepower",
+    "KFF1238": "OBD adapter voltage",
+    "KFF1239": "GPS accuracy",
+    "KFF123A": "GPS satellites",
+    "KFF1249": "Air-fuel ratio, measured",
+    "KFF124D": "Air-fuel ratio, commanded",
+    "KFF1269": "Volumetric efficiency",
+    "KFF1271": "Trip fuel used",
+}
+
+# The unit each value arrives in. Torque sends a PID's default unit whatever
+# the phone is set to show (#223), and the standard PIDs default to metric,
+# so nothing here is converted.
+TORQUE_DEFAULT_UNITS: dict[str, str] = {
+    "ENGINE_LOAD": "%",
+    "COOLANT_TMP": "°C",
+    "INTAKE_PRESSURE": "kPa",
+    "ENGINE_RPM": "rpm",
+    "SPEED": "km/h",
+    "TIMING_ADVANCE": "°",
+    "INTAKE_TEMP": "°C",
+    "MAF": "g/s",
+    "THROTTLE": "%",
+    "RUN_TIME": "s",
+    "FUEL": "%",
+    "CONTROL_MODULE_VOLTAGE": "V",
+    "AMBIENT_TEMP": "°C",
+    "OIL_TEMP": "°C",
+    "TORQUE_ODOMETER": "km",
+    "KFF1201": "mpg",
+    "KFF1202": "psi",
+    "KFF1203": "km/L",
+    "KFF1204": "km",
+    "KFF1205": "mpg",
+    "KFF1206": "km/L",
+    "KFF1207": "L/100km",
+    "KFF1208": "L/100km",
+    "KFF1220": "g",
+    "KFF1221": "g",
+    "KFF1222": "g",
+    "KFF1223": "g",
+    "KFF1225": "ft-lb",
+    "KFF1226": "hp",
+    "KFF1238": "V",
+    "KFF1239": "m",
+    "KFF1249": ":1",
+    "KFF124D": ":1",
+    "KFF1269": "%",
+    "KFF1271": "L",
+}
+
 # Torque GPS/extended PIDs → the LocationPoint field they populate.
 GPS_PID_FIELDS: dict[str, str] = {
     "kff1006": "latitude",
     "kff1005": "longitude",
-    "kff1001": "speed",  # GPS speed (km/h in metric mode)
+    "kff1001": "speed",  # km/h, whatever the phone shows
     "kff1007": "heading",
-    "kff1010": "altitude",
+    "kff1010": "altitude",  # metres
 }
 GPS_PIDS: frozenset[str] = frozenset(GPS_PID_FIELDS)
 
@@ -87,7 +156,7 @@ def _to_float(raw: str) -> float | None:
         v = float(raw)
     except TypeError, ValueError:
         return None
-    # Reject NaN/inf — Torque occasionally emits "NaN" for an unavailable sensor.
+    # Reject NaN/inf: Torque occasionally emits "NaN" for an unavailable sensor.
     if math.isnan(v) or math.isinf(v):
         return None
     return v

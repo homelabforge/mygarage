@@ -1,4 +1,9 @@
-from app.services.torque_pid_map import TORQUE_OBD_PID_MAP, parse_torque_query
+from app.services.torque_pid_map import (
+    TORQUE_DEFAULT_UNITS,
+    TORQUE_OBD_PID_MAP,
+    TORQUE_PID_NAMES,
+    parse_torque_query,
+)
 
 
 def test_maps_common_obd_pids_to_canonical_keys():
@@ -108,3 +113,45 @@ def test_extended_pids_keep_their_storage_keys():
 
 def test_the_odometer_is_the_only_mapped_extended_pid():
     assert [key for key in TORQUE_OBD_PID_MAP if key.startswith("kff")] == ["kff120c"]
+
+
+def _torque_key(storage_key: str) -> str:
+    """The `k<hex>` key Torque sends for a stored key."""
+    mapped = [k for k, v in TORQUE_OBD_PID_MAP.items() if v == storage_key]
+    return mapped[0] if mapped else storage_key.lower()
+
+
+def test_every_name_and_unit_sits_on_a_key_the_parser_stores():
+    """A row keyed some other way would never match a reading."""
+    for key in {**TORQUE_PID_NAMES, **TORQUE_DEFAULT_UNITS}:
+        assert set(parse_torque_query({_torque_key(key): "1"}).obd) == {key}, key
+
+
+def test_the_keys_read_as_metric_say_their_metric_unit():
+    """What the dashboard and the session aggregator convert from (D1)."""
+    keys = (
+        "SPEED",
+        "COOLANT_TMP",
+        "INTAKE_TEMP",
+        "AMBIENT_TEMP",
+        "OIL_TEMP",
+        "INTAKE_PRESSURE",
+        "TORQUE_ODOMETER",
+        "KFF1204",
+    )
+    assert {k: TORQUE_DEFAULT_UNITS[k] for k in keys} == {
+        "SPEED": "km/h",
+        "COOLANT_TMP": "°C",
+        "INTAKE_TEMP": "°C",
+        "AMBIENT_TEMP": "°C",
+        "OIL_TEMP": "°C",
+        "INTAKE_PRESSURE": "kPa",
+        "TORQUE_ODOMETER": "km",
+        "KFF1204": "km",
+    }
+
+
+def test_the_extended_pids_have_one_readable_name_each():
+    assert TORQUE_PID_NAMES["KFF1238"] == "OBD adapter voltage"
+    assert TORQUE_PID_NAMES["KFF1202"] == "Turbo boost"
+    assert len(TORQUE_PID_NAMES) == len(set(TORQUE_PID_NAMES.values())) == 21

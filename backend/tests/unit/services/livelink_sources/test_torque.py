@@ -9,6 +9,7 @@ from app.services.livelink_sources.base import (
     ExplicitSession,
     HttpEnvelope,
     MqttEnvelope,
+    Reading,
 )
 from app.services.livelink_sources.torque import TorqueModule
 
@@ -98,3 +99,28 @@ async def test_gps_becomes_a_geopoint():
 async def test_a_reading_with_data_asserts_ecu_online():
     batch = await M.parse(HttpEnvelope(token="t", params={"kc": "900"}))
     assert batch.ecu_status == "online"
+
+
+@pytest.mark.asyncio
+async def test_readings_carry_torques_default_unit_and_name():
+    """Torque sends its default unit whatever the phone shows, so userUnit
+    (here °F) never labels a value; intake pressure says kPa, so the dashboard
+    stops reading it as a temperature."""
+    batch = await M.parse(
+        HttpEnvelope(
+            token="t",
+            params={
+                "userUnit05": "°F",
+                "k5": "91.0",
+                "kb": "62.0",
+                "kff1238": "14.1",
+                "k33": "100.0",
+            },
+        )
+    )
+    assert batch.readings == [
+        Reading("COOLANT_TMP", 91.0, unit="°C"),
+        Reading("INTAKE_PRESSURE", 62.0, unit="kPa"),
+        Reading("KFF1238", 14.1, unit="V", display_name="OBD adapter voltage"),
+        Reading("K33", 100.0),
+    ]

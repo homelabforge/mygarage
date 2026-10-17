@@ -70,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A reminder you make counts its progress bar from the readings on file when you made it, so a reading added or corrected later that day no longer holds the bar at zero or hides it (thanks @Drisicato, PR #216)
 - Importing an old (pre-v3) vehicle backup counts a repeating reminder's mileage from the vehicle's odometer instead of saving the interval as the due odometer, keeps a one-time reminder's due date and mileage, and brings completed reminders back as done; a mileage-only reminder with no odometer reading to count from is reported instead
 - A tread or pressure reading dated before a newer reading of the other kind now updates the tire's tread or pressure
+- Torque Pro readings show their units, and intake manifold pressure no longer shows as a temperature
 
 ### Security
 - POI provider settings are admin-only

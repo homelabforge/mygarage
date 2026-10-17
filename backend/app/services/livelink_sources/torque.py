@@ -30,7 +30,11 @@ from app.services.livelink_sources.base import (
     Reading,
     StoragePolicy,
 )
-from app.services.torque_pid_map import parse_torque_query
+from app.services.torque_pid_map import (
+    TORQUE_DEFAULT_UNITS,
+    TORQUE_PID_NAMES,
+    parse_torque_query,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +112,15 @@ class TorqueModule(BaseSourceModule):
 
         return IngestBatch(
             device_key=env.token,
-            readings=[Reading(k, float(v)) for k, v in reading.obd.items()],
+            readings=[
+                Reading(
+                    key,
+                    float(value),
+                    unit=TORQUE_DEFAULT_UNITS.get(key),
+                    display_name=TORQUE_PID_NAMES.get(key),
+                )
+                for key, value in reading.obd.items()
+            ],
             # `_ingest` returns OK! and does nothing at all for an unlinked
             # device, so Torque never touched status for one.
             requires_link=True,
