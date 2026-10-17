@@ -577,7 +577,7 @@ def _move_registry(conn: Connection, columns: dict[str, set[str]], moved: set[st
                 "icon": None,
                 **{n: None for n in _LINES},
             }
-        elif target["unit"] is None and unit is not None:
+        elif not target["unit"] and unit is not None:  # '' counts as none, as at ingest
             conn.execute(
                 text("UPDATE livelink_parameters SET unit = :unit WHERE id = :id"),
                 {"unit": unit, "id": target["id"]},

@@ -150,6 +150,8 @@ def _seed(engine) -> None:
                 ("K6", "K6", None, "other", None, None, True, False),
                 ("K8", "K8", None, "other", None, None, True, False),
                 ("KA", "Ka", None, "other", None, None, True, False),
+                # An empty unit counts as none, as auto_register_parameter has it.
+                ("INTAKE_PRESSURE", "Intake Pressure", "", "other", None, None, True, False),
             ],
         )
         _rows(
@@ -199,6 +201,7 @@ def _seed(engine) -> None:
                 (V1, "K6", 6.0, T1, T1),
                 (V1, "K8", 8.0, T1, T1),
                 (V3, "K4", 31.0, T1, T1),
+                (V1, "KB", 101.0, T1, T1),  # moves KB, so INTAKE_PRESSURE gets its unit
             ],
         )
         # DAY's summaries are what generate_daily_summary makes of the raw rows
@@ -363,6 +366,7 @@ def test_130_keeps_the_newer_latest_value(engine_for_migration):
         (V1, "K06"): (6.0, T1),
         (V1, "K08"): (8.0, T1),
         (V3, "K4"): (31.0, T1),
+        (V1, "INTAKE_PRESSURE"): (101.0, T1),
     }
 
 
@@ -551,6 +555,19 @@ def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
         "KA": ("Ka", None, None, "other", None, None, None, None, True, False),
         # Nothing of K7 moved: untouched, and no K07.
         "K7": ("Tank 7", None, None, "other", None, None, None, None, True, False),
+        # Its empty unit filled from Torque's, as a NULL one would be.
+        "INTAKE_PRESSURE": (
+            "Intake Pressure",
+            "kPa",
+            None,
+            "other",
+            None,
+            None,
+            None,
+            None,
+            True,
+            False,
+        ),
     }
     assert [
         r.getMessage() for r in caplog.records if r.getMessage().startswith("130: dropped")
