@@ -1,8 +1,11 @@
+from starlette.datastructures import QueryParams
+
 from app.services.torque_pid_map import (
     TORQUE_DEFAULT_UNITS,
     TORQUE_OBD_PID_MAP,
     TORQUE_PID_NAMES,
     parse_torque_query,
+    torque_unit,
 )
 
 
@@ -155,3 +158,72 @@ def test_the_extended_pids_have_one_readable_name_each():
     assert TORQUE_PID_NAMES["KFF1238"] == "OBD adapter voltage"
     assert TORQUE_PID_NAMES["KFF1202"] == "Turbo boost"
     assert len(TORQUE_PID_NAMES) == len(set(TORQUE_PID_NAMES.values())) == 21
+
+
+#: Part of a real session-start request, bytes as the phone sent them (Torque
+#: v8, 2016, surfrock66/torque debug-apache-access-logs.txt). A degree sign is
+#: raw UTF-8, '/' is a space and '%' a lone space.
+_V8_UNITS = (
+    b"eml=x&v=8&session=1459259898221&id=abc&time=1459259898456"
+    b"&defaultUnit04=%20&defaultUnit05=\xc2\xb0C&defaultUnit0b=kPa&defaultUnit0c=rpm"
+    b"&defaultUnit0d=km%20h&defaultUnit0e=\xc2\xb0&defaultUnit0f=\xc2\xb0C&defaultUnit10=g%20s"
+    b"&defaultUnit11=%20&defaultUnit1f=s&defaultUnit2f=%20&defaultUnit42=V"
+    b"&defaultUnit46=\xc2\xb0C&defaultUnit5c=\xc2\xb0C&defaultUnitff120c=km"
+    b"&defaultUnitff1201=mpg&defaultUnitff1202=psi&defaultUnitff1203=kpl&defaultUnitff1204=km"
+    b"&defaultUnitff1205=mpg&defaultUnitff1206=kpl&defaultUnitff1207=l%20100km"
+    b"&defaultUnitff1208=l%20100km&defaultUnitff1220=g&defaultUnitff1221=g&defaultUnitff1222=g"
+    b"&defaultUnitff1223=g&defaultUnitff1225=ft-lb&defaultUnitff1226=hp&defaultUnitff1238=V"
+    b"&defaultUnitff1239=m&defaultUnitff123a=&defaultUnitff1249=:1&defaultUnitff124d=:1"
+    b"&defaultUnitff1269=%20&defaultUnitff1271=l&defaultUnit33=kPa"
+    b"&defaultUnitff1001=km%20h&defaultUnitff1005=\xc2\xb0"
+)
+
+
+def test_torque_unit_cleans_up_how_torque_spells_a_unit():
+    cases = {
+        "Â°C": "°C",
+        "\\xc2\\xb0C": "°C",
+        "°C": "°C",
+        "km h": "km/h",
+        "km/h": "km/h",
+        " ": "%",
+        "%": "%",
+        "": None,
+        "l 100km": "L/100km",
+        "kpl": "km/L",
+        "l": "L",
+        "g s": "g/s",
+        "psi": "psi",
+        "ft-lb": "ft-lb",
+        "Â°": "°",
+        "kPa": "kPa",
+    }
+    assert {raw: torque_unit(raw) for raw in cases} == cases
+    assert torque_unit(None) is None
+
+
+def test_a_session_start_request_declares_units_and_no_values():
+    r = parse_torque_query(QueryParams(_V8_UNITS))
+    assert r.obd == {} and r.gps == {}
+    assert {
+        k: r.default_units[k] for k in ("COOLANT_TMP", "SPEED", "ENGINE_LOAD", "K33", "KFF1207")
+    } == {
+        "COOLANT_TMP": "°C",
+        "SPEED": "km/h",
+        "ENGINE_LOAD": "%",
+        "K33": "kPa",
+        "KFF1207": "L/100km",
+    }
+    assert "KFF123A" not in r.default_units  # declared with no unit
+    assert not {"KFF1001", "KFF1005"} & set(r.default_units)  # location, not telemetry
+
+
+def test_real_torque_declares_every_unit_this_module_assumes():
+    """D3: each static unit is what Torque itself says for that PID."""
+    declared = parse_torque_query(QueryParams(_V8_UNITS)).default_units
+    assert {k: declared.get(k) for k in TORQUE_DEFAULT_UNITS} == TORQUE_DEFAULT_UNITS
+
+
+def test_the_display_unit_is_never_recorded():
+    """D2: userUnit is what the phone shows, not what it sends."""
+    assert parse_torque_query({"userUnit05": "°F", "userUnit0d": "mph"}).default_units == {}

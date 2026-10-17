@@ -121,6 +121,7 @@ class TorqueModule(BaseSourceModule):
                 )
                 for key, value in reading.obd.items()
             ],
+            declared_units=reading.default_units,
             # `_ingest` returns OK! and does nothing at all for an unlinked
             # device, so Torque never touched status for one.
             requires_link=True,

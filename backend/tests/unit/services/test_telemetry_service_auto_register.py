@@ -359,3 +359,15 @@ class TestASourceNamesItsReading:
         (await svc.auto_register_parameter(key)).display_name = "Mine"
         param = await svc.auto_register_parameter(key, display_name="Readable name")
         assert param.display_name == "Mine"
+
+
+@pytest.mark.asyncio
+async def test_declared_units_fill_rows_on_file_and_create_none(db_session):
+    svc = TelemetryService(db_session)
+    with_unit, without, absent = _named_key(), _named_key(), _named_key()
+    await svc.auto_register_parameter(with_unit, unit="psi")
+    await svc.auto_register_parameter(without)
+    await svc.fill_declared_units({with_unit: "kPa", without: "kPa", absent: "kPa"})
+    assert (await svc.get_parameter(with_unit)).unit == "psi"
+    assert (await svc.get_parameter(without)).unit == "kPa"
+    assert await svc.get_parameter(absent) is None

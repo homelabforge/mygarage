@@ -12,6 +12,7 @@ declare DRIVE_SESSION has no reachable path to SessionService at all.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import datetime
 
 from sqlalchemy import select
@@ -20,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.vehicle import Vehicle
+from app.services import declared_units
 from app.services.livelink_service import LiveLinkService
 from app.services.livelink_sources.base import (
     BaseSourceModule,
@@ -137,12 +139,22 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> N
     if not device.vin:
         return  # discovered but unlinked: status only, never telemetry
 
+    # Torque declares its units in a request of their own, before any value.
+    # Held for this device until a value arrives; rows on file get them now.
+    if batch.declared_units:
+        declared_units.remember(device.device_id, batch.declared_units)
+        await TelemetryService(db).fill_declared_units(batch.declared_units)
+
     if batch.readings:
         telemetry = TelemetryService(db)
+        readings = [
+            r if r.unit else replace(r, unit=declared_units.unit_for(device.device_id, r.param_key))
+            for r in batch.readings
+        ]
         result = await telemetry.store_readings(
             vin=device.vin,
             device_id=device.device_id,
-            readings=batch.readings,
+            readings=readings,
             timestamp=timestamp,
             policy=module.storage_policy,
             # Task 17 reads `device.odometer_param_key` from this to decide

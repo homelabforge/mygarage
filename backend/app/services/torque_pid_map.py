@@ -8,7 +8,8 @@ avg/max session stats as WiCAN. Every other PID goes through the shared
 
 Torque sends a PID below 0x10 unpadded (`kc`) and the map is keyed padded
 (`k0c`), so every one-digit PID is padded first, mapped or not, and each PID
-lands on one key (#223).
+lands on one key (#223). Torque declares a PID's unit padded (`defaultUnit0c`),
+so padding is also what makes a value meet its unit.
 
 The PIDs in GPS_PID_FIELDS become location points, not telemetry.
 """
@@ -123,6 +124,33 @@ GPS_PID_FIELDS: dict[str, str] = {
 }
 GPS_PIDS: frozenset[str] = frozenset(GPS_PID_FIELDS)
 
+#: How Torque spells a unit, and how we do. A v8 upload sent '/' as a space
+#: and '%' as a lone space, and a raw UTF-8 degree sign reaches us as 'Â°'
+#: because Starlette reads the query string as latin-1.
+_UNIT_SPELLINGS: dict[str, str] = {
+    "°c": "°C",
+    "°f": "°F",
+    "kpa": "kPa",
+    "kpl": "km/L",
+    "l": "L",
+    "l/100km": "L/100km",
+}
+
+_HEX_DIGITS = frozenset("0123456789abcdef")
+
+
+def torque_unit(raw: str | None) -> str | None:
+    """A unit as Torque declares it, cleaned up, or None for none."""
+    if raw is None:
+        return None
+    if raw == " ":
+        return "%"
+    unit = raw.replace("Â°", "°").replace("\\xc2\\xb0", "°").replace("\\xC2\\xB0", "°")
+    unit = "/".join(unit.split())
+    if not unit:
+        return None
+    return _UNIT_SPELLINGS.get(unit.lower(), unit)[:20]
+
 
 @dataclass
 class TorqueReading:
@@ -132,6 +160,7 @@ class TorqueReading:
     email: str | None = None
     obd: dict[str, float] = field(default_factory=dict)
     gps: dict[str, float] = field(default_factory=dict)
+    default_units: dict[str, str] = field(default_factory=dict)
 
 
 def _padded_pid(key: str) -> str:
@@ -184,6 +213,12 @@ def parse_torque_query(params: Mapping[str, str]) -> TorqueReading:
             if val is None:
                 continue
             r.gps[GPS_PID_FIELDS[lk]] = val
+        elif lk.startswith("defaultunit"):
+            # Values arrive in this unit; userUnit is only what the phone shows.
+            pid = lk.removeprefix("defaultunit")
+            unit = torque_unit(raw)
+            if pid and set(pid) <= _HEX_DIGITS and unit and f"k{pid}" not in GPS_PID_FIELDS:
+                r.default_units[_storage_key(f"k{pid}")] = unit
         elif lk.startswith("k"):
             val = _to_float(raw)
             if val is None:

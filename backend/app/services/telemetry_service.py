@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any, cast
@@ -198,6 +199,20 @@ class TelemetryService:
         Wrapper for auto_register_parameter for route compatibility.
         """
         return await self.auto_register_parameter(param_key, unit, param_class, display_name)
+
+    async def fill_declared_units(self, units: Mapping[str, str]) -> None:
+        """Give rows that exist and have no unit the one a source declared.
+
+        Creates nothing: a parameter is registered when its first value arrives,
+        with the unit app/services/declared_units.py kept for it.
+        """
+        _refuse_if_in_maintenance("fill_declared_units")
+        rows = await self.db.execute(
+            select(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(list(units)))
+        )
+        for param in rows.scalars():
+            if not param.unit:
+                param.unit = units[param.param_key]
 
     async def auto_register_parameter(
         self,

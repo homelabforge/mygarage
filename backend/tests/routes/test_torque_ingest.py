@@ -27,6 +27,7 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_telemetry import VehicleTelemetry
 from app.routes.torque import TorqueTokenRedactionFilter, redact_torque_path
+from app.services import declared_units
 from app.services.torque_service import TorqueService
 
 # Uploads store nothing while LiveLink's master switch is off (it gates the
@@ -529,3 +530,74 @@ async def test_readings_register_with_their_units_and_names(
         "INTAKE_PRESSURE": ("kPa", "Intake Pressure"),
         "KFF1238": ("V", "OBD adapter voltage"),
     }
+
+
+async def _units(db_session: AsyncSession, keys: list[str]) -> dict[str, str | None]:
+    rows = (
+        await db_session.execute(
+            select(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(keys))
+        )
+    ).scalars()
+    return {p.param_key: p.unit for p in rows}
+
+
+@pytest.mark.asyncio
+async def test_a_declared_unit_waits_for_the_pids_first_value(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """F-3: a session-start request registers nothing; a PID's unit lands with its first value."""
+    keys = ["K3C", "K23"]
+    await db_session.execute(delete(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(keys)))
+    await db_session.commit()
+    _vin, _device, token = await _make_torque_source(db_session)
+    t = datetime.now(UTC) - timedelta(seconds=10)
+
+    start = await client.get(
+        f"/api/v1/torque/{token}/upload",
+        params={
+            "session": "S223D",
+            "id": "abc",
+            "time": _epoch_ms(t),
+            "defaultUnit3c": "°C",
+            "defaultUnit23": "kPa",
+        },
+    )
+    assert start.status_code == 200
+    assert await _units(db_session, keys) == {}
+
+    value = await client.get(
+        f"/api/v1/torque/{token}/upload",
+        params={
+            "session": "S223D",
+            "id": "abc",
+            "time": _epoch_ms(t + timedelta(seconds=5)),
+            "k3c": "450.0",
+        },
+    )
+    assert value.status_code == 200
+    assert await _units(db_session, keys) == {"K3C": "°C"}  # K23 never carried a value
+
+
+@pytest.mark.asyncio
+async def test_a_restart_mid_session_heals_at_the_next_session_start(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """D4: the map is process memory; the next session start fills the unit in."""
+    keys = ["K3D"]
+    await db_session.execute(delete(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(keys)))
+    await db_session.commit()
+    _vin, _device, token = await _make_torque_source(db_session)
+    t = datetime.now(UTC) - timedelta(minutes=10)
+
+    def _get(session: str, at: datetime, **pids: str):
+        return client.get(
+            f"/api/v1/torque/{token}/upload",
+            params={"session": session, "id": "abc", "time": _epoch_ms(at), **pids},
+        )
+
+    assert (await _get("S223R1", t, defaultUnit3d="°C")).status_code == 200
+    declared_units._BY_DEVICE.clear()  # what a restart does
+    assert (await _get("S223R1", t + timedelta(seconds=5), k3d="430.0")).status_code == 200
+    assert await _units(db_session, keys) == {"K3D": None}
+    assert (await _get("S223R2", t + timedelta(minutes=5), defaultUnit3d="°C")).status_code == 200
+    assert await _units(db_session, keys) == {"K3D": "°C"}
