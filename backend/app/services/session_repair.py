@@ -77,9 +77,16 @@ async def recompute_pending_sessions(db: AsyncSession) -> int:
         await db.delete(row)
         await db.commit()
         return 0
-    cutoff = _cutoff(
-        await _oldest_reading(db), utc_now(), await LiveLinkService(db).get_retention_days()
-    )
+    try:
+        retention_days = await LiveLinkService(db).get_retention_days()
+    except ValueError:
+        # A hand-set retention that isn't a number. Leave everything as is
+        # rather than fail the start on every restart.
+        logger.warning(
+            "The telemetry retention setting is unreadable; the older Torque trips wait for the next start"
+        )
+        return 0
+    cutoff = _cutoff(await _oldest_reading(db), utc_now(), retention_days)
     service = SessionService(db)
     done = skipped = 0
     for start in range(0, len(ids), _CHUNK):

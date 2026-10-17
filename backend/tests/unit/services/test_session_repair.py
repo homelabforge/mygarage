@@ -206,6 +206,26 @@ async def test_a_late_old_reading_does_not_pass_a_trip_that_lost_its_start(
 
 
 @pytest.mark.asyncio
+async def test_an_unreadable_retention_setting_leaves_the_list_for_later(
+    db_session, make_closed_drive_session, monkeypatch
+):
+    """A non-number retention must not crash every start; the list waits for a fix."""
+
+    async def _unreadable(_self) -> int:
+        raise ValueError("invalid literal for int() with base 10: 'ninety'")
+
+    monkeypatch.setattr(LiveLinkService, "get_retention_days", _unreadable)
+    trip = await _retained_trip(db_session, make_closed_drive_session, "07")
+    await _list(db_session, [trip.id])
+
+    assert await recompute_pending_sessions(db_session) == 0
+
+    await db_session.refresh(trip)
+    assert (trip.max_speed, trip.avg_speed) == (20.0, 10.0)
+    assert await db_session.get(Setting, PENDING_KEY) is not None
+
+
+@pytest.mark.asyncio
 async def test_no_list_or_an_empty_one_reads_no_telemetry(db_session, monkeypatch):
     """The oldest-reading lookups run only for a list with trips on it."""
     calls: list[object] = []
