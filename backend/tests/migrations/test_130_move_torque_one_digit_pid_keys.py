@@ -1,5 +1,6 @@
 """Migration 130: Torque's one-digit PID keys move onto their padded keys (#223)."""
 
+import json
 import logging
 from pathlib import Path
 
@@ -55,6 +56,18 @@ def _make_tables(engine) -> None:
             f"CREATE TABLE telemetry_daily_summary (id {pk}, vin VARCHAR(17) NOT NULL, "
             f"param_key VARCHAR(100) NOT NULL, date {ts} NOT NULL, min_value {num}, max_value {num}, "
             f"avg_value {num}, sample_count INTEGER NOT NULL DEFAULT 0, UNIQUE (vin, param_key, date))",
+            "CREATE TABLE vehicles (vin VARCHAR(17) PRIMARY KEY)",
+            f"CREATE TABLE livelink_topic_maps (id {pk}, device_id VARCHAR(20) NOT NULL, param_key VARCHAR(100))",
+            "CREATE TABLE settings (key VARCHAR(50) PRIMARY KEY, value TEXT, "
+            "category VARCHAR(50) NOT NULL DEFAULT 'general', description TEXT, "
+            "encrypted BOOLEAN NOT NULL DEFAULT FALSE)",
+            f"CREATE TABLE livelink_parameters (id {pk}, param_key VARCHAR(100) NOT NULL UNIQUE, "
+            "display_name VARCHAR(100), unit VARCHAR(20), param_class VARCHAR(50), category VARCHAR(50), "
+            f"icon VARCHAR(50), warning_min {num}, warning_max {num}, critical_min {num}, "
+            f"warning_last_notified_at {ts}, alert_state VARCHAR(10), alert_retry_at {ts}, "
+            "display_order INTEGER NOT NULL DEFAULT 0, show_on_dashboard BOOLEAN NOT NULL DEFAULT TRUE, "
+            "archive_only BOOLEAN NOT NULL DEFAULT FALSE, storage_interval_seconds INTEGER NOT NULL DEFAULT 0, "
+            f"created_at {ts} NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at {ts})",
         ):
             conn.execute(text(ddl))
 
@@ -85,8 +98,44 @@ def _seed(engine) -> None:
             "drive_sessions",
             ("vin", "device_id", "started_at", "ended_at"),
             [
-                (V1, _TQ, T1, T3),
-                (V2, _GONE, T1, T3),
+                (V1, _TQ, T1, T3),  # 1: KC, KD in its window
+                (V2, _GONE, T1, T3),  # 2: K5 in its window
+                (V1, _TQ, T1, None),  # 3: still open
+                (V1, _WICAN, T1, T3),  # 4: not a Torque source
+                (V1, _TQ, "2026-10-02 10:00:00", "2026-10-02 11:00:00"),  # 5: nothing in its window
+            ],
+        )
+        _rows(conn, "vehicles", ("vin",), [(V1,), (V2,), (V3,)])
+        _rows(
+            conn,
+            "livelink_topic_maps",
+            ("device_id", "param_key"),
+            [
+                ("aabbccdd0003", "KE"),
+                ("aabbccdd0003", "K7"),
+            ],
+        )
+        _rows(
+            conn,
+            "livelink_parameters",
+            (
+                "param_key",
+                "display_name",
+                "category",
+                "icon",
+                "warning_max",
+                "show_on_dashboard",
+                "archive_only",
+            ),
+            [
+                ("KC", "Kc", "other", None, 6000.0, False, False),
+                ("KD", "Road speed", "other", "gauge", 130.0, True, False),
+                ("SPEED", "Speed", "engine", None, None, True, False),
+                ("K5", "K5", "other", None, 120.0, True, False),
+                ("COOLANT_TMP", "Engine temp", "other", None, 110.0, True, False),
+                ("K3", "K3", "other", None, None, True, True),
+                ("KE", "Ke", "other", None, None, True, False),
+                ("K7", "Tank 7", "other", None, None, True, False),
             ],
         )
         _rows(
@@ -198,6 +247,36 @@ def _odometer_keys(engine) -> dict:
         return dict(
             conn.execute(text("SELECT device_id, odometer_param_key FROM livelink_devices")).all()
         )
+
+
+_REGISTRY = (
+    "display_name",
+    "unit",
+    "param_class",
+    "category",
+    "icon",
+    "warning_min",
+    "critical_min",
+    "warning_max",
+    "show_on_dashboard",
+    "archive_only",
+)
+
+
+def _registry(engine) -> dict:
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(f"SELECT param_key, {', '.join(_REGISTRY)} FROM livelink_parameters")
+        ).all()
+    return {r[0]: (*r[1:6], *(_f(v) for v in r[6:9]), bool(r[9]), bool(r[10])) for r in rows}
+
+
+def _listed(engine):
+    with engine.connect() as conn:
+        value = conn.execute(
+            text("SELECT value FROM settings WHERE key = 'torque_session_repair'")
+        ).scalar()
+    return None if value is None else json.loads(value)
 
 
 def _migrated(engine):
@@ -340,3 +419,100 @@ def test_130_without_the_tables_does_nothing(engine_for_migration, caplog):
     with caplog.at_level(logging.ERROR):
         _load().upgrade(engine)
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
+    engine_for_migration, caplog
+):
+    _dialect, engine, _url = engine_for_migration
+    with caplog.at_level(logging.INFO):
+        registry = _registry(_migrated(engine))
+    assert registry == {
+        # Still named by the WiCAN's raw row: kept as it was, alert line and all.
+        "KC": ("Kc", None, None, "other", None, None, None, 6000.0, False, False),
+        # New: frozen defaults. KC's alert line and hidden switch don't follow.
+        "ENGINE_RPM": (
+            "Engine Rpm",
+            "rpm",
+            "frequency",
+            "engine",
+            None,
+            None,
+            None,
+            None,
+            True,
+            False,
+        ),
+        # KD's name and icon, onto a row that had none; KD is gone, its line logged.
+        "SPEED": ("Road speed", "km/h", None, "engine", "gauge", None, None, None, True, False),
+        # Its own name and line stay; K5 is gone, its 120 logged.
+        "COOLANT_TMP": ("Engine temp", "°C", None, "other", None, None, None, 110.0, True, False),
+        "K03": ("K03", None, None, "other", None, None, None, None, True, True),
+        # Named by a topic map, so kept; its target is still made.
+        "KE": ("Ke", None, None, "other", None, None, None, None, True, False),
+        "TIMING_ADVANCE": (
+            "Timing Advance",
+            "°",
+            None,
+            "other",
+            None,
+            None,
+            None,
+            None,
+            True,
+            True,
+        ),
+        # Moved with no raw registry row: the summary's KF and the odometer's KA.
+        "INTAKE_TEMP": (
+            "Intake Temp",
+            "°C",
+            "temperature",
+            "temperature",
+            None,
+            None,
+            None,
+            None,
+            True,
+            False,
+        ),
+        "K0A": ("K0A", None, None, "other", None, None, None, None, True, True),
+        # Nothing of K7 moved: untouched, and no K07.
+        "K7": ("Tank 7", None, None, "other", None, None, None, None, True, False),
+    }
+    assert [
+        r.getMessage() for r in caplog.records if r.getMessage().startswith("130: dropped")
+    ] == [
+        "130: dropped the alert lines on K5 (warning_min None, critical_min None, warning_max 120.0): "
+        "Torque never sends alerts",
+        "130: dropped the alert lines on KD (warning_min None, critical_min None, warning_max 130.0): "
+        "Torque never sends alerts",
+    ]
+
+
+def test_130_lists_the_closed_torque_trips_the_move_makes_computable(engine_for_migration):
+    _dialect, engine, _url = engine_for_migration
+    assert _listed(_migrated(engine)) == [1, 2]
+
+
+def test_130_adds_to_a_list_already_waiting(engine_for_migration):
+    _dialect, engine, _url = engine_for_migration
+    _make_tables(engine)
+    _seed(engine)
+    with engine.begin() as conn:
+        _rows(
+            conn,
+            "settings",
+            ("key", "value", "category"),
+            [("torque_session_repair", "[99]", "livelink")],
+        )
+    _load().upgrade(engine)
+    assert _listed(engine) == [1, 2, 99]
+
+
+def test_130_a_second_run_lists_nothing_new(engine_for_migration):
+    _dialect, engine, _url = engine_for_migration
+    _migrated(engine)
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM settings"))
+    _load().upgrade(engine)
+    assert _listed(engine) is None

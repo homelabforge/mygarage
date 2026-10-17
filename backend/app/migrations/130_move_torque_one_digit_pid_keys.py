@@ -4,7 +4,8 @@ Torque sends a PID below 0x10 without its leading zero (`kc`, `kd`), and the
 parser only knew the padded spelling, so every Torque install stored RPM,
 speed, coolant and the rest as `KC`, `KD`, `K5`. The parser pads them now;
 this moves what is already stored, for Torque sources only: raw telemetry,
-latest values, daily summaries and a device's declared odometer key.
+latest values, daily summaries, a device's declared odometer key and the
+parameter registry.
 
 A reading on file under both keys is one reading, so the raw key's copy goes,
 and the summaries follow: a day that lost a duplicate is rebuilt from the raw
@@ -13,6 +14,11 @@ duplicates from its count and mean and keeps its min and max (logged).
 
 Torque sources are kind 'torque' devices plus deleted ones, whose trips and
 telemetry are kept; their `tq_` ids are still on drive_sessions.
+
+It also lists the closed trips whose coolant, RPM or speed it moves, in the
+settings row `torque_session_repair`, for app/services/session_repair.py to
+recompute at the next start: refresh_aggregates is async and this runs on a
+sync engine.
 
 Non-FATAL, and upgrade() swallows its own errors (125's reasoning): a data
 move must never stop the migrations queued behind it. One transaction with no
@@ -28,17 +34,20 @@ days of retention at one upload every five seconds. Back up first, through the
 backup API.
 """
 
+import json
 import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import (
     BindParameter,
     Connection,
     DateTime,
     Engine,
+    RowMapping,
     bindparam,
     create_engine,
     inspect,
@@ -69,6 +78,37 @@ _MOVES: dict[str, str] = {
     "KE": "TIMING_ADVANCE",
     "KF": "INTAKE_TEMP",
 }
+
+#: The moved keys refresh_aggregates reads under their new names: coolant,
+#: RPM and speed (speed also drives idle and harsh counts).
+_AGGREGATE_INPUTS = ("K5", "KC", "KD")
+
+#: The settings row app/services/session_repair.py reads at startup.
+_PENDING_KEY = "torque_session_repair"
+
+#: What auto_register_parameter gives a new row of each target, frozen here, with
+#: Torque's default unit: (display_name, unit, param_class, category, archive_only).
+_NEW_ROWS: dict[str, tuple[str, str | None, str | None, str, bool]] = {
+    "K00": ("K00", None, None, "other", True),
+    "K01": ("K01", None, None, "other", True),
+    "K02": ("K02", None, None, "other", True),
+    "K03": ("K03", None, None, "other", True),
+    "ENGINE_LOAD": ("Engine Load", "%", None, "other", True),
+    "COOLANT_TMP": ("Coolant Tmp", "°C", None, "other", True),
+    "K06": ("K06", None, None, "other", True),
+    "K07": ("K07", None, None, "other", True),
+    "K08": ("K08", None, None, "other", True),
+    "K09": ("K09", None, None, "other", True),
+    "K0A": ("K0A", None, None, "other", True),
+    "INTAKE_PRESSURE": ("Intake Pressure", "kPa", "pressure", "engine", True),
+    "ENGINE_RPM": ("Engine Rpm", "rpm", "frequency", "engine", False),
+    "SPEED": ("Speed", "km/h", "speed", "engine", False),
+    "TIMING_ADVANCE": ("Timing Advance", "°", None, "other", True),
+    "INTAKE_TEMP": ("Intake Temp", "°C", "temperature", "temperature", False),
+}
+
+_LINES = ("warning_min", "critical_min", "warning_max")
+_PARAM_COLUMNS = ("id", "display_name", "unit", "category", "icon", *_LINES)
 
 
 def _get_fallback_engine() -> Engine:
@@ -377,6 +417,183 @@ def _move_odometer_keys(conn: Connection) -> set[str]:
     return moved
 
 
+def _trips_to_recompute(conn: Connection, ids: list[str]) -> list[int]:
+    """Closed trips of these sources with coolant, RPM or speed under a raw key."""
+    rows = conn.execute(
+        text(
+            "SELECT s.id FROM drive_sessions s WHERE s.ended_at IS NOT NULL AND s.device_id IN :ids "
+            "AND EXISTS (SELECT 1 FROM vehicle_telemetry t WHERE t.device_id = s.device_id "
+            "AND t.vin = s.vin AND t.param_key IN :keys "
+            "AND t.timestamp >= s.started_at AND t.timestamp <= s.ended_at)"
+        ).bindparams(bindparam("ids", expanding=True), bindparam("keys", expanding=True)),
+        {"ids": ids, "keys": list(_AGGREGATE_INPUTS)},
+    ).all()
+    return sorted(row[0] for row in rows)
+
+
+def _list_trips(conn: Connection, trips: list[int]) -> None:
+    """Add the trips to the list the startup repair works through."""
+    row = conn.execute(
+        text("SELECT value FROM settings WHERE key = :k"), {"k": _PENDING_KEY}
+    ).first()
+    try:
+        waiting = {int(i) for i in json.loads(row[0])} if row and row[0] else set()
+    except TypeError, ValueError:
+        waiting = set()
+    listed = json.dumps(sorted(waiting | set(trips)))
+    if row is None:
+        conn.execute(
+            text(
+                "INSERT INTO settings (key, value, category, description, encrypted) "
+                "VALUES (:k, :v, 'livelink', :d, FALSE)"
+            ),
+            {
+                "k": _PENDING_KEY,
+                "v": listed,
+                "d": "Older Torque trips to recompute after migration 130 (#223)",
+            },
+        )
+    else:
+        conn.execute(
+            text("UPDATE settings SET value = :v WHERE key = :k"), {"k": _PENDING_KEY, "v": listed}
+        )
+
+
+def _param(conn: Connection, key: str) -> RowMapping | None:
+    return (
+        conn.execute(
+            text(
+                f"SELECT {', '.join(_PARAM_COLUMNS)} FROM livelink_parameters WHERE param_key = :k"
+            ),
+            {"k": key},
+        )
+        .mappings()
+        .first()
+    )
+
+
+def _auto_name(key: str) -> str:
+    """TelemetryService._format_display_name, frozen."""
+    return key.replace("_", " ").title()
+
+
+def _carry(
+    conn: Connection, old: RowMapping, target: RowMapping | dict[str, Any], raw: str, new: str
+) -> None:
+    """Copy what someone set on the raw row where the new row has none (D11)."""
+    sets: dict[str, Any] = {}
+    if old["display_name"] not in (None, _auto_name(raw)) and target["display_name"] in (
+        None,
+        _auto_name(new),
+    ):
+        sets["display_name"] = old["display_name"]
+    if old["category"] not in (None, "other") and target["category"] in (
+        None,
+        "other",
+        _NEW_ROWS[new][3],
+    ):
+        sets["category"] = old["category"]
+    if old["icon"] and not target["icon"]:
+        sets["icon"] = old["icon"]
+    # Not the alert lines: Torque never alerts, and on a key a WiCAN also
+    # sends they would start firing (fable-plan/F-5).
+    if sets:
+        assignments = ", ".join(f"{name} = :{name}" for name in sets)
+        conn.execute(
+            text(f"UPDATE livelink_parameters SET {assignments} WHERE id = :id"),
+            {**sets, "id": target["id"]},
+        )
+
+
+def _still_used(conn: Connection, key: str, vins: list[str], columns: dict[str, set[str]]) -> bool:
+    """Whether a reading, summary, latest value, topic map or device still names `key`."""
+    for vin in vins:  # per vehicle, so each probe uses its (vin, param_key) index
+        for table in ("vehicle_telemetry", "telemetry_daily_summary"):
+            if (
+                table in columns
+                and conn.execute(
+                    text(f"SELECT 1 FROM {table} WHERE vin = :vin AND param_key = :k LIMIT 1"),
+                    {"vin": vin, "k": key},
+                ).first()
+            ):
+                return True
+    for table, column in (
+        ("vehicle_telemetry_latest", "param_key"),
+        ("livelink_topic_maps", "param_key"),
+        ("livelink_devices", "odometer_param_key"),
+    ):
+        if (
+            column in columns.get(table, set())
+            and conn.execute(
+                text(f"SELECT 1 FROM {table} WHERE {column} = :k LIMIT 1"), {"k": key}
+            ).first()
+        ):
+            return True
+    return False
+
+
+def _move_registry(conn: Connection, columns: dict[str, set[str]], moved: set[str]) -> None:
+    """Give each moved key's target a registry row, then retire the raw row if unused."""
+    # Without the vehicles table nothing can be proven unused, so nothing is deleted.
+    vins = (
+        [r[0] for r in conn.execute(text("SELECT vin FROM vehicles"))]
+        if "vehicles" in columns
+        else None
+    )
+    for raw in sorted(moved):
+        new = _MOVES[raw]
+        name, unit, param_class, category, archive_only = _NEW_ROWS[new]
+        target = _param(conn, new)
+        if target is None:
+            new_id = conn.execute(
+                text(
+                    "INSERT INTO livelink_parameters (param_key, display_name, unit, param_class, "
+                    "category, display_order, show_on_dashboard, archive_only, "
+                    "storage_interval_seconds, created_at) "
+                    "VALUES (:k, :name, :unit, :cls, :cat, 0, :show, :archive, 0, CURRENT_TIMESTAMP) "
+                    "RETURNING id"
+                ),
+                {
+                    "k": new,
+                    "name": name,
+                    "unit": unit,
+                    "cls": param_class,
+                    "cat": category,
+                    "show": True,
+                    "archive": archive_only,
+                },
+            ).scalar_one()
+            target = {
+                "id": new_id,
+                "display_name": name,
+                "unit": unit,
+                "category": category,
+                "icon": None,
+                **{n: None for n in _LINES},
+            }
+        elif target["unit"] is None and unit is not None:
+            conn.execute(
+                text("UPDATE livelink_parameters SET unit = :unit WHERE id = :id"),
+                {"unit": unit, "id": target["id"]},
+            )
+        old = _param(conn, raw)
+        if old is None:
+            continue
+        _carry(conn, old, target, raw, new)
+        if vins is not None and not _still_used(conn, raw, vins, columns):
+            if any(old[n] is not None for n in _LINES):
+                # They never fired, but say so rather than drop them quietly.
+                logger.info(
+                    "130: dropped the alert lines on %s (warning_min %s, critical_min %s, "
+                    "warning_max %s): Torque never sends alerts",
+                    raw,
+                    old["warning_min"],
+                    old["critical_min"],
+                    old["warning_max"],
+                )
+            conn.execute(text("DELETE FROM livelink_parameters WHERE id = :id"), {"id": old["id"]})
+
+
 def _move(engine: Engine) -> None:
     inspector = inspect(engine)
     columns = {
@@ -392,8 +609,9 @@ def _move(engine: Engine) -> None:
         ids, vins = _torque_sources(conn, tables)
         if not ids:
             return
+        # Both before the raw move, while the raw keys and duplicates are on file.
+        trips = _trips_to_recompute(conn, ids) if "drive_sessions" in tables else []
         summaries = bool(vins) and "telemetry_daily_summary" in tables
-        # Before the raw move, while the duplicates are still on file.
         duplicates = _find_duplicates(conn, ids, vins) if summaries else {}
         moved = _move_telemetry(conn, ids)
         if vins and "vehicle_telemetry_latest" in tables:
@@ -402,7 +620,15 @@ def _move(engine: Engine) -> None:
             moved |= _move_summaries(conn, vins, duplicates)
         if "odometer_param_key" in columns["livelink_devices"]:
             moved |= _move_odometer_keys(conn)
-    logger.info("130: moved Torque keys %s", ", ".join(sorted(moved)) or "none")
+        if "livelink_parameters" in tables:
+            _move_registry(conn, columns, moved)
+        if trips and "settings" in tables:
+            _list_trips(conn, trips)
+    logger.info(
+        "130: moved Torque keys %s; %d trip(s) listed to recompute",
+        ", ".join(sorted(moved)) or "none",
+        len(trips),
+    )
 
 
 def upgrade(engine: Engine | None = None) -> None:
