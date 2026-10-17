@@ -144,8 +144,10 @@ def _seed(engine) -> None:
                 "archive_only",
             ),
             [
-                ("KC", "Kc", None, "other", None, 6000.0, False, False),
-                ("KD", "Road speed", None, "drivetrain", "gauge", 130.0, True, False),
+                # Set by hand, but the WiCAN shares KC, so none of it is Torque's to carry.
+                ("KC", "Tacho", None, "drivetrain", "tachometer", 6000.0, False, False),
+                # Hidden, but the switch never follows, even where the rest lands.
+                ("KD", "Road speed", None, "drivetrain", "gauge", 130.0, False, False),
                 ("SPEED", "Speed", None, "engine", None, None, True, False),
                 # Set by hand, but COOLANT_TMP has its own of each, so none of it lands.
                 ("K5", "Coolant", None, "temperature", "thermometer", 120.0, True, False),
@@ -160,7 +162,9 @@ def _seed(engine) -> None:
                 ("K8", "K8", None, "other", None, None, True, False),
                 ("KA", "Ka", None, "other", None, None, True, False),
                 # An empty unit counts as none, as auto_register_parameter has it.
-                ("INTAKE_PRESSURE", "Intake Pressure", "", "other", None, None, True, False),
+                ("INTAKE_PRESSURE", "Intake Pressure", "", "engine", None, None, True, False),
+                # Never touched ('other' is the fallback), so INTAKE_PRESSURE keeps its 'engine'.
+                ("KB", "Kb", None, "other", None, None, True, False),
             ],
         )
         _rows(
@@ -525,8 +529,8 @@ def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
         registry = _registry(_migrated(engine))
     assert registry == {
         # Still named by the WiCAN's raw row: kept as it was, alert line and all.
-        "KC": ("Kc", None, None, "other", None, None, None, 6000.0, False, False),
-        # New: frozen defaults. KC's alert line and hidden switch don't follow.
+        "KC": ("Tacho", None, None, "drivetrain", "tachometer", None, None, 6000.0, False, False),
+        # New: frozen defaults. KC is shared, so nothing on its row follows.
         "ENGINE_RPM": (
             "Engine Rpm",
             "rpm",
@@ -539,8 +543,8 @@ def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
             True,
             False,
         ),
-        # KD's name, category and icon, onto a row still on its defaults; KD is
-        # gone, its line logged.
+        # KD's name, category and icon, onto a row still on its defaults, but not
+        # its hidden switch; KD is gone, its line logged.
         "SPEED": ("Road speed", "km/h", None, "drivetrain", "gauge", None, None, None, True, False),
         # Its own name, unit, category, icon and line stay; K5 is gone, its 120 logged.
         "COOLANT_TMP": (
@@ -595,12 +599,13 @@ def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
         "KA": ("Ka", None, None, "other", None, None, None, None, True, False),
         # Nothing of K7 moved: untouched, and no K07.
         "K7": ("Tank 7", None, None, "other", None, None, None, None, True, False),
-        # Its empty unit filled from Torque's, as a NULL one would be.
+        # Its empty unit filled from Torque's, as a NULL one would be; KB had
+        # nothing to carry and is gone.
         "INTAKE_PRESSURE": (
             "Intake Pressure",
             "kPa",
             None,
-            "other",
+            "engine",
             None,
             None,
             None,
@@ -617,6 +622,16 @@ def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
         "130: dropped the alert lines on KD (warning_min None, critical_min None, warning_max 130.0): "
         "Torque never sends alerts",
     ]
+
+
+def test_130_does_not_carry_a_shared_raw_keys_registry_row(engine_for_migration):
+    """Both devices wrote through KC's row, so whoever named it, it isn't Torque's to carry."""
+    _dialect, engine, _url = engine_for_migration
+    registry = _registry(_migrated(engine))
+    assert (registry["KC"], registry["ENGINE_RPM"]) == (
+        ("Tacho", None, None, "drivetrain", "tachometer", None, None, 6000.0, False, False),
+        ("Engine Rpm", "rpm", "frequency", "engine", None, None, None, None, True, False),
+    )
 
 
 def test_130_lists_the_closed_torque_trips_the_move_makes_computable(engine_for_migration):

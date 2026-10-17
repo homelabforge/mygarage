@@ -21,7 +21,10 @@ sends on a Torque vehicle (a WiCAN autopid someone named `KC`) goes per key:
 each key's latest value is its own newest raw reading, and a summary day raw
 still holds whole is rebuilt for both keys, while any other day is left as it
 was (logged). A device whose readings under the raw key were all pruned can't
-be seen, so its older summary days merge as before.
+be seen, so its older summary days merge as before. There's no date bound on a
+shared key either: a day raw no longer holds whole (one past retention, say)
+stays under the raw key with its warning, even if it's from before the other
+device's first stored reading and only Torque sent the key that day.
 
 It also lists the closed trips whose coolant, RPM or speed it moves, in the
 settings row `torque_session_repair`, for app/services/session_repair.py to
@@ -719,8 +722,13 @@ def _still_used(conn: Connection, key: str, vins: list[str], columns: dict[str, 
     return False
 
 
-def _move_registry(conn: Connection, columns: dict[str, set[str]], moved: set[str]) -> None:
-    """Give each moved key's target a registry row, then retire the raw row if unused."""
+def _move_registry(
+    conn: Connection, columns: dict[str, set[str]], moved: set[str], shared_keys: set[str]
+) -> None:
+    """Give each moved key's target a registry row, then retire the raw row if unused.
+
+    A shared raw key carries nothing, on any vehicle: the row is global and both devices wrote it.
+    """
     # Without the vehicles table nothing can be proven unused, so nothing is deleted.
     vins = (
         [r[0] for r in conn.execute(text("SELECT vin FROM vehicles"))]
@@ -766,7 +774,8 @@ def _move_registry(conn: Connection, columns: dict[str, set[str]], moved: set[st
         old = _param(conn, raw)
         if old is None:
             continue
-        _carry(conn, old, target, raw, new)
+        if raw not in shared_keys:
+            _carry(conn, old, target, raw, new)
         if vins is not None and not _still_used(conn, raw, vins, columns):
             if any(old[n] is not None for n in _LINES):
                 # They never fired, but say so rather than drop them quietly.
@@ -810,7 +819,7 @@ def _move(engine: Engine) -> None:
         if "odometer_param_key" in columns["livelink_devices"]:
             moved |= _move_odometer_keys(conn)
         if "livelink_parameters" in tables:
-            _move_registry(conn, columns, moved)
+            _move_registry(conn, columns, moved, {raw for _vin, raw in shared})
         if trips and "settings" in tables:
             _list_trips(conn, trips)
     logger.info(
