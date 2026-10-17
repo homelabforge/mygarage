@@ -16,6 +16,13 @@ max (logged).
 Torque sources are kind 'torque' devices plus deleted ones, whose trips and
 telemetry are kept; their `tq_` ids are still on drive_sessions.
 
+Latest values and summaries are per vehicle, so a raw key another device also
+sends on a Torque vehicle (a WiCAN autopid someone named `KC`) goes per key:
+each key's latest value is its own newest raw reading, and a summary day raw
+still holds whole is rebuilt for both keys, while any other day is left as it
+was (logged). A device whose readings under the raw key were all pruned can't
+be seen, so its older summary days merge as before.
+
 It also lists the closed trips whose coolant, RPM or speed it moves, in the
 settings row `torque_session_repair`, for app/services/session_repair.py to
 recompute at the next start: refresh_aggregates is async and this runs on a
@@ -169,21 +176,87 @@ def _move_telemetry(conn: Connection, ids: list[str]) -> set[str]:
     return moved
 
 
-def _move_latest(conn: Connection, vins: list[str]) -> set[str]:
-    """One latest row per vehicle and key: the newer value stays, under the new key."""
+def _find_shared(conn: Connection, ids: list[str], vins: list[str]) -> set[tuple[str, str]]:
+    """The (vin, raw key) pairs another device also sends; those go per key."""
+    rows = conn.execute(
+        text(
+            "SELECT DISTINCT vin, param_key FROM vehicle_telemetry "
+            "WHERE vin IN :vins AND param_key IN :raws AND device_id NOT IN :ids"
+        ).bindparams(
+            bindparam("vins", expanding=True),
+            bindparam("raws", expanding=True),
+            bindparam("ids", expanding=True),
+        ),
+        {"vins": vins, "raws": list(_MOVES), "ids": ids},
+    ).all()
+    return {(vin, key) for vin, key in rows}
+
+
+def _latest_from_raw(conn: Connection, vin: str, key: str, *, keep_newer: bool) -> None:
+    """Give a vehicle's key its newest raw reading as the latest value.
+
+    With keep_newer, a latest row at least as new as that reading stays.
+    """
+    newest = conn.execute(
+        text(
+            "SELECT id FROM vehicle_telemetry WHERE vin = :vin AND param_key = :k "
+            "ORDER BY timestamp DESC, id DESC LIMIT 1"
+        ),
+        {"vin": vin, "k": key},
+    ).scalar()
+    if newest is None:
+        return
+    current = conn.execute(
+        text(
+            "SELECT id, CASE WHEN timestamp >= "
+            "(SELECT timestamp FROM vehicle_telemetry WHERE id = :rid) THEN 1 ELSE 0 END "
+            "FROM vehicle_telemetry_latest WHERE vin = :vin AND param_key = :k"
+        ),
+        {"rid": newest, "vin": vin, "k": key},
+    ).first()
+    if current is None:
+        conn.execute(
+            text(
+                "INSERT INTO vehicle_telemetry_latest (vin, param_key, value, timestamp, received_at) "
+                "SELECT vin, param_key, value, timestamp, received_at FROM vehicle_telemetry "
+                "WHERE id = :rid"
+            ),
+            {"rid": newest},
+        )
+    elif not (keep_newer and current[1]):
+        conn.execute(
+            text(
+                "UPDATE vehicle_telemetry_latest SET "
+                "value = (SELECT value FROM vehicle_telemetry WHERE id = :rid), "
+                "timestamp = (SELECT timestamp FROM vehicle_telemetry WHERE id = :rid), "
+                "received_at = (SELECT received_at FROM vehicle_telemetry WHERE id = :rid) "
+                "WHERE id = :id"
+            ),
+            {"rid": newest, "id": current[0]},
+        )
+
+
+def _move_latest(conn: Connection, vins: list[str], shared: set[tuple[str, str]]) -> set[str]:
+    """One latest row per vehicle and key: the newer value stays, under the new key.
+
+    A shared key goes per key instead, from raw, since nobody knows which
+    device wrote its latest row.
+    """
     moved: set[str] = set()
     for raw, new in _MOVES.items():
         pairs = conn.execute(
             text(
-                "SELECT r.id, t.id, CASE WHEN r.timestamp > t.timestamp THEN 1 ELSE 0 END "
+                "SELECT r.id, t.id, CASE WHEN r.timestamp > t.timestamp THEN 1 ELSE 0 END, r.vin "
                 "FROM vehicle_telemetry_latest r LEFT JOIN vehicle_telemetry_latest t "
                 "ON t.vin = r.vin AND t.param_key = :new "
                 "WHERE r.param_key = :raw AND r.vin IN :vins"
             ).bindparams(bindparam("vins", expanding=True)),
             {"raw": raw, "new": new, "vins": vins},
         ).all()
-        for raw_id, new_id, raw_is_newer in pairs:
+        for raw_id, new_id, raw_is_newer, vin in pairs:
             moved.add(raw)
+            if (vin, raw) in shared:
+                continue
             if new_id is None:
                 conn.execute(
                     text("UPDATE vehicle_telemetry_latest SET param_key = :new WHERE id = :id"),
@@ -204,6 +277,11 @@ def _move_latest(conn: Connection, vins: list[str]) -> set[str]:
             conn.execute(
                 text("DELETE FROM vehicle_telemetry_latest WHERE id = :id"), {"id": raw_id}
             )
+    for vin, raw in sorted(shared):
+        # The raw key holds only the other devices' readings now. The new key takes
+        # its newest, Torque's moved ones included, unless its own row is newer.
+        _latest_from_raw(conn, vin, raw, keep_newer=False)
+        _latest_from_raw(conn, vin, _MOVES[raw], keep_newer=True)
     return moved
 
 
@@ -270,8 +348,27 @@ def _raw_count(conn: Connection, vin: str, key: str, day: datetime) -> int:
     ).scalar_one()
 
 
-def _find_duplicates(conn: Connection, ids: list[str], vins: list[str]) -> dict[int, _Duplicates]:
-    """Before the raw move: for each raw-key summary, the readings its day loses (D8, D10)."""
+def _whole_day(
+    conn: Connection, vin: str, raw: str, new: str, day: datetime, raw_n: int, new_n: int | None
+) -> bool:
+    """Whether raw still holds at least what both keys' summaries counted that day.
+
+    Pruning only removes rows, so raw at or above a summary's count holds
+    everything that summary saw, plus any rows that came later. A new key with
+    no summary that day counted nothing.
+    """
+    return _raw_count(conn, vin, raw, day) >= raw_n and _raw_count(conn, vin, new, day) >= (
+        new_n or 0
+    )
+
+
+def _find_duplicates(
+    conn: Connection, ids: list[str], vins: list[str], shared: set[tuple[str, str]]
+) -> dict[int, _Duplicates]:
+    """Before the raw move: for each raw-key summary, the readings its day loses (D8, D10).
+
+    Shared keys are skipped: their whole days get rebuilt for both keys anyway.
+    """
     found: dict[int, _Duplicates] = {}
     for raw, new in _MOVES.items():
         days = conn.execute(
@@ -286,6 +383,8 @@ def _find_duplicates(conn: Connection, ids: list[str], vins: list[str]) -> dict[
             {"raw": raw, "new": new, "vins": vins},
         ).all()
         for summary_id, vin, day, raw_count, new_count in days:
+            if (vin, raw) in shared:
+                continue
             seen, dropped, total = conn.execute(
                 text(
                     "SELECT COUNT(*), COUNT(CASE WHEN r.received_at < :end THEN 1 END), "
@@ -300,18 +399,34 @@ def _find_duplicates(conn: Connection, ids: list[str], vins: list[str]) -> dict[
             ).one()
             if not seen:
                 continue
-            # Pruning only removes rows, so raw at or above a summary's count
-            # holds everything that summary saw, plus any rows that came later.
-            # A new key with no summary that day counted nothing.
-            complete = _raw_count(conn, vin, raw, day) >= raw_count and _raw_count(
-                conn, vin, new, day
-            ) >= (new_count or 0)
+            complete = _whole_day(conn, vin, raw, new, day, raw_count, new_count)
             found[summary_id] = _Duplicates(dropped, float(total), complete)
     return found
 
 
-def _rebuild(conn: Connection, vin: str, key: str, day: datetime, summary_id: int) -> None:
-    """A summary day from the raw readings now on file, as generate_daily_summary builds it."""
+def _shared_days(conn: Connection, shared: set[tuple[str, str]]) -> dict[int, bool]:
+    """Before the raw move: each shared key's summary days, and whether raw holds each whole."""
+    whole: dict[int, bool] = {}
+    for vin, raw in sorted(shared):
+        new = _MOVES[raw]
+        days = conn.execute(
+            text(
+                "SELECT r.id, r.date, r.sample_count AS raw_count, t.sample_count AS new_count "
+                "FROM telemetry_daily_summary r LEFT JOIN telemetry_daily_summary t "
+                "ON t.vin = r.vin AND t.date = r.date AND t.param_key = :new "
+                "WHERE r.vin = :vin AND r.param_key = :raw"
+            ).columns(date=DateTime),
+            {"vin": vin, "raw": raw, "new": new},
+        ).all()
+        for summary_id, day, raw_count, new_count in days:
+            whole[summary_id] = _whole_day(conn, vin, raw, new, day, raw_count, new_count)
+    return whole
+
+
+def _day_stats(
+    conn: Connection, vin: str, key: str, day: datetime
+) -> tuple[float | None, float | None, float | None, int]:
+    """A key's day from the raw readings now on file, as generate_daily_summary builds it."""
     low, high, avg, count = conn.execute(
         text(
             "SELECT MIN(value), MAX(value), AVG(value), COUNT(*) FROM vehicle_telemetry "
@@ -319,6 +434,12 @@ def _rebuild(conn: Connection, vin: str, key: str, day: datetime, summary_id: in
         ).bindparams(*_typed_day()),
         {"vin": vin, "k": key, **_day_window(day)},
     ).one()
+    return low, high, avg, count
+
+
+def _rebuild(conn: Connection, vin: str, key: str, day: datetime, summary_id: int) -> int:
+    """Rebuild a summary day from raw; returns how many readings it holds now."""
+    low, high, avg, count = _day_stats(conn, vin, key, day)
     conn.execute(
         text(
             "UPDATE telemetry_daily_summary SET min_value = :low, max_value = :high, "
@@ -326,12 +447,68 @@ def _rebuild(conn: Connection, vin: str, key: str, day: datetime, summary_id: in
         ),
         {"low": low, "high": high, "avg": avg, "count": count, "id": summary_id},
     )
+    return count
+
+
+def _move_shared_day(
+    conn: Connection,
+    vin: str,
+    raw: str,
+    new: str,
+    day: datetime,
+    raw_id: int,
+    new_id: int | None,
+    whole: bool,
+) -> None:
+    """A shared key's summary day: both keys rebuilt from raw if raw holds it whole, else left."""
+    if not whole:
+        logger.warning(
+            "130: left %s and %s on %s (%s) as they were: another device sends %s there "
+            "and raw no longer holds the whole day",
+            raw,
+            new,
+            day.date(),
+            vin[:8],
+            raw,
+        )
+        return
+    if new_id is not None:
+        _rebuild(conn, vin, new, day, new_id)
+    else:
+        low, high, avg, count = _day_stats(conn, vin, new, day)
+        if count:
+            # The date comes off the raw key's row, stored the way the daily job wrote it.
+            conn.execute(
+                text(
+                    "INSERT INTO telemetry_daily_summary (vin, param_key, date, min_value, "
+                    "max_value, avg_value, sample_count) VALUES (:vin, :new, "
+                    "(SELECT date FROM telemetry_daily_summary WHERE id = :id), "
+                    ":low, :high, :avg, :count)"
+                ),
+                {
+                    "vin": vin,
+                    "new": new,
+                    "id": raw_id,
+                    "low": low,
+                    "high": high,
+                    "avg": avg,
+                    "count": count,
+                },
+            )
+    if not _rebuild(conn, vin, raw, day, raw_id):
+        conn.execute(text("DELETE FROM telemetry_daily_summary WHERE id = :id"), {"id": raw_id})
 
 
 def _move_summaries(
-    conn: Connection, vins: list[str], duplicates: dict[int, _Duplicates]
+    conn: Connection,
+    vins: list[str],
+    duplicates: dict[int, _Duplicates],
+    shared_days: dict[int, bool],
 ) -> set[str]:
-    """Move the daily summaries the way the raw rows moved (D10)."""
+    """Move the daily summaries the way the raw rows moved (D10).
+
+    A shared key's days go per key, as _shared_days found them before the raw move.
+    """
     moved: set[str] = set()
     for raw, new in _MOVES.items():
         pairs = conn.execute(
@@ -350,6 +527,10 @@ def _move_summaries(
         for row in pairs:
             moved.add(raw)
             raw_id, vin, day, new_id = row[0], row[1], row[2], row[7]
+            whole = shared_days.get(raw_id)
+            if whole is not None:
+                _move_shared_day(conn, vin, raw, new, day, raw_id, new_id, whole)
+                continue
             dropped = duplicates.get(raw_id)
             if dropped is not None and dropped.complete:
                 # Raw still holds the whole day: rebuild it from what survived.
@@ -615,15 +796,17 @@ def _move(engine: Engine) -> None:
         ids, vins = _torque_sources(conn, tables)
         if not ids:
             return
-        # Both before the raw move, while the raw keys and duplicates are on file.
+        # All before the raw move, while the raw keys and duplicates are on file.
         trips = _trips_to_recompute(conn, ids) if "drive_sessions" in tables else []
+        shared: set[tuple[str, str]] = _find_shared(conn, ids, vins) if vins else set()
         summaries = bool(vins) and "telemetry_daily_summary" in tables
-        duplicates = _find_duplicates(conn, ids, vins) if summaries else {}
+        duplicates = _find_duplicates(conn, ids, vins, shared) if summaries else {}
+        shared_days = _shared_days(conn, shared) if summaries else {}
         moved = _move_telemetry(conn, ids)
         if vins and "vehicle_telemetry_latest" in tables:
-            moved |= _move_latest(conn, vins)
+            moved |= _move_latest(conn, vins, shared)
         if summaries:
-            moved |= _move_summaries(conn, vins, duplicates)
+            moved |= _move_summaries(conn, vins, duplicates, shared_days)
         if "odometer_param_key" in columns["livelink_devices"]:
             moved |= _move_odometer_keys(conn)
         if "livelink_parameters" in tables:

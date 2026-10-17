@@ -30,6 +30,15 @@ NDAY = "2026-08-15 00:00:00"
 L1, L2 = "2026-09-01 09:00:00", "2026-09-01 09:10:00"
 LATE = "2026-09-03 12:00:00"
 LDAY = "2026-09-01 00:00:00"
+#: Days the WiCAN sends KC on V1 too. Pruned: KC's summary counted six, raw keeps two.
+W1, W2 = "2026-07-10 08:00:00", "2026-07-10 08:00:05"
+WDAY = "2026-07-10 00:00:00"
+#: Whole, with no ENGINE_RPM summary that day.
+X1, X2 = "2026-07-20 08:00:00", "2026-07-20 08:00:05"
+XDAY = "2026-07-20 00:00:00"
+#: Whole, and only Torque sent KC that day.
+Y1 = "2026-07-25 08:00:00"
+YDAY = "2026-07-25 00:00:00"
 _TQ = "tq_0000a130"  # a Torque source on V1
 _GONE = "tq_0000dead"  # a deleted one: only its trip is left, on V2
 _WICAN = "aabbccdd0130"  # a WiCAN on V1 that happens to send a key named KC
@@ -182,6 +191,11 @@ def _seed(engine) -> None:
                 (V1, _TQ, "SPEED", 100.0, L2, LATE),
                 (V2, _GONE, "K5", 69.0, T1, T1),
                 (V1, _WICAN, "KC", 900.0, T1, T1),
+                (V1, _TQ, "KC", 2000.0, W1, W1),  # what pruning left of 2026-07-10
+                (V1, _WICAN, "KC", 800.0, W2, W2),
+                (V1, _TQ, "KC", 2200.0, X1, X1),
+                (V1, _WICAN, "KC", 850.0, X2, X2),
+                (V1, _TQ, "KC", 2400.0, Y1, Y1),
                 # Today's, so not summarised yet.
                 (V3, "aabbccdd0003", "K8", 8.0, "2026-10-02 09:00:00", "2026-10-02 09:00:00"),
             ],
@@ -230,6 +244,10 @@ def _seed(engine) -> None:
                 (V1, "KD", NDAY, 70.0, 80.0, 75.0, 2),
                 # Ten KD readings at 50, built before the late 100 came in; no SPEED row.
                 (V1, "KD", LDAY, 50.0, 50.0, 50.0, 10),
+                # The KC days the WiCAN shares; no ENGINE_RPM summary on any of them.
+                (V1, "KC", WDAY, 700.0, 3000.0, 1500.0, 6),
+                (V1, "KC", XDAY, 850.0, 2200.0, 1525.0, 2),
+                (V1, "KC", YDAY, 2400.0, 2400.0, 2400.0, 1),
                 (V1, "KD", OLD, 40.0, 100.0, 70.0, 3),
                 (V1, "SPEED", OLD, 10.0, 90.0, 50.0, 1),
                 (V1, "KF", OLD, None, None, None, 0),
@@ -350,6 +368,12 @@ def test_130_moves_raw_telemetry_for_torque_sources_only(engine_for_migration):
             (_TQ, "SPEED", 100.0),  # KD's late 100 at L2 was the duplicate
             (_GONE, "COOLANT_TMP", 69.0),
             (_WICAN, "KC", 900.0),
+            # The shared KC days: Torque's move, the WiCAN's stay.
+            (_TQ, "ENGINE_RPM", 2000.0),
+            (_WICAN, "KC", 800.0),
+            (_TQ, "ENGINE_RPM", 2200.0),
+            (_WICAN, "KC", 850.0),
+            (_TQ, "ENGINE_RPM", 2400.0),
             ("aabbccdd0003", "K8", 8.0),
         ]
     )
@@ -358,7 +382,10 @@ def test_130_moves_raw_telemetry_for_torque_sources_only(engine_for_migration):
 def test_130_keeps_the_newer_latest_value(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     assert _latest(_migrated(engine)) == {
-        (V1, "ENGINE_RPM"): (2549.0, T1),
+        # The WiCAN sends KC on V1 too, so each key takes its newest raw reading:
+        # Torque's 2550 at T2, not the KC row's 2549, and the WiCAN's 900.
+        (V1, "ENGINE_RPM"): (2550.0, T2),
+        (V1, "KC"): (900.0, T1),
         (V1, "SPEED"): (51.0, T3),
         (V1, "COOLANT_TMP"): (70.0, T3),
         (V3, "KC"): (900.0, T1),
@@ -375,13 +402,23 @@ def test_130_summaries_follow_the_raw_duplicates(engine_for_migration, caplog):
     counted is rebuilt from the readings that survive, a stale one included;
     one whose raw was pruned loses the duplicates received that day from its
     count and mean and keeps its min and max, logged; a day with no raw merges
-    as 059."""
+    as 059. A raw key another device also sends on the vehicle goes per key:
+    a whole day is rebuilt for both keys, any other day is left alone, logged."""
     _dialect, engine, _url = engine_for_migration
     with caplog.at_level(logging.WARNING):
         summaries = _summaries(_migrated(engine))
     assert summaries == {
-        # Rebuilt: ENGINE_RPM 2549 and 2550 survive. KC's day goes with the move.
+        # The WiCAN shares KC and raw holds the whole day (KC 3 >= 3, ENGINE_RPM
+        # 1 >= 1), so both are rebuilt: ENGINE_RPM 2549 and 2550, KC the WiCAN's 900.
         (V1, "ENGINE_RPM", "2026-10-01"): (2549.0, 2550.0, 2549.5, 2),
+        (V1, "KC", "2026-10-01"): (900.0, 900.0, 900.0, 1),
+        # Shared and pruned (KC 2 < 6): left as it was, and no ENGINE_RPM row.
+        (V1, "KC", "2026-07-10"): (700.0, 3000.0, 1500.0, 6),
+        # Shared and whole: KC keeps the WiCAN's 850, ENGINE_RPM is made from Torque's 2200.
+        (V1, "KC", "2026-07-20"): (850.0, 850.0, 850.0, 1),
+        (V1, "ENGINE_RPM", "2026-07-20"): (2200.0, 2200.0, 2200.0, 1),
+        # Shared and whole, but only Torque sent KC: nothing's left under KC, so it goes.
+        (V1, "ENGINE_RPM", "2026-07-25"): (2400.0, 2400.0, 2400.0, 1),
         # KD 48 and 50 plus SPEED 50 at the same moment: two readings, not three.
         (V1, "SPEED", "2026-10-01"): (48.0, 50.0, 49.0, 2),
         (V1, "K03", "2026-10-01"): (2.0, 2.0, 2.0, 1),
@@ -407,6 +444,9 @@ def test_130_summaries_follow_the_raw_duplicates(engine_for_migration, caplog):
         f"130: kept min and max for SPEED on {day} (VIN130TO): raw no longer holds the whole day, "
         "so only duplicates received that day came off the count"
         for day in ("2026-07-01", "2026-09-01")
+    ] + [
+        "130: left KC and ENGINE_RPM on 2026-07-10 (VIN130TO) as they were: another device "
+        "sends KC there and raw no longer holds the whole day"
     ]
 
 
