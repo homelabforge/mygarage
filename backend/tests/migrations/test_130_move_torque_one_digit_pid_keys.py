@@ -334,6 +334,9 @@ def test_130_without_a_torque_source_changes_nothing(engine_for_migration):
     assert _telemetry(engine) == [(_WICAN, "KC", 900.0)]
 
 
-def test_130_without_the_tables_does_nothing(engine_for_migration):
+def test_130_without_the_tables_does_nothing(engine_for_migration, caplog):
+    """A bare database returns before any SQL, so nothing gets swallowed and logged."""
     _dialect, engine, _url = engine_for_migration
-    _load().upgrade(engine)
+    with caplog.at_level(logging.ERROR):
+        _load().upgrade(engine)
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
