@@ -23,7 +23,7 @@ from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireReading
 from app.models.vehicle import Vehicle
-from app.services.tire_service import ODOMETER_SOURCE_TIRE
+from app.services.tire_service import ODOMETER_SOURCE_TIRE, TireService
 from app.utils.odometer_sync import auto_sync_marker
 
 MakeVehicle = Callable[..., Awaitable[str]]
@@ -299,6 +299,23 @@ class TestTheTiresTreadAndPressure:
         assert corrected.status_code == 200, corrected.text
         assert _dec(corrected.json()["tread_depth_mm"]) == Decimal("6.5")
 
+    async def test_a_newest_reading_with_only_its_date_changed_replaces_a_value_set_on_the_tire(
+        self, client: AsyncClient, auth_headers, vehicle
+    ):
+        """The date counts as a change too, even when the figure stays put."""
+        tire_id = await _tire(client, auth_headers, vehicle, None)
+        reading = await _reading(
+            client, auth_headers, vehicle, tire_id, recorded_at="2026-01-10", tread_depth_mm="8.0"
+        )
+        await _set_tire(client, auth_headers, vehicle, tire_id, tread_depth_mm="7.5")
+
+        moved = await _put(
+            client, auth_headers, vehicle, tire_id, reading, recorded_at="2026-01-05"
+        )
+
+        assert moved.status_code == 200, moved.text
+        assert _dec(moved.json()["tread_depth_mm"]) == Decimal("8.0")
+
     async def test_the_older_of_two_same_day_readings_does_not_take_over_a_value_set_on_the_tire(
         self, client: AsyncClient, auth_headers, vehicle
     ):
@@ -548,6 +565,28 @@ class TestTheRowsTheReadingPublished:
 
         assert fixed.status_code == 200, fixed.text
         assert await _records(db_session, vehicle) == [(self.DAY, Decimal("15000"), marker)]
+
+    async def test_a_cleared_odometer_takes_its_record_with_it(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        tire_id = await _tire(client, auth_headers, vehicle, None)
+        reading = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-02-01",
+            odometer_km="11000",
+            tread_depth_mm="7.0",
+        )
+        marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)
+        assert await _records(db_session, vehicle) == [(self.DAY, Decimal("11000"), marker)]
+
+        cleared = await _put(client, auth_headers, vehicle, tire_id, reading, odometer_km=None)
+
+        assert cleared.status_code == 200, cleared.text
+        assert await _records(db_session, vehicle) == []
+        assert _reading_in(cleared.json(), reading)["odometer_km"] is None
 
     async def test_a_reading_moved_to_another_day_takes_its_record_along(
         self, client: AsyncClient, auth_headers, vehicle, db_session
@@ -924,3 +963,65 @@ class TestTheMountHistory:
 
         assert refused.status_code == 409, refused.text
         assert "the vehicle's hour meter would have to run backwards" in refused.json()["detail"]
+
+    @pytest.mark.parametrize(
+        ("body", "status", "says"),
+        [
+            pytest.param(
+                {"odometer_km": "9000"},
+                409,
+                "contradicts the reading dated 2026-03-01",
+                id="contradiction",
+            ),
+            pytest.param(
+                {"tread_depth_mm": None, "odometer_km": "11500"},
+                422,
+                "A reading needs a tread depth, a pressure, or both",
+                id="measures-nothing",
+            ),
+        ],
+    )
+    async def test_a_refusal_never_withdraws_or_publishes_a_row(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        vehicle,
+        monkeypatch: pytest.MonkeyPatch,
+        body: dict,
+        status: int,
+        says: str,
+    ):
+        """Refused before any row moves, so a refusal never leans on the request rollback."""
+        tire_id = await _tire(client, auth_headers, vehicle)
+        reading = await _reading(
+            client,
+            auth_headers,
+            vehicle,
+            tire_id,
+            recorded_at="2026-03-01",
+            odometer_km="11000",
+            tread_depth_mm="7.0",
+        )
+        calls: list[str] = []
+        withdraw, publish = TireService._withdraw_reading_usage, TireService._publish_usage
+
+        async def recording_withdraw(self, *args, **kwargs):
+            calls.append("withdraw")
+            await withdraw(self, *args, **kwargs)
+
+        async def recording_publish(self, *args, **kwargs):
+            calls.append("publish")
+            await publish(self, *args, **kwargs)
+
+        monkeypatch.setattr(TireService, "_withdraw_reading_usage", recording_withdraw)
+        monkeypatch.setattr(TireService, "_publish_usage", recording_publish)
+
+        refused = await _put(client, auth_headers, vehicle, tire_id, reading, **body)
+
+        assert refused.status_code == status, refused.text
+        assert says in refused.json()["detail"]
+        assert calls == []
+        # The spies are on the edit's path: an accepted change goes through both.
+        accepted = await _put(client, auth_headers, vehicle, tire_id, reading, odometer_km="11500")
+        assert accepted.status_code == 200, accepted.text
+        assert calls == ["withdraw", "publish"]
