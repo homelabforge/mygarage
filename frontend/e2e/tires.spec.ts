@@ -535,20 +535,41 @@ test.describe('Tires', () => {
   })
 
   test('a reading on an hours-only vehicle is corrected on the hour meter', async ({ page, request }) => {
-    // The editor shows and sends the hour meter only; an odometer key is a 422 there.
-    const vin = await tireVehicle(request, 'reading-edit-hours', { usage_unit: 'hours' })
+    // This vehicle stopped tracking distance after the reading, so the editor shows and
+    // sends the hour meter only. Sending the old odometer back is a 422.
+    const vin = await tireVehicle(request, 'reading-edit-hours', {
+      usage_unit: 'hours',
+      secondary_usage_enabled: true,
+    })
     const admin = await adminSession()
     const created = await request.post(`${API_BASE}/vehicles/${vin}/tires/create-and-mount`, {
       headers: admin.headers,
-      data: { vin, position: 'FL', brand: 'E2E Hours', mounted_on: '2026-01-01', mounted_hours: 100 },
+      data: {
+        vin,
+        position: 'FL',
+        brand: 'E2E Hours',
+        mounted_on: '2026-01-01',
+        mounted_hours: 100,
+        mounted_odometer_km: 10000,
+      },
     })
     expect(created.status(), await created.text()).toBe(201)
     const tireId = (await created.json()).id
     const logged = await request.post(`${API_BASE}/vehicles/${vin}/tires/${tireId}/readings`, {
       headers: admin.headers,
-      data: { recorded_at: '2026-03-01', tread_depth_mm: 7, engine_hours: 150 },
+      data: { recorded_at: '2026-03-01', tread_depth_mm: 7, engine_hours: 150, odometer_km: 15000 },
     })
     expect(logged.status(), await logged.text()).toBe(201)
+    const switched = await request.put(`${API_BASE}/vehicles/${vin}`, {
+      headers: admin.headers,
+      data: { secondary_usage_enabled: false },
+    })
+    expect(switched.status(), await switched.text()).toBe(200)
+    const odometerNow = async () =>
+      (await request.get(`${API_BASE}/vehicles/${vin}/odometer`, { headers: admin.headers })).json()
+    const odometerBefore = await odometerNow()
+    // Not empty, so "unchanged" below means something.
+    expect(odometerBefore.total).toBeGreaterThan(0)
 
     await openTires(page, vin)
     const card = page.locator('.rounded-card', { hasText: 'E2E Hours' }).first()
@@ -568,11 +589,13 @@ test.describe('Tires', () => {
     const tire = (await listed.json()).tires.find((t: { id: number }) => t.id === tireId)
     expect(tire.readings).toHaveLength(1)
     expect(tire.readings[0].engine_hours).toBe('155.0')
-    expect(tire.readings[0].odometer_km).toBeNull()
+    // The old odometer stays on the reading, and its rows stay as they were.
+    expect(tire.readings[0].odometer_km).toBe('15000.00')
     const hours = await (await request.get(`${API_BASE}/vehicles/${vin}/hours`, { headers: admin.headers })).json()
     expect(hours.latest_engine_hours).toBe('155.0')
-    const odometer = await (await request.get(`${API_BASE}/vehicles/${vin}/odometer`, { headers: admin.headers })).json()
-    expect(odometer.total).toBe(0)
+    const odometerAfter = await odometerNow()
+    expect(odometerAfter.total).toBe(odometerBefore.total)
+    expect(odometerAfter).toEqual(odometerBefore)
   })
 
   test('a past period is recorded from the history drawer, closed, and does not move the current mount', async ({
