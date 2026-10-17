@@ -8,15 +8,17 @@ settings bootstrap stubbed out.
 from pathlib import Path
 
 import pytest
+from sqlalchemy.exc import OperationalError
 from starlette.testclient import TestClient
 
 from app import main as app_main
 from app.config import settings
 from app.services import auth, session_repair, settings_init
+from app.tasks import scheduled
 
 
 class _StopStartupError(Exception):
-    """Raised by the repair stub, so startup ends there."""
+    """Raised by a stub, so startup ends there."""
 
 
 def _stub_startup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -51,6 +53,32 @@ def test_startup_recomputes_the_listed_trips(
         with TestClient(app_main.app):
             pass
     assert len(calls) == 1
+
+
+def test_a_failed_repair_is_caught_and_the_scheduler_starts_after_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A database error keeps the list for the next start but doesn't stop
+    this one, and the repair runs before the scheduler starts."""
+    _stub_startup(monkeypatch, tmp_path)
+    monkeypatch.setattr(settings, "maintenance_mode", False)
+    order: list[str] = []
+
+    async def _repair(_db: object) -> int:
+        order.append("repair")
+        raise OperationalError("SELECT settings", {}, Exception("boom"))
+
+    def _scheduler() -> None:
+        order.append("scheduler")
+        raise _StopStartupError
+
+    monkeypatch.setattr(session_repair, "recompute_pending_sessions", _repair)
+    monkeypatch.setattr(scheduled, "start_scheduler", _scheduler)
+
+    with pytest.raises(_StopStartupError):
+        with TestClient(app_main.app):
+            pass
+    assert order == ["repair", "scheduler"]
 
 
 def test_maintenance_mode_leaves_the_list_for_later(
