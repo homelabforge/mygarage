@@ -1,6 +1,7 @@
 """The startup repair recomputes the trips migration 130 listed, once (#223)."""
 
 import json
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -75,6 +76,14 @@ async def _retained_trip(db_session, make_closed_drive_session, suffix: str):
 
 def _figures(trip) -> dict:
     return {name: getattr(trip, name) for name in _ESTABLISHED}
+
+
+def _warnings(caplog) -> list[str]:
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == session_repair.logger.name and r.levelno == logging.WARNING
+    ]
 
 
 @pytest.mark.asyncio
@@ -223,6 +232,75 @@ async def test_an_unreadable_retention_setting_leaves_the_list_for_later(
     await db_session.refresh(trip)
     assert (trip.max_speed, trip.avg_speed) == (20.0, 10.0)
     assert await db_session.get(Setting, PENDING_KEY) is not None
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_retention_setting_is_named_in_the_warning(
+    db_session, monkeypatch, caplog
+):
+    async def _unreadable(_self) -> int:
+        raise ValueError("invalid literal for int() with base 10: 'ninety'")
+
+    monkeypatch.setattr(LiveLinkService, "get_retention_days", _unreadable)
+    await _list(db_session, [2_000_000_000])
+
+    with caplog.at_level(logging.WARNING, logger=session_repair.logger.name):
+        assert await recompute_pending_sessions(db_session) == 0
+
+    assert _warnings(caplog) == [
+        "The telemetry retention setting is unreadable (invalid literal for int() with base 10: "
+        "'ninety'); the older Torque trips wait for the next start"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_retention_too_big_for_the_date_math_is_clamped_to_365_days(
+    db_session, make_closed_drive_session, monkeypatch, caplog
+):
+    """Only the LiveLink settings API checks the range; the generic settings
+    API and a restore don't, and 800000 days overflows a datetime."""
+
+    async def _huge(_self) -> int:
+        return 800000
+
+    monkeypatch.setattr(LiveLinkService, "get_retention_days", _huge)
+    trip = await _retained_trip(db_session, make_closed_drive_session, "08")
+    await _list(db_session, [trip.id])
+
+    with caplog.at_level(logging.WARNING, logger=session_repair.logger.name):
+        assert await recompute_pending_sessions(db_session) == 1
+
+    await db_session.refresh(trip)
+    assert (trip.max_speed, trip.avg_speed) == (85.0, 57.5)
+    assert await db_session.get(Setting, PENDING_KEY) is None
+    assert _warnings(caplog) == [
+        "Telemetry retention is set to 800000 days, outside 30 to 365; the Torque trip repair uses 365"
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("stored", "suffix"), [(0, "09"), (-5, "10")])
+async def test_a_retention_below_the_range_is_clamped_to_30_days(
+    db_session, make_closed_drive_session, monkeypatch, caplog, stored, suffix
+):
+    """Unclamped, the cutoff lands at or after now and every trip is skipped."""
+
+    async def _stored(_self) -> int:
+        return stored
+
+    monkeypatch.setattr(LiveLinkService, "get_retention_days", _stored)
+    trip = await _retained_trip(db_session, make_closed_drive_session, suffix)
+    await _list(db_session, [trip.id])
+
+    with caplog.at_level(logging.WARNING, logger=session_repair.logger.name):
+        assert await recompute_pending_sessions(db_session) == 1
+
+    await db_session.refresh(trip)
+    assert (trip.max_speed, trip.avg_speed) == (85.0, 57.5)
+    assert await db_session.get(Setting, PENDING_KEY) is None
+    assert _warnings(caplog) == [
+        f"Telemetry retention is set to {stored} days, outside 30 to 365; the Torque trip repair uses 30"
+    ]
 
 
 @pytest.mark.asyncio

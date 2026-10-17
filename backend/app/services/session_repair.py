@@ -30,6 +30,9 @@ PENDING_KEY = "torque_session_repair"
 #: Ids per SELECT, well under SQLite's bound-parameter limit.
 _CHUNK = 500
 
+#: The retention range the LiveLink settings API accepts (schemas/livelink.py).
+_MIN_RETENTION_DAYS, _MAX_RETENTION_DAYS = 30, 365
+
 
 def _cutoff(oldest: datetime | None, now: datetime, retention_days: int) -> datetime | None:
     """The earliest start a trip can have and still hold every reading it had.
@@ -78,14 +81,27 @@ async def recompute_pending_sessions(db: AsyncSession) -> int:
         await db.commit()
         return 0
     try:
-        retention_days = await LiveLinkService(db).get_retention_days()
-    except ValueError:
+        stored = await LiveLinkService(db).get_retention_days()
+    except ValueError as e:
         # A hand-set retention that isn't a number. Leave everything as is
         # rather than fail the start on every restart.
         logger.warning(
-            "The telemetry retention setting is unreadable; the older Torque trips wait for the next start"
+            "The telemetry retention setting is unreadable (%s); the older Torque trips wait for the next start",
+            e,
         )
         return 0
+    # The generic settings API and a restore skip the range check, and a huge
+    # value overflows the date math. A clamp that guessed low is still covered
+    # by the oldest reading, since the cutoff is the later of the two.
+    retention_days = min(max(stored, _MIN_RETENTION_DAYS), _MAX_RETENTION_DAYS)
+    if retention_days != stored:
+        logger.warning(
+            "Telemetry retention is set to %d days, outside %d to %d; the Torque trip repair uses %d",
+            stored,
+            _MIN_RETENTION_DAYS,
+            _MAX_RETENTION_DAYS,
+            retention_days,
+        )
     cutoff = _cutoff(await _oldest_reading(db), utc_now(), retention_days)
     service = SessionService(db)
     done = skipped = 0
