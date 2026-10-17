@@ -203,6 +203,32 @@ describe('TireList rotation', () => {
     }
   })
 
+  it('after a rotation offers to log the brakes while the wheels are off (#202)', () => {
+    const mutate = vi.fn((_payload: unknown, opts: { onSuccess?: () => void }) => opts.onSuccess?.())
+    useRotateTiresMock.mockReturnValue({ mutate, isPending: false })
+    const onLogBrakes = vi.fn()
+
+    render(<TireList vin={VIN} onLogBrakes={onLogBrakes} />)
+    expect(screen.queryByText('tireList.brakesPrompt')).toBeNull()
+    fireEvent.click(screen.getByText('tireList.rotate'))
+    fireEvent.click(drawer().getByText('tireList.rotate'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'tireList.brakesPromptAction' }))
+    expect(onLogBrakes).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'tireList.brakesPromptDismiss' }))
+    expect(screen.queryByText('tireList.brakesPrompt')).toBeNull()
+  })
+
+  it('has no brake prompt where there is no Brakes tab to go to', () => {
+    const mutate = vi.fn((_payload: unknown, opts: { onSuccess?: () => void }) => opts.onSuccess?.())
+    useRotateTiresMock.mockReturnValue({ mutate, isPending: false })
+
+    render(<TireList vin={VIN} />)
+    fireEvent.click(screen.getByText('tireList.rotate'))
+    fireEvent.click(drawer().getByText('tireList.rotate'))
+    expect(screen.queryByText('tireList.brakesPrompt')).toBeNull()
+  })
+
   it('sends the pattern the user picked, not the default', () => {
     const mutate = vi.fn()
     useRotateTiresMock.mockReturnValue({ mutate, isPending: false })

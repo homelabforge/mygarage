@@ -30,6 +30,7 @@ import {
   Droplets,
   Package,
   CircleDot,
+  Disc,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import vehicleService from '../services/vehicleService'
@@ -54,6 +55,7 @@ import SafetyTab from '../components/tabs/SafetyTab'
 import TaxRecordList from '../components/TaxRecordList'
 import FinancingRecordList from '../components/FinancingRecordList'
 import TireList from '../components/TireList'
+import BrakeList from '../components/brakes/BrakeList'
 import SpotRentalsTab from '../components/tabs/SpotRentalsTab'
 import PropaneTab from '../components/tabs/PropaneTab'
 import DEFTab from '../components/tabs/DEFTab'
@@ -91,7 +93,7 @@ import { buildImportSummary } from '../utils/importSummary'
 
 export type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | 'torqueSource' | null
 export type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'fuel' | 'tracking' | 'financial' | 'livelink'
-export type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'hours' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'financing' | 'spotrentals' | 'suppliesused' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts' | 'trips' | 'tires'
+export type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'hours' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'financing' | 'spotrentals' | 'suppliesused' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts' | 'trips' | 'tires' | 'brakes'
 
 export default function VehicleDetail() {
   const { t } = useTranslation('vehicles')
@@ -273,6 +275,7 @@ export default function VehicleDetail() {
       'spotrentals': { primary: 'financial', sub: 'spotrentals' },
       'recalls': { primary: 'maintenance', sub: 'recalls' },
       'tires': { primary: 'maintenance', sub: 'tires' },
+      'brakes': { primary: 'maintenance', sub: 'brakes' },
       'reports': { primary: 'tracking', sub: 'reports' },
       'reminders': { primary: 'tracking', sub: 'reminders' },
       'live': { primary: 'livelink', sub: 'live' },
@@ -422,6 +425,16 @@ export default function VehicleDetail() {
     setActiveSubTab(sub)
   }
 
+  // Tires -> Brakes with Log measurements open, offered after a rotation or a
+  // set fit while the wheels are off (#202).
+  const [brakeLogRequested, setBrakeLogRequested] = useState(false)
+  const openBrakeLog = useCallback((): void => {
+    setBrakeLogRequested(true)
+    setActivePrimaryTab('maintenance')
+    setActiveSubTab('brakes')
+  }, [])
+  const clearBrakeLog = useCallback((): void => setBrakeLogRequested(false), [])
+
   // Equipment pill (SDQ-2): open the equipment editor sidecar for the requested
   // list. The drawer is portalled, so it works from any tab — no tab switch.
   const handleEquipmentClick = (which: 'standard' | 'optional') => {
@@ -549,6 +562,7 @@ export default function VehicleDetail() {
       { id: 'odometer' as const, label: t('detail.misc.odometer'), icon: Gauge, visible: logKinds.odometer },
       { id: 'hours' as const, label: t('common:engineHours'), icon: Clock, visible: logKinds.hours },
       { id: 'tires' as const, label: t('detail.misc.tires'), icon: CircleDot, visible: isMotorized },
+      { id: 'brakes' as const, label: t('detail.misc.brakes'), icon: Disc, visible: isMotorized },
       { id: 'recalls' as const, label: t('detail.misc.recalls'), icon: AlertTriangle },
     ],
     fuel: [
@@ -701,7 +715,12 @@ export default function VehicleDetail() {
         {activePrimaryTab === 'fuel' && activeSubTab === 'propane' && vin && <PropaneTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'odometer' && vin && <OdometerTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'hours' && vin && <HoursTab vin={vin} />}
-        {activePrimaryTab === 'maintenance' && activeSubTab === 'tires' && vin && <TireList vin={vin} />}
+        {activePrimaryTab === 'maintenance' && activeSubTab === 'tires' && vin && (
+          <TireList vin={vin} onLogBrakes={isMotorized ? openBrakeLog : undefined} />
+        )}
+        {activePrimaryTab === 'maintenance' && activeSubTab === 'brakes' && vin && isMotorized && (
+          <BrakeList vin={vin} logOnOpen={brakeLogRequested} onLogOpened={clearBrakeLog} />
+        )}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <SafetyTab vin={vin} />}
 
         {/* Tracking Sub-tabs */}

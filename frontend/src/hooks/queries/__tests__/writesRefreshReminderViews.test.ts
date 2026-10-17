@@ -30,6 +30,15 @@ import {
 import { useCreateServiceVisit } from '../useServiceVisits'
 import { useCreateTire } from '../useTires'
 import {
+  useCreateBrakeJob,
+  useDeleteBrakeJob,
+  useDeleteBrakeMeasurement,
+  useLogBrakeMeasurements,
+  useUpdateBrakeAxle,
+  useUpdateBrakeJob,
+  useUpdateBrakeMeasurement,
+} from '../useBrakes'
+import {
   invalidateMaintenanceQueries,
   useApplyPack,
   useCompleteReminder,
@@ -99,7 +108,19 @@ const REMINDER_CASES: [string, AnyMutationHook, unknown][] = [
   ['duplicates reconcile', useReconcileDuplicates, { keepId: 1, supersedeIds: [2] }],
 ]
 
-describe.each([...CASES, ...REMINDER_CASES])('%s', (_name, useHook, arg) => {
+// Brake writes raise and complete the axle reminders (#202). They write no
+// reading, so they stay out of CASES and its reading-views check below.
+const BRAKE_CASES: [string, AnyMutationHook, unknown][] = [
+  ['brake axle setup', useUpdateBrakeAxle, { axle: 'front', brake_type: 'disc', min_thickness_mm: 3, new_thickness_mm: 10 }],
+  ['brake measurements', useLogBrakeMeasurements, { recorded_at: '2026-10-01', corners: [{ position: 'FL', inner_pad_mm: 6 }] }],
+  ['brake measurement update', useUpdateBrakeMeasurement, { id: 1, inner_pad_mm: 6 }],
+  ['brake measurement delete', useDeleteBrakeMeasurement, 1],
+  ['brake job create', useCreateBrakeJob, { performed_on: '2026-10-01', friction_replaced: true, corners: [{ position: 'FL' }] }],
+  ['brake job update', useUpdateBrakeJob, { id: 1, notes: 'x' }],
+  ['brake job delete', useDeleteBrakeJob, 1],
+]
+
+describe.each([...CASES, ...REMINDER_CASES, ...BRAKE_CASES])('%s', (_name, useHook, arg) => {
   it('refreshes the reminders list and the hero', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
     const spy = vi.spyOn(qc, 'invalidateQueries')

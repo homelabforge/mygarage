@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Gauge, AlertTriangle, Pencil, RotateCw, Layers } from 'lucide-react'
+import { Plus, Trash2, Gauge, AlertTriangle, Pencil, RotateCw, Layers, Disc, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay, formatDateForInput } from '../utils/dateUtils'
 import { POSITIONS } from '../types/tire'
@@ -191,9 +191,11 @@ function emptyReadingForm(): ReadingFormState {
 
 interface TireListProps {
   vin: string
+  /** Opens the Brakes tab's Log measurements, offered while the wheels are off (#202). */
+  onLogBrakes?: () => void
 }
 
-export default function TireList({ vin }: TireListProps) {
+export default function TireList({ vin, onLogBrakes }: TireListProps) {
   const { t } = useTranslation('vehicles')
   /* Retired tires are history, not inventory: hidden by default, and the list
      query only asks the server for them when the toggle is on. Declared here
@@ -201,6 +203,10 @@ export default function TireList({ vin }: TireListProps) {
      query on the next line reads it -- a `const` used before its own
      declaration is a ReferenceError, not just a style nit. */
   const [showRetired, setShowRetired] = useState(false)
+  /* After a rotation or a set fit the wheels have just been off, which is when
+     brake pads get measured. A callout rather than a toast action: a toast
+     leaves in seconds, and this waits until it's used or dismissed. */
+  const [brakesPrompt, setBrakesPrompt] = useState(false)
   const { data, isLoading, error } = useTires(vin, showRetired)
   const createTire = useCreateTire(vin)
   const createAndMount = useCreateAndMountTire(vin)
@@ -842,6 +848,7 @@ export default function TireList({ vin }: TireListProps) {
       {
         onSuccess: () => {
           toast.success(t('tireList.setFitted'))
+          setBrakesPrompt(true)
           setFittingSetId(null)
           setFitOdometer(EMPTY_ODOMETER)
           setFitHours('')
@@ -886,6 +893,7 @@ export default function TireList({ vin }: TireListProps) {
       {
         onSuccess: () => {
           toast.success(t('tireList.rotated'))
+          setBrakesPrompt(true)
           setRotateOpen(false)
         },
         onError: (err: unknown) =>
@@ -1028,6 +1036,27 @@ export default function TireList({ vin }: TireListProps) {
           </Button>
         </div>
       </div>
+
+      {brakesPrompt && onLogBrakes && (
+        <Card padding="sm" className="flex flex-wrap items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-sm">
+            <Disc aria-hidden="true" className="h-4 w-4" />
+            {t('tireList.brakesPrompt')}
+          </span>
+          <span className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={onLogBrakes}>
+              {t('tireList.brakesPromptAction')}
+            </Button>
+            <IconButton
+              icon={X}
+              label={t('tireList.brakesPromptDismiss')}
+              variant="ghost"
+              size="sm"
+              onClick={() => setBrakesPrompt(false)}
+            />
+          </span>
+        </Card>
+      )}
 
       {tires.length === 0 && (
         <EmptyState icon={Gauge} title={t('tireList.empty')} description={t('tireList.emptyHint')} />

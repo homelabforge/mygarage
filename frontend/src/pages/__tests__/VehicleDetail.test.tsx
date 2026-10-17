@@ -8,6 +8,14 @@ vi.mock('../../components/tabs/ServiceTab', () => ({ default: () => <div>Service
 vi.mock('../../components/tabs/FuelTab', () => ({ default: () => <div>FuelTab</div> }))
 vi.mock('../../components/tabs/OdometerTab', () => ({ default: () => <div>OdometerTab</div> }))
 vi.mock('../../components/tabs/HoursTab', () => ({ default: () => <div>HoursTab</div> }))
+vi.mock('../../components/TireList', () => ({
+  default: ({ onLogBrakes }: { onLogBrakes?: () => void }) => (
+    <button type="button" onClick={onLogBrakes}>TireList log brakes</button>
+  ),
+}))
+vi.mock('../../components/brakes/BrakeList', () => ({
+  default: ({ logOnOpen }: { logOnOpen?: boolean }) => <div>BrakeList logOnOpen={String(logOnOpen)}</div>,
+}))
 vi.mock('../../components/tabs/PhotosTab', () => ({ default: () => <div>PhotosTab</div> }))
 vi.mock('../../components/tabs/DocumentsTab', () => ({ default: () => <div>DocumentsTab</div> }))
 vi.mock('../../components/tabs/NotesTab', () => ({ default: () => <div>NotesTab</div> }))
@@ -464,6 +472,39 @@ describe('VehicleDetail', () => {
     const subNav = await screen.findByTestId('sub-tab-nav')
     expect(within(subNav).getByRole('tab', { name: 'detail.misc.odometer' })).toBeInTheDocument()
     expect(within(subNav).getByRole('tab', { name: 'detail.misc.tires' })).toBeInTheDocument()
+  })
+
+  it('offers Brakes beside Tires and mounts BrakeList when picked (#202)', async () => {
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByText('detail.tabs.maintenance')[0])
+    const subNav = await screen.findByTestId('sub-tab-nav')
+    const names = within(subNav).getAllByRole('tab').map((tab) => tab.textContent)
+    expect(names.indexOf('detail.misc.brakes')).toBe(names.indexOf('detail.misc.tires') + 1)
+    fireEvent.click(within(subNav).getByRole('tab', { name: 'detail.misc.brakes' }))
+    expect(await screen.findByText('BrakeList logOnOpen=false')).toBeInTheDocument()
+  })
+
+  it('has no Brakes tab for a trailer', async () => {
+    mockedVehicleService.get.mockResolvedValue({ ...mockVehicle, vehicle_type: 'Trailer' })
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByText('detail.tabs.maintenance')[0])
+    await waitFor(() => expect(screen.queryByRole('tab', { name: 'detail.misc.brakes' })).toBeNull())
+    expect(screen.queryByText(/BrakeList/)).toBeNull()
+  })
+
+  it("the Tires page's brake prompt opens Brakes with Log measurements", async () => {
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByText('detail.tabs.maintenance')[0])
+    const subNav = await screen.findByTestId('sub-tab-nav')
+    fireEvent.click(within(subNav).getByRole('tab', { name: 'detail.misc.tires' }))
+    fireEvent.click(await screen.findByText('TireList log brakes'))
+    expect(await screen.findByText('BrakeList logOnOpen=true')).toBeInTheDocument()
   })
 
   it('mounts HoursTab when the Hours sub-tab is selected (reachability: HoursTab is imported and rendered from VehicleDetail)', async () => {
