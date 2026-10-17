@@ -139,3 +139,4 @@ migrations must swallow their own operational errors.
 | `127_clear_low_tread_prose` | Clear the prose the low-tread sync used to write into reminder notes (G3a-21). |
 | `128_drop_reminder_projected_distance` | Drop vehicle_reminders.projected_distance_km, a column nothing writes or reads. |
 | `129_add_reminder_start_readings` | **FATAL** — Store the readings an unanchored reminder counts from (PR #216). |
+| `130_move_torque_one_digit_pid_keys` | Move Torque's one-digit PID keys onto the keys the parser files them under now (#223). |
