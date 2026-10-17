@@ -26,6 +26,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.def_record import DEFRecord
 from app.models.drive_session import DriveSession
 from app.models.fuel import FuelRecord
@@ -50,6 +51,9 @@ CHILD_MODELS = [
     (VehicleTelemetry, "vin"),
     (VehicleTelemetryLatest, "vin"),
     (DriveSession, "vin"),
+    (BrakeAxle, "vin"),
+    (BrakeJob, "vin"),
+    (BrakeMeasurement, "vin"),
 ]
 
 
@@ -109,6 +113,23 @@ async def _seed_vehicle_with_children(db_session: AsyncSession, user_id: int, vi
                 timestamp=now,
             ),
             DriveSession(vin=vin, device_id="deadbeef0001", started_at=now),
+            BrakeAxle(
+                vin=vin,
+                axle="front",
+                brake_type="disc",
+                min_thickness_mm=Decimal("3.00"),
+                new_thickness_mm=Decimal("10.00"),
+            ),
+            BrakeJob(
+                vin=vin,
+                position="FL",
+                brake_type="disc",
+                performed_on=today,
+                friction_replaced=True,
+            ),
+            BrakeMeasurement(
+                vin=vin, position="FL", recorded_at=today, inner_pad_mm=Decimal("9.50")
+            ),
         ]
     )
     await db_session.commit()

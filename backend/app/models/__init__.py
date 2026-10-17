@@ -3,6 +3,7 @@
 from app.models.address_book import AddressBookEntry
 from app.models.attachment import Attachment
 from app.models.audit_log import AuditLog
+from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.csrf_token import CSRFToken
 from app.models.def_record import DEFRecord
 from app.models.document import Document
@@ -84,6 +85,9 @@ __all__ = [
     "SupplyUsage",
     "Tire",
     "TireReading",
+    "BrakeAxle",
+    "BrakeJob",
+    "BrakeMeasurement",
     # LiveLink (Telemetry)
     "LiveLinkDevice",
     "LiveLinkParameter",
