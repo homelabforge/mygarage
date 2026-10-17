@@ -581,6 +581,8 @@ test.describe('Tires', () => {
     await expect(editor.locator('#reading-edit-odometer')).toHaveCount(0)
     await expect(editor.locator('#reading-edit-hours')).toHaveValue('150.0')
     await editor.locator('#reading-edit-hours').fill('155')
+    // Move the date too: an odometer row dragged along with it would break the snapshot below.
+    await editor.locator('#reading-edit-date').fill('2026-03-02')
     await editor.getByRole('button', { name: 'Save' }).click()
     await expect(editor).toBeHidden({ timeout: 10000 })
     await expect(history.getByText('155.0 hr')).toBeVisible({ timeout: 10000 })
@@ -593,6 +595,11 @@ test.describe('Tires', () => {
     expect(tire.readings[0].odometer_km).toBe('15000.00')
     const hours = await (await request.get(`${API_BASE}/vehicles/${vin}/hours`, { headers: admin.headers })).json()
     expect(hours.latest_engine_hours).toBe('155.0')
+    // The hour row went with the reading to its new date.
+    const march = hours.records.filter((r: { date: string }) => r.date >= '2026-03-01')
+    expect(march.map((r: { date: string; engine_hours: string }) => [r.date, r.engine_hours])).toEqual([
+      ['2026-03-02', '155.0'],
+    ])
     const odometerAfter = await odometerNow()
     expect(odometerAfter.total).toBe(odometerBefore.total)
     expect(odometerAfter).toEqual(odometerBefore)
