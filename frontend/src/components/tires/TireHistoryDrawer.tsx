@@ -279,6 +279,7 @@ export default function TireHistoryDrawer({
                         aria-label={t('tireList.readingEditLabel', {
                           date: formatDateForDisplay(reading.recorded_at),
                         })}
+                        disabled={removeReading.isPending}
                         onClick={() => onEditReading(reading)}
                       >
                         {t('common:edit')}

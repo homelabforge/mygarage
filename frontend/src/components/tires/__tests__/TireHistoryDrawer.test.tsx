@@ -198,6 +198,14 @@ describe('TireHistoryDrawer', () => {
       expect(button).toBeDisabled()
     })
 
+    it("disables the row's Edit while a delete is in flight", () => {
+      useDeleteReadingMock.mockReturnValue({ mutate, isPending: true })
+      renderWithReadings()
+      const edit = within(drawer().getByTestId('reading-31')).getByRole('button', { name: 'tireList.readingEditLabel' })
+      expect(edit).toHaveTextContent('common:edit')
+      expect(edit).toBeDisabled()
+    })
+
     it('reports the outcome through the reading keys', () => {
       vi.spyOn(window, 'confirm').mockReturnValue(true)
       renderWithReadings()
