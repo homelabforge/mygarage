@@ -21,6 +21,7 @@ from sqlalchemy import inspect as sa_inspect
 
 from app.main import app
 from app.models.address_book import AddressBookEntry
+from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.def_record import DEFRecord
 from app.models.document import Document
 from app.models.external_vehicle import ExternalVehicle
@@ -55,6 +56,7 @@ from app.models.warranty import WarrantyRecord
 from app.routes.oidc import OIDCAdminConfig
 from app.routes.window_sticker import WindowStickerDataUpdate
 from app.schemas.address_book import AddressBookEntryUpdate
+from app.schemas.brake import BrakeAxleUpdate, BrakeJobUpdate, BrakeMeasurementUpdate
 from app.schemas.def_record import DEFRecordUpdate
 from app.schemas.document import DocumentUpdate
 from app.schemas.dtc import VehicleDTCUpdate
@@ -121,6 +123,12 @@ class Entry:
 REGISTRY: dict[type[BaseModel], Entry] = {
     AddressBookEntryUpdate: Entry(AddressBookEntry),
     AdminUserUpdate: Entry(User),
+    BrakeAxleUpdate: Entry(
+        BrakeAxle,
+        baseline={"brake_type": "disc", "min_thickness_mm": "3", "new_thickness_mm": "10"},
+    ),
+    BrakeJobUpdate: Entry(BrakeJob),
+    BrakeMeasurementUpdate: Entry(BrakeMeasurement),
     DEFRecordUpdate: Entry(DEFRecord),
     DocumentUpdate: Entry(Document),
     ExternalVehicleUpdate: Entry(ExternalVehicle),
@@ -228,6 +236,9 @@ EXPECTED_NOT_NULL: dict[str, set[str]] = {
         "show_on_family_dashboard",
         "time_format",
     },
+    "BrakeAxleUpdate": {"brake_type", "min_thickness_mm", "new_thickness_mm"},
+    "BrakeJobUpdate": {"friction_replaced", "performed_on"},
+    "BrakeMeasurementUpdate": {"recorded_at"},
     "DEFRecordUpdate": {"date"},
     "DocumentUpdate": {"title"},
     "ExternalVehicleUpdate": {"nickname"},

@@ -4,6 +4,7 @@ from app.routes.address_book import router as address_book_router
 from app.routes.analytics import router as analytics_router
 from app.routes.attachments import router as attachments_router
 from app.routes.backup import router as backup_router
+from app.routes.brakes import router as brakes_router
 from app.routes.calendar import router as calendar_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.def_routes import router as def_router
@@ -72,6 +73,7 @@ __all__ = [
     "attachments_router",
     "tax_router",
     "tires_router",
+    "brakes_router",
     "spot_rental_router",
     "spot_rental_billing_router",
     "address_book_router",
