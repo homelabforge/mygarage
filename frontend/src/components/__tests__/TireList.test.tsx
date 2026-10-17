@@ -504,6 +504,77 @@ describe('TireList', () => {
         (screen.getByLabelText('tireList.pressureWithUnit') as HTMLInputElement).step
       ).toBe('0.1')
     })
+
+    /** Seeded as 11 and 2: the 32nds a gauge's 0.346 and 0.0625 in round to. */
+    const gauged = (): void => {
+      useTiresMock.mockReturnValue({
+        data: { tires: [{ ...STORED_FL_TIRE, tread_depth_mm: '8.40', min_tread_mm: '1.60' }], total: 1 },
+        isLoading: false,
+        error: null,
+      })
+    }
+
+    it.each([false, true])(
+      'reads a gauge decimal typed into Log Reading as inches (blur: %s)',
+      (blur) => {
+        gauged()
+        const mutate = vi.fn()
+        useAddTireReadingMock.mockReturnValue({ mutate, isPending: false })
+
+        render(<TireList vin="1HGCM82633A004352" />)
+        fireEvent.click(screen.getByText('tireList.addReading'))
+        const tread = screen.getByLabelText('tireList.treadWithUnit') as HTMLInputElement
+        expect(tread.value).toBe('11')
+        fireEvent.change(tread, { target: { value: '.346' } })
+        if (blur) fireEvent.blur(tread)
+        fireEvent.click(screen.getByText('common:save'))
+
+        // 0.346 in is 11/32 in, 8.73125 mm. Read as 32nds it was 0.27 mm, a
+        // healthy tire stored as bald; read against the seeded 11 it was the old 8.40.
+        expect(mutate.mock.calls[0][0].tread_depth_mm).toBe(8.73125)
+      }
+    )
+
+    it.each([false, true])(
+      'reads gauge decimals in the tire form as inches, tread and minimum both (blur: %s)',
+      (blur) => {
+        gauged()
+        const mutate = vi.fn()
+        useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
+
+        render(<TireList vin="1HGCM82633A004352" />)
+        fireEvent.click(screen.getByLabelText('tireList.edit'))
+        const tread = screen.getByLabelText('tireList.treadWithUnit') as HTMLInputElement
+        const minTread = screen.getByLabelText('tireList.minTreadWithUnit') as HTMLInputElement
+        expect([tread.value, minTread.value]).toEqual(['11', '2'])
+        fireEvent.change(tread, { target: { value: '.346' } })
+        fireEvent.change(minTread, { target: { value: '0.0625' } })
+        if (blur) {
+          fireEvent.blur(tread)
+          fireEvent.blur(minTread)
+        }
+        fireEvent.click(screen.getByText('common:save'))
+
+        // 11/32 in = 8.73125 mm and 2/32 in = 1.5875 mm, not the 8.40 and 1.60 the fields started on.
+        const payload = mutate.mock.calls[0][0]
+        expect(payload.tread_depth_mm).toBe(8.73125)
+        expect(payload.min_tread_mm).toBe(1.5875)
+      }
+    )
+
+    it('still sends an untouched 8.40 and 1.60 back exactly', () => {
+      gauged()
+      const mutate = vi.fn()
+      useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
+
+      render(<TireList vin="1HGCM82633A004352" />)
+      fireEvent.click(screen.getByLabelText('tireList.edit'))
+      fireEvent.click(screen.getByText('common:save'))
+
+      const payload = mutate.mock.calls[0][0]
+      expect(payload.tread_depth_mm).toBe(8.4)
+      expect(payload.min_tread_mm).toBe(1.6)
+    })
   })
 
   describe('reading history', () => {

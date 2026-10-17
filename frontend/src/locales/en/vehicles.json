@@ -1559,6 +1559,8 @@
     "suggestionUse": "Use",
     "title": "Tires",
     "tread": "Tread",
+    "treadConverted": "Converted {{inches}} in to {{thirtySeconds}}/32 in.",
+    "treadDecimalHint": "Whole 32nds, or a gauge reading in inches like 0.346.",
     "treadOrPressureRequired": "Enter a tread depth, a pressure, or both",
     "treadWithUnit": "Tread ({{unit}})",
     "wear": {

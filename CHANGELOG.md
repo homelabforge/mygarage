@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tires on a vehicle that tracks engine hours use the hour meter: mounts, dismounts, rotations, set fits and readings take hours, and hours on the tire and the wear estimate are worked out in hours (#217)
 - A vehicle that tracks both distance and hours records both on each tire event, the second one optional, and its tire figures stay on distance
 - Tire readings can be edited from the tire's history: fix a wrong date, tread, pressure or note, or add an odometer or hour meter reading later
+- A tread gauge reading in inches (0.346) typed into a 32nds field is read as 32nds (11/32)
 
 ### Changed
 - CI splits the test suites across parallel runners (shared-workflows v1.7.0)
