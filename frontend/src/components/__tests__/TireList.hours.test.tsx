@@ -11,6 +11,7 @@ const useTiresMock = vi.fn()
 const writeMock = vi.fn()
 const useAddTireReadingMock = vi.fn()
 const useTireSetsMock = vi.fn()
+const useUpdateTireReadingMock = vi.fn()
 
 vi.mock('../../hooks/queries/useTires', () => ({
   useTires: () => useTiresMock(),
@@ -25,6 +26,7 @@ vi.mock('../../hooks/queries/useTires', () => ({
   useAddTireReading: () => useAddTireReadingMock(),
   useDeleteTire: () => writeMock(),
   useDeleteTireReading: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateTireReading: () => useUpdateTireReadingMock(),
   useTireSets: () => useTireSetsMock(),
   useCreateTireSet: () => writeMock(),
   useUpdateTireSet: () => writeMock(),
@@ -351,5 +353,44 @@ describe('The card on the hour meter (#217)', () => {
     render(<TireList vin={VIN} />)
     expect(screen.getByText('tireList.distance.since')).toBeInTheDocument()
     expect(screen.queryByText('tireList.distance.nothingBoundedHours')).toBeNull()
+  })
+})
+
+describe('Editing a reading follows the axes the vehicle takes (#225)', () => {
+  const updateReading = vi.fn()
+  const READING = {
+    id: 31, tire_id: 1, vin: VIN, position: 'FL', recorded_at: '2026-06-10', odometer_km: '170.00',
+    engine_hours: '150.0', tread_depth_mm: '7.00', pressure_kpa: null, notes: null, created_at: '2026-06-10T00:00:00',
+  }
+  beforeEach(() => {
+    updateReading.mockReset()
+    useUpdateTireReadingMock.mockReturnValue({ mutate: updateReading, isPending: false })
+    writeMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useAddTireReadingMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useTireSetsMock.mockReturnValue({ data: { sets: [], total: 0 }, isLoading: false, error: null })
+  })
+  const openEditor = (): void => {
+    render(<TireList vin={VIN} />)
+    fireEvent.click(screen.getByRole('button', { name: 'tireList.historyOpen' }))
+    fireEvent.click(screen.getByRole('button', { name: 'tireList.readingEditLabel' }))
+  }
+  const editor = () => within(screen.getByRole('dialog', { name: 'tireList.editReadingTitle' }))
+
+  it('on an hours-only vehicle edits the hour meter and leaves the junk odometer out', () => {
+    list([{ ...tire(1, 'FL'), readings: [READING] }], HOURS)
+    openEditor()
+    expect(field('reading-edit-odometer')).toBeNull()
+    fireEvent.change(field('reading-edit-hours'), { target: { value: '155' } })
+    fireEvent.click(editor().getByText('common:save'))
+    const payload = updateReading.mock.calls[0][0]
+    expect(payload).toMatchObject({ tireId: 1, readingId: 31, engine_hours: 155 })
+    expect(payload).not.toHaveProperty('odometer_km')
+  })
+
+  it('on a dual vehicle edits both', () => {
+    list([{ ...tire(1, 'FL'), readings: [READING] }], DUAL)
+    openEditor()
+    fireEvent.click(editor().getByText('common:save'))
+    expect(updateReading.mock.calls[0][0]).toMatchObject({ odometer_km: 170, engine_hours: 150 })
   })
 })

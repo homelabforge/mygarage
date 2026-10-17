@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type React from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 
 const useDeleteReadingMock = vi.fn()
 vi.mock('../../../hooks/queries/useTires', () => ({
@@ -88,7 +88,7 @@ const hoursTire = (overrides: Record<string, unknown> = {}) => ({
 })
 const show = (tire: unknown, flags = { tracksDistance: false, tracksHours: true }) =>
   render(
-    <TireHistoryDrawer vin={VIN} tire={tire as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} {...flags} />
+    <TireHistoryDrawer vin={VIN} tire={tire as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={vi.fn()} onAddPeriod={vi.fn()} labelFor={labelFor} {...flags} />
   )
 
 describe('TireHistoryDrawer on the hour meter (#217)', () => {
@@ -145,6 +145,16 @@ describe('TireHistoryDrawer on the hour meter (#217)', () => {
       { tracksDistance: true, tracksHours: true }
     )
     expect(screen.getByTestId('period-2')).toHaveTextContent(/1,000 km · 120\.0 hr/)
+  })
+
+  it('Edit hands an hours reading to the caller', () => {
+    const onEditReading = vi.fn()
+    render(
+      <TireHistoryDrawer vin={VIN} tire={hoursTire() as never} open onClose={vi.fn()} onEditPeriod={vi.fn()} onEditReading={onEditReading} onAddPeriod={vi.fn()} labelFor={labelFor} tracksDistance={false} tracksHours />
+    )
+    expect(onEditReading).not.toHaveBeenCalled()
+    fireEvent.click(within(screen.getByTestId('reading-31')).getByRole('button', { name: /^tireList\.readingEditLabel/ }))
+    expect(onEditReading.mock.calls[0][0]).toMatchObject({ id: 31, engine_hours: '150.0' })
   })
 })
 

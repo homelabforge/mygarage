@@ -24,6 +24,8 @@ interface TireHistoryDrawerProps {
   open: boolean
   onClose: () => void
   onEditPeriod: (period: TireMountPeriod) => void
+  /** Opens the reading editor for this row's reading. */
+  onEditReading: (reading: TireReading) => void
   onAddPeriod: () => void
   /** The card's position label, passed in so the five t() calls stay in one place. */
   labelFor: (position: TirePosition) => string
@@ -78,6 +80,7 @@ export default function TireHistoryDrawer({
   open,
   onClose,
   onEditPeriod,
+  onEditReading,
   onAddPeriod,
   labelFor,
   tracksDistance = true,
@@ -129,11 +132,9 @@ export default function TireHistoryDrawer({
       ? periods.some((p) => p.mounted_odometer_km != null && p.mounted_hours == null)
       : periods.some((p) => p.mounted_hours != null && p.mounted_odometer_km == null)
 
-  /* The way out of a reading logged with the wrong odometer or date: the
-     server refuses a dismount, retire, rotation or set fit that contradicts
-     one, and its message names the reading to delete here. A native confirm
-     rather than a modal, because a modal opened from a drawer is inert in this
-     app. There is no reading edit; the user logs the right one again. */
+  /* For a reading that shouldn't be there at all; a wrong value is fixed with
+     Edit, which keeps the reading. A native confirm, since a modal opened from a
+     drawer is inert in this app. */
   const deleteReading = (reading: TireReading): void => {
     if (!tire) return
     if (!confirm(t('tireList.readingConfirmDelete', { date: formatDateForDisplay(reading.recorded_at) }))) {
@@ -271,17 +272,29 @@ export default function TireHistoryDrawer({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="font-semibold">{formatDateForDisplay(reading.recorded_at)}</div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      aria-label={t('tireList.readingDeleteLabel', {
-                        date: formatDateForDisplay(reading.recorded_at),
-                      })}
-                      disabled={removeReading.isPending}
-                      onClick={() => deleteReading(reading)}
-                    >
-                      {t('common:delete')}
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={t('tireList.readingEditLabel', {
+                          date: formatDateForDisplay(reading.recorded_at),
+                        })}
+                        onClick={() => onEditReading(reading)}
+                      >
+                        {t('common:edit')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={t('tireList.readingDeleteLabel', {
+                          date: formatDateForDisplay(reading.recorded_at),
+                        })}
+                        disabled={removeReading.isPending}
+                        onClick={() => deleteReading(reading)}
+                      >
+                        {t('common:delete')}
+                      </Button>
+                    </div>
                   </div>
                   {/* Every value through the same adapters the card uses, so a
                       history row can never disagree with the card above it. The

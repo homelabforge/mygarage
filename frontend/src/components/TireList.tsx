@@ -4,7 +4,7 @@ import { Plus, Trash2, Gauge, AlertTriangle, Pencil, RotateCw, Layers } from 'lu
 import { toast } from 'sonner'
 import { formatDateForDisplay, formatDateForInput } from '../utils/dateUtils'
 import { POSITIONS } from '../types/tire'
-import type { MountedPosition, Tire, TireMountPeriod, TirePosition, TireSet } from '../types/tire'
+import type { MountedPosition, Tire, TireMountPeriod, TirePosition, TireReading, TireSet } from '../types/tire'
 import {
   useTires,
   useCreateTire,
@@ -48,6 +48,7 @@ import ClickableCard from './ClickableCard'
 import AddPastPeriodDrawer from './tires/AddPastPeriodDrawer'
 import MountEventFields, { EMPTY_ODOMETER, type OdometerFieldValue } from './tires/MountEventFields'
 import MountPeriodEditor from './tires/MountPeriodEditor'
+import ReadingEditor from './tires/ReadingEditor'
 import TireHistoryDrawer, { needsFix } from './tires/TireHistoryDrawer'
 import TreadField from './tires/TreadField'
 
@@ -313,6 +314,7 @@ export default function TireList({ vin }: TireListProps) {
   const [readingTireId, setReadingTireId] = useState<number | null>(null)
   const [historyTireId, setHistoryTireId] = useState<number | null>(null)
   const [editingPeriod, setEditingPeriod] = useState<TireMountPeriod | null>(null)
+  const [editingReading, setEditingReading] = useState<TireReading | null>(null)
   const [addingPeriod, setAddingPeriod] = useState(false)
   const [form, setForm] = useState<TireFormState>(() => seedTireForm(null, 'FL'))
   const [readingForm, setReadingForm] = useState<ReadingFormState>(emptyReadingForm)
@@ -2082,10 +2084,12 @@ export default function TireList({ vin }: TireListProps) {
         open={historyTire !== null}
         onClose={() => {
           setEditingPeriod(null)
+          setEditingReading(null)
           setAddingPeriod(false)
           setHistoryTireId(null)
         }}
         onEditPeriod={setEditingPeriod}
+        onEditReading={setEditingReading}
         onAddPeriod={() => setAddingPeriod(true)}
         labelFor={labelFor}
         tracksDistance={tracksDistance}
@@ -2100,6 +2104,20 @@ export default function TireList({ vin }: TireListProps) {
           period={editingPeriod}
           open
           onClose={() => setEditingPeriod(null)}
+          labelFor={labelFor}
+          tracksDistance={tracksDistance}
+          tracksHours={tracksHours}
+        />
+      )}
+
+      {historyTire && editingReading && (
+        <ReadingEditor
+          key={editingReading.id}
+          vin={vin}
+          tire={historyTire}
+          reading={editingReading}
+          open
+          onClose={() => setEditingReading(null)}
           labelFor={labelFor}
           tracksDistance={tracksDistance}
           tracksHours={tracksHours}
