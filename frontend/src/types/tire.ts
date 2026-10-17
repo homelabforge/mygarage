@@ -14,6 +14,7 @@ export type TireListResponse = components['schemas']['TireListResponse']
 export type TireCreate = components['schemas']['TireCreate']
 export type TireUpdate = components['schemas']['TireUpdate']
 export type TireReadingCreate = components['schemas']['TireReadingCreate']
+export type TireReadingUpdate = components['schemas']['TireReadingUpdate']
 export type HistoryFault = components['schemas']['HistoryFaultResponse']
 
 /** Which reading a tire's figures run on (#217). */

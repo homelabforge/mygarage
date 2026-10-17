@@ -17,6 +17,7 @@ import type {
   TireListResponse,
   TireMountRequest,
   TireReadingCreate,
+  TireReadingUpdate,
   TireRotationRequest,
   TireSet,
   TireSetCreate,
@@ -236,6 +237,32 @@ export function useAddTireReading(vin: string) {
     mutationFn: async ({ tireId, ...payload }: TireReadingCreate & { tireId: number }) => {
       const { data } = await api.post<Tire>(
         `/vehicles/${vin}/tires/${tireId}/readings`,
+        payload
+      )
+      return data
+    },
+    onSuccess: () => invalidateTireViews(queryClient, vin),
+  })
+}
+
+/**
+ * Correct one reading. Absent keys stay; null clears one, except the date.
+ *
+ * Through the helper like every tire write: an edit can move the tire's tread
+ * and pressure, the rows the reading published and the low-tread reminder.
+ */
+export function useUpdateTireReading(
+  vin: string
+): UseMutationResult<Tire, Error, TireReadingUpdate & { tireId: number; readingId: number }> {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      tireId,
+      readingId,
+      ...payload
+    }: TireReadingUpdate & { tireId: number; readingId: number }) => {
+      const { data } = await api.put<Tire>(
+        `/vehicles/${vin}/tires/${tireId}/readings/${readingId}`,
         payload
       )
       return data
