@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- A Brakes tab beside Tires tracks pads, shoes, rotors and drums per corner, brake jobs, and a wear estimate for each corner (#202)
+- Each axle gets a brake pads low reminder when a corner is due soon or worn out, closed by a brake job or a healthy measurement
+- After a tire rotation or set fit, the Tires tab offers to log brake measurements while the wheels are off
 - SSO settings have a Callback URL field, so `oidc_redirect_uri` can be pinned from Settings
 - Tires on a vehicle that tracks engine hours use the hour meter: mounts, dismounts, rotations, set fits and readings take hours, and hours on the tire and the wear estimate are worked out in hours (#217)
 - A vehicle that tracks both distance and hours records both on each tire event, the second one optional, and its tire figures stay on distance
