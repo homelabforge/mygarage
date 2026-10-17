@@ -227,3 +227,11 @@ def test_real_torque_declares_every_unit_this_module_assumes():
 def test_the_display_unit_is_never_recorded():
     """D2: userUnit is what the phone shows, not what it sends."""
     assert parse_torque_query({"userUnit05": "°F", "userUnit0d": "mph"}).default_units == {}
+
+
+def test_a_declaration_longer_than_a_real_pid_or_not_hex_is_ignored():
+    """Torque's longest PID, ff1238, is six hex digits; anything else is made up."""
+    declared = parse_torque_query(
+        {"defaultUnitff12380": "V", "defaultUnitzz": "V", "defaultUnitff1238": "V"}
+    ).default_units
+    assert declared == {"KFF1238": "V"}

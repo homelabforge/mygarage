@@ -138,6 +138,9 @@ _UNIT_SPELLINGS: dict[str, str] = {
 
 _HEX_DIGITS = frozenset("0123456789abcdef")
 
+#: Torque's longest real PID is six hex digits (`ff1238`); a longer one is made up.
+_MAX_PID_DIGITS = 6
+
 
 def torque_unit(raw: str | None) -> str | None:
     """A unit as Torque declares it, cleaned up, or None for none."""
@@ -194,8 +197,10 @@ def _to_float(raw: str) -> float | None:
 def parse_torque_query(params: Mapping[str, str]) -> TorqueReading:
     """Parse a Torque Pro upload query string into a TorqueReading.
 
-    Splits metadata (session/id/time/email), GPS PIDs (→ ``gps``), and OBD PIDs
-    (→ ``obd``, canonical keys). Non-numeric / NaN / inf values are dropped.
+    Splits metadata (session/id/time/email), GPS PIDs (→ ``gps``), OBD PIDs
+    (→ ``obd``, canonical keys), and the units a session start declares
+    (→ ``default_units``, by the key each PID is stored under). Non-numeric /
+    NaN / inf values are dropped.
     """
     r = TorqueReading()
     for key, raw in params.items():
@@ -217,7 +222,12 @@ def parse_torque_query(params: Mapping[str, str]) -> TorqueReading:
             # Values arrive in this unit; userUnit is only what the phone shows.
             pid = lk.removeprefix("defaultunit")
             unit = torque_unit(raw)
-            if pid and set(pid) <= _HEX_DIGITS and unit and f"k{pid}" not in GPS_PID_FIELDS:
+            if (
+                1 <= len(pid) <= _MAX_PID_DIGITS
+                and set(pid) <= _HEX_DIGITS
+                and unit
+                and f"k{pid}" not in GPS_PID_FIELDS
+            ):
                 r.default_units[_storage_key(f"k{pid}")] = unit
         elif lk.startswith("k"):
             val = _to_float(raw)
