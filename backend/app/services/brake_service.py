@@ -128,19 +128,15 @@ class BrakeService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def _open(self, vin: str, current_user: User | None, *, write: bool) -> VehicleAxes:
-        """Access check, then for a write the vehicle lock, then the axes.
+    async def _lock(self, vin: str, current_user: User | None) -> VehicleAxes:
+        """The vehicle lock, then the axes, for a write already past its access check.
 
-        In the tire order: the lock comes after the access check and before
-        any brake read, so every read after it sees the last committed writer.
+        In the tire order: the access check runs in each public method itself
+        (the CI authz tripwire reads one call level down from the route), the
+        lock comes next, and only then any brake read, so every read after it
+        sees the last committed writer.
         """
-        from app.services.auth import get_vehicle_or_403
-
-        if write:
-            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
-            await lock_vehicle_for_write(self.db, vin)
-        else:
-            await get_vehicle_or_403(vin, current_user, self.db)
+        await lock_vehicle_for_write(self.db, vin)
         return await TireService(self.db).request_axes(current_user, vin)
 
     async def _load(
@@ -224,6 +220,8 @@ class BrakeService:
             inner_pad_mm=wear.inner_pad_mm,
             outer_pad_mm=wear.outer_pad_mm,
             shoe_mm=wear.shoe_mm,
+            inner_pad_measured_on=wear.inner_measured_on,
+            outer_pad_measured_on=wear.outer_measured_on,
             measured_on=latest.recorded_at if latest is not None else None,
             measured_odometer_km=latest.odometer_km if latest is not None else None,
             measured_hours=latest.engine_hours if latest is not None else None,
@@ -343,19 +341,28 @@ class BrakeService:
                     existing.due_date = due
             elif ok and existing is not None and may_complete:
                 existing.status = "done"
+            elif existing is not None:
+                # Left pending: still name the axle's brakes as they're set up now.
+                existing.title = _reminder_title(setup)
 
     async def overview(self, vin: str, current_user: User | None) -> BrakeOverviewResponse:
         """Both axles and the four corners, with their estimates and history."""
+        from app.services.auth import get_vehicle_or_403
+
         vin = vin.upper().strip()
-        axes = await self._open(vin, current_user, write=False)
+        await get_vehicle_or_403(vin, current_user, self.db)
+        axes = await TireService(self.db).request_axes(current_user, vin)
         return await self._respond(vin, axes)
 
     async def update_axle(
         self, vin: str, axle: Axle, data: BrakeAxleUpdate, current_user: User | None
     ) -> BrakeOverviewResponse:
         """Save an axle's setup. Measurements of the other brake type stay in history."""
+        from app.services.auth import get_vehicle_or_403
+
         vin = vin.upper().strip()
-        axes = await self._open(vin, current_user, write=True)
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        axes = await self._lock(vin, current_user)
         row = (
             await self.db.execute(
                 select(BrakeAxle).where(BrakeAxle.vin == vin, BrakeAxle.axle == axle)
@@ -372,8 +379,11 @@ class BrakeService:
         self, vin: str, data: BrakeMeasurementBatchCreate, current_user: User | None
     ) -> BrakeOverviewResponse:
         """Record one to four corners measured on one day."""
+        from app.services.auth import get_vehicle_or_403
+
         vin = vin.upper().strip()
-        axes = await self._open(vin, current_user, write=True)
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        axes = await self._lock(vin, current_user)
         _refuse_untracked(axes, data.odometer_km, data.engine_hours)
         setups = await self._setups(vin)
         for corner in data.corners:
@@ -400,8 +410,11 @@ class BrakeService:
         current_user: User | None,
     ) -> BrakeOverviewResponse:
         """Correct one measurement, judged on the merged row."""
+        from app.services.auth import get_vehicle_or_403
+
         vin = vin.upper().strip()
-        axes = await self._open(vin, current_user, write=True)
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        axes = await self._lock(vin, current_user)
         changes = data.model_dump(exclude_unset=True)
         _refuse_untracked(axes, changes.get("odometer_km"), changes.get("engine_hours"))
         row = await self._measurement(vin, measurement_id)
@@ -429,8 +442,11 @@ class BrakeService:
         self, vin: str, measurement_id: int, current_user: User | None
     ) -> None:
         """Delete one measurement. A brake job it came with stays."""
+        from app.services.auth import get_vehicle_or_403
+
         vin = vin.upper().strip()
-        axes = await self._open(vin, current_user, write=True)
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        axes = await self._lock(vin, current_user)
         row = await self._measurement(vin, measurement_id)
         await self.db.delete(row)
         await self._finish(vin, axes, may_complete=False)
@@ -439,8 +455,11 @@ class BrakeService:
         self, vin: str, data: BrakeJobCreate, current_user: User | None
     ) -> BrakeOverviewResponse:
         """Record a brake job on one to four corners, with the new pads' figures."""
+        from app.services.auth import get_vehicle_or_403
+
         vin = vin.upper().strip()
-        axes = await self._open(vin, current_user, write=True)
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        axes = await self._lock(vin, current_user)
         _refuse_untracked(axes, data.odometer_km, data.engine_hours)
         setups = await self._setups(vin)
         for corner in data.corners:
@@ -483,8 +502,11 @@ class BrakeService:
         self, vin: str, job_id: int, data: BrakeJobUpdate, current_user: User | None
     ) -> BrakeOverviewResponse:
         """Correct one corner's brake job; the measurement it wrote follows it."""
+        from app.services.auth import get_vehicle_or_403
+
         vin = vin.upper().strip()
-        axes = await self._open(vin, current_user, write=True)
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        axes = await self._lock(vin, current_user)
         changes = data.model_dump(exclude_unset=True)
         _refuse_untracked(axes, changes.get("odometer_km"), changes.get("engine_hours"))
         job = await self._job(vin, job_id)
@@ -529,8 +551,11 @@ class BrakeService:
 
     async def delete_job(self, vin: str, job_id: int, current_user: User | None) -> None:
         """Delete one corner's brake job and the measurement it wrote."""
+        from app.services.auth import get_vehicle_or_403
+
         vin = vin.upper().strip()
-        axes = await self._open(vin, current_user, write=True)
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        axes = await self._lock(vin, current_user)
         job = await self._job(vin, job_id)
         await self.db.execute(
             delete(BrakeMeasurement).where(

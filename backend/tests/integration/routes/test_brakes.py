@@ -625,6 +625,24 @@ class TestAxleReminder:
             r.id for r in raised
         ]
 
+    async def test_an_axle_with_nothing_known_keeps_its_reminder(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "4"})
+        raised = await _pending(db_session, vin, "low_brakes_front")
+        # Not a delete: the front axle becomes drum, so the disc pads no longer
+        # count and every front corner is unknown. Unknown is not healthy.
+        response = await client.put(
+            f"/api/vehicles/{vin}/brakes/axles/front",
+            headers=auth_headers,
+            json={"brake_type": "drum", "min_thickness_mm": "1.5", "new_thickness_mm": "5"},
+        )
+        assert {c["condition"] for c in response.json()["corners"][:2]} == {"unknown"}
+        pending = await _pending(db_session, vin, "low_brakes_front")
+        assert [r.id for r in pending] == [r.id for r in raised]
+        # It names the axle's brakes as they're set up now.
+        assert pending[0].title == "Front brake shoes low"
+
     async def test_a_healthy_measurement_completes_it(
         self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
     ):

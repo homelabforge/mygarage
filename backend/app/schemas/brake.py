@@ -281,6 +281,10 @@ class BrakeCornerResponse(BaseModel):
     inner_pad_mm: Decimal | None = None
     outer_pad_mm: Decimal | None = None
     shoe_mm: Decimal | None = None
+    #: When each pad was last measured. A one-pad check keeps the other pad's
+    #: figure, so either can be older than `measured_on`.
+    inner_pad_measured_on: date_type | None = None
+    outer_pad_measured_on: date_type | None = None
     measured_on: date_type | None = None
     measured_odometer_km: Decimal | None = None
     measured_hours: Decimal | None = None

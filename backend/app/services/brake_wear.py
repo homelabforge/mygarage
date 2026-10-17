@@ -22,7 +22,7 @@ import datetime as dt
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from typing import Literal
 
@@ -71,9 +71,14 @@ class AxleSetup:
 
     @property
     def due_soon_mm(self) -> Decimal:
-        """The thickness at or below which a corner is due soon."""
+        """The thickness at or below which a corner is due soon.
+
+        Rounded to the hundredth every stored figure has, so the band the card
+        shows is the band the corner is judged on (a drum's 2.375 reads 2.38).
+        """
         usable = self.new_thickness_mm - self.min_thickness_mm
-        return self.min_thickness_mm + DUE_SOON_SHARE * max(usable, Decimal("0"))
+        band = self.min_thickness_mm + DUE_SOON_SHARE * max(usable, Decimal("0"))
+        return band.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def axle_setup(axle: Axle, row: BrakeAxle | None) -> AxleSetup:
@@ -146,8 +151,14 @@ class BrakeWear:
     inner_pad_mm: Decimal | None = None
     outer_pad_mm: Decimal | None = None
     shoe_mm: Decimal | None = None
-    #: The thinnest of those: what the minimum and the band are judged on.
+    #: When each of those was measured: a one-pad check carries the other
+    #: pad's figure from an older measurement.
+    inner_measured_on: dt.date | None = None
+    outer_measured_on: dt.date | None = None
+    #: The thinnest of those: what the minimum and the band are judged on,
+    #: and the day it was measured.
     thinnest_mm: Decimal | None = None
+    thinnest_measured_on: dt.date | None = None
     usage_remaining: Decimal | None = None
     wear_date: dt.date | None = None
 
@@ -201,7 +212,10 @@ class _Known:
     inner: Decimal | None
     outer: Decimal | None
     shoe: Decimal | None
+    inner_on: dt.date | None
+    outer_on: dt.date | None
     thinnest: Decimal
+    thinnest_on: dt.date
 
 
 def _carried_forward(measured: Sequence[BrakeMeasurement], brake_type: str) -> list[_Known]:
@@ -214,14 +228,23 @@ def _carried_forward(measured: Sequence[BrakeMeasurement], brake_type: str) -> l
     """
     known: list[_Known] = []
     inner = outer = shoe = None
+    inner_on = outer_on = None
     for m in measured:
         if brake_type == "drum":
             shoe = m.shoe_mm
         else:
-            inner = m.inner_pad_mm if m.inner_pad_mm is not None else inner
-            outer = m.outer_pad_mm if m.outer_pad_mm is not None else outer
-        figures = [v for v in (inner, outer, shoe) if v is not None]
-        known.append(_Known(m, inner, outer, shoe, min(figures)))
+            if m.inner_pad_mm is not None:
+                inner, inner_on = m.inner_pad_mm, m.recorded_at
+            if m.outer_pad_mm is not None:
+                outer, outer_on = m.outer_pad_mm, m.recorded_at
+        # The thinnest figure and the day it was seen; on a tie, the newer day.
+        dated = [
+            (value, day)
+            for value, day in ((inner, inner_on), (outer, outer_on), (shoe, m.recorded_at))
+            if value is not None and day is not None
+        ]
+        thinnest, thinnest_on = min(dated, key=lambda pair: (pair[0], -pair[1].toordinal()))
+        known.append(_Known(m, inner, outer, shoe, inner_on, outer_on, thinnest, thinnest_on))
     return known
 
 
@@ -271,18 +294,22 @@ def project_brake_wear(
             inner_pad_mm=now.inner,
             outer_pad_mm=now.outer,
             shoe_mm=now.shoe,
+            inner_measured_on=now.inner_on,
+            outer_measured_on=now.outer_on,
             thinnest_mm=thinnest,
+            thinnest_measured_on=now.thinnest_on,
             usage_remaining=usage_remaining,
             wear_date=wear_date,
         )
 
     minimum = setup.min_thickness_mm
     if thinnest <= minimum:
-        # A safety statement that needs no rate: dated by the measurement that showed it.
+        # A safety statement that needs no rate: dated by the measurement that
+        # showed it, which a carried pad makes older than the newest one.
         return result(
             BrakeWearStatus.AT_OR_BELOW_MINIMUM,
             usage_remaining=axis.zero,
-            wear_date=newest.recorded_at,
+            wear_date=now.thinnest_on,
         )
 
     if len(known) < 2:
@@ -345,18 +372,20 @@ def reminder_due(wear: BrakeWear, condition: BrakeCondition) -> dt.date | None:
 
     Dated from the measurements, never from today, so a later write that
     changes nothing about the corner doesn't move the date. Replace now is due
-    the day it was measured. Due soon is due at the projected wear date, or
-    `DUE_SOON_DAYS` after the newest measurement, whichever comes first: a pad
+    the day the thinnest figure was measured. Due soon is due at the projected
+    wear date, or `DUE_SOON_DAYS` after that day, whichever comes first: a pad
     in the last quarter wants a look within that long whatever the rate says.
     """
-    latest = wear.latest
-    if latest is None:
+    seen = wear.thinnest_measured_on
+    if seen is None:
         return None
     if condition is BrakeCondition.REPLACE_NOW:
-        return latest.recorded_at
+        return seen
     if condition is not BrakeCondition.DUE_SOON:
         return None
-    recheck = latest.recorded_at + timedelta(days=DUE_SOON_DAYS)
+    # From the day the thinnest figure was seen, not the newest check: a
+    # quick outer-pad look doesn't restart the clock on a low inner pad.
+    recheck = seen + timedelta(days=DUE_SOON_DAYS)
     if wear.status is BrakeWearStatus.PROJECTED and wear.wear_date is not None:
         return min(wear.wear_date, recheck)
     return recheck
