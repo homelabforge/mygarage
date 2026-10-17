@@ -9,6 +9,7 @@ file AND from every other suite, and a hardcoded device_id collides on the
 UNIQUE index at the second test.
 """
 
+import uuid
 from datetime import datetime, timedelta
 
 import pytest
@@ -196,3 +197,37 @@ async def test_empty_readings_is_a_no_op(db_session, make_livelink_vehicle):
     )
     assert result.stored_count == 0
     assert await _history(db_session, vin) == []
+
+
+@pytest.mark.asyncio
+async def test_a_reading_name_reaches_the_registry(db_session, make_livelink_vehicle):
+    vin, device = await make_livelink_vehicle(P, "21")
+    key = f"STORERD_NAMED_{uuid.uuid4().hex[:6].upper()}"
+    svc = TelemetryService(db_session)
+    await svc.store_readings(
+        vin=vin,
+        device_id=device.device_id,
+        readings=[Reading(key, 1.0, display_name="Readable name")],
+        timestamp=TS,
+        policy=StoragePolicy(latest="if_newer", apply_storage_interval=False),
+    )
+    assert (await svc.get_parameter(key)).display_name == "Readable name"
+
+
+@pytest.mark.asyncio
+async def test_the_odometer_rebuild_keeps_the_name(db_session, make_livelink_vehicle):
+    """store_readings rebuilds a declared odometer's reading in km; the name rides along."""
+    key = f"STORERD_ODO_{uuid.uuid4().hex[:6].upper()}"
+    vin, device = await make_livelink_vehicle(
+        P, "22", kind="torque", odometer_param_key=key, odometer_unit="km"
+    )
+    svc = TelemetryService(db_session)
+    await svc.store_readings(
+        vin=vin,
+        device_id=device.device_id,
+        readings=[Reading(key, 1000.0, display_name="Readable odometer")],
+        timestamp=TS,
+        policy=StoragePolicy(latest="if_newer", apply_storage_interval=False),
+        device=device,
+    )
+    assert (await svc.get_parameter(key)).display_name == "Readable odometer"

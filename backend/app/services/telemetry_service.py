@@ -3,7 +3,7 @@
 import hashlib
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any, cast
 
@@ -197,17 +197,21 @@ class TelemetryService:
 
         Wrapper for auto_register_parameter for route compatibility.
         """
-        return await self.auto_register_parameter(param_key, unit, param_class)
+        return await self.auto_register_parameter(param_key, unit, param_class, display_name)
 
     async def auto_register_parameter(
         self,
         param_key: str,
         unit: str | None = None,
         param_class: str | None = None,
+        display_name: str | None = None,
     ) -> LiveLinkParameter:
         """Auto-register a new parameter from WiCAN config block.
 
         Returns existing parameter if already registered.
+
+        A source's `display_name` names a new row, and an existing one still on
+        its auto name; a name someone set stays.
         """
         # Explicit config class always wins; otherwise fall back to the
         # conservative catalog inference so MQTT-discovered params (which
@@ -223,6 +227,11 @@ class TelemetryService:
             # Update metadata if provided and not already set
             if unit and not existing.unit:
                 existing.unit = unit
+            if display_name and existing.display_name in (
+                None,
+                self._format_display_name(param_key),
+            ):
+                existing.display_name = display_name
             if not existing.param_class and resolved_class:
                 existing.param_class = resolved_class
                 # Only recompute category when it's unset or still the
@@ -234,7 +243,7 @@ class TelemetryService:
 
         # Create new parameter
         category = self._classify_param(resolved_class)
-        display_name = self._format_display_name(param_key)
+        display_name = display_name or self._format_display_name(param_key)
 
         # Defaults for brand-new rows only; existing rows keep whatever a user
         # has set.
@@ -301,8 +310,8 @@ class TelemetryService:
     def _format_display_name(param_key: str) -> str:
         """Format a parameter key into a display name.
 
-        Also the test for "still the auto name" when a preset applies its own
-        names (routes/livelink_admin.apply_preset), so the two cannot drift.
+        Also the test for "still the auto name" when a source names a reading
+        (auto_register_parameter), so the two can't drift.
         """
         # Replace underscores with spaces and title case
         return param_key.replace("_", " ").title()
@@ -1506,12 +1515,7 @@ class TelemetryService:
                 device_id, {r.param_key: r.value for r in readings}, declared
             )
             readings = [
-                Reading(
-                    r.param_key,
-                    float(normalised[r.param_key]),
-                    r.unit,
-                    r.param_class,
-                )
+                replace(r, value=float(normalised[r.param_key]))
                 if normalised.get(r.param_key) is not None
                 else r
                 for r in readings
@@ -1522,7 +1526,10 @@ class TelemetryService:
 
         for reading in readings:
             await self.auto_register_parameter(
-                reading.param_key, unit=reading.unit, param_class=reading.param_class
+                reading.param_key,
+                unit=reading.unit,
+                param_class=reading.param_class,
+                display_name=reading.display_name,
             )
             validated[reading.param_key] = reading.value
 

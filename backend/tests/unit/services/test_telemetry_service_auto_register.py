@@ -8,6 +8,8 @@ catalog-based fallback; this file pins how `auto_register_parameter` wires it
 in for both the new-row and existing-row (backfill) paths.
 """
 
+import uuid
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -320,3 +322,40 @@ class TestAutoRegisterDashboardDefaults:
             delete(LiveLinkParameter).where(LiveLinkParameter.param_key.in_([k for k, _ in cases]))
         )
         await db_session.commit()
+
+
+def _named_key() -> str:
+    """The registry is shared by the whole suite, so every key is new."""
+    return f"ZZNAMED_{uuid.uuid4().hex[:8].upper()}"
+
+
+@pytest.mark.asyncio
+class TestASourceNamesItsReading:
+    """A source's name lands on a new row and on one still on its auto name."""
+
+    async def test_a_new_row_takes_the_name(self, db_session):
+        param = await TelemetryService(db_session).auto_register_parameter(
+            _named_key(), display_name="Readable name"
+        )
+        assert param.display_name == "Readable name"
+
+    async def test_a_row_on_its_auto_name_takes_it(self, db_session):
+        svc = TelemetryService(db_session)
+        key = _named_key()
+        await svc.auto_register_parameter(key)
+        param = await svc.auto_register_parameter(key, display_name="Readable name")
+        assert param.display_name == "Readable name"
+
+    async def test_a_row_with_no_name_takes_it(self, db_session):
+        svc = TelemetryService(db_session)
+        key = _named_key()
+        (await svc.auto_register_parameter(key)).display_name = None
+        param = await svc.auto_register_parameter(key, display_name="Readable name")
+        assert param.display_name == "Readable name"
+
+    async def test_a_name_someone_set_stays(self, db_session):
+        svc = TelemetryService(db_session)
+        key = _named_key()
+        (await svc.auto_register_parameter(key)).display_name = "Mine"
+        param = await svc.auto_register_parameter(key, display_name="Readable name")
+        assert param.display_name == "Mine"

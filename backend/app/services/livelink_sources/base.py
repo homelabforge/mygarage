@@ -71,6 +71,8 @@ class Reading:
     value: float
     unit: str | None = None
     param_class: str | None = None
+    #: A readable name from the source, for a key whose auto name says nothing.
+    display_name: str | None = None
 
 
 @dataclass(frozen=True)
