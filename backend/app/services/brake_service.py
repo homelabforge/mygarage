@@ -8,10 +8,10 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
 from fastapi import HTTPException
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
+from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement, BrakeReminderMark
 from app.models.reminder import Reminder
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -43,6 +43,7 @@ from app.services.brake_wear import (
     axle_setup,
     brake_condition,
     latest_job,
+    pad_checks,
     project_brake_wear,
     reminder_due,
     surface_reading,
@@ -75,6 +76,20 @@ class _Corner:
     condition: BrakeCondition
     measurements: list[BrakeMeasurement]
     jobs: list[BrakeJob]
+    #: The measurements its estimate runs on (`pad_checks`).
+    checks: list[BrakeMeasurement]
+
+
+def _news(mark: BrakeReminderMark, low: Sequence[_Corner], worst: BrakeCondition) -> bool:
+    """Whether a closed reminder has something new to say.
+
+    A pad check entered since it was last told, found by id (the clocks stamp
+    whole seconds and a person can edit the reminder), or the axle gone from
+    due soon to replace now, which a setup change can do without a measurement.
+    """
+    if worst is BrakeCondition.REPLACE_NOW and mark.seen_condition != worst.value:
+        return True
+    return any(m.id > mark.seen_through_id for c in low for m in c.checks)
 
 
 def _newest_first(rows: Iterable[BrakeMeasurement | BrakeJob]) -> list:
@@ -198,6 +213,7 @@ class BrakeService:
                     condition=brake_condition(wear, setup, today),
                     measurements=own_measurements,
                     jobs=own_jobs,
+                    checks=pad_checks(own_measurements, own_jobs, setup),
                 )
             )
         return setups, corners
@@ -233,6 +249,7 @@ class BrakeService:
             projected_usage_remaining=wear.usage_remaining if projected else None,
             projected_wear_date=wear.wear_date if projected else None,
             reading_needed_on=wear.reading_needed_on,
+            worn_by=wear.worn_by,
             last_job=BrakeJobResponse.model_validate(last_job) if last_job is not None else None,
             measurements=[
                 BrakeMeasurementResponse.model_validate(m)
@@ -295,16 +312,27 @@ class BrakeService:
         re-enter it would otherwise close the reminder and open a new one,
         losing its snooze and notifying again.
 
-        A reminder the user closed stays closed until a LOW corner is measured
-        again (`_measured_since_closed`). The daily pass only raises
-        (`raise_only`): a pending reminder is left as the user may have edited it.
+        A reminder the user closed stays closed until there is something new
+        (`_news`). Done, dismissed or deleted, it's all one: that is read from
+        the axle's mark (`BrakeReminderMark`), never from the reminder row,
+        which the user can edit. The sync's own completion deletes the mark, so
+        an axle that went OK and then LOW again still raises. The daily pass
+        only raises (`raise_only`): a pending reminder is left as the user may
+        have edited it.
         """
+        marks = {
+            row.axle: row
+            for row in (
+                await self.db.execute(select(BrakeReminderMark).where(BrakeReminderMark.vin == vin))
+            ).scalars()
+        }
         for axle in AXLES:
             source = REMINDER_SOURCE[axle]
             setup = setups[axle]
             on_axle = [c for c in corners if AXLE_OF[c.position] == axle]
             low = [c for c in on_axle if c.condition in _LOW]
             ok = [c for c in on_axle if c.condition is BrakeCondition.OK]
+            mark = marks.get(axle)
 
             owned = (
                 (
@@ -321,13 +349,17 @@ class BrakeService:
                 .scalars()
                 .all()
             )
-            if raise_only and owned:
-                continue
             existing = owned[0] if owned else None
-            for duplicate in owned[1:]:
-                duplicate.status = "done"
+            if not raise_only:
+                for duplicate in owned[1:]:
+                    duplicate.status = "done"
 
             if low:
+                worst = (
+                    BrakeCondition.REPLACE_NOW
+                    if any(c.condition is BrakeCondition.REPLACE_NOW for c in low)
+                    else BrakeCondition.DUE_SOON
+                )
                 # Every LOW corner has a thinnest figure and its date, so each
                 # has a due date; none falls back to today (that would slide).
                 dues = [
@@ -337,7 +369,7 @@ class BrakeService:
                 due = min(dues)
                 title = _reminder_title(setup)
                 if existing is None:
-                    if not await self._measured_since_closed(vin, source, low):
+                    if mark is not None and not _news(mark, low, worst):
                         continue
                     start_km, start_hours = await start_readings(self.db, vin)
                     self.db.add(
@@ -354,47 +386,34 @@ class BrakeService:
                             start_hours=start_hours,
                         )
                     )
-                else:
+                elif not raise_only:
                     existing.title = title
                     existing.due_date = due
-            elif ok and existing is not None and may_complete:
-                existing.status = "done"
+                # Pending now, so everything on the axle has been told. The
+                # daily pass writes it too, for a reminder that has no mark yet.
+                seen_through = max(m.id for c in on_axle for m in c.checks)
+                if mark is None:
+                    self.db.add(
+                        BrakeReminderMark(
+                            vin=vin,
+                            axle=axle,
+                            seen_through_id=seen_through,
+                            seen_condition=worst.value,
+                        )
+                    )
+                else:
+                    mark.seen_through_id = seen_through
+                    mark.seen_condition = worst.value
+            elif raise_only:
+                continue
+            elif ok and may_complete:
+                if existing is not None:
+                    existing.status = "done"
+                if mark is not None:
+                    await self.db.delete(mark)
             elif existing is not None and existing.title != _reminder_title(setup):
                 # Left pending: still name the axle's brakes as they're set up now.
                 existing.title = _reminder_title(setup)
-
-    async def _measured_since_closed(self, vin: str, source: str, low: Sequence[_Corner]) -> bool:
-        """Whether a LOW corner has a measurement entered since the user last closed the reminder.
-
-        Done or dismissed by the user, that is: the sync's own completions
-        (`done` with no `completed_at`) don't count, so an axle that went OK
-        and then LOW again still raises. Without this, the daily pass would
-        bring a dismissed reminder back every morning, and so would any write
-        that adds nothing. Entered, not dated: a check logged the same day as
-        the dismissal is still news. A reminder deleted outright leaves no
-        trace, so it comes back while the axle is LOW.
-        """
-        closed = (
-            (
-                await self.db.execute(
-                    select(Reminder.updated_at).where(
-                        Reminder.vin == vin,
-                        Reminder.source == source,
-                        or_(
-                            Reminder.status == "dismissed",
-                            and_(Reminder.status == "done", Reminder.completed_at.is_not(None)),
-                        ),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        if not closed:
-            return True
-        # Both stamped by the database clock, so they compare.
-        closed_at = max(closed)
-        return any(m.created_at > closed_at for c in low for m in c.measurements)
 
     async def overview(self, vin: str, current_user: User | None) -> BrakeOverviewResponse:
         """Both axles and the four corners, with their estimates and history."""
@@ -413,7 +432,9 @@ class BrakeService:
         sync on writes alone would leave the tab saying due soon with no
         reminder. Raise only: a day passing is not a measurement, so it never
         completes one (`may_complete=False`, the delete rule), and it leaves a
-        pending one as it is, title and due date included (`raise_only`).
+        pending one as it is, title and due date included (`raise_only`). It
+        still writes the axle's mark, so a reminder raised before the marks
+        existed stays closed once the user closes it.
 
         No request and no user, so no access check: the scheduler works for
         the whole household. Archived vehicles are skipped, like the odometer

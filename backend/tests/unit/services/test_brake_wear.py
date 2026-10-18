@@ -442,8 +442,10 @@ class TestProjection:
         assert result.worn_by == dt.date(2026, 4, 29)
         assert cond(result) is BrakeCondition.DUE_SOON
 
-    def test_a_same_day_baseline_on_one_pad_projects_without_a_date(self):
-        # Two inner checks on New Year's Day, 1,000 km apart, then an outer-only look.
+    def test_a_same_day_baseline_on_one_pad_leaves_the_date_to_the_other(self):
+        # Two inner checks on New Year's Day, 1,000 km apart, then an outer-only
+        # look. The inner pad has a distance and no pace: 2,000 km or the
+        # outer pad's date, whichever comes first.
         ms = [
             m("2026-01-01", "10000", inner="10.0", outer="10.0"),
             m("2026-01-01", "11000", inner="9.0", outer="10.0"),
@@ -451,7 +453,52 @@ class TestProjection:
         ]
         result = wear(ms)
         assert result.usage_remaining == Decimal("2000.0")
-        assert result.wear_date is None
+        assert result.wear_date == dt.date(2031, 8, 28)
+
+    def test_whichever_comes_first_distance_and_date_from_different_pads(self):
+        # Parked Jan to Apr, then 1,000 km in ten days. The inner pad's pace
+        # runs over all of it, the outer's over the ten days alone: the inner
+        # has the least distance left, the outer the earliest date.
+        ms = [
+            m("2026-01-01", "10000", inner="10"),
+            m("2026-04-01", "10000", outer="10"),
+            m("2026-04-11", "11000", inner="7", outer="8"),
+        ]
+        result = wear(ms)
+        assert (result.usage_remaining, result.wear_date) == (
+            Decimal("1333.3"),
+            dt.date(2026, 5, 6),
+        )
+        assert result.worn_by == dt.date(2026, 5, 6)
+        assert brake_condition(result, DISC, dt.date(2026, 4, 11)) is BrakeCondition.DUE_SOON
+
+    def test_the_thinnest_pad_can_have_the_later_date(self):
+        # Inner 30,000 km left at its Jan-Oct pace (Jul 1); the outer, read
+        # from April on, runs faster and is gone by Jun 2.
+        ms = [
+            m("2026-01-01", "10000", inner="10.0"),
+            m("2026-04-01", "10500", inner="9.5", outer="10.0"),
+            m("2026-10-01", "40000", inner="6.5", outer="7.0"),
+        ]
+        result = wear(ms)
+        assert (result.usage_remaining, result.wear_date) == (
+            Decimal("30000.0"),
+            dt.date(2027, 6, 2),
+        )
+        assert brake_condition(result, DISC, dt.date(2027, 3, 10)) is BrakeCondition.DUE_SOON
+
+    def test_the_use_since_comes_from_the_newest_check_with_a_reading(self):
+        # The inner pad had 25,000 km left in April. August's outer look at
+        # 45,000 says that's gone; October's has no odometer, so a date alone.
+        ms = [
+            m("2026-01-01", "10000", inner="10", outer="10"),
+            m("2026-04-01", "20000", inner="8.0", outer="9.0"),
+            m("2026-08-01", "45000", outer="8.5"),
+            m("2026-10-01", None, outer="8.4"),
+        ]
+        result = wear(ms)
+        assert result.status is BrakeWearStatus.PROJECTED
+        assert (result.usage_remaining, result.wear_date) == (None, dt.date(2026, 8, 1))
 
     def test_a_carried_pad_on_the_hours_axis(self):
         ms = [

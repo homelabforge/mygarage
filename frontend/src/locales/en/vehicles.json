@@ -1632,7 +1632,8 @@
       "needsEarlierOdometer": "Needs an earlier measurement with an odometer reading",
       "needsEarlierHours": "Needs an earlier measurement with an hour meter reading",
       "needsOdometerOn": "Add an odometer reading to the {{date}} measurement",
-      "needsHoursOn": "Add an hour meter reading to the {{date}} measurement"
+      "needsHoursOn": "Add an hour meter reading to the {{date}} measurement",
+      "otherPadBy": "Other pad reaches the minimum around {{date}}"
     },
     "logTitle": "Log brake measurements",
     "logHint": "Leave a corner blank to skip it.",

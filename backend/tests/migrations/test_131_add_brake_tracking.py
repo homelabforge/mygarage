@@ -1,4 +1,4 @@
-"""Tests for migration 131 (brake_axles, brake_jobs, brake_measurements)."""
+"""Tests for migration 131 (brake_axles, brake_jobs, brake_measurements, brake_reminder_marks)."""
 
 import importlib.util
 from pathlib import Path
@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 import app.migrations as _m
 
 _VIN = "1FT0000000000000X"
-_TABLES = ("brake_axles", "brake_jobs", "brake_measurements")
+_TABLES = ("brake_axles", "brake_jobs", "brake_measurements", "brake_reminder_marks")
 
 
 def _load(name):
@@ -88,6 +88,16 @@ def test_131_creates_tables(engine_for_migration):
         "created_at",
     }
 
+    assert {c["name"] for c in insp.get_columns("brake_reminder_marks")} >= {
+        "id",
+        "vin",
+        "axle",
+        "seen_through_id",
+        "seen_condition",
+        "created_at",
+        "updated_at",
+    }
+
     index_cols = {tuple(ix["column_names"]) for ix in insp.get_indexes("brake_measurements")}
     assert ("vin", "position") in index_cols
     assert ("brake_job_id",) in index_cols
@@ -115,6 +125,22 @@ def test_131_one_axle_row_per_vehicle_and_axle(engine_for_migration):
             conn.execute(insert, {"vin": _VIN})
 
 
+def test_131_one_reminder_mark_per_vehicle_and_axle(engine_for_migration):
+    _dialect, engine, _url = engine_for_migration
+    _make_deps(engine)
+    _upgrade(engine)
+
+    insert = text(
+        "INSERT INTO brake_reminder_marks (vin, axle, seen_through_id, seen_condition) "
+        "VALUES (:vin, 'front', 1, 'due_soon')"
+    )
+    with engine.begin() as conn:
+        conn.execute(insert, {"vin": _VIN})
+    with pytest.raises(IntegrityError):
+        with engine.begin() as conn:
+            conn.execute(insert, {"vin": _VIN})
+
+
 @pytest.mark.parametrize(
     "sql",
     [
@@ -128,8 +154,20 @@ def test_131_one_axle_row_per_vehicle_and_axle(engine_for_migration):
         "VALUES (:vin, 'FL', 'disc', '2026-01-01', 'polished')",
         "INSERT INTO brake_measurements (vin, position, recorded_at) "
         "VALUES (:vin, 'XX', '2026-01-01')",
+        "INSERT INTO brake_reminder_marks (vin, axle, seen_through_id, seen_condition) "
+        "VALUES (:vin, 'mid', 1, 'due_soon')",
+        "INSERT INTO brake_reminder_marks (vin, axle, seen_through_id, seen_condition) "
+        "VALUES (:vin, 'front', 1, 'ok')",
     ],
-    ids=["axle", "axle-type", "job-position", "job-surface", "measurement-position"],
+    ids=[
+        "axle",
+        "axle-type",
+        "job-position",
+        "job-surface",
+        "measurement-position",
+        "mark-axle",
+        "mark-condition",
+    ],
 )
 def test_131_checks_refuse_values_outside_the_vocabulary(engine_for_migration, sql):
     _dialect, engine, _url = engine_for_migration
@@ -222,11 +260,11 @@ def _shape(engine, table: str) -> tuple:
 
 def test_131_model_create_all_matches_migration_shape(engine_for_migration):
     """The ORM tables match the migration DDL: columns, foreign keys and CHECKs."""
-    from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
+    from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement, BrakeReminderMark
 
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    models = (BrakeAxle, BrakeJob, BrakeMeasurement)
+    models = (BrakeAxle, BrakeJob, BrakeMeasurement, BrakeReminderMark)
     BrakeAxle.metadata.create_all(engine, tables=[m.__table__ for m in models])
 
     by_orm = {table: _shape(engine, table) for table in _TABLES}

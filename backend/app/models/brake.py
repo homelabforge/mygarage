@@ -1,4 +1,4 @@
-"""Brake tracking models (#202): axle setup, measurements and brake jobs.
+"""Brake tracking models (#202): axle setup, measurements, brake jobs and reminder marks.
 
 Everything here belongs to a corner of the vehicle (FL/FR/RL/RR), never to a
 tire. A tire rotation moves tires between corners; it can't move brake data.
@@ -138,4 +138,41 @@ class BrakeMeasurement(Base):
         CheckConstraint(_POSITION_CHECK, name="check_brake_measurements_position"),
         Index("idx_brake_measurements_vin_position", "vin", "position"),
         Index("idx_brake_measurements_brake_job", "brake_job_id"),
+        # Ids never reused, not even the newest after a delete: a reminder
+        # mark tells a new measurement from an old one by its id.
+        {"sqlite_autoincrement": True},
+    )
+
+
+class BrakeReminderMark(Base):
+    """What an axle's "brake pads low" reminder has already told the user.
+
+    Written by the reminder sync alone, never by the reminder screens, so the
+    user closing, editing or deleting the reminder leaves it as it was. While
+    it stands, a closed reminder comes back only for something new: a pad
+    check entered after `seen_through_id`, or the axle going from due soon to
+    replace now. The sync deletes it when it completes its own reminder.
+    """
+
+    __tablename__ = "brake_reminder_marks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    vin: Mapped[str] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
+    )
+    axle: Mapped[str] = mapped_column(String(5), nullable=False)
+    #: The newest brake measurement id the reminder covered.
+    seen_through_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: The worst the axle was while it did: due_soon or replace_now.
+    seen_condition: Mapped[str] = mapped_column(String(11), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("vin", "axle", name="uq_brake_reminder_marks_vin_axle"),
+        CheckConstraint("axle IN ('front', 'rear')", name="check_brake_reminder_marks_axle"),
+        CheckConstraint(
+            "seen_condition IN ('due_soon', 'replace_now')",
+            name="check_brake_reminder_marks_seen_condition",
+        ),
     )

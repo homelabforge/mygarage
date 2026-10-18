@@ -56,6 +56,44 @@ export function useBrakeText(): BrakeText {
   const usageText = (overview: BrakeOverview, value: number | string): string =>
     overview.usage_axis === 'hours' ? formatHours(value) : u.distance.format(num(value))
 
+  const wearStatusText = (corner: BrakeCorner, overview: BrakeOverview): string => {
+    const hours = overview.usage_axis === 'hours'
+    switch (corner.wear_status) {
+      case 'projected': {
+        const date = corner.projected_wear_date ? formatDateForDisplay(corner.projected_wear_date) : null
+        /* No distance when the newest measurement has no reading: the date alone. */
+        if (corner.projected_usage_remaining == null) return date ?? '—'
+        const left = `~${usageText(overview, corner.projected_usage_remaining)}`
+        return date ? `${left} · ${date}` : left
+      }
+      case 'at_or_below_minimum':
+        return t('brakes.wear.replaceNow')
+      case 'replaced_not_measured':
+        return corner.brake_type === 'drum' ? t('brakes.wear.newShoes') : t('brakes.wear.newPads')
+      case 'insufficient_measurements':
+        return t('brakes.wear.needsSecond')
+      case 'no_usage_figures': {
+        /* The measurement that needs the reading: the latest, or an older one
+           that last read the thinner pad. None: an earlier one with a reading is missing. */
+        const on = corner.reading_needed_on
+        if (on == null) return hours ? t('brakes.wear.needsEarlierHours') : t('brakes.wear.needsEarlierOdometer')
+        /* The latest only when it has none: a second check that day may have one. */
+        const latestReading = hours ? corner.measured_hours : corner.measured_odometer_km
+        if (on === corner.measured_on && latestReading == null) {
+          return hours ? t('brakes.wear.needsHours') : t('brakes.wear.needsOdometer')
+        }
+        const date = formatDateForDisplay(on)
+        return hours ? t('brakes.wear.needsHoursOn', { date }) : t('brakes.wear.needsOdometerOn', { date })
+      }
+      case 'no_usage_between':
+        return hours ? t('brakes.wear.needsLaterHours') : t('brakes.wear.needsLaterOdometer')
+      case 'not_decreasing':
+        return t('brakes.wear.notDecreasing')
+      default:
+        return t('brakes.wear.notMeasured')
+    }
+  }
+
   return {
     labelFor: (position) => positionLabels[position],
     typeLabel: (type) => (type === 'drum' ? t('brakes.drum') : t('brakes.disc')),
@@ -74,37 +112,14 @@ export function useBrakeText(): BrakeText {
       }
     },
     wearSummary: (corner, overview) => {
-      const hours = overview.usage_axis === 'hours'
-      switch (corner.wear_status) {
-        case 'projected': {
-          const date = corner.projected_wear_date ? formatDateForDisplay(corner.projected_wear_date) : null
-          /* No distance when the newest measurement has no reading: the date alone. */
-          if (corner.projected_usage_remaining == null) return date ?? '—'
-          const left = `~${usageText(overview, corner.projected_usage_remaining)}`
-          return date ? `${left} · ${date}` : left
-        }
-        case 'at_or_below_minimum':
-          return t('brakes.wear.replaceNow')
-        case 'replaced_not_measured':
-          return corner.brake_type === 'drum' ? t('brakes.wear.newShoes') : t('brakes.wear.newPads')
-        case 'insufficient_measurements':
-          return t('brakes.wear.needsSecond')
-        case 'no_usage_figures': {
-          /* The measurement that needs the reading: the latest, or an older one
-             that last read the thinner pad. None: an earlier one with a reading is missing. */
-          const on = corner.reading_needed_on
-          if (on == null) return hours ? t('brakes.wear.needsEarlierHours') : t('brakes.wear.needsEarlierOdometer')
-          if (on === corner.measured_on) return hours ? t('brakes.wear.needsHours') : t('brakes.wear.needsOdometer')
-          const date = formatDateForDisplay(on)
-          return hours ? t('brakes.wear.needsHoursOn', { date }) : t('brakes.wear.needsOdometerOn', { date })
-        }
-        case 'no_usage_between':
-          return hours ? t('brakes.wear.needsLaterHours') : t('brakes.wear.needsLaterOdometer')
-        case 'not_decreasing':
-          return t('brakes.wear.notDecreasing')
-        default:
-          return t('brakes.wear.notMeasured')
+      const summary = wearStatusText(corner, overview)
+      /* The thinnest pad has no estimate of its own, but the other pad's date
+         is what turned the chip: say when. */
+      if (corner.wear_status !== 'projected' && corner.worn_by) {
+        const date = formatDateForDisplay(corner.worn_by)
+        return `${summary} · ${t('brakes.wear.otherPadBy', { date })}`
       }
+      return summary
     },
     measuredLine: (corner, overview) => {
       if (!corner.measured_on) return '—'

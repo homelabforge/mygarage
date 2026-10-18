@@ -299,6 +299,10 @@ class BrakeCornerResponse(BaseModel):
     #: On `no_usage_figures`, the date of the measurement that needs the reading;
     #: null when an earlier measurement with one is what's missing.
     reading_needed_on: date_type | None = None
+    #: The earliest day a pad with an estimate reaches the minimum: what the
+    #: chip runs on. The projected date on a projection; also set when the
+    #: thinnest pad has no estimate but the other pad does.
+    worn_by: date_type | None = None
     last_job: BrakeJobResponse | None = None
     #: Newest first.
     measurements: list[BrakeMeasurementResponse] = Field(default_factory=list)

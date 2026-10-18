@@ -8848,6 +8848,8 @@ export interface components {
              * @enum {string}
              */
             wear_status: "projected" | "at_or_below_minimum" | "no_measurements" | "replaced_not_measured" | "insufficient_measurements" | "no_usage_figures" | "no_usage_between" | "not_decreasing";
+            /** Worn By */
+            worn_by?: string | null;
         };
         /**
          * BrakeJobCorner

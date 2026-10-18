@@ -1,4 +1,4 @@
-"""Add brake tracking: axle setup, brake measurements and brake jobs (#202).
+"""Add brake tracking: axle setup, brake measurements, brake jobs and reminder marks (#202).
 
 Normally created earlier by Base.metadata.create_all, so the has_table guards
 skip them. Non-FATAL for the same reason: a failure here leaves no table
@@ -125,6 +125,26 @@ def upgrade(engine=None):
                 "ON brake_measurements (brake_job_id)"
             )
         )
+
+        if not inspector.has_table("brake_reminder_marks"):
+            conn.execute(
+                text(f"""
+                CREATE TABLE brake_reminder_marks (
+                    id {pk},
+                    vin {vin},
+                    axle VARCHAR(5) NOT NULL
+                        CONSTRAINT check_brake_reminder_marks_axle
+                        CHECK (axle IN ('front', 'rear')),
+                    seen_through_id INTEGER NOT NULL,
+                    seen_condition VARCHAR(11) NOT NULL
+                        CONSTRAINT check_brake_reminder_marks_seen_condition
+                        CHECK (seen_condition IN ('due_soon', 'replace_now')),
+                    created_at {ts} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at {ts},
+                    CONSTRAINT uq_brake_reminder_marks_vin_axle UNIQUE (vin, axle)
+                )
+            """)
+            )
 
 
 def downgrade():  # pragma: no cover

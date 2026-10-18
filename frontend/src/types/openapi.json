@@ -2527,6 +2527,18 @@
             ],
             "title": "Wear Status",
             "type": "string"
+          },
+          "worn_by": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worn By"
           }
         },
         "required": [

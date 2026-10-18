@@ -17,11 +17,14 @@ The rules, in short:
   so the newest two alone would mostly measure noise. Both ends need the
   figure the estimate runs on (odometer, or hours on an hours-only vehicle).
 - What a pad has left is worked out at its last check, less the distance (or
-  hours) run since, and dated from the newest check. When the newest check has
-  no reading the use since is unknown, so the pad gets a date and no distance.
-- The corner reads the pad that runs out first, as long as its thinnest pad
-  has an estimate. When the thinnest has none, the corner says why, and the
-  other pad's date still counts toward the chip: the corner can't outlast it.
+  hours) run up to the newest check with a reading, and dated from that check.
+  When the newest check itself has no reading the use since is unknown, so
+  the pad gets a date and no distance.
+- The corner reads whichever comes first: the least distance left and the
+  earliest date, each over its pads, as long as its thinnest pad has an
+  estimate. Each pad runs at the pace of its own checks, so the two can come
+  from different pads. When the thinnest has none, the corner says why, and
+  the other pad's date still counts toward the chip: the corner can't outlast it.
 """
 
 from __future__ import annotations
@@ -151,8 +154,8 @@ class BrakeWear:
     `usage_remaining` is what is left as of the newest measurement, never below
     zero: distance in km, or hours on the hours axis. Null on a projection
     means the newest measurement has no reading, so the estimate is a date
-    alone. Null `wear_date` on a projection means the pad's checks share a date
-    or the date lands past the calendar; read `status` for whether it projected.
+    alone. Null `wear_date` on a projection means no pad has a date: its checks
+    share a day, or it lands past the calendar. Read `status` for whether it projected.
     """
 
     status: BrakeWearStatus
@@ -176,10 +179,10 @@ class BrakeWear:
     #: On `no_usage_figures`, the measurement that needs the reading: the
     #: thinnest pad's last check. None when it has one and an earlier is missing.
     reading_needed_on: dt.date | None = None
-    #: The day the pad that runs out first, of those with an estimate, reaches
-    #: the minimum: what the chip and the reminder run on. `wear_date` on a
-    #: projection; still set when the thinnest pad has no estimate of its own,
-    #: since the corner can't outlast its other pad.
+    #: The earliest day a pad with an estimate reaches the minimum: what the
+    #: chip and the reminder run on. `wear_date` on a projection; still set
+    #: when the thinnest pad has no estimate of its own, since the corner
+    #: can't outlast its other pad.
     worn_by: dt.date | None = None
 
 
@@ -217,6 +220,25 @@ def after_job(m: BrakeMeasurement, job: BrakeJob | None) -> bool:
         return True
     return (m.brake_job_id is not None and m.brake_job_id == job.id) or (
         m.recorded_at > job.performed_on
+    )
+
+
+def pad_checks(
+    measurements: Iterable[BrakeMeasurement], jobs: Iterable[BrakeJob], setup: AxleSetup
+) -> list[BrakeMeasurement]:
+    """The corner's measurements the estimate runs on, oldest first.
+
+    After its latest pad (or shoe) job, with a pad figure of the axle's type.
+    A rotor-only check, or one from before that job, says nothing about these pads.
+    """
+    job = latest_job(jobs, lambda j: j.friction_replaced)
+    return sorted(
+        (
+            m
+            for m in measurements
+            if after_job(m, job) and pad_thickness(m, setup.brake_type) is not None
+        ),
+        key=_order,
     )
 
 
@@ -260,9 +282,13 @@ class _Estimate:
 
 
 def _project_pad(
-    checks: _Checks, newest: BrakeMeasurement, minimum: Decimal, axis: UsageAxis
+    checks: _Checks, measured: Sequence[BrakeMeasurement], minimum: Decimal, axis: UsageAxis
 ) -> _Estimate:
-    """How long one pad has left, from its own checks. The pad is above the minimum."""
+    """How long one pad has left, from its own checks. The pad is above the minimum.
+
+    `measured` is every pad check on the corner, oldest first: the use since
+    this pad was read comes from whichever has the newest reading.
+    """
     if len(checks) < 2:
         # Measured once: no wear seen on it yet.
         return _Estimate(BrakeWearStatus.NOT_DECREASING)
@@ -296,17 +322,20 @@ def _project_pad(
             return None
         return start + timedelta(days=days_left)
 
-    newest_usage = _usage(newest, axis)
-    if newest_usage is None:
-        # The use since this pad was read is unknown, so a date alone, from its last check.
-        return _Estimate(BrakeWearStatus.PROJECTED, None, date_after(last.recorded_at, left_then))
+    # The newest check with a reading: this pad's own last one at worst.
+    anchor = next(m for m in reversed(measured) if _usage(m, axis) is not None)
+    anchor_usage = _usage(anchor, axis)
+    assert anchor_usage is not None  # picked for it
     # Never more than was left when measured: an odometer entered lower later on
     # would otherwise hand distance back.
-    used_since = max(newest_usage - last_usage, Decimal("0"))
+    used_since = max(anchor_usage - last_usage, Decimal("0"))
     remaining = max(left_then - used_since, Decimal("0"))
-    return _Estimate(
-        BrakeWearStatus.PROJECTED, remaining, date_after(newest.recorded_at, remaining)
-    )
+    wear_date = date_after(anchor.recorded_at, remaining)
+    if anchor is not measured[-1]:
+        # The newest check has no reading, so the use since the anchor is
+        # unknown: a date alone, as of the anchor.
+        return _Estimate(BrakeWearStatus.PROJECTED, None, wear_date)
+    return _Estimate(BrakeWearStatus.PROJECTED, remaining, wear_date)
 
 
 def project_brake_wear(
@@ -323,19 +352,11 @@ def project_brake_wear(
         setup: The corner's axle setup: brake type and minimum.
         axis: Which figure the rate runs on.
     """
-    job = latest_job(jobs, lambda j: j.friction_replaced)
-    measured = sorted(
-        (
-            m
-            for m in measurements
-            if after_job(m, job) and pad_thickness(m, setup.brake_type) is not None
-        ),
-        key=_order,
-    )
+    measured = pad_checks(measurements, jobs, setup)
     if not measured:
         status = (
             BrakeWearStatus.REPLACED_NOT_MEASURED
-            if job is not None
+            if latest_job(jobs, lambda j: j.friction_replaced) is not None
             else BrakeWearStatus.NO_MEASUREMENTS
         )
         return BrakeWear(status=status)
@@ -388,27 +409,27 @@ def project_brake_wear(
     if len(measured) < 2:
         return result(BrakeWearStatus.INSUFFICIENT_MEASUREMENTS)
 
-    estimates = {name: _project_pad(checks, newest, minimum, axis) for name, checks in pads.items()}
-    # The pad that runs out first. Within one corner the projected pads either
-    # all have a distance or none does (the newest check's reading decides), so
-    # a missing one ranks on the date alone.
-    soonest = min(
-        (e for e in estimates.values() if e.status is BrakeWearStatus.PROJECTED),
-        key=lambda e: (e.usage_remaining or Decimal("0"), e.wear_date or dt.date.max),
-        default=None,
-    )
-    worn_by = soonest.wear_date if soonest is not None else None
+    estimates = {
+        name: _project_pad(checks, measured, minimum, axis) for name, checks in pads.items()
+    }
+    projected = [e for e in estimates.values() if e.status is BrakeWearStatus.PROJECTED]
+    # Whichever comes first, distance and date each on their own: every pad
+    # runs at the pace of its own checks, so the one with the least distance
+    # left can still have the later date.
+    worn_by = min((e.wear_date for e in projected if e.wear_date is not None), default=None)
     own = estimates[thinnest_pad]
     if own.status is not BrakeWearStatus.PROJECTED:
         # The thinnest pad has no estimate, and a thicker pad's would overstate
         # the corner: say why instead, and let the other pad's date count toward the chip.
         return result(own.status, reading_needed_on=own.reading_needed_on, worn_by=worn_by)
-    assert soonest is not None  # the thinnest pad is one of them
-    remaining = soonest.usage_remaining
+    # All or none have one: the newest check's reading decides.
+    remaining = min(
+        (e.usage_remaining for e in projected if e.usage_remaining is not None), default=None
+    )
     return result(
         BrakeWearStatus.PROJECTED,
         usage_remaining=remaining.quantize(Decimal("0.1")) if remaining is not None else None,
-        wear_date=soonest.wear_date,
+        wear_date=worn_by,
         worn_by=worn_by,
     )
 
