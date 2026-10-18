@@ -1024,11 +1024,11 @@ async def check_due_reminders(db: AsyncSession) -> None:
             # back alone. Without it PostgreSQL keeps the transaction aborted
             # and every vehicle after it fails too.
             async with db.begin_nested():
-                ctx = await load_due_context(db, vin, reminders, today)
+                due_ctx = await load_due_context(db, vin, reminders, today)
                 for reminder, reminder_id in zip(reminders, reminder_ids, strict=True):
                     # No savepoint here: judging a reminder runs no SQL.
                     try:
-                        event = _due_event(reminder, reminder_due_status(reminder, ctx), now)
+                        event = _due_event(reminder, reminder_due_status(reminder, due_ctx), now)
                     except Exception:
                         logger.exception("Reminder %s check failed", reminder_id)
                         continue
@@ -1052,11 +1052,11 @@ async def check_due_reminders(db: AsyncSession) -> None:
             # (render_context_for_vehicle), which falls back to the instance
             # default for an ownerless vehicle. Resolved here, for the ones
             # going out, so a sweep that sends nothing costs no extra queries.
-            ctx = await render_context_for_vehicle(db, item.vin)
+            render_ctx = await render_context_for_vehicle(db, item.vin)
             results = await dispatcher.dispatch(
                 event_type=item.event,
                 title=_DUE_TITLES[item.event].format(title=item.title),
-                message=_build_reminder_message(item, ctx),
+                message=_build_reminder_message(item, render_ctx),
             )
         except Exception as e:
             logger.error(
@@ -1072,12 +1072,19 @@ async def check_due_reminders(db: AsyncSession) -> None:
         # Stamped only when something got it. `{}` is the switch off or no
         # provider set up, and all False is every provider failing: left
         # unstamped, the next sweep tries again. One provider is enough.
-        if not any(results.values()):
+        if not results:
             logger.info(
-                "Reminder notification %s (%s) not delivered: %s",
+                "Reminder notification %s (%s) not delivered: switched off or no provider configured",
                 item.id,
                 item.event,
-                sorted(results) or "switched off or no provider",
+            )
+            continue
+        if not any(results.values()):
+            logger.info(
+                "Reminder notification %s (%s) not delivered: every provider failed: %s",
+                item.id,
+                item.event,
+                sorted(results),
             )
             continue
         sent.append(item)
@@ -1102,20 +1109,31 @@ async def check_due_reminders(db: AsyncSession) -> None:
     # compared as it was loaded, naive.
     stamp = now.replace(tzinfo=None)
     for item in sent:
-        result = await db.execute(
-            update(Reminder)
-            .where(
-                Reminder.id == item.id,
-                Reminder.status == "pending",
-                Reminder.due_date.is_not_distinct_from(item.due_date),
-                Reminder.due_mileage_km.is_not_distinct_from(item.due_mileage_km),
-                Reminder.due_hours.is_not_distinct_from(item.due_hours),
-                Reminder.last_notified_at.is_not_distinct_from(item.last_notified_at),
-            )
-            .values(last_notified_at=stamp)
-        )
+        try:
+            # Its own savepoint, so one failed stamp leaves PostgreSQL's
+            # transaction usable for the rest and for the commit.
+            async with db.begin_nested():
+                result = await db.execute(
+                    update(Reminder)
+                    .where(
+                        Reminder.id == item.id,
+                        Reminder.status == "pending",
+                        Reminder.due_date.is_not_distinct_from(item.due_date),
+                        Reminder.due_mileage_km.is_not_distinct_from(item.due_mileage_km),
+                        Reminder.due_hours.is_not_distinct_from(item.due_hours),
+                        Reminder.last_notified_at.is_not_distinct_from(item.last_notified_at),
+                    )
+                    .values(last_notified_at=stamp)
+                )
+        except SQLAlchemyError as e:
+            logger.error("Failed to stamp reminder %s: %s", item.id, sanitize_for_log(e))
+            continue
         if not cast(CursorResult[Any], result).rowcount:
-            logger.info("Reminder %s changed while its notification went out; not stamped", item.id)
+            # An edit or a close during the send is expected now and then. The
+            # same id here every day means the snapshot never matches.
+            logger.warning(
+                "Reminder %s not stamped: row no longer matches the sent values", item.id
+            )
     await db.commit()
 
 

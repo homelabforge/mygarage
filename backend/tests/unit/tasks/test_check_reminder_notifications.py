@@ -18,7 +18,8 @@ from decimal import Decimal
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete, select, update
+from sqlalchemy import Update, delete, select, text, update
+from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.odometer import OdometerRecord
@@ -596,6 +597,83 @@ class TestTheStamp:
             "Reminder due soon: Sweep moved mid send"
         )
         assert await _stamp(test_sessionmaker, rid) is not None
+
+    async def test_a_reminder_closed_while_sending_stays_unstamped(
+        self,
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        provider: _Provider,
+    ) -> None:
+        """R1-H3, the status half. Another session marks it done while the
+        notification goes out: a closed reminder gets no stamp. Passes at
+        5a8416e8, which already had the clause; dropping
+        `status == 'pending'` from the stamp turns it red."""
+        vin = await _vehicle(db_session)
+        rid = await _reminder(
+            db_session,
+            vin,
+            "Sweep closed mid send",
+            reminder_type="date",
+            due_date=household_today() - timedelta(days=1),
+        )
+
+        async def _close_elsewhere(title: str) -> None:
+            if not title.endswith(": Sweep closed mid send"):
+                return
+            async with test_sessionmaker() as other:
+                reminder = await other.get(Reminder, rid)
+                assert reminder is not None
+                reminder.status = "done"
+                await other.commit()
+
+        provider.on_send = _close_elsewhere
+
+        await check_due_reminders(db_session)
+
+        assert provider.titles("Sweep closed mid send") == [
+            "Reminder overdue: Sweep closed mid send"
+        ]
+        assert await _stamp(test_sessionmaker, rid) is None
+
+    async def test_a_failed_stamp_costs_only_its_own_reminder(
+        self,
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        provider: _Provider,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """The first stamp's statement fails in the database. The second still
+        gets stamped and the run still commits: PostgreSQL would otherwise keep
+        the transaction aborted for every stamp after it."""
+        vin = await _vehicle(db_session)
+        overdue = household_today() - timedelta(days=1)
+        failing = await _reminder(
+            db_session, vin, "Sweep stamp fails", reminder_type="date", due_date=overdue
+        )
+        healthy = await _reminder(
+            db_session, vin, "Sweep stamp holds", reminder_type="date", due_date=overdue
+        )
+        real_execute = db_session.execute
+
+        async def _execute(statement: object, *args: object, **kwargs: object) -> Result[object]:
+            if isinstance(statement, Update) and failing in statement.compile().params.values():
+                await real_execute(text("SELECT no_such_column FROM vehicle_reminders"))
+            return await real_execute(statement, *args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(db_session, "execute", _execute)
+
+        with caplog.at_level(logging.ERROR, logger="app.services.reminder_service"):
+            await check_due_reminders(db_session)
+
+        assert provider.titles("Sweep stamp fails") == ["Reminder overdue: Sweep stamp fails"]
+        assert provider.titles("Sweep stamp holds") == ["Reminder overdue: Sweep stamp holds"]
+        assert await _stamp(test_sessionmaker, failing) is None
+        assert await _stamp(test_sessionmaker, healthy) is not None
+        assert any(
+            r.getMessage().startswith(f"Failed to stamp reminder {failing}:")
+            for r in caplog.records
+        )
 
     async def test_due_soon_again_with_the_same_targets_gets_no_second_heads_up(
         self,
