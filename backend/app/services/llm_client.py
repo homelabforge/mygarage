@@ -73,7 +73,7 @@ async def chat_completion(
     except SecretUnreadableError as err:
         logger.error("LLM call refused: the stored %s can't be decrypted", err.key)
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=status.HTTP_502_BAD_GATEWAY,
             detail=reenter_message("LLM API key"),
         ) from err
 

@@ -8,7 +8,9 @@ connects without auth. The ntfy and MQTT test routes answer 200 with their own
 failure envelope carrying the re-enter advice (R2-1).
 
 Where a credential is required, the reader already stops on None. One test per
-reader proves no outbound call happens and nothing garbled is used.
+reader proves no outbound call happens and nothing garbled is used, with a
+positive control: the same seed with a readable secret does build the service,
+so the test can't pass just because some other needed setting is missing.
 
 "Unreadable" is seeded as a real ciphertext bound to another key name, so it is
 well-formed and fails only on the associated data.
@@ -147,6 +149,7 @@ async def test_the_llm_client_stops_on_an_unreadable_key(
     with patch("app.services.llm_client.httpx.AsyncClient", cls):
         with pytest.raises(HTTPException) as caught:
             await llm_client.chat_completion(db_session, system="s", user="u")
+        assert caught.value.status_code == 502
         assert REENTER in str(caught.value.detail)
         assert "LLM API key" in str(caught.value.detail)
         post.assert_not_called()
@@ -265,10 +268,17 @@ async def test_the_dispatcher_builds_no_service_on_an_unreadable_required_secret
     switch, secret, others = DISPATCHED[service]
     await _seed(db_session, keep_rows, {switch: "true", secret: _unreadable(secret), **others})
 
-    built = await NotificationDispatcher(db_session)._get_enabled_services()  # pyright: ignore[reportPrivateUsage]
-
+    dispatcher = NotificationDispatcher(db_session)
     prefix = switch.removesuffix("_enabled")
-    assert not [s for s in built if type(s).__module__.endswith(f".{prefix}")]
+
+    def ours(built: list[object]) -> list[object]:
+        return [s for s in built if type(s).__module__.endswith(f".{prefix}")]
+
+    assert not ours(await dispatcher._get_enabled_services())  # pyright: ignore[reportPrivateUsage]
+
+    # Positive control: readable, the same seed builds the service.
+    await _set_raw(db_session, secret, encrypt(secret, "readable-secret"))
+    assert len(ours(await dispatcher._get_enabled_services())) == 1  # pyright: ignore[reportPrivateUsage]
 
 
 POI = {
@@ -286,9 +296,16 @@ async def test_the_poi_registry_configures_no_provider_on_an_unreadable_key(
     rows |= {key: _unreadable(key) for key in POI.values()}
     await _seed(db_session, keep_rows, rows)
 
-    configs = await POIProviderRegistry(db_session)._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
+    registry = POIProviderRegistry(db_session)
 
+    configs = await registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
     assert [c["name"] for c in configs] == ["osm"]
+
+    # Positive control: readable, the same seed configures every provider.
+    for key in POI.values():
+        await _set_raw(db_session, key, encrypt(key, f"readable-{key}"))
+    configs = await registry._load_provider_configs()  # pyright: ignore[reportPrivateUsage]
+    assert [c["name"] for c in configs] == [*POI, "osm"]
 
 
 async def test_shop_discovery_leaves_tomtom_off_on_an_unreadable_key(
@@ -305,6 +322,12 @@ async def test_shop_discovery_leaves_tomtom_off_on_an_unreadable_key(
 
     assert service.tomtom_enabled is False
     assert service.tomtom_api_key == ""
+
+    # Positive control: readable, the same seed turns TomTom on.
+    await _set_raw(db_session, "tomtom_api_key", encrypt("tomtom_api_key", "readable-key"))
+    await service._load_settings()  # pyright: ignore[reportPrivateUsage]
+    assert service.tomtom_enabled is True
+    assert service.tomtom_api_key == "readable-key"
 
 
 async def test_an_unreadable_webhook_token_is_a_503_not_a_match(
