@@ -176,6 +176,50 @@ def test_131_missing_vehicles_table_skips(engine_for_migration):
     assert not any(insp.has_table(table) for table in _TABLES)
 
 
+def _foreign_keys(engine, table: str) -> set[tuple]:
+    """Each foreign key as (column, table, column, delete rule)."""
+    if engine.dialect.name == "sqlite":
+        # The inspector reads a delete rule from a table-level FOREIGN KEY
+        # clause only, and 131 writes its keys inline, so ask SQLite itself.
+        with engine.connect() as conn:
+            rows = conn.execute(text(f"PRAGMA foreign_key_list({table})")).all()
+        return {(row[3], row[2], row[4], row[6]) for row in rows}
+    return {
+        (
+            *fk["constrained_columns"],
+            fk["referred_table"],
+            *fk["referred_columns"],
+            (fk.get("options") or {}).get("ondelete"),
+        )
+        for fk in inspect(engine).get_foreign_keys(table)
+    }
+
+
+def _shape(engine, table: str) -> tuple:
+    """What the ORM and the migration must agree on for one table.
+
+    Each column's type, nullability and whether it has a server default (the
+    default's text differs by builder: `now()` against `CURRENT_TIMESTAMP`),
+    each foreign key with its delete rule, and the CHECK names. The primary key
+    column's nullability is left out: SQLite reports `INTEGER PRIMARY KEY
+    AUTOINCREMENT` as nullable and create_all's `id INTEGER NOT NULL` as not.
+    """
+    insp = inspect(engine)
+    pk = set(insp.get_pk_constraint(table)["constrained_columns"])
+    return (
+        {
+            c["name"]: (
+                str(c["type"]),
+                None if c["name"] in pk else c["nullable"],
+                c["default"] is not None,
+            )
+            for c in insp.get_columns(table)
+        },
+        _foreign_keys(engine, table),
+        {ck["name"] for ck in insp.get_check_constraints(table)},
+    )
+
+
 def test_131_model_create_all_matches_migration_shape(engine_for_migration):
     """The ORM tables match the migration DDL: columns, foreign keys and CHECKs."""
     from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
@@ -185,24 +229,12 @@ def test_131_model_create_all_matches_migration_shape(engine_for_migration):
     models = (BrakeAxle, BrakeJob, BrakeMeasurement)
     BrakeAxle.metadata.create_all(engine, tables=[m.__table__ for m in models])
 
-    by_orm = {}
-    insp = inspect(engine)
-    for table in _TABLES:
-        by_orm[table] = (
-            {c["name"] for c in insp.get_columns(table)},
-            {fk["referred_table"] for fk in insp.get_foreign_keys(table)},
-            {ck["name"] for ck in insp.get_check_constraints(table)},
-        )
+    by_orm = {table: _shape(engine, table) for table in _TABLES}
 
     with engine.begin() as conn:
         for table in reversed(_TABLES):
             conn.execute(text(f"DROP TABLE {table}"))
 
     _upgrade(engine)
-    insp = inspect(engine)
     for table in _TABLES:
-        assert (
-            {c["name"] for c in insp.get_columns(table)},
-            {fk["referred_table"] for fk in insp.get_foreign_keys(table)},
-            {ck["name"] for ck in insp.get_check_constraints(table)},
-        ) == by_orm[table], table
+        assert _shape(engine, table) == by_orm[table], table

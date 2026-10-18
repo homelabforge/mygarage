@@ -2,8 +2,9 @@
 
 Normally created earlier by Base.metadata.create_all, so the has_table guards
 skip them. Non-FATAL for the same reason: a failure here leaves no table
-missing, and no existing table changes. Column types match app/models/brake.py
-exactly, because either one may create a table first.
+missing, and no existing table changes. Column types, nullability, defaults and
+foreign keys match app/models/brake.py exactly, because either one may create a
+table first.
 """
 
 import os
@@ -54,7 +55,7 @@ def upgrade(engine=None):
                     new_thickness_mm NUMERIC(4,2) NOT NULL,
                     rotor_min_mm NUMERIC(5,2),
                     drum_max_mm NUMERIC(6,2),
-                    created_at {ts} DEFAULT CURRENT_TIMESTAMP,
+                    created_at {ts} NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at {ts},
                     CONSTRAINT uq_brake_axles_vin_axle UNIQUE (vin, axle)
                 )
@@ -79,7 +80,7 @@ def upgrade(engine=None):
                         CONSTRAINT check_brake_jobs_surface
                         CHECK (surface IS NULL OR surface IN ('replaced', 'resurfaced')),
                     notes TEXT,
-                    created_at {ts} DEFAULT CURRENT_TIMESTAMP
+                    created_at {ts} NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             )
@@ -108,7 +109,7 @@ def upgrade(engine=None):
                     drum_mm NUMERIC(6,2),
                     brake_job_id INTEGER REFERENCES brake_jobs(id) ON DELETE CASCADE,
                     notes TEXT,
-                    created_at {ts} DEFAULT CURRENT_TIMESTAMP
+                    created_at {ts} NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             )
