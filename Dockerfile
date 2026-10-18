@@ -99,6 +99,10 @@ RUN apt-get update && \
     useradd --uid 1000 --user-group --system --create-home --no-log-init mygarage && \
     mkdir -p /data /data/attachments /data/photos
 
+# Tesseract's OpenMP would otherwise start a thread per core for every OCR
+# call, and the OCR calls already run several at once in the thread pool.
+ENV OMP_THREAD_LIMIT=1
+
 # Copy Python dependencies from builder
 COPY --from=backend-builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=backend-builder /usr/local/bin /usr/local/bin
