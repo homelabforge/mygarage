@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.reminder import Reminder
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.brake import (
     DISC_MEASURES,
     DRUM_MEASURES,
@@ -51,6 +52,7 @@ from app.services.tire_service import TireService
 from app.services.usage_axis import VehicleAxes
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.household_time import household_today
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -357,6 +359,50 @@ class BrakeService:
         await get_vehicle_or_403(vin, current_user, self.db)
         axes = await TireService(self.db).request_axes(current_user, vin)
         return await self._respond(vin, axes)
+
+    async def refresh_reminders(self) -> None:
+        """Raise the axle reminders that time alone has made due. The daily job, at 08:00.
+
+        A corner turns due soon once its projected wear date is within
+        `DUE_SOON_DAYS`, and nothing gets written for that to happen, so the
+        sync on writes alone would leave the tab saying due soon with no
+        reminder. A day passing is not a measurement either, so this never
+        completes one (`may_complete=False`, the delete rule).
+
+        No request and no user, so no access check: the scheduler works for
+        the whole household. Archived vehicles are skipped, like the odometer
+        milestones. One vehicle failing is logged and the rest still run.
+        """
+        vins = (
+            (
+                await self.db.execute(
+                    select(BrakeMeasurement.vin)
+                    .join(Vehicle, Vehicle.vin == BrakeMeasurement.vin)
+                    .where(Vehicle.archived_at.is_(None))
+                    .distinct()
+                    .order_by(BrakeMeasurement.vin)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        # End the read, so each vehicle's lock opens a transaction of its own.
+        await self.db.commit()
+        for vin in vins:
+            try:
+                await lock_vehicle_for_write(self.db, vin)
+                vehicle = await self.db.get(Vehicle, vin, populate_existing=True)
+                if vehicle is None:
+                    # Deleted since the list was read; its brake rows went with it.
+                    await self.db.rollback()
+                    continue
+                axes = VehicleAxes.for_vehicle(vehicle.usage_unit, vehicle.secondary_usage_enabled)
+                setups, corners = await self._corners(vin, axes)
+                await self._sync_axle_reminders(vin, setups, corners, may_complete=False)
+                await self.db.commit()
+            except Exception as e:
+                await self.db.rollback()
+                logger.error("Brake reminder refresh failed for %s: %s", sanitize_for_log(vin), e)
 
     async def update_axle(
         self, vin: str, axle: Axle, data: BrakeAxleUpdate, current_user: User | None

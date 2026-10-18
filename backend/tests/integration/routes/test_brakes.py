@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.reminder import Reminder
 from app.models.vehicle import Vehicle
+from app.services import brake_service
+from app.services.brake_service import BrakeService
+from app.utils.datetime_utils import utc_now
 from app.utils.household_time import household_today
 from tests.integration.routes.conftest import AUTHZ_VIN
 
@@ -47,6 +50,16 @@ async def vin(db_session: AsyncSession, test_user) -> AsyncGenerator[str]:
 async def hours_vin(db_session: AsyncSession, test_user) -> AsyncGenerator[str]:
     """A vehicle that runs on the hour meter only."""
     made = await _vehicle(db_session, test_user["id"], vehicle_type="ATV", usage_unit="hours")
+    yield made
+    await db_session.rollback()
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == made))
+    await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def other_vin(db_session: AsyncSession, test_user) -> AsyncGenerator[str]:
+    """A second vehicle of this test's own."""
+    made = await _vehicle(db_session, test_user["id"])
     yield made
     await db_session.rollback()
     await db_session.execute(delete(Vehicle).where(Vehicle.vin == made))
@@ -704,6 +717,127 @@ class TestAxleReminder:
         assert [r.title for r in await _pending(db_session, vin, "low_brakes_rear")] == [
             "Rear brake shoes low"
         ]
+
+
+async def _wearing_well(client: AsyncClient, headers, vin: str) -> dt.date:
+    """FL at 10 then 8 mm, 100 days apart: OK today, worn out in 250 days."""
+    today = household_today()
+    start = today - dt.timedelta(days=100)
+    await _log(client, headers, vin, start.isoformat(), "10000", FL={"inner_pad_mm": "10"})
+    body = (
+        await _log(client, headers, vin, today.isoformat(), "20000", FL={"inner_pad_mm": "8"})
+    ).json()
+    fl = _corner(body, "FL")
+    assert fl["condition"] == "ok"
+    return dt.date.fromisoformat(fl["projected_wear_date"])
+
+
+def _on(monkeypatch: pytest.MonkeyPatch, day: dt.date) -> None:
+    """The brake rules' today, moved without writing anything."""
+    monkeypatch.setattr(brake_service, "household_today", lambda: day)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestDailyRefresh:
+    """The 08:00 pass: a corner can turn due soon with nothing written."""
+
+    async def test_time_alone_raises_the_reminder(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession, monkeypatch
+    ):
+        wear_date = await _wearing_well(client, auth_headers, vin)
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+        _on(monkeypatch, wear_date - dt.timedelta(days=91))
+        await BrakeService(db_session).refresh_reminders()
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+        _on(monkeypatch, wear_date - dt.timedelta(days=90))
+        await BrakeService(db_session).refresh_reminders()
+        pending = await _pending(db_session, vin, "low_brakes_front")
+        assert [r.title for r in pending] == ["Front brake pads low"]
+        # Dated from the measurement, as a write dates it: the 90-day recheck
+        # after the last check comes before the wear date.
+        assert pending[0].due_date == household_today() + dt.timedelta(days=90)
+
+    async def test_a_second_run_keeps_the_reminder_and_its_state(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession, monkeypatch
+    ):
+        wear_date = await _wearing_well(client, auth_headers, vin)
+        _on(monkeypatch, wear_date - dt.timedelta(days=30))
+        await BrakeService(db_session).refresh_reminders()
+        [raised] = await _pending(db_session, vin, "low_brakes_front")
+        notified = dt.datetime(2026, 9, 1, 8, 0)
+        raised.snoozed_until = wear_date
+        raised.last_notified_at = notified
+        await db_session.commit()
+
+        _on(monkeypatch, wear_date - dt.timedelta(days=29))
+        await BrakeService(db_session).refresh_reminders()
+        [kept] = await _pending(db_session, vin, "low_brakes_front")
+        assert (kept.id, kept.snoozed_until, kept.last_notified_at) == (
+            raised.id,
+            wear_date,
+            notified,
+        )
+
+    async def test_it_never_completes_a_reminder(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        # FR is measured and fine. FL's low figure is deleted, which leaves the
+        # reminder pending; a day passing is no news that the pads are fine.
+        await _log(client, auth_headers, vin, "2026-03-01", None, FR={"inner_pad_mm": "8"})
+        body = (
+            await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "4"})
+        ).json()
+        mid = _corner(body, "FL")["measurements"][0]["id"]
+        await client.delete(f"/api/vehicles/{vin}/brakes/measurements/{mid}", headers=auth_headers)
+        raised = await _pending(db_session, vin, "low_brakes_front")
+        assert len(raised) == 1
+
+        await BrakeService(db_session).refresh_reminders()
+        assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == [
+            r.id for r in raised
+        ]
+
+    async def test_an_archived_vehicle_is_skipped(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession, monkeypatch
+    ):
+        wear_date = await _wearing_well(client, auth_headers, vin)
+        vehicle = await db_session.get(Vehicle, vin)
+        assert vehicle is not None
+        vehicle.archived_at = utc_now()
+        await db_session.commit()
+
+        _on(monkeypatch, wear_date - dt.timedelta(days=30))
+        await BrakeService(db_session).refresh_reminders()
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_one_vehicle_failing_leaves_the_rest_to_run(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        vin,
+        other_vin,
+        db_session: AsyncSession,
+        monkeypatch,
+    ):
+        wear_date = await _wearing_well(client, auth_headers, vin)
+        await _wearing_well(client, auth_headers, other_vin)
+        # The pass runs in VIN order; the first one fails.
+        broken, fine = sorted((vin, other_vin))
+        corners = BrakeService._corners
+
+        async def failing(self, at_vin, axes):
+            if at_vin == broken:
+                raise RuntimeError("boom")
+            return await corners(self, at_vin, axes)
+
+        monkeypatch.setattr(BrakeService, "_corners", failing)
+        _on(monkeypatch, wear_date - dt.timedelta(days=30))
+        await BrakeService(db_session).refresh_reminders()
+        assert await _pending(db_session, broken, "low_brakes_front") == []
+        assert len(await _pending(db_session, fine, "low_brakes_front")) == 1
 
 
 @pytest.mark.integration

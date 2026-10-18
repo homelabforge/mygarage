@@ -553,13 +553,24 @@ async def check_recalls_all_vehicles() -> None:
 
 
 async def check_reminder_notifications() -> None:
-    """Check pending vehicle reminders and send notifications for due items."""
+    """Check pending vehicle reminders and send notifications for due items.
+
+    Raises the brake reminders time alone has made due first, so one raised
+    today goes out today.
+    """
     logger.info("Running reminder notification check...")
     try:
         async with AsyncSessionLocal() as db:
             await load_household_zone(db)
+            from app.services.brake_service import BrakeService
             from app.services.reminder_service import check_due_reminders
 
+            try:
+                await BrakeService(db).refresh_reminders()
+            except Exception as e:
+                # The notifications still go out without it.
+                await db.rollback()
+                logger.error("Brake reminder refresh failed: %s", str(e))
             await check_due_reminders(db)
         logger.info("Reminder notification check completed")
     except Exception as e:
@@ -656,7 +667,7 @@ def start_scheduler() -> None:
     Schedules:
         - Daily reset at midnight UTC for daily-limited providers
         - Monthly reset on 1st at midnight UTC for monthly-limited providers
-        - Maintenance notification check at 8 AM UTC
+        - Maintenance notification check at 8 AM UTC (brake reminders raised first)
         - Document expiration check at 9 AM UTC
         - Odometer milestone check at 10 AM UTC
         - DEF level check at 11 AM UTC
