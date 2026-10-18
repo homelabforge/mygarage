@@ -1057,6 +1057,25 @@ class TestAxleReminder:
         await client.put(url, headers=auth_headers, json={"inner_pad_mm": "4"})
         assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
 
+    async def test_going_ok_after_the_close_and_low_again_raises_it(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        body = (
+            await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "4"})
+        ).json()
+        [raised] = await _pending(db_session, vin, "low_brakes_front")
+        await client.post(
+            f"/api/vehicles/{vin}/reminders/{raised.id}/dismiss", headers=auth_headers
+        )
+        mid = _corner(body, "FL")["measurements"][0]["id"]
+        url = f"/api/vehicles/{vin}/brakes/measurements/{mid}"
+        # OK after the user closed it, then back: an axle seen OK forgets, so
+        # the undo raises it again. Better twice than never.
+        await client.put(url, headers=auth_headers, json={"inner_pad_mm": "8"})
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+        await client.put(url, headers=auth_headers, json={"inner_pad_mm": "4"})
+        assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
+
     async def test_drum_reminder_says_shoes(
         self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
     ):

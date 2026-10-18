@@ -153,9 +153,9 @@ class BrakeReminderMark(Base):
     comes back only for something new on a LOW corner: no mark (it was never
     told that corner was LOW), a pad check entered after `seen_through_id`, or
     replace now it hasn't covered. Neither figure goes back while the axle's
-    marks stand, so undoing a change made while the reminder was pending says
-    nothing new. The sync deletes the axle's marks when it completes its own
-    reminder, and only then.
+    marks stand, so a check it already covered is never news again. A write
+    that leaves the axle OK (not a delete) deletes the axle's marks, pending
+    or not, so an axle that went OK and then LOW again raises.
     """
 
     __tablename__ = "brake_reminder_marks"

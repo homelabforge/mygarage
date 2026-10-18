@@ -321,10 +321,11 @@ class BrakeService:
         A reminder the user closed stays closed until there is something new
         (`_news`). Done, dismissed or deleted, it's all one: that is read from
         the corners' marks (`BrakeReminderMark`), never from the reminder row,
-        which the user can edit. The sync's own completion deletes the axle's
-        marks, so an axle that went OK and then LOW again still raises. The
-        daily pass only raises (`raise_only`): a pending reminder is left as
-        the user may have edited it.
+        which the user can edit. A write that leaves the axle OK (never a
+        delete) deletes its marks, and completes the reminder if one is
+        pending: an axle that went OK and then LOW again raises, whoever closed
+        it. The daily pass only raises (`raise_only`): a pending reminder is
+        left as the user may have edited it.
         """
         all_marks = {
             row.position: row
@@ -416,6 +417,7 @@ class BrakeService:
             elif ok and may_complete:
                 if existing is not None:
                     existing.status = "done"
+                # Pending or closed: an axle seen OK forgets what it was told.
                 for mark in marks.values():
                     await self.db.delete(mark)
             elif existing is not None and existing.title != _reminder_title(setup):
