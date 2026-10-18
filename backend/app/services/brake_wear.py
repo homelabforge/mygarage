@@ -330,7 +330,9 @@ def _project_pad(
     # would otherwise hand distance back.
     used_since = max(anchor_usage - last_usage, Decimal("0"))
     remaining = max(left_then - used_since, Decimal("0"))
-    wear_date = date_after(anchor.recorded_at, remaining)
+    # Worn down by the anchor: that's its date, with or without a pace to
+    # count days at (a same-day baseline has none).
+    wear_date = anchor.recorded_at if remaining == 0 else date_after(anchor.recorded_at, remaining)
     if anchor is not measured[-1]:
         # The newest check has no reading, so the use since the anchor is
         # unknown: a date alone, as of the anchor.

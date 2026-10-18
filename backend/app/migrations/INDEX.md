@@ -140,4 +140,4 @@ migrations must swallow their own operational errors.
 | `128_drop_reminder_projected_distance` | Drop vehicle_reminders.projected_distance_km, a column nothing writes or reads. |
 | `129_add_reminder_start_readings` | **FATAL** — Store the readings an unanchored reminder counts from (PR #216). |
 | `130_move_torque_one_digit_pid_keys` | Move Torque's one-digit PID keys onto the keys the parser files them under now (#223). |
-| `131_add_brake_tracking` | Add brake tracking: axle setup, brake measurements and brake jobs (#202). |
+| `131_add_brake_tracking` | Add brake tracking: axle setup, brake measurements, brake jobs and reminder marks (#202). |

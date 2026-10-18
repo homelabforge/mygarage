@@ -91,9 +91,9 @@ def test_131_creates_tables(engine_for_migration):
     assert {c["name"] for c in insp.get_columns("brake_reminder_marks")} >= {
         "id",
         "vin",
-        "axle",
+        "position",
         "seen_through_id",
-        "seen_condition",
+        "covered_replace_now",
         "created_at",
         "updated_at",
     }
@@ -125,17 +125,28 @@ def test_131_one_axle_row_per_vehicle_and_axle(engine_for_migration):
             conn.execute(insert, {"vin": _VIN})
 
 
-def test_131_one_reminder_mark_per_vehicle_and_axle(engine_for_migration):
+def test_131_one_reminder_mark_per_vehicle_and_corner(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
     _upgrade(engine)
 
     insert = text(
-        "INSERT INTO brake_reminder_marks (vin, axle, seen_through_id, seen_condition) "
-        "VALUES (:vin, 'front', 1, 'due_soon')"
+        "INSERT INTO brake_reminder_marks (vin, position, seen_through_id) VALUES (:vin, 'FL', 1)"
     )
     with engine.begin() as conn:
         conn.execute(insert, {"vin": _VIN})
+        # The other corner on the axle has its own.
+        conn.execute(
+            text(
+                "INSERT INTO brake_reminder_marks (vin, position, seen_through_id) "
+                "VALUES (:vin, 'FR', 1)"
+            ),
+            {"vin": _VIN},
+        )
+        covered = conn.execute(
+            text("SELECT covered_replace_now FROM brake_reminder_marks WHERE position = 'FL'")
+        ).scalar_one()
+    assert not covered
     with pytest.raises(IntegrityError):
         with engine.begin() as conn:
             conn.execute(insert, {"vin": _VIN})
@@ -154,10 +165,7 @@ def test_131_one_reminder_mark_per_vehicle_and_axle(engine_for_migration):
         "VALUES (:vin, 'FL', 'disc', '2026-01-01', 'polished')",
         "INSERT INTO brake_measurements (vin, position, recorded_at) "
         "VALUES (:vin, 'XX', '2026-01-01')",
-        "INSERT INTO brake_reminder_marks (vin, axle, seen_through_id, seen_condition) "
-        "VALUES (:vin, 'mid', 1, 'due_soon')",
-        "INSERT INTO brake_reminder_marks (vin, axle, seen_through_id, seen_condition) "
-        "VALUES (:vin, 'front', 1, 'ok')",
+        "INSERT INTO brake_reminder_marks (vin, position, seen_through_id) VALUES (:vin, 'XX', 1)",
     ],
     ids=[
         "axle",
@@ -165,8 +173,7 @@ def test_131_one_reminder_mark_per_vehicle_and_axle(engine_for_migration):
         "job-position",
         "job-surface",
         "measurement-position",
-        "mark-axle",
-        "mark-condition",
+        "mark-position",
     ],
 )
 def test_131_checks_refuse_values_outside_the_vocabulary(engine_for_migration, sql):

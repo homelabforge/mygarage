@@ -80,16 +80,22 @@ class _Corner:
     checks: list[BrakeMeasurement]
 
 
-def _news(mark: BrakeReminderMark, low: Sequence[_Corner], worst: BrakeCondition) -> bool:
-    """Whether a closed reminder has something new to say.
+def _news(marks: dict[str, BrakeReminderMark], low: Sequence[_Corner]) -> bool:
+    """Whether a closed reminder has something new to say about a LOW corner.
 
-    A pad check entered since it was last told, found by id (the clocks stamp
-    whole seconds and a person can edit the reminder), or the axle gone from
-    due soon to replace now, which a setup change can do without a measurement.
+    A corner it never covered, a pad check entered since, found by id (the
+    clocks stamp whole seconds and a person can edit the reminder), or replace
+    now it hasn't covered, which a setup change can bring without a measurement.
     """
-    if worst is BrakeCondition.REPLACE_NOW and mark.seen_condition != worst.value:
-        return True
-    return any(m.id > mark.seen_through_id for c in low for m in c.checks)
+    for corner in low:
+        mark = marks.get(corner.position)
+        if mark is None:
+            return True
+        if any(m.id > mark.seen_through_id for m in corner.checks):
+            return True
+        if corner.condition is BrakeCondition.REPLACE_NOW and not mark.covered_replace_now:
+            return True
+    return False
 
 
 def _newest_first(rows: Iterable[BrakeMeasurement | BrakeJob]) -> list:
@@ -314,14 +320,14 @@ class BrakeService:
 
         A reminder the user closed stays closed until there is something new
         (`_news`). Done, dismissed or deleted, it's all one: that is read from
-        the axle's mark (`BrakeReminderMark`), never from the reminder row,
-        which the user can edit. The sync's own completion deletes the mark, so
-        an axle that went OK and then LOW again still raises. The daily pass
-        only raises (`raise_only`): a pending reminder is left as the user may
-        have edited it.
+        the corners' marks (`BrakeReminderMark`), never from the reminder row,
+        which the user can edit. The sync's own completion deletes the axle's
+        marks, so an axle that went OK and then LOW again still raises. The
+        daily pass only raises (`raise_only`): a pending reminder is left as
+        the user may have edited it.
         """
-        marks = {
-            row.axle: row
+        all_marks = {
+            row.position: row
             for row in (
                 await self.db.execute(select(BrakeReminderMark).where(BrakeReminderMark.vin == vin))
             ).scalars()
@@ -332,7 +338,7 @@ class BrakeService:
             on_axle = [c for c in corners if AXLE_OF[c.position] == axle]
             low = [c for c in on_axle if c.condition in _LOW]
             ok = [c for c in on_axle if c.condition is BrakeCondition.OK]
-            mark = marks.get(axle)
+            marks = {p: m for p, m in all_marks.items() if AXLE_OF[p] == axle}
 
             owned = (
                 (
@@ -355,11 +361,6 @@ class BrakeService:
                     duplicate.status = "done"
 
             if low:
-                worst = (
-                    BrakeCondition.REPLACE_NOW
-                    if any(c.condition is BrakeCondition.REPLACE_NOW for c in low)
-                    else BrakeCondition.DUE_SOON
-                )
                 # Every LOW corner has a thinnest figure and its date, so each
                 # has a due date; none falls back to today (that would slide).
                 dues = [
@@ -369,7 +370,7 @@ class BrakeService:
                 due = min(dues)
                 title = _reminder_title(setup)
                 if existing is None:
-                    if mark is not None and not _news(mark, low, worst):
+                    if not _news(marks, low):
                         continue
                     start_km, start_hours = await start_readings(self.db, vin)
                     self.db.add(
@@ -389,27 +390,34 @@ class BrakeService:
                 elif not raise_only:
                     existing.title = title
                     existing.due_date = due
-                # Pending now, so everything on the axle has been told. The
-                # daily pass writes it too, for a reminder that has no mark yet.
-                seen_through = max(m.id for c in on_axle for m in c.checks)
-                if mark is None:
-                    self.db.add(
-                        BrakeReminderMark(
-                            vin=vin,
-                            axle=axle,
-                            seen_through_id=seen_through,
-                            seen_condition=worst.value,
+                # Pending now, so every corner on the axle has been told. The
+                # daily pass writes it too, for a reminder that has no marks yet.
+                for corner in on_axle:
+                    if not corner.checks:
+                        continue
+                    newest = max(m.id for m in corner.checks)
+                    replace_now = corner.condition is BrakeCondition.REPLACE_NOW
+                    mark = marks.get(corner.position)
+                    if mark is None:
+                        self.db.add(
+                            BrakeReminderMark(
+                                vin=vin,
+                                position=corner.position,
+                                seen_through_id=newest,
+                                covered_replace_now=replace_now,
+                            )
                         )
-                    )
-                else:
-                    mark.seen_through_id = seen_through
-                    mark.seen_condition = worst.value
+                        continue
+                    # Never back: a job or a setup change made while pending,
+                    # then undone after the close, is nothing new.
+                    mark.seen_through_id = max(mark.seen_through_id, newest)
+                    mark.covered_replace_now = mark.covered_replace_now or replace_now
             elif raise_only:
                 continue
             elif ok and may_complete:
                 if existing is not None:
                     existing.status = "done"
-                if mark is not None:
+                for mark in marks.values():
                     await self.db.delete(mark)
             elif existing is not None and existing.title != _reminder_title(setup):
                 # Left pending: still name the axle's brakes as they're set up now.
@@ -433,7 +441,7 @@ class BrakeService:
         reminder. Raise only: a day passing is not a measurement, so it never
         completes one (`may_complete=False`, the delete rule), and it leaves a
         pending one as it is, title and due date included (`raise_only`). It
-        still writes the axle's mark, so a reminder raised before the marks
+        still writes the axle's marks, so a reminder raised before the marks
         existed stays closed once the user closes it.
 
         No request and no user, so no access check: the scheduler works for

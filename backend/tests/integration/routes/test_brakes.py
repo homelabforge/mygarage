@@ -863,6 +863,164 @@ class TestAxleReminder:
         assert _corner(response.json(), "FL")["condition"] == "replace_now"
         assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
 
+    async def test_undoing_a_job_made_while_pending_is_not_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        # FR's check gets the higher id; both are LOW, so the reminder covers both.
+        await _log(
+            client,
+            auth_headers,
+            vin,
+            "2026-09-04",
+            None,
+            FL={"inner_pad_mm": "4"},
+            FR={"inner_pad_mm": "3.9"},
+        )
+        [raised] = await _pending(db_session, vin, "low_brakes_front")
+        # FR's pads done with nothing measured: FR has no checks now, FL holds it open.
+        job = await client.post(
+            f"/api/vehicles/{vin}/brakes/jobs",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-09-10",
+                "friction_replaced": True,
+                "corners": [{"position": "FR"}],
+            },
+        )
+        job_id = _corner(job.json(), "FR")["last_job"]["id"]
+        assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
+        await client.post(
+            f"/api/vehicles/{vin}/reminders/{raised.id}/dismiss", headers=auth_headers
+        )
+        # Entered by mistake: FR's old check is back, and the reminder told of it.
+        await client.delete(f"/api/vehicles/{vin}/brakes/jobs/{job_id}", headers=auth_headers)
+        await BrakeService(db_session).refresh_reminders()
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_deleting_the_newest_check_while_pending_does_not_lower_the_mark(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "4"})
+        [raised] = await _pending(db_session, vin, "low_brakes_front")
+        rotor = (
+            await _log(client, auth_headers, vin, "2026-09-06", None, FL={"rotor_mm": "25"})
+        ).json()
+        rotor_id = _corner(rotor, "FL")["measurements"][0]["id"]
+        newest = (
+            await _log(client, auth_headers, vin, "2026-09-08", None, FL={"inner_pad_mm": "3.9"})
+        ).json()
+        newest_id = _corner(newest, "FL")["measurements"][0]["id"]
+        await client.delete(
+            f"/api/vehicles/{vin}/brakes/measurements/{newest_id}", headers=auth_headers
+        )
+        await client.post(
+            f"/api/vehicles/{vin}/reminders/{raised.id}/dismiss", headers=auth_headers
+        )
+        # The rotor look gets its pad figure: older than what was told, and an edit.
+        await client.put(
+            f"/api/vehicles/{vin}/brakes/measurements/{rotor_id}",
+            headers=auth_headers,
+            json={"inner_pad_mm": "3.8"},
+        )
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_replace_now_it_already_covered_is_not_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        axle = f"/api/vehicles/{vin}/brakes/axles/front"
+        strict = {"brake_type": "disc", "min_thickness_mm": "4.5", "new_thickness_mm": "10"}
+        await client.put(axle, headers=auth_headers, json=strict)
+        await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "4"})
+        [raised] = await _pending(db_session, vin, "low_brakes_front")
+        # Eased to due soon while pending, then the user closes it and puts it back.
+        await client.put(
+            axle,
+            headers=auth_headers,
+            json={"brake_type": "disc", "min_thickness_mm": "3", "new_thickness_mm": "10"},
+        )
+        await client.post(
+            f"/api/vehicles/{vin}/reminders/{raised.id}/dismiss", headers=auth_headers
+        )
+        response = await client.put(axle, headers=auth_headers, json=strict)
+        assert _corner(response.json(), "FL")["condition"] == "replace_now"
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_replace_now_on_the_other_corner_is_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(
+            client,
+            auth_headers,
+            vin,
+            "2026-09-04",
+            None,
+            FL={"inner_pad_mm": "2.5"},
+            FR={"inner_pad_mm": "4"},
+        )
+        [raised] = await _pending(db_session, vin, "low_brakes_front")
+        await client.post(
+            f"/api/vehicles/{vin}/reminders/{raised.id}/dismiss", headers=auth_headers
+        )
+        # FL's pads done; FR still due soon, which the closed reminder covered.
+        await client.post(
+            f"/api/vehicles/{vin}/brakes/jobs",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-09-10",
+                "friction_replaced": True,
+                "corners": [{"position": "FL", "new_thickness_mm": "10"}],
+            },
+        )
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+        # Only FL was ever replace now: FR getting there is news.
+        response = await client.put(
+            f"/api/vehicles/{vin}/brakes/axles/front",
+            headers=auth_headers,
+            json={"brake_type": "disc", "min_thickness_mm": "4.5", "new_thickness_mm": "10"},
+        )
+        assert _corner(response.json(), "FR")["condition"] == "replace_now"
+        assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
+
+    async def test_a_corner_it_never_covered_going_low_is_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "4"})
+        [raised] = await _pending(db_session, vin, "low_brakes_front")
+        await client.post(
+            f"/api/vehicles/{vin}/reminders/{raised.id}/dismiss", headers=auth_headers
+        )
+        # FR had nothing measured when it was told.
+        await _log(client, auth_headers, vin, "2026-09-20", None, FR={"inner_pad_mm": "4.2"})
+        assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
+
+    async def test_completing_one_axle_leaves_the_other_closed(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(
+            client,
+            auth_headers,
+            vin,
+            "2026-09-04",
+            None,
+            FL={"inner_pad_mm": "4"},
+            RL={"inner_pad_mm": "4"},
+        )
+        [rear] = await _pending(db_session, vin, "low_brakes_rear")
+        await client.post(f"/api/vehicles/{vin}/reminders/{rear.id}/dismiss", headers=auth_headers)
+        # The front's pads done: its reminder completes, and the rear's marks stay.
+        await client.post(
+            f"/api/vehicles/{vin}/brakes/jobs",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-09-10",
+                "friction_replaced": True,
+                "corners": [{"position": "FL"}],
+            },
+        )
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+        await BrakeService(db_session).refresh_reminders()
+        assert await _pending(db_session, vin, "low_brakes_rear") == []
+
     async def test_its_own_completion_does_not_hold_it_closed(
         self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
     ):

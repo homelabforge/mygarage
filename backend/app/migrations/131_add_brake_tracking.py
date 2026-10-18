@@ -132,16 +132,14 @@ def upgrade(engine=None):
                 CREATE TABLE brake_reminder_marks (
                     id {pk},
                     vin {vin},
-                    axle VARCHAR(5) NOT NULL
-                        CONSTRAINT check_brake_reminder_marks_axle
-                        CHECK (axle IN ('front', 'rear')),
+                    position VARCHAR(2) NOT NULL
+                        CONSTRAINT check_brake_reminder_marks_position
+                        CHECK ({_POSITION_CHECK}),
                     seen_through_id INTEGER NOT NULL,
-                    seen_condition VARCHAR(11) NOT NULL
-                        CONSTRAINT check_brake_reminder_marks_seen_condition
-                        CHECK (seen_condition IN ('due_soon', 'replace_now')),
+                    covered_replace_now BOOLEAN NOT NULL DEFAULT {false},
                     created_at {ts} NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at {ts},
-                    CONSTRAINT uq_brake_reminder_marks_vin_axle UNIQUE (vin, axle)
+                    CONSTRAINT uq_brake_reminder_marks_vin_position UNIQUE (vin, position)
                 )
             """)
             )
