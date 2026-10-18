@@ -6,7 +6,8 @@ import { formatDateForDisplay } from '../../../utils/dateUtils'
 import vehiclesEn from '../../../locales/en/vehicles.json'
 
 // t reads the shipped English and fills {{name}} from the options by name, so a
-// wrong option name leaves the placeholder showing. Kept at module scope:
+// wrong option name leaves the placeholder showing. A key that isn't there
+// throws, so no assertion can pass on a raw key. Kept at module scope:
 // react-i18next hands out a stable t, and so must the mock.
 vi.mock('react-i18next', () => {
   const t = (key: string, options?: Record<string, unknown>): string => {
@@ -14,7 +15,7 @@ vi.mock('react-i18next', () => {
       (node, part) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined),
       vehiclesEn,
     )
-    if (typeof found !== 'string') return key
+    if (typeof found !== 'string') throw new Error(`no English string for ${key}`)
     return found.replace(/{{(\w+)}}/g, (whole, name: string) =>
       options && name in options ? String(options[name]) : whole,
     )

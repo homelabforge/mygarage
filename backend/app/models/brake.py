@@ -145,15 +145,17 @@ class BrakeMeasurement(Base):
 
 
 class BrakeReminderMark(Base):
-    """What the axle's "brake pads low" reminder has already told the user about one corner.
+    """What the axle's "brake pads low" reminder has told the user about one LOW corner.
 
-    Written by the reminder sync alone, never by the reminder screens, so the
-    user closing, editing or deleting the reminder leaves it as it was. While
-    the axle's marks stand, a closed reminder comes back only for something
-    new on a LOW corner: a pad check entered after `seen_through_id`, or
-    replace now it hasn't covered. Neither goes back while they stand, so
-    undoing a change made while the reminder was pending says nothing new. The
-    sync deletes the axle's marks when it completes its own reminder.
+    Written by the reminder sync alone, for the corners that were LOW while the
+    reminder was pending, never by the reminder screens, so the user closing,
+    editing or deleting the reminder leaves it as it was. A closed reminder
+    comes back only for something new on a LOW corner: no mark (it was never
+    told that corner was LOW), a pad check entered after `seen_through_id`, or
+    replace now it hasn't covered. Neither figure goes back while the axle's
+    marks stand, so undoing a change made while the reminder was pending says
+    nothing new. The sync deletes the axle's marks when it completes its own
+    reminder, and only then.
     """
 
     __tablename__ = "brake_reminder_marks"

@@ -993,6 +993,28 @@ class TestAxleReminder:
         await _log(client, auth_headers, vin, "2026-09-20", None, FR={"inner_pad_mm": "4.2"})
         assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
 
+    async def test_an_edit_that_takes_a_fine_corner_low_after_the_close_is_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "4"})
+        [raised] = await _pending(db_session, vin, "low_brakes_front")
+        # FR measured fine while it was pending: it was never told FR is low.
+        body = (
+            await _log(client, auth_headers, vin, "2026-09-06", None, FR={"inner_pad_mm": "8.5"})
+        ).json()
+        assert _corner(body, "FR")["condition"] == "ok"
+        fr_id = _corner(body, "FR")["measurements"][0]["id"]
+        await client.post(
+            f"/api/vehicles/{vin}/reminders/{raised.id}/dismiss", headers=auth_headers
+        )
+        # A typo: it read 4.
+        await client.put(
+            f"/api/vehicles/{vin}/brakes/measurements/{fr_id}",
+            headers=auth_headers,
+            json={"inner_pad_mm": "4"},
+        )
+        assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
+
     async def test_completing_one_axle_leaves_the_other_closed(
         self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
     ):
@@ -1049,17 +1071,21 @@ class TestAxleReminder:
         ]
 
 
-async def _wearing_well(client: AsyncClient, headers, vin: str) -> dt.date:
-    """FL at 10 then 8 mm, 100 days apart: OK today, worn out in 250 days."""
+async def _wearing_well(client: AsyncClient, headers, vin: str, position: str = "FL") -> dt.date:
+    """One corner at 10 then 8 mm, 100 days apart: OK today, worn out in 250 days."""
     today = household_today()
     start = today - dt.timedelta(days=100)
-    await _log(client, headers, vin, start.isoformat(), "10000", FL={"inner_pad_mm": "10"})
+    await _log(
+        client, headers, vin, start.isoformat(), "10000", **{position: {"inner_pad_mm": "10"}}
+    )
     body = (
-        await _log(client, headers, vin, today.isoformat(), "20000", FL={"inner_pad_mm": "8"})
+        await _log(
+            client, headers, vin, today.isoformat(), "20000", **{position: {"inner_pad_mm": "8"}}
+        )
     ).json()
-    fl = _corner(body, "FL")
-    assert fl["condition"] == "ok"
-    return dt.date.fromisoformat(fl["projected_wear_date"])
+    corner = _corner(body, position)
+    assert corner["condition"] == "ok"
+    return dt.date.fromisoformat(corner["projected_wear_date"])
 
 
 def _on(monkeypatch: pytest.MonkeyPatch, day: dt.date) -> None:
@@ -1131,6 +1157,22 @@ class TestDailyRefresh:
         _on(monkeypatch, wear_date - dt.timedelta(days=29))
         await BrakeService(db_session).refresh_reminders()
         assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_a_corner_that_was_fine_while_pending_going_low_is_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession, monkeypatch
+    ):
+        # FR wearing well while FL's reminder is pending: it only ever told FL.
+        wear_date = await _wearing_well(client, auth_headers, vin, "FR")
+        today = household_today().isoformat()
+        await _log(client, auth_headers, vin, today, None, FL={"inner_pad_mm": "4"})
+        [raised] = await _pending(db_session, vin, "low_brakes_front")
+        await client.post(
+            f"/api/vehicles/{vin}/reminders/{raised.id}/dismiss", headers=auth_headers
+        )
+        # FR's wear date comes inside the 90 days with nothing new measured.
+        _on(monkeypatch, wear_date - dt.timedelta(days=90))
+        await BrakeService(db_session).refresh_reminders()
+        assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
 
     async def test_editing_a_closed_reminder_does_not_hide_what_came_after(
         self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession, monkeypatch

@@ -470,6 +470,23 @@ class TestProjection:
         assert condition is BrakeCondition.DUE_SOON
         assert reminder_due(result, condition, DISC) == dt.date(2026, 3, 1)
 
+    def test_worn_down_with_no_pace_and_no_reading_since_is_dated_at_the_anchor(self):
+        # As above, then an April look at the outer pad with no odometer: the
+        # inner pad's date stands alone, and it's still March.
+        ms = [
+            m("2026-01-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-01-01", "11000", inner="9.0", outer="10.0"),
+            m("2026-03-01", "20000", outer="9.8"),
+            m("2026-04-01", None, outer="9.7"),
+        ]
+        result = wear(ms)
+        assert result.status is BrakeWearStatus.PROJECTED
+        assert result.usage_remaining is None
+        assert result.wear_date == result.worn_by == dt.date(2026, 3, 1)
+        condition = brake_condition(result, DISC, dt.date(2026, 4, 1))
+        assert condition is BrakeCondition.DUE_SOON
+        assert reminder_due(result, condition, DISC) == dt.date(2026, 3, 1)
+
     def test_whichever_comes_first_distance_and_date_from_different_pads(self):
         # Parked Jan to Apr, then 1,000 km in ten days. The inner pad's pace
         # runs over all of it, the outer's over the ten days alone: the inner

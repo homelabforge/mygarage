@@ -390,11 +390,10 @@ class BrakeService:
                 elif not raise_only:
                     existing.title = title
                     existing.due_date = due
-                # Pending now, so every corner on the axle has been told. The
-                # daily pass writes it too, for a reminder that has no marks yet.
-                for corner in on_axle:
-                    if not corner.checks:
-                        continue
+                # Pending now, so every LOW corner has been told. Only those: a
+                # corner that was fine then and goes LOW later is news. The daily
+                # pass writes them too, for a reminder that has no marks yet.
+                for corner in low:
                     newest = max(m.id for m in corner.checks)
                     replace_now = corner.condition is BrakeCondition.REPLACE_NOW
                     mark = marks.get(corner.position)
