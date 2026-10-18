@@ -8,8 +8,9 @@ from pydantic import BaseModel, BeforeValidator, Field, field_validator
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
-#: The raw telemetry retention range, in days. The settings API, the restore and
-#: the daily prune all hold `livelink_telemetry_retention_days` to it.
+#: The raw telemetry retention range, in days. The LiveLink settings route and
+#: the settings restore hold `livelink_telemetry_retention_days` to it; the daily
+#: prune refuses only a value below the minimum (a longer one only keeps more).
 TELEMETRY_RETENTION_MIN_DAYS = 30
 TELEMETRY_RETENTION_MAX_DAYS = 365
 

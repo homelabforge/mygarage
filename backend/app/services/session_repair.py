@@ -89,8 +89,9 @@ async def recompute_pending_sessions(db: AsyncSession) -> int:
         )
         return 0
     # The settings writers hold the range now, but a hand edit or an older
-    # database can still carry anything, and a huge value overflows the date math. A clamp that guessed low is still covered
-    # by the oldest reading, since the cutoff is the later of the two.
+    # database can still carry anything, and a huge value overflows the date
+    # math. A clamp that guessed low is still covered by the oldest reading,
+    # since the cutoff is the later of the two.
     retention_days = min(max(stored, TELEMETRY_RETENTION_MIN_DAYS), TELEMETRY_RETENTION_MAX_DAYS)
     if retention_days != stored:
         logger.warning(

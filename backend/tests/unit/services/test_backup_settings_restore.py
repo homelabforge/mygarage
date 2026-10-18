@@ -348,7 +348,11 @@ class TestSettingsRestoreAppliesTheValueRules:
     async def test_a_number_in_the_file_is_stored_as_text(
         self, db_session: AsyncSession, tmp_path: Path
     ) -> None:
-        """A hand-edited `120` (a JSON int) reaches the Text column as "120"."""
+        """A hand-edited `120` (a JSON int) reaches the Text column as "120".
+
+        Passes on SQLite main too (text affinity converts it); the refusal it
+        guards against is asyncpg's, so it fails on main under PostgreSQL only.
+        """
         service = _service(tmp_path)
         filename = _write_backup(
             service,
@@ -360,3 +364,47 @@ class TestSettingsRestoreAppliesTheValueRules:
         db_session.expire_all()
         assert await _stored(db_session, "livelink_telemetry_retention_days") == "120"
         assert details["restored_count"] == 1
+
+    async def test_a_json_switch_is_stored_as_the_lowercase_word(
+        self, db_session: AsyncSession, tmp_path: Path, keep_rows
+    ) -> None:
+        """`LiveLinkService.is_enabled` matches exactly "true", so `str(True)` would read as off."""
+        await keep_rows("livelink_enabled")
+        service = _service(tmp_path)
+        filename = _write_backup(
+            service, [{"key": "livelink_enabled", "value": True, "category": "livelink"}]
+        )
+
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+
+        db_session.expire_all()
+        assert await _stored(db_session, "livelink_enabled") == "true"
+        assert details["restored_count"] == 1
+
+    async def test_a_json_object_is_skipped_with_a_warning(
+        self,
+        db_session: AsyncSession,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        service = _service(tmp_path)
+        filename = _write_backup(
+            service,
+            [
+                {"key": "livelink_telemetry_retention_days", "value": {"days": 1}},
+                {"key": COMPANION_KEY, "value": "restored", "category": "general"},
+            ],
+        )
+
+        with caplog.at_level(logging.WARNING, logger="app.services.backup_service"):
+            details = await service.restore_settings_backup(
+                filename, db_session, create_safety=False
+            )
+
+        assert await _stored(db_session, "livelink_telemetry_retention_days") == "90"
+        assert details["restored_count"] == 1
+        assert any(
+            "Skipping livelink_telemetry_retention_days during restore: not a text value"
+            in record.getMessage()
+            for record in caplog.records
+        )

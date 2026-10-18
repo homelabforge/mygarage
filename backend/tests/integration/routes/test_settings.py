@@ -1077,7 +1077,12 @@ class TestPOIProviderListIsAdminOnly:
 @pytest.mark.asyncio
 class TestSettingsBatchKeyWidth:
     """`Setting.key` is String(50): a longer key was stored on SQLite and a 500
-    on PostgreSQL."""
+    on PostgreSQL.
+
+    The write allowlist now refuses any key it does not name, so this 422 holds
+    for two reasons; `test_setting_rules.py::test_every_writable_key_fits_the_key_column`
+    is what keeps every writable key within the column.
+    """
 
     async def test_a_settings_key_longer_than_50_characters_is_a_422_and_stores_nothing(
         self, client: AsyncClient, auth_headers, db_session

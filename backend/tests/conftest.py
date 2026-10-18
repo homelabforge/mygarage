@@ -115,7 +115,10 @@ async def db_session(test_sessionmaker, init_test_db) -> AsyncGenerator[AsyncSes
 
 @pytest_asyncio.fixture
 async def keep_rows(db_session: AsyncSession):
-    """Snapshot settings rows by key and put them back exactly as they were.
+    """Snapshot settings rows by key and put them back afterwards.
+
+    Value, category, description and the encrypted flag come back; the row is
+    recreated, so its created_at and updated_at do not.
 
     Call the yielded function with the keys a test is about to write. The test
     database is created without the seeded settings and persists for the whole

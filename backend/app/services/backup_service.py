@@ -444,13 +444,25 @@ class BackupService:
             try:
                 key = setting_data.get("key")
                 value = setting_data.get("value")
-                # A hand-edited file can hold a JSON number; the column is Text,
-                # and asyncpg refuses an int there.
-                if value is not None and not isinstance(value, str):
-                    value = str(value)
 
                 if not key:
                     logger.warning("Skipping setting with no key during restore")
+                    continue
+
+                # A hand-edited file can hold JSON other than a string, and the
+                # column is Text, which asyncpg refuses anything else into. A
+                # switch gets the spelling the exact readers match ("true", not
+                # Python's "True"); a number keeps its digits; anything else is
+                # not a setting value.
+                if isinstance(value, bool):
+                    value = "true" if value else "false"
+                elif isinstance(value, int | float):
+                    value = str(value)
+                elif value is not None and not isinstance(value, str):
+                    logger.warning(
+                        "Skipping %s during restore: not a text value",
+                        sanitize_for_log(str(key)),
+                    )
                     continue
 
                 # ★ THE FOURTH WRITER OF A SETTINGS VALUE, and the only one that
