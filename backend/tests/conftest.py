@@ -8,6 +8,13 @@ from pathlib import Path
 # Enable test mode BEFORE importing app (disables CSRF validation in middleware)
 os.environ["MYGARAGE_TEST_MODE"] = "true"
 
+# A fixed settings encryption key, so every secret write has a keyring. Without
+# one, the first secret write would find no /data to generate a key in, and which
+# tests 503 would depend on their order. It decodes to "mygarage test settings
+# key 0001!"; the same value is in docker-compose.test.yml and playwright.config.ts.
+# Tests that swap key sources call settings_crypto._reset_keyring_for_tests().
+os.environ.setdefault("MYGARAGE_SETTINGS_KEY", "bXlnYXJhZ2UgdGVzdCBzZXR0aW5ncyBrZXkgMDAwMSE")
+
 # If TEST_DATABASE_URL is set (e.g. for PostgreSQL), propagate it to the app's
 # database URL so the app engine matches the test engine. Must happen before imports.
 if "TEST_DATABASE_URL" in os.environ:

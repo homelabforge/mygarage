@@ -48,6 +48,8 @@ services:
       TEST_DATABASE_URL: postgresql+asyncpg://mygarage:testpass@postgres-test:5432/mygarage_test
       MYGARAGE_TEST_MODE: "true"
       MYGARAGE_SECRET_KEY: test-secret-key
+      # Fixed test-only settings encryption key; same value as tests/conftest.py.
+      MYGARAGE_SETTINGS_KEY: bXlnYXJhZ2UgdGVzdCBzZXR0aW5ncyBrZXkgMDAwMSE
       PYTHONPATH: /app
       UV_PROJECT_ENVIRONMENT: /opt/venv
       HOME: /tmp

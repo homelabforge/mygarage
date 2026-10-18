@@ -82,6 +82,8 @@ export default defineConfig({
         MYGARAGE_DATABASE_URL: 'sqlite+aiosqlite:////tmp/mygarage-e2e.db',
         DATABASE_PATH: '/tmp/mygarage-e2e.db',
         MYGARAGE_TEST_MODE: 'true',
+        // Fixed test-only settings encryption key (same value as backend/tests/conftest.py).
+        MYGARAGE_SETTINGS_KEY: 'bXlnYXJhZ2UgdGVzdCBzZXR0aW5ncyBrZXkgMDAwMSE',
         LOG_LEVEL: 'WARNING',
       },
     },
@@ -107,6 +109,7 @@ export default defineConfig({
         MYGARAGE_DATABASE_URL: 'sqlite+aiosqlite:////tmp/mygarage-e2e-subpath.db',
         DATABASE_PATH: '/tmp/mygarage-e2e-subpath.db',
         MYGARAGE_TEST_MODE: 'true',
+        MYGARAGE_SETTINGS_KEY: 'bXlnYXJhZ2UgdGVzdCBzZXR0aW5ncyBrZXkgMDAwMSE',
         MYGARAGE_ROOT_PATH: SUBPATH_PREFIX,
         MYGARAGE_STATIC_DIR: DIST_DIR,
         // Writable data dirs — the default /data/photos isn't writable on the CI
