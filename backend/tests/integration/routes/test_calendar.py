@@ -463,10 +463,142 @@ class TestCalendarRoutes:
         events = await _reminder_events(client, headers, "Snoozed Due Service")
         assert len(events) == 1
         assert events[0]["date"] == comeback.isoformat()
-        assert events[0]["urgency"] == "high"
-        assert events[0]["status"] == "due_soon"
+        # Snoozed reads as snoozed, with no warning border beside the chip (F-10).
+        assert events[0]["urgency"] == "low"
+        assert events[0]["status"] == "snoozed"
         # The return day is a fact, not a projection.
         assert events[0]["is_estimated"] is False
+
+    async def test_calendar_undated_due_soon_reminder_is_pinned_to_today(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        """RD-7, D5a: a mileage-only reminder with no rate has no date to sit
+        on. At 92% of its span it is due soon by the 90% fallback, so it is
+        pinned to today, estimated, as the list and the hero call it."""
+        vin, headers = await _isolated_vehicle(db_session)
+        db_session.add_all(
+            [
+                OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("19200")),
+                Reminder(
+                    vin=vin,
+                    title="Undated Due Soon Plugs",
+                    reminder_type="mileage",
+                    due_mileage_km=Decimal("20000"),
+                    start_odometer_km=Decimal("10000"),
+                    status="pending",
+                ),
+                Reminder(
+                    vin=vin,
+                    title="Undated On Track Belt",
+                    reminder_type="mileage",
+                    due_mileage_km=Decimal("50000"),
+                    start_odometer_km=Decimal("10000"),
+                    status="pending",
+                ),
+            ]
+        )
+        await db_session.commit()
+
+        events = await _reminder_events(client, headers, "Undated Due Soon Plugs")
+        assert len(events) == 1
+        event = events[0]
+        assert event["date"] == date.today().isoformat()
+        assert event["is_estimated"] is True
+        assert event["status"] == "due_soon"
+        assert event["urgency"] == "high"
+        assert Decimal(event["km_until_due"]) == Decimal("800")
+        # On track and undated: nothing to place.
+        assert await _reminder_events(client, headers, "Undated On Track Belt") == []
+
+    async def test_calendar_due_soon_reminder_twenty_days_out_is_high_urgency(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        """RD-3: the warning border keys on urgency, so a "Due soon" chip 20
+        days out sat on a plain card ("medium" past 7 days). Due soon is
+        "high" across the whole 30-day window."""
+        vin, headers = await _isolated_vehicle(db_session)
+        db_session.add(
+            Reminder(
+                vin=vin,
+                title="Twenty Day Coolant",
+                reminder_type="date",
+                due_date=date.today() + timedelta(days=20),
+                status="pending",
+            )
+        )
+        await db_session.commit()
+
+        events = await _reminder_events(client, headers, "Twenty Day Coolant")
+        assert len(events) == 1
+        assert events[0]["status"] == "due_soon"
+        assert events[0]["urgency"] == "high"
+        assert events[0]["is_estimated"] is False
+
+    async def test_calendar_reminder_description_drops_the_type_token(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        """D6a: the description was "Reminder (smart)", a raw token the
+        backend can't translate, shown in the notes drawer and the iCal
+        export."""
+        vin, headers = await _isolated_vehicle(db_session)
+        db_session.add(
+            Reminder(
+                vin=vin,
+                title="Smart Token Service",
+                reminder_type="smart",
+                due_date=date.today() + timedelta(days=40),
+                due_mileage_km=Decimal("90000"),
+                status="pending",
+            )
+        )
+        await db_session.commit()
+
+        events = await _reminder_events(client, headers, "Smart Token Service")
+        assert len(events) == 1
+        assert events[0]["description"] == "Reminder"
+
+        response = await client.get(
+            "/api/calendar/export", params={"event_types": "maintenance"}, headers=headers
+        )
+        assert response.status_code == 200
+        assert "DESCRIPTION:Reminder\r\n" in response.text
+        assert "Reminder (smart)" not in response.text
+
+    async def test_calendar_low_tread_event_carries_the_tread(
+        self, client: AsyncClient, db_session: AsyncSession
+    ):
+        """D7a: a low-tread event carries its tread and minimum in canonical
+        mm; every other event leaves both null."""
+        vin, headers = await _isolated_vehicle(db_session)
+        db_session.add_all(
+            [
+                Reminder(
+                    vin=vin,
+                    title="Tire tread low (FL)",
+                    reminder_type="date",
+                    source="low_tread",
+                    due_date=date.today() + timedelta(days=10),
+                    tread_depth_mm=Decimal("1.5"),
+                    tread_threshold_mm=Decimal("3.0"),
+                    status="pending",
+                ),
+                Reminder(
+                    vin=vin,
+                    title="Plain Wiper Blades",
+                    reminder_type="date",
+                    due_date=date.today() + timedelta(days=10),
+                    status="pending",
+                ),
+            ]
+        )
+        await db_session.commit()
+
+        tread = (await _reminder_events(client, headers, "Tire tread low (FL)"))[0]
+        assert Decimal(tread["tread_depth_mm"]) == Decimal("1.5")
+        assert Decimal(tread["tread_threshold_mm"]) == Decimal("3.0")
+        plain = (await _reminder_events(client, headers, "Plain Wiper Blades"))[0]
+        assert plain["tread_depth_mm"] is None
+        assert plain["tread_threshold_mm"] is None
 
     async def test_calendar_summary_counts_overdue_apart_from_upcoming(
         self, client: AsyncClient, db_session: AsyncSession

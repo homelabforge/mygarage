@@ -3514,13 +3514,39 @@
                 "type": "null"
               }
             ],
-            "description": "Maintenance status (overdue, due_soon, etc.)",
+            "description": "Reminder due status (overdue, due_soon, on_track, snoozed)",
             "title": "Status"
           },
           "title": {
             "description": "Event title/description",
             "title": "Title",
             "type": "string"
+          },
+          "tread_depth_mm": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Low-tread reminder's tread depth (mm); null for other events",
+            "title": "Tread Depth Mm"
+          },
+          "tread_threshold_mm": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Low-tread reminder's minimum tread (mm); null for other events",
+            "title": "Tread Threshold Mm"
           },
           "type": {
             "description": "Event type",

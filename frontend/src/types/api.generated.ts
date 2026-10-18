@@ -9238,7 +9238,7 @@ export interface components {
             notes?: string | null;
             /**
              * Status
-             * @description Maintenance status (overdue, due_soon, etc.)
+             * @description Reminder due status (overdue, due_soon, on_track, snoozed)
              */
             status?: string | null;
             /**
@@ -9246,6 +9246,16 @@ export interface components {
              * @description Event title/description
              */
             title: string;
+            /**
+             * Tread Depth Mm
+             * @description Low-tread reminder's tread depth (mm); null for other events
+             */
+            tread_depth_mm?: string | null;
+            /**
+             * Tread Threshold Mm
+             * @description Low-tread reminder's minimum tread (mm); null for other events
+             */
+            tread_threshold_mm?: string | null;
             /**
              * Type
              * @description Event type

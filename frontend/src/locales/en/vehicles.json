@@ -85,8 +85,10 @@
       "statusDueSoon": "Due Soon",
       "statusNeverDone": "Never Done",
       "statusOnTrack": "On Track",
+      "statusSnoozed": "Snoozed",
       "today": "Today",
       "tomorrow": "Tomorrow",
+      "treadLine": "Tread {{tread}} (minimum {{minimum}})",
       "viewNotes": "View notes"
     }
   },

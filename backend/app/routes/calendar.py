@@ -21,16 +21,13 @@ from app.models import (
 )
 from app.models.user import User
 from app.schemas.calendar import CalendarEvent, CalendarResponse, CalendarSummary
+from app.schemas.reminder import DueStatus
 from app.services.auth import require_auth, visible_vehicles_filter
 from app.services.reminder_service import (
     DUE_SOON_WINDOW,
-    calculate_driving_rate,
-    calculate_hours_driving_rate,
     expected_due_date,
-    get_current_hours,
-    get_current_mileage,
-    is_reminder_overdue,
-    is_reminder_snoozed,
+    load_due_context,
+    reminder_due_status,
 )
 from app.utils.household_time import household_today
 
@@ -38,15 +35,6 @@ router = APIRouter(prefix="/api", tags=["calendar"])
 
 
 UrgencyLevel = Literal["overdue", "high", "medium", "low", "historical"]
-
-# Reminder event status per urgency; due_soon spans the DUE_SOON_WINDOW the
-# card badge and hero counts use (calculate_urgency's "medium" ceiling).
-_REMINDER_STATUS: dict[str, str] = {
-    "overdue": "overdue",
-    "high": "due_soon",
-    "medium": "due_soon",
-    "low": "on_track",
-}
 
 
 def calculate_urgency(
@@ -64,6 +52,19 @@ def calculate_urgency(
         return "medium"
     else:
         return "low"
+
+
+def _reminder_urgency(status: DueStatus, event_date: date, today: date) -> UrgencyLevel:
+    """A reminder's urgency from its due status, so the warning border and the
+    "Due soon" chip agree (RD-3). Snoozed is low: no border beside a "Snoozed"
+    chip (F-10). On track keeps the date ladder."""
+    if status == "overdue":
+        return "overdue"
+    if status == "due_soon":
+        return "high"
+    if status == "snoozed":
+        return "low"
+    return calculate_urgency(event_date, False, today)
 
 
 @router.get("/calendar", response_model=CalendarResponse)
@@ -122,29 +123,22 @@ async def get_calendar_events(
         reminder_result = await db.execute(reminder_query)
         reminders = reminder_result.scalars().all()
 
-        # Readings and rates once per vehicle, not per reminder (the inbox's
-        # structure in routes/notifications.py): several usage reminders on
-        # one vehicle would repeat identical queries otherwise.
+        # Readings, rates and starts once per vehicle, not per reminder: several
+        # usage reminders on one vehicle would repeat identical queries otherwise.
         reminders_by_vin: dict[str, list[Reminder]] = {}
         for reminder in reminders:
             reminders_by_vin.setdefault(reminder.vin, []).append(reminder)
 
         for vin, vin_reminders in reminders_by_vin.items():
             vehicle = vehicles_dict.get(vin)
-            needs_km = any(r.due_mileage_km is not None for r in vin_reminders)
-            needs_hours = any(r.due_hours is not None for r in vin_reminders)
-            current_odometer_km = await get_current_mileage(vin, db) if needs_km else None
-            current_hours = await get_current_hours(vin, db) if needs_hours else None
-            km_per_day = (
-                await calculate_driving_rate(vin, db) if current_odometer_km is not None else None
-            )
-            hours_per_day = (
-                await calculate_hours_driving_rate(vin, db) if current_hours is not None else None
-            )
+            # The context the reminders list and the hero read, so the event's
+            # status and the row's chip agree (RD-3, RD-7).
+            due = await load_due_context(db, vin, vin_reminders, today)
 
             for reminder in vin_reminders:
                 due_mileage_km = reminder.due_mileage_km
                 due_hours = reminder.due_hours
+                status = reminder_due_status(reminder, due)
 
                 # A reminder overdue by ANY set dimension (date, mileage,
                 # hours) surfaces TODAY: the grid only fetches a few months
@@ -153,24 +147,23 @@ async def get_calendar_events(
                 # vanishes (#195). A reminder past its mileage but not its
                 # date would otherwise sit months ahead looking on_track
                 # while the bell calls it overdue.
-                if is_reminder_overdue(reminder, current_odometer_km, current_hours, today):
+                if status == "overdue":
                     event_date = today
                     # The pin is the real state when the calendar date itself
                     # has passed; an estimate when only a usage target tripped.
                     is_estimated = not (reminder.due_date and reminder.due_date <= today)
-                    urgency: UrgencyLevel = "overdue"
                 else:
                     # Not overdue: the earliest expected date, exactly what
                     # the reminders list and the bell show (expected_due_date).
                     expected = expected_due_date(
                         reminder,
-                        current_odometer_km,
-                        current_hours,
-                        km_per_day,
-                        hours_per_day,
+                        due.current_km,
+                        due.current_hours,
+                        due.km_per_day,
+                        due.hours_per_day,
                         today,
                     )
-                    if is_reminder_snoozed(reminder, today) and reminder.snoozed_until is not None:
+                    if status == "snoozed" and reminder.snoozed_until is not None:
                         # A snooze silences the nag, not the plan: a reminder
                         # still ahead keeps its expected date (decision 4 of
                         # the snooze plan: the calendar keeps showing it).
@@ -189,13 +182,17 @@ async def get_calendar_events(
                             event_date = reminder.snoozed_until
                             is_estimated = False
                     elif expected is None:
-                        # Skip if no date can be determined
-                        continue
+                        # No date to sit on. Due soon by the progress fallback
+                        # pins to today, like overdue (D5a); on track has
+                        # nothing to place.
+                        if status != "due_soon":
+                            continue
+                        event_date = today
+                        is_estimated = True
                     else:
                         event_date = expected
                         is_estimated = event_date != reminder.due_date
-                    urgency = calculate_urgency(event_date, False, today)
-                status = _REMINDER_STATUS[urgency]
+                urgency = _reminder_urgency(status, event_date, today)
 
                 # Filter by date range
                 if event_date < start_date or event_date > end_date:
@@ -204,19 +201,19 @@ async def get_calendar_events(
                 days_until_due = (event_date - today).days
 
                 km_until_due: Decimal | None = None
-                if due_mileage_km is not None and current_odometer_km is not None:
-                    km_until_due = due_mileage_km - current_odometer_km
+                if due_mileage_km is not None and due.current_km is not None:
+                    km_until_due = due_mileage_km - due.current_km
 
                 hours_until_due: Decimal | None = None
-                if due_hours is not None and current_hours is not None:
-                    hours_until_due = due_hours - current_hours
+                if due_hours is not None and due.current_hours is not None:
+                    hours_until_due = due_hours - due.current_hours
 
                 events.append(
                     CalendarEvent(
                         id=f"reminder-{reminder.id}",
                         type="maintenance",
                         title=reminder.title,
-                        description=f"Reminder ({reminder.reminder_type})",
+                        description="Reminder",
                         date=event_date,
                         vehicle_vin=vin,
                         vehicle_nickname=vehicle.nickname if vehicle else None,
@@ -234,6 +231,8 @@ async def get_calendar_events(
                         km_until_due=km_until_due,
                         hours_until_due=hours_until_due,
                         vehicle_distance_unit=vehicle.distance_unit if vehicle else None,
+                        tread_depth_mm=reminder.tread_depth_mm,
+                        tread_threshold_mm=reminder.tread_threshold_mm,
                     )
                 )
 

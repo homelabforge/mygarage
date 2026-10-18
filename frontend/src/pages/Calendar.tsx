@@ -431,6 +431,17 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
     )
   }
 
+  // A low-tread reminder's tread against its minimum, in the account's tread
+  // unit (D7a). Null for every other event.
+  const treadLine = (event: CalendarEvent): string | null => {
+    if (event.tread_depth_mm == null || event.tread_threshold_mm == null) return null
+    const u = formatFor(event.vehicle_distance_unit)
+    return t('calendar.misc.treadLine', {
+      tread: u.tread.format(Number(event.tread_depth_mm)),
+      minimum: u.tread.format(Number(event.tread_threshold_mm)),
+    })
+  }
+
   // Get days until/since event
   const getDaysUntil = (dateStr: string): string => {
     // Both sides at local midnight of their calendar dates: whole-day
@@ -763,10 +774,12 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                               <span className={`text-xs px-1.5 py-0.5 rounded ${
                                 event.status === 'overdue' ? 'bg-danger/20 text-danger' :
                                 event.status === 'due_soon' ? 'bg-warning/20 text-warning' :
+                                event.status === 'snoozed' ? 'bg-garage-bg text-garage-text-muted' :
                                 event.status === 'never_performed' ? 'bg-purple-500/20 text-purple-400' :
                                 'bg-success/20 text-success'
                               }`}>
                                 {event.status === 'due_soon' ? t('calendar.misc.statusDueSoon') :
+                                 event.status === 'snoozed' ? t('calendar.misc.statusSnoozed') :
                                  event.status === 'never_performed' ? t('calendar.misc.statusNeverDone') :
                                  event.status === 'overdue' ? t('calendar.overdue') : t('calendar.misc.statusOnTrack')}
                               </span>
@@ -795,6 +808,9 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                               )
                             })()}
                           </div>
+                        )}
+                        {treadLine(event) && (
+                          <p className="text-xs text-garage-text-muted mt-1">{treadLine(event)}</p>
                         )}
                       </div>
 
@@ -922,6 +938,9 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                           ),
                         })}
                       </p>
+                    )}
+                    {treadLine(selectedEventForNotes) && (
+                      <p className="text-sm text-garage-text-muted mt-2">{treadLine(selectedEventForNotes)}</p>
                     )}
                   </div>
                 </div>

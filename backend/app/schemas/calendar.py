@@ -42,7 +42,9 @@ class CalendarEvent(BaseModel):
     due_hours: Decimal | None = Field(
         None, description="Due engine-hours reading for hours-based reminders (Phase 6b)"
     )
-    status: str | None = Field(None, description="Maintenance status (overdue, due_soon, etc.)")
+    status: str | None = Field(
+        None, description="Reminder due status (overdue, due_soon, on_track, snoozed)"
+    )
     days_until_due: int | None = Field(None, description="Days until due date")
     km_until_due: Decimal | None = Field(None, description="Kilometers until due odometer reading")
     vehicle_distance_unit: LenientDistanceUnit = Field(
@@ -50,6 +52,12 @@ class CalendarEvent(BaseModel):
     )
     hours_until_due: Decimal | None = Field(
         None, description="Engine-hours until due hours reading (Phase 6b)"
+    )
+    tread_depth_mm: Decimal | None = Field(
+        None, description="Low-tread reminder's tread depth (mm); null for other events"
+    )
+    tread_threshold_mm: Decimal | None = Field(
+        None, description="Low-tread reminder's minimum tread (mm); null for other events"
     )
 
 
