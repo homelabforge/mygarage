@@ -303,6 +303,7 @@ class BrakeCornerResponse(BaseModel):
     #: chip runs on. The projected date on a projection; also set when the
     #: thinnest pad has no estimate but the other pad does.
     worn_by: date_type | None = None
+    #: The newest job of any type, for history: not where the estimate starts.
     last_job: BrakeJobResponse | None = None
     #: Newest first.
     measurements: list[BrakeMeasurementResponse] = Field(default_factory=list)

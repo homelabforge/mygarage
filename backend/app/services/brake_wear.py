@@ -6,7 +6,8 @@ card, the reminder and the tests all read one set of rules.
 The rules, in short:
 
 - A corner's pads (or shoes) start over at its latest brake job that replaced
-  them. Only measurements after that job count: dated after it, or written by
+  them, for the brakes the axle has now: a job of the other kind says nothing
+  about these. Only measurements after that job count: dated after it, or written by
   it (the new-pads figure, `brake_job_id`). A same-day measurement the job
   didn't write is taken as the OLD pads, measured before they came off.
 - Each pad (inner and outer, or the shoe) is estimated on its own checks. A

@@ -40,6 +40,11 @@ const seed = (axle: BrakeAxle): AxleForm => ({
    own request, so these are checked for every axle before either is sent. */
 const MAX_MM = { thickness: 50, rotor: 100, drum: 1000 } as const
 
+/* The server rounds each figure half-up to the hundredth it stores before it
+   compares new with the minimum, so compare the same: 1.501 and 1.504 are
+   both 1.50. toPrecision drops the float noise (1.005 * 100 is 100.4999...). */
+const hundredths = (n: number): number => Math.round(Number((n * 100).toPrecision(12)))
+
 const mm = (typed: string): number | null => {
   const trimmed = typed.trim()
   if (trimmed === '') return null
@@ -105,7 +110,7 @@ export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetup
         toast.error(t('brakes.limitsRequired'))
         return
       }
-      if (fresh <= min) {
+      if (hundredths(fresh) <= hundredths(min)) {
         toast.error(t('brakes.newAboveMinimum'))
         return
       }

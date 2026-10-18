@@ -223,21 +223,41 @@ describe('BrakeList', () => {
     render(<BrakeList vin={VIN} />)
     fireEvent.click(screen.getByRole('button', { name: 'brakes.axleSetup' }))
 
-    // A fine front change, and a rear drum maximum the server would refuse.
-    fireEvent.change(field('brake-setup-front-min'), { target: { value: '2.5' } })
-    fireEvent.change(field('brake-setup-rear-limit'), { target: { value: '-1' } })
-    fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
-    await Promise.resolve()
-    expect(toast.error).toHaveBeenCalledWith('brakes.drumMaxOutOfRange')
-    expect(axleMock).not.toHaveBeenCalled()
+    const refused = async (key: string): Promise<void> => {
+      fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
+      await Promise.resolve()
+      expect(toast.error).toHaveBeenCalledWith(key)
+      expect(axleMock).not.toHaveBeenCalled()
+      vi.mocked(toast.error).mockClear()
+    }
+    const type = (id: string, value: string): void => {
+      fireEvent.change(field(id), { target: { value } })
+    }
 
-    // A pad thickness past 50 mm, the same.
-    fireEvent.change(field('brake-setup-rear-limit'), { target: { value: '230' } })
-    fireEvent.change(field('brake-setup-front-new'), { target: { value: '51' } })
-    fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
-    await Promise.resolve()
-    expect(toast.error).toHaveBeenCalledWith('brakes.thicknessOutOfRange')
-    expect(axleMock).not.toHaveBeenCalled()
+    // A fine front change, and a rear drum maximum the server would refuse.
+    type('brake-setup-front-min', '2.5')
+    type('brake-setup-rear-limit', '-1')
+    await refused('brakes.drumMaxOutOfRange')
+    type('brake-setup-rear-limit', '230')
+
+    // Pad thicknesses past 50 mm or below zero.
+    type('brake-setup-front-new', '51')
+    await refused('brakes.thicknessOutOfRange')
+    type('brake-setup-front-min', '-1')
+    type('brake-setup-front-new', '2')
+    await refused('brakes.thicknessOutOfRange')
+    type('brake-setup-front-min', '2.5')
+    type('brake-setup-front-new', '10')
+
+    // A rotor minimum past 100 mm.
+    type('brake-setup-front-limit', '101')
+    await refused('brakes.rotorMinOutOfRange')
+    type('brake-setup-front-limit', '')
+
+    // New only clears the minimum before the server rounds both to 1.50.
+    type('brake-setup-front-min', '1.501')
+    type('brake-setup-front-new', '1.504')
+    await refused('brakes.newAboveMinimum')
   })
 
   it('axle setup writes nothing when nothing changed', async () => {
