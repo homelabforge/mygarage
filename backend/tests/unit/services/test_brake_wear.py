@@ -67,12 +67,14 @@ def m(
     )
 
 
-def job(day: str, *, friction: bool = True, surface: str | None = None) -> BrakeJob:
+def job(
+    day: str, *, friction: bool = True, surface: str | None = None, brake_type: str = "disc"
+) -> BrakeJob:
     return BrakeJob(
         id=next(_ids),
         vin=_VIN,
         position="FL",
-        brake_type="disc",
+        brake_type=brake_type,
         performed_on=dt.date.fromisoformat(day),
         friction_replaced=friction,
         surface=surface,
@@ -136,6 +138,16 @@ class TestProjection:
         assert result.status is BrakeWearStatus.REPLACED_NOT_MEASURED
         # The worn-out pads that came off say nothing about the new ones.
         assert result.thinnest_mm is None
+
+    def test_a_pad_job_from_before_a_type_change_does_not_count(self):
+        # Disc pads done in February; the axle is drums now.
+        disc_job = [job("2026-02-01")]
+        assert wear([], disc_job, setup=DRUM).status is BrakeWearStatus.NO_MEASUREMENTS
+        # And the shoes measured before it are still the shoes on it.
+        ms = [m("2026-01-01", "10000", shoe="5.0"), m("2026-01-20", "20000", shoe="4.0")]
+        assert wear(ms, disc_job, setup=DRUM).status is BrakeWearStatus.PROJECTED
+        drum_job = [job("2026-02-01", brake_type="drum")]
+        assert wear(ms, drum_job, setup=DRUM).status is BrakeWearStatus.REPLACED_NOT_MEASURED
 
     def test_at_or_below_minimum_needs_no_rate_and_is_dated_by_the_measurement(self):
         result = wear([m("2026-05-01", inner="3.0", outer="4.0")])
@@ -631,6 +643,12 @@ class TestSurface:
         assert reading is not None and reading.past_limit
         reading = surface_reading([m("2026-01-01", drum="229.9")], [], DRUM)
         assert reading is not None and not reading.past_limit
+
+    def test_a_rotor_job_says_nothing_about_a_drum(self):
+        # Rotors done while the axle was set up as disc; it's drums now.
+        ms = [m("2026-01-01", drum="230.1")]
+        reading = surface_reading(ms, [job("2026-02-01", friction=False, surface="replaced")], DRUM)
+        assert reading is not None and reading.past_limit
 
     def test_nothing_measured_since_the_rotor_changed(self):
         ms = [m("2026-01-01", rotor="20.0")]

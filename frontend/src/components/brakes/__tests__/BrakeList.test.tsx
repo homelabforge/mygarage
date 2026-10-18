@@ -49,6 +49,8 @@ vi.mock('../../../hooks/useUnitPreference', () => ({
   }),
 }))
 
+import { toast } from 'sonner'
+
 import BrakeList from '../BrakeList'
 import { formatDateForDisplay } from '../../../utils/dateUtils'
 
@@ -213,6 +215,29 @@ describe('BrakeList', () => {
       rotor_min_mm: null,
       drum_max_mm: null,
     })
+  })
+
+  it('axle setup checks every axle against the server’s bounds before saving either', async () => {
+    axleMock.mockResolvedValue({})
+    useBrakesMock.mockReturnValue({ data: overview(), isLoading: false, error: null })
+    render(<BrakeList vin={VIN} />)
+    fireEvent.click(screen.getByRole('button', { name: 'brakes.axleSetup' }))
+
+    // A fine front change, and a rear drum maximum the server would refuse.
+    fireEvent.change(field('brake-setup-front-min'), { target: { value: '2.5' } })
+    fireEvent.change(field('brake-setup-rear-limit'), { target: { value: '-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
+    await Promise.resolve()
+    expect(toast.error).toHaveBeenCalledWith('brakes.drumMaxOutOfRange')
+    expect(axleMock).not.toHaveBeenCalled()
+
+    // A pad thickness past 50 mm, the same.
+    fireEvent.change(field('brake-setup-rear-limit'), { target: { value: '230' } })
+    fireEvent.change(field('brake-setup-front-new'), { target: { value: '51' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common:save' }))
+    await Promise.resolve()
+    expect(toast.error).toHaveBeenCalledWith('brakes.thicknessOutOfRange')
+    expect(axleMock).not.toHaveBeenCalled()
   })
 
   it('axle setup writes nothing when nothing changed', async () => {

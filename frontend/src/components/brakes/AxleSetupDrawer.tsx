@@ -36,6 +36,10 @@ const seed = (axle: BrakeAxle): AxleForm => ({
         : '',
 })
 
+/* The server's bounds (backend/app/schemas/brake.py), in mm. Each axle is its
+   own request, so these are checked for every axle before either is sent. */
+const MAX_MM = { thickness: 50, rotor: 100, drum: 1000 } as const
+
 const mm = (typed: string): number | null => {
   const trimmed = typed.trim()
   if (trimmed === '') return null
@@ -103,6 +107,19 @@ export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetup
       }
       if (fresh <= min) {
         toast.error(t('brakes.newAboveMinimum'))
+        return
+      }
+      if (min < 0 || fresh > MAX_MM.thickness) {
+        toast.error(t('brakes.thicknessOutOfRange', { max: MAX_MM.thickness }))
+        return
+      }
+      const limit = mm(form.limit)
+      if (form.brake_type === 'drum' && limit !== null && (limit < 0 || limit > MAX_MM.drum)) {
+        toast.error(t('brakes.drumMaxOutOfRange', { max: MAX_MM.drum }))
+        return
+      }
+      if (form.brake_type === 'disc' && limit !== null && (limit < 0 || limit > MAX_MM.rotor)) {
+        toast.error(t('brakes.rotorMinOutOfRange', { max: MAX_MM.rotor }))
         return
       }
     }

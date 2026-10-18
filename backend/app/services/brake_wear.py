@@ -223,6 +223,15 @@ def after_job(m: BrakeMeasurement, job: BrakeJob | None) -> bool:
     )
 
 
+def _friction_job(jobs: Iterable[BrakeJob], setup: AxleSetup) -> BrakeJob | None:
+    """The corner's latest pad (or shoe) job, for the brakes the axle has now.
+
+    One logged before a type change replaced the other kind, so it neither
+    starts these pads over nor counts as them replaced.
+    """
+    return latest_job(jobs, lambda j: j.friction_replaced and j.brake_type == setup.brake_type)
+
+
 def pad_checks(
     measurements: Iterable[BrakeMeasurement], jobs: Iterable[BrakeJob], setup: AxleSetup
 ) -> list[BrakeMeasurement]:
@@ -231,7 +240,7 @@ def pad_checks(
     After its latest pad (or shoe) job, with a pad figure of the axle's type.
     A rotor-only check, or one from before that job, says nothing about these pads.
     """
-    job = latest_job(jobs, lambda j: j.friction_replaced)
+    job = _friction_job(jobs, setup)
     return sorted(
         (
             m
@@ -358,7 +367,7 @@ def project_brake_wear(
     if not measured:
         status = (
             BrakeWearStatus.REPLACED_NOT_MEASURED
-            if latest_job(jobs, lambda j: j.friction_replaced) is not None
+            if _friction_job(jobs, setup) is not None
             else BrakeWearStatus.NO_MEASUREMENTS
         )
         return BrakeWear(status=status)
@@ -497,7 +506,8 @@ def surface_reading(
     setup: AxleSetup,
 ) -> SurfaceReading | None:
     """The corner's rotor or drum figure, flagged when it is past its limit."""
-    job = latest_job(jobs, lambda j: j.surface is not None)
+    # A rotor job says nothing about a drum, and the other way round.
+    job = latest_job(jobs, lambda j: j.surface is not None and j.brake_type == setup.brake_type)
     measured = [
         m
         for m in measurements
