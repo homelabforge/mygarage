@@ -36,7 +36,9 @@ MOUNT_DOCKER_SOCKET=0
 HAS_DOCKER_BUILD=1
 PYTEST_ARGS=()
 BACKEND_ENV=()
-EXTRA_PLAYWRIGHT_ENV=()
+# CI=true runs Playwright exactly as CI does: forbidOnly, one retry, CI reporters,
+# and webServers that refuse a busy port instead of reusing whatever holds it.
+EXTRA_PLAYWRIGHT_ENV=(CI=true)
 # -----------------------------------------------------------------------
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
