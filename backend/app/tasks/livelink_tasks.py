@@ -4,6 +4,7 @@ import logging
 from datetime import timedelta
 
 from app.database import AsyncSessionLocal
+from app.schemas.livelink import TELEMETRY_RETENTION_MIN_DAYS
 from app.services.firmware_service import FirmwareService
 from app.services.livelink_service import LiveLinkService
 from app.services.location_service import LocationService
@@ -263,6 +264,13 @@ async def prune_old_telemetry():
 
     Runs daily at 4 AM. Deletes telemetry data older than the
     configured retention period (default 90 days).
+
+    A stored retention below the LiveLink minimum prunes nothing (O-T1). A 0
+    puts the cutoff at now and a negative one in the future, which deleted every
+    reading; only the typed settings route holds the range, and a hand edit or
+    an old database can still carry anything. A 0 is as likely to mean "keep
+    forever" as "keep nothing", so the prune skips and warns rather than guess a
+    floor (Jamey, 2026-10-18). Above the maximum is honoured: it only keeps more.
     """
     async with AsyncSessionLocal() as db:
         try:
@@ -271,6 +279,14 @@ async def prune_old_telemetry():
                 return
 
             retention_days = await livelink_service.get_retention_days()
+            if retention_days < TELEMETRY_RETENTION_MIN_DAYS:
+                logger.warning(
+                    "Telemetry retention is set to %d days, below the minimum of %d; "
+                    "pruning nothing. Set it in the LiveLink settings.",
+                    retention_days,
+                    TELEMETRY_RETENTION_MIN_DAYS,
+                )
+                return
 
             telemetry_service = TelemetryService(db)
             deleted_count = await telemetry_service.prune_old_telemetry(retention_days)

@@ -8,6 +8,11 @@ from pydantic import BaseModel, BeforeValidator, Field, field_validator
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
+#: The raw telemetry retention range, in days. The settings API, the restore and
+#: the daily prune all hold `livelink_telemetry_retention_days` to it.
+TELEMETRY_RETENTION_MIN_DAYS = 30
+TELEMETRY_RETENTION_MAX_DAYS = 365
+
 # Shared status literals for OpenAPI schema generation
 DeviceStatusType = Literal["online", "offline", "unknown"]
 ECUStatusType = Literal["online", "offline", "unknown"]
@@ -364,7 +369,9 @@ class LiveLinkSettingsUpdate(BaseModel):
     """Schema for updating LiveLink settings."""
 
     enabled: bool | None = None
-    telemetry_retention_days: int | None = Field(None, ge=30, le=365)
+    telemetry_retention_days: int | None = Field(
+        None, ge=TELEMETRY_RETENTION_MIN_DAYS, le=TELEMETRY_RETENTION_MAX_DAYS
+    )
     session_timeout_minutes: int | None = Field(None, ge=1, le=60)
     device_offline_timeout_minutes: int | None = Field(None, ge=5, le=60)
     daily_aggregation_enabled: bool | None = None

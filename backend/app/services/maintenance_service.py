@@ -64,7 +64,13 @@ from app.utils.cache import invalidate_cache_for_vehicle
 from app.utils.datetime_utils import utc_now
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.maintenance_types import get_compiled, label_for, normalise, resolve_type
+from app.utils.maintenance_types import (
+    get_compiled,
+    is_valid_code,
+    label_for,
+    normalise,
+    resolve_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1063,7 +1069,18 @@ async def complete_reminder(
         raise HTTPException(status_code=409, detail="Reminder is not pending")
 
     service = ServiceVisitService(db)
-    maintenance_type = resolve_type(reminder.maintenance_type, reminder.title)
+    # A hand edit or an old restore can leave free text ("Oil Change") where a
+    # code belongs. The strict line-item schema below would raise on it inside
+    # the handler, a 500 (EBR-5), so a non-code falls back to the title's
+    # classification, as a reminder with no type does. The reminder keeps it.
+    stored_type = reminder.maintenance_type
+    if stored_type is not None and not is_valid_code(stored_type):
+        logger.warning(
+            "Reminder %s has a maintenance type that is not a code; completing it by its title",
+            reminder.id,
+        )
+        stored_type = None
+    maintenance_type = resolve_type(stored_type, reminder.title)
     visit_id: int | None = None
     line_item_id: int | None = None
     # The event being recorded. A linked visit IS the service record, so its

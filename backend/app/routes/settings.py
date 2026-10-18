@@ -29,6 +29,7 @@ from app.schemas.settings import (
 from app.services.auth import get_current_admin_user
 from app.services.oidc import MASKED_SECRET_PLACEHOLDER, display_mask_secret
 from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
+from app.services.setting_rules import GENERIC_WRITABLE_KEYS, check_setting_value
 from app.services.settings_init import SENSITIVE_SETTING_KEYS
 from app.services.settings_service import SettingsService
 from app.utils.default_unit_prefs import (
@@ -87,6 +88,22 @@ def _reject_reserved_key(key: str) -> None:
         )
 
 
+def _reject_unwritable_key(key: str) -> None:
+    """Refuse a key the generic write routes do not own (G3b-20). Raises 422.
+
+    Called first on all three write paths, before any lookup, so an unknown key
+    is a 422 whether or not a row happens to exist. The list and its reasons
+    live in `app.services.setting_rules`; the reserved-key check runs first so
+    `effective_timezone` keeps its own message.
+    """
+    _reject_reserved_key(key)
+    if key not in GENERIC_WRITABLE_KEYS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Setting '{key}' cannot be written through this API",
+        )
+
+
 def _reject_unwritable_value(key: str, value: str | None) -> None:
     """Refuse a settings write whose value the reader could not use.
 
@@ -106,7 +123,8 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
     straight through `SettingsService.set`, and it applies this same rule at its
     own site rather than through here.
 
-    Four keys have a shape to check today: `effective_timezone` is computed
+    The value rules shared with the restore (`app.services.setting_rules`) run
+    first. Four more keys have a shape checked here: `effective_timezone` is computed
     and never stored; `timezone` must be a valid IANA name or the reader
     would skip it (see `app.utils.household_time.resolve_zone`);
     `oidc_redirect_uri` must be blank or an absolute http(s) URL, since the SSO
@@ -126,6 +144,10 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
         HTTPException: 422 when the value would not survive a read.
     """
     _reject_reserved_key(key)
+    try:
+        check_setting_value(key, value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Setting '{key}' {exc}") from exc
     if key == TIMEZONE_SETTING_KEY and value:
         try:
             ZoneInfo(value)
@@ -639,6 +661,7 @@ async def create_setting(
     current_user: User | None = Depends(get_current_admin_user),
 ):
     """Create a new setting (admin only)."""
+    _reject_unwritable_key(setting.key)
     # Check if setting already exists
     result = await db.execute(select(Setting).where(Setting.key == setting.key))
     existing = result.scalar_one_or_none()
@@ -672,7 +695,7 @@ async def update_setting(
     current_user: User | None = Depends(get_current_admin_user),
 ):
     """Update a setting (admin only)."""
-    _reject_reserved_key(key)
+    _reject_unwritable_key(key)
     result = await db.execute(select(Setting).where(Setting.key == key))
     setting = result.scalar_one_or_none()
 
@@ -729,6 +752,7 @@ async def batch_update_settings(
     # failure. Two passes keep the batch all-or-nothing.
     resolved_writes: list[tuple[str, str, Setting | None]] = []
     for key, value in batch.settings.items():
+        _reject_unwritable_key(key)
         result = await db.execute(select(Setting).where(Setting.key == key))
         setting = result.scalar_one_or_none()
         # Nothing stored yet, so a masked placeholder resolves to "".

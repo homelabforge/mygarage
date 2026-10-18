@@ -18,6 +18,7 @@ from app.models.drive_session import DriveSession
 from app.models.settings import Setting
 from app.models.vehicle import Vehicle
 from app.models.vehicle_telemetry import VehicleTelemetry
+from app.schemas.livelink import TELEMETRY_RETENTION_MAX_DAYS, TELEMETRY_RETENTION_MIN_DAYS
 from app.services.livelink_service import LiveLinkService
 from app.services.session_service import SessionService
 from app.utils.datetime_utils import utc_now
@@ -31,7 +32,7 @@ PENDING_KEY = "torque_session_repair"
 _CHUNK = 500
 
 #: The retention range the LiveLink settings API accepts (schemas/livelink.py).
-_MIN_RETENTION_DAYS, _MAX_RETENTION_DAYS = 30, 365
+_MIN_RETENTION_DAYS, _MAX_RETENTION_DAYS = TELEMETRY_RETENTION_MIN_DAYS, TELEMETRY_RETENTION_MAX_DAYS
 
 
 def _cutoff(oldest: datetime | None, now: datetime, retention_days: int) -> datetime | None:

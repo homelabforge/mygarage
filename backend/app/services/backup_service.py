@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services import restore_staging
 from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
+from app.services.setting_rules import check_setting_value
 from app.services.settings_service import SettingsService
 from app.utils.default_unit_prefs import (
     DEFAULT_UNIT_PREFS_KEY,
@@ -443,6 +444,10 @@ class BackupService:
             try:
                 key = setting_data.get("key")
                 value = setting_data.get("value")
+                # A hand-edited file can hold a JSON number; the column is Text,
+                # and asyncpg refuses an int there.
+                if value is not None and not isinstance(value, str):
+                    value = str(value)
 
                 if not key:
                     logger.warning("Skipping setting with no key during restore")
@@ -469,6 +474,19 @@ class BackupService:
                     logger.warning(
                         "Skipping %s during restore: computed, never stored",
                         sanitize_for_log(key),
+                    )
+                    continue
+
+                # The value rules the settings routes apply too (setting_rules).
+                # A 0-day telemetry retention here would make the daily prune
+                # delete every raw reading (O-T1).
+                try:
+                    check_setting_value(key, value)
+                except ValueError as exc:
+                    logger.warning(
+                        "Skipping %s during restore: %s",
+                        sanitize_for_log(key),
+                        sanitize_for_log(str(exc)),
                     )
                     continue
 

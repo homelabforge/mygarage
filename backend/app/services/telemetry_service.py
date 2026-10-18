@@ -114,6 +114,9 @@ LATEST_VALUE_STALE_AFTER = timedelta(days=30)
 
 logger = logging.getLogger(__name__)
 
+#: `livelink_parameters.display_name` is VARCHAR(100).
+_DISPLAY_NAME_WIDTH = 100
+
 #: VIN -> date of the last "declared odometer never records" warning. Bounded by
 #: the number of vehicles, which is a household's worth, so it never needs
 #: eviction.
@@ -226,8 +229,11 @@ class TelemetryService:
         Returns existing parameter if already registered.
 
         A source's `display_name` names a new row, and an existing one still on
-        its auto name; a name someone set stays.
+        its auto name; a name someone set stays. It is cut to the column's
+        width: PostgreSQL refuses a longer one where SQLite stores it (TQ-L2).
         """
+        if display_name is not None:
+            display_name = display_name[:_DISPLAY_NAME_WIDTH]
         # Explicit config class always wins; otherwise fall back to the
         # conservative catalog inference so MQTT-discovered params (which
         # arrive with an empty config block) still get validator range/rate

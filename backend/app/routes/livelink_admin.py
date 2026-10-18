@@ -563,13 +563,22 @@ async def get_parameter(
     return LiveLinkParameterResponse.model_validate(param)
 
 
+#: Percent readings that are a fill or a share, so they live within 0 to 100: a
+#: tank's level (`propane`), a sensor battery (`battery`), and the WiCAN fuel
+#: level, throttle and load (`percentage`, `power_factor`). Volumetric
+#: efficiency passes 100 and a fuel trim goes below 0, so an unclassified
+#: percent is not held to it (TQ-L3).
+_BOUNDED_PERCENT_CLASSES = frozenset({"percentage", "power_factor", "propane", "battery"})
+
+
 def _check_alert_lines(param: LiveLinkParameter, lines: dict[str, float | None]) -> None:
     """Refuse lines no value could sensibly cross. Raises 422.
 
-    A percentage's lines stay within 0 to 100, and the critical line sits
-    below the low one, taking whichever of the two this update leaves stored.
+    A fill-like percentage's lines stay within 0 to 100, and the critical line
+    sits below the low one, taking whichever of the two this update leaves
+    stored.
     """
-    if param.unit == "%":
+    if param.unit == "%" and param.param_class in _BOUNDED_PERCENT_CLASSES:
         for name, line in lines.items():
             if line is not None and not 0 <= line <= 100:
                 raise HTTPException(status_code=422, detail=f"{name} must be between 0 and 100")
