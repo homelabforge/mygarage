@@ -375,7 +375,6 @@
       "recallsLabel": "Nouveaux rappels détectés",
       "recallsDesc": "Notifier lorsque des rappels NHTSA sont trouvés pour vos véhicules",
       "serviceDueLabel": "Entretien à venir",
-      "serviceDueDesc": "Notifier lorsqu'un entretien planifié arrive à échéance",
       "serviceOverdueLabel": "Entretien en retard",
       "serviceOverdueDesc": "Notifier lorsqu'un entretien est en retard",
       "insuranceExpiringLabel": "Assurance expirant bientôt",

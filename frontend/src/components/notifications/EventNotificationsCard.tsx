@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Bell, Settings2 } from 'lucide-react';
 import { Toggle } from '@/components/ui'
 import { isSettingOn } from '@/utils/settingSwitch'
-import { useUnitFormat } from '@/hooks/useUnitFormat'
 
 interface EventNotificationsCardProps {
   settings: Record<string, unknown>;
@@ -14,9 +13,9 @@ interface EventNotificationsCardProps {
 }
 
 // A boolean event toggle can pair with zero or more numeric companion
-// settings (e.g. "Service Due" pairs with both a days-before and a
-// distance-before field). Data-driven so a new unit (days/distance/percent/...)
-// is a config addition, not a new copy-pasted JSX block.
+// settings (e.g. "Insurance expiring" pairs with a days-before field).
+// Data-driven so a new unit (days/percent/...) is a config addition, not a new
+// copy-pasted JSX block.
 interface NumberFieldConfig {
   key: string;
   default: string;
@@ -50,13 +49,6 @@ export function EventNotificationsCard({
   const { t } = useTranslation('settings')
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // The service-reminder lead distance is entered in the reader's OWN distance
-  // unit, so its suffix comes off the resolved token rather than reading
-  // "miles before" to everyone. `notify_service_miles` stores the number bare
-  // and nothing consumes it yet; whatever eventually does has to decide the
-  // unit, and this label is what the user believed they typed.
-  const u = useUnitFormat()
-
   // Built inside the component (not at module scope) because every label and
   // description resolves through `t` — a module-scope constant has no access
   // to the translator.
@@ -82,24 +74,9 @@ export function EventNotificationsCard({
           {
             key: 'notify_service_due',
             label: t('events.card.serviceDueLabel'),
-            description: t('events.card.serviceDueDesc'),
-            numberFields: [
-              {
-                key: 'notify_service_days',
-                default: '30',
-                min: 1,
-                max: 90,
-                suffix: t('events.card.daysBefore'),
-              },
-              {
-                key: 'notify_service_miles',
-                default: '500',
-                min: 100,
-                max: 5000,
-                step: 100,
-                suffix: t('events.card.milesBefore', { unit: u.distance.label }),
-              },
-            ],
+            // No lead-time fields: the heads-up fires once, when the
+            // reminder's own due status turns due soon.
+            description: t('events.card.serviceDueSoonDesc'),
           },
           {
             key: 'notify_service_overdue',
@@ -171,7 +148,7 @@ export function EventNotificationsCard({
         ],
       },
     ],
-    [t, u],
+    [t],
   );
 
   if (!hasEnabledService) {

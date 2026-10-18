@@ -1,13 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-
-// The card reads `useUnitFormat()` for the service-reminder lead-distance
-// suffix, and that reaches `useAuth()`, which throws without a provider. An
-// anonymous client is the shape these tests have always assumed.
-vi.mock('../../../contexts/AuthContext', () => ({
-  useAuth: () => ({ user: null, isAuthenticated: false, defaultUnitPrefs: null }),
-}))
-
 import { EventNotificationsCard } from '../EventNotificationsCard'
 
 describe('EventNotificationsCard — DEF-low event (Task 17)', () => {
@@ -106,5 +98,32 @@ describe('EventNotificationsCard — DEF-low event (Task 17)', () => {
     fireEvent.change(screen.getByDisplayValue('25'), { target: { value: '15' } })
 
     expect(onTextChange).toHaveBeenCalledWith('notify_def_low_threshold_percent', '15')
+  })
+})
+
+describe('EventNotificationsCard: Service due has no lead-time fields (D1c)', () => {
+  const noop = (): void => {}
+
+  it('renders no number inputs for Service due and the once-when-due-soon description', () => {
+    render(
+      <EventNotificationsCard
+        settings={{ notify_service_due: 'true', notify_service_days: '30', notify_service_miles: '500' }}
+        onSettingChange={noop}
+        onTextChange={noop}
+        saving={false}
+        hasEnabledService
+      />,
+    )
+
+    // Only insurance days, warranty days and the DEF percent are left.
+    const inputs = screen.getAllByRole('spinbutton')
+    expect(inputs.map((i) => (i as HTMLInputElement).value)).toStrictEqual(['30', '30', '25'])
+    expect(screen.getAllByText('events.card.daysBefore')).toHaveLength(2)
+    expect(screen.queryByText('events.card.milesBefore')).not.toBeInTheDocument()
+
+    // The switch stays; the heads-up fires once, when a reminder turns due soon.
+    expect(screen.getByRole('checkbox', { name: 'events.card.serviceDueLabel' })).toBeChecked()
+    expect(screen.getByText('events.card.serviceDueSoonDesc')).toBeInTheDocument()
+    expect(screen.queryByText('events.card.serviceDueDesc')).not.toBeInTheDocument()
   })
 })

@@ -400,7 +400,6 @@
       "recallsLabel": "Neue Rückrufe erkannt",
       "recallsDesc": "Benachrichtigen, wenn NHTSA-Rückrufe für deine Fahrzeuge gefunden werden",
       "serviceDueLabel": "Service fällig",
-      "serviceDueDesc": "Benachrichtigen, wenn ein geplanter Service ansteht",
       "serviceOverdueLabel": "Service überfällig",
       "serviceOverdueDesc": "Benachrichtigen, wenn ein Service überfällig ist",
       "insuranceExpiringLabel": "Versicherung läuft ab",
