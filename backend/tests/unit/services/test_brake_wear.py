@@ -229,6 +229,74 @@ class TestProjection:
         assert result.thinnest_mm == Decimal("9.6")
         assert result.inner_pad_mm is None
 
+    def test_a_carried_pad_is_projected_from_where_it_was_measured(self):
+        # October read the outer pad only. The inner pad's 4.0 mm is April's, at
+        # 20,000 km: 6 mm in 10,000 km leaves 1,667 km from there, all of it gone
+        # by 40,000 km. Read at October's odometer it said 5,000 km left.
+        ms = [
+            m("2026-01-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-04-01", "20000", inner="4.0", outer="7.0"),
+            m("2026-10-01", "40000", outer="6.0"),
+        ]
+        result = wear(ms)
+        assert result.status is BrakeWearStatus.PROJECTED
+        assert result.usage_remaining == Decimal("0.0")
+        # 1,667 km at 111 km a day, counted from April.
+        assert result.wear_date == dt.date(2026, 4, 16)
+
+    def test_a_carried_pad_above_the_band_is_not_read_as_healthy(self):
+        # 6.0 mm is above the 4.75 band, but at April's rate it reached the
+        # minimum in June. Read at October's odometer it lasted into 2027: OK.
+        ms = [
+            m("2026-01-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-04-01", "20000", inner="6.0", outer="8.0"),
+            m("2026-10-01", "40000", outer="7.5"),
+        ]
+        result = wear(ms)
+        assert result.usage_remaining == Decimal("0.0")
+        assert result.wear_date == dt.date(2026, 6, 7)
+        assert brake_condition(result, DISC, dt.date(2026, 10, 2)) is BrakeCondition.DUE_SOON
+
+    def test_use_since_a_carried_pad_was_measured_comes_off_what_is_left(self):
+        # 2 mm in 10,000 km: 25,000 km left at April's 20,000, 5,000 of them run since.
+        ms = [
+            m("2026-01-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-04-01", "20000", inner="8.0", outer="9.0"),
+            m("2026-05-01", "25000", outer="8.8"),
+        ]
+        result = wear(ms)
+        assert result.usage_remaining == Decimal("20000.0")
+        # The date runs from April too: 25,000 km at 111 km a day.
+        assert result.wear_date == dt.date(2026, 11, 12)
+
+    def test_an_odometer_entered_lower_later_never_adds_wear_back(self):
+        ms = [
+            m("2026-01-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-04-01", "20000", inner="8.0", outer="9.0"),
+            m("2026-05-01", "19000", outer="8.8"),
+        ]
+        assert wear(ms).usage_remaining == Decimal("25000.0")
+
+    def test_a_pad_measured_once_and_carried_has_no_rate_yet(self):
+        # The inner pad was read in January only; April read the outer one.
+        ms = [
+            m("2026-01-01", "10000", inner="6.0", outer="8.0"),
+            m("2026-04-01", "20000", outer="7.0"),
+        ]
+        result = wear(ms)
+        assert result.status is BrakeWearStatus.NOT_DECREASING
+        assert result.usage_remaining is None
+
+    def test_the_carried_pads_measurement_must_carry_the_odometer(self):
+        # Two earlier odometers, so it is the carried pad's own missing one that stops it.
+        ms = [
+            m("2026-01-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-02-01", "15000", inner="9.0", outer="9.5"),
+            m("2026-04-01", None, inner="5.0", outer="7.0"),
+            m("2026-10-01", "40000", outer="6.0"),
+        ]
+        assert wear(ms).status is BrakeWearStatus.NO_USAGE_FIGURES
+
     def test_the_newest_measurement_must_carry_the_odometer(self):
         ms = [
             m("2026-01-01", "10000", inner="10.0"),
