@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -16,15 +16,7 @@ from app.database import get_db
 from app.models.reminder import Reminder
 from app.models.user import User
 from app.services.auth import accessible_vehicles, get_current_admin_user, require_auth
-from app.services.hours_service import latest_engine_hours_and_date
-from app.services.odometer_service import latest_odometer_km_and_date
-from app.services.reminder_service import (
-    calculate_driving_rate,
-    calculate_hours_driving_rate,
-    expected_due_date,
-    is_reminder_overdue,
-    is_reminder_snoozed,
-)
+from app.services.reminder_service import load_due_context, reminder_due_status
 from app.services.settings_service import (
     SecretUnreadableError,
     SettingsService,
@@ -454,6 +446,14 @@ async def test_email_connection(
         }
 
 
+def _tread_of(reminder: Reminder) -> tuple[Decimal, Decimal] | None:
+    """A low-tread reminder's tread and minimum (canonical mm), or ``None``
+    unless both are stored (D7a)."""
+    if reminder.tread_depth_mm is None or reminder.tread_threshold_mm is None:
+        return None
+    return reminder.tread_depth_mm, reminder.tread_threshold_mm
+
+
 def _due_at(target: Decimal, current: Decimal | None, fmt: Callable[[Decimal], str]) -> str:
     """One usage dimension's inbox bit: the target, plus the current reading
     once the target has been reached (the evidence for the OVERDUE label)."""
@@ -491,11 +491,10 @@ async def notification_inbox(
     """Return actionable in-app alerts (overdue and soon-due reminders)."""
     vehicles = await accessible_vehicles(db, current_user)
     today = household_today()
-    soon = today + timedelta(days=14)
     items: list[InboxItem] = []
     # Caller's units with the vehicle's odometer unit laid on top (#172).
-    # Resolved lazily on the first mileage bit: on auth_mode=none the base
-    # context costs a Setting query, and most polls emit nothing.
+    # Resolved lazily, on the first mileage or tread bit: on auth_mode=none the
+    # base context costs a Setting query, and most polls emit nothing.
     base_ctx: RenderContext | None = None
 
     # One reminder query for the whole garage. This used to be three queries per
@@ -514,48 +513,25 @@ async def notification_inbox(
         pending = pending_by_vin.get(vehicle.vin, [])
         if not pending:
             continue
-        vehicle_ctx: RenderContext | None = None
+        # The hero's rule (RD-3): overdue and due soon by reminder_due_status, on
+        # the readings, rates and starts it counts with, so the bell lists what
+        # the badges count. Snoozed and on-track rows are left out.
+        due = await load_due_context(db, vehicle.vin, pending, today)
+        listed = [
+            (reminder, status)
+            for reminder in pending
+            if (status := reminder_due_status(reminder, due)) in ("overdue", "due_soon")
+        ]
+        if not listed:
+            continue
+        units: RenderContext | None = None
+        if any(r.due_mileage_km is not None or _tread_of(r) is not None for r, _ in listed):
+            if base_ctx is None:
+                base_ctx = await render_context_for_request(current_user, db)
+            units = with_vehicle(base_ctx, vehicle)
 
-        # Readings are fetched through the canonical helpers, and only for a
-        # vehicle that actually has a reminder keyed on one. `is_reminder_overdue`
-        # consults current_km only when due_mileage_km is set (and hours likewise),
-        # so a date-only garage does no reading queries at all. Batching these into
-        # a grouped MAX() would be wrong: latest means last by (date, id), which is
-        # not the largest value.
-        needs_km = any(r.due_mileage_km for r in pending)
-        needs_hours = any(r.due_hours for r in pending)
-        current_km = (await latest_odometer_km_and_date(db, vehicle.vin))[0] if needs_km else None
-        current_hours = (
-            (await latest_engine_hours_and_date(db, vehicle.vin))[0] if needs_hours else None
-        )
-        # Usage rates, so a mileage or hours reminder warns before it is
-        # overdue, on the same expected date the card badge and the reminders
-        # list show; only when there is a reading to project from.
-        km_per_day = (
-            await calculate_driving_rate(vehicle.vin, db) if current_km is not None else None
-        )
-        hours_per_day = (
-            await calculate_hours_driving_rate(vehicle.vin, db)
-            if current_hours is not None
-            else None
-        )
-
-        for reminder in pending:
-            if is_reminder_snoozed(reminder, today):
-                # The inbox is exactly the nag surface a snooze silences
-                # (plan 2026-09-18, decision 4).
-                continue
-            overdue = is_reminder_overdue(reminder, current_km, current_hours, today)
-            upcoming = False
-            if not overdue:
-                expected = expected_due_date(
-                    reminder, current_km, current_hours, km_per_day, hours_per_day, today
-                )
-                upcoming = expected is not None and expected <= soon
-
-            if not overdue and not upcoming:
-                continue
-
+        for reminder, status in listed:
+            overdue = status == "overdue"
             kind: Literal["reminder_overdue", "reminder_upcoming"] = (
                 "reminder_overdue" if overdue else "reminder_upcoming"
             )
@@ -567,23 +543,26 @@ async def notification_inbox(
             due_bits: list[str] = []
             if reminder.due_date is not None:
                 due_bits.append(f"due {reminder.due_date.isoformat()}")
-            if reminder.due_mileage_km is not None:
-                if vehicle_ctx is None:
-                    if base_ctx is None:
-                        base_ctx = await render_context_for_request(current_user, db)
-                    vehicle_ctx = with_vehicle(base_ctx, vehicle)
-                ctx = vehicle_ctx
+            if reminder.due_mileage_km is not None and units is not None:
+                distance_units = units
                 due_bits.append(
                     _due_at(
                         reminder.due_mileage_km,
-                        current_km,
-                        lambda v: format_quantity(v, ctx, "distance"),
+                        due.current_km,
+                        lambda v: format_quantity(v, distance_units, "distance"),
                     )
                 )
             if reminder.due_hours is not None:
-                due_bits.append(_due_at(reminder.due_hours, current_hours, format_hours))
+                due_bits.append(_due_at(reminder.due_hours, due.current_hours, format_hours))
+            tread = _tread_of(reminder)
+            if tread is not None and units is not None:
+                depth, minimum = tread
+                due_bits.append(
+                    f"tread {format_quantity(depth, units, 'tread')}"
+                    f" (minimum {format_quantity(minimum, units, 'tread')})"
+                )
             body = f"{vehicle.nickname or vehicle.vin}" + (
-                f" — {', '.join(due_bits)}" if due_bits else ""
+                f" · {', '.join(due_bits)}" if due_bits else ""
             )
             items.append(
                 InboxItem(
