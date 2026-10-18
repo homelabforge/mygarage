@@ -16,7 +16,7 @@ from app.services.notifications.ntfy import NtfyNotificationService
 from app.services.notifications.pushover import PushoverNotificationService
 from app.services.notifications.slack import SlackNotificationService
 from app.services.notifications.telegram import TelegramNotificationService
-from app.services.settings_service import SettingsService
+from app.services.settings_service import SecretUnreadableError, SettingsService
 from app.utils.render_context import RenderContext
 from app.utils.unit_formatting import format_forced_volume_pair, format_quantity
 
@@ -164,9 +164,18 @@ class NotificationDispatcher:
         if await self._get_setting_bool("ntfy_enabled", default=False):
             server = await self._get_setting("ntfy_server")
             topic = await self._get_setting("ntfy_topic", default="mygarage")
-            api_key = await self._get_setting("ntfy_token")
-            if server and topic:
-                services.append(NtfyNotificationService(server, topic, api_key))
+            try:
+                # Optional: a blank token sends without auth, so an unreadable one
+                # must stop here rather than read as blank (R1-M1).
+                api_key = await SettingsService.get_secret(self.db, "ntfy_token") or ""
+            except SecretUnreadableError as e:
+                logger.error(
+                    "Skipping ntfy: the stored %s can't be decrypted; re-enter it in Settings",
+                    e.key,
+                )
+            else:
+                if server and topic:
+                    services.append(NtfyNotificationService(server, topic, api_key))
 
         # Check gotify
         if await self._get_setting_bool("gotify_enabled", default=False):

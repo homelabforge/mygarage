@@ -124,8 +124,11 @@ async def db_session(test_sessionmaker, init_test_db) -> AsyncGenerator[AsyncSes
 async def keep_rows(db_session: AsyncSession):
     """Snapshot settings rows by key and put them back afterwards.
 
-    Value, category, description and the encrypted flag come back; the row is
-    recreated, so its created_at and updated_at do not.
+    The stored value, category, description and the encrypted flag come back;
+    the row is recreated, so its created_at and updated_at do not. The raw
+    `stored_value` is what comes back, not the decrypted `value`: going through
+    `value` would turn an unreadable secret's ciphertext into None, and a
+    restored legacy plaintext into fresh ciphertext.
 
     Call the yielded function with the keys a test is about to write. The test
     database is created without the seeded settings and persists for the whole
@@ -142,7 +145,9 @@ async def keep_rows(db_session: AsyncSession):
                 continue
             row = await db_session.get(Setting, key)
             saved[key] = (
-                None if row is None else (row.value, row.category, row.description, row.encrypted)
+                None
+                if row is None
+                else (row.stored_value, row.category, row.description, row.encrypted)
             )
 
     yield keep
@@ -150,11 +155,11 @@ async def keep_rows(db_session: AsyncSession):
     await db_session.execute(delete(Setting).where(Setting.key.in_(list(saved))))
     for key, snapshot in saved.items():
         if snapshot is not None:
-            value, category, description, encrypted = snapshot
+            stored_value, category, description, encrypted = snapshot
             db_session.add(
                 Setting(
                     key=key,
-                    value=value,
+                    stored_value=stored_value,
                     category=category,
                     description=description,
                     encrypted=encrypted,

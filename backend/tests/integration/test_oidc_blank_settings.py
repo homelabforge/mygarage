@@ -42,17 +42,18 @@ _METADATA = {"authorization_endpoint": "https://idp.example/authorize"}
 async def _oidc_rows(db_session: AsyncSession):
     """Start with no oidc_* settings and put the originals back afterwards."""
     rows = (await db_session.execute(select(Setting).where(Setting.key.like("oidc_%")))).scalars()
-    saved = [(r.key, r.value, r.category, r.description, r.encrypted) for r in rows]
+    # The raw stored form, so an unreadable secret's ciphertext survives (R2-10).
+    saved = [(r.key, r.stored_value, r.category, r.description, r.encrypted) for r in rows]
     await db_session.execute(delete(Setting).where(Setting.key.like("oidc_%")))
     await db_session.commit()
     yield
     await db_session.rollback()
     await db_session.execute(delete(Setting).where(Setting.key.like("oidc_%")))
-    for key, value, category, description, encrypted in saved:
+    for key, stored_value, category, description, encrypted in saved:
         db_session.add(
             Setting(
                 key=key,
-                value=value,
+                stored_value=stored_value,
                 category=category,
                 description=description,
                 encrypted=encrypted,

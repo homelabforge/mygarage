@@ -17,7 +17,7 @@ from app.database import AsyncSessionLocal
 from app.services.livelink_ingest import ingest
 from app.services.livelink_sources.base import BaseSourceModule, MqttEnvelope
 from app.services.livelink_sources.registry import default_registry
-from app.services.settings_service import SettingsService
+from app.services.settings_service import SecretUnreadableError, SettingsService
 from app.utils.datetime_utils import utc_now
 from app.utils.household_time import load_household_zone
 from app.utils.logging_utils import sanitize_for_log
@@ -185,7 +185,16 @@ class MQTTSubscriber:
 
             broker_port = await SettingsService.get(db, "livelink_mqtt_broker_port")
             username = await SettingsService.get(db, "livelink_mqtt_username")
-            password = await SettingsService.get(db, "livelink_mqtt_password")
+            try:
+                # Optional: no password connects anonymously, so an unreadable one
+                # must stop here rather than read as unset (R1-M1).
+                password = await SettingsService.get_secret(db, "livelink_mqtt_password")
+            except SecretUnreadableError as e:
+                logger.error(
+                    "MQTT enabled but the stored %s can't be decrypted; re-enter it in Settings",
+                    e.key,
+                )
+                return None
             topic_prefix = await SettingsService.get(db, "livelink_mqtt_topic_prefix")
             use_tls = await SettingsService.get(db, "livelink_mqtt_use_tls")
 
@@ -193,7 +202,7 @@ class MQTTSubscriber:
                 "host": broker_host.value,
                 "port": int(broker_port.value) if broker_port and broker_port.value else 1883,
                 "username": username.value if username and username.value else None,
-                "password": password.value if password and password.value else None,
+                "password": password or None,
                 "topic_prefix": topic_prefix.value
                 if topic_prefix and topic_prefix.value
                 else "wican",

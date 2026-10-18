@@ -25,7 +25,11 @@ from app.services.reminder_service import (
     is_reminder_overdue,
     is_reminder_snoozed,
 )
-from app.services.settings_service import SettingsService
+from app.services.settings_service import (
+    SecretUnreadableError,
+    SettingsService,
+    reenter_message,
+)
 from app.services.telegram_poller import PollerErrorCode, PollerState, telegram_poller
 from app.utils.hours_formatting import format_hours
 from app.utils.household_time import household_today
@@ -71,13 +75,20 @@ async def test_ntfy_connection(
         ntfy_enabled = await SettingsService.get_bool(db, "ntfy_enabled")
         ntfy_server = await _get_setting(db, "ntfy_server")
         ntfy_topic = await _get_setting(db, "ntfy_topic")
-        ntfy_token = await _get_setting(db, "ntfy_token")
 
         if not ntfy_enabled:
             return {"success": False, "message": "ntfy notifications are disabled"}
 
         if not ntfy_server or not ntfy_topic:
             return {"success": False, "message": "ntfy server or topic not configured"}
+
+        # Optional: a blank token sends without auth, so an unreadable one must
+        # stop with advice, returned from here: an HTTPException raised inside
+        # this try would be swallowed by the blanket except below (R2-1).
+        try:
+            ntfy_token = await SettingsService.get_secret(db, "ntfy_token")
+        except SecretUnreadableError:
+            return {"success": False, "message": reenter_message("ntfy token")}
 
         server_url = ntfy_server.rstrip("/")
         headers: dict[str, str] = {}

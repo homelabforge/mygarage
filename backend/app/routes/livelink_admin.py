@@ -82,7 +82,11 @@ from app.services.livelink_sources.presets.sensors import (
 from app.services.livelink_sources.registry import default_registry
 from app.services.mqtt_subscriber import mqtt_subscriber
 from app.services.sd_backfill_service import SdBackfillService
-from app.services.settings_service import SettingsService
+from app.services.settings_service import (
+    SecretUnreadableError,
+    SettingsService,
+    reenter_message,
+)
 from app.services.telemetry_service import TelemetryService
 from app.tasks.livelink_tasks import get_mqtt_status as get_subscriber_status
 from app.utils.datetime_utils import utc_now
@@ -977,7 +981,6 @@ async def test_mqtt_connection(
     broker_host = await SettingsService.get(db, "livelink_mqtt_broker_host")
     broker_port = await SettingsService.get(db, "livelink_mqtt_broker_port")
     username = await SettingsService.get(db, "livelink_mqtt_username")
-    password = await SettingsService.get(db, "livelink_mqtt_password")
     use_tls = await SettingsService.get_bool(db, "livelink_mqtt_use_tls", default=False)
 
     if not broker_host or not broker_host.value:
@@ -990,6 +993,17 @@ async def test_mqtt_connection(
     host = broker_host.value
     port = int(broker_port.value) if broker_port and broker_port.value else 1883
     broker = f"{host}:{port}"
+
+    try:
+        # Optional: no password connects anonymously, so an unreadable one must
+        # stop with advice in the 200 envelope the drawer shows (R2-1).
+        password = await SettingsService.get_secret(db, "livelink_mqtt_password")
+    except SecretUnreadableError:
+        return MQTTTestResult(
+            success=False,
+            message=reenter_message("MQTT password"),
+            broker=broker,
+        )
 
     try:
         import asyncio
@@ -1008,7 +1022,7 @@ async def test_mqtt_connection(
                 hostname=host,
                 port=port,
                 username=username.value if username and username.value else None,
-                password=password.value if password and password.value else None,
+                password=password or None,
                 tls_context=tls_context,
             ):
                 pass  # Connection successful

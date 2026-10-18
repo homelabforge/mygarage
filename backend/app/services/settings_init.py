@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings as app_settings
 from app.models.settings import Setting
 from app.utils.default_unit_prefs import DEFAULT_UNIT_PREFS_KEY, default_unit_prefs_for_instance
+from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 
 logger = logging.getLogger(__name__)
 
@@ -627,19 +628,16 @@ DEFAULT_SETTINGS = {
 }
 
 
-# Settings whose values must never leave the API in a response body.
-#
-# Derived from DEFAULT_SETTINGS so this set and the seeded metadata cannot drift
-# apart. It is deliberately NOT read from the `settings.encrypted` column: that
-# column is only written when a row is first seeded, so rows created or updated
-# through other paths carry stale values (production has an `encrypted` column
-# holding 0, 1, and the string 'false'). Code is the source of truth.
-#
-# The stored value is plaintext — the protection here is response masking, not
-# encryption at rest.
-SENSITIVE_SETTING_KEYS: frozenset[str] = frozenset(
-    key for key, meta in DEFAULT_SETTINGS.items() if meta.get("encrypted")
-)
+# Settings whose values must never leave the API in a response body, and which
+# the model encrypts at rest: one set for both (D6a), so masking covers the three
+# POI provider keys too. It lives in a leaf module because the model needs it
+# and this module imports the model; tests/unit/utils/test_secret_setting_keys.py
+# pins it to the `encrypted: True` flags above. It is deliberately NOT read from
+# the `settings.encrypted` column: that column is only written when a row is
+# first seeded, so rows created or updated through other paths carry stale
+# values (production has an `encrypted` column holding 0, 1, and the string
+# 'false'). Code is the source of truth.
+SENSITIVE_SETTING_KEYS: frozenset[str] = SECRET_SETTING_KEYS
 
 
 async def initialize_default_settings(db: AsyncSession) -> None:

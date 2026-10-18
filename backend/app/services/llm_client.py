@@ -15,7 +15,7 @@ import httpx
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.settings_service import SettingsService
+from app.services.settings_service import SecretUnreadableError, SettingsService, reenter_message
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,16 @@ async def chat_completion(
     """POST ``/chat/completions`` and return the assistant message content."""
     base_url = (await setting(db, "llm_base_url", "http://127.0.0.1:11434/v1")).rstrip("/")
     model = await setting(db, "llm_model", "llama3.2")
-    api_key = await setting(db, "llm_api_key", "")
+    try:
+        # Optional: a blank key calls without auth, so an unreadable one must stop
+        # here rather than read as blank (R1-M1).
+        api_key = await SettingsService.get_secret(db, "llm_api_key") or ""
+    except SecretUnreadableError as err:
+        logger.error("LLM call refused: the stored %s can't be decrypted", err.key)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=reenter_message("LLM API key"),
+        ) from err
 
     headers = {"Content-Type": "application/json"}
     if api_key:
