@@ -57,6 +57,16 @@ async def hours_vin(db_session: AsyncSession, test_user) -> AsyncGenerator[str]:
 
 
 @pytest_asyncio.fixture
+async def both_vin(db_session: AsyncSession, test_user) -> AsyncGenerator[str]:
+    """A vehicle with an odometer and an hour meter. Its wear runs on the odometer."""
+    made = await _vehicle(db_session, test_user["id"], secondary_usage_enabled=True)
+    yield made
+    await db_session.rollback()
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == made))
+    await db_session.commit()
+
+
+@pytest_asyncio.fixture
 async def other_vin(db_session: AsyncSession, test_user) -> AsyncGenerator[str]:
     """A second vehicle of this test's own."""
     made = await _vehicle(db_session, test_user["id"])
@@ -90,6 +100,19 @@ async def _pending(db_session: AsyncSession, vin: str, source: str) -> list[Remi
         )
     )
     return list(result.scalars().all())
+
+
+async def _low_front_deleted(
+    client: AsyncClient, headers, vin: str, db_session: AsyncSession
+) -> list[int]:
+    """FL logged low, then deleted: the front reminder stays pending with no corner LOW."""
+    body = (await _log(client, headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "2.8"})).json()
+    raised = [r.id for r in await _pending(db_session, vin, "low_brakes_front")]
+    assert len(raised) == 1
+    mid = _corner(body, "FL")["measurements"][0]["id"]
+    deleted = await client.delete(f"/api/vehicles/{vin}/brakes/measurements/{mid}", headers=headers)
+    assert deleted.status_code == 204
+    return raised
 
 
 @pytest.mark.integration
@@ -867,6 +890,211 @@ class TestAxleReminder:
         for url, payload in edits:
             assert (await client.put(url, headers=auth_headers, json=payload)).status_code == 200
         assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+
+    async def test_a_rotor_check_or_surface_jobs_date_or_reading_is_not_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        base = f"/api/vehicles/{vin}/brakes"
+        await _log(client, auth_headers, vin, "2026-03-01", None, FR={"inner_pad_mm": "8"})
+        rotor = await _log(client, auth_headers, vin, "2026-03-02", None, FR={"rotor_mm": "24.5"})
+        assert rotor.status_code == 201
+        rotor_id = next(
+            m["id"] for m in _corner(rotor.json(), "FR")["measurements"] if m["rotor_mm"]
+        )
+        job = await client.post(
+            f"{base}/jobs",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-03-03",
+                "surface": "replaced",
+                "corners": [{"position": "FR"}],
+            },
+        )
+        assert job.status_code == 201
+        job_id = _corner(job.json(), "FR")["last_job"]["id"]
+        raised = await _low_front_deleted(client, auth_headers, vin, db_session)
+        # Dates and readings, but of nothing the pads estimate reads.
+        edits = [
+            (f"{base}/measurements/{rotor_id}", {"recorded_at": "2026-03-04"}),
+            (f"{base}/measurements/{rotor_id}", {"odometer_km": "1000"}),
+            (f"{base}/jobs/{job_id}", {"performed_on": "2026-03-05"}),
+            (f"{base}/jobs/{job_id}", {"odometer_km": "1000"}),
+        ]
+        for url, payload in edits:
+            assert (await client.put(url, headers=auth_headers, json=payload)).status_code == 200
+            assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+
+    async def test_history_from_before_the_pad_job_is_not_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        base = f"/api/vehicles/{vin}/brakes"
+
+        async def pad_job(day: str, **corner: str):
+            return await client.post(
+                f"{base}/jobs",
+                headers=auth_headers,
+                json={
+                    "performed_on": day,
+                    "friction_replaced": True,
+                    "corners": [{"position": "FR", **corner}],
+                },
+            )
+
+        first = await pad_job("2026-01-05")
+        assert first.status_code == 201
+        first_id = _corner(first.json(), "FR")["last_job"]["id"]
+        old = await _log(client, auth_headers, vin, "2026-01-10", None, FR={"inner_pad_mm": "8"})
+        old_id = _corner(old.json(), "FR")["measurements"][0]["id"]
+        # FR's pads went on in February: the estimate reads from there on.
+        assert (await pad_job("2026-02-01", new_thickness_mm="10")).status_code == 201
+        june = await _log(client, auth_headers, vin, "2026-06-01", None, FR={"inner_pad_mm": "9"})
+        june_id = _corner(june.json(), "FR")["measurements"][0]["id"]
+        raised = await _low_front_deleted(client, auth_headers, vin, db_session)
+        edits = [
+            (f"{base}/measurements/{old_id}", {"inner_pad_mm": "8.5"}),
+            (f"{base}/measurements/{old_id}", {"recorded_at": "2026-01-12", "odometer_km": "800"}),
+            # The older pad job.
+            (f"{base}/jobs/{first_id}", {"performed_on": "2026-01-06", "odometer_km": "700"}),
+            # Moved back before February: a take-away, not news.
+            (f"{base}/measurements/{june_id}", {"recorded_at": "2026-01-15"}),
+        ]
+        for url, payload in edits:
+            assert (await client.put(url, headers=auth_headers, json=payload)).status_code == 200
+            assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+        # Logged late, a January check and a January pad job are history too.
+        late = await _log(client, auth_headers, vin, "2026-01-20", None, FR={"inner_pad_mm": "7"})
+        assert late.status_code == 201
+        assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+        assert (await pad_job("2026-01-25")).status_code == 201
+        assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+        # The old check moved after the February job: FR reads it now, and it's fine.
+        moved = await client.put(
+            f"{base}/measurements/{old_id}",
+            headers=auth_headers,
+            json={"recorded_at": "2026-07-01"},
+        )
+        assert moved.status_code == 200
+        assert _corner(moved.json(), "FR")["condition"] == "ok"
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_the_other_brake_types_records_are_not_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        base = f"/api/vehicles/{vin}/brakes"
+        drum = {"brake_type": "drum", "min_thickness_mm": "1.5", "new_thickness_mm": "5"}
+        assert (
+            await client.put(f"{base}/axles/front", headers=auth_headers, json=drum)
+        ).status_code == 200
+        shoes = await _log(client, auth_headers, vin, "2026-01-10", None, FR={"shoe_mm": "4.5"})
+        shoe_id = _corner(shoes.json(), "FR")["measurements"][0]["id"]
+        shoe_job = await client.post(
+            f"{base}/jobs",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-01-11",
+                "friction_replaced": True,
+                "corners": [{"position": "FR"}],
+            },
+        )
+        shoe_job_id = _corner(shoe_job.json(), "FR")["last_job"]["id"]
+        disc = {"brake_type": "disc", "min_thickness_mm": "3", "new_thickness_mm": "10"}
+        assert (
+            await client.put(f"{base}/axles/front", headers=auth_headers, json=disc)
+        ).status_code == 200
+        await _log(client, auth_headers, vin, "2026-03-01", None, FR={"inner_pad_mm": "8"})
+        raised = await _low_front_deleted(client, auth_headers, vin, db_session)
+        # The drum days' shoe check and shoe job say nothing about disc pads.
+        edits = [
+            (f"{base}/measurements/{shoe_id}", {"recorded_at": "2026-03-05"}),
+            (f"{base}/jobs/{shoe_job_id}", {"performed_on": "2026-03-06"}),
+        ]
+        for url, payload in edits:
+            assert (await client.put(url, headers=auth_headers, json=payload)).status_code == 200
+            assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+
+    async def test_the_reading_the_wear_does_not_run_on_is_not_news(
+        self, client: AsyncClient, auth_headers, both_vin, db_session: AsyncSession
+    ):
+        base = f"/api/vehicles/{both_vin}/brakes"
+        fine = await client.post(
+            f"{base}/measurements",
+            headers=auth_headers,
+            json={
+                "recorded_at": "2026-03-01",
+                "odometer_km": "500",
+                "engine_hours": "10",
+                "corners": [{"position": "FR", "inner_pad_mm": "8"}],
+            },
+        )
+        assert fine.status_code == 201
+        fr = _corner(fine.json(), "FR")["measurements"][0]["id"]
+        raised = await _low_front_deleted(client, auth_headers, both_vin, db_session)
+        hours = await client.put(
+            f"{base}/measurements/{fr}", headers=auth_headers, json={"engine_hours": "12"}
+        )
+        assert hours.status_code == 200
+        assert [r.id for r in await _pending(db_session, both_vin, "low_brakes_front")] == raised
+        odometer = await client.put(
+            f"{base}/measurements/{fr}", headers=auth_headers, json={"odometer_km": "600"}
+        )
+        assert odometer.status_code == 200
+        assert await _pending(db_session, both_vin, "low_brakes_front") == []
+
+    @pytest.mark.parametrize("new_pads", [None, "10"])
+    async def test_a_pad_jobs_reading_is_news_only_with_its_new_pads_figure(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession, new_pads
+    ):
+        base = f"/api/vehicles/{vin}/brakes"
+        corner = {"position": "FR", **({"new_thickness_mm": new_pads} if new_pads else {})}
+        job = await client.post(
+            f"{base}/jobs",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-03-01",
+                "odometer_km": "500",
+                "friction_replaced": True,
+                "corners": [corner],
+            },
+        )
+        assert job.status_code == 201
+        job_id = _corner(job.json(), "FR")["last_job"]["id"]
+        raised = await _low_front_deleted(client, auth_headers, vin, db_session)
+        # The estimate reads a job's reading only on the new-pads figure it wrote.
+        reading = await client.put(
+            f"{base}/jobs/{job_id}", headers=auth_headers, json={"odometer_km": "600"}
+        )
+        assert reading.status_code == 200
+        if new_pads:
+            assert await _pending(db_session, vin, "low_brakes_front") == []
+            return
+        assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+        # Its date it reads either way.
+        moved = await client.put(
+            f"{base}/jobs/{job_id}", headers=auth_headers, json={"performed_on": "2026-03-02"}
+        )
+        assert moved.status_code == 200
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_clearing_a_reading_or_one_pad_of_a_fine_check_is_not_news(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        fine = await _log(
+            client,
+            auth_headers,
+            vin,
+            "2026-03-01",
+            "500",
+            FR={"inner_pad_mm": "8", "outer_pad_mm": "8"},
+        )
+        fr = _corner(fine.json(), "FR")["measurements"][0]["id"]
+        raised = await _low_front_deleted(client, auth_headers, vin, db_session)
+        # Still a pad check the estimate reads, but each edit only takes away.
+        for payload in ({"outer_pad_mm": None}, {"odometer_km": None}):
+            response = await client.put(
+                f"/api/vehicles/{vin}/brakes/measurements/{fr}", headers=auth_headers, json=payload
+            )
+            assert response.status_code == 200
+            assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
 
     async def test_a_job_edited_to_take_the_pads_away_does_not_complete_it(
         self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession

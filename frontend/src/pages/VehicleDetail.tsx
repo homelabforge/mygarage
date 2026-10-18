@@ -186,8 +186,10 @@ export default function VehicleDetail() {
       setVehicle(updated)
       if (vin) {
         rememberVehicle(vin, updated)
-        // Tracking distance or hours changes the tire dialogs and figures (#217).
-        void queryClient.invalidateQueries({ queryKey: ['tires', vin] })
+        // Tracking distance or hours changes the tire and brake dialogs and figures (#217, #202).
+        for (const key of ['tires', 'brakes']) {
+          void queryClient.invalidateQueries({ queryKey: [key, vin] })
+        }
       }
       syncQuickEntryVehicle(updated)
     },

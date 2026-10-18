@@ -252,6 +252,33 @@ def pad_checks(
     )
 
 
+def estimate_reads(
+    row: BrakeMeasurement | BrakeJob,
+    measurements: Sequence[BrakeMeasurement],
+    jobs: Sequence[BrakeJob],
+    setup: AxleSetup,
+    axis: UsageAxis,
+) -> frozenset[str]:
+    """The fields of one of the corner's rows that its pad estimate reads, if any.
+
+    A pad check: its pad figures, its date and the reading the rate runs on.
+    The pad job: that it replaced the pads, its date, and the reading of the
+    new-pads figure it wrote, if it wrote one. A rotor-only check, history
+    from before the pad job, the other brake type's records and an older pad
+    job it doesn't read at all.
+    """
+    reading = "engine_hours" if axis.is_hours else "odometer_km"
+    if isinstance(row, BrakeMeasurement):
+        if all(m.id != row.id for m in pad_checks(measurements, jobs, setup)):
+            return frozenset()
+        return frozenset({*_PAD_FIELDS[setup.brake_type].values(), "recorded_at", reading})
+    job = _friction_job(jobs, setup)
+    if job is None or job.id != row.id:
+        return frozenset()
+    wrote = any(m.brake_job_id == job.id for m in measurements)
+    return frozenset({"friction_replaced", "performed_on", *([reading] if wrote else [])})
+
+
 def _usage(m: BrakeMeasurement, axis: UsageAxis) -> Decimal | None:
     return m.engine_hours if axis.is_hours else m.odometer_km
 

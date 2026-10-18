@@ -296,12 +296,15 @@ describe('the window sticker upload', () => {
   })
 })
 
-describe('a vehicle save refreshes the tire list (#217)', () => {
-  it('so switching distance tracking on or off reaches the tire dialogs and figures', async () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const invalidate = vi.spyOn(client, 'invalidateQueries')
-    renderPage(client)
-    fireEvent.click(await screen.findByText('save-edit'))
-    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['tires', VIN] }))
-  })
+describe('a vehicle save refreshes the tire and brake lists (#217, #202)', () => {
+  it.each(['tires', 'brakes'])(
+    'so switching distance or hours tracking reaches the %s dialogs and figures',
+    async (key) => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const invalidate = vi.spyOn(client, 'invalidateQueries')
+      renderPage(client)
+      fireEvent.click(await screen.findByText('save-edit'))
+      await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: [key, VIN] }))
+    }
+  )
 })
