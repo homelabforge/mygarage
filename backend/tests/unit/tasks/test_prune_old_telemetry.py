@@ -4,7 +4,7 @@
 `now - retention_days`. A stored 0 puts that cutoff at now and a negative one in
 the future, so every row goes. Only the typed LiveLink API enforces 30 to 365;
 a hand edit, an old database or a full-backup swap can still hold anything, so
-the task itself skips the prune and warns (Jamey, 2026-10-18: skip, not clamp).
+the task itself skips the prune and warns rather than clamp.
 
 Session plumbing mirrors test_check_firmware_updates.py: the job opens
 `AsyncSessionLocal()` itself, so `app.tasks.livelink_tasks.AsyncSessionLocal` is

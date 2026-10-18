@@ -267,10 +267,10 @@ async def prune_old_telemetry():
 
     A stored retention below the LiveLink minimum prunes nothing (O-T1). A 0
     puts the cutoff at now and a negative one in the future, which deleted every
-    reading; only the typed settings route holds the range, and a hand edit or
-    an old database can still carry anything. A 0 is as likely to mean "keep
-    forever" as "keep nothing", so the prune skips and warns rather than guess a
-    floor (Jamey, 2026-10-18). Above the maximum is honoured: it only keeps more.
+    reading; the settings writers hold the range now, but a hand edit or an old
+    database can still carry anything. A 0 is as likely to mean "keep forever"
+    as "keep nothing", so the prune skips and warns rather than guess a floor.
+    Above the maximum is honoured: it only keeps more.
     """
     async with AsyncSessionLocal() as db:
         try:
