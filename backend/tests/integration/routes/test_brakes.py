@@ -945,7 +945,8 @@ class TestAxleReminder:
                 },
             )
 
-        first = await pad_job("2026-01-05")
+        # With its new-pads figure: history too, from February on.
+        first = await pad_job("2026-01-05", new_thickness_mm="10")
         assert first.status_code == 201
         first_id = _corner(first.json(), "FR")["last_job"]["id"]
         old = await _log(client, auth_headers, vin, "2026-01-10", None, FR={"inner_pad_mm": "8"})
@@ -1187,6 +1188,59 @@ class TestAxleReminder:
         )
         assert hours.status_code == 200
         assert await _pending(db_session, hours_vin, "low_brakes_front") == []
+
+    async def test_a_pad_jobs_hour_meter_is_news_on_an_hours_vehicle(
+        self, client: AsyncClient, auth_headers, hours_vin, db_session: AsyncSession
+    ):
+        base = f"/api/vehicles/{hours_vin}/brakes"
+        job = await client.post(
+            f"{base}/jobs",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-03-01",
+                "engine_hours": "10",
+                "friction_replaced": True,
+                "corners": [{"position": "FR", "new_thickness_mm": "10"}],
+            },
+        )
+        assert job.status_code == 201
+        job_id = _corner(job.json(), "FR")["last_job"]["id"]
+        await _low_front_deleted(client, auth_headers, hours_vin, db_session)
+        # It moves onto the new-pads figure, and the wear runs on the hour meter here.
+        hours = await client.put(
+            f"{base}/jobs/{job_id}", headers=auth_headers, json={"engine_hours": "12"}
+        )
+        assert hours.status_code == 200
+        assert await _pending(db_session, hours_vin, "low_brakes_front") == []
+
+    async def test_a_pad_jobs_hour_meter_is_no_news_where_the_wear_runs_on_the_odometer(
+        self, client: AsyncClient, auth_headers, both_vin, db_session: AsyncSession
+    ):
+        base = f"/api/vehicles/{both_vin}/brakes"
+        job = await client.post(
+            f"{base}/jobs",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-03-01",
+                "odometer_km": "500",
+                "engine_hours": "10",
+                "friction_replaced": True,
+                "corners": [{"position": "FR", "new_thickness_mm": "10"}],
+            },
+        )
+        assert job.status_code == 201
+        job_id = _corner(job.json(), "FR")["last_job"]["id"]
+        raised = await _low_front_deleted(client, auth_headers, both_vin, db_session)
+        hours = await client.put(
+            f"{base}/jobs/{job_id}", headers=auth_headers, json={"engine_hours": "12"}
+        )
+        assert hours.status_code == 200
+        assert [r.id for r in await _pending(db_session, both_vin, "low_brakes_front")] == raised
+        odometer = await client.put(
+            f"{base}/jobs/{job_id}", headers=auth_headers, json={"odometer_km": "600"}
+        )
+        assert odometer.status_code == 200
+        assert await _pending(db_session, both_vin, "low_brakes_front") == []
 
     async def test_a_same_day_check_the_job_did_not_write_is_the_old_pads(
         self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession

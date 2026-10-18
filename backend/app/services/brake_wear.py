@@ -265,9 +265,10 @@ def estimate_reads(
     The pad job: that it replaced the pads, and its date. Any job: the date
     and reading it carries over to a new-pads figure it wrote, while that
     figure is a pad check (a disc job's figure given a shoe after the axle
-    went drum still is). A rotor-only check, history from before the pad job
-    (an older pad job too, or one dated back behind another) and the other
-    brake type's records it doesn't read at all.
+    went drum still is). Anything else it doesn't read: a rotor-only check,
+    history from before the pad job (an older pad job too, or one dated back
+    behind another), the other brake type's checks, and its jobs except
+    through such a figure.
     """
     reading = "engine_hours" if axis.is_hours else "odometer_km"
     checks = pad_checks(measurements, jobs, setup)

@@ -370,7 +370,8 @@ class BrakeService:
         brake type, minimum or new thickness, or a write that gives one of its
         corners' estimates something it reads (`_pad_news`): a pad check or the
         pad job, or an edit that sets a check's figure, date or reading, the
-        job's date, the pads on, or the reading it carries to its new-pads figure.
+        pad job's date or the pads on, or a job's date or reading that moves a
+        check it wrote.
         A delete is no evidence, and nor is an edit that only takes something
         away. Taking away the low figure is not news that the pads are fine,
         and deleting one to re-enter it would otherwise close the reminder and
