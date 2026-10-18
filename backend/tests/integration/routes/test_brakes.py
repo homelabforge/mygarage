@@ -1907,11 +1907,12 @@ class TestDailyRefresh:
         [raised] = await _pending(db_session, vin, "low_brakes_front")
         notified = dt.datetime(2026, 9, 1, 8, 0)
         later = wear_date + dt.timedelta(days=14)
-        # Snoozed, notified, and edited by the user.
-        raised.snoozed_until = wear_date
-        raised.last_notified_at = notified
+        # Edited by the user, snoozed, and notified. The stamp goes last: moving
+        # the due date clears it (`Reminder._rearm_heads_up`).
         raised.title = "Front pads at the rotation"
         raised.due_date = later
+        raised.snoozed_until = wear_date
+        raised.last_notified_at = notified
         await db_session.commit()
 
         _on(monkeypatch, wear_date - dt.timedelta(days=29))

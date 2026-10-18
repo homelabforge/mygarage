@@ -63,8 +63,6 @@ UI_WRITTEN_KEYS: dict[str, tuple[str, ...]] = {
         "notify_milestones",
         "notify_insurance_days",
         "notify_warranty_days",
-        "notify_service_days",
-        "notify_service_miles",
         "notify_def_low",
         "notify_def_low_threshold_percent",
         "notification_retry_attempts",
@@ -126,6 +124,8 @@ def test_every_key_a_settings_screen_writes_is_writable(source: str, key: str) -
         "effective_timezone",
         "theme",
         "app_name",
+        "notify_service_days",
+        "notify_service_miles",
     ],
 )
 def test_system_typed_and_retired_keys_are_not_writable(key: str) -> None:
@@ -208,7 +208,6 @@ def test_a_value_its_reader_cannot_use_is_refused(key: str, value: str | None) -
         ("livelink_telemetry_retention_days", "365"),
         ("livelink_telemetry_retention_days", 90),
         # Lenient or unread: not checked, so a stored oddity never blocks a tab's save.
-        ("notify_service_miles", "-1"),
         ("email_smtp_port", "not a port"),
         ("notify_def_low_threshold_percent", "banana"),
         ("notify_service_days", "1.5"),

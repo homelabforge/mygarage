@@ -305,25 +305,6 @@ class TestConvenienceMethods:
         assert "3 new recall(s)" in call_kwargs.kwargs["message"]
 
     @pytest.mark.asyncio
-    async def test_notify_service_due(self, dispatcher):
-        """Test service due notification formatting."""
-        await dispatcher.notify_service_due("My Truck", "Oil Change", 7)
-
-        call_kwargs = dispatcher.dispatch.call_args
-        assert call_kwargs.kwargs["event_type"] == "service_due"
-        assert "Oil Change" in call_kwargs.kwargs["message"]
-        assert "7 day(s)" in call_kwargs.kwargs["message"]
-
-    @pytest.mark.asyncio
-    async def test_notify_service_overdue(self, dispatcher):
-        """Test service overdue notification formatting."""
-        await dispatcher.notify_service_overdue("My Truck", "Tire Rotation", 14)
-
-        call_kwargs = dispatcher.dispatch.call_args
-        assert call_kwargs.kwargs["event_type"] == "service_overdue"
-        assert "14 day(s) overdue" in call_kwargs.kwargs["message"]
-
-    @pytest.mark.asyncio
     async def test_notify_odometer_milestone(self, dispatcher):
         """Test odometer milestone notification formatting.
 

@@ -338,36 +338,6 @@ class NotificationDispatcher:
             url=url,
         )
 
-    async def notify_service_due(
-        self,
-        vehicle_name: str,
-        service_type: str,
-        days_until_due: int,
-        url: str | None = None,
-    ) -> dict[str, bool]:
-        """Send notification about upcoming service."""
-        return await self.dispatch(
-            event_type="service_due",
-            title=f"Service Due: {vehicle_name}",
-            message=f"{service_type} is due in {days_until_due} day(s) for {vehicle_name}.",
-            url=url,
-        )
-
-    async def notify_service_overdue(
-        self,
-        vehicle_name: str,
-        service_type: str,
-        days_overdue: int,
-        url: str | None = None,
-    ) -> dict[str, bool]:
-        """Send notification about overdue service."""
-        return await self.dispatch(
-            event_type="service_overdue",
-            title=f"Service Overdue: {vehicle_name}",
-            message=f"{service_type} is {days_overdue} day(s) overdue for {vehicle_name}. Please schedule service soon.",
-            url=url,
-        )
-
     async def notify_insurance_expiring(
         self,
         vehicle_name: str,

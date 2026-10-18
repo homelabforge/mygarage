@@ -434,18 +434,6 @@ DEFAULT_SETTINGS = {
         "description": "Days before warranty expiration to notify",
         "encrypted": False,
     },
-    "notify_service_days": {
-        "value": "30",
-        "category": "notifications",
-        "description": "Days before service due to notify",
-        "encrypted": False,
-    },
-    "notify_service_miles": {
-        "value": "500",
-        "category": "notifications",
-        "description": "Miles before service due to notify",
-        "encrypted": False,
-    },
     "notify_def_low": {
         "value": "true",
         "category": "notifications",

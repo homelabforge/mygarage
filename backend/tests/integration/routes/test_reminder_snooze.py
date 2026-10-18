@@ -249,6 +249,7 @@ class TestSnoozeSuppression:
 
             async def dispatch(self, event_type, title, message):
                 sent.append(title)
+                return {"ntfy": True}
 
         monkeypatch.setattr(
             "app.services.notifications.dispatcher.NotificationDispatcher",

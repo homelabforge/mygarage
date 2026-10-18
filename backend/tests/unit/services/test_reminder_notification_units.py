@@ -312,6 +312,7 @@ class TestCheckDueRemindersUnits:
 
             async def dispatch(self, event_type, title, message):
                 sent.append(message)
+                return {"ntfy": True}
 
         monkeypatch.setattr(
             "app.services.notifications.dispatcher.NotificationDispatcher",
@@ -524,7 +525,7 @@ class TestCheckDueRemindersUnits:
             def __init__(self, db: AsyncSession) -> None:
                 pass
 
-            async def dispatch(self, event_type: str, title: str, message: str) -> None:
+            async def dispatch(self, event_type: str, title: str, message: str) -> dict[str, bool]:
                 async with test_sessionmaker() as other:
                     previous = (await other.execute(text("PRAGMA busy_timeout"))).scalar_one()
                     await other.execute(text("PRAGMA busy_timeout = 100"))
@@ -538,6 +539,7 @@ class TestCheckDueRemindersUnits:
                         outcomes[title] = str(e.orig)
                     finally:
                         await other.execute(text(f"PRAGMA busy_timeout = {int(previous)}"))
+                return {"ntfy": True}
 
         monkeypatch.setattr(
             "app.services.notifications.dispatcher.NotificationDispatcher", _ProbingDispatcher
@@ -545,8 +547,8 @@ class TestCheckDueRemindersUnits:
 
         await check_due_reminders(db_session)
 
-        assert outcomes["Reminder Due: Reminder Units Owned Service"] == "ok"
-        assert outcomes["Reminder Due: Reminder Units Ownerless Service"] == "ok"
+        assert outcomes["Reminder overdue: Reminder Units Owned Service"] == "ok"
+        assert outcomes["Reminder overdue: Reminder Units Ownerless Service"] == "ok"
         # Anything else the shared database had due went out without the lock too.
         assert set(outcomes.values()) == {"ok"}
 
@@ -571,7 +573,7 @@ class TestCheckDueRemindersUnits:
             def __init__(self, db: AsyncSession) -> None:
                 pass
 
-            async def dispatch(self, event_type: str, title: str, message: str) -> None:
+            async def dispatch(self, event_type: str, title: str, message: str) -> dict[str, bool]:
                 # A real committed change from elsewhere, the way telemetry
                 # ingest writes while a backend call is in flight.
                 async with test_sessionmaker() as other:
@@ -580,6 +582,7 @@ class TestCheckDueRemindersUnits:
                     await other.execute(delete(Setting).where(Setting.key == _PROBE_KEY))
                     await other.commit()
                 sent.append(message)
+                return {"ntfy": True}
 
         monkeypatch.setattr(
             "app.services.notifications.dispatcher.NotificationDispatcher", _WritingDispatcher

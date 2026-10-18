@@ -140,11 +140,9 @@ def project_usage_date(
     """When `target` is reached at `rate_per_day`, uncapped.
 
     `today` when the target is already met; `None` without a positive rate, or
-    when the rate is so slow the date would land past the calendar.
-    Unlike `reminder_service.calculate_smart_estimated_date`, this is NOT
-    capped at the reminder's date threshold: the cap is what fused "when will
-    I hit the mileage" with "when is it due", and the UI now shows the two
-    apart.
+    when the rate is so slow the date would land past the calendar. Not
+    capped at the reminder's date threshold: a cap would fuse "when will I hit
+    the mileage" with "when is it due", and the UI shows the two apart.
     """
     if rate_per_day <= 0:
         return None

@@ -5,14 +5,14 @@ Tests settings CRUD operations, POI provider management, and system info.
 """
 
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.models.settings import Setting
 
@@ -1268,6 +1268,24 @@ class TestGenericWriteAllowlist:
         for key in keys:
             assert await _stored_value(db_session, key) == _SEED
 
+    async def test_a_retired_lead_time_cannot_be_batched(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        keep_rows: Callable[..., Awaitable[None]],
+    ) -> None:
+        """`notify_service_days` left `DEFAULT_SETTINGS` (D1c), so the allowlist
+        drops it too. Main saved it."""
+        key = "notify_service_days"
+        await keep_rows(key)
+        await _set_setting(db_session, key, _SEED)
+        response = await client.post(
+            "/api/settings/batch", headers=auth_headers, json={"settings": {key: "14"}}
+        )
+        assert response.status_code == 422, response.text
+        assert await _stored_value(db_session, key) == _SEED
+
     async def test_a_blank_number_and_an_unchecked_oddity_still_save(
         self, client, auth_headers, db_session, keep_rows
     ):
@@ -1276,7 +1294,7 @@ class TestGenericWriteAllowlist:
         payload = {
             "notify_insurance_days": "",
             "notification_retry_delay": "",
-            "notify_service_miles": "-1",
+            "notify_def_low_threshold_percent": "banana",
             "email_smtp_port": "",
         }
         await keep_rows(*payload)

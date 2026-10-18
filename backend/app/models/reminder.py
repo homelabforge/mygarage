@@ -16,9 +16,10 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    inspect,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import NO_VALUE, Mapped, mapped_column, relationship, validates
 from sqlalchemy.sql import func
 
 from app.database import Base
@@ -139,6 +140,28 @@ class Reminder(Base):
     superseded_by: Mapped[Reminder | None] = relationship(
         "Reminder", remote_side=[id], foreign_keys=[superseded_by_id]
     )
+
+    @validates("due_date", "due_mileage_km", "due_hours")
+    def _rearm_heads_up(self, key: str, value: date | Decimal | None) -> date | Decimal | None:
+        """Clear ``last_notified_at`` when a due value changes, so the new target
+        gets its own due-soon heads-up (the notifier sends one per stamp).
+
+        Runs on every attribute write, whoever writes, and never on load. A bulk
+        ``UPDATE`` of these columns skips it and has to clear the stamp itself.
+        A new object is left alone, so a stamp passed to the constructor stays
+        whatever the kwarg order. The current value is read from what's loaded,
+        never through the attribute, which would lazy-load an expired one (and
+        raise under async). Not loaded, it clears without comparing: an extra
+        heads-up beats a missed one. ``Decimal`` compares by value, so 55000 and
+        55000.00 are the same target.
+        """
+        state = inspect(self)
+        if state.transient:
+            return value
+        current = state.attrs[key].loaded_value
+        if current is NO_VALUE or current != value:
+            self.last_notified_at = None
+        return value
 
     __table_args__ = (
         # Declared in the TABLE-level form on purpose: SQLAlchemy's SQLite
