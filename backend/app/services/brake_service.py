@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass
 
 from fastapi import HTTPException
@@ -143,6 +143,16 @@ def _refuse_other_type(position: str, setup: AxleSetup, figures: dict[str, objec
                 f"{', '.join(wrong)}. Change Axle setup first if that's wrong."
             ),
         )
+
+
+def _edit_evidence(row: BrakeMeasurement | BrakeJob, changes: dict[str, object]) -> set[Axle]:
+    """The corner's axle if the edit changes more than the notes, else nothing.
+
+    The edit drawers send every field, so this reads the values, not the keys.
+    """
+    if any(name != "notes" and getattr(row, name) != value for name, value in changes.items()):
+        return {AXLE_OF[row.position]}
+    return set()
 
 
 class BrakeService:
@@ -287,12 +297,16 @@ class BrakeService:
         )
 
     async def _finish(
-        self, vin: str, axes: VehicleAxes, *, may_complete: bool = True
+        self, vin: str, axes: VehicleAxes, *, evidence: Collection[Axle]
     ) -> BrakeOverviewResponse:
-        """Sync both axle reminders from what this write left, commit once, and answer."""
+        """Sync both axle reminders from what this write left, commit once, and answer.
+
+        `evidence` is the axles whose brakes the write changed, the ones it can
+        complete (see `_sync_axle_reminders`).
+        """
         await self.db.flush()
         setups, corners = await self._corners(vin, axes)
-        await self._sync_axle_reminders(vin, setups, corners, may_complete=may_complete)
+        await self._sync_axle_reminders(vin, setups, corners, evidence=evidence)
         await self.db.commit()
         return await self._respond(vin, axes)
 
@@ -302,7 +316,7 @@ class BrakeService:
         setups: dict[Axle, AxleSetup],
         corners: Sequence[_Corner],
         *,
-        may_complete: bool,
+        evidence: Collection[Axle],
         raise_only: bool = False,
     ) -> None:
         """Raise, keep current, or complete each axle's "brake pads low" reminder.
@@ -313,19 +327,23 @@ class BrakeService:
         one is OK. An axle with nothing known leaves it alone: not knowing is
         not a measurement of healthy pads.
 
-        A delete never completes one (`may_complete=False`). Taking away the
-        low figure is not news that the pads are fine, and deleting one to
-        re-enter it would otherwise close the reminder and open a new one,
-        losing its snooze and notifying again.
+        Only a write that changes the axle's brakes completes one (`evidence`):
+        a measurement or a job on one of its corners, a changed setup, or an
+        edit that changes more than the notes. A delete is no evidence. Taking
+        away the low figure is not news that the pads are fine, and deleting
+        one to re-enter it would otherwise close the reminder and open a new
+        one, losing its snooze and notifying again. Nor is a write to the other
+        axle: after a delete leaves no corner LOW, the next write anywhere on
+        the vehicle would complete it.
 
         A reminder the user closed stays closed until there is something new
         (`_news`). Done, dismissed or deleted, it's all one: that is read from
         the corners' marks (`BrakeReminderMark`), never from the reminder row,
-        which the user can edit. A write that leaves the axle OK (never a
-        delete) deletes its marks, and completes the reminder if one is
-        pending: an axle that went OK and then LOW again raises, whoever closed
-        it. The daily pass only raises (`raise_only`): a pending reminder is
-        left as the user may have edited it.
+        which the user can edit. A write with evidence that leaves the axle OK
+        deletes its marks, and completes the reminder if one is pending: an
+        axle that went OK and then LOW again raises, whoever closed it. The
+        daily pass only raises (`raise_only`): a pending reminder is left as
+        the user may have edited it.
         """
         all_marks = {
             row.position: row
@@ -414,7 +432,7 @@ class BrakeService:
                     mark.covered_replace_now = mark.covered_replace_now or replace_now
             elif raise_only:
                 continue
-            elif ok and may_complete:
+            elif ok and axle in evidence:
                 if existing is not None:
                     existing.status = "done"
                 # Pending or closed: an axle seen OK forgets what it was told.
@@ -439,8 +457,8 @@ class BrakeService:
         A corner turns due soon once its projected wear date is within
         `DUE_SOON_DAYS`, and nothing gets written for that to happen, so the
         sync on writes alone would leave the tab saying due soon with no
-        reminder. Raise only: a day passing is not a measurement, so it never
-        completes one (`may_complete=False`, the delete rule), and it leaves a
+        reminder. Raise only: a day passing is not a measurement, so it's no
+        evidence and never completes one (the delete rule), and it leaves a
         pending one as it is, title and due date included (`raise_only`). It
         still writes the axle's marks, so a reminder raised before the marks
         existed stays closed once the user closes it.
@@ -472,9 +490,7 @@ class BrakeService:
                     continue
                 axes = VehicleAxes.for_vehicle(vehicle.usage_unit, vehicle.secondary_usage_enabled)
                 setups, corners = await self._corners(vin, axes)
-                await self._sync_axle_reminders(
-                    vin, setups, corners, may_complete=False, raise_only=True
-                )
+                await self._sync_axle_reminders(vin, setups, corners, evidence=(), raise_only=True)
                 await self.db.commit()
             except Exception as e:
                 await self.db.rollback()
@@ -494,12 +510,16 @@ class BrakeService:
                 select(BrakeAxle).where(BrakeAxle.vin == vin, BrakeAxle.axle == axle)
             )
         ).scalar_one_or_none()
+        # Saved as it already reads (the defaults, say), it's no news about the brakes.
+        before = axle_setup(axle, row)
+        values = data.model_dump()
+        changed = any(getattr(before, name) != value for name, value in values.items())
         if row is None:
             row = BrakeAxle(vin=vin, axle=axle)
             self.db.add(row)
-        for name, value in data.model_dump().items():
+        for name, value in values.items():
             setattr(row, name, value)
-        return await self._finish(vin, axes)
+        return await self._finish(vin, axes, evidence={axle} if changed else ())
 
     async def log_measurements(
         self, vin: str, data: BrakeMeasurementBatchCreate, current_user: User | None
@@ -526,7 +546,7 @@ class BrakeService:
                     **figures,
                 )
             )
-        return await self._finish(vin, axes)
+        return await self._finish(vin, axes, evidence={AXLE_OF[c.position] for c in data.corners})
 
     async def update_measurement(
         self,
@@ -560,9 +580,10 @@ class BrakeService:
         _refuse_other_type(row.position, setups[AXLE_OF[row.position]], changes)
         if all(changes.get(name, getattr(row, name)) is None for name in MEASURES):
             raise HTTPException(status_code=422, detail="A measurement needs at least one figure")
+        evidence = _edit_evidence(row, changes)
         for name, value in changes.items():
             setattr(row, name, value)
-        return await self._finish(vin, axes)
+        return await self._finish(vin, axes, evidence=evidence)
 
     async def delete_measurement(
         self, vin: str, measurement_id: int, current_user: User | None
@@ -575,7 +596,7 @@ class BrakeService:
         axes = await self._lock(vin, current_user)
         row = await self._measurement(vin, measurement_id)
         await self.db.delete(row)
-        await self._finish(vin, axes, may_complete=False)
+        await self._finish(vin, axes, evidence=())
 
     async def create_job(
         self, vin: str, data: BrakeJobCreate, current_user: User | None
@@ -622,7 +643,7 @@ class BrakeService:
                     **pads,
                 )
             )
-        return await self._finish(vin, axes)
+        return await self._finish(vin, axes, evidence={AXLE_OF[c.position] for c in data.corners})
 
     async def update_job(
         self, vin: str, job_id: int, data: BrakeJobUpdate, current_user: User | None
@@ -643,6 +664,7 @@ class BrakeService:
                 status_code=422,
                 detail="A brake job replaces the pads or shoes, or does the rotor or drum",
             )
+        evidence = _edit_evidence(job, changes)
         for name, value in changes.items():
             setattr(job, name, value)
         if not job.friction_replaced:
@@ -673,7 +695,7 @@ class BrakeService:
                         row.odometer_km = moved["odometer_km"]
                     if "engine_hours" in moved:
                         row.engine_hours = moved["engine_hours"]
-        return await self._finish(vin, axes)
+        return await self._finish(vin, axes, evidence=evidence)
 
     async def delete_job(self, vin: str, job_id: int, current_user: User | None) -> None:
         """Delete one corner's brake job and the measurement it wrote."""
@@ -689,7 +711,7 @@ class BrakeService:
             )
         )
         await self.db.delete(job)
-        await self._finish(vin, axes, may_complete=False)
+        await self._finish(vin, axes, evidence=())
 
     async def _setups(self, vin: str) -> dict[Axle, AxleSetup]:
         rows = (

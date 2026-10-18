@@ -660,6 +660,160 @@ class TestAxleReminder:
             r.id for r in raised
         ]
 
+    async def test_after_deleting_the_low_figure_a_rear_write_does_not_complete_it(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(client, auth_headers, vin, "2026-03-01", None, FR={"inner_pad_mm": "8"})
+        body = (
+            await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "2.8"})
+        ).json()
+        raised = [r.id for r in await _pending(db_session, vin, "low_brakes_front")]
+        assert len(raised) == 1
+        mid = _corner(body, "FL")["measurements"][0]["id"]
+        await client.delete(f"/api/vehicles/{vin}/brakes/measurements/{mid}", headers=auth_headers)
+        # FL is unknown and FR fine, but nothing here is about the front brakes.
+        await _log(client, auth_headers, vin, "2026-09-05", None, RL={"inner_pad_mm": "9"})
+        await client.post(
+            f"/api/vehicles/{vin}/brakes/jobs",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-09-05",
+                "surface": "resurfaced",
+                "corners": [{"position": "RR"}],
+            },
+        )
+        await client.put(
+            f"/api/vehicles/{vin}/brakes/axles/rear",
+            headers=auth_headers,
+            json={"brake_type": "drum", "min_thickness_mm": "1.5", "new_thickness_mm": "5"},
+        )
+        assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+        # FR checked again is news about the front brakes, and they're fine.
+        await _log(client, auth_headers, vin, "2026-09-06", None, FR={"inner_pad_mm": "7.9"})
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_a_notes_edit_or_the_same_setup_again_does_not_complete_it(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        job = (
+            await client.post(
+                f"/api/vehicles/{vin}/brakes/jobs",
+                headers=auth_headers,
+                json={
+                    "performed_on": "2026-03-01",
+                    "friction_replaced": True,
+                    "corners": [{"position": "FR", "new_thickness_mm": "10"}],
+                },
+            )
+        ).json()
+        job_id = _corner(job, "FR")["last_job"]["id"]
+        new_pads = _corner(job, "FR")["measurements"][0]["id"]
+        body = (
+            await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "2.8"})
+        ).json()
+        raised = [r.id for r in await _pending(db_session, vin, "low_brakes_front")]
+        assert len(raised) == 1
+        mid = _corner(body, "FL")["measurements"][0]["id"]
+        await client.delete(f"/api/vehicles/{vin}/brakes/measurements/{mid}", headers=auth_headers)
+        # What the edit drawers send: every field, only the notes new.
+        await client.put(
+            f"/api/vehicles/{vin}/brakes/jobs/{job_id}",
+            headers=auth_headers,
+            json={
+                "performed_on": "2026-03-01",
+                "friction_replaced": True,
+                "surface": None,
+                "odometer_km": None,
+                "notes": "bedded in",
+            },
+        )
+        await client.put(
+            f"/api/vehicles/{vin}/brakes/measurements/{new_pads}",
+            headers=auth_headers,
+            json={
+                "inner_pad_mm": "10.00",
+                "outer_pad_mm": "10.00",
+                "rotor_mm": None,
+                "notes": "new",
+            },
+        )
+        # Axle setup saved as it already reads: the defaults.
+        await client.put(
+            f"/api/vehicles/{vin}/brakes/axles/front",
+            headers=auth_headers,
+            json={"brake_type": "disc", "min_thickness_mm": "3", "new_thickness_mm": "10"},
+        )
+        assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+        # A figure changed is news about the front brakes, and they're fine.
+        await client.put(
+            f"/api/vehicles/{vin}/brakes/measurements/{new_pads}",
+            headers=auth_headers,
+            json={"inner_pad_mm": "9.5"},
+        )
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_a_setup_change_that_leaves_the_axle_fine_completes_it(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "4"})
+        assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
+        # Thinner pads than the defaults: 2 to 9 mm is due soon at 3.75, so 4 mm is fine.
+        response = await client.put(
+            f"/api/vehicles/{vin}/brakes/axles/front",
+            headers=auth_headers,
+            json={"brake_type": "disc", "min_thickness_mm": "2", "new_thickness_mm": "9"},
+        )
+        assert _corner(response.json(), "FL")["condition"] == "ok"
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_a_job_edited_to_say_the_pads_went_on_completes_it(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(client, auth_headers, vin, "2026-09-04", None, FL={"inner_pad_mm": "4"})
+        job = (
+            await client.post(
+                f"/api/vehicles/{vin}/brakes/jobs",
+                headers=auth_headers,
+                json={
+                    "performed_on": "2026-09-10",
+                    "surface": "resurfaced",
+                    "corners": [{"position": "FL"}],
+                },
+            )
+        ).json()
+        # The rotor alone leaves the pads as they were.
+        assert len(await _pending(db_session, vin, "low_brakes_front")) == 1
+        job_id = _corner(job, "FL")["last_job"]["id"]
+        await client.put(
+            f"/api/vehicles/{vin}/brakes/jobs/{job_id}",
+            headers=auth_headers,
+            json={"friction_replaced": True},
+        )
+        assert await _pending(db_session, vin, "low_brakes_front") == []
+
+    async def test_deleting_a_job_never_completes_it(
+        self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
+    ):
+        await _log(client, auth_headers, vin, "2026-03-01", None, FR={"inner_pad_mm": "8"})
+        # Used pads went on, already due soon at 4 mm.
+        job = (
+            await client.post(
+                f"/api/vehicles/{vin}/brakes/jobs",
+                headers=auth_headers,
+                json={
+                    "performed_on": "2026-09-10",
+                    "friction_replaced": True,
+                    "corners": [{"position": "FL", "new_thickness_mm": "4"}],
+                },
+            )
+        ).json()
+        raised = [r.id for r in await _pending(db_session, vin, "low_brakes_front")]
+        assert len(raised) == 1
+        job_id = _corner(job, "FL")["last_job"]["id"]
+        await client.delete(f"/api/vehicles/{vin}/brakes/jobs/{job_id}", headers=auth_headers)
+        # FL is unknown again and FR fine: taking the job away is no news about the pads.
+        assert [r.id for r in await _pending(db_session, vin, "low_brakes_front")] == raised
+
     async def test_an_axle_with_nothing_known_keeps_its_reminder(
         self, client: AsyncClient, auth_headers, vin, db_session: AsyncSession
     ):
