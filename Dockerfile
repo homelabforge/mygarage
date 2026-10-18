@@ -83,14 +83,18 @@ LABEL org.opencontainers.image.frontend.builder="bun-${BUN_VERSION}"
 
 WORKDIR /app
 
-# Install runtime dependencies, create non-root user, and set up directories
+# Install runtime dependencies, create non-root user, and set up directories.
+# tesseract-ocr is the engine pytesseract drives: it reads photos and scanned
+# PDFs (insurance import, window stickers, receipt photos). English only.
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         curl \
         libmagic1t64 \
         file \
-        postgresql-client && \
+        postgresql-client \
+        tesseract-ocr \
+        tesseract-ocr-eng && \
     rm -rf /var/lib/apt/lists/* && \
     useradd --uid 1000 --user-group --system --create-home --no-log-init mygarage && \
     mkdir -p /data /data/attachments /data/photos
@@ -127,6 +131,39 @@ async def main() -> None:
 asyncio.run(main())
 create_async_engine("postgresql+asyncpg://smoke@localhost/smoke")
 create_engine("postgresql+psycopg2://smoke@localhost/smoke")
+EOF
+
+# pytesseract is only a wrapper around the tesseract binary, and the OCR
+# services swallow a missing binary and return "", so an image without it
+# builds, starts and passes health checks while every photo and scanned PDF
+# reads as blank. Read a rendered word back through the service, once from a
+# PNG and once from an image-only PDF, so a missing engine fails the build.
+# No bytecode: the imports here would otherwise leave about 25 MB of .pyc.
+RUN PYTHONDONTWRITEBYTECODE=1 python - <<'EOF'
+import asyncio
+import io
+
+import fitz
+from PIL import Image, ImageDraw, ImageFont
+
+from app.services.document_ocr import DocumentOCRService
+
+image = Image.new("L", (900, 200), 255)
+font = ImageFont.load_default(size=72)
+ImageDraw.Draw(image).text((40, 50), "GARAGE 4815", fill=0, font=font)
+png = io.BytesIO()
+image.save(png, format="PNG")
+
+with fitz.open() as doc:
+    page = doc.new_page()
+    page.insert_image(page.rect, stream=png.getvalue())
+    pdf = doc.tobytes()
+
+service = DocumentOCRService()
+assert service.get_ocr_status()["tesseract_available"], "tesseract not found"
+for label, data, is_pdf in (("PNG", png.getvalue(), False), ("scanned PDF", pdf, True)):
+    text = asyncio.run(service.extract_text_from_bytes(data, is_pdf=is_pdf))
+    assert "4815" in text, f"OCR read nothing usable from a {label}: {text!r}"
 EOF
 
 # Copy the maintenance tools. The upgrade notes in CHANGELOG.md tell operators

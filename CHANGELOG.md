@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sign-in for accounts still on a pre-Argon2 (bcrypt) password hash. bcrypt hasn't shipped since at least v2.14.0, so such accounts couldn't sign in anyway. An admin resets the password, and the log names the account
 
 ### Fixed
+- Photos and scanned PDFs can be read: the image now ships the Tesseract OCR engine (English), which it never had, so a scanned insurance declarations page, a window sticker photo and a fuel receipt photo no longer come back blank. Before this only PDFs with a text layer could be read
+- The OCR status endpoints report Tesseract as available only when the engine itself is installed, not just its Python wrapper
 - Torque Pro's one-digit PIDs (`kc`, `kd`, `k5` and the rest) are stored as Engine RPM, Speed, Coolant and so on instead of `KC`, `KD`, `K5`, and what's already stored moves over, with older trips' speed, RPM and coolant filled in (#223)
 - Toasts no longer cover a drawer's buttons on tablets and desktops (bottom-left, top-left while a drawer is open), and sit above the tab bar on phones
 - Small supply amounts (a few mL in L, qt or gal) no longer show as 0.00, and supply amounts follow the selected language

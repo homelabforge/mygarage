@@ -398,11 +398,13 @@ class DocumentOCRService:
             pass  # PyMuPDF is optional - status remains False if not installed
 
         try:
-            import pytesseract  # noqa: F401  # type: ignore[reportUnusedImport]
+            import pytesseract
 
+            # The wrapper imports fine without the engine, so ask the binary
+            pytesseract.get_tesseract_version()
             status["tesseract_available"] = True
-        except ImportError:
-            pass  # Tesseract is optional - status remains False if not installed
+        except (ImportError, OSError):
+            pass  # No pytesseract, or no tesseract binary on PATH
 
         if PADDLEOCR_ENABLED:
             try:
