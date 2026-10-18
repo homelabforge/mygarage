@@ -309,6 +309,43 @@ class TestNoFallthrough:
 
         _assert_unavailable()
 
+    @pytest.mark.parametrize("relative", [False, True])
+    def test_a_key_put_in_the_file_variable_is_never_echoed(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        data_dir: Path,
+        caplog: pytest.LogCaptureFixture,
+        relative: bool,
+    ) -> None:
+        """The key pasted into _FILE by mistake must not land in the log or the 503 text."""
+        key_text, _ = _new_key()
+        value = f"keys/{key_text}" if relative else key_text
+        monkeypatch.setenv(ENV_KEY_FILE, value)
+
+        with caplog.at_level(logging.DEBUG, logger=LOGGER):
+            with pytest.raises(SettingsKeyUnavailable) as excinfo:
+                encrypt("llm_api_key", "x")
+
+        assert key_text not in caplog.text
+        assert key_text not in str(excinfo.value)
+        assert key_text not in excinfo.value.source
+        assert key_text not in excinfo.value.reason
+        assert ENV_KEY_FILE in str(excinfo.value)
+        assert "absolute" in excinfo.value.reason
+        assert current_kid() is None
+        assert not (data_dir / "settings.key").exists()
+
+    def test_an_absolute_key_file_path_is_named(
+        self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, tmp_path: Path
+    ) -> None:
+        missing = tmp_path / "missing"
+        monkeypatch.setenv(ENV_KEY_FILE, str(missing))
+
+        with pytest.raises(SettingsKeyUnavailable) as excinfo:
+            encrypt("llm_api_key", "x")
+
+        assert str(missing) in excinfo.value.source
+
     def test_a_missing_key_file_path_does_not_fall_through_or_generate(
         self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, tmp_path: Path
     ) -> None:

@@ -21,7 +21,8 @@ moving the stored value.
 Keyring sources, in order; the first one present wins, even when it is broken:
 
 1. ``MYGARAGE_SETTINGS_KEY``: the keys themselves.
-2. ``MYGARAGE_SETTINGS_KEY_FILE``: a path to a file holding them (Docker secrets).
+2. ``MYGARAGE_SETTINGS_KEY_FILE``: an absolute path to a file holding them
+   (Docker secrets). A relative value is refused, and never echoed.
 3. ``settings.data_dir / "settings.key"``: generated on first use when neither
    env var is set and the file doesn't exist.
 
@@ -257,7 +258,13 @@ def _load() -> _Keyring | _Unavailable:
 
     file_value = os.environ.get(ENV_KEY_FILE, "").strip()
     if file_value:
-        return _read_key_file(f"{ENV_KEY_FILE} ({file_value})", Path(file_value))
+        file_path = Path(file_value)
+        if not file_path.is_absolute():
+            # Never echo it: a key pasted here instead of into MYGARAGE_SETTINGS_KEY is
+            # the likely mistake, and base64url never contains "/", so an absolute path
+            # is the only form that is safe to name in a log or a 503.
+            return _Unavailable(ENV_KEY_FILE, "it is not an absolute path")
+        return _read_key_file(f"{ENV_KEY_FILE} ({file_value})", file_path)
 
     path = settings.data_dir / KEY_FILE_NAME
     source = str(path)
