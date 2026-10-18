@@ -417,7 +417,19 @@ pytest tests/integration/
 
 ### End-to-End Tests
 
-Currently manual. Automated E2E tests (Playwright/Cypress) coming soon.
+Playwright specs live in `frontend/e2e/` and run in CI on every push and pull
+request. To run them locally:
+
+```bash
+cd frontend
+bun run e2e        # or e2e:ui, e2e:headed, e2e:debug
+```
+
+The Playwright config starts the backend on port 8686 against a throwaway
+SQLite database (`/tmp/mygarage-e2e.db`) and the Vite dev server on port 3000.
+Outside CI it reuses a server already listening on those ports, so stop any
+other MyGarage instance on 8686 first. `bin/ci-check --all` from the repo root
+runs them the way CI does.
 
 ---
 

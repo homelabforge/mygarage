@@ -28,7 +28,7 @@ PWA shortcuts and Apple Shortcuts can open:
 
 Optional `&vin=XXXXXXXXXXXXXXXXX`.
 
-After the Tier 1 webhook PR merges, non-UI automations can also `POST /api/v1/webhooks/fuel` with `X-Webhook-Token`.
+Non-UI automations can also `POST /api/v1/webhooks/fuel` with `X-Webhook-Token` (inbound webhooks shipped in v3.1.0).
 
 ## Opt-in LLM receipt parse
 

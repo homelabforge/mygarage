@@ -1,7 +1,8 @@
 # LiveLink (WiCAN) Setup
 
 MyGarage ingests real-time vehicle telemetry from [WiCAN](https://github.com/meatpiHQ/wican-fw)
-devices. WiCAN PRO with firmware **v4.40 or newer** is required.
+devices. Webhook (HTTPS) ingestion needs a WiCAN PRO on firmware **v4.40 or
+newer**; the standard WiCAN has no HTTPS POST and sends over MQTT instead.
 
 ## Webhook (HTTPS) ingestion
 
