@@ -17,8 +17,8 @@ class SettingBase(BaseModel):
     encrypted: bool = Field(
         False,
         description=(
-            "Whether the value is sensitive and therefore masked as '********' in "
-            "API responses. Values are NOT encrypted at rest."
+            "Whether the value is a secret: encrypted at rest and masked as "
+            "'********' in API responses."
         ),
     )
 
@@ -47,6 +47,15 @@ class SettingResponse(SettingBase):
     """Schema for setting response."""
 
     key: str
+    unreadable: bool = Field(
+        False,
+        description=(
+            "True for a secret that is configured but can't be decrypted with the "
+            "current settings key. Its value shows as '********'; saving that "
+            "placeholder keeps the stored value, so restoring the right key "
+            "recovers it. Re-enter the secret to replace it."
+        ),
+    )
     created_at: dt.datetime
     updated_at: dt.datetime
 

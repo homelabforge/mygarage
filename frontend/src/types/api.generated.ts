@@ -12987,6 +12987,12 @@ export interface components {
              */
             has_password: boolean;
             /**
+             * Password Unreadable
+             * @description True when a password is stored but can't be decrypted with the current settings key; re-enter it. has_password stays true.
+             * @default false
+             */
+            password_unreadable: boolean;
+            /**
              * Topic Prefix
              * @description Topic prefix for subscriptions
              * @default wican
@@ -13567,6 +13573,80 @@ export interface components {
              * @default
              */
             client_secret: string;
+            /**
+             * Email Claim
+             * @default email
+             */
+            email_claim: string;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Full Name Claim
+             * @default name
+             */
+            full_name_claim: string;
+            /**
+             * Issuer Url
+             * @default
+             */
+            issuer_url: string;
+            /**
+             * Provider Name
+             * @default
+             */
+            provider_name: string;
+            /**
+             * Redirect Uri
+             * @default
+             */
+            redirect_uri: string;
+            /**
+             * Scopes
+             * @default openid profile email
+             */
+            scopes: string;
+            /**
+             * Username Claim
+             * @default preferred_username
+             */
+            username_claim: string;
+        };
+        /**
+         * OIDCAdminConfigResponse
+         * @description The admin GET's shape: the PUT body plus what only a read can report.
+         *
+         *     A separate model, so the PUT body doesn't accept `client_secret_unreadable`.
+         */
+        OIDCAdminConfigResponse: {
+            /**
+             * Admin Group
+             * @default
+             */
+            admin_group: string;
+            /**
+             * Auto Create Users
+             * @default true
+             */
+            auto_create_users: boolean;
+            /**
+             * Client Id
+             * @default
+             */
+            client_id: string;
+            /**
+             * Client Secret
+             * @default
+             */
+            client_secret: string;
+            /**
+             * Client Secret Unreadable
+             * @description True when a client secret is stored but can't be decrypted with the current settings key. `client_secret` still shows the placeholder; saving it keeps the stored value. Re-enter the secret to replace it.
+             * @default false
+             */
+            client_secret_unreadable: boolean;
             /**
              * Email Claim
              * @default email
@@ -15648,7 +15728,7 @@ export interface components {
             description?: string | null;
             /**
              * Encrypted
-             * @description Whether the value is sensitive and therefore masked as '********' in API responses. Values are NOT encrypted at rest.
+             * @description Whether the value is a secret: encrypted at rest and masked as '********' in API responses.
              * @default false
              */
             encrypted: boolean;
@@ -15686,12 +15766,18 @@ export interface components {
             description?: string | null;
             /**
              * Encrypted
-             * @description Whether the value is sensitive and therefore masked as '********' in API responses. Values are NOT encrypted at rest.
+             * @description Whether the value is a secret: encrypted at rest and masked as '********' in API responses.
              * @default false
              */
             encrypted: boolean;
             /** Key */
             key: string;
+            /**
+             * Unreadable
+             * @description True for a secret that is configured but can't be decrypted with the current settings key. Its value shows as '********'; saving that placeholder keeps the stored value, so restoring the right key recovers it. Re-enter the secret to replace it.
+             * @default false
+             */
+            unreadable: boolean;
             /**
              * Updated At
              * Format: date-time
@@ -21688,7 +21774,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OIDCAdminConfig"];
+                    "application/json": components["schemas"]["OIDCAdminConfigResponse"];
                 };
             };
         };

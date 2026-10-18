@@ -16,7 +16,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from joserfc.errors import JoseError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -32,7 +32,12 @@ from app.models.csrf_token import CSRFToken
 from app.models.user import User
 from app.services import oidc as oidc_service
 from app.services.auth import create_access_token, get_current_admin_user
-from app.services.oidc.config import checked_redirect_uri, effective_oidc_value
+from app.services.oidc.config import (
+    OIDC_CLIENT_SECRET_KEY,
+    checked_redirect_uri,
+    effective_oidc_value,
+)
+from app.services.settings_service import SettingsService, reenter_message
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.request_scheme import get_cookie_secure, get_external_base_url
@@ -186,6 +191,22 @@ class OIDCAdminConfig(BaseModel):
     full_name_claim: str = "name"
 
 
+class OIDCAdminConfigResponse(OIDCAdminConfig):
+    """The admin GET's shape: the PUT body plus what only a read can report.
+
+    A separate model, so the PUT body doesn't accept `client_secret_unreadable`.
+    """
+
+    client_secret_unreadable: bool = Field(
+        False,
+        description=(
+            "True when a client secret is stored but can't be decrypted with the "
+            "current settings key. `client_secret` still shows the placeholder; "
+            "saving it keeps the stored value. Re-enter the secret to replace it."
+        ),
+    )
+
+
 class OIDCTestRequest(BaseModel):
     """OIDC connection test request."""
 
@@ -243,7 +264,7 @@ def _checked_redirect_uri(raw: str) -> str:
         ) from exc
 
 
-@router.get("/config/admin", response_model=OIDCAdminConfig)
+@router.get("/config/admin", response_model=OIDCAdminConfigResponse)
 async def get_oidc_admin_config(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_current_admin_user),
@@ -260,12 +281,22 @@ async def get_oidc_admin_config(
     # either way — the secret is masked here, and GET /api/settings is already
     # open in that mode.
     config = await oidc_service.get_oidc_config(db)
-    return OIDCAdminConfig(
+    # Login reads the decrypted secret, where unreadable is "" (unset). Here a
+    # stored secret that can't be decrypted is still configured (D3a), so the
+    # row itself says so.
+    secret_row = await SettingsService.get(db, OIDC_CLIENT_SECRET_KEY)
+    secret_unreadable = secret_row is not None and secret_row.unreadable
+    return OIDCAdminConfigResponse(
         enabled=config.get("enabled", "false").lower() == "true",
         provider_name=config.get("provider_name", ""),
         issuer_url=config.get("issuer_url", ""),
         client_id=config.get("client_id", ""),
-        client_secret=oidc_service.display_mask_secret(config.get("client_secret", "")),
+        client_secret=(
+            oidc_service.MASKED_SECRET_PLACEHOLDER
+            if secret_unreadable
+            else oidc_service.display_mask_secret(config.get("client_secret", ""))
+        ),
+        client_secret_unreadable=secret_unreadable,
         redirect_uri=config.get("redirect_uri", ""),
         scopes=effective_oidc_value(config, "scopes"),
         auto_create_users=(config.get("auto_create_users", "true").lower() == "true"),
@@ -299,11 +330,12 @@ async def put_oidc_admin_config(
     if "redirect_uri" in payload.model_fields_set:
         redirect_update["redirect_uri"] = _checked_redirect_uri(payload.redirect_uri)
 
-    # §5.4(2): preserve stored secret when caller sends empty/placeholder.
-    client_secret = payload.client_secret
-    if not client_secret or oidc_service.is_masked_secret(client_secret):
-        config = await oidc_service.get_oidc_config(db)
-        client_secret = config.get("client_secret", "")
+    # §5.4(2): empty or the placeholder preserves the stored secret. Left out of
+    # the write, so the row isn't touched: writing back the decrypted copy would
+    # blank a secret that can't be decrypted (D3a).
+    secret_update: dict[str, str] = {}
+    if payload.client_secret and not oidc_service.is_masked_secret(payload.client_secret):
+        secret_update["client_secret"] = payload.client_secret
 
     # §5.4(1): normalize issuer URL.
     issuer_url = payload.issuer_url.strip().rstrip("/")
@@ -315,7 +347,7 @@ async def put_oidc_admin_config(
             "provider_name": payload.provider_name,
             "issuer_url": issuer_url,
             "client_id": payload.client_id,
-            "client_secret": client_secret,
+            **secret_update,
             "scopes": payload.scopes.strip(),
             "auto_create_users": "true" if payload.auto_create_users else "false",
             "admin_group": payload.admin_group,
@@ -616,8 +648,16 @@ async def test_oidc_connection(
     # §5.4(2): empty/placeholder secret falls back to the stored value so admins can test before saving.
     client_secret = test_request.client_secret
     if not client_secret or oidc_service.is_masked_secret(client_secret):
-        stored = await oidc_service.get_oidc_config(db)
-        client_secret = stored.get("client_secret", "")
+        stored = await SettingsService.get(db, OIDC_CLIENT_SECRET_KEY)
+        if stored is not None and stored.unreadable:
+            # Testing with "" would report a provider failure for what is a
+            # local one; answer in the §5.4(4) envelope instead (R2-1).
+            return OIDCTestResult(
+                ok=False,
+                error="secret_unreadable",
+                detail=reenter_message("OIDC client secret"),
+            )
+        client_secret = (stored.value if stored is not None else None) or ""
 
     issuer_url = test_request.issuer_url.strip().rstrip("/")
 

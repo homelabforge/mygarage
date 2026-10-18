@@ -81,6 +81,7 @@ from app.services.livelink_sources.presets.sensors import (
 )
 from app.services.livelink_sources.registry import default_registry
 from app.services.mqtt_subscriber import mqtt_subscriber
+from app.services.oidc import MASKED_SECRET_PLACEHOLDER
 from app.services.sd_backfill_service import SdBackfillService
 from app.services.settings_service import (
     SecretUnreadableError,
@@ -881,7 +882,10 @@ async def get_mqtt_settings(
         broker_host=broker_host.value if broker_host else "",
         broker_port=int(broker_port.value) if broker_port and broker_port.value else 1883,
         username=username.value if username else "",
-        has_password=bool(password and password.value),
+        # From the stored form, not the decrypted value: a password that can't
+        # be decrypted reads as None but is still configured (D3a).
+        has_password=bool(password and password.stored_value),
+        password_unreadable=bool(password and password.unreadable),
         topic_prefix=topic_prefix.value if topic_prefix and topic_prefix.value else "wican",
         use_tls=use_tls,
     )
@@ -909,7 +913,9 @@ async def update_mqtt_settings(
         await SettingsService.set(db, "livelink_mqtt_broker_port", str(updates.broker_port))
     if updates.username is not None:
         await SettingsService.set(db, "livelink_mqtt_username", updates.username)
-    if updates.password is not None:
+    # The placeholder means "keep the stored password": write nothing (D3a), so
+    # one that can't be decrypted survives for the right settings key to open.
+    if updates.password is not None and updates.password != MASKED_SECRET_PLACEHOLDER:
         await SettingsService.set(
             db,
             "livelink_mqtt_password",

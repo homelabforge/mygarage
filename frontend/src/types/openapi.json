@@ -12428,6 +12428,12 @@
             "title": "Has Password",
             "type": "boolean"
           },
+          "password_unreadable": {
+            "default": false,
+            "description": "True when a password is stored but can't be decrypted with the current settings key; re-enter it. has_password stays true.",
+            "title": "Password Unreadable",
+            "type": "boolean"
+          },
           "topic_prefix": {
             "default": "wican",
             "description": "Topic prefix for subscriptions",
@@ -13965,6 +13971,79 @@
           }
         },
         "title": "OIDCAdminConfig",
+        "type": "object"
+      },
+      "OIDCAdminConfigResponse": {
+        "description": "The admin GET's shape: the PUT body plus what only a read can report.\n\nA separate model, so the PUT body doesn't accept `client_secret_unreadable`.",
+        "properties": {
+          "admin_group": {
+            "default": "",
+            "title": "Admin Group",
+            "type": "string"
+          },
+          "auto_create_users": {
+            "default": true,
+            "title": "Auto Create Users",
+            "type": "boolean"
+          },
+          "client_id": {
+            "default": "",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_secret": {
+            "default": "",
+            "title": "Client Secret",
+            "type": "string"
+          },
+          "client_secret_unreadable": {
+            "default": false,
+            "description": "True when a client secret is stored but can't be decrypted with the current settings key. `client_secret` still shows the placeholder; saving it keeps the stored value. Re-enter the secret to replace it.",
+            "title": "Client Secret Unreadable",
+            "type": "boolean"
+          },
+          "email_claim": {
+            "default": "email",
+            "title": "Email Claim",
+            "type": "string"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "full_name_claim": {
+            "default": "name",
+            "title": "Full Name Claim",
+            "type": "string"
+          },
+          "issuer_url": {
+            "default": "",
+            "title": "Issuer Url",
+            "type": "string"
+          },
+          "provider_name": {
+            "default": "",
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "redirect_uri": {
+            "default": "",
+            "title": "Redirect Uri",
+            "type": "string"
+          },
+          "scopes": {
+            "default": "openid profile email",
+            "title": "Scopes",
+            "type": "string"
+          },
+          "username_claim": {
+            "default": "preferred_username",
+            "title": "Username Claim",
+            "type": "string"
+          }
+        },
+        "title": "OIDCAdminConfigResponse",
         "type": "object"
       },
       "OIDCConfigResponse": {
@@ -19335,7 +19414,7 @@
           },
           "encrypted": {
             "default": false,
-            "description": "Whether the value is sensitive and therefore masked as '********' in API responses. Values are NOT encrypted at rest.",
+            "description": "Whether the value is a secret: encrypted at rest and masked as '********' in API responses.",
             "title": "Encrypted",
             "type": "boolean"
           },
@@ -19393,13 +19472,19 @@
           },
           "encrypted": {
             "default": false,
-            "description": "Whether the value is sensitive and therefore masked as '********' in API responses. Values are NOT encrypted at rest.",
+            "description": "Whether the value is a secret: encrypted at rest and masked as '********' in API responses.",
             "title": "Encrypted",
             "type": "boolean"
           },
           "key": {
             "title": "Key",
             "type": "string"
+          },
+          "unreadable": {
+            "default": false,
+            "description": "True for a secret that is configured but can't be decrypted with the current settings key. Its value shows as '********'; saving that placeholder keeps the stored value, so restoring the right key recovers it. Re-enter the secret to replace it.",
+            "title": "Unreadable",
+            "type": "boolean"
           },
           "updated_at": {
             "format": "date-time",
@@ -34776,7 +34861,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OIDCAdminConfig"
+                  "$ref": "#/components/schemas/OIDCAdminConfigResponse"
                 }
               }
             },

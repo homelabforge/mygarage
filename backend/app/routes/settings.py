@@ -5,6 +5,8 @@ import logging
 import re
 import sys
 import time
+from enum import Enum
+from typing import Final
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -36,12 +38,14 @@ from app.utils.default_unit_prefs import (
     DEFAULT_UNIT_PREFS_KEY,
     validate_default_unit_prefs_value,
 )
+from app.utils.error_handlers import ciphertext_value_detail
 from app.utils.household_time import (
     EFFECTIVE_TIMEZONE_KEY,
     TIMEZONE_SETTING_KEY,
     household_zone,
 )
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.settings_crypto import CIPHERTEXT_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -57,15 +61,32 @@ def _to_response(setting: Setting) -> SettingResponse:
     Masking is driven by SENSITIVE_SETTING_KEYS (code), not the row's own
     `encrypted` column, which drifts. `display_mask_secret` returns "" for an
     unset value, so callers can still tell "configured" from "not configured".
+    A secret that can't be decrypted reads as None but is still configured, so
+    it shows the placeholder too, with `unreadable` set (D3a); `model_validate`
+    reads that flag from the row's own property.
     """
     response = SettingResponse.model_validate(setting)
     if setting.key in SENSITIVE_SETTING_KEYS:
-        response.value = display_mask_secret(setting.value or "")
+        response.value = (
+            MASKED_SECRET_PLACEHOLDER
+            if response.unreadable
+            else display_mask_secret(response.value or "")
+        )
         response.encrypted = True
     return response
 
 
-def _resolve_write_value(key: str, new_value: str, stored_value: str | None) -> str:
+class _KeepStored(Enum):
+    """The type of `KEEP_STORED`: a one-member enum, so pyright narrows on `is`."""
+
+    KEEP_STORED = "keep_stored"
+
+
+#: "Write nothing": what `_resolve_write_value` returns for the mask placeholder.
+KEEP_STORED: Final = _KeepStored.KEEP_STORED
+
+
+def _resolve_write_value[V: str | None](key: str, new_value: V) -> V | _KeepStored:
     """Resolve an incoming value, honoring the mask placeholder as "keep stored".
 
     A client that read a masked value and saved the form unchanged sends the
@@ -73,9 +94,16 @@ def _resolve_write_value(key: str, new_value: str, stored_value: str | None) -> 
     Matching is exact — the placeholder is the only mask these endpoints emit, so
     a genuine secret that merely starts with '*' is still written normally. An
     empty string is a real clear, not a preserve.
+
+    Returns:
+        `KEEP_STORED` for the placeholder on a secret key, and the caller writes
+        nothing. Writing back the decrypted copy instead would turn a secret that
+        can't be decrypted (it reads as None) into a blank, destroying the
+        ciphertext that the right key could still open (D3a, F-7). Otherwise
+        `new_value`, unchanged.
     """
     if key in SENSITIVE_SETTING_KEYS and new_value == MASKED_SECRET_PLACEHOLDER:
-        return stored_value or ""
+        return KEEP_STORED
     return new_value
 
 
@@ -124,7 +152,11 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
     own site rather than through here.
 
     Every caller runs `_reject_unwritable_key` first, which refuses
-    `effective_timezone` (computed, never stored). The value rules shared with
+    `effective_timezone` (computed, never stored). A secret key given a value
+    that already starts with `enc:v1:` is refused next (R2-9): the model would
+    refuse it anyway, but here it is a 422 before any row is touched, which
+    keeps the batch all-or-nothing. A `KEEP_STORED` resolve writes nothing, so
+    callers skip this for it. The value rules shared with
     the restore (`app.services.setting_rules`) run next. Three more keys have a
     shape checked here: `timezone` must be a valid IANA name or the reader
     would skip it (see `app.utils.household_time.resolve_zone`);
@@ -144,6 +176,8 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
     Raises:
         HTTPException: 422 when the value would not survive a read.
     """
+    if key in SENSITIVE_SETTING_KEYS and value and value.startswith(CIPHERTEXT_PREFIX):
+        raise HTTPException(status_code=422, detail=ciphertext_value_detail(key))
     try:
         check_setting_value(key, value)
     except ValueError as exc:
@@ -460,7 +494,9 @@ async def update_poi_provider(
     if enabled is not None:
         await SettingsService.set(db, f"{provider_name}_enabled", str(enabled).lower())
 
-    if api_key is not None:
+    # The placeholder means "keep the stored key": write nothing (D3a), so a key
+    # that can't be decrypted survives for the right settings key to open.
+    if api_key is not None and api_key != MASKED_SECRET_PLACEHOLDER:
         await SettingsService.set(db, f"{provider_name}_api_key", api_key)
     await db.commit()
 
@@ -715,8 +751,12 @@ async def update_setting(
             )
 
     if "value" in update_data:
-        update_data["value"] = _resolve_write_value(key, update_data["value"], setting.value)
-        _reject_unwritable_value(key, update_data["value"])
+        # Popped, so the blanket loop below never writes it; put back only when
+        # there is something to write.
+        resolved = _resolve_write_value(key, update_data.pop("value"))
+        if resolved is not KEEP_STORED:
+            _reject_unwritable_value(key, resolved)
+            update_data["value"] = resolved
 
     for field, value in update_data.items():
         setattr(setting, field, value)
@@ -737,7 +777,6 @@ async def batch_update_settings(
     current_user: User | None = Depends(get_current_admin_user),
 ):
     """Batch update or create multiple settings (admin only)."""
-    updated_settings = []
 
     # Security: Log warning when disabling authentication
     if "auth_mode" in batch.settings and batch.settings["auth_mode"] == "none":
@@ -751,15 +790,23 @@ async def batch_update_settings(
     # session the request never commits, which is a partial batch reported as a
     # failure. Two passes keep the batch all-or-nothing.
     resolved_writes: list[tuple[str, str, Setting | None]] = []
+    # Rows the placeholder keeps as stored: left untouched, still in the response.
+    kept: dict[str, Setting] = {}
     for key, value in batch.settings.items():
         _reject_unwritable_key(key)
         result = await db.execute(select(Setting).where(Setting.key == key))
         setting = result.scalar_one_or_none()
-        # Nothing stored yet, so a masked placeholder resolves to "".
-        resolved = _resolve_write_value(key, value, setting.value if setting else None)
+        resolved = _resolve_write_value(key, value)
+        if resolved is KEEP_STORED:
+            if setting is not None:
+                kept[key] = setting
+                continue
+            # Nothing stored yet, so a masked placeholder creates the row blank.
+            resolved = ""
         _reject_unwritable_value(key, resolved)
         resolved_writes.append((key, resolved, setting))
 
+    written: dict[str, Setting] = {}
     for key, resolved, setting in resolved_writes:
         if setting:
             # Update existing
@@ -773,7 +820,9 @@ async def batch_update_settings(
             )
             db.add(setting)
 
-        updated_settings.append(setting)
+        written[key] = setting
+
+    updated_settings = [written[key] if key in written else kept[key] for key in batch.settings]
 
     await db.commit()
 

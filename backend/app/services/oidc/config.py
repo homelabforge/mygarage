@@ -32,6 +32,9 @@ OIDC_DEFAULTS: dict[str, str] = {
 #: The settings row that pins SSO's callback URL.
 OIDC_REDIRECT_URI_KEY = "oidc_redirect_uri"
 
+#: The settings row holding the OIDC client secret (encrypted at rest).
+OIDC_CLIENT_SECRET_KEY = "oidc_client_secret"
+
 
 def checked_redirect_uri(raw: str) -> str:
     """The SSO callback pin to store: stripped, and blank or an absolute http(s) URL.

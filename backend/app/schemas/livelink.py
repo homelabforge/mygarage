@@ -523,6 +523,13 @@ class MQTTSettingsResponse(BaseModel):
     broker_port: int = Field(1883, description="MQTT broker port")
     username: str = Field("", description="MQTT username (empty = anonymous)")
     has_password: bool = Field(False, description="Whether password is configured")
+    password_unreadable: bool = Field(
+        False,
+        description=(
+            "True when a password is stored but can't be decrypted with the current "
+            "settings key; re-enter it. has_password stays true."
+        ),
+    )
     topic_prefix: str = Field("wican", description="Topic prefix for subscriptions")
     use_tls: bool = Field(False, description="Use TLS/SSL connection")
 

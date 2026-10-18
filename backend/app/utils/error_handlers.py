@@ -8,7 +8,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
+from app.models.settings import SettingCiphertextValue
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.settings_crypto import CIPHERTEXT_PREFIX, SettingsKeyUnavailable
 
 logger = logging.getLogger(__name__)
 
@@ -225,12 +227,73 @@ async def handle_dbapi_error_debug(request: Request, exc: DBAPIError) -> JSONRes
     raise exc
 
 
+def ciphertext_value_detail(key: str) -> str:
+    """The 422 detail for a secret setting given a value that is already ciphertext.
+
+    Shared by the generic settings routes, which refuse it up front, and the
+    handler below, which catches it from every other writer. Names the key,
+    never the value.
+
+    Args:
+        key: The setting key that was being written.
+
+    Returns:
+        A message a client can show.
+    """
+    return (
+        f"Setting '{key}' can't be set to a value starting with '{CIPHERTEXT_PREFIX}': "
+        "that is an encrypted value, not the secret itself"
+    )
+
+
+async def handle_settings_key_unavailable(
+    request: Request, exc: SettingsKeyUnavailable
+) -> JSONResponse:
+    """A secret setting write with no usable keyring: 503, saying what to fix (D3a, F-2).
+
+    The setter raises it, so it can come from any writer. Its message names the
+    key source, a fixed reason and the fix, never key material or the value
+    being written.
+    """
+    logger.warning(
+        "Refused a secret settings write on %s %s: the settings encryption key is unavailable",
+        request.method,
+        sanitize_for_log(request.url.path),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": str(exc)},
+    )
+
+
+async def handle_setting_ciphertext_value(
+    request: Request, exc: SettingCiphertextValue
+) -> JSONResponse:
+    """A secret setting given a value that is already ciphertext: 422 (R2-9)."""
+    logger.warning(
+        "Refused a ciphertext value for %s on %s %s",
+        sanitize_for_log(exc.key),
+        request.method,
+        sanitize_for_log(request.url.path),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": ciphertext_value_detail(exc.key)},
+    )
+
+
 def register_error_handlers(app: FastAPI, *, debug: bool) -> None:
     """Register the app's exception handlers.
 
     Production gets the sanitized handlers. The numeric-overflow mapping applies
     in debug too: an overflow is the client's number, so it's a 422 either way.
     Validation stays the fence; this is the backstop for a path it missed.
+
+    The two secret-setting mappings are registered after the branch, in either
+    mode. Starlette picks a handler by walking the exception's MRO, so their
+    order against the production ``Exception`` catch-all doesn't matter; but
+    debug registers no catch-all, and without them would answer with a
+    traceback 500 (R2-3).
     """
     if debug:
         app.add_exception_handler(DBAPIError, handle_dbapi_error_debug)  # type: ignore[arg-type]
@@ -240,6 +303,8 @@ def register_error_handlers(app: FastAPI, *, debug: bool) -> None:
         # More specific than SQLAlchemyError, so a DBAPI error lands here first.
         app.add_exception_handler(DBAPIError, handle_dbapi_error)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
+    app.add_exception_handler(SettingsKeyUnavailable, handle_settings_key_unavailable)  # type: ignore[arg-type]
+    app.add_exception_handler(SettingCiphertextValue, handle_setting_ciphertext_value)  # type: ignore[arg-type]
 
 
 def safe_error_detail(exc: Exception, development_mode: bool = False) -> str:
