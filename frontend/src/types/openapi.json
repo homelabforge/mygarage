@@ -2449,6 +2449,18 @@
             ],
             "title": "Projected Wear Date"
           },
+          "reading_needed_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Needed On"
+          },
           "shoe_mm": {
             "anyOf": [
               {

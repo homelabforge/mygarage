@@ -1630,7 +1630,9 @@
       "needsLaterHours": "Needs a measurement at a later hour meter reading",
       "notDecreasing": "No wear measured yet",
       "needsEarlierOdometer": "Needs an earlier measurement with an odometer reading",
-      "needsEarlierHours": "Needs an earlier measurement with an hour meter reading"
+      "needsEarlierHours": "Needs an earlier measurement with an hour meter reading",
+      "needsOdometerOn": "Add an odometer reading to the {{date}} measurement",
+      "needsHoursOn": "Add an hour meter reading to the {{date}} measurement"
     },
     "logTitle": "Log brake measurements",
     "logHint": "Leave a corner blank to skip it.",

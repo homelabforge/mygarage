@@ -9,17 +9,19 @@ The rules, in short:
   them. Only measurements after that job count: dated after it, or written by
   it (the new-pads figure, `brake_job_id`). A same-day measurement the job
   didn't write is taken as the OLD pads, measured before they came off.
-- The rate comes from the oldest of those measurements and the one that last
-  measured the thinnest pad, the longest baseline there is. Pad wear between
-  two checks is often less than a gauge can read, so the newest two alone
-  would mostly measure noise.
-- A one-pad check carries the other pad's figure forward. When the thinnest
-  pad is a carried one, the rate ends where it was measured: a later check that
-  read only the other pad says nothing about how it has worn since.
-- What is left is worked out where the thinnest pad was measured, less the
-  distance (or hours) run since then, so both that measurement and the newest
-  one must carry the figure the estimate runs on (odometer, or hours on an
-  hours-only vehicle).
+- Each pad (inner and outer, or the shoe) is estimated on its own checks. A
+  one-pad check carries the other pad's figure forward for the card, the
+  minimum and the band, but says nothing about how that pad has worn since.
+- A pad's rate comes from its oldest check and its last, the longest baseline
+  there is. Pad wear between two checks is often less than a gauge can read,
+  so the newest two alone would mostly measure noise. Both ends need the
+  figure the estimate runs on (odometer, or hours on an hours-only vehicle).
+- What a pad has left is worked out at its last check, less the distance (or
+  hours) run since, and dated from the newest check. When the newest check has
+  no reading the use since is unknown, so the pad gets a date and no distance.
+- The corner reads the pad that runs out first, as long as its thinnest pad
+  has an estimate. When the thinnest has none, the corner says why, and the
+  other pad's date still counts toward the chip: the corner can't outlast it.
 """
 
 from __future__ import annotations
@@ -123,13 +125,13 @@ class BrakeWearStatus(StrEnum):
     REPLACED_NOT_MEASURED = "replaced_not_measured"
     #: One measurement since the pads went on; an estimate needs two.
     INSUFFICIENT_MEASUREMENTS = "insufficient_measurements"
-    #: Two or more, but the newest, the one that measured the thinnest pad, or
-    #: all but one up to it, lack the odometer (or hours).
+    #: The thinnest pad's last check, or all but one of its checks, lack the
+    #: odometer (or hours). `reading_needed_on` says which, when it is one.
     NO_USAGE_FIGURES = "no_usage_figures"
-    #: The oldest measurement and the thinnest pad's sit at the same odometer (or hours).
+    #: The thinnest pad's first and last checks sit at the same odometer (or hours).
     NO_USAGE_BETWEEN = "no_usage_between"
-    #: The pads read as thick as, or thicker than, they did, or the thinnest
-    #: was measured only once, at the first check.
+    #: The thinnest pad reads as thick as, or thicker than, it did, or was
+    #: measured only once.
     NOT_DECREASING = "not_decreasing"
 
 
@@ -147,9 +149,10 @@ class BrakeWear:
     """A corner's wear estimate, with the reason when there is none.
 
     `usage_remaining` is what is left as of the newest measurement, never below
-    zero: distance in km, or hours on the hours axis. Null
-    `wear_date` on a projection means the two measurements share a date or the
-    date lands past the calendar; read `status` for whether it projected.
+    zero: distance in km, or hours on the hours axis. Null on a projection
+    means the newest measurement has no reading, so the estimate is a date
+    alone. Null `wear_date` on a projection means the pad's checks share a date
+    or the date lands past the calendar; read `status` for whether it projected.
     """
 
     status: BrakeWearStatus
@@ -165,11 +168,19 @@ class BrakeWear:
     inner_measured_on: dt.date | None = None
     outer_measured_on: dt.date | None = None
     #: The thinnest of those: what the minimum and the band are judged on,
-    #: and the day it was measured.
+    #: and the day it was measured. On a tie, the older figure: it has worn since.
     thinnest_mm: Decimal | None = None
     thinnest_measured_on: dt.date | None = None
     usage_remaining: Decimal | None = None
     wear_date: dt.date | None = None
+    #: On `no_usage_figures`, the measurement that needs the reading: the
+    #: thinnest pad's last check. None when it has one and an earlier is missing.
+    reading_needed_on: dt.date | None = None
+    #: The day the pad that runs out first, of those with an estimate, reaches
+    #: the minimum: what the chip and the reminder run on. `wear_date` on a
+    #: projection; still set when the thinnest pad has no estimate of its own,
+    #: since the corner can't outlast its other pad.
+    worn_by: dt.date | None = None
 
 
 def _order(m: BrakeMeasurement) -> tuple[dt.date, int]:
@@ -213,63 +224,89 @@ def _usage(m: BrakeMeasurement, axis: UsageAxis) -> Decimal | None:
     return m.engine_hours if axis.is_hours else m.odometer_km
 
 
-@dataclass(frozen=True)
-class _Known:
-    """What was known about the pads as of one measurement, carried forward."""
+#: One pad's checks in the segment, oldest first: the measurement and its figure.
+_Checks = list[tuple[BrakeMeasurement, Decimal]]
 
-    measurement: BrakeMeasurement
-    inner: Decimal | None
-    outer: Decimal | None
-    shoe: Decimal | None
-    inner_on: dt.date | None
-    outer_on: dt.date | None
-    thinnest: Decimal
-    thinnest_on: dt.date
-    #: Where the thinnest figure was measured: this measurement, or an older
-    #: one when it is a carried pad.
-    thinnest_at: int
+_PAD_FIELDS: dict[str, dict[str, str]] = {
+    "disc": {"inner": "inner_pad_mm", "outer": "outer_pad_mm"},
+    "drum": {"shoe": "shoe_mm"},
+}
 
 
-def _carried_forward(measured: Sequence[BrakeMeasurement], brake_type: str) -> list[_Known]:
-    """Each measurement with the pads known as of it, oldest first.
+def _pads(measured: Sequence[BrakeMeasurement], brake_type: str) -> dict[str, _Checks]:
+    """Each pad (or the shoe) with the checks that read it, oldest first.
 
     A disc check often reads one pad only: the outer one shows through the
-    wheel, the inner one needs the wheel off. A one-pad entry keeps the other
-    pad's last figure, so a quick outer check can't hide an inner pad already
-    near the minimum.
+    wheel, the inner one needs the wheel off. Keeping each pad's own checks
+    lets a quick outer check stand beside the inner pad's last figure, so it
+    can't hide an inner pad already near the minimum. A pad never read is left out.
     """
-    known: list[_Known] = []
-    inner = outer = shoe = None
-    inner_at = outer_at = shoe_at = -1
-    for i, m in enumerate(measured):
-        if brake_type == "drum":
-            shoe, shoe_at = m.shoe_mm, i
-        else:
-            if m.inner_pad_mm is not None:
-                inner, inner_at = m.inner_pad_mm, i
-            if m.outer_pad_mm is not None:
-                outer, outer_at = m.outer_pad_mm, i
-        # The thinnest figure and where it was seen; on a tie, the newer one.
-        seen = [
-            (value, at)
-            for value, at in ((inner, inner_at), (outer, outer_at), (shoe, shoe_at))
-            if value is not None
-        ]
-        thinnest, thinnest_at = min(seen, key=lambda pair: (pair[0], -pair[1]))
-        known.append(
-            _Known(
-                m,
-                inner,
-                outer,
-                shoe,
-                measured[inner_at].recorded_at if inner is not None else None,
-                measured[outer_at].recorded_at if outer is not None else None,
-                thinnest,
-                measured[thinnest_at].recorded_at,
-                thinnest_at,
-            )
-        )
-    return known
+    pads: dict[str, _Checks] = {}
+    for name, field in _PAD_FIELDS[brake_type].items():
+        checks = [(m, value) for m in measured if (value := getattr(m, field)) is not None]
+        if checks:
+            pads[name] = checks
+    return pads
+
+
+@dataclass(frozen=True)
+class _Estimate:
+    """One pad's estimate, or why it has none."""
+
+    status: BrakeWearStatus
+    usage_remaining: Decimal | None = None
+    wear_date: dt.date | None = None
+    reading_needed_on: dt.date | None = None
+
+
+def _project_pad(
+    checks: _Checks, newest: BrakeMeasurement, minimum: Decimal, axis: UsageAxis
+) -> _Estimate:
+    """How long one pad has left, from its own checks. The pad is above the minimum."""
+    if len(checks) < 2:
+        # Measured once: no wear seen on it yet.
+        return _Estimate(BrakeWearStatus.NOT_DECREASING)
+    last, value = checks[-1]
+    last_usage = _usage(last, axis)
+    if last_usage is None:
+        return _Estimate(BrakeWearStatus.NO_USAGE_FIGURES, reading_needed_on=last.recorded_at)
+    figured = [(m, v) for m, v in checks if _usage(m, axis) is not None]
+    if len(figured) < 2:
+        return _Estimate(BrakeWearStatus.NO_USAGE_FIGURES)
+
+    first, first_value = figured[0]
+    first_usage = _usage(first, axis)
+    assert first_usage is not None  # filtered above
+    usage_delta = last_usage - first_usage
+    if usage_delta <= 0:
+        return _Estimate(BrakeWearStatus.NO_USAGE_BETWEEN)
+    worn = first_value - value
+    if worn <= 0:
+        return _Estimate(BrakeWearStatus.NOT_DECREASING)
+    left_then = (value - minimum) * usage_delta / worn
+    days = (last.recorded_at - first.recorded_at).days
+
+    def date_after(start: dt.date, usage: Decimal) -> dt.date | None:
+        """The day `usage` runs out after `start`, at this pad's own pace."""
+        if days <= 0:
+            return None
+        days_left = int(usage * days / usage_delta)
+        # A crawl of a rate lands past the calendar, and timedelta would raise.
+        if days_left > (dt.date.max - start).days:
+            return None
+        return start + timedelta(days=days_left)
+
+    newest_usage = _usage(newest, axis)
+    if newest_usage is None:
+        # The use since this pad was read is unknown, so a date alone, from its last check.
+        return _Estimate(BrakeWearStatus.PROJECTED, None, date_after(last.recorded_at, left_then))
+    # Never more than was left when measured: an odometer entered lower later on
+    # would otherwise hand distance back.
+    used_since = max(newest_usage - last_usage, Decimal("0"))
+    remaining = max(left_then - used_since, Decimal("0"))
+    return _Estimate(
+        BrakeWearStatus.PROJECTED, remaining, date_after(newest.recorded_at, remaining)
+    )
 
 
 def project_brake_wear(
@@ -303,27 +340,40 @@ def project_brake_wear(
         )
         return BrakeWear(status=status)
 
-    known = _carried_forward(measured, setup.brake_type)
-    now = known[-1]
-    newest, thinnest = now.measurement, now.thinnest
+    pads = _pads(measured, setup.brake_type)
+    newest = measured[-1]
+    # The thinnest figure, and on a tie the older one: it has worn since.
+    thinnest_pad = min(pads, key=lambda name: (pads[name][-1][1], _order(pads[name][-1][0])))
+    seen, thinnest = pads[thinnest_pad][-1]
+
+    def figure(name: str) -> Decimal | None:
+        return pads[name][-1][1] if name in pads else None
+
+    def measured_on(name: str) -> dt.date | None:
+        return pads[name][-1][0].recorded_at if name in pads else None
 
     def result(
         status: BrakeWearStatus,
+        *,
         usage_remaining: Decimal | None = None,
         wear_date: dt.date | None = None,
+        reading_needed_on: dt.date | None = None,
+        worn_by: dt.date | None = None,
     ) -> BrakeWear:
         return BrakeWear(
             status=status,
             latest=newest,
-            inner_pad_mm=now.inner,
-            outer_pad_mm=now.outer,
-            shoe_mm=now.shoe,
-            inner_measured_on=now.inner_on,
-            outer_measured_on=now.outer_on,
+            inner_pad_mm=figure("inner"),
+            outer_pad_mm=figure("outer"),
+            shoe_mm=figure("shoe"),
+            inner_measured_on=measured_on("inner"),
+            outer_measured_on=measured_on("outer"),
             thinnest_mm=thinnest,
-            thinnest_measured_on=now.thinnest_on,
+            thinnest_measured_on=seen.recorded_at,
             usage_remaining=usage_remaining,
             wear_date=wear_date,
+            reading_needed_on=reading_needed_on,
+            worn_by=worn_by,
         )
 
     minimum = setup.min_thickness_mm
@@ -333,52 +383,33 @@ def project_brake_wear(
         return result(
             BrakeWearStatus.AT_OR_BELOW_MINIMUM,
             usage_remaining=axis.zero,
-            wear_date=now.thinnest_on,
+            wear_date=seen.recorded_at,
         )
-
-    if len(known) < 2:
+    if len(measured) < 2:
         return result(BrakeWearStatus.INSUFFICIENT_MEASUREMENTS)
-    if now.thinnest_at == 0:
-        # The thinnest pad was measured once, at the first check, and carried
-        # past later ones that read the other pad only: no wear seen on it yet.
-        return result(BrakeWearStatus.NOT_DECREASING)
 
-    # The rate runs to where the thinnest pad was measured, and what is left
-    # is counted from there less the use since, so both ends need the figure:
-    # counting from an older odometer would hand back distance already used.
-    seen = known[now.thinnest_at].measurement
-    newest_usage = _usage(newest, axis)
-    seen_usage = _usage(seen, axis)
-    figured = [k for k in known[: now.thinnest_at + 1] if _usage(k.measurement, axis) is not None]
-    if newest_usage is None or seen_usage is None or len(figured) < 2:
-        return result(BrakeWearStatus.NO_USAGE_FIGURES)
-
-    oldest = figured[0]
-    oldest_usage = _usage(oldest.measurement, axis)
-    assert oldest_usage is not None  # filtered above
-    usage_delta = seen_usage - oldest_usage
-    if usage_delta <= 0:
-        return result(BrakeWearStatus.NO_USAGE_BETWEEN)
-    worn = oldest.thinnest - thinnest
-    if worn <= 0:
-        return result(BrakeWearStatus.NOT_DECREASING)
-
-    left_when_seen = (thinnest - minimum) * usage_delta / worn
-    # Never more than was left when measured: an odometer entered lower later on
-    # would otherwise hand distance back.
-    used_since = max(newest_usage - seen_usage, Decimal("0"))
-    remaining = max(left_when_seen - used_since, Decimal("0"))
-    wear_date = None
-    days = (seen.recorded_at - oldest.measurement.recorded_at).days
-    if days > 0:
-        days_left = int(left_when_seen * days / usage_delta)
-        # A crawl of a rate lands past the calendar, and timedelta would raise.
-        if days_left <= (dt.date.max - seen.recorded_at).days:
-            wear_date = seen.recorded_at + timedelta(days=days_left)
+    estimates = {name: _project_pad(checks, newest, minimum, axis) for name, checks in pads.items()}
+    # The pad that runs out first. Within one corner the projected pads either
+    # all have a distance or none does (the newest check's reading decides), so
+    # a missing one ranks on the date alone.
+    soonest = min(
+        (e for e in estimates.values() if e.status is BrakeWearStatus.PROJECTED),
+        key=lambda e: (e.usage_remaining or Decimal("0"), e.wear_date or dt.date.max),
+        default=None,
+    )
+    worn_by = soonest.wear_date if soonest is not None else None
+    own = estimates[thinnest_pad]
+    if own.status is not BrakeWearStatus.PROJECTED:
+        # The thinnest pad has no estimate, and a thicker pad's would overstate
+        # the corner: say why instead, and let the other pad's date count toward the chip.
+        return result(own.status, reading_needed_on=own.reading_needed_on, worn_by=worn_by)
+    assert soonest is not None  # the thinnest pad is one of them
+    remaining = soonest.usage_remaining
     return result(
         BrakeWearStatus.PROJECTED,
-        usage_remaining=remaining.quantize(Decimal("0.1")),
-        wear_date=wear_date,
+        usage_remaining=remaining.quantize(Decimal("0.1")) if remaining is not None else None,
+        wear_date=soonest.wear_date,
+        worn_by=worn_by,
     )
 
 
@@ -390,25 +421,26 @@ def brake_condition(wear: BrakeWear, setup: AxleSetup, today: dt.date) -> BrakeC
         return BrakeCondition.UNKNOWN
     if wear.status is BrakeWearStatus.REPLACED_NOT_MEASURED:
         return BrakeCondition.OK
-    if wear.thinnest_mm is not None and wear.thinnest_mm <= setup.due_soon_mm:
+    if _in_band(wear, setup):
         return BrakeCondition.DUE_SOON
-    if (
-        wear.status is BrakeWearStatus.PROJECTED
-        and wear.wear_date is not None
-        and wear.wear_date <= today + timedelta(days=DUE_SOON_DAYS)
-    ):
+    if wear.worn_by is not None and wear.worn_by <= today + timedelta(days=DUE_SOON_DAYS):
         return BrakeCondition.DUE_SOON
     return BrakeCondition.OK
 
 
-def reminder_due(wear: BrakeWear, condition: BrakeCondition) -> dt.date | None:
+def _in_band(wear: BrakeWear, setup: AxleSetup) -> bool:
+    return wear.thinnest_mm is not None and wear.thinnest_mm <= setup.due_soon_mm
+
+
+def reminder_due(wear: BrakeWear, condition: BrakeCondition, setup: AxleSetup) -> dt.date | None:
     """When a LOW corner's reminder falls due, or None for a corner that isn't LOW.
 
     Dated from the measurements, never from today, so a later write that
     changes nothing about the corner doesn't move the date. Replace now is due
-    the day the thinnest figure was measured. Due soon is due at the projected
-    wear date, or `DUE_SOON_DAYS` after that day, whichever comes first: a pad
-    in the last quarter wants a look within that long whatever the rate says.
+    the day the thinnest figure was measured. A pad in the band is due at its
+    wear date, or `DUE_SOON_DAYS` after that day, whichever comes first: it
+    wants a look within that long whatever the rate says. Due soon by the wear
+    date alone is due on that date.
     """
     seen = wear.thinnest_measured_on
     if seen is None:
@@ -417,12 +449,14 @@ def reminder_due(wear: BrakeWear, condition: BrakeCondition) -> dt.date | None:
         return seen
     if condition is not BrakeCondition.DUE_SOON:
         return None
+    if not _in_band(wear, setup):
+        # The recheck below is for a pad in the band. Here it would date a
+        # reminder that time alone raised before the day it was raised.
+        return wear.worn_by
     # From the day the thinnest figure was seen, not the newest check: a
     # quick outer-pad look doesn't restart the clock on a low inner pad.
     recheck = seen + timedelta(days=DUE_SOON_DAYS)
-    if wear.status is BrakeWearStatus.PROJECTED and wear.wear_date is not None:
-        return min(wear.wear_date, recheck)
-    return recheck
+    return min(wear.worn_by, recheck) if wear.worn_by is not None else recheck
 
 
 @dataclass(frozen=True)

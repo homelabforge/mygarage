@@ -77,11 +77,11 @@ export function useBrakeText(): BrakeText {
       const hours = overview.usage_axis === 'hours'
       switch (corner.wear_status) {
         case 'projected': {
-          if (corner.projected_usage_remaining == null) return '—'
+          const date = corner.projected_wear_date ? formatDateForDisplay(corner.projected_wear_date) : null
+          /* No distance when the newest measurement has no reading: the date alone. */
+          if (corner.projected_usage_remaining == null) return date ?? '—'
           const left = `~${usageText(overview, corner.projected_usage_remaining)}`
-          return corner.projected_wear_date
-            ? `${left} · ${formatDateForDisplay(corner.projected_wear_date)}`
-            : left
+          return date ? `${left} · ${date}` : left
         }
         case 'at_or_below_minimum':
           return t('brakes.wear.replaceNow')
@@ -90,11 +90,13 @@ export function useBrakeText(): BrakeText {
         case 'insufficient_measurements':
           return t('brakes.wear.needsSecond')
         case 'no_usage_figures': {
-          /* Either the newest measurement has no reading, or it has one and
-             no earlier measurement does: say which one needs it. */
-          const newestHasIt = (hours ? corner.measured_hours : corner.measured_odometer_km) != null
-          if (newestHasIt) return hours ? t('brakes.wear.needsEarlierHours') : t('brakes.wear.needsEarlierOdometer')
-          return hours ? t('brakes.wear.needsHours') : t('brakes.wear.needsOdometer')
+          /* The measurement that needs the reading: the latest, or an older one
+             that last read the thinner pad. None: an earlier one with a reading is missing. */
+          const on = corner.reading_needed_on
+          if (on == null) return hours ? t('brakes.wear.needsEarlierHours') : t('brakes.wear.needsEarlierOdometer')
+          if (on === corner.measured_on) return hours ? t('brakes.wear.needsHours') : t('brakes.wear.needsOdometer')
+          const date = formatDateForDisplay(on)
+          return hours ? t('brakes.wear.needsHoursOn', { date }) : t('brakes.wear.needsOdometerOn', { date })
         }
         case 'no_usage_between':
           return hours ? t('brakes.wear.needsLaterHours') : t('brakes.wear.needsLaterOdometer')

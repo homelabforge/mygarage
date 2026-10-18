@@ -276,7 +276,7 @@ class BrakeCornerResponse(BaseModel):
     brake_type: BrakeType
     condition: BrakeConditionName
     wear_status: BrakeWearStatusName
-    #: The thinner pad (or the shoe) at the newest measurement since the pads went on.
+    #: The thinner of the two pads' last figures (or the shoe) since the pads went on.
     thinnest_mm: Decimal | None = None
     inner_pad_mm: Decimal | None = None
     outer_pad_mm: Decimal | None = None
@@ -292,9 +292,13 @@ class BrakeCornerResponse(BaseModel):
     surface_mm: Decimal | None = None
     surface_measured_on: date_type | None = None
     surface_past_limit: bool = False
-    #: Distance in km, or hours when `usage_axis` is hours.
+    #: Distance in km, or hours when `usage_axis` is hours. Null on a projection
+    #: whose newest measurement has no reading: the date alone.
     projected_usage_remaining: Decimal | None = None
     projected_wear_date: date_type | None = None
+    #: On `no_usage_figures`, the date of the measurement that needs the reading;
+    #: null when an earlier measurement with one is what's missing.
+    reading_needed_on: date_type | None = None
     last_job: BrakeJobResponse | None = None
     #: Newest first.
     measurements: list[BrakeMeasurementResponse] = Field(default_factory=list)

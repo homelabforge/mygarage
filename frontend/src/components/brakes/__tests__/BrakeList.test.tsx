@@ -50,6 +50,7 @@ vi.mock('../../../hooks/useUnitPreference', () => ({
 }))
 
 import BrakeList from '../BrakeList'
+import { formatDateForDisplay } from '../../../utils/dateUtils'
 
 const VIN = '1HGCM82633A004352'
 
@@ -229,7 +230,7 @@ describe('BrakeList', () => {
         // The newest has one; the earlier ones don't.
         FL: { condition: 'ok', wear_status: 'no_usage_figures', inner_pad_mm: '8.00', thinnest_mm: '8.00', measured_on: '2026-09-04', measured_odometer_km: '1000.00' },
         // The newest has none.
-        FR: { condition: 'ok', wear_status: 'no_usage_figures', inner_pad_mm: '8.00', thinnest_mm: '8.00', measured_on: '2026-09-04' },
+        FR: { condition: 'ok', wear_status: 'no_usage_figures', inner_pad_mm: '8.00', thinnest_mm: '8.00', measured_on: '2026-09-04', reading_needed_on: '2026-09-04' },
       }),
       isLoading: false,
       error: null,
@@ -237,6 +238,32 @@ describe('BrakeList', () => {
     render(<BrakeList vin={VIN} />)
     expect(screen.getByText('brakes.wear.needsEarlierOdometer')).toBeInTheDocument()
     expect(screen.getByText('brakes.wear.needsOdometer')).toBeInTheDocument()
+  })
+
+  it('names an older measurement when that is the one without an odometer', () => {
+    useBrakesMock.mockReturnValue({
+      data: overview({
+        // The thin inner pad was last read in April; June read the outer one.
+        FL: { condition: 'ok', wear_status: 'no_usage_figures', inner_pad_mm: '5.00', outer_pad_mm: '6.00', thinnest_mm: '5.00', measured_on: '2026-06-01', measured_odometer_km: '30000.00', reading_needed_on: '2026-04-01' },
+      }),
+      isLoading: false,
+      error: null,
+    })
+    render(<BrakeList vin={VIN} />)
+    expect(screen.getByText('brakes.wear.needsOdometerOn')).toBeInTheDocument()
+    expect(screen.queryByText('brakes.wear.needsOdometer')).not.toBeInTheDocument()
+  })
+
+  it('shows the date alone when the estimate has no distance', () => {
+    useBrakesMock.mockReturnValue({
+      data: overview({
+        FL: { condition: 'due_soon', wear_status: 'projected', inner_pad_mm: '6.00', thinnest_mm: '6.00', projected_wear_date: '2026-06-07' },
+      }),
+      isLoading: false,
+      error: null,
+    })
+    render(<BrakeList vin={VIN} />)
+    expect(screen.getByText(formatDateForDisplay('2026-06-07'))).toBeInTheDocument()
   })
 
   it('opens Log measurements straight away when sent from the Tires page', () => {

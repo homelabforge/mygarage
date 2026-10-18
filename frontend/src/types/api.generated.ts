@@ -8828,6 +8828,8 @@ export interface components {
             projected_usage_remaining?: string | null;
             /** Projected Wear Date */
             projected_wear_date?: string | null;
+            /** Reading Needed On */
+            reading_needed_on?: string | null;
             /** Shoe Mm */
             shoe_mm?: string | null;
             /** Surface Measured On */

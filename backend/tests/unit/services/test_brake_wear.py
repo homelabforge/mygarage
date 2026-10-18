@@ -207,7 +207,11 @@ class TestProjection:
         assert result.thinnest_measured_on == dt.date(2026, 4, 1)
         assert cond(result) is BrakeCondition.DUE_SOON
         # The recheck runs from April, when the low pad was seen, not October.
-        assert reminder_due(result, BrakeCondition.DUE_SOON) == dt.date(2026, 6, 30)
+        assert reminder_due(result, BrakeCondition.DUE_SOON, DISC) == dt.date(2026, 6, 30)
+        # The inner pad has no rate, and the outer pad's 39,000 km would
+        # overstate a corner whose inner pad is at 3.2 mm.
+        assert result.status is BrakeWearStatus.NOT_DECREASING
+        assert result.usage_remaining is None
 
     def test_a_carried_pad_at_the_minimum_is_dated_when_it_was_seen(self):
         ms = [
@@ -217,7 +221,7 @@ class TestProjection:
         result = wear(ms)
         assert result.status is BrakeWearStatus.AT_OR_BELOW_MINIMUM
         assert result.wear_date == dt.date(2026, 4, 1)
-        assert reminder_due(result, BrakeCondition.REPLACE_NOW) == dt.date(2026, 4, 1)
+        assert reminder_due(result, BrakeCondition.REPLACE_NOW, DISC) == dt.date(2026, 4, 1)
 
     def test_the_carried_pad_does_not_outlive_a_pad_job(self):
         j = job("2026-05-01")
@@ -241,12 +245,12 @@ class TestProjection:
         result = wear(ms)
         assert result.status is BrakeWearStatus.PROJECTED
         assert result.usage_remaining == Decimal("0.0")
-        # 1,667 km at 111 km a day, counted from April.
-        assert result.wear_date == dt.date(2026, 4, 16)
+        # Gone by October's check: nothing left, so due that day.
+        assert result.wear_date == dt.date(2026, 10, 1)
 
     def test_a_carried_pad_above_the_band_is_not_read_as_healthy(self):
         # 6.0 mm is above the 4.75 band, but at April's rate it reached the
-        # minimum in June. Read at October's odometer it lasted into 2027: OK.
+        # minimum before October's check. Read at October's odometer it lasted into 2027: OK.
         ms = [
             m("2026-01-01", "10000", inner="10.0", outer="10.0"),
             m("2026-04-01", "20000", inner="6.0", outer="8.0"),
@@ -254,7 +258,7 @@ class TestProjection:
         ]
         result = wear(ms)
         assert result.usage_remaining == Decimal("0.0")
-        assert result.wear_date == dt.date(2026, 6, 7)
+        assert result.wear_date == dt.date(2026, 10, 1)
         assert brake_condition(result, DISC, dt.date(2026, 10, 2)) is BrakeCondition.DUE_SOON
 
     def test_use_since_a_carried_pad_was_measured_comes_off_what_is_left(self):
@@ -266,8 +270,8 @@ class TestProjection:
         ]
         result = wear(ms)
         assert result.usage_remaining == Decimal("20000.0")
-        # The date runs from April too: 25,000 km at 111 km a day.
-        assert result.wear_date == dt.date(2026, 11, 12)
+        # Dated from May's check, the use since off too: 20,000 km at 111 km a day.
+        assert result.wear_date == dt.date(2026, 10, 28)
 
     def test_an_odometer_entered_lower_later_never_adds_wear_back(self):
         ms = [
@@ -286,6 +290,8 @@ class TestProjection:
         result = wear(ms)
         assert result.status is BrakeWearStatus.NOT_DECREASING
         assert result.usage_remaining is None
+        # The outer pad's own date still bounds the corner: 40,000 km at 111 a day.
+        assert result.worn_by == dt.date(2027, 3, 27)
 
     def test_the_carried_pads_measurement_must_carry_the_odometer(self):
         # Two earlier odometers, so it is the carried pad's own missing one that stops it.
@@ -295,7 +301,10 @@ class TestProjection:
             m("2026-04-01", None, inner="5.0", outer="7.0"),
             m("2026-10-01", "40000", outer="6.0"),
         ]
-        assert wear(ms).status is BrakeWearStatus.NO_USAGE_FIGURES
+        result = wear(ms)
+        assert result.status is BrakeWearStatus.NO_USAGE_FIGURES
+        # April's, not the newest: the card names the one to fix.
+        assert result.reading_needed_on == dt.date(2026, 4, 1)
 
     def test_the_newest_measurement_must_carry_the_odometer(self):
         ms = [
@@ -305,7 +314,9 @@ class TestProjection:
         ]
         # Counting what is left from 15,000 km would hand back distance the pads
         # already used; the estimate waits for an odometer instead.
-        assert wear(ms).status is BrakeWearStatus.NO_USAGE_FIGURES
+        result = wear(ms)
+        assert result.status is BrakeWearStatus.NO_USAGE_FIGURES
+        assert result.reading_needed_on == dt.date(2026, 3, 1)
 
     def test_an_older_odometer_never_stands_in_for_the_newest(self):
         # Counted from 30,000 km the 3.5 mm pads would read 15,000 km left;
@@ -322,7 +333,10 @@ class TestProjection:
 
     def test_two_measurements_but_only_one_odometer(self):
         ms = [m("2026-01-01", None, inner="10.0"), m("2026-02-01", "15000", inner="9.0")]
-        assert wear(ms).status is BrakeWearStatus.NO_USAGE_FIGURES
+        result = wear(ms)
+        assert result.status is BrakeWearStatus.NO_USAGE_FIGURES
+        # The newest has one; it is an earlier one with an odometer that's missing.
+        assert result.reading_needed_on is None
 
     def test_same_odometer(self):
         ms = [m("2026-01-01", "15000", inner="10.0"), m("2026-02-01", "15000", inner="9.0")]
@@ -350,15 +364,103 @@ class TestProjection:
         assert result.wear_date is None
 
     def test_drum_corners_run_on_the_shoe(self):
-        ms = [m("2026-01-01", "10000", shoe="5.0"), m("2026-03-01", "20000", shoe="4.0")]
+        # A disc figure left on the row says nothing about the shoe.
+        ms = [
+            m("2026-01-01", "10000", shoe="5.0", inner="9.0"),
+            m("2026-03-01", "20000", shoe="4.0", inner="2.0"),
+        ]
         result = wear(ms, setup=DRUM)
         assert result.status is BrakeWearStatus.PROJECTED
         assert result.usage_remaining == Decimal("25000.0")
+        assert (result.thinnest_mm, result.inner_pad_mm) == (Decimal("4.0"), None)
 
     def test_measurements_of_the_other_type_are_ignored(self):
         # The axle was set up as drum after these disc readings.
         ms = [m("2026-01-01", "10000", inner="8.0"), m("2026-03-01", "20000", inner="7.0")]
         assert wear(ms, setup=DRUM).status is BrakeWearStatus.NO_MEASUREMENTS
+
+    def test_a_tie_goes_to_the_older_figure(self):
+        # Both pads read 6.0, the inner one in April: it has worn since October's look at the outer.
+        ms = [
+            m("2026-01-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-04-01", "20000", inner="6.0", outer="8.0"),
+            m("2026-10-01", "40000", outer="6.0"),
+        ]
+        result = wear(ms)
+        assert result.thinnest_measured_on == dt.date(2026, 4, 1)
+        assert (result.usage_remaining, result.wear_date) == (Decimal("0.0"), dt.date(2026, 10, 1))
+
+    def test_the_thicker_pad_runs_out_first_when_it_wears_faster(self):
+        # Inner 8.0 -> 7.8, outer 10.0 -> 8.0 over 10,000 km. The thinner pad
+        # lasts 240,000 km; the outer one 25,000.
+        ms = [
+            m("2026-01-01", "10000", inner="8.0", outer="10.0"),
+            m("2026-07-01", "20000", inner="7.8", outer="8.0"),
+        ]
+        result = wear(ms)
+        assert result.thinnest_mm == Decimal("7.8")
+        assert result.usage_remaining == Decimal("25000.0")
+        assert result.wear_date == dt.date(2027, 9, 26)
+
+    def test_a_season_parked_does_not_bring_the_date_forward(self):
+        # 2 mm in 5,000 km over the summer, then parked: April's outer-only
+        # check is 200 km on. The date runs from April, not from September.
+        ms = [
+            m("2026-06-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-09-01", "15000", inner="8.0", outer="9.0"),
+            m("2027-04-15", "15200", outer="8.9"),
+        ]
+        result = wear(ms)
+        assert result.usage_remaining == Decimal("12300.0")
+        assert result.wear_date == dt.date(2027, 11, 27)
+        assert brake_condition(result, DISC, dt.date(2027, 4, 16)) is BrakeCondition.OK
+
+    def test_a_newest_check_without_an_odometer_still_dates_a_carried_pad(self):
+        # October's outer-only look has no odometer. The inner pad's own
+        # checks still date it, June at April's pace; the distance is unknown.
+        ms = [
+            m("2026-01-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-04-01", "20000", inner="6.0", outer="8.0"),
+            m("2026-10-01", None, outer="7.5"),
+        ]
+        result = wear(ms)
+        assert result.status is BrakeWearStatus.PROJECTED
+        assert result.usage_remaining is None
+        assert result.wear_date == dt.date(2026, 6, 7)
+        assert brake_condition(result, DISC, dt.date(2026, 10, 2)) is BrakeCondition.DUE_SOON
+
+    def test_the_other_pads_date_counts_when_the_thinnest_has_no_rate(self):
+        # The inner pad, above the band, was read once. The outer one is going
+        # fast, gone by late April: the corner can't outlast it.
+        ms = [
+            m("2026-01-01", "10000", inner="5.0", outer="9.0"),
+            m("2026-03-01", "16000", outer="6.0"),
+        ]
+        result = wear(ms)
+        assert result.status is BrakeWearStatus.NOT_DECREASING
+        assert result.usage_remaining is None
+        assert result.worn_by == dt.date(2026, 4, 29)
+        assert cond(result) is BrakeCondition.DUE_SOON
+
+    def test_a_same_day_baseline_on_one_pad_projects_without_a_date(self):
+        # Two inner checks on New Year's Day, 1,000 km apart, then an outer-only look.
+        ms = [
+            m("2026-01-01", "10000", inner="10.0", outer="10.0"),
+            m("2026-01-01", "11000", inner="9.0", outer="10.0"),
+            m("2026-03-01", "15000", outer="9.8"),
+        ]
+        result = wear(ms)
+        assert result.usage_remaining == Decimal("2000.0")
+        assert result.wear_date is None
+
+    def test_a_carried_pad_on_the_hours_axis(self):
+        ms = [
+            m("2026-01-01", None, inner="10.0", outer="10.0", hours="100.0"),
+            m("2026-04-01", None, inner="8.0", outer="9.0", hours="200.0"),
+            m("2026-05-01", None, outer="8.8", hours="250.0"),
+        ]
+        # 250 hours left at April's 200, 50 of them run since.
+        assert wear(ms, axis=HOURS).usage_remaining == Decimal("200.0")
 
     def test_hours_axis_reads_the_hour_meter(self):
         ms = [
@@ -407,19 +509,19 @@ class TestCondition:
         soon = BrakeWear(
             BrakeWearStatus.PROJECTED,
             thinnest_mm=Decimal("8.0"),
-            wear_date=TODAY + dt.timedelta(days=90),
+            worn_by=TODAY + dt.timedelta(days=90),
         )
         later = BrakeWear(
             BrakeWearStatus.PROJECTED,
             thinnest_mm=Decimal("8.0"),
-            wear_date=TODAY + dt.timedelta(days=91),
+            worn_by=TODAY + dt.timedelta(days=91),
         )
         assert cond(soon) is BrakeCondition.DUE_SOON
         assert cond(later) is BrakeCondition.OK
 
     def test_a_wear_date_already_past_is_due_soon(self):
         past = BrakeWear(
-            BrakeWearStatus.PROJECTED, thinnest_mm=Decimal("8.0"), wear_date=dt.date(2026, 1, 1)
+            BrakeWearStatus.PROJECTED, thinnest_mm=Decimal("8.0"), worn_by=dt.date(2026, 1, 1)
         )
         assert cond(past) is BrakeCondition.DUE_SOON
 
@@ -462,11 +564,11 @@ class TestSurface:
 class TestReminderDue:
     def test_replace_now_is_due_the_day_it_was_measured(self):
         result = wear([m("2026-05-01", inner="2.5")])
-        assert reminder_due(result, cond(result)) == dt.date(2026, 5, 1)
+        assert reminder_due(result, cond(result), DISC) == dt.date(2026, 5, 1)
 
     def test_due_soon_without_a_projection_is_due_ninety_days_after_the_measurement(self):
         result = wear([m("2026-05-01", inner="4.0")])
-        assert reminder_due(result, cond(result)) == dt.date(2026, 7, 30)
+        assert reminder_due(result, cond(result), DISC) == dt.date(2026, 7, 30)
 
     def test_due_soon_takes_the_projection_when_it_is_sooner(self):
         result = BrakeWear(
@@ -474,9 +576,9 @@ class TestReminderDue:
             latest=m("2026-05-01", inner="4.0"),
             thinnest_mm=Decimal("4.0"),
             thinnest_measured_on=dt.date(2026, 5, 1),
-            wear_date=dt.date(2026, 6, 1),
+            worn_by=dt.date(2026, 6, 1),
         )
-        assert reminder_due(result, BrakeCondition.DUE_SOON) == dt.date(2026, 6, 1)
+        assert reminder_due(result, BrakeCondition.DUE_SOON, DISC) == dt.date(2026, 6, 1)
 
     def test_a_slow_projection_is_capped_at_the_recheck(self):
         result = BrakeWear(
@@ -484,11 +586,23 @@ class TestReminderDue:
             latest=m("2026-05-01", inner="4.0"),
             thinnest_mm=Decimal("4.0"),
             thinnest_measured_on=dt.date(2026, 5, 1),
-            wear_date=dt.date(2029, 5, 1),
+            worn_by=dt.date(2029, 5, 1),
         )
-        assert reminder_due(result, BrakeCondition.DUE_SOON) == dt.date(2026, 7, 30)
+        assert reminder_due(result, BrakeCondition.DUE_SOON, DISC) == dt.date(2026, 7, 30)
+
+    def test_due_soon_by_the_date_alone_is_due_that_day(self):
+        # Above the band, due soon only because of the date. The 90-day recheck
+        # from May would date it before the day time alone raised it.
+        result = BrakeWear(
+            BrakeWearStatus.PROJECTED,
+            latest=m("2026-05-01", inner="8.0"),
+            thinnest_mm=Decimal("8.0"),
+            thinnest_measured_on=dt.date(2026, 5, 1),
+            worn_by=dt.date(2026, 10, 1),
+        )
+        assert reminder_due(result, BrakeCondition.DUE_SOON, DISC) == dt.date(2026, 10, 1)
 
     def test_ok_and_unknown_corners_have_no_due_date(self):
         result = wear([m("2026-05-01", inner="8.0")])
-        assert reminder_due(result, cond(result)) is None
-        assert reminder_due(wear([]), BrakeCondition.UNKNOWN) is None
+        assert reminder_due(result, cond(result), DISC) is None
+        assert reminder_due(wear([]), BrakeCondition.UNKNOWN, DISC) is None
