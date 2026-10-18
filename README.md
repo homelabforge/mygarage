@@ -30,7 +30,7 @@ Self-hosted vehicle maintenance tracking for the whole household: service histor
 - **Tires** - Tread and pressure per position, mount history, rotations, seasonal sets, storage and wear projection.
 - **LiveLink** - Live OBD2 data, drive sessions, GPS trips and DTCs from a WiCAN device (HTTPS or MQTT), Torque Pro, any MQTT source, or Mopeka propane sensors. See the [LiveLink setup guide](docs/LIVELINK_SETUP.md).
 - **Insurance** - Household policies spanning vehicles, standard coverages, renewals, and import from a declarations page.
-- **Documents and places** - Registration, insurance papers and manuals, OCR import of insurance declarations, window stickers and fuel receipts, plus a map of nearby shops, fuel and charging.
+- **Documents and places** - Registration, insurance papers and manuals, OCR import of insurance declarations and window stickers (fuel receipts too, with the opt-in LLM parser), plus a map of nearby shops, fuel and charging.
 - **Household** - Separate accounts, vehicle sharing and transfers, and a family dashboard. Run with no auth, local accounts, or any OIDC provider.
 - **Units and languages** - Imperial, metric or any mix per quantity, a per-vehicle odometer unit, nine languages and 17 currencies.
 - **Also** - Analytics and PDF reports, calendar, global search, a [gethomepage](https://gethomepage.dev) widget API, inbound webhooks and Telegram fuel commands, JSON and CSV backup and export, an installable PWA, and an opt-in [Ask My Garage](docs/tier2-features.md) assistant.

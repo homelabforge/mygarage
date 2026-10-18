@@ -417,19 +417,25 @@ pytest tests/integration/
 
 ### End-to-End Tests
 
-Playwright specs live in `frontend/e2e/` and run in CI on every push and pull
-request. To run them locally:
+Playwright specs live in `frontend/e2e/` and run in CI on pushes to `main`,
+`develop` and `release/**`, and on pull requests to `main` and `develop`.
+
+Running them locally needs, beyond the setup above, `uv` on your PATH (the
+config starts the backend with `uv run`), Node at the major version in `.nvmrc`,
+and Playwright's Chromium:
 
 ```bash
 cd frontend
+bunx playwright install chromium --with-deps
 bun run e2e        # or e2e:ui, e2e:headed, e2e:debug
 ```
 
-The Playwright config starts the backend on port 8686 against a throwaway
-SQLite database (`/tmp/mygarage-e2e.db`) and the Vite dev server on port 3000.
-Outside CI it reuses a server already listening on those ports, so stop any
-other MyGarage instance on 8686 first. `bin/ci-check --all` from the repo root
-runs them the way CI does.
+The Playwright config starts four servers: the backend on port 8686 against a
+throwaway SQLite database (`/tmp/mygarage-e2e.db`), the Vite dev server on port
+3000, and, for the subpath specs, a production build served by a second backend
+on 8687 behind a small proxy on 3001. Outside CI it reuses anything already
+listening on those ports, so stop any other MyGarage instance on 8686, 8687 or
+3001 first. `bin/ci-check --all` from the repo root runs them the way CI does.
 
 ---
 
