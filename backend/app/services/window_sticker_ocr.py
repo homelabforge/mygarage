@@ -467,7 +467,7 @@ class WindowStickerOCRService:
             # The wrapper imports fine without the engine, so ask the binary
             pytesseract.get_tesseract_version()
             status["tesseract_available"] = True
-        except (ImportError, OSError):
+        except ImportError, OSError:
             pass  # No pytesseract, or no tesseract binary on PATH
 
         if PADDLEOCR_ENABLED:
