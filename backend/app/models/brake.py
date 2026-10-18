@@ -154,9 +154,9 @@ class BrakeReminderMark(Base):
     told that corner was LOW), a pad check entered after `seen_through_id`, or
     replace now it hasn't covered. Neither figure goes back while the axle's
     marks stand, so a check it already covered is never news again. A write
-    that changes the axle's brakes and leaves it OK (not a delete, not a write
-    to the other axle) deletes the axle's marks, pending or not, so an axle
-    that went OK and then LOW again raises.
+    with pad news on the axle that leaves it OK (not a delete, not a write to
+    the other axle) deletes the axle's marks, pending or not, so an axle that
+    went OK and then LOW again raises.
     """
 
     __tablename__ = "brake_reminder_marks"

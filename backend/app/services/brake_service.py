@@ -62,6 +62,12 @@ logger = logging.getLogger(__name__)
 REMINDER_SOURCE: dict[Axle, str] = {"front": "low_brakes_front", "rear": "low_brakes_rear"}
 
 _LOW = (BrakeCondition.DUE_SOON, BrakeCondition.REPLACE_NOW)
+#: A pad (or shoe) check's figures: what the axle's reminder is about.
+_PAD_FIGURES = ("inner_pad_mm", "outer_pad_mm", "shoe_mm")
+#: Edits that say nothing about the pads.
+_NOT_PAD_NEWS = ("notes", "rotor_mm", "drum_mm", "surface")
+#: What the corners are judged on. The rotor and drum limits only flag a figure.
+_JUDGED_SETUP = ("brake_type", "min_thickness_mm", "new_thickness_mm")
 #: What a job writes into its corners' measurements, and moves when it moves.
 _JOB_CONTEXT = ("performed_on", "odometer_km", "engine_hours")
 
@@ -146,12 +152,20 @@ def _refuse_other_type(position: str, setup: AxleSetup, figures: dict[str, objec
 
 
 def _edit_evidence(row: BrakeMeasurement | BrakeJob, changes: dict[str, object]) -> set[Axle]:
-    """The corner's axle if the edit changes more than the notes, else nothing.
+    """The corner's axle if the edit is pad news, else nothing.
 
-    The edit drawers send every field, so this reads the values, not the keys.
+    A pad figure, a date or a reading set, or the pad job turned on. Notes,
+    rotor and drum figures and surface work aren't about the pads, and an
+    edit that only takes something away (a figure cleared, the pad job off)
+    is a delete in effect. The drawers send every field, so this reads the
+    values, not the keys.
     """
-    if any(name != "notes" and getattr(row, name) != value for name, value in changes.items()):
-        return {AXLE_OF[row.position]}
+    for name, value in changes.items():
+        if name in _NOT_PAD_NEWS or getattr(row, name) == value:
+            continue
+        # By identity: Decimal 0 == False, and a reading of 0 is still news.
+        if value is not None and value is not False:
+            return {AXLE_OF[row.position]}
     return set()
 
 
@@ -301,8 +315,8 @@ class BrakeService:
     ) -> BrakeOverviewResponse:
         """Sync both axle reminders from what this write left, commit once, and answer.
 
-        `evidence` is the axles whose brakes the write changed, the ones it can
-        complete (see `_sync_axle_reminders`).
+        `evidence` is the axles the write brings pad news about, the ones it
+        can complete (see `_sync_axle_reminders`).
         """
         await self.db.flush()
         setups, corners = await self._corners(vin, axes)
@@ -327,14 +341,16 @@ class BrakeService:
         one is OK. An axle with nothing known leaves it alone: not knowing is
         not a measurement of healthy pads.
 
-        Only a write that changes the axle's brakes completes one (`evidence`):
-        a measurement or a job on one of its corners, a changed setup, or an
-        edit that changes more than the notes. A delete is no evidence. Taking
-        away the low figure is not news that the pads are fine, and deleting
-        one to re-enter it would otherwise close the reminder and open a new
-        one, losing its snooze and notifying again. Nor is a write to the other
-        axle: after a delete leaves no corner LOW, the next write anywhere on
-        the vehicle would complete it.
+        Only pad news on the axle completes one (`evidence`): a pad (or shoe)
+        figure or a pad job on one of its corners, a change to its brake type,
+        minimum or new thickness, or an edit that sets a pad figure, a date or
+        a reading. A delete is no evidence, and nor is an edit that only takes
+        something away. Taking away the low figure is not news that the pads
+        are fine, and deleting one to re-enter it would otherwise close the
+        reminder and open a new one, losing its snooze and notifying again.
+        Nor is a write to the other axle, or a rotor or drum figure: after a
+        delete leaves no corner LOW, the next write anywhere on the vehicle
+        would complete it.
 
         A reminder the user closed stays closed until there is something new
         (`_news`). Done, dismissed or deleted, it's all one: that is read from
@@ -510,10 +526,11 @@ class BrakeService:
                 select(BrakeAxle).where(BrakeAxle.vin == vin, BrakeAxle.axle == axle)
             )
         ).scalar_one_or_none()
-        # Saved as it already reads (the defaults, say), it's no news about the brakes.
+        # Saved as it already reads (the defaults, say), or only a rotor or drum
+        # limit changed, it's no news about the pads.
         before = axle_setup(axle, row)
         values = data.model_dump()
-        changed = any(getattr(before, name) != value for name, value in values.items())
+        changed = any(getattr(before, name) != values[name] for name in _JUDGED_SETUP)
         if row is None:
             row = BrakeAxle(vin=vin, axle=axle)
             self.db.add(row)
@@ -546,7 +563,13 @@ class BrakeService:
                     **figures,
                 )
             )
-        return await self._finish(vin, axes, evidence={AXLE_OF[c.position] for c in data.corners})
+        # A rotor or drum figure alone is no news about the pads.
+        pad_news = {
+            AXLE_OF[c.position]
+            for c in data.corners
+            if any(getattr(c, name) is not None for name in _PAD_FIGURES)
+        }
+        return await self._finish(vin, axes, evidence=pad_news)
 
     async def update_measurement(
         self,
@@ -643,7 +666,9 @@ class BrakeService:
                     **pads,
                 )
             )
-        return await self._finish(vin, axes, evidence={AXLE_OF[c.position] for c in data.corners})
+        # Rotor or drum work alone is no news about the pads.
+        pad_news = {AXLE_OF[c.position] for c in data.corners} if data.friction_replaced else ()
+        return await self._finish(vin, axes, evidence=pad_news)
 
     async def update_job(
         self, vin: str, job_id: int, data: BrakeJobUpdate, current_user: User | None
