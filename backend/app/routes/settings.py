@@ -123,9 +123,10 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
     straight through `SettingsService.set`, and it applies this same rule at its
     own site rather than through here.
 
-    The value rules shared with the restore (`app.services.setting_rules`) run
-    first. Four more keys have a shape checked here: `effective_timezone` is computed
-    and never stored; `timezone` must be a valid IANA name or the reader
+    Every caller runs `_reject_unwritable_key` first, which refuses
+    `effective_timezone` (computed, never stored). The value rules shared with
+    the restore (`app.services.setting_rules`) run next. Three more keys have a
+    shape checked here: `timezone` must be a valid IANA name or the reader
     would skip it (see `app.utils.household_time.resolve_zone`);
     `oidc_redirect_uri` must be blank or an absolute http(s) URL, since the SSO
     settings re-send the stored pin and a bad one 422s every SSO save from the
@@ -143,7 +144,6 @@ def _reject_unwritable_value(key: str, value: str | None) -> None:
     Raises:
         HTTPException: 422 when the value would not survive a read.
     """
-    _reject_reserved_key(key)
     try:
         check_setting_value(key, value)
     except ValueError as exc:

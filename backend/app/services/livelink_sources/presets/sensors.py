@@ -24,7 +24,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_device import LiveLinkDevice
-from app.models.livelink_parameter import LiveLinkParameter
+from app.models.livelink_parameter import DISPLAY_NAME_MAX_LENGTH, LiveLinkParameter
 from app.models.livelink_topic_map import LiveLinkTopicMap
 from app.models.vehicle_telemetry import (
     TelemetryDailySummary,
@@ -36,9 +36,9 @@ from app.services.livelink_integrations import device_is_online
 from app.services.livelink_sources.presets import PRESETS, Preset, PresetReading
 from app.services.telemetry_service import TelemetryService
 
-#: `livelink_parameters.display_name` is VARCHAR(100). A long sensor name plus
-#: "rejected readings" can pass it, and PostgreSQL refuses where SQLite stores.
-_DISPLAY_NAME_MAX = 100
+#: A long sensor name plus "rejected readings" can pass the column's width, and
+#: PostgreSQL refuses where SQLite stores.
+_DISPLAY_NAME_MAX = DISPLAY_NAME_MAX_LENGTH
 
 
 def reading_display_name(label: str, reading: PresetReading) -> str:

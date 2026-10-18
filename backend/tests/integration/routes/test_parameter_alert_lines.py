@@ -165,16 +165,12 @@ async def test_a_percent_that_is_not_a_fill_level_can_leave_0_to_100(
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("param_class", ["percentage", "power_factor", "battery"])
-async def test_every_fill_like_class_keeps_the_bound(
-    client, auth_headers, db_session, param_class
-):
+async def test_every_fill_like_class_keeps_the_bound(client, auth_headers, db_session, param_class):
     """The tank's `propane` is covered above; these are the other bounded classes."""
     from app.models.livelink_parameter import LiveLinkParameter
 
     param = (
-        await db_session.execute(
-            select(LiveLinkParameter).where(LiveLinkParameter.param_key == VE)
-        )
+        await db_session.execute(select(LiveLinkParameter).where(LiveLinkParameter.param_key == VE))
     ).scalar_one()
     param.param_class = param_class
     await db_session.commit()

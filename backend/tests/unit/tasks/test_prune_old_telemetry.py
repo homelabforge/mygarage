@@ -19,7 +19,7 @@ import logging
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
@@ -29,7 +29,7 @@ from app.tasks import livelink_tasks
 
 pytestmark = pytest.mark.asyncio
 
-_KEYS = ("livelink_enabled", "livelink_telemetry_retention_days")
+_RETENTION_KEY = "livelink_telemetry_retention_days"
 
 
 class _PassthroughSessionContext:
@@ -46,10 +46,10 @@ class _PassthroughSessionContext:
 
 
 @pytest_asyncio.fixture
-async def seed_retention(db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
-    """Turn LiveLink on, store a retention, and record each prune instead of running it."""
-    rows = (await db_session.execute(select(Setting).where(Setting.key.in_(_KEYS)))).scalars()
-    saved = [(r.key, r.value, r.category, r.description, r.encrypted) for r in rows]
+async def seed_retention(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, livelink_enabled, keep_rows
+):
+    """Store a retention and record each prune instead of running it."""
     calls: list[tuple[str, int]] = []
 
     async def telemetry_prune(self: TelemetryService, retention_days: int) -> int:
@@ -65,31 +65,15 @@ async def seed_retention(db_session: AsyncSession, monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(
         livelink_tasks, "AsyncSessionLocal", lambda: _PassthroughSessionContext(db_session)
     )
+    await keep_rows(_RETENTION_KEY)
 
     async def seed(retention: str) -> list[tuple[str, int]]:
-        await db_session.execute(delete(Setting).where(Setting.key.in_(_KEYS)))
-        # `is_enabled` matches the exact string "true".
-        db_session.add(Setting(key="livelink_enabled", value="true", category="livelink"))
-        db_session.add(
-            Setting(key="livelink_telemetry_retention_days", value=retention, category="livelink")
-        )
+        await db_session.execute(delete(Setting).where(Setting.key == _RETENTION_KEY))
+        db_session.add(Setting(key=_RETENTION_KEY, value=retention, category="livelink"))
         await db_session.commit()
         return calls
 
-    yield seed
-    await db_session.rollback()
-    await db_session.execute(delete(Setting).where(Setting.key.in_(_KEYS)))
-    for key, value, category, description, encrypted in saved:
-        db_session.add(
-            Setting(
-                key=key,
-                value=value,
-                category=category,
-                description=description,
-                encrypted=encrypted,
-            )
-        )
-    await db_session.commit()
+    return seed
 
 
 @pytest.mark.parametrize("retention", ["0", "-5", "29"])

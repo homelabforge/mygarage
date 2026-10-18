@@ -19,7 +19,7 @@ from typing import NoReturn
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -111,6 +111,46 @@ async def db_session(test_sessionmaker, init_test_db) -> AsyncGenerator[AsyncSes
     """Provide a database session for tests. Depends on init_test_db to ensure tables exist."""
     async with test_sessionmaker() as session:
         yield session
+
+
+@pytest_asyncio.fixture
+async def keep_rows(db_session: AsyncSession):
+    """Snapshot settings rows by key and put them back exactly as they were.
+
+    Call the yielded function with the keys a test is about to write. The test
+    database is created without the seeded settings and persists for the whole
+    run, so a test seeds what it needs and must not leave it behind. A key with
+    no row before the test has none after it.
+    """
+    from app.models.settings import Setting
+
+    saved: dict[str, tuple[str | None, str, str | None, bool] | None] = {}
+
+    async def keep(*keys: str) -> None:
+        for key in keys:
+            if key in saved:
+                continue
+            row = await db_session.get(Setting, key)
+            saved[key] = (
+                None if row is None else (row.value, row.category, row.description, row.encrypted)
+            )
+
+    yield keep
+    await db_session.rollback()
+    await db_session.execute(delete(Setting).where(Setting.key.in_(list(saved))))
+    for key, snapshot in saved.items():
+        if snapshot is not None:
+            value, category, description, encrypted = snapshot
+            db_session.add(
+                Setting(
+                    key=key,
+                    value=value,
+                    category=category,
+                    description=description,
+                    encrypted=encrypted,
+                )
+            )
+    await db_session.commit()
 
 
 @pytest_asyncio.fixture

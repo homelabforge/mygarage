@@ -24,7 +24,7 @@ else:
 from app.models import OdometerRecord
 from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
-from app.models.livelink_parameter import LiveLinkParameter
+from app.models.livelink_parameter import DISPLAY_NAME_MAX_LENGTH, LiveLinkParameter
 from app.models.vehicle_telemetry import (
     TelemetryDailySummary,
     VehicleTelemetry,
@@ -113,9 +113,6 @@ ODOMETER_PID_PATTERNS = [
 LATEST_VALUE_STALE_AFTER = timedelta(days=30)
 
 logger = logging.getLogger(__name__)
-
-#: `livelink_parameters.display_name` is VARCHAR(100).
-_DISPLAY_NAME_WIDTH = 100
 
 #: VIN -> date of the last "declared odometer never records" warning. Bounded by
 #: the number of vehicles, which is a household's worth, so it never needs
@@ -233,7 +230,7 @@ class TelemetryService:
         width: PostgreSQL refuses a longer one where SQLite stores it (TQ-L2).
         """
         if display_name is not None:
-            display_name = display_name[:_DISPLAY_NAME_WIDTH]
+            display_name = display_name[:DISPLAY_NAME_MAX_LENGTH]
         # Explicit config class always wins; otherwise fall back to the
         # conservative catalog inference so MQTT-discovered params (which
         # arrive with an empty config block) still get validator range/rate

@@ -288,32 +288,16 @@ _RULED_KEYS = ("livelink_telemetry_retention_days", "oidc_link_token_expire_minu
 
 
 @pytest_asyncio.fixture
-async def ruled_rows(db_session: AsyncSession) -> AsyncIterator[None]:
-    """Seed each ruled key with a good value; put the original rows back afterwards."""
-    rows = (
-        (await db_session.execute(select(Setting).where(Setting.key.in_(_RULED_KEYS))))
-        .scalars()
-        .all()
-    )
-    saved = [(r.key, r.value, r.category, r.description, r.encrypted) for r in rows]
+async def ruled_rows(db_session: AsyncSession, keep_rows) -> AsyncIterator[None]:
+    """Seed each ruled key with a good value; the original rows go back afterwards."""
+    await keep_rows(*_RULED_KEYS)
     await db_session.execute(delete(Setting).where(Setting.key.in_(_RULED_KEYS)))
-    db_session.add(Setting(key="livelink_telemetry_retention_days", value="90", category="livelink"))
+    db_session.add(
+        Setting(key="livelink_telemetry_retention_days", value="90", category="livelink")
+    )
     db_session.add(Setting(key="oidc_link_token_expire_minutes", value="5", category="security"))
     await db_session.commit()
     yield
-    await db_session.rollback()
-    await db_session.execute(delete(Setting).where(Setting.key.in_(_RULED_KEYS)))
-    for key, value, category, description, encrypted in saved:
-        db_session.add(
-            Setting(
-                key=key,
-                value=value,
-                category=category,
-                description=description,
-                encrypted=encrypted,
-            )
-        )
-    await db_session.commit()
 
 
 @pytest.mark.unit

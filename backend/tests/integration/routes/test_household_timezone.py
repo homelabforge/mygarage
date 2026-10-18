@@ -61,18 +61,13 @@ COMPANION_SEED = "tz-companion-seed"
 
 
 @pytest_asyncio.fixture
-async def companion_row(db_session):
-    """Seed the companion key and put its previous row back afterwards."""
-    previous = await db_session.scalar(select(Setting.value).where(Setting.key == COMPANION_KEY))
+async def companion_row(db_session, keep_rows):
+    """Seed the companion key; its previous row goes back afterwards."""
+    await keep_rows(COMPANION_KEY)
     await db_session.execute(delete(Setting).where(Setting.key == COMPANION_KEY))
     db_session.add(Setting(key=COMPANION_KEY, value=COMPANION_SEED))
     await db_session.commit()
-    yield COMPANION_SEED
-    await db_session.rollback()
-    await db_session.execute(delete(Setting).where(Setting.key == COMPANION_KEY))
-    if previous is not None:
-        db_session.add(Setting(key=COMPANION_KEY, value=previous))
-    await db_session.commit()
+    return COMPANION_SEED
 
 
 async def _companion_value(db_session) -> str | None:
@@ -276,7 +271,9 @@ class TestSettingsApi:
 
         row_value = await db_session.scalar(select(Setting.value).where(Setting.key == "timezone"))
         assert row_value == "America/Chicago", "the stored zone must be untouched"
-        assert await _companion_value(db_session) == companion_row, "a rejected batch writes nothing"
+        assert await _companion_value(db_session) == companion_row, (
+            "a rejected batch writes nothing"
+        )
 
 
 @pytest.mark.asyncio

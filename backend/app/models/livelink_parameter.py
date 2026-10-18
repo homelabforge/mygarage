@@ -72,3 +72,8 @@ class LiveLinkParameter(Base):
         Index("idx_livelink_params_class", "param_class"),
         Index("idx_livelink_params_order", "display_order"),
     )
+
+
+# The longest name the column holds. PostgreSQL refuses a longer one, which fails
+# the ingest flush; SQLite stores it whole.
+DISPLAY_NAME_MAX_LENGTH: int = LiveLinkParameter.display_name.type.length

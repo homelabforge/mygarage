@@ -374,9 +374,7 @@ class TestSettingsAdminRoutes:
         # Regular users get 403, admin gets 200
         assert response.status_code in [200, 403]
 
-    async def test_batch_update_requires_admin(
-        self, client: AsyncClient, auth_headers, keep_rows
-    ):
+    async def test_batch_update_requires_admin(self, client: AsyncClient, auth_headers, keep_rows):
         """Test that batch update requires admin role."""
         await keep_rows("ntfy_server")
         response = await client.post(
@@ -1102,44 +1100,6 @@ class TestSettingsBatchKeyWidth:
 # ---------------------------------------------------------------------------
 
 
-@pytest_asyncio.fixture
-async def keep_rows(db_session):
-    """Snapshot the named settings rows and put them back as they were afterwards.
-
-    The test database is created without the seeded settings and persists for
-    the whole run, so a test seeds what it needs and must not leave it behind.
-    """
-    saved: dict[str, tuple[str | None, str, str | None, bool] | None] = {}
-
-    async def keep(*keys: str) -> None:
-        for key in keys:
-            if key in saved:
-                continue
-            row = (
-                await db_session.execute(select(Setting).where(Setting.key == key))
-            ).scalar_one_or_none()
-            saved[key] = (
-                None if row is None else (row.value, row.category, row.description, row.encrypted)
-            )
-
-    yield keep
-    await db_session.rollback()
-    await db_session.execute(delete(Setting).where(Setting.key.in_(list(saved))))
-    for key, snapshot in saved.items():
-        if snapshot is not None:
-            value, category, description, encrypted = snapshot
-            db_session.add(
-                Setting(
-                    key=key,
-                    value=value,
-                    category=category,
-                    description=description,
-                    encrypted=encrypted,
-                )
-            )
-    await db_session.commit()
-
-
 # System-maintained, owned by a typed API, or the computed time zone's raw store.
 _EXCLUDED_KEYS = (
     "app_version",
@@ -1171,7 +1131,9 @@ class TestGenericWriteAllowlist:
     any key up to 50 characters (G3b-20). A telemetry retention of 0 written
     that way made the daily pruner delete every raw reading (O-T1)."""
 
-    async def test_an_unknown_key_cannot_be_created(self, client, auth_headers, db_session, keep_rows):
+    async def test_an_unknown_key_cannot_be_created(
+        self, client, auth_headers, db_session, keep_rows
+    ):
         key = f"made_up_{uuid.uuid4().hex[:12]}"
         await keep_rows(key)
         response = await client.post(
@@ -1180,7 +1142,9 @@ class TestGenericWriteAllowlist:
         assert response.status_code == 422, response.text
         assert not await _has_row(db_session, key)
 
-    async def test_an_unknown_key_cannot_be_updated(self, client, auth_headers, db_session, keep_rows):
+    async def test_an_unknown_key_cannot_be_updated(
+        self, client, auth_headers, db_session, keep_rows
+    ):
         """Even when a row exists (an old instance's leftover, a hand edit)."""
         key = f"made_up_{uuid.uuid4().hex[:12]}"
         await keep_rows(key)
@@ -1191,7 +1155,9 @@ class TestGenericWriteAllowlist:
         assert response.status_code == 422, response.text
         assert await _stored_value(db_session, key) == _SEED
 
-    async def test_an_unknown_key_cannot_be_batched(self, client, auth_headers, db_session, keep_rows):
+    async def test_an_unknown_key_cannot_be_batched(
+        self, client, auth_headers, db_session, keep_rows
+    ):
         key = f"made_up_{uuid.uuid4().hex[:12]}"
         await keep_rows(key)
         response = await client.post(
@@ -1213,7 +1179,9 @@ class TestGenericWriteAllowlist:
         expected = None if endpoint == "create_setting" else _SEED
         assert await _stored_or_none(db_session, key) == expected
 
-    async def test_a_zero_retention_cannot_be_batched(self, client, auth_headers, db_session, keep_rows):
+    async def test_a_zero_retention_cannot_be_batched(
+        self, client, auth_headers, db_session, keep_rows
+    ):
         """O-T1 as it happened: 0 days, through the batch the settings screens use."""
         key = "livelink_telemetry_retention_days"
         await keep_rows(key)
