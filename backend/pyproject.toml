@@ -32,6 +32,7 @@ dependencies = [
     "slowapi>=0.1.10",
     "argon2-cffi>=25.1.0",
     "joserfc>=1.7.4",  # JWT encoding/decoding and JWKS verification (replaces authlib.jose)
+    "cryptography>=50.0.2",  # direct: AES-256-GCM for secret settings at rest (was only a joserfc transitive)
     "pymupdf>=1.28.0",
     "pytesseract>=0.3.13",
     "aiosmtplib>=5.1.2",  # Async SMTP for email notifications
