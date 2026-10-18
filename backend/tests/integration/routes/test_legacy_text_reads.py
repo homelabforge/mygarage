@@ -251,3 +251,46 @@ async def test_completing_a_reminder_whose_title_breaks_the_line_item_rules(
             client, auth_headers, f"/api/vehicles/{vin}/service-visits/{visit_id}"
         )
         assert [item["description"] for item in visit_read["line_items"]] == [description]
+
+
+@pytest.mark.parametrize("mode", ["create_visit", "link_visit"])
+async def test_completing_a_reminder_whose_stored_type_is_not_a_code(
+    client, auth_headers, db_session, own_vehicle, mode
+):
+    """A hand edit or an old restore can leave free text in `maintenance_type`.
+
+    Completing it fed that text to the strict line-item schema, whose
+    `ValidationError` inside the handler was a 500 (EBR-5); the link mode wrote
+    it onto the new line item instead. A stored non-code now falls back to the
+    title's classification, as a reminder with no type does.
+    """
+    vin = own_vehicle.vin
+    today = household_today()
+    reminder = Reminder(
+        vin=vin,
+        title="Oil change",
+        reminder_type="date",
+        due_date=today,
+        status="pending",
+        maintenance_type="Oil Change",
+    )
+    db_session.add(reminder)
+    body: dict[str, object] = {"completed_date": today.isoformat()}
+    if mode == "link_visit":
+        visit = ServiceVisit(vin=vin, date=today)
+        db_session.add(visit)
+        await db_session.flush()
+        body |= {"mode": "link_visit", "service_visit_id": visit.id}
+    await db_session.commit()
+
+    response = await client.post(
+        f"/api/vehicles/{vin}/reminders/{reminder.id}/complete", json=body, headers=auth_headers
+    )
+
+    assert response.status_code == 200, response.text
+    line_item_id = response.json()["line_item_id"]
+    stored = await db_session.scalar(
+        select(ServiceLineItem.maintenance_type).where(ServiceLineItem.id == line_item_id)
+    )
+    # Literal: what `classify("Oil change")` returns (test_maintenance_types.py).
+    assert stored == "engine_oil_filter"

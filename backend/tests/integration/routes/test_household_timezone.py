@@ -54,6 +54,32 @@ async def household_row(db_session):
     await db_session.commit()
 
 
+#: A writable key a rejected batch carries FIRST, so a partial apply would show.
+#: An unknown key would be refused on its own and prove nothing about the batch.
+COMPANION_KEY = "ntfy_topic"
+COMPANION_SEED = "tz-companion-seed"
+
+
+@pytest_asyncio.fixture
+async def companion_row(db_session):
+    """Seed the companion key and put its previous row back afterwards."""
+    previous = await db_session.scalar(select(Setting.value).where(Setting.key == COMPANION_KEY))
+    await db_session.execute(delete(Setting).where(Setting.key == COMPANION_KEY))
+    db_session.add(Setting(key=COMPANION_KEY, value=COMPANION_SEED))
+    await db_session.commit()
+    yield COMPANION_SEED
+    await db_session.rollback()
+    await db_session.execute(delete(Setting).where(Setting.key == COMPANION_KEY))
+    if previous is not None:
+        db_session.add(Setting(key=COMPANION_KEY, value=previous))
+    await db_session.commit()
+
+
+async def _companion_value(db_session) -> str | None:
+    db_session.expire_all()
+    return await db_session.scalar(select(Setting.value).where(Setting.key == COMPANION_KEY))
+
+
 @pytest_asyncio.fixture
 async def vehicle(db_session, test_user):
     vin = f"HHTZ{uuid.uuid4().hex[:13].upper()}"
@@ -204,7 +230,7 @@ class TestSettingsApi:
         assert by_key.get("effective_timezone") == "America/Denver"
 
     async def test_reserved_key_is_rejected_on_every_write_path(
-        self, client, auth_headers, db_session
+        self, client, auth_headers, db_session, companion_row
     ):
         create = await client.post(
             "/api/settings",
@@ -218,44 +244,39 @@ class TestSettingsApi:
         )
         assert put.status_code == 422, put.text
 
-        marker = f"tz_probe_{uuid.uuid4().hex[:8]}"
         batch = await client.post(
             "/api/settings/batch",
             headers=auth_headers,
-            json={"settings": {marker: "x", "effective_timezone": "UTC"}},
+            json={"settings": {COMPANION_KEY: "x", "effective_timezone": "UTC"}},
         )
         assert batch.status_code == 422, batch.text
+        assert "computed and read-only" in batch.text
         rows = (
-            (
-                await db_session.execute(
-                    select(Setting).where(Setting.key.in_([marker, "effective_timezone"]))
-                )
-            )
+            (await db_session.execute(select(Setting).where(Setting.key == "effective_timezone")))
             .scalars()
             .all()
         )
         assert rows == [], "a rejected batch writes nothing"
+        assert await _companion_value(db_session) == companion_row, "nor its companion"
 
     async def test_invalid_timezone_value_is_rejected_and_writes_nothing(
-        self, client, auth_headers, db_session, household_row
+        self, client, auth_headers, db_session, household_row, companion_row
     ):
         put = await client.put(
             "/api/settings/timezone", headers=auth_headers, json={"value": "Not/AZone"}
         )
         assert put.status_code == 422, put.text
 
-        marker = f"tz_probe_{uuid.uuid4().hex[:8]}"
         batch = await client.post(
             "/api/settings/batch",
             headers=auth_headers,
-            json={"settings": {marker: "x", "timezone": "Also/Bogus"}},
+            json={"settings": {COMPANION_KEY: "x", "timezone": "Also/Bogus"}},
         )
         assert batch.status_code == 422, batch.text
 
         row_value = await db_session.scalar(select(Setting.value).where(Setting.key == "timezone"))
         assert row_value == "America/Chicago", "the stored zone must be untouched"
-        marker_row = await db_session.scalar(select(Setting).where(Setting.key == marker))
-        assert marker_row is None, "a rejected batch writes nothing"
+        assert await _companion_value(db_session) == companion_row, "a rejected batch writes nothing"
 
 
 @pytest.mark.asyncio

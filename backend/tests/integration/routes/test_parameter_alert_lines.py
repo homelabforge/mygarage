@@ -14,6 +14,8 @@ from sqlalchemy import delete, select
 _PREFIX = "PARAMLINE_"
 PCT = f"{_PREFIX}LEVEL"
 TEMP = f"{_PREFIX}TEMP"
+# Torque's volumetric efficiency: a percent with no class, which runs past 100.
+VE = f"{_PREFIX}KFF1269"
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -31,6 +33,8 @@ async def _params(db_session):
         LiveLinkParameter(
             param_key=PCT,
             unit="%",
+            # The tank's level, as the Mopeka preset registers it.
+            param_class="propane",
             warning_min=25.0,
             critical_min=10.0,
             show_on_dashboard=True,
@@ -39,6 +43,9 @@ async def _params(db_session):
     )
     db_session.add(
         LiveLinkParameter(param_key=TEMP, unit="C", show_on_dashboard=True, archive_only=False)
+    )
+    db_session.add(
+        LiveLinkParameter(param_key=VE, unit="%", show_on_dashboard=True, archive_only=False)
     )
     await db_session.commit()
     yield
@@ -138,6 +145,44 @@ async def test_the_ends_of_the_percent_scale_are_allowed(client, auth_headers, d
 
     assert resp.status_code == 200
     assert await _lines(db_session, PCT) == (100.0, 0.0, None)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_a_percent_that_is_not_a_fill_level_can_leave_0_to_100(
+    client, auth_headers, db_session
+):
+    """Volumetric efficiency passes 100 and a fuel trim goes below 0 (TQ-L3).
+
+    Only fill-like classes keep the bound; an unclassified percent is free.
+    """
+    resp = await _put(client, auth_headers, VE, {"warning_min": -5, "warning_max": 120})
+
+    assert resp.status_code == 200, resp.text
+    assert await _lines(db_session, VE) == (-5.0, None, 120.0)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+@pytest.mark.parametrize("param_class", ["percentage", "power_factor", "battery"])
+async def test_every_fill_like_class_keeps_the_bound(
+    client, auth_headers, db_session, param_class
+):
+    """The tank's `propane` is covered above; these are the other bounded classes."""
+    from app.models.livelink_parameter import LiveLinkParameter
+
+    param = (
+        await db_session.execute(
+            select(LiveLinkParameter).where(LiveLinkParameter.param_key == VE)
+        )
+    ).scalar_one()
+    param.param_class = param_class
+    await db_session.commit()
+
+    resp = await _put(client, auth_headers, VE, {"warning_max": 120})
+
+    assert resp.status_code == 422, resp.text
+    assert await _lines(db_session, VE) == (None, None, None)
 
 
 @pytest.mark.integration

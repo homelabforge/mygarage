@@ -371,3 +371,33 @@ async def test_declared_units_fill_rows_on_file_and_create_none(db_session):
     assert (await svc.get_parameter(with_unit)).unit == "psi"
     assert (await svc.get_parameter(without)).unit == "kPa"
     assert await svc.get_parameter(absent) is None
+
+
+@pytest.mark.asyncio
+class TestASourceNameFitsTheColumn:
+    """`livelink_parameters.display_name` is VARCHAR(100). A source's name went in
+    unclamped, so a longer one failed the ingest flush on PostgreSQL (TQ-L2).
+    SQLite stores the whole string, which is what these tests catch on main."""
+
+    async def test_a_new_reading_gets_the_first_100_characters(self, db_session):
+        svc = TelemetryService(db_session)
+        key = _named_key()
+        long_name = "Volumetric efficiency " + "x" * 150
+        await svc.auto_register_parameter(key, display_name=long_name)
+        await db_session.flush()
+        db_session.expire_all()
+        param = await svc.get_parameter(key)
+        assert param is not None
+        assert param.display_name == long_name[:100]
+
+    async def test_a_rename_on_the_auto_name_gets_the_first_100_characters(self, db_session):
+        svc = TelemetryService(db_session)
+        key = _named_key()
+        await svc.auto_register_parameter(key)
+        long_name = "Trip economy " + "y" * 150
+        await svc.auto_register_parameter(key, display_name=long_name)
+        await db_session.flush()
+        db_session.expire_all()
+        param = await svc.get_parameter(key)
+        assert param is not None
+        assert param.display_name == long_name[:100]
