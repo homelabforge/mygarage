@@ -155,9 +155,10 @@ _Written = tuple[BrakeMeasurement | BrakeJob, Collection[str] | None]
 def _given(row: BrakeMeasurement | BrakeJob, changes: dict[str, object]) -> set[str]:
     """The fields an edit gives a new value. Run it before the edit lands.
 
-    Clearing one takes away instead: a delete in effect. (So does turning the
-    pad job off, which leaves no pad job for the estimate to read.) The
-    drawers send every field, so this reads the values, not the keys.
+    Clearing one takes away instead: a delete in effect, so it's left out.
+    (Turning the pad job off is kept, but no news anyway: the job is no longer
+    the pad job, so the estimate reads nothing of it.) The drawers send every
+    field, so this reads the values, not the keys.
     """
     return {
         name for name, value in changes.items() if value is not None and getattr(row, name) != value
@@ -367,8 +368,9 @@ class BrakeService:
 
         Only pad news on the axle completes one (`evidence`): a change to its
         brake type, minimum or new thickness, or a write that gives one of its
-        corners' estimates something it reads (`_pad_news`): a pad check, the
-        pad job, or an edit that sets one of their figures, dates or readings.
+        corners' estimates something it reads (`_pad_news`): a pad check or the
+        pad job, or an edit that sets a check's figure, date or reading, the
+        job's date, the pads on, or the reading it carries to its new-pads figure.
         A delete is no evidence, and nor is an edit that only takes something
         away. Taking away the low figure is not news that the pads are fine,
         and deleting one to re-enter it would otherwise close the reminder and

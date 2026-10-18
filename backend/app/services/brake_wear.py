@@ -262,21 +262,27 @@ def estimate_reads(
     """The fields of one of the corner's rows that its pad estimate reads, if any.
 
     A pad check: its pad figures, its date and the reading the rate runs on.
-    The pad job: that it replaced the pads, its date, and the reading of the
-    new-pads figure it wrote, if it wrote one. A rotor-only check, history
-    from before the pad job, the other brake type's records and an older pad
-    job it doesn't read at all.
+    The pad job: that it replaced the pads, and its date. Any job: the date
+    and reading it carries over to a new-pads figure it wrote, while that
+    figure is a pad check (a disc job's figure given a shoe after the axle
+    went drum still is). A rotor-only check, history from before the pad job
+    (an older pad job too, or one dated back behind another) and the other
+    brake type's records it doesn't read at all.
     """
     reading = "engine_hours" if axis.is_hours else "odometer_km"
+    checks = pad_checks(measurements, jobs, setup)
     if isinstance(row, BrakeMeasurement):
-        if all(m.id != row.id for m in pad_checks(measurements, jobs, setup)):
+        if all(m.id != row.id for m in checks):
             return frozenset()
         return frozenset({*_PAD_FIELDS[setup.brake_type].values(), "recorded_at", reading})
+    reads: set[str] = set()
     job = _friction_job(jobs, setup)
-    if job is None or job.id != row.id:
-        return frozenset()
-    wrote = any(m.brake_job_id == job.id for m in measurements)
-    return frozenset({"friction_replaced", "performed_on", *([reading] if wrote else [])})
+    if job is not None and job.id == row.id:
+        reads |= {"friction_replaced", "performed_on"}
+    if any(m.brake_job_id == row.id for m in checks):
+        # What `BrakeService.update_job` moves on the figure it wrote.
+        reads |= {"performed_on", reading}
+    return frozenset(reads)
 
 
 def _usage(m: BrakeMeasurement, axis: UsageAxis) -> Decimal | None:
