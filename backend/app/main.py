@@ -15,6 +15,7 @@ from slowapi.util import get_remote_address
 
 from app.config import settings
 from app.database import init_db
+from app.utils import secret_key
 from app.utils.household_time import household_zone_dependency
 from app.utils.html_base import inject_base_href, inline_script_hashes
 
@@ -120,18 +121,35 @@ class HealthCheckLogFilter(logging.Filter):
 logging.getLogger("granian.access").addFilter(HealthCheckLogFilter())
 
 
+def log_secret_key_status() -> None:
+    """Log where the JWT secret key came from.
+
+    The key is resolved during `app.config` import, before logging is configured,
+    so `secret_key` records the outcome and this logs it.
+    """
+    if os.environ.get("MYGARAGE_SECRET_KEY"):
+        logger.info("✓ Secret key loaded from MYGARAGE_SECRET_KEY environment variable")
+    elif secret_key.KEY_SOURCE == "loaded":
+        logger.info("✓ Secret key loaded from %s", secret_key.DEFAULT_KEY_FILE)
+    elif secret_key.KEY_SOURCE == "generated":
+        logger.info(
+            "✓ Generated a new secret key and saved it to %s; it persists across restarts",
+            secret_key.DEFAULT_KEY_FILE,
+        )
+    else:
+        logger.warning(
+            "Secret key could not be persisted to %s - using a temporary in-memory key "
+            "(sessions end on restart)",
+            secret_key.DEFAULT_KEY_FILE,
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     logger.info("Starting MyGarage application...")
 
-    # Log secret key status (key was generated during config import)
-    if os.environ.get("MYGARAGE_SECRET_KEY"):
-        logger.info("✓ Secret key loaded from MYGARAGE_SECRET_KEY environment variable")
-    elif Path("/data/secret.key").exists():
-        logger.info("✓ Secret key loaded from /data/secret.key")
-    else:
-        logger.warning("Secret key file not found - using temporary in-memory key")
+    log_secret_key_status()
 
     # Up here so it shows in maintenance mode too.
     log_proxy_settings()
