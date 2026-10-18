@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Literal
 
 from fastapi import HTTPException
-from sqlalchemy import delete, select, update
+from sqlalchemy import case, delete, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -61,6 +61,7 @@ from app.services.tire_results import (
 )
 from app.services.usage_axis import DISTANCE, HOURS, UsageAxis, VehicleAxes
 from app.services.vehicle_lock import lock_vehicle_for_write
+from app.utils.datetime_utils import utc_now
 from app.utils.hours_sync import publish_marked_hours, same_day_hours
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
@@ -339,6 +340,11 @@ async def apply_mount_moves(
     caller can validate the resulting history on the collection it already
     holds.
 
+    Runs the low-tread sync once per tire it moved, after the second flush
+    when every position is final, and never commits: the caller's single
+    commit (or its `refuse_contradictions` 409) takes the reminder writes
+    with the moves. Every caller loads `readings`, which the sync reads.
+
     Args:
         vacate: Tires to take off, closing each one's open period at
             `when`/`odometer_km`.
@@ -394,6 +400,13 @@ async def apply_mount_moves(
     # Ids for the new periods, and the resulting set in every tire's
     # collection, for the validation each caller runs next.
     await db.flush()
+
+    # Once per tire: a rotated tire is in both lists.
+    moved = {tire.id: tire for tire in vacate}
+    for tire, _ in assign:
+        moved.setdefault(tire.id, tire)
+    for tire in moved.values():
+        await sync_low_tread_reminder(db, tire)
 
 
 def distance_on_tire(
@@ -866,8 +879,177 @@ def _low_tread_title(position: str | None) -> str:
     (None)" for a stored tire, which two stored tires then collided on.
     Identity is `tire_id` now, so the title is display text only, but it is
     still read by a human in the calendar and the notification.
+
+    The "(in storage)" branch is a guard only: since D3a the sync raises
+    nothing for a tire off the vehicle, so no new row gets that title.
     """
     return f"Tire tread low ({position})" if position else "Tire tread low (in storage)"
+
+
+async def sync_low_tread_reminder(db: AsyncSession, tire: Tire) -> bool:
+    """Create, rename or close the tire's pending 'Tire tread low (POS)' reminder.
+
+    Hooks into the existing ``vehicle_reminders`` table so the calendar,
+    notifications scheduler, and HA bridge all see low tread without a
+    separate notification channel.
+
+    Never commits, so a mover can run it inside its own transaction and a
+    later failure takes these writes with the rest. Returns whether it
+    changed anything; `TireService._sync_low_tread_reminder` commits on that.
+    `tire.readings` must be loaded.
+
+    D3a: the reminder lives only while the tire is mounted. Off the vehicle
+    a pending one is closed (done on the retire date for a retired tire,
+    dismissed otherwise) and no new one is raised.
+    """
+    title = _low_tread_title(tire.position)
+    # THREE states, not two. `not below` used to conflate "measured, and it
+    # is fine" with "we do not know", which was safe only while a tread was
+    # mandatory everywhere. It is not: `Tire.tread_depth_mm` has been
+    # nullable since 085 (clear the field in the edit drawer and the upsert
+    # writes an explicit null), and since 094 a reading may omit one too.
+    # Only a MEASUREMENT above the threshold may complete a live safety
+    # reminder; an unknown tread leaves it exactly as it was.
+    #
+    # `known` and `below` are derived in ONE branch rather than each
+    # repeating the None checks: two copies of one predicate can drift
+    # apart, and a `below` that outlives its `known` is precisely the defect
+    # this code exists to prevent. A branch rather than
+    # `known and tread <= limit` because pyright does not carry a
+    # `is not None` narrowing through an intermediate flag.
+    tread = tire.tread_depth_mm
+    limit = tire.min_tread_mm
+    if tread is None or limit is None:
+        known = False
+        below = False
+    else:
+        known = True
+        below = tread <= limit
+    # Identity is the TIRE, not the title. Titles are arbitrary user
+    # input, so matching on one adopts a reminder a human wrote and
+    # completes it on their behalf. `scalars().all()` rather than
+    # `scalar_one_or_none()`: rows created before this fix can leave more
+    # than one pending row per tire, and raising on that would make the
+    # bug unfixable from inside the app.
+    owned = (
+        (
+            await db.execute(
+                select(Reminder)
+                .where(
+                    Reminder.tire_id == tire.id,
+                    Reminder.source == "low_tread",
+                    Reminder.status == "pending",
+                )
+                .order_by(Reminder.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # The mounted rule comes before the tread tri-state: an unknown tread
+    # still closes it off the vehicle. Done for a retire writes what
+    # `maintenance_service._complete` writes; dismissed is status only, as the
+    # dismiss route does. This also closes the "(in storage)" rows earlier
+    # releases raised for stored tires.
+    if tire.position is None or tire.retired_on is not None:
+        for row in owned:
+            if tire.retired_on is not None:
+                row.status = "done"
+                row.completed_date = tire.retired_on
+                row.completed_at = utc_now()
+                row.snoozed_until = None
+            else:
+                row.status = "dismissed"
+        return bool(owned)
+
+    existing = owned[0] if owned else None
+    # A pre-fix row could have left more than one pending reminder on the
+    # same tire (matched by title back then, not by identity). Collapse
+    # every extra one now rather than leaving it to keep firing.
+    dirty = False
+    for duplicate in owned[1:]:
+        duplicate.status = "done"
+        dirty = True
+
+    # C10 predates some rows still pending on an upgraded instance. A
+    # reminder created by a pre-C10 release carries `reminder_type="both"`
+    # with `due_mileage_km=None`, which `ReminderCreate` rejects -- so
+    # this release's editability fix never reached an owner's EXISTING
+    # low-tread reminder, only ones created from here on. Repaired
+    # unconditionally, before the branches below, so it runs whichever
+    # of them fires this sync, including the case where the tire is
+    # still below threshold and nothing else about the row changes.
+    #
+    # The predicate is deliberately exact, not "anything not date-typed
+    # with no mileage". A user can take this reminder and add a real
+    # mileage target, which makes it `reminder_type="both"` with a
+    # genuine `due_mileage_km` -- a valid, user-authored edit, not a
+    # corrupt row. Matching on `reminder_type != "date"` alone would
+    # revert that edit and null their mileage on the next sync, silently.
+    # `both` with a NULL mileage is precisely what the pre-C10
+    # constructor wrote and precisely what the write schema rejects; any
+    # other combination is either already valid or was never ours to
+    # begin with, and is left alone.
+    if (
+        existing is not None
+        and existing.reminder_type == "both"
+        and existing.due_mileage_km is None
+    ):
+        existing.reminder_type = "date"
+        existing.due_mileage_km = None
+        dirty = True
+
+    if below and existing is None:
+        due = household_today()
+        # `project_wear` sorts its own readings now. The old call passed
+        # them unsorted, so `newer` was the OLDEST reading, `tread_delta`
+        # came out negative, and this projection has been silently absent
+        # from every low-tread reminder ever raised.
+        # Below the minimum the projection reads no distance, so no current figure is needed.
+        wear = project_wear(tire, None)
+        start_km, start_hours = await start_readings(db, tire.vin)
+        reminder = Reminder(
+            vin=tire.vin,
+            # Which tire, and that WE made this. The sync never adopts a
+            # row whose `source` or `tire_id` is null, so a reminder a
+            # human wrote is left alone, and a reminder whose tire has
+            # been deleted becomes inert rather than attaching itself to
+            # the next tire at that corner.
+            tire_id=tire.id,
+            source="low_tread",
+            tread_depth_mm=tire.tread_depth_mm,
+            tread_threshold_mm=tire.min_tread_mm,
+            title=title,
+            # Always "date". `km_remaining` is a distance REMAINING, not
+            # an absolute odometer target, so there is nothing to put in
+            # `due_mileage_km` -- and `ReminderCreate` requires a mileage
+            # for "both". The ORM insert bypasses that validator, so the
+            # old row landed and then rejected every ordinary edit.
+            reminder_type="date",
+            due_date=wear.wear_date or due,
+            due_mileage_km=None,
+            status="pending",
+            start_odometer_km=start_km,
+            start_hours=start_hours,
+        )
+        db.add(reminder)
+        dirty = True
+    elif known and not below and existing is not None:
+        existing.status = "done"
+        dirty = True
+    elif below and existing is not None:
+        # A rotation or a set fit renames the corner, and a new reading moves the tread.
+        if existing.title != title:
+            existing.title = title
+            dirty = True
+        if not _same_measure(existing.tread_depth_mm, tire.tread_depth_mm):
+            existing.tread_depth_mm = tire.tread_depth_mm
+            dirty = True
+        if not _same_measure(existing.tread_threshold_mm, tire.min_tread_mm):
+            existing.tread_threshold_mm = tire.min_tread_mm
+            dirty = True
+
+    return dirty
 
 
 class TireService:
@@ -1310,6 +1492,8 @@ class TireService:
                 odometer_km=data.dismounted_odometer_km,
                 engine_hours=data.dismounted_hours,
             )
+        # Off the vehicle, so its low-tread reminder closes in this commit.
+        await sync_low_tread_reminder(self.db, tire)
         await self.db.commit()
         return await self._reload_response(tire.id, vin, axes)
 
@@ -1735,6 +1919,8 @@ class TireService:
                 odometer_km=data.dismounted_odometer_km,
                 engine_hours=data.dismounted_hours,
             )
+        # Its low-tread reminder closes done on the retire date, in this commit.
+        await sync_low_tread_reminder(self.db, tire)
         await self.db.commit()
         return await self._reload_response(tire.id, vin, axes)
 
@@ -2000,8 +2186,9 @@ class TireService:
 
         The way back from a mistaken Retire, and the reason `mount_tire` can
         refuse a retired tire without stranding one. Putting it back on a
-        corner is a Mount like any other. Returns through the reminder sync:
-        a restored tire below its minimum tread should get its warning back.
+        corner is a Mount like any other. Returns through the reminder sync,
+        which raises nothing for a tire in storage (D3a); mounting it below
+        its minimum raises a fresh one.
         """
         from app.services.auth import get_vehicle_or_403
 
@@ -2043,11 +2230,17 @@ class TireService:
         # NULL, which makes SQLite reject the delete outright and retiring a
         # tire impossible. Measured. Nulling `tire_id` here keeps the reminder
         # as history and makes it inert: the sync never adopts a row whose
-        # `tire_id` is null.
+        # `tire_id` is null. Every row, done and dismissed too, or the FK
+        # blocks the delete. A pending one is dismissed here rather than
+        # through the sync, whose mounted rule would keep it on a mounted tire.
         await self.db.execute(
             update(Reminder)
             .where(Reminder.tire_id == tire_id, Reminder.vin == vin)
-            .values(tire_id=None, source=None)
+            .values(
+                tire_id=None,
+                source=None,
+                status=case((Reminder.status == "pending", "dismissed"), else_=Reminder.status),
+            )
         )
         # The odometer readings this tire published. Nothing cascades them:
         # `odometer_records` carries a FK for fuel-sourced rows only. A tire
@@ -2454,142 +2647,6 @@ class TireService:
             )
 
     async def _sync_low_tread_reminder(self, tire: Tire) -> None:
-        """Create or complete a pending 'Tire tread low (POS)' reminder.
-
-        Hooks into the existing ``vehicle_reminders`` table so the calendar,
-        notifications scheduler, and HA bridge all see low tread without a
-        separate notification channel.
-        """
-        title = _low_tread_title(tire.position)
-        # THREE states, not two. `not below` used to conflate "measured, and it
-        # is fine" with "we do not know", which was safe only while a tread was
-        # mandatory everywhere. It is not: `Tire.tread_depth_mm` has been
-        # nullable since 085 (clear the field in the edit drawer and the upsert
-        # writes an explicit null), and since 094 a reading may omit one too.
-        # Only a MEASUREMENT above the threshold may complete a live safety
-        # reminder; an unknown tread leaves it exactly as it was.
-        #
-        # `known` and `below` are derived in ONE branch rather than each
-        # repeating the None checks: two copies of one predicate can drift
-        # apart, and a `below` that outlives its `known` is precisely the defect
-        # this code exists to prevent. A branch rather than
-        # `known and tread <= limit` because pyright does not carry a
-        # `is not None` narrowing through an intermediate flag.
-        tread = tire.tread_depth_mm
-        limit = tire.min_tread_mm
-        if tread is None or limit is None:
-            known = False
-            below = False
-        else:
-            known = True
-            below = tread <= limit
-        # Identity is the TIRE, not the title. Titles are arbitrary user
-        # input, so matching on one adopts a reminder a human wrote and
-        # completes it on their behalf. `scalars().all()` rather than
-        # `scalar_one_or_none()`: rows created before this fix can leave more
-        # than one pending row per tire, and raising on that would make the
-        # bug unfixable from inside the app.
-        owned = (
-            (
-                await self.db.execute(
-                    select(Reminder)
-                    .where(
-                        Reminder.tire_id == tire.id,
-                        Reminder.source == "low_tread",
-                        Reminder.status == "pending",
-                    )
-                    .order_by(Reminder.id)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        existing = owned[0] if owned else None
-        # A pre-fix row could have left more than one pending reminder on the
-        # same tire (matched by title back then, not by identity). Collapse
-        # every extra one now rather than leaving it to keep firing.
-        dirty = False
-        for duplicate in owned[1:]:
-            duplicate.status = "done"
-            dirty = True
-
-        # C10 predates some rows still pending on an upgraded instance. A
-        # reminder created by a pre-C10 release carries `reminder_type="both"`
-        # with `due_mileage_km=None`, which `ReminderCreate` rejects -- so
-        # this release's editability fix never reached an owner's EXISTING
-        # low-tread reminder, only ones created from here on. Repaired
-        # unconditionally, before the branches below, so it runs whichever
-        # of them fires this sync, including the case where the tire is
-        # still below threshold and nothing else about the row changes.
-        #
-        # The predicate is deliberately exact, not "anything not date-typed
-        # with no mileage". A user can take this reminder and add a real
-        # mileage target, which makes it `reminder_type="both"` with a
-        # genuine `due_mileage_km` -- a valid, user-authored edit, not a
-        # corrupt row. Matching on `reminder_type != "date"` alone would
-        # revert that edit and null their mileage on the next sync, silently.
-        # `both` with a NULL mileage is precisely what the pre-C10
-        # constructor wrote and precisely what the write schema rejects; any
-        # other combination is either already valid or was never ours to
-        # begin with, and is left alone.
-        if (
-            existing is not None
-            and existing.reminder_type == "both"
-            and existing.due_mileage_km is None
-        ):
-            existing.reminder_type = "date"
-            existing.due_mileage_km = None
-            dirty = True
-
-        if below and existing is None:
-            due = household_today()
-            # `project_wear` sorts its own readings now. The old call passed
-            # them unsorted, so `newer` was the OLDEST reading, `tread_delta`
-            # came out negative, and this projection has been silently absent
-            # from every low-tread reminder ever raised.
-            # Below the minimum the projection reads no distance, so no current figure is needed.
-            wear = project_wear(tire, None)
-            start_km, start_hours = await start_readings(self.db, tire.vin)
-            reminder = Reminder(
-                vin=tire.vin,
-                # Which tire, and that WE made this. The sync never adopts a
-                # row whose `source` or `tire_id` is null, so a reminder a
-                # human wrote is left alone, and a reminder whose tire has
-                # been deleted becomes inert rather than attaching itself to
-                # the next tire at that corner.
-                tire_id=tire.id,
-                source="low_tread",
-                tread_depth_mm=tire.tread_depth_mm,
-                tread_threshold_mm=tire.min_tread_mm,
-                title=title,
-                # Always "date". `km_remaining` is a distance REMAINING, not
-                # an absolute odometer target, so there is nothing to put in
-                # `due_mileage_km` -- and `ReminderCreate` requires a mileage
-                # for "both". The ORM insert bypasses that validator, so the
-                # old row landed and then rejected every ordinary edit.
-                reminder_type="date",
-                due_date=wear.wear_date or due,
-                due_mileage_km=None,
-                status="pending",
-                start_odometer_km=start_km,
-                start_hours=start_hours,
-            )
-            self.db.add(reminder)
-            dirty = True
-        elif known and not below and existing is not None:
-            existing.status = "done"
-            dirty = True
-        elif below and existing is not None:
-            # A rotation or a dismount renames the corner, and a new reading moves the tread.
-            if existing.title != title:
-                existing.title = title
-                dirty = True
-            if not _same_measure(existing.tread_depth_mm, tire.tread_depth_mm):
-                existing.tread_depth_mm = tire.tread_depth_mm
-                dirty = True
-            if not _same_measure(existing.tread_threshold_mm, tire.min_tread_mm):
-                existing.tread_threshold_mm = tire.min_tread_mm
-                dirty = True
-
-        if dirty:
+        """Run `sync_low_tread_reminder` and commit when it changed anything."""
+        if await sync_low_tread_reminder(self.db, tire):
             await self.db.commit()

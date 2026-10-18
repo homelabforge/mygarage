@@ -571,7 +571,8 @@ class TestTheLowTreadReminder:
     async def test_a_reminder_raised_by_the_deleted_reading_completes(
         self, client: AsyncClient, auth_headers, vehicle, db_session
     ):
-        tire_id = await _tire(client, auth_headers, vehicle, None, min_tread_mm="2.0")
+        # Mounted: a stored tire raises no low-tread reminder (D3a).
+        tire_id = await _tire(client, auth_headers, vehicle, "FL", min_tread_mm="2.0")
         await _reading(
             client, auth_headers, vehicle, tire_id, recorded_at="2026-01-10", tread_depth_mm="7.0"
         )

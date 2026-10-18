@@ -41,6 +41,7 @@ from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading
 from app.models.vehicle import Vehicle
 from app.schemas.reminder import ReminderCreate
+from app.services import tire_service as tire_service_module
 from app.services.tire_service import TireService
 from app.utils.household_time import household_today
 
@@ -71,11 +72,11 @@ async def vin(db_session, test_user):
     await db_session.commit()
 
 
-async def _tire(db_session, vin: str, *, position: str | None, tread: str) -> Tire:
+async def _tire(db_session, vin: str, *, position: str | None, tread: str | None) -> Tire:
     tire = Tire(
         vin=vin,
         position=position,
-        tread_depth_mm=Decimal(tread),
+        tread_depth_mm=Decimal(tread) if tread is not None else None,
         min_tread_mm=Decimal("2.0"),
     )
     db_session.add(tire)
@@ -91,6 +92,34 @@ async def _pending(db_session, vin: str) -> list[Reminder]:
                 select(Reminder)
                 .where(Reminder.vin == vin, Reminder.status == "pending")
                 .order_by(Reminder.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+def _owned(vin: str, tire: Tire, title: str) -> Reminder:
+    """A pending low-tread reminder the sync owns, as an earlier release left it."""
+    return Reminder(
+        vin=vin,
+        tire_id=tire.id,
+        source="low_tread",
+        title=title,
+        reminder_type="date",
+        due_date=date(2026, 12, 1),
+        status="pending",
+    )
+
+
+async def _owned_rows(db_session, tire: Tire) -> list[Reminder]:
+    """The tire's reminders as committed. The id is read before the expiry reloads it."""
+    tire_id = tire.id
+    db_session.expire_all()
+    return list(
+        (
+            await db_session.execute(
+                select(Reminder).where(Reminder.tire_id == tire_id).order_by(Reminder.id)
             )
         )
         .scalars()
@@ -257,16 +286,91 @@ class TestTheOwnedReminderFollowsTheTire:
 
 
 class TestStoredTires:
-    async def test_two_stored_tires_get_their_own_reminders(self, db_session, vin):
+    """D3a: a stored tire has no live low-tread reminder."""
+
+    async def test_stored_tires_raise_no_reminder(self, db_session, vin):
         first = await _tire(db_session, vin, position=None, tread="1.5")
         second = await _tire(db_session, vin, position=None, tread="1.5")
         await _sync(db_session, first)
         await _sync(db_session, second)
 
-        rows = await _pending(db_session, vin)
-        assert len(rows) == 2
-        assert {r.tire_id for r in rows} == {first.id, second.id}
-        assert all("None" not in r.title for r in rows)
+        assert await _pending(db_session, vin) == []
+
+    async def test_a_pending_in_storage_reminder_is_dismissed_on_the_next_sync(
+        self, db_session, vin
+    ):
+        """F-12: an upgraded instance's "(in storage)" row goes on its tire's next sync."""
+        tire = await _tire(db_session, vin, position=None, tread="1.5")
+        db_session.add(_owned(vin, tire, "Tire tread low (in storage)"))
+        await db_session.commit()
+
+        await _sync(db_session, tire)
+
+        assert await _pending(db_session, vin) == []
+        (row,) = await _owned_rows(db_session, tire)
+        assert (row.status, row.completed_at) == ("dismissed", None)
+
+    async def test_an_unknown_tread_off_the_vehicle_still_closes_it(self, db_session, vin):
+        """The mounted rule runs before the tread tri-state, so an unknown tread does not keep it."""
+        tire = await _tire(db_session, vin, position=None, tread=None)
+        db_session.add(_owned(vin, tire, "Tire tread low (FL)"))
+        await db_session.commit()
+
+        await _sync(db_session, tire)
+
+        (row,) = await _owned_rows(db_session, tire)
+        assert row.status == "dismissed"
+
+    async def test_a_retired_tire_closes_it_done_on_its_retire_date(self, db_session, vin):
+        tire = await _tire(db_session, vin, position=None, tread="1.5")
+        tire.retired_on = date(2026, 5, 4)
+        row = _owned(vin, tire, "Tire tread low (FL)")
+        row.snoozed_until = date(2026, 12, 1)
+        db_session.add(row)
+        await db_session.commit()
+
+        await _sync(db_session, tire)
+
+        (row,) = await _owned_rows(db_session, tire)
+        assert (row.status, row.completed_date, row.snoozed_until) == (
+            "done",
+            date(2026, 5, 4),
+            None,
+        )
+        assert row.completed_at is not None
+
+
+class TestTheSyncNeverCommits:
+    """R1-F1: the module-level sync leaves the commit to its caller.
+
+    So a mover can run it inside its own transaction, and a failure later in
+    that transaction takes the reminder writes with it.
+    """
+
+    async def test_it_reports_a_change_and_the_rollback_undoes_it(self, db_session, vin):
+        tire = await _tire(db_session, vin, position="FL", tread="1.5")
+        result = await db_session.execute(
+            select(Tire)
+            .where(Tire.id == tire.id)
+            .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
+        )
+        loaded = result.scalar_one()
+
+        assert await tire_service_module.sync_low_tread_reminder(db_session, loaded) is True
+        await db_session.rollback()
+
+        assert await _pending(db_session, vin) == []
+
+    async def test_it_reports_no_change_when_there_is_none(self, db_session, vin):
+        tire = await _tire(db_session, vin, position="FL", tread="8.0")
+        result = await db_session.execute(
+            select(Tire)
+            .where(Tire.id == tire.id)
+            .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
+        )
+        loaded = result.scalar_one()
+
+        assert await tire_service_module.sync_low_tread_reminder(db_session, loaded) is False
 
 
 class TestTheReminderIsEditableAfterwards:

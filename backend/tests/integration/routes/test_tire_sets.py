@@ -26,8 +26,10 @@ from httpx import AsyncClient
 from sqlalchemy import delete, select
 
 from app.models.odometer import OdometerRecord
+from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod
 from app.models.vehicle import Vehicle
+from app.services import tire_service as tire_service_module
 from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.tire_service import ODOMETER_SOURCE_SET
 from app.utils.odometer_sync import auto_sync_marker
@@ -600,3 +602,137 @@ class TestFittingASet:
         by_id = {t["id"]: t for t in fitted.json()["tires"]}
         assert by_id[keeper["id"]]["position"] == "FL"
         assert goner["id"] not in by_id
+
+
+async def _low_tread_rows(db_session, vin: str) -> list[Reminder]:
+    """Every reminder on the vehicle, as the requests committed them."""
+    db_session.expire_all()
+    return list(
+        (
+            await db_session.execute(
+                select(Reminder).where(Reminder.vin == vin).order_by(Reminder.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def _worn_swap(client: AsyncClient, headers, vin: str) -> tuple[dict, dict, dict]:
+    """A winter set of one, worn down in storage, and the worn summer tire it displaces.
+
+    The winter tire's tread drops below its minimum while it is stored, so
+    it has no reminder going into the fit; the summer tire on its corner does.
+    """
+    winter = await _set(client, headers, vin, "Winter")
+    stored = await _mount(
+        client,
+        headers,
+        vin,
+        "FL",
+        brand="Nokian",
+        min_tread_mm="2.0",
+        mounted_on="2026-01-05",
+        mounted_odometer_km="10000",
+    )
+    await _assign(client, headers, vin, stored["id"], winter["id"])
+    dismounted = await client.post(
+        f"/api/vehicles/{vin}/tires/{stored['id']}/dismount",
+        headers=headers,
+        json={"dismounted_on": "2026-03-01", "dismounted_odometer_km": "16000"},
+    )
+    assert dismounted.status_code == 200, dismounted.text
+    worn = await client.put(
+        f"/api/vehicles/{vin}/tires/{stored['id']}", headers=headers, json={"tread_depth_mm": "1.5"}
+    )
+    assert worn.status_code == 200, worn.text
+    displaced = await _mount(
+        client,
+        headers,
+        vin,
+        "FL",
+        brand="Michelin",
+        tread_depth_mm="1.0",
+        min_tread_mm="3.0",
+        mounted_on="2026-03-01",
+        mounted_odometer_km="16000",
+    )
+    return winter, stored, displaced
+
+
+@pytest.mark.asyncio
+class TestTheFitMovesTheLowTreadReminders:
+    """D3a, F-1: the fit runs the low-tread sync for every tire it moves, in its own commit."""
+
+    async def test_the_displaced_one_is_dismissed_and_the_fitted_one_raises_one(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        winter, stored, displaced = await _worn_swap(client, auth_headers, vehicle)
+        assert [(r.tire_id, r.status) for r in await _low_tread_rows(db_session, vehicle)] == [
+            (displaced["id"], "pending")
+        ]
+
+        fitted = await client.post(
+            f"/api/vehicles/{vehicle}/tire-sets/{winter['id']}/mount",
+            headers=auth_headers,
+            json={"mounted_on": TODAY.isoformat(), "odometer_km": "24000"},
+        )
+        assert fitted.status_code == 200, fitted.text
+
+        rows = {r.tire_id: r for r in await _low_tread_rows(db_session, vehicle)}
+        assert rows.keys() == {displaced["id"], stored["id"]}
+        assert rows[displaced["id"]].status == "dismissed"
+        assert (rows[stored["id"]].status, rows[stored["id"]].title) == (
+            "pending",
+            "Tire tread low (FL)",
+        )
+
+    async def test_a_failing_sync_rolls_back_the_whole_fit(
+        self, client: AsyncClient, auth_headers, vehicle, db_session, monkeypatch
+    ):
+        """The displaced tire's sync has dismissed its reminder when the fitted one's raises."""
+        winter, stored, displaced = await _worn_swap(client, auth_headers, vehicle)
+        real = getattr(tire_service_module, "sync_low_tread_reminder", None)
+        calls: list[int] = []
+
+        async def second_one_fails(db, tire):
+            calls.append(tire.id)
+            if len(calls) == 2:
+                raise RuntimeError("sync failed")
+            assert real is not None
+            return await real(db, tire)
+
+        monkeypatch.setattr(
+            tire_service_module, "sync_low_tread_reminder", second_one_fails, raising=False
+        )
+
+        with pytest.raises(RuntimeError, match="sync failed"):
+            await client.post(
+                f"/api/vehicles/{vehicle}/tire-sets/{winter['id']}/mount",
+                headers=auth_headers,
+                json={"mounted_on": TODAY.isoformat(), "odometer_km": "24000"},
+            )
+
+        assert calls == [displaced["id"], stored["id"]]
+        db_session.expire_all()
+        placed = {
+            t.id: t.position
+            for t in (await db_session.execute(select(Tire).where(Tire.vin == vehicle))).scalars()
+        }
+        assert placed == {stored["id"]: None, displaced["id"]: "FL"}
+        open_periods = (
+            (
+                await db_session.execute(
+                    select(TireMountPeriod).where(
+                        TireMountPeriod.tire_id.in_([stored["id"], displaced["id"]]),
+                        TireMountPeriod.dismounted_on.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [p.tire_id for p in open_periods] == [displaced["id"]]
+        assert [(r.tire_id, r.status) for r in await _low_tread_rows(db_session, vehicle)] == [
+            (displaced["id"], "pending")
+        ]

@@ -11,6 +11,7 @@ season of data is erase it.
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -21,6 +22,7 @@ from sqlalchemy import delete, select
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading
 from app.models.vehicle import Vehicle
+from app.services import tire_service as tire_service_module
 
 
 @pytest_asyncio.fixture
@@ -628,10 +630,14 @@ class TestRestore:
         )
         assert r.status_code == 409, r.text
 
-    async def test_restore_re_raises_the_low_tread_reminder(
+    async def test_restore_raises_no_reminder_and_a_remount_does(
         self, client: AsyncClient, auth_headers, vehicle, db_session
     ):
-        """Pins `_reload_and_sync` over `_reload_response` on the restore path."""
+        """D3a: restore puts the tire in storage, where it has no low-tread reminder.
+
+        It still runs the sync (`_reload_and_sync`), which keeps it clear. Putting
+        the tire back on a corner below its minimum raises a fresh one.
+        """
         base = f"/api/vehicles/{vehicle}/tires"
         made = await client.post(
             f"{base}/create-and-mount",
@@ -649,15 +655,269 @@ class TestRestore:
         assert (
             await client.post(f"{base}/{tire_id}/restore", headers=auth_headers)
         ).status_code == 200
-        pending = (
+        assert [
+            r for r in await _low_tread_rows(db_session, vehicle) if r.status == "pending"
+        ] == []
+
+        assert (
+            await client.post(
+                f"{base}/{tire_id}/mount", headers=auth_headers, json={"position": "RL"}
+            )
+        ).status_code == 200
+        pending = [r for r in await _low_tread_rows(db_session, vehicle) if r.status == "pending"]
+        assert [(r.tire_id, r.title) for r in pending] == [(tire_id, "Tire tread low (RL)")]
+
+
+async def _low_tread_rows(db_session, vin: str) -> list[Reminder]:
+    """Every reminder on the vehicle, as the requests committed them."""
+    db_session.expire_all()
+    return list(
+        (
+            await db_session.execute(
+                select(Reminder).where(Reminder.vin == vin).order_by(Reminder.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+async def _worn(client: AsyncClient, headers, vin: str, position: str, **extra) -> dict:
+    """A tire mounted below its minimum, which raises its low-tread reminder."""
+    return await _mount(
+        client, headers, vin, position, tread_depth_mm="1.0", min_tread_mm="3.0", **extra
+    )
+
+
+@pytest.mark.asyncio
+class TestTheLowTreadReminderFollowsTheTire:
+    """D3a (NEW-1): a low-tread reminder lives only while its tire is mounted.
+
+    Dismount, retire, rotate and delete never ran the sync, so the reminder
+    stayed pending on a tire that was off the car, or kept the old corner.
+    """
+
+    async def test_dismount_closes_it_dismissed(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        tire = await _worn(client, auth_headers, vehicle, "FL")
+        (raised,) = await _low_tread_rows(db_session, vehicle)
+        assert raised.status == "pending"
+
+        response = await client.post(
+            f"/api/vehicles/{vehicle}/tires/{tire['id']}/dismount",
+            headers=auth_headers,
+            json={},
+        )
+        assert response.status_code == 200, response.text
+
+        (row,) = await _low_tread_rows(db_session, vehicle)
+        assert (row.id, row.status, row.tire_id) == (raised.id, "dismissed", tire["id"])
+        assert row.completed_at is None
+
+    async def test_retire_closes_it_done_on_the_retire_date(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        tire = await _worn(client, auth_headers, vehicle, "FL", mounted_on="2026-03-01")
+        (raised,) = await _low_tread_rows(db_session, vehicle)
+        raised.snoozed_until = date(2026, 12, 1)
+        await db_session.commit()
+
+        response = await client.post(
+            f"/api/vehicles/{vehicle}/tires/{tire['id']}/retire",
+            headers=auth_headers,
+            json={"dismounted_on": "2026-04-02"},
+        )
+        assert response.status_code == 200, response.text
+
+        (row,) = await _low_tread_rows(db_session, vehicle)
+        assert (row.id, row.status, row.completed_date) == (raised.id, "done", date(2026, 4, 2))
+        assert row.completed_at is not None
+        assert row.snoozed_until is None
+
+    async def test_rotation_renames_it_to_the_new_corner(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        worn = await _worn(client, auth_headers, vehicle, "FL")
+        other = await _mount(client, auth_headers, vehicle, "RL")
+        (raised,) = await _low_tread_rows(db_session, vehicle)
+
+        response = await client.post(
+            f"/api/vehicles/{vehicle}/tires/rotate",
+            headers=auth_headers,
+            json={
+                "moves": [
+                    {"tire_id": worn["id"], "position": "RL"},
+                    {"tire_id": other["id"], "position": "FL"},
+                ]
+            },
+        )
+        assert response.status_code == 200, response.text
+
+        (row,) = await _low_tread_rows(db_session, vehicle)
+        assert (row.id, row.status, row.title) == (raised.id, "pending", "Tire tread low (RL)")
+
+    async def test_a_refused_rotation_keeps_the_reminder_as_it_was(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """Control: passes on main by design, where the rotation writes no reminder.
+
+        Pins that the sync's writes ride the rotation's transaction: the
+        rotation is backdated before both mounts, so `refuse_contradictions`
+        409s after the sync has renamed the reminder, and the rename must go
+        with the rest. Proved by mutation: a commit inside the sync fails it.
+        """
+        worn = await _worn(client, auth_headers, vehicle, "FL", mounted_on="2026-03-01")
+        other = await _mount(client, auth_headers, vehicle, "RL", mounted_on="2026-03-01")
+
+        response = await client.post(
+            f"/api/vehicles/{vehicle}/tires/rotate",
+            headers=auth_headers,
+            json={
+                "rotated_on": "2026-02-01",
+                "moves": [
+                    {"tire_id": worn["id"], "position": "RL"},
+                    {"tire_id": other["id"], "position": "FL"},
+                ],
+            },
+        )
+        assert response.status_code == 409, response.text
+
+        (row,) = await _low_tread_rows(db_session, vehicle)
+        assert (row.status, row.title) == ("pending", "Tire tread low (FL)")
+
+    async def test_a_failing_sync_rolls_back_the_whole_rotation(
+        self, client: AsyncClient, auth_headers, vehicle, db_session, monkeypatch
+    ):
+        """R1-F1: the second tire's sync raises after the first one's has written.
+
+        Every position, period and reminder change goes with it.
+        """
+        worn = await _worn(client, auth_headers, vehicle, "FL")
+        other = await _mount(client, auth_headers, vehicle, "RL")
+        real = getattr(tire_service_module, "sync_low_tread_reminder", None)
+        calls: list[int] = []
+
+        async def second_one_fails(db, tire):
+            calls.append(tire.id)
+            if len(calls) == 2:
+                raise RuntimeError("sync failed")
+            assert real is not None
+            return await real(db, tire)
+
+        monkeypatch.setattr(
+            tire_service_module, "sync_low_tread_reminder", second_one_fails, raising=False
+        )
+
+        with pytest.raises(RuntimeError, match="sync failed"):
+            await client.post(
+                f"/api/vehicles/{vehicle}/tires/rotate",
+                headers=auth_headers,
+                json={
+                    "moves": [
+                        {"tire_id": worn["id"], "position": "RL"},
+                        {"tire_id": other["id"], "position": "FL"},
+                    ]
+                },
+            )
+
+        db_session.expire_all()
+        placed = {
+            t.id: t.position
+            for t in (await db_session.execute(select(Tire).where(Tire.vin == vehicle))).scalars()
+        }
+        assert placed == {worn["id"]: "FL", other["id"]: "RL"}
+        periods = (
             (
                 await db_session.execute(
-                    select(Reminder).where(
-                        Reminder.tire_id == tire_id, Reminder.status == "pending"
+                    select(TireMountPeriod).where(
+                        TireMountPeriod.tire_id.in_([worn["id"], other["id"]])
                     )
                 )
             )
             .scalars()
             .all()
         )
-        assert len(pending) == 1
+        assert len(periods) == 2
+        assert all(p.dismounted_on is None for p in periods)
+        (row,) = await _low_tread_rows(db_session, vehicle)
+        assert (row.status, row.title) == ("pending", "Tire tread low (FL)")
+
+    async def test_delete_dismisses_the_pending_one_and_detaches_every_row(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """F-14: a done row of the deleted tire is detached too.
+
+        The composite FK carries no ON DELETE action, so a row still pointing
+        at the tire would block the delete.
+        """
+        tire = await _worn(client, auth_headers, vehicle, "FL")
+        for status in ("done", "dismissed"):
+            db_session.add(
+                Reminder(
+                    vin=vehicle,
+                    tire_id=tire["id"],
+                    source="low_tread",
+                    title="Tire tread low (FL)",
+                    reminder_type="date",
+                    due_date=date(2026, 1, 1),
+                    status=status,
+                )
+            )
+        await db_session.commit()
+
+        response = await client.delete(
+            f"/api/vehicles/{vehicle}/tires/{tire['id']}", headers=auth_headers
+        )
+        assert response.status_code in (200, 204), response.text
+
+        rows = await _low_tread_rows(db_session, vehicle)
+        assert sorted(r.status for r in rows) == ["dismissed", "dismissed", "done"]
+        assert all((r.tire_id, r.source) == (None, None) for r in rows)
+
+    async def test_a_remount_below_the_minimum_raises_a_fresh_one(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """Control: passes on main by design. The mount path already syncs.
+
+        Main renames the reminder it left pending at the dismount; here the
+        dismount closed that one, and the mount raises a new one.
+        """
+        tire = await _worn(client, auth_headers, vehicle, "FL")
+        assert (
+            await client.post(
+                f"/api/vehicles/{vehicle}/tires/{tire['id']}/dismount",
+                headers=auth_headers,
+                json={},
+            )
+        ).status_code == 200
+        assert (
+            await client.post(
+                f"/api/vehicles/{vehicle}/tires/{tire['id']}/mount",
+                headers=auth_headers,
+                json={"position": "FR"},
+            )
+        ).status_code == 200
+
+        pending = [r for r in await _low_tread_rows(db_session, vehicle) if r.status == "pending"]
+        assert [(r.tire_id, r.title) for r in pending] == [(tire["id"], "Tire tread low (FR)")]
+
+    async def test_a_stored_tire_read_below_the_minimum_raises_none(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        response = await client.post(
+            f"/api/vehicles/{vehicle}/tires",
+            headers=auth_headers,
+            json={"vin": vehicle, "tread_depth_mm": "8.0", "min_tread_mm": "3.0"},
+        )
+        assert response.status_code == 201, response.text
+        tire_id = response.json()["id"]
+
+        reading = await client.post(
+            f"/api/vehicles/{vehicle}/tires/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-03-01", "tread_depth_mm": "1.0"},
+        )
+        assert reading.status_code == 201, reading.text
+
+        assert await _low_tread_rows(db_session, vehicle) == []
