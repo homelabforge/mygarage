@@ -63,14 +63,31 @@ describe.each([
   ['settings', 'backup.createSettingsBackup', '/backup/create', 'backup.createSettingsError'],
   ['full', 'backup.createFullBackup', '/backup/create-full', 'backup.createFullError'],
 ])('SettingsBackupTab create %s backup', (_kind, button, url, generic) => {
-  it('shows the preflight 503 detail, which says what to fix', async () => {
-    mockedApi.post.mockRejectedValue(httpError(503, REFUSAL))
+  // One test, so the two generic-text checks fail with the 503 detail they are the controls for:
+  // on their own they also passed before the create buttons showed any detail.
+  it('shows the preflight 503 detail, which says what to fix, and no other server detail', async () => {
+    mockedApi.post.mockRejectedValueOnce(httpError(503, REFUSAL))
     render(<SettingsBackupTab />)
 
     fireEvent.click(await screen.findByRole('button', { name: button }))
 
     expect(await screen.findByText(REFUSAL)).toBeInTheDocument()
     expect(mockedApi.post).toHaveBeenCalledWith(url)
+
+    // A server error's detail stays hidden behind the generic text.
+    mockedApi.post.mockRejectedValueOnce(httpError(500, 'Traceback (most recent call last)'))
+    fireEvent.click(await screen.findByRole('button', { name: button }))
+
+    expect(await screen.findByText(generic)).toBeInTheDocument()
+    expect(screen.queryByText(REFUSAL)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Traceback/)).not.toBeInTheDocument()
+
+    // A 503 with no detail falls back to the generic text.
+    mockedApi.post.mockRejectedValueOnce(httpError(503))
+    fireEvent.click(await screen.findByRole('button', { name: button }))
+
+    expect(await screen.findByText(generic)).toBeInTheDocument()
+    expect(mockedApi.post).toHaveBeenCalledTimes(3)
   })
 
   it('shows a 403 detail too', async () => {
@@ -80,24 +97,5 @@ describe.each([
     fireEvent.click(await screen.findByRole('button', { name: button }))
 
     expect(await screen.findByText('Permission denied: cannot write to backup directory')).toBeInTheDocument()
-  })
-
-  it('keeps the generic text for a server error, whose detail stays hidden', async () => {
-    mockedApi.post.mockRejectedValue(httpError(500, 'Traceback (most recent call last)'))
-    render(<SettingsBackupTab />)
-
-    fireEvent.click(await screen.findByRole('button', { name: button }))
-
-    expect(await screen.findByText(generic)).toBeInTheDocument()
-    expect(screen.queryByText(/Traceback/)).not.toBeInTheDocument()
-  })
-
-  it('keeps the generic text when there is no detail', async () => {
-    mockedApi.post.mockRejectedValue(httpError(503))
-    render(<SettingsBackupTab />)
-
-    fireEvent.click(await screen.findByRole('button', { name: button }))
-
-    expect(await screen.findByText(generic)).toBeInTheDocument()
   })
 })
