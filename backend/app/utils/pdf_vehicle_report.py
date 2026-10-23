@@ -305,7 +305,7 @@ def _reminder_due_text(reminder: dict[str, Any], render_context: RenderContext) 
     if tread_depth_mm is not None and tread_threshold_mm is not None:
         depth = format_quantity(tread_depth_mm, render_context, "tread")
         minimum = format_quantity(tread_threshold_mm, render_context, "tread")
-        parts.append(f"Tread {depth} (min {minimum})")
+        parts.append(f"Tread {depth}, min {minimum}")
 
     return " · ".join(parts) if parts else "N/A"
 

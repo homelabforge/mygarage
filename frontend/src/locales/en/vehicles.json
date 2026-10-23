@@ -88,7 +88,7 @@
       "statusSnoozed": "Snoozed",
       "today": "Today",
       "tomorrow": "Tomorrow",
-      "treadLine": "Tread {{tread}} (minimum {{minimum}})",
+      "treadLine": "Tread {{tread}}, minimum {{minimum}}",
       "viewNotes": "View notes"
     }
   },

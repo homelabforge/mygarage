@@ -726,7 +726,7 @@ class TestRenderContextDrivesUnits:
             ).read()
         )
 
-        assert "Tread 1.50 mm (min 3.00 mm)" in text
+        assert "Tread 1.50 mm, min 3.00 mm" in text
 
     def test_low_tread_reminder_due_text_carries_imperial_tread(self) -> None:
         """Same cell on an imperial context, in 32nds:
@@ -739,11 +739,13 @@ class TestRenderContextDrivesUnits:
             ).read()
         )
 
-        assert "Tread 2/32 in (min 4/32 in)" in text
+        assert "Tread 2/32 in, min 4/32 in" in text
         assert "1.50 mm" not in text
 
     def test_low_tread_reminder_due_text_shows_both_tread_units(self) -> None:
-        """show_both appends each figure's counterpart through the formatter."""
+        """show_both appends each figure's counterpart through the formatter.
+        The minimum is a comma clause, so the counterparts' brackets are the
+        only ones."""
         data = _make_unit_bearing_data()
 
         text = _normalized_text(
@@ -752,13 +754,14 @@ class TestRenderContextDrivesUnits:
             ).read()
         )
 
-        assert "Tread 1.50 mm (2/32 in) (min 3.00 mm (4/32 in))" in text
+        assert "Tread 1.50 mm (2/32 in), min 3.00 mm (4/32 in)" in text
 
-    def test_tread_needs_both_fields(self) -> None:
-        """Control (passes on main by design): a reminder missing its minimum
-        gets no tread text, only its date."""
+    @pytest.mark.parametrize("missing", ["tread_depth_mm", "tread_threshold_mm"])
+    def test_tread_needs_both_fields(self, missing: str) -> None:
+        """Control (passes on main by design): a reminder missing its tread or
+        its minimum gets no tread text, only its date."""
         data = _make_unit_bearing_data()
-        reminder = _make_low_tread_reminder(tread_threshold_mm=None)
+        reminder = _make_low_tread_reminder(**{missing: None})
 
         text = _normalized_text(
             generate_vehicle_analytics_pdf(
@@ -768,6 +771,7 @@ class TestRenderContextDrivesUnits:
 
         assert "Tire tread low (FL)" in text
         assert "Tread" not in text
+        assert ", min " not in text
         assert "1.50 mm" not in text
 
     def test_cost_per_distance_card_label_names_no_unit(self) -> None:

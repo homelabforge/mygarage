@@ -561,7 +561,7 @@ async def notification_inbox(
                 depth, minimum = tread
                 due_bits.append(
                     f"tread {format_quantity(depth, units, 'tread')}"
-                    f" (minimum {format_quantity(minimum, units, 'tread')})"
+                    f", minimum {format_quantity(minimum, units, 'tread')}"
                 )
             body = f"{vehicle.nickname or vehicle.vin}" + (
                 f" · {', '.join(due_bits)}" if due_bits else ""
