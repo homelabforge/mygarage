@@ -60,19 +60,15 @@ def _to_response(setting: Setting) -> SettingResponse:
     """Serialize a Setting, masking the value if the key is sensitive.
 
     Masking is driven by SENSITIVE_SETTING_KEYS (code), not the row's own
-    `encrypted` column, which drifts. `display_mask_secret` returns "" for an
-    unset value, so callers can still tell "configured" from "not configured".
-    A secret that can't be decrypted reads as None but is still configured, so
-    it shows the placeholder too, with `unreadable` set (D3a); `model_validate`
-    reads that flag from the row's own property.
+    `encrypted` column, which drifts. The mask is `_stored_secret_mask`'s: ""
+    for an unset value, so callers can still tell "configured" from "not
+    configured", and the placeholder for a secret that can't be decrypted,
+    which reads as None but is still configured (D3a). `model_validate` reads
+    the `unreadable` flag from the row's own property.
     """
     response = SettingResponse.model_validate(setting)
     if setting.key in SENSITIVE_SETTING_KEYS:
-        response.value = (
-            MASKED_SECRET_PLACEHOLDER
-            if response.unreadable
-            else display_mask_secret(response.value or "")
-        )
+        response.value = _stored_secret_mask(setting)
         response.encrypted = True
     return response
 
@@ -80,7 +76,7 @@ def _to_response(setting: Setting) -> SettingResponse:
 def _stored_secret_mask(setting: Setting | None) -> str:
     """The mask for a stored secret row: the placeholder when one is set, "" when none is.
 
-    The same rule as `_to_response`: a secret that can't be decrypted reads as
+    `_to_response` masks with it too. A secret that can't be decrypted reads as
     None but is still configured, so it shows the placeholder too (D3a).
     """
     if setting is None:
