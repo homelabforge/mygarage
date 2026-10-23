@@ -13,38 +13,20 @@ ORM identity map nor the hybrid property can stand between the assertion and
 the stored bytes.
 """
 
-from collections.abc import Awaitable, Callable
-
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete, select, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import delete, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
 from app.services.oidc.config import write_oidc_config
 from app.services.settings_service import SettingsService
 from app.utils.settings_crypto import CIPHERTEXT_PREFIX
+from tests.integration._secret_helpers import Keep, raw_column, read_back
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 PLAIN = "plain-secret-7f3a9c"
-
-Keep = Callable[..., Awaitable[None]]
-
-
-async def _raw(sessionmaker: async_sessionmaker[AsyncSession], key: str) -> str | None:
-    """The stored column, as another connection sees it (committed only)."""
-    async with sessionmaker() as fresh:
-        return (
-            await fresh.execute(text("SELECT value FROM settings WHERE key = :k"), {"k": key})
-        ).scalar_one_or_none()
-
-
-async def _read_back(sessionmaker: async_sessionmaker[AsyncSession], key: str) -> str | None:
-    """The value as an ORM reader sees it, through a fresh session."""
-    async with sessionmaker() as fresh:
-        row = (await fresh.execute(select(Setting).where(Setting.key == key))).scalar_one()
-        return row.value
 
 
 async def _upsert_raw(db: AsyncSession, key: str, raw: str) -> None:
@@ -128,11 +110,11 @@ async def test_every_writer_stores_ciphertext_that_reads_back(
 
     await write(client, auth_headers, db_session, key, PLAIN)
 
-    raw = await _raw(test_sessionmaker, key)
+    raw = await raw_column(test_sessionmaker, key)
     assert raw is not None
     assert raw.startswith(CIPHERTEXT_PREFIX)
     assert PLAIN not in raw
-    assert await _read_back(test_sessionmaker, key) == PLAIN
+    assert await read_back(test_sessionmaker, key) == PLAIN
 
 
 POI_KEYS = ("google_places_api_key", "yelp_api_key", "foursquare_api_key")
@@ -188,12 +170,12 @@ async def test_an_unchanged_legacy_value_is_rewritten_as_ciphertext(
     )
     await db_session.commit()
     db_session.expire_all()
-    assert await _raw(test_sessionmaker, key) == PLAIN
+    assert await raw_column(test_sessionmaker, key) == PLAIN
 
     await write(client, auth_headers, key)
 
-    raw = await _raw(test_sessionmaker, key)
+    raw = await raw_column(test_sessionmaker, key)
     assert raw is not None
     assert raw.startswith(CIPHERTEXT_PREFIX)
     assert PLAIN not in raw
-    assert await _read_back(test_sessionmaker, key) == PLAIN
+    assert await read_back(test_sessionmaker, key) == PLAIN

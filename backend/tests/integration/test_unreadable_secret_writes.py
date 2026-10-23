@@ -16,51 +16,27 @@ plain SQL through a fresh session, so neither the identity map nor the hybrid
 property stands between the assertion and the stored bytes.
 """
 
-from collections.abc import Awaitable, Callable
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete, select, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
 from app.utils.settings_crypto import encrypt
+from tests.integration._secret_helpers import (
+    Keep,
+    raw_column,
+    read_back,
+    seed_rows,
+    unreadable_ciphertext,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-Keep = Callable[..., Awaitable[None]]
 PLACEHOLDER = "********"
 REENTER = "can't be decrypted; re-enter it"
-
-
-def _unreadable(key: str) -> str:
-    """A well-formed ciphertext that won't open under `key` (bound to another name)."""
-    return encrypt(f"not_{key}", "the-real-secret")
-
-
-async def _seed(db: AsyncSession, keep: Keep, rows: dict[str, str]) -> None:
-    """Store raw column values, keeping the originals for teardown."""
-    await keep(*rows)
-    await db.execute(delete(Setting).where(Setting.key.in_(list(rows))))
-    for key, raw in rows.items():
-        db.add(Setting(key=key, stored_value=raw))
-    await db.commit()
-
-
-async def _raw(sessionmaker: async_sessionmaker[AsyncSession], key: str) -> str | None:
-    """The stored column, as another connection sees it (committed only)."""
-    async with sessionmaker() as fresh:
-        return (
-            await fresh.execute(text("SELECT value FROM settings WHERE key = :k"), {"k": key})
-        ).scalar_one_or_none()
-
-
-async def _read_back(sessionmaker: async_sessionmaker[AsyncSession], key: str) -> str | None:
-    """The value as an ORM reader sees it, through a fresh session."""
-    async with sessionmaker() as fresh:
-        row = (await fresh.execute(select(Setting).where(Setting.key == key))).scalar_one()
-        return row.value
 
 
 # ------------------------------------------------------------------ settings GET
@@ -69,11 +45,11 @@ async def _read_back(sessionmaker: async_sessionmaker[AsyncSession], key: str) -
 async def test_the_settings_get_shows_an_unreadable_secret_as_configured(
     client: AsyncClient, auth_headers, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _seed(
+    await seed_rows(
         db_session,
         keep_rows,
         {
-            "gotify_token": _unreadable("gotify_token"),
+            "gotify_token": unreadable_ciphertext("gotify_token"),
             "pushover_api_token": encrypt("pushover_api_token", "readable"),
             "slack_webhook_url": "",
             "app_name": "MyGarage",
@@ -194,13 +170,13 @@ async def test_a_placeholder_save_leaves_an_unreadable_secret_byte_identical(
     """Plan test 6: "keep stored" writes nothing, so the ciphertext survives."""
     write, key, also = SAVES[save]
     await keep_rows(*also)
-    ciphertext = _unreadable(key)
-    await _seed(db_session, keep_rows, {key: ciphertext})
+    ciphertext = unreadable_ciphertext(key)
+    await seed_rows(db_session, keep_rows, {key: ciphertext})
 
     await write(client, auth_headers, key)
 
-    assert await _raw(test_sessionmaker, key) == ciphertext
-    assert await _read_back(test_sessionmaker, key) is None
+    assert await raw_column(test_sessionmaker, key) == ciphertext
+    assert await read_back(test_sessionmaker, key) is None
 
 
 async def test_a_batch_keeps_the_secret_and_writes_the_rest(
@@ -211,8 +187,8 @@ async def test_a_batch_keeps_the_secret_and_writes_the_rest(
     The other keys land, a placeholder for a key with no row still creates it
     blank (nothing stored, so "" as before), and the response keeps batch order.
     """
-    ciphertext = _unreadable("discord_webhook_url")
-    await _seed(
+    ciphertext = unreadable_ciphertext("discord_webhook_url")
+    await seed_rows(
         db_session,
         keep_rows,
         {
@@ -244,10 +220,10 @@ async def test_a_batch_keeps_the_secret_and_writes_the_rest(
         "matrix_access_token",
         "ntfy_server",
     ]
-    assert await _raw(test_sessionmaker, "discord_webhook_url") == ciphertext
-    assert await _raw(test_sessionmaker, "matrix_access_token") == ""
-    assert await _raw(test_sessionmaker, "ntfy_topic") == "After"
-    assert await _raw(test_sessionmaker, "ntfy_server") == "https://new.example.com"
+    assert await raw_column(test_sessionmaker, "discord_webhook_url") == ciphertext
+    assert await raw_column(test_sessionmaker, "matrix_access_token") == ""
+    assert await raw_column(test_sessionmaker, "ntfy_topic") == "After"
+    assert await raw_column(test_sessionmaker, "ntfy_server") == "https://new.example.com"
 
 
 # ------------------------------------------------- OIDC and MQTT "configured"
@@ -256,7 +232,9 @@ async def test_a_batch_keeps_the_secret_and_writes_the_rest(
 async def test_the_oidc_admin_get_reports_an_unreadable_secret(
     client: AsyncClient, auth_headers, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _seed(db_session, keep_rows, {"oidc_client_secret": _unreadable("oidc_client_secret")})
+    await seed_rows(
+        db_session, keep_rows, {"oidc_client_secret": unreadable_ciphertext("oidc_client_secret")}
+    )
 
     response = await client.get("/api/auth/oidc/config/admin", headers=auth_headers)
     assert response.status_code == 200, response.text
@@ -264,7 +242,7 @@ async def test_the_oidc_admin_get_reports_an_unreadable_secret(
     assert response.json()["client_secret_unreadable"] is True
     assert "enc:v1:" not in response.text
 
-    await _seed(
+    await seed_rows(
         db_session, keep_rows, {"oidc_client_secret": encrypt("oidc_client_secret", "readable")}
     )
     response = await client.get("/api/auth/oidc/config/admin", headers=auth_headers)
@@ -276,7 +254,9 @@ async def test_the_oidc_test_route_stops_on_an_unreadable_stored_secret(
     client: AsyncClient, auth_headers, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
     """R2-1: 200 with the §5.4(4) failure envelope, and no test run with a blank secret."""
-    await _seed(db_session, keep_rows, {"oidc_client_secret": _unreadable("oidc_client_secret")})
+    await seed_rows(
+        db_session, keep_rows, {"oidc_client_secret": unreadable_ciphertext("oidc_client_secret")}
+    )
     probe = AsyncMock(return_value={"success": True, "metadata": {"issuer": "x"}})
 
     with patch("app.services.oidc.test_oidc_connection", probe):
@@ -316,10 +296,10 @@ async def test_the_oidc_test_route_stops_on_an_unreadable_stored_secret(
 async def test_the_mqtt_get_reports_an_unreadable_password_as_configured(
     client: AsyncClient, auth_headers, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _seed(
+    await seed_rows(
         db_session,
         keep_rows,
-        {"livelink_mqtt_password": _unreadable("livelink_mqtt_password")},
+        {"livelink_mqtt_password": unreadable_ciphertext("livelink_mqtt_password")},
     )
 
     response = await client.get("/api/livelink/mqtt/settings", headers=auth_headers)
@@ -327,7 +307,7 @@ async def test_the_mqtt_get_reports_an_unreadable_password_as_configured(
     assert response.json()["has_password"] is True
     assert response.json()["password_unreadable"] is True
 
-    await _seed(db_session, keep_rows, {"livelink_mqtt_password": ""})
+    await seed_rows(db_session, keep_rows, {"livelink_mqtt_password": ""})
     response = await client.get("/api/livelink/mqtt/settings", headers=auth_headers)
     assert response.json()["has_password"] is False
     assert response.json()["password_unreadable"] is False

@@ -14,13 +14,13 @@
 The raw column is read with plain SQL through a fresh session.
 """
 
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Callable, Iterator
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.settings import Setting, SettingCiphertextValue
@@ -28,20 +28,12 @@ from app.services.oidc.config import write_oidc_config
 from app.services.settings_service import SettingsService
 from app.utils import settings_crypto
 from app.utils.settings_crypto import SettingsKeyUnavailable, encrypt
+from tests.integration._secret_helpers import Keep, raw_column
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-Keep = Callable[..., Awaitable[None]]
 PLAIN = "plain-secret-5be21d"
 BEFORE = "the-value-before"
-
-
-async def _raw(sessionmaker: async_sessionmaker[AsyncSession], key: str) -> str | None:
-    """The stored column, as another connection sees it (committed only)."""
-    async with sessionmaker() as fresh:
-        return (
-            await fresh.execute(text("SELECT value FROM settings WHERE key = :k"), {"k": key})
-        ).scalar_one_or_none()
 
 
 async def _seed_raw(db: AsyncSession, key: str, raw: str | None) -> None:
@@ -182,11 +174,11 @@ async def test_a_secret_write_without_a_keyring_is_a_503(
     assert "MYGARAGE_SETTINGS_KEY" in detail
     assert "writable" in detail
     assert PLAIN not in response.text
-    assert await _raw(test_sessionmaker, key) == before
+    assert await raw_column(test_sessionmaker, key) == before
 
     response = await _put(client, auth_headers, "ntfy_topic", "After")
     assert response.status_code == 200, response.text
-    assert await _raw(test_sessionmaker, "ntfy_topic") == "After"
+    assert await raw_column(test_sessionmaker, "ntfy_topic") == "After"
 
 
 async def _service_set(db: AsyncSession, key: str, value: str) -> None:
@@ -225,7 +217,7 @@ async def test_an_in_process_secret_write_without_a_keyring_raises(
         await write(db_session, key, PLAIN)
     await db_session.rollback()
 
-    assert await _raw(test_sessionmaker, key) == before
+    assert await raw_column(test_sessionmaker, key) == before
 
 
 # ----------------------------------------------------- value is ciphertext
@@ -253,7 +245,7 @@ async def test_a_ciphertext_value_for_a_secret_is_a_422(
     assert key in response.json()["detail"]
     assert pasted not in response.text
     assert pasted.split(":")[-1] not in response.text
-    assert await _raw(test_sessionmaker, key) == before
+    assert await raw_column(test_sessionmaker, key) == before
 
 
 # ------------------------------------------------------- handler registration

@@ -17,13 +17,11 @@ well-formed and fails only on the associated data.
 """
 
 import logging
-from collections.abc import Awaitable, Callable
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient
-from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
@@ -35,25 +33,11 @@ from app.services.oidc.config import get_oidc_config
 from app.services.poi.registry import POIProviderRegistry
 from app.services.shop_discovery import ShopDiscoveryService
 from app.utils.settings_crypto import encrypt
+from tests.integration._secret_helpers import Keep, seed_rows, unreadable_ciphertext
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
-Keep = Callable[..., Awaitable[None]]
 REENTER = "can't be decrypted; re-enter it"
-
-
-def _unreadable(key: str) -> str:
-    """A well-formed ciphertext that won't open under `key` (bound to another name)."""
-    return encrypt(f"not_{key}", "the-real-secret")
-
-
-async def _seed(db: AsyncSession, keep: Keep, rows: dict[str, str]) -> None:
-    """Store raw column values, keeping the originals for teardown."""
-    await keep(*rows)
-    await db.execute(delete(Setting).where(Setting.key.in_(list(rows))))
-    for key, raw in rows.items():
-        db.add(Setting(key=key, stored_value=raw))
-    await db.commit()
 
 
 async def _set_raw(db: AsyncSession, key: str, raw: str) -> None:
@@ -89,7 +73,9 @@ NTFY = {
 async def test_the_dispatcher_skips_ntfy_with_an_unreadable_token(
     db_session: AsyncSession, keep_rows: Keep, caplog: pytest.LogCaptureFixture
 ) -> None:
-    await _seed(db_session, keep_rows, {**NTFY, "ntfy_token": _unreadable("ntfy_token")})
+    await seed_rows(
+        db_session, keep_rows, {**NTFY, "ntfy_token": unreadable_ciphertext("ntfy_token")}
+    )
     dispatcher = NotificationDispatcher(db_session)
 
     with (
@@ -114,7 +100,9 @@ async def test_the_dispatcher_skips_ntfy_with_an_unreadable_token(
 async def test_the_ntfy_test_route_returns_the_re_enter_envelope(
     client: AsyncClient, auth_headers, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _seed(db_session, keep_rows, {**NTFY, "ntfy_token": _unreadable("ntfy_token")})
+    await seed_rows(
+        db_session, keep_rows, {**NTFY, "ntfy_token": unreadable_ciphertext("ntfy_token")}
+    )
     cls, post = _http_mock()
 
     with patch("app.routes.notifications.httpx.AsyncClient", cls):
@@ -139,10 +127,13 @@ async def test_the_ntfy_test_route_returns_the_re_enter_envelope(
 async def test_the_llm_client_stops_on_an_unreadable_key(
     db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _seed(
+    await seed_rows(
         db_session,
         keep_rows,
-        {"llm_base_url": "https://llm.example.com/v1", "llm_api_key": _unreadable("llm_api_key")},
+        {
+            "llm_base_url": "https://llm.example.com/v1",
+            "llm_api_key": unreadable_ciphertext("llm_api_key"),
+        },
     )
     cls, post = _http_mock({"choices": [{"message": {"content": "ok"}}]})
 
@@ -176,10 +167,10 @@ async def test_the_mqtt_subscriber_stops_on_an_unreadable_password(
     test_sessionmaker,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    await _seed(
+    await seed_rows(
         db_session,
         keep_rows,
-        {**MQTT, "livelink_mqtt_password": _unreadable("livelink_mqtt_password")},
+        {**MQTT, "livelink_mqtt_password": unreadable_ciphertext("livelink_mqtt_password")},
     )
     subscriber = MQTTSubscriber()
 
@@ -205,10 +196,10 @@ async def test_the_mqtt_subscriber_stops_on_an_unreadable_password(
 async def test_the_mqtt_test_route_returns_the_re_enter_envelope(
     client: AsyncClient, auth_headers, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _seed(
+    await seed_rows(
         db_session,
         keep_rows,
-        {**MQTT, "livelink_mqtt_password": _unreadable("livelink_mqtt_password")},
+        {**MQTT, "livelink_mqtt_password": unreadable_ciphertext("livelink_mqtt_password")},
     )
 
     with patch("aiomqtt.Client") as mqtt_client:
@@ -266,7 +257,9 @@ async def test_the_dispatcher_builds_no_service_on_an_unreadable_required_secret
     service: str, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
     switch, secret, others = DISPATCHED[service]
-    await _seed(db_session, keep_rows, {switch: "true", secret: _unreadable(secret), **others})
+    await seed_rows(
+        db_session, keep_rows, {switch: "true", secret: unreadable_ciphertext(secret), **others}
+    )
 
     dispatcher = NotificationDispatcher(db_session)
     prefix = switch.removesuffix("_enabled")
@@ -293,8 +286,8 @@ async def test_the_poi_registry_configures_no_provider_on_an_unreadable_key(
     db_session: AsyncSession, keep_rows: Keep
 ) -> None:
     rows = {f"{name}_enabled": "true" for name in POI}
-    rows |= {key: _unreadable(key) for key in POI.values()}
-    await _seed(db_session, keep_rows, rows)
+    rows |= {key: unreadable_ciphertext(key) for key in POI.values()}
+    await seed_rows(db_session, keep_rows, rows)
 
     registry = POIProviderRegistry(db_session)
 
@@ -311,10 +304,10 @@ async def test_the_poi_registry_configures_no_provider_on_an_unreadable_key(
 async def test_shop_discovery_leaves_tomtom_off_on_an_unreadable_key(
     db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _seed(
+    await seed_rows(
         db_session,
         keep_rows,
-        {"tomtom_enabled": "true", "tomtom_api_key": _unreadable("tomtom_api_key")},
+        {"tomtom_enabled": "true", "tomtom_api_key": unreadable_ciphertext("tomtom_api_key")},
     )
     service = ShopDiscoveryService(db_session)
 
@@ -333,8 +326,8 @@ async def test_shop_discovery_leaves_tomtom_off_on_an_unreadable_key(
 async def test_an_unreadable_webhook_token_is_a_503_not_a_match(
     db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    stored = _unreadable("webhook_ingest_token")
-    await _seed(db_session, keep_rows, {"webhook_ingest_token": stored})
+    stored = unreadable_ciphertext("webhook_ingest_token")
+    await seed_rows(db_session, keep_rows, {"webhook_ingest_token": stored})
 
     for provided in (stored, "", "the-real-secret"):
         with pytest.raises(HTTPException) as caught:
@@ -345,7 +338,9 @@ async def test_an_unreadable_webhook_token_is_a_503_not_a_match(
 async def test_oidc_sends_no_ciphertext_for_an_unreadable_client_secret(
     db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _seed(db_session, keep_rows, {"oidc_client_secret": _unreadable("oidc_client_secret")})
+    await seed_rows(
+        db_session, keep_rows, {"oidc_client_secret": unreadable_ciphertext("oidc_client_secret")}
+    )
 
     config = await get_oidc_config(db_session)
 
