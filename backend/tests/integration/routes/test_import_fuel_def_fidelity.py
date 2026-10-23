@@ -495,6 +495,7 @@ async def test_same_day_fill_ups_sharing_an_odometer_all_restore_and_a_reimport_
     ]
 
 
+# A guard kept from the plan: green since Task 1's one-to-one matcher.
 async def test_two_fuel_csv_fill_ups_sharing_an_odometer_both_import(
     client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
 ):
@@ -600,3 +601,167 @@ async def test_a_def_row_differing_from_a_stored_one_only_in_its_key_imports(
     # 2d5d25bd: (0, 1), the day and odometer alone matching the stored row
     assert await post() == (1, 0)
     assert await post() == (0, 1)
+
+
+# -- Fix round 1: an older export's blank zero, text columns ----------------------
+
+
+async def _store_zero_rows(db_session: AsyncSession, vin: str) -> None:
+    """A 0 L fill-up and a DEF row read at an empty tank, as the API stores them."""
+    db_session.add_all(
+        [
+            FuelRecord(
+                vin=vin,
+                date=date(2026, 8, 12),
+                odometer_km=Decimal("11400.00"),
+                liters=Decimal("0.000"),
+                kwh=Decimal("20.000"),
+            ),
+            DEFRecord(
+                vin=vin,
+                date=date(2026, 8, 12),
+                odometer_km=Decimal("11400.00"),
+                liters=Decimal("0.000"),
+                fill_level=Decimal("0.00"),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+
+async def test_a_v8_backup_s_null_zero_matches_the_stored_zero(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
+):
+    """v8 wrote a 0 L fill-up and a 0.00 fill level as null; its re-import adds nothing (R5)."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTZEROV8JSON001")
+    await _store_zero_rows(db_session, vin)
+    data = await _post_json(
+        client,
+        auth_headers,
+        vin,
+        {
+            "export_version": "8",
+            "units": "metric",
+            # The v8 rows, as cb7c994e's export wrote them for those records.
+            "fuel_records": [
+                {"date": "2026-08-12", "odometer_km": 11400.0, "liters": None, "cost": None}
+            ],
+            "def_records": [
+                {
+                    "date": "2026-08-12",
+                    "odometer_km": 11400.0,
+                    "liters": None,
+                    "cost": None,
+                    "fill_level": None,
+                }
+            ],
+        },
+    )
+    # 3c5eb849: both imported again, a null matching only NULL
+    assert (data["fuel_records"]["skipped_count"], data["def_records"]["skipped_count"]) == (
+        1,
+        1,
+    ), data
+
+
+async def test_a_v9_backup_s_null_is_not_a_stored_zero(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
+):
+    """v9 writes a 0 as 0, so its null is a missing figure, another row than the 0."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTZEROV9JSON001")
+    await _store_zero_rows(db_session, vin)
+    data = await _post_json(
+        client,
+        auth_headers,
+        vin,
+        {
+            "export_version": "9",
+            "units": "metric",
+            "fuel_records": [
+                {"date": "2026-08-12", "odometer_km": 11400.0, "liters": None, "kwh": 20.0}
+            ],
+            "def_records": [
+                {
+                    "date": "2026-08-12",
+                    "odometer_km": 11400.0,
+                    "liters": 0.0,
+                    "fill_level": None,
+                }
+            ],
+        },
+    )
+    # A guard: green on 3c5eb849 too, it keeps the v8 rule to v8 files.
+    assert (data["fuel_records"]["success_count"], data["def_records"]["success_count"]) == (
+        1,
+        1,
+    ), data
+
+
+@pytest.mark.parametrize(
+    ("version", "skipped"),
+    [
+        # 3c5eb849: 0, the blank matching only NULL
+        ("7", 1),
+        # A guard: a v8 CSV writes a 0 as 0, so its blank is a missing figure.
+        ("8", 0),
+    ],
+)
+async def test_an_older_csv_s_blank_zero_matches_the_stored_zero(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    version: str,
+    skipped: int,
+):
+    """A v<=7 fuel and DEF CSV wrote a 0 L and a 0.00 fill level as a blank cell."""
+    vin = await _vehicle(db_session, test_user["id"], f"B3RTZEROCSVV{version}001")
+    await _store_zero_rows(db_session, vin)
+    fuel = await _post_csv(
+        client,
+        auth_headers,
+        vin,
+        "fuel",
+        f"units_version,unit_system,Date,Odometer (km),Liters\n{version},metric,2026-08-12,11400.00,\n",
+    )
+    def_ = await _post_csv(
+        client,
+        auth_headers,
+        vin,
+        "def",
+        "units_version,unit_system,Date,Odometer (km),Liters,Fill Level\n"
+        f"{version},metric,2026-08-12,11400.00,0.000,\n",
+    )
+    assert (fuel["skipped_count"], def_["skipped_count"]) == (skipped, skipped), (fuel, def_)
+
+
+async def test_a_long_fuel_csv_driver_with_no_id_is_cut_to_the_column(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """driver_name_freetext is String(100); PostgreSQL refuses a longer one."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTFUELCSVLONGDR")
+    row = _fuel_csv_row(**{"Date": "2026-08-13", "Odometer (km)": "11500.00", "Driver": "d" * 120})
+    data = await _post_csv(client, auth_headers, vin, "fuel", f"{_FUEL_V7_HEADER}\n{row}\n")
+    assert data["success_count"] == 1, data
+    r = await _one(test_sessionmaker, FuelRecord, vin)
+    # 3c5eb849: all 120, which SQLite keeps
+    assert r.driver_name_freetext == "d" * 100
+
+
+async def test_a_json_def_text_column_holding_a_number_is_a_row_error(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
+):
+    """SQLite would store the number where PostgreSQL refuses it; both refuse the row now."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTDEFJSONTEXT01")
+    data = await _post_json(
+        client,
+        auth_headers,
+        vin,
+        {
+            "export_version": "9",
+            "units": "metric",
+            "def_records": [{"date": "2026-08-14", "odometer_km": 11600.0, "brand": 5}],
+        },
+    )
+    # 3c5eb849: success 1, the 5 stored as text on SQLite
+    assert data["errors"] == ["DEF record 0: brand must be text"], data

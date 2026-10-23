@@ -304,6 +304,37 @@ def _money_matches(
     return _within(column, value, _MONEY_STEP / 2)
 
 
+def _zero_was_blank(version: str, faithful_from: int) -> bool:
+    """Whether a file of schema `version` predates its export writing a 0 as 0.
+
+    The fuel and DEF exports wrote a 0 L fill-up and a 0.00 fill level as a
+    blank cell up to CSV v7 and as null up to JSON v8. A blank or unreadable
+    version is an older file.
+    """
+    try:
+        return int(version) < faithful_from
+    except ValueError:
+        return True
+
+
+def _or_blank_zero(
+    condition: ColumnElement[bool],
+    column: InstrumentedAttribute[Any],
+    value: Decimal | None,
+    step: Decimal,
+    *,
+    zero_was_blank: bool,
+) -> ColumnElement[bool]:
+    """`condition`, which a missing `value` makes `IS NULL`, or a stored 0 when that file blanked one.
+
+    Only an older file's blank stands for a 0 (`_zero_was_blank`); a newer one's
+    is a missing figure, another row than the 0.
+    """
+    if value is not None or not zero_was_blank:
+        return condition
+    return or_(condition, _within(column, Decimal(0), step / 2))
+
+
 class _DuplicateMatcher:
     """Duplicate checks that pair the file with the stored rows one to one (R5).
 
@@ -780,7 +811,7 @@ async def _portable_driver(
     API checks nothing more for a driver (T-5).
     """
     if driver_id is None:
-        return None, freetext, False
+        return None, ((freetext or "").strip()[:100] or None), False
     user = await db.get(User, driver_id)
     if user is not None and username and user.username.casefold() == username.strip().casefold():
         return driver_id, freetext, False
@@ -909,12 +940,18 @@ def _fuel_record_from_json(
 
 
 def _json_fuel_key(
-    row: Mapping[str, Any], record: FuelRecord, *, converted: bool, last_id: int
+    row: Mapping[str, Any],
+    record: FuelRecord,
+    *,
+    converted: bool,
+    last_id: int,
+    zero_was_null: bool,
 ) -> list[ColumnElement[bool]]:
     """R5's fuel key: date and odometer always, the rest only when the row has the key (T-16).
 
     A v9 row carries every key, so an hours-only or propane fill-up with no
-    odometer is told apart by its quantities (R1-H1).
+    odometer is told apart by its quantities (R1-H1). A v<=8 file wrote 0 L
+    as null, so there its null also matches a stored 0 (`zero_was_null`).
     """
     key = [
         FuelRecord.date == record.date,
@@ -926,12 +963,18 @@ def _json_fuel_key(
         key.append(_matches(FuelRecord.filled_at, record.filled_at))
     if "liters" in row or "gallons" in row:
         key.append(
-            _converted_value_matches(
+            _or_blank_zero(
+                _converted_value_matches(
+                    FuelRecord.liters,
+                    record.liters,
+                    LITRE_STEP,
+                    converted=converted,
+                    stored_before_import=FuelRecord.id <= last_id,
+                ),
                 FuelRecord.liters,
                 record.liters,
                 LITRE_STEP,
-                converted=converted,
-                stored_before_import=FuelRecord.id <= last_id,
+                zero_was_blank=zero_was_null,
             )
         )
     # NUMERIC(8,3) and (9,3).
@@ -977,9 +1020,9 @@ def _def_record_from_json(
         price_per_unit=price_per_unit,
         cost=cost,
         fill_level=fill_level,
-        source=row.get("source"),
-        brand=row.get("brand"),
-        notes=row.get("notes"),
+        source=_json_text(row, "source"),
+        brand=_json_text(row, "brand"),
+        notes=_json_text(row, "notes"),
         entry_type=_in_vocabulary(
             _blank_to_none(row.get("entry_type")), "entry_type", _DEF_ENTRY_TYPES
         )
@@ -988,9 +1031,18 @@ def _def_record_from_json(
 
 
 def _json_def_key(
-    row: Mapping[str, Any], record: DEFRecord, *, converted: bool, last_id: int
+    row: Mapping[str, Any],
+    record: DEFRecord,
+    *,
+    converted: bool,
+    last_id: int,
+    zero_was_null: bool,
 ) -> list[ColumnElement[bool]]:
-    """R5's DEF key: date and odometer always, the rest only when the row has the key (T-16)."""
+    """R5's DEF key: date and odometer always, the rest only when the row has the key (T-16).
+
+    A v<=8 file wrote 0 L and a 0.00 fill level as null, so there its null also
+    matches a stored 0 (`zero_was_null`).
+    """
     key = [
         DEFRecord.date == record.date,
         _odometer_matches(
@@ -999,19 +1051,33 @@ def _json_def_key(
     ]
     if "liters" in row or "gallons" in row:
         key.append(
-            _converted_value_matches(
+            _or_blank_zero(
+                _converted_value_matches(
+                    DEFRecord.liters,
+                    record.liters,
+                    LITRE_STEP,
+                    converted=converted,
+                    stored_before_import=DEFRecord.id <= last_id,
+                ),
                 DEFRecord.liters,
                 record.liters,
                 LITRE_STEP,
-                converted=converted,
-                stored_before_import=DEFRecord.id <= last_id,
+                zero_was_blank=zero_was_null,
             )
         )
     if "cost" in row:
         key.append(_money_matches(DEFRecord.cost, record.cost))
     # NUMERIC(3,2).
     if "fill_level" in row:
-        key.append(_same_figure(DEFRecord.fill_level, record.fill_level, Decimal("0.01")))
+        key.append(
+            _or_blank_zero(
+                _same_figure(DEFRecord.fill_level, record.fill_level, Decimal("0.01")),
+                DEFRecord.fill_level,
+                record.fill_level,
+                Decimal("0.01"),
+                zero_was_blank=zero_was_null,
+            )
+        )
     if "entry_type" in row:
         key.append(DEFRecord.entry_type == record.entry_type)
     return key
@@ -1834,6 +1900,8 @@ async def import_fuel_csv(
     # Taken before the first write; see `_converted_value_matches` for why.
     odometer_converted = units.converts(DISTANCE)
     has_volume = units.column(VOLUME) is not None
+    # v8 is the first fuel CSV to write a 0 L fill-up as 0, not a blank cell.
+    zero_was_blank = _zero_was_blank(units.version, 8)
     matcher = await _DuplicateMatcher.before_import(db, FuelRecord)
     readings = _ImportReadings()
 
@@ -1975,12 +2043,18 @@ async def import_fuel_csv(
                     key.append(_matches(FuelRecord.filled_at, filled_at))
                 if has_volume:
                     key.append(
-                        _converted_value_matches(
+                        _or_blank_zero(
+                            _converted_value_matches(
+                                FuelRecord.liters,
+                                liters,
+                                LITRE_STEP,
+                                converted=units.converts(VOLUME),
+                                stored_before_import=FuelRecord.id <= matcher.last_id(FuelRecord),
+                            ),
                             FuelRecord.liters,
                             liters,
                             LITRE_STEP,
-                            converted=units.converts(VOLUME),
-                            stored_before_import=FuelRecord.id <= matcher.last_id(FuelRecord),
+                            zero_was_blank=zero_was_blank,
                         )
                     )
                 if "Total Cost" in row or "Cost" in row:
@@ -2092,6 +2166,8 @@ async def import_def_csv(
     # Taken before the first write; see `_converted_value_matches` for why.
     odometer_converted = units.converts(DISTANCE)
     has_volume = units.column(VOLUME) is not None
+    # v8 is the first DEF CSV to write 0 L and a 0.00 fill level as 0, not blank.
+    zero_was_blank = _zero_was_blank(units.version, 8)
     matcher = await _DuplicateMatcher.before_import(db, DEFRecord)
     readings = _ImportReadings()
 
@@ -2140,19 +2216,33 @@ async def import_def_csv(
                 ]
                 if has_volume:
                     key.append(
-                        _converted_value_matches(
+                        _or_blank_zero(
+                            _converted_value_matches(
+                                DEFRecord.liters,
+                                liters,
+                                LITRE_STEP,
+                                converted=units.converts(VOLUME),
+                                stored_before_import=DEFRecord.id <= matcher.last_id(DEFRecord),
+                            ),
                             DEFRecord.liters,
                             liters,
                             LITRE_STEP,
-                            converted=units.converts(VOLUME),
-                            stored_before_import=DEFRecord.id <= matcher.last_id(DEFRecord),
+                            zero_was_blank=zero_was_blank,
                         )
                     )
                 if "Total Cost" in row or "Cost" in row:
                     key.append(_money_matches(DEFRecord.cost, cost))
                 if "Fill Level" in row:
                     # NUMERIC(3,2).
-                    key.append(_same_figure(DEFRecord.fill_level, fill_level, Decimal("0.01")))
+                    key.append(
+                        _or_blank_zero(
+                            _same_figure(DEFRecord.fill_level, fill_level, Decimal("0.01")),
+                            DEFRecord.fill_level,
+                            fill_level,
+                            Decimal("0.01"),
+                            zero_was_blank=zero_was_blank,
+                        )
+                    )
                 if await matcher.take(db, DEFRecord, DEFRecord.vin == vin, *key) is not None:
                     import_result.add_skip()
                     continue
@@ -2737,6 +2827,8 @@ async def import_vehicle_json(
     export_version = str(backup.get("export_version") or "").strip()
     units = str(backup.get("units") or "").strip().lower()
     is_legacy_v2 = export_version != "3" and units != "metric"
+    # v9 is the first JSON export to write a 0 L fill-up and a 0.00 fill level as 0.
+    zero_was_null = _zero_was_blank(export_version, 9)
     if is_legacy_v2:
         logger.warning(
             "JSON import for vin=%s detected legacy v2 backup (no export_version "
@@ -3068,6 +3160,7 @@ async def import_vehicle_json(
                         record,
                         converted=is_legacy_v2,
                         last_id=matcher.last_id(FuelRecord),
+                        zero_was_null=zero_was_null,
                     ),
                 )
                 is not None
@@ -3144,6 +3237,7 @@ async def import_vehicle_json(
                         record,
                         converted=is_legacy_v2,
                         last_id=matcher.last_id(DEFRecord),
+                        zero_was_null=zero_was_null,
                     ),
                 )
                 is not None
