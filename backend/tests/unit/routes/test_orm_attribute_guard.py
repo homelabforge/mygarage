@@ -237,9 +237,11 @@ def test_every_export_read_is_a_real_attribute():
     #: the defect this guards.
     # `hasattr`, not the mapper set. The export defect is an AttributeError at
     # request time, so a hybrid property or a plain `@property` on the model is
-    # a perfectly good read even though it is not a mapped column.
-    # `InsurancePolicy.fields`, which the JSON backup reads for a policy's
-    # named fields, is exactly that, and a mapper-only check calls it broken.
+    # a perfectly good read even though it is not a mapped column. The walker
+    # resolves one hop, so it reaches no `@property` today (it never gets to
+    # `InsurancePolicy`); `hasattr` is kept so that a read like
+    # `InsurancePolicy.fields`, a property the JSON backup reads for a policy's
+    # named fields, isn't called broken if the walker ever resolves it.
     offenders = sorted(
         {
             f"{fn}: {cls.__name__}.{attr}"
