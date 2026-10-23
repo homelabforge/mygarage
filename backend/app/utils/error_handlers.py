@@ -171,7 +171,7 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
     logged = [{k: e[k] for k in _LOGGED_ERROR_FIELDS if k in e} for e in errors]
     logger.warning("Validation error (request_id=%s): %s", request_id, logged)
 
-    # Return validation errors (these are safe to expose)
+    # Return validation errors (a secret-named field's input is already dropped)
     return SecureErrorResponse.validation_error(
         errors=errors,
         request_id=request_id,
