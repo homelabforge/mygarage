@@ -20,6 +20,7 @@ from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet
 from app.database import get_db
 from app.models import (
     DEFRecord,
+    FinancingRecord,
     FuelRecord,
     HoursRecord,
     InsurancePolicy,
@@ -27,7 +28,10 @@ from app.models import (
     Note,
     OdometerRecord,
     ServiceVisit,
+    SpotRental,
     TaxRecord,
+    TollTag,
+    TollTransaction,
     WarrantyRecord,
 )
 from app.models.user import User
@@ -219,6 +223,34 @@ _DEF_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"origin_fuel_record_id"}
 _ODOMETER_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"fuel_record_id"}
 #: The same for the fill-up or visit an hours reading was synced from.
 _HOURS_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"fuel_record_id", "service_visit_id"}
+#: The owner here (the import targets a vehicle that exists), the photo and
+#: sticker files (full backup only, J4), the legacy hours cache (the hours
+#: history carries the readings) and two notification markers.
+_VEHICLE_JSON_EXCLUDE = frozenset(
+    {
+        "user_id",
+        "main_photo",
+        "window_sticker_file_path",
+        "window_sticker_uploaded_at",
+        "current_hours",
+        "last_milestone_notified_km",
+        "def_low_notified_at",
+        "created_at",
+        "updated_at",
+    }
+)
+_NOTE_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: The lender travels by name, like a service visit's vendor.
+_FINANCING_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"vendor_id"}
+_TAX_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+_TOLL_TAG_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: The tag travels as its place in this file's toll_tags.
+_TOLL_TRANSACTION_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"toll_tag_id"}
+#: Notification marker.
+_WARRANTY_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"last_notified_at"}
+_SPOT_RENTAL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: The rental is the parent.
+_BILLING_JSON_EXCLUDE = frozenset({"id", "spot_rental_id", "created_at"})
 #: What the service exports read off a visit.
 _SERVICE_VISIT_EXPORT_LOADS = (
     selectinload(ServiceVisit.line_items),
@@ -965,22 +997,55 @@ async def export_vehicle_json(
     )
     def_records = def_result.scalars().all()
 
+    financing_result = await db.execute(
+        select(FinancingRecord)
+        .where(FinancingRecord.vin == vin)
+        .options(selectinload(FinancingRecord.vendor))
+        .order_by(FinancingRecord.date.desc(), FinancingRecord.id)
+    )
+    financing = financing_result.scalars().all()
+
+    tax_result = await db.execute(
+        select(TaxRecord).where(TaxRecord.vin == vin).order_by(TaxRecord.date.desc(), TaxRecord.id)
+    )
+    taxes = tax_result.scalars().all()
+
+    toll_tag_result = await db.execute(
+        select(TollTag).where(TollTag.vin == vin).order_by(TollTag.id)
+    )
+    toll_tags = toll_tag_result.scalars().all()
+
+    toll_result = await db.execute(
+        select(TollTransaction)
+        .where(TollTransaction.vin == vin)
+        .order_by(TollTransaction.date.desc(), TollTransaction.id)
+    )
+    toll_transactions = toll_result.scalars().all()
+
+    warranty_result = await db.execute(
+        select(WarrantyRecord)
+        .where(WarrantyRecord.vin == vin)
+        .order_by(WarrantyRecord.start_date.desc(), WarrantyRecord.id)
+    )
+    warranties = warranty_result.scalars().all()
+
+    rental_result = await db.execute(
+        select(SpotRental)
+        .where(SpotRental.vin == vin)
+        .options(selectinload(SpotRental.billings))
+        .order_by(SpotRental.check_in_date.desc(), SpotRental.id)
+    )
+    spot_rentals = rental_result.scalars().all()
+    # A transaction names its tag by the tag's place in `toll_tags` (R6).
+    tag_index = {tag.id: index for index, tag in enumerate(toll_tags)}
+
     # Build export data
     export_data = {
         "export_version": JSON_SCHEMA_VERSION,
         "units": EXPORT_UNITS,
         "export_date": datetime.now().isoformat(),
-        "vehicle": {
-            "vin": vehicle.vin,
-            "year": vehicle.year,
-            "make": vehicle.make,
-            "model": vehicle.model,
-            "trim": vehicle.trim,
-            "color": vehicle.color,
-            "license_plate": vehicle.license_plate,
-            "purchase_date": vehicle.purchase_date.isoformat() if vehicle.purchase_date else None,
-            "purchase_price": float(vehicle.purchase_price) if vehicle.purchase_price else None,
-        },
+        # Read-only on import: the backup restores into a vehicle that exists (J4).
+        "vehicle": _json_columns(vehicle, _VEHICLE_JSON_EXCLUDE),
         "service_visits": [
             {
                 **_json_columns(v, _SERVICE_VISIT_JSON_EXCLUDE),
@@ -1004,14 +1069,7 @@ async def export_vehicle_json(
         "def_records": [_json_columns(r, _DEF_JSON_EXCLUDE) for r in def_records],
         "odometer_records": [_json_columns(r, _ODOMETER_JSON_EXCLUDE) for r in odometer_records],
         "hours_records": [_json_columns(r, _HOURS_JSON_EXCLUDE) for r in hours_records],
-        "notes": [
-            {
-                "date": n.date.isoformat() if n.date else None,
-                "title": n.title,
-                "content": n.content,
-            }
-            for n in notes
-        ],
+        "notes": [_json_columns(n, _NOTE_JSON_EXCLUDE) for n in notes],
         # This vehicle's place on each household policy. `premium_share` is the
         # EFFECTIVE share, so a restore reproduces what this vehicle cost even
         # when the other vehicles on the policy are not part of the backup.
@@ -1048,6 +1106,31 @@ async def export_vehicle_json(
                 "fields": [{"label": f.label, "value": f.value} for f in link.fields],
             }
             for link in insurance_links
+        ],
+        "financing_records": [
+            {
+                **_json_columns(f, _FINANCING_JSON_EXCLUDE),
+                "vendor_name": f.vendor.name if f.vendor else None,
+            }
+            for f in financing
+        ],
+        "tax_records": [_json_columns(t, _TAX_JSON_EXCLUDE) for t in taxes],
+        "toll_tags": [_json_columns(t, _TOLL_TAG_JSON_EXCLUDE) for t in toll_tags],
+        "toll_transactions": [
+            {
+                **_json_columns(t, _TOLL_TRANSACTION_JSON_EXCLUDE),
+                "toll_tag_index": tag_index.get(t.toll_tag_id),
+            }
+            for t in toll_transactions
+        ],
+        "warranties": [_json_columns(w, _WARRANTY_JSON_EXCLUDE) for w in warranties],
+        # A rental carries its bills; a bill's rental is the one it's under (R6).
+        "spot_rentals": [
+            {
+                **_json_columns(r, _SPOT_RENTAL_JSON_EXCLUDE),
+                "billings": [_json_columns(b, _BILLING_JSON_EXCLUDE) for b in r.billings],
+            }
+            for r in spot_rentals
         ],
     }
 

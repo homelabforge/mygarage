@@ -59,6 +59,7 @@ from app.database import get_db
 from app.models import (
     AddressBookEntry,
     DEFRecord,
+    FinancingRecord,
     FuelRecord,
     HoursRecord,
     InsuranceCoverage,
@@ -70,7 +71,11 @@ from app.models import (
     Reminder,
     ServiceLineItem,
     ServiceVisit,
+    SpotRental,
+    SpotRentalBilling,
     TaxRecord,
+    TollTag,
+    TollTransaction,
     WarrantyRecord,
 )
 from app.models.user import User
@@ -78,6 +83,7 @@ from app.models.vehicle import Vehicle
 from app.models.vendor import Vendor
 from app.schemas._money import MONEY_MAX
 from app.schemas.def_record import DEFRecordCreate
+from app.schemas.financing import FinancingCategory, FinancingRecordCreate
 from app.schemas.fuel import (
     CHARGE_LEVEL_VALUES,
     CHARGE_LOCATION_VALUES,
@@ -99,7 +105,10 @@ from app.schemas.service_visit import (
     ServiceLineItemCreate,
     ServiceVisitCreate,
 )
-from app.schemas.tax import TaxRecordCreate
+from app.schemas.spot_rental import SpotRentalCreate
+from app.schemas.spot_rental_billing import SpotRentalBillingCreate
+from app.schemas.tax import TaxRecordCreate, TaxType
+from app.schemas.toll import TollTransactionCreate, _normalize_toll_system, _tidy_toll_system
 from app.schemas.warranty import WarrantyRecordCreate
 from app.services import maintenance_service
 from app.services.auth import get_vehicle_or_403, require_auth
@@ -551,6 +560,12 @@ _JSON_IMPORT_SECTIONS = (
     "reminders",
     "notes",
     "insurance_policies",
+    "financing_records",
+    "tax_records",
+    "toll_tags",
+    "toll_transactions",
+    "warranties",
+    "spot_rentals",
 )
 
 #: The API's words for a visit's and a line item's category and an inspection's
@@ -562,6 +577,20 @@ _SERVICE_CATEGORIES: tuple[str, ...] = get_args(ServiceCategory)
 VALID_SERVICE_CATEGORIES = frozenset(_SERVICE_CATEGORIES)
 _INSPECTION_RESULTS: tuple[str, ...] = get_args(InspectionResult)
 _INSPECTION_SEVERITIES: tuple[str, ...] = get_args(InspectionSeverity)
+_FINANCING_CATEGORIES: tuple[str, ...] = get_args(FinancingCategory)
+_TAX_TYPES: tuple[str, ...] = get_args(TaxType)
+#: TollTagCreate's statuses (schemas/toll.py:66-73); the column has no CHECK.
+_TOLL_TAG_STATUSES = ("active", "inactive")
+#: The check_warranty_type CHECK (models/warranty.py:48-51); the schema takes any string.
+_WARRANTY_TYPES = (
+    "Manufacturer",
+    "Powertrain",
+    "Extended",
+    "Bumper-to-Bumper",
+    "Emissions",
+    "Corrosion",
+    "Other",
+)
 limiter = Limiter(key_func=get_remote_address)
 
 
@@ -587,7 +616,7 @@ def _is_blank(raw: Any) -> bool:
     return raw is None or (isinstance(raw, str) and not raw.strip())
 
 
-def _json_row_date(record_data: dict[str, Any], key: str = "date") -> date_type:
+def _json_row_date(record_data: Mapping[str, Any], key: str = "date") -> date_type:
     """The row's date under `key`, or a row error that says what's wrong with it."""
     raw = record_data.get(key)
     if _is_blank(raw):
@@ -598,6 +627,11 @@ def _json_row_date(record_data: dict[str, Any], key: str = "date") -> date_type:
         return datetime.fromisoformat(raw).date()
     except ValueError as e:
         raise _RowError(f"{key} is not a valid date (expected YYYY-MM-DD)") from e
+
+
+def _json_optional_date(record_data: Mapping[str, Any], key: str) -> date_type | None:
+    """The row's date under `key`, None when it's blank, a row error when it won't parse."""
+    return None if _is_blank(record_data.get(key)) else _json_row_date(record_data, key)
 
 
 def _json_row_datetime(record_data: dict[str, Any], key: str) -> datetime | None:
@@ -720,15 +754,18 @@ def _json_decimal(row: Mapping[str, Any], key: str) -> Decimal | None:
         raise _RowError(f"{key} is not a number") from e
 
 
-def _json_text(row: Mapping[str, Any], key: str) -> str | None:
+def _json_text(row: Mapping[str, Any], key: str, *, max_length: int | None = None) -> str | None:
     """The text under `key`, None when it's missing or blank, a row error when it isn't text.
 
-    PostgreSQL refuses a number in a text column where SQLite stores it, so the
-    two backends would disagree about the same file.
+    PostgreSQL refuses a number in a text column where SQLite stores it, and a
+    value past a String(`max_length`) column where SQLite keeps it, so the two
+    backends would disagree about the same file.
     """
     value = _blank_to_none(row.get(key))
     if value is not None and not isinstance(value, str):
         raise _RowError(f"{key} must be text")
+    if value is not None and max_length is not None and len(value) > max_length:
+        raise _RowError(f"{key} must be at most {max_length} characters")
     return value
 
 
@@ -1140,6 +1177,293 @@ def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str
         "inspection_severity": inspection_severity,
     }
     return columns, link
+
+
+def _json_amount(row: Mapping[str, Any], schema: type[BaseModel]) -> Decimal:
+    """A row's required `amount`, held to `schema`'s bounds."""
+    amount = _json_decimal(row, "amount")
+    if amount is None:
+        raise _RowError("amount is missing")
+    _within_api_bounds(schema, amount=amount)
+    return amount
+
+
+def _financing_record_from_json(vin: str, row: Mapping[str, Any]) -> FinancingRecord:
+    """A v9 financing row as an unsaved record, the API's rules re-applied (R2).
+
+    The lender travels by name; the caller looks it up or makes it in the
+    row's savepoint (R6).
+    """
+    date = _json_row_date(row)
+    amount = _json_amount(row, FinancingRecordCreate)
+    category = _in_vocabulary(
+        _blank_to_none(row.get("category")), "category", _FINANCING_CATEGORIES
+    )
+    if category is None:
+        raise _RowError("category is missing")
+    return FinancingRecord(
+        vin=vin, date=date, amount=amount, category=category, notes=_json_text(row, "notes")
+    )
+
+
+def _json_financing_key(record: FinancingRecord) -> list[ColumnElement[bool]]:
+    """R5's financing key but the lender, which the caller compares on the loaded rows."""
+    return [
+        FinancingRecord.date == record.date,
+        _money_matches(FinancingRecord.amount, record.amount),
+        FinancingRecord.category == record.category,
+    ]
+
+
+def _tax_record_from_json(vin: str, row: Mapping[str, Any]) -> TaxRecord:
+    """A v9 tax row as an unsaved record. No type is allowed: NULL passes the CHECK."""
+    date = _json_row_date(row)
+    tax_type = _in_vocabulary(_blank_to_none(row.get("tax_type")), "tax_type", _TAX_TYPES)
+    amount = _json_amount(row, TaxRecordCreate)
+    return TaxRecord(
+        vin=vin,
+        date=date,
+        tax_type=tax_type,
+        amount=amount,
+        renewal_date=_json_optional_date(row, "renewal_date"),
+        notes=_json_text(row, "notes"),
+    )
+
+
+def _json_tax_key(row: Mapping[str, Any], record: TaxRecord) -> list[ColumnElement[bool]]:
+    """R5's tax key, each optional part only when the row has it (T-16).
+
+    A type-less row matches a stored NULL type, so it dedups too.
+    """
+    key = [TaxRecord.date == record.date, _money_matches(TaxRecord.amount, record.amount)]
+    if "tax_type" in row:
+        key.append(_matches(TaxRecord.tax_type, record.tax_type))
+    if "renewal_date" in row:
+        key.append(_matches(TaxRecord.renewal_date, record.renewal_date))
+    return key
+
+
+def _toll_tag_from_json(vin: str, row: Mapping[str, Any]) -> TollTag:
+    """A v9 toll tag as an unsaved record, its system named as the create schema names it.
+
+    The schema's two steps in its order: tidy the whitespace, hold the length,
+    then map a spelling people type to the listed name (schemas/toll.py).
+    """
+    raw_system = _json_text(row, "toll_system")
+    if raw_system is None:
+        raise _RowError("toll_system is missing")
+    tidied = _tidy_toll_system(raw_system)
+    if len(tidied) > 50:
+        raise _RowError("toll_system must be at most 50 characters")
+    tag_number = _json_text(row, "tag_number", max_length=50)
+    if tag_number is None:
+        raise _RowError("tag_number is missing")
+    status = _in_vocabulary(_blank_to_none(row.get("status")), "status", _TOLL_TAG_STATUSES)
+    return TollTag(
+        vin=vin,
+        toll_system=_normalize_toll_system(tidied),
+        tag_number=tag_number,
+        status=status or "active",
+        notes=_json_text(row, "notes"),
+    )
+
+
+def _toll_tag_key(tag: TollTag | None) -> tuple[str, str] | None:
+    """A tag as a transaction's key names it: its system and number, None for no tag."""
+    return (tag.toll_system, tag.tag_number) if tag is not None else None
+
+
+def _toll_transaction_from_json(
+    vin: str, row: Mapping[str, Any], tag_count: int
+) -> tuple[TollTransaction, int | None]:
+    """A v9 toll as an unsaved record, and the index of its tag in the file's toll_tags."""
+    date = _json_row_date(row)
+    amount = _json_amount(row, TollTransactionCreate)
+    location = _json_text(row, "location", max_length=200)
+    if location is None:
+        raise _RowError("location is missing")
+    index = row.get("toll_tag_index")
+    if index is not None and (
+        isinstance(index, bool) or not isinstance(index, int) or index not in range(tag_count)
+    ):
+        raise _RowError("toll_tag_index must be the index of a toll tag in this file")
+    record = TollTransaction(
+        vin=vin, date=date, amount=amount, location=location, notes=_json_text(row, "notes")
+    )
+    return record, index
+
+
+def _json_toll_transaction_key(record: TollTransaction) -> list[ColumnElement[bool]]:
+    """R5's toll key but the tag, which the caller compares on the loaded rows."""
+    return [
+        TollTransaction.date == record.date,
+        _money_matches(TollTransaction.amount, record.amount),
+        TollTransaction.location == record.location,
+    ]
+
+
+def _warranty_from_json(vin: str, row: Mapping[str, Any]) -> WarrantyRecord:
+    """A v9 warranty as an unsaved record, its type held to the CHECK's list (R2)."""
+    warranty_type = _blank_to_none(row.get("warranty_type"))
+    if warranty_type is None:
+        raise _RowError("warranty_type is missing")
+    warranty_type = _in_vocabulary(warranty_type, "warranty_type", _WARRANTY_TYPES)
+    start_date = _json_row_date(row, "start_date")
+    mileage_limit_km = _json_decimal(row, "mileage_limit_km")
+    _within_api_bounds(WarrantyRecordCreate, mileage_limit_km=mileage_limit_km)
+    return WarrantyRecord(
+        vin=vin,
+        warranty_type=warranty_type,
+        provider=_json_text(row, "provider", max_length=100),
+        start_date=start_date,
+        end_date=_json_optional_date(row, "end_date"),
+        mileage_limit_km=mileage_limit_km,
+        coverage_details=_json_text(row, "coverage_details"),
+        policy_number=_json_text(row, "policy_number", max_length=50),
+        notes=_json_text(row, "notes"),
+    )
+
+
+def _json_warranty_key(row: Mapping[str, Any], record: WarrantyRecord) -> list[ColumnElement[bool]]:
+    """R5's warranty key, each optional part only when the row has it (T-16).
+
+    The mileage limit is NUMERIC(10,2): 36,000 mi is stored as 57936.384 on
+    SQLite and exported as 57936.38, so it matches within half a cent (T-20).
+    """
+    key = [
+        WarrantyRecord.warranty_type == record.warranty_type,
+        WarrantyRecord.start_date == record.start_date,
+    ]
+    if "provider" in row:
+        key.append(_matches(WarrantyRecord.provider, record.provider))
+    if "end_date" in row:
+        key.append(_matches(WarrantyRecord.end_date, record.end_date))
+    if "policy_number" in row:
+        key.append(_matches(WarrantyRecord.policy_number, record.policy_number))
+    if "mileage_limit_km" in row:
+        key.append(
+            _same_figure(WarrantyRecord.mileage_limit_km, record.mileage_limit_km, Decimal("0.01"))
+        )
+    return key
+
+
+def _billing_from_json(
+    position: int, bill: Any, check_in_date: date_type, check_out_date: date_type | None
+) -> SpotRentalBilling:
+    """One v9 bill as an unsaved record; the caller sets its rental once that has an id.
+
+    Its date is held to the rental's stay, as the billing route holds it (T-7).
+    A row error names the bill by `position`.
+    """
+    try:
+        if not isinstance(bill, Mapping):
+            raise _RowError("must be an object")
+        bill = cast(Mapping[str, Any], bill)
+        billing_date = _json_row_date(bill, "billing_date")
+        monthly_rate = _json_decimal(bill, "monthly_rate")
+        electric = _json_decimal(bill, "electric")
+        water = _json_decimal(bill, "water")
+        waste = _json_decimal(bill, "waste")
+        total = _json_decimal(bill, "total")
+        _within_api_bounds(
+            SpotRentalBillingCreate,
+            monthly_rate=monthly_rate,
+            electric=electric,
+            water=water,
+            waste=waste,
+            total=total,
+        )
+        notes = _json_text(bill, "notes", max_length=1000)
+        if billing_date < check_in_date:
+            raise _RowError("billing date cannot be before check-in date")
+        if check_out_date is not None and billing_date > check_out_date:
+            raise _RowError("billing date cannot be after check-out date")
+    except _RowError as e:
+        raise _RowError(f"billing {position}: {e.reason}") from e
+    return SpotRentalBilling(
+        billing_date=billing_date,
+        monthly_rate=monthly_rate,
+        electric=electric,
+        water=water,
+        waste=waste,
+        total=total,
+        notes=notes,
+    )
+
+
+def _spot_rental_from_json(
+    vin: str, row: Mapping[str, Any]
+) -> tuple[SpotRental, list[SpotRentalBilling]]:
+    """A v9 rental and its bills as unsaved records, the API's rules re-applied (R2).
+
+    No vehicle-type gate and no invented first bill: a backup restores whole,
+    with the bills it carries (T-7).
+    """
+    check_in_date = _json_row_date(row, "check_in_date")
+    check_out_date = _json_optional_date(row, "check_out_date")
+    nightly_rate = _json_decimal(row, "nightly_rate")
+    weekly_rate = _json_decimal(row, "weekly_rate")
+    monthly_rate = _json_decimal(row, "monthly_rate")
+    electric = _json_decimal(row, "electric")
+    water = _json_decimal(row, "water")
+    waste = _json_decimal(row, "waste")
+    total_cost = _json_decimal(row, "total_cost")
+    _within_api_bounds(
+        SpotRentalCreate,
+        nightly_rate=nightly_rate,
+        weekly_rate=weekly_rate,
+        monthly_rate=monthly_rate,
+        electric=electric,
+        water=water,
+        waste=waste,
+        total_cost=total_cost,
+    )
+    location_name = _json_text(row, "location_name", max_length=100)
+    raw_bills = row.get("billings")
+    if not isinstance(raw_bills, list):
+        raise _RowError("billings must be a list")
+    bills = [
+        _billing_from_json(position, bill, check_in_date, check_out_date)
+        for position, bill in enumerate(cast(list[Any], raw_bills))
+    ]
+    rental = SpotRental(
+        vin=vin,
+        location_name=location_name,
+        location_address=_json_text(row, "location_address"),
+        check_in_date=check_in_date,
+        check_out_date=check_out_date,
+        nightly_rate=nightly_rate,
+        weekly_rate=weekly_rate,
+        monthly_rate=monthly_rate,
+        electric=electric,
+        water=water,
+        waste=waste,
+        total_cost=total_cost,
+        amenities=_json_text(row, "amenities"),
+        notes=_json_text(row, "notes"),
+    )
+    return rental, bills
+
+
+def _json_spot_rental_key(row: Mapping[str, Any], rental: SpotRental) -> list[ColumnElement[bool]]:
+    """R5's rental key but the bills, each optional part only when the row has it (T-16)."""
+    key = [SpotRental.check_in_date == rental.check_in_date]
+    if "location_name" in row:
+        key.append(_matches(SpotRental.location_name, rental.location_name))
+    if "check_out_date" in row:
+        key.append(_matches(SpotRental.check_out_date, rental.check_out_date))
+    if "total_cost" in row:
+        key.append(_money_matches(SpotRental.total_cost, rental.total_cost))
+    return key
+
+
+def _bill_counts(
+    pairs: Iterable[tuple[date_type, Decimal | None]],
+) -> Counter[tuple[date_type, Decimal]]:
+    """A rental's bills as counts, each total at the cent, a missing one as 0."""
+    return Counter(
+        (billing_date, _at_scale(total, _MONEY_STEP) or Decimal(0)) for billing_date, total in pairs
+    )
 
 
 def _coverages_from_rows(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -2870,7 +3194,18 @@ async def import_vehicle_json(
     # backup is canonical already, so only a legacy one was converted. The same
     # ceilings keep a row this import wrote from being a duplicate (R5).
     matcher = await _DuplicateMatcher.before_import(
-        db, ServiceVisit, FuelRecord, DEFRecord, OdometerRecord, HoursRecord
+        db,
+        ServiceVisit,
+        FuelRecord,
+        DEFRecord,
+        OdometerRecord,
+        HoursRecord,
+        FinancingRecord,
+        TaxRecord,
+        TollTag,
+        TollTransaction,
+        WarrantyRecord,
+        SpotRental,
     )
     readings = _ImportReadings()
 
@@ -2885,6 +3220,12 @@ async def import_vehicle_json(
         "reminders": {"success": 0, "errors": 0, "skipped": 0},
         "notes": {"success": 0, "errors": 0, "skipped": 0},
         "insurance_policies": {"success": 0, "errors": 0, "skipped": 0},
+        "financing_records": {"success": 0, "errors": 0, "skipped": 0},
+        "tax_records": {"success": 0, "errors": 0, "skipped": 0},
+        "toll_tags": {"success": 0, "errors": 0, "skipped": 0},
+        "toll_transactions": {"success": 0, "errors": 0, "skipped": 0},
+        "warranties": {"success": 0, "errors": 0, "skipped": 0},
+        "spot_rentals": {"success": 0, "errors": 0, "skipped": 0},
         "errors": errors,
         "warnings": warnings,
     }
@@ -3557,6 +3898,213 @@ async def import_vehicle_json(
             logger.warning("Import: insurance policy %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Insurance policy {idx}: could not be imported")
 
+    # Import financing. The lender travels by name and is looked up or made in
+    # the row's savepoint, as a service visit's vendor is (R6).
+    for idx, row in enumerate(sections["financing_records"]):
+        try:
+            record = _financing_record_from_json(vin, row)
+            lender = _json_text(row, "vendor_name", max_length=100)
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    FinancingRecord,
+                    FinancingRecord.vin == vin,
+                    *_json_financing_key(record),
+                    options=(selectinload(FinancingRecord.vendor),),
+                    same=(
+                        (lambda f: (f.vendor.name if f.vendor else None) == lender)
+                        if "vendor_name" in row
+                        else None
+                    ),
+                )
+                is not None
+            ):
+                results["financing_records"]["skipped"] += 1
+                continue
+
+            async with db.begin_nested():
+                record.vendor_id = await _vendor_id_for(db, lender)
+                db.add(record)
+            results["financing_records"]["success"] += 1
+        except _RowError as e:
+            results["financing_records"]["errors"] += 1
+            errors.append(f"Financing record {idx}: {e.reason}")
+        except Exception as e:
+            results["financing_records"]["errors"] += 1
+            logger.warning("Import: financing record %s failed: %s", idx, sanitize_for_log(e))
+            errors.append(f"Financing record {idx}: could not be imported")
+
+    # Import tax records
+    for idx, row in enumerate(sections["tax_records"]):
+        try:
+            record = _tax_record_from_json(vin, row)
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db, TaxRecord, TaxRecord.vin == vin, *_json_tax_key(row, record)
+                )
+                is not None
+            ):
+                results["tax_records"]["skipped"] += 1
+                continue
+
+            async with db.begin_nested():
+                db.add(record)
+            results["tax_records"]["success"] += 1
+        except _RowError as e:
+            results["tax_records"]["errors"] += 1
+            errors.append(f"Tax record {idx}: {e.reason}")
+        except Exception as e:
+            results["tax_records"]["errors"] += 1
+            logger.warning("Import: tax record %s failed: %s", idx, sanitize_for_log(e))
+            errors.append(f"Tax record {idx}: could not be imported")
+
+    # Import toll tags. A transaction names its tag by the tag's index in this
+    # file (R6), so each tag written or matched is kept by that index, with
+    # its key; a tag that failed has neither, and its transactions are stored,
+    # and keyed, untagged (Fable F-3).
+    tag_ids: dict[int, int] = {}
+    tag_keys: dict[int, tuple[str, str]] = {}
+    for idx, row in enumerate(sections["toll_tags"]):
+        try:
+            tag = _toll_tag_from_json(vin, row)
+            stored = (
+                await matcher.take(
+                    db,
+                    TollTag,
+                    TollTag.vin == vin,
+                    TollTag.toll_system == tag.toll_system,
+                    TollTag.tag_number == tag.tag_number,
+                )
+                if skip_duplicates
+                else None
+            )
+            if stored is not None:
+                tag_ids[idx] = stored.id
+                tag_keys[idx] = (stored.toll_system, stored.tag_number)
+                results["toll_tags"]["skipped"] += 1
+                continue
+
+            async with db.begin_nested():
+                db.add(tag)
+                await db.flush()
+            tag_ids[idx] = tag.id
+            tag_keys[idx] = (tag.toll_system, tag.tag_number)
+            results["toll_tags"]["success"] += 1
+        except _RowError as e:
+            results["toll_tags"]["errors"] += 1
+            errors.append(f"Toll tag {idx}: {e.reason}")
+        except Exception as e:
+            results["toll_tags"]["errors"] += 1
+            logger.warning("Import: toll tag %s failed: %s", idx, sanitize_for_log(e))
+            errors.append(f"Toll tag {idx}: could not be imported")
+
+    # Import toll transactions. Two same-day charges at one plaza are two rows,
+    # and a re-import matches each to one stored charge (R1-H1).
+    for idx, row in enumerate(sections["toll_transactions"]):
+        try:
+            record, tag_index = _toll_transaction_from_json(vin, row, len(sections["toll_tags"]))
+            tag_key = tag_keys.get(tag_index) if tag_index is not None else None
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    TollTransaction,
+                    TollTransaction.vin == vin,
+                    *_json_toll_transaction_key(record),
+                    options=(selectinload(TollTransaction.toll_tag),),
+                    same=(
+                        (lambda t: _toll_tag_key(t.toll_tag) == tag_key)
+                        if "toll_tag_index" in row
+                        else None
+                    ),
+                )
+                is not None
+            ):
+                results["toll_transactions"]["skipped"] += 1
+                continue
+
+            record.toll_tag_id = tag_ids.get(tag_index) if tag_index is not None else None
+            async with db.begin_nested():
+                db.add(record)
+            results["toll_transactions"]["success"] += 1
+            if tag_index is not None and record.toll_tag_id is None:
+                warnings.append(
+                    f"Toll transaction {idx}: its toll tag was not imported, saved without one"
+                )
+        except _RowError as e:
+            results["toll_transactions"]["errors"] += 1
+            errors.append(f"Toll transaction {idx}: {e.reason}")
+        except Exception as e:
+            results["toll_transactions"]["errors"] += 1
+            logger.warning("Import: toll transaction %s failed: %s", idx, sanitize_for_log(e))
+            errors.append(f"Toll transaction {idx}: could not be imported")
+
+    # Import warranties
+    for idx, row in enumerate(sections["warranties"]):
+        try:
+            record = _warranty_from_json(vin, row)
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db, WarrantyRecord, WarrantyRecord.vin == vin, *_json_warranty_key(row, record)
+                )
+                is not None
+            ):
+                results["warranties"]["skipped"] += 1
+                continue
+
+            async with db.begin_nested():
+                db.add(record)
+            results["warranties"]["success"] += 1
+        except _RowError as e:
+            results["warranties"]["errors"] += 1
+            errors.append(f"Warranty {idx}: {e.reason}")
+        except Exception as e:
+            results["warranties"]["errors"] += 1
+            logger.warning("Import: warranty %s failed: %s", idx, sanitize_for_log(e))
+            errors.append(f"Warranty {idx}: could not be imported")
+
+    # Import spot rentals with their bills. A rental skipped as a duplicate
+    # skips its bills; one written writes them in its savepoint.
+    for idx, row in enumerate(sections["spot_rentals"]):
+        try:
+            rental, bills = _spot_rental_from_json(vin, row)
+            bill_counts = _bill_counts((bill.billing_date, bill.total) for bill in bills)
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    SpotRental,
+                    SpotRental.vin == vin,
+                    *_json_spot_rental_key(row, rental),
+                    options=(selectinload(SpotRental.billings),),
+                    same=lambda r: (
+                        _bill_counts((b.billing_date, b.total) for b in r.billings) == bill_counts
+                    ),
+                )
+                is not None
+            ):
+                results["spot_rentals"]["skipped"] += 1
+                continue
+
+            async with db.begin_nested():
+                db.add(rental)
+                await db.flush()
+                for bill in bills:
+                    bill.spot_rental_id = rental.id
+                db.add_all(bills)
+                await db.flush()
+            results["spot_rentals"]["success"] += 1
+        except _RowError as e:
+            results["spot_rentals"]["errors"] += 1
+            errors.append(f"Spot rental {idx}: {e.reason}")
+        except Exception as e:
+            results["spot_rentals"]["errors"] += 1
+            logger.warning("Import: spot rental %s failed: %s", idx, sanitize_for_log(e))
+            errors.append(f"Spot rental {idx}: could not be imported")
+
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once.
     await maintenance_service.reconcile_vehicle(db, vin)
@@ -3571,6 +4119,12 @@ async def import_vehicle_json(
         "reminders",
         "notes",
         "insurance_policies",
+        "financing_records",
+        "tax_records",
+        "toll_tags",
+        "toll_transactions",
+        "warranties",
+        "spot_rentals",
     )
     for key in metric_keys:
         bucket = results[key]

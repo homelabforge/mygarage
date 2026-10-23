@@ -45,7 +45,15 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import inspect
 
+from app.models.def_record import DEFRecord
 from app.models.fuel import FuelRecord
+from app.models.hours import HoursRecord
+from app.models.note import Note
+from app.models.odometer import OdometerRecord
+from app.models.service_line_item import ServiceLineItem
+from app.models.service_visit import ServiceVisit
+from app.models.tax import TaxRecord
+from app.models.warranty import WarrantyRecord
 
 
 @dataclass
@@ -55,6 +63,8 @@ class ExportCoverageSpec:
     url_pattern: str
     header_to_attr: dict[str, str]
     exclude: set[str] = field(default_factory=set)
+    #: Headers the file carries for another spec's model, or for the file itself.
+    shared_headers: set[str] = field(default_factory=set)
 
 
 # Header → model attribute mapping for each model with a CSV exporter.
@@ -121,6 +131,154 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "price_basis",
         },
     ),
+    # Service is one row per line item (J6): the visit's columns repeat on each of
+    # its rows, so each model's spec names the other's headers as shared.
+    ExportCoverageSpec(
+        name="service_visit",
+        model=ServiceVisit,
+        url_pattern="/api/export/vehicles/{vin}/service/csv",
+        header_to_attr={
+            "Date": "date",
+            "Category": "service_category",
+            "Odometer (km)": "odometer_km",
+            "Engine Hours": "engine_hours",
+            "Vendor": "vendor_id",
+            "Tax": "tax_amount",
+            "Shop Supplies": "shop_supplies",
+            "Misc Fees": "misc_fees",
+            "Insurance Claim": "insurance_claim_number",
+            "Visit Notes": "notes",
+        },
+        exclude={
+            "id",
+            "vin",
+            # Recomputed from the items and fees on import.
+            "total_cost",
+            "created_at",
+            "updated_at",
+        },
+        shared_headers={"Visit", "Description", "Cost", "Item Notes"},
+    ),
+    ExportCoverageSpec(
+        name="service_line_item",
+        model=ServiceLineItem,
+        url_pattern="/api/export/vehicles/{vin}/service/csv",
+        header_to_attr={"Description": "description", "Cost": "cost", "Item Notes": "notes"},
+        exclude={
+            "id",
+            # The row's Visit number groups it.
+            "visit_id",
+            # JSON only: the CSV keeps J6's columns.
+            "category",
+            "maintenance_type",
+            "is_inspection",
+            "inspection_result",
+            "inspection_severity",
+            "triggered_by_inspection_id",
+            "created_at",
+        },
+        shared_headers={
+            "Visit",
+            "Date",
+            "Category",
+            "Odometer (km)",
+            "Engine Hours",
+            "Vendor",
+            "Tax",
+            "Shop Supplies",
+            "Misc Fees",
+            "Insurance Claim",
+            "Visit Notes",
+        },
+    ),
+    ExportCoverageSpec(
+        name="def",
+        model=DEFRecord,
+        url_pattern="/api/export/vehicles/{vin}/def/csv",
+        header_to_attr={
+            "Date": "date",
+            "Odometer (km)": "odometer_km",
+            "Volume (L)": "liters",
+            "Price Per Unit (L)": "price_per_unit",
+            "Total Cost": "cost",
+            "Fill Level": "fill_level",
+            "Source": "source",
+            "Brand": "brand",
+            "Notes": "notes",
+        },
+        exclude={
+            "id",
+            "vin",
+            "created_at",
+            # JSON only (the DEF CSV is unchanged this batch).
+            "entry_type",
+            # A fuel row on this instance.
+            "origin_fuel_record_id",
+        },
+    ),
+    ExportCoverageSpec(
+        name="odometer",
+        model=OdometerRecord,
+        url_pattern="/api/export/vehicles/{vin}/odometer/csv",
+        header_to_attr={"Date": "date", "Reading (km)": "odometer_km", "Notes": "notes"},
+        exclude={
+            "id",
+            "vin",
+            "created_at",
+            # A CSV reading always imports as manual.
+            "source",
+            "fuel_record_id",
+        },
+    ),
+    ExportCoverageSpec(
+        name="hours",
+        model=HoursRecord,
+        url_pattern="/api/export/vehicles/{vin}/hours/csv",
+        header_to_attr={
+            "Date": "date",
+            "Engine Hours": "engine_hours",
+            "Notes": "notes",
+            "Source": "source",
+        },
+        exclude={"id", "vin", "created_at", "fuel_record_id", "service_visit_id"},
+    ),
+    ExportCoverageSpec(
+        name="warranty",
+        model=WarrantyRecord,
+        url_pattern="/api/export/vehicles/{vin}/warranties/csv",
+        header_to_attr={
+            "Provider": "provider",
+            "Type": "warranty_type",
+            "Policy Number": "policy_number",
+            "Coverage Details": "coverage_details",
+            "Start Date": "start_date",
+            "End Date": "end_date",
+            "Mileage Limit (km)": "mileage_limit_km",
+            "Notes": "notes",
+        },
+        # Notification marker.
+        exclude={"id", "vin", "created_at", "last_notified_at"},
+    ),
+    ExportCoverageSpec(
+        name="tax",
+        model=TaxRecord,
+        url_pattern="/api/export/vehicles/{vin}/tax/csv",
+        header_to_attr={
+            "Date": "date",
+            "Type": "tax_type",
+            "Amount": "amount",
+            "Renewal Date": "renewal_date",
+            "Notes": "notes",
+        },
+        exclude={"id", "vin", "created_at"},
+    ),
+    ExportCoverageSpec(
+        name="notes",
+        model=Note,
+        url_pattern="/api/export/vehicles/{vin}/notes/csv",
+        header_to_attr={"Date": "date", "Title": "title", "Content": "content"},
+        exclude={"id", "vin", "created_at", "updated_at"},
+    ),
 ]
 
 
@@ -163,7 +321,7 @@ async def test_export_covers_all_model_columns(
     )
 
     exported_headers = set(_csv_headers(response.text))
-    spec_headers = set(spec.header_to_attr.keys())
+    spec_headers = set(spec.header_to_attr.keys()) | spec.shared_headers
 
     # 1. Headers in the CSV must match what the spec claims.
     extra_in_csv = exported_headers - spec_headers
