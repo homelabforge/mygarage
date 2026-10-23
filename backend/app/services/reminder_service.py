@@ -1156,7 +1156,7 @@ def _build_reminder_message(reminder: ReminderMessageSource, ctx: RenderContext)
     if reminder.tread_depth_mm is not None and reminder.tread_threshold_mm is not None:
         parts.append(
             f"Tread: {format_quantity(reminder.tread_depth_mm, ctx, 'tread')}"
-            f" (minimum {format_quantity(reminder.tread_threshold_mm, ctx, 'tread')})"
+            f", minimum {format_quantity(reminder.tread_threshold_mm, ctx, 'tread')}"
         )
     if reminder.notes:
         # Stored prose passes through byte-identically. A low-tread reminder's
