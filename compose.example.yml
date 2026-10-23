@@ -10,7 +10,7 @@ services:
     # environment:
     #   MYGARAGE_TRUSTED_PROXIES: "172.18.0.0/16"      # proxy container on this network, no ports: (else see the wiki)
     #   MYGARAGE_CLIENT_IP_HEADER: "CF-Connecting-IP"  # only if every request comes through Cloudflare
-    #   MYGARAGE_SETTINGS_KEY_FILE: "/run/secrets/mygarage_settings_key"  # a mounted file holding the key, instead of ./data/settings.key (see the wiki)
+    #   MYGARAGE_SETTINGS_KEY_FILE: "/run/secrets/mygarage_settings_key"  # a mounted copy of your current ./data/settings.key; a new key makes stored secrets unreadable (see the wiki)
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8686/health"]

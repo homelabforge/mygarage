@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Upgrade note
 
-Back up `settings.key` after you upgrade, and keep it apart from your backups. Secret settings (the SSO client secret, the notification tokens, webhook URLs and SMTP password, the LLM, LiveLink MQTT and POI provider keys, and the webhook ingest token) are now encrypted at rest. The key is generated on the first start at `/data/settings.key`, unless `MYGARAGE_SETTINGS_KEY` holds it or `MYGARAGE_SETTINGS_KEY_FILE` names the absolute path of a file that does. Neither settings backups nor full backups include it, on purpose, so a restore onto a new host without it brings every secret back unreadable and you re-enter them. Once either variable is set, MyGarage uses it instead of the file, even when its key is wrong, so put the key already in use into it.
+Back up `settings.key` after you upgrade, and keep it apart from your backups. Secret settings (the SSO client secret, the notification tokens, webhook URLs and SMTP password, the LLM and POI provider keys, the LiveLink MQTT password, and the webhook ingest token) are now encrypted at rest. The key is generated on the first start at `/data/settings.key`, unless `MYGARAGE_SETTINGS_KEY` holds it or `MYGARAGE_SETTINGS_KEY_FILE` names the absolute path of a file that does. Neither settings backups nor full backups include it, on purpose: on a new host without it, a full restore brings every secret back unreadable and a settings restore skips them, so you re-enter them. Once either variable is set, MyGarage uses it instead of the file, even when its key is wrong, so put the key already in use into it.
 
 Don't downgrade without a plan for the secrets. An older version reads the encrypted values as literal text, and so does its restore of a backup made by this version. Before you downgrade, plan to restore a settings or full backup taken before the upgrade, or to re-enter every secret.
 
@@ -17,14 +17,14 @@ Keep every key you retire. To rotate, put a new key first in the keyring (the fi
 
 There is no migration and nothing else to do. The first start encrypts the stored secrets and logs how many. If MyGarage can't write `/data/settings.key` and neither variable is set, the secrets stay unencrypted and keep working, but saving one answers 503, and so does creating or restoring a backup while any of them is unencrypted, until you set `MYGARAGE_SETTINGS_KEY` or make the data directory writable. Settings shows a banner while the key is unavailable or a secret can't be decrypted.
 
-The old plaintext can outlive the encryption inside the database files. On SQLite the first start zeroes the rows it rewrites (`secure_delete`) and truncates the WAL, but plaintext freed by edits made before the upgrade can stay in free pages, which a full backup copies, until a `VACUUM`. On PostgreSQL the pre-upgrade rows stay in dead tuples until autovacuum reclaims them; `pg_dump`, and so a full backup, doesn't carry them.
+The old plaintext can outlive the encryption inside the database files. On SQLite the first start zeroes the old copies of the rows it rewrites (`secure_delete`) and truncates the WAL, but plaintext freed by edits made before the upgrade can stay in free space, which a full backup copies, until a `VACUUM`. On PostgreSQL the pre-upgrade values stay in the table's files (VACUUM frees that space but doesn't zero it) and in the WAL until both are reused; `pg_dump`, and so a full backup, doesn't carry them.
 
-The encryption protects every copy of the data that leaves without the key: backups, `pg_dump`s, a database file attached to a bug report. It doesn't protect against someone who has the whole data directory with `settings.key` in it.
+The encryption protects the secret settings in every copy that leaves without the key (backups, `pg_dump`s, a database file attached to a bug report), apart from the remnants above. It doesn't protect against someone who has the whole data directory with `settings.key` in it.
 
 ### Security
-- Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that rotates (see the Upgrade note)
+- Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)
 - The Google Places, Yelp and Foursquare API keys are masked in `GET /api/settings` like the other secrets
-- Sending the `********` placeholder back never overwrites a stored secret, on the settings, SSO, POI provider and LiveLink forms
+- Sending the `********` placeholder back never overwrites a stored secret, even one that can't be decrypted, and the POI provider and LiveLink forms now honour it too instead of saving it as the value
 - Settings shows a banner naming the secrets that can't be decrypted, or saying the settings key is unavailable
 - Settings backups (now version 2.1) carry secrets as ciphertext, and full backups carry the database's ciphertext; neither holds `settings.key` or `secret.key`, so a new host needs the key copied over or the secrets re-entered, plus one sign-in
 - A settings restore skips any secret no configured key opens, keeps its current value and names it in the restore's warning, and re-encrypts one under an older key still in the keyring
