@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+from collections.abc import Sequence
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -210,11 +211,28 @@ _ALWAYS_EXCLUDED = frozenset({"id", "vin", "created_at", "updated_at"})
 _SERVICE_VISIT_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"vendor_id", "total_cost"}
 #: The visit is the parent; the inspection link travels as an index in the visit.
 _LINE_ITEM_JSON_EXCLUDE = frozenset({"id", "visit_id", "triggered_by_inspection_id", "created_at"})
+#: Every fuel column travels; the station and driver links go with their names.
+_FUEL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: The fill-up that wrote a synced DEF row is a fuel row on this instance.
+_DEF_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"origin_fuel_record_id"}
+#: The fill-up that owned the reading here; an imported reading is never owned (R4).
+_ODOMETER_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"fuel_record_id"}
+#: The same for the fill-up or visit an hours reading was synced from.
+_HOURS_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"fuel_record_id", "service_visit_id"}
 #: What the service exports read off a visit.
 _SERVICE_VISIT_EXPORT_LOADS = (
     selectinload(ServiceVisit.line_items),
     selectinload(ServiceVisit.vendor),
 )
+
+
+async def _driver_usernames(db: AsyncSession, records: Sequence[FuelRecord]) -> dict[int, str]:
+    """Each linked driver's username by user id, in one query, so a restore can check the link."""
+    ids = {r.driver_user_id for r in records if r.driver_user_id}
+    if not ids:
+        return {}
+    rows = await db.execute(select(User.id, User.username).where(User.id.in_(ids)))
+    return {user_id: username for user_id, username in rows.all()}
 
 
 def _line_items_json(visit: ServiceVisit) -> list[dict[str, Any]]:
@@ -351,6 +369,9 @@ async def export_fuel_records_csv(
     # picked from the address book — issue #108 in CSV form. "Station ID" still
     # carries the FK, so the round-trip keeps its fidelity.
     station_names = await resolve_station_names(db, list(records))
+    # "Driver" carries a linked driver's username the same way (T-5), so a
+    # restore can tell whether this instance has that user.
+    driver_usernames = await _driver_usernames(db, records)
 
     # Generate CSV.
     # NOTE: column set extended for v2.27.0-rc2 (#69 issue follow-up).
@@ -422,7 +443,7 @@ async def export_fuel_records_csv(
                 record.station_address_book_id or "",
                 station_names.get(record.id) or "",
                 record.driver_user_id or "",
-                record.driver_name_freetext or "",
+                driver_usernames.get(record.driver_user_id) or record.driver_name_freetext or "",
                 record.payment_method or "",
                 record.trip_type or "",
                 # Unit-bearing, and `is not None` rather than truthy: a
@@ -914,6 +935,8 @@ async def export_vehicle_json(
         select(FuelRecord).where(FuelRecord.vin == vin).order_by(FuelRecord.date.desc())
     )
     fuel_records = fuel_result.scalars().all()
+    station_names = await resolve_station_names(db, list(fuel_records))
+    driver_usernames = await _driver_usernames(db, fuel_records)
 
     odometer_result = await db.execute(
         select(OdometerRecord)
@@ -967,58 +990,21 @@ async def export_vehicle_json(
             }
             for v in service_visits
         ],
+        # The station and driver ids go with their names, so a restore keeps a
+        # link only where this instance has the same entry or user (R6).
         "fuel_records": [
             {
-                "date": r.date.isoformat() if r.date else None,
-                "odometer_km": float(r.odometer_km) if r.odometer_km is not None else None,
-                "liters": float(r.liters) if r.liters else None,
-                "price_per_unit": float(r.price_per_unit) if r.price_per_unit else None,
-                # Round-trips so a restored backup still knows what the price is
-                # measured against; without it the import had to guess (#128).
-                "price_basis": r.price_basis,
-                "rebate": float(r.rebate) if r.rebate else None,
-                "cost": float(r.cost) if r.cost else None,
-                "is_full_tank": r.is_full_tank,
-                "missed_fillup": r.missed_fillup,
-                "is_hauling": r.is_hauling,
-                "fuel_type_used": r.fuel_type_used,
-                "octane": r.octane,
-                "diesel_grade": r.diesel_grade,
-                "notes": r.notes,
+                **_json_columns(r, _FUEL_JSON_EXCLUDE),
+                "station_name": station_names.get(r.id),
+                "driver_username": driver_usernames.get(r.driver_user_id)
+                if r.driver_user_id
+                else None,
             }
             for r in fuel_records
         ],
-        "def_records": [
-            {
-                "date": r.date.isoformat() if r.date else None,
-                "odometer_km": float(r.odometer_km) if r.odometer_km is not None else None,
-                "liters": float(r.liters) if r.liters else None,
-                "price_per_unit": float(r.price_per_unit) if r.price_per_unit else None,
-                "cost": float(r.cost) if r.cost else None,
-                "fill_level": float(r.fill_level) if r.fill_level else None,
-                "source": r.source,
-                "brand": r.brand,
-                "notes": r.notes,
-            }
-            for r in def_records
-        ],
-        "odometer_records": [
-            {
-                "date": r.date.isoformat() if r.date else None,
-                "reading": float(r.odometer_km) if r.odometer_km is not None else None,
-                "notes": r.notes,
-            }
-            for r in odometer_records
-        ],
-        "hours_records": [
-            {
-                "date": r.date.isoformat() if r.date else None,
-                "engine_hours": float(r.engine_hours) if r.engine_hours is not None else None,
-                "notes": r.notes,
-                "source": r.source,
-            }
-            for r in hours_records
-        ],
+        "def_records": [_json_columns(r, _DEF_JSON_EXCLUDE) for r in def_records],
+        "odometer_records": [_json_columns(r, _ODOMETER_JSON_EXCLUDE) for r in odometer_records],
+        "hours_records": [_json_columns(r, _HOURS_JSON_EXCLUDE) for r in hours_records],
         "notes": [
             {
                 "date": n.date.isoformat() if n.date else None,

@@ -233,6 +233,10 @@ _FUEL_V3 = (
     "units_version,Date,Odometer (km),Liters,Price Per Liter,Total Cost,Full Tank,"
     "Missed Fill-up,Is Hauling,Fuel Type,Notes"
 )
+# A row's Payment Method, Trip Type and Charge Location are the API's words
+# (`credit`, `commute`, `home`): each column arrived with its vocabulary (#69,
+# #138), so an export only ever wrote those, and the importer refuses any other
+# word since batch 3a task 3.
 _FUEL_V4_PREMARKER = (
     "units_version,Date,Filled At,Odometer (km),Liters,Price Per Liter,Total Cost,"
     "Full Tank,Missed Fill-up,Is Hauling,Fuel Type,Fuel Type Used,Station ID,Station,"
@@ -708,7 +712,7 @@ CORPUS: Mapping[str, Shape] = {
         # (`OBC Trip Duration (s)`) must pass through untouched (R6).
         row=(
             "4,2026-04-04,2026-04-04T08:30:00,4200.50,43.250,1.500,64.88,Yes,No,No,"
-            "Gasoline,gasoline,,Shell,,Alex,Card,Commute,18.5,7.25,85.5,3600,"
+            "Gasoline,gasoline,,Shell,,Alex,credit,commute,18.5,7.25,85.5,3600,"
         ),
         expected={
             "odometer_km": "4200.50",
@@ -729,7 +733,7 @@ CORPUS: Mapping[str, Shape] = {
         # `units_version` with no marker to fall back on (R4 step 3).
         row=(
             "4,2026-04-13,2026-04-13T13:00:00,4700.15,47.125,1.700,0.50,80.11,Yes,No,No,"
-            "Gasoline,gasoline,,Shell,,Alex,Card,Commute,17.5,6.75,87.5,4500,"
+            "Gasoline,gasoline,,Shell,,Alex,credit,commute,17.5,6.75,87.5,4500,"
         ),
         expected={
             "odometer_km": "4700.15",
@@ -749,7 +753,7 @@ CORPUS: Mapping[str, Shape] = {
         # reason.
         row=(
             "4,2026-04-14,2026-04-14T13:30:00,4800.25,29.5,48.375,1.750,0.50,84.16,Yes,No,No,"
-            "Gasoline,gasoline,,Shell,,Alex,Card,Commute,16.5,6.50,89.5,4600,"
+            "Gasoline,gasoline,,Shell,,Alex,credit,commute,16.5,6.50,89.5,4600,"
         ),
         expected={
             "odometer_km": "4800.25",
@@ -766,7 +770,7 @@ CORPUS: Mapping[str, Shape] = {
         header=_FUEL_V4_MARKER_METRIC,
         row=(
             "4,metric,2026-04-05,2026-04-05T09:00:00,4300.75,21.5,44.125,1.550,0.00,68.39,"
-            "Yes,No,No,Gasoline,gasoline,,Shell,,Alex,Card,Commute,19.5,7.50,90.5,3700,"
+            "Yes,No,No,Gasoline,gasoline,,Shell,,Alex,credit,commute,19.5,7.50,90.5,3700,"
         ),
         expected={
             "odometer_km": "4300.75",
@@ -786,7 +790,7 @@ CORPUS: Mapping[str, Shape] = {
         # 235.2145833... / 23.5214 = 10.00 L/100km; 60 mph * 1.609344 = 96.56064 km/h.
         row=(
             "4,imperial,2026-04-06,2026-04-06T09:30:00,350,22.5,15,11.35623,0.00,170.34,"
-            "Yes,No,No,Gasoline,gasoline,,Shell,,Alex,Card,Commute,68,23.5214,60,3800,"
+            "Yes,No,No,Gasoline,gasoline,,Shell,,Alex,credit,commute,68,23.5214,60,3800,"
         ),
         expected={
             "odometer_km": "563.27",
@@ -812,8 +816,8 @@ CORPUS: Mapping[str, Shape] = {
         # 235.2145833... / 47.0428 = 5.00 L/100km; 90 mph * 1.609344 = 144.84096.
         row=(
             "4,imperial,2026-04-15,2026-04-15T14:00:00,390,30.5,24,15.14164,0.50,363.40,"
-            "Yes,No,No,Gasoline,gasoline,,Shell,,Alex,Card,Commute,140,47.0428,90,4700,"
-            "10.0,90.0,L2,Home,99.0,"
+            "Yes,No,No,Gasoline,gasoline,,Shell,,Alex,credit,commute,140,47.0428,90,4700,"
+            "10.0,90.0,L2,home,99.0,"
         ),
         expected={
             "odometer_km": "627.64",
@@ -830,8 +834,8 @@ CORPUS: Mapping[str, Shape] = {
         header=_FUEL_V5_METRIC,
         row=(
             "5,metric,2026-04-07,2026-04-07T10:00:00,4400.10,23.5,45.500,1.600,0.00,72.80,"
-            "Yes,No,No,gasoline,,Shell,,Alex,Card,Commute,20.5,7.75,92.5,3900,"
-            "10.0,90.0,L2,Home,99.0,"
+            "Yes,No,No,gasoline,,Shell,,Alex,credit,commute,20.5,7.75,92.5,3900,"
+            "10.0,90.0,L2,home,99.0,"
         ),
         expected={
             "odometer_km": "4400.10",
@@ -851,8 +855,8 @@ CORPUS: Mapping[str, Shape] = {
         # 235.2145833... / 11.7607 = 20.00 L/100km; 55 mph * 1.609344 = 88.51392 km/h.
         row=(
             "5,imperial,2026-04-08,2026-04-08T10:30:00,360,24.5,16,7.57082,0.00,121.13,"
-            "Yes,No,No,gasoline,,Shell,,Alex,Card,Commute,50,11.7607,55,4000,"
-            "10.0,90.0,L2,Home,99.0,"
+            "Yes,No,No,gasoline,,Shell,,Alex,credit,commute,50,11.7607,55,4000,"
+            "10.0,90.0,L2,home,99.0,"
         ),
         expected={
             "odometer_km": "579.36",
@@ -875,8 +879,8 @@ CORPUS: Mapping[str, Shape] = {
         # 65 mph * 1.609344 = 104.60736 km/h.
         row=(
             "5,imperial_uk,2026-04-09,2026-04-09T11:00:00,370,25.5,18,13.63827,0.00,245.49,"
-            "Yes,No,No,gasoline,,Shell,,Alex,Card,Commute,86,14.12405,65,4100,"
-            "10.0,90.0,L2,Home,99.0,"
+            "Yes,No,No,gasoline,,Shell,,Alex,credit,commute,86,14.12405,65,4100,"
+            "10.0,90.0,L2,home,99.0,"
         ),
         expected={
             "odometer_km": "595.46",
@@ -893,8 +897,8 @@ CORPUS: Mapping[str, Shape] = {
         header=_FUEL_V6_METRIC,
         row=(
             "6,metric,2026-04-10,2026-04-10T11:30:00,4500.20,26.5,46.750,1.650,0.00,77.14,"
-            "Yes,No,No,gasoline,,Shell,,Alex,Card,Commute,21.5,8.25,94.5,4200,"
-            "10.0,90.0,L2,Home,99.0,"
+            "Yes,No,No,gasoline,,Shell,,Alex,credit,commute,21.5,8.25,94.5,4200,"
+            "10.0,90.0,L2,home,99.0,"
         ),
         expected={
             "odometer_km": "4500.20",
@@ -914,8 +918,8 @@ CORPUS: Mapping[str, Shape] = {
         # 235.2145833... / 23.5214 = 10.00 L/100km; 70 mph * 1.609344 = 112.65408.
         row=(
             "6,imperial,2026-04-11,2026-04-11T12:00:00,380,27.5,20,11.35623,0.00,227.12,"
-            "Yes,No,No,gasoline,,Shell,,Alex,Card,Commute,104,23.5214,70,4300,"
-            "10.0,90.0,L2,Home,99.0,"
+            "Yes,No,No,gasoline,,Shell,,Alex,credit,commute,104,23.5214,70,4300,"
+            "10.0,90.0,L2,home,99.0,"
         ),
         expected={
             "odometer_km": "611.55",
@@ -938,8 +942,8 @@ CORPUS: Mapping[str, Shape] = {
         # 282.4809363... / 28.2481 = 10.00 L/100km; 80 mph * 1.609344 = 128.74752.
         row=(
             "6,custom,2026-04-12,2026-04-12T12:30:00,4600.30,28.5,22,9.09218,0.00,200.03,"
-            "Yes,No,No,gasoline,,Shell,,Alex,Card,Commute,122,28.2481,80,4400,"
-            "10.0,90.0,L2,Home,99.0,"
+            "Yes,No,No,gasoline,,Shell,,Alex,credit,commute,122,28.2481,80,4400,"
+            "10.0,90.0,L2,home,99.0,"
         ),
         expected={
             "odometer_km": "4600.30",

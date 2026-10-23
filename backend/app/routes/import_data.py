@@ -49,9 +49,15 @@ from sqlalchemy.orm import InstrumentedAttribute, selectinload
 from sqlalchemy.sql.base import ExecutableOption
 
 from app.config import settings
-from app.constants.fuel import FuelTypeEnum, normalize_fuel_type
+from app.constants.fuel import (
+    PAYMENT_METHOD_VALUES,
+    TRIP_TYPE_VALUES,
+    FuelTypeEnum,
+    normalize_fuel_type,
+)
 from app.database import get_db
 from app.models import (
+    AddressBookEntry,
     DEFRecord,
     FuelRecord,
     HoursRecord,
@@ -77,6 +83,7 @@ from app.schemas.fuel import (
     CHARGE_LOCATION_VALUES,
     PRICE_BASIS_VALUES,
     FuelRecordCreate,
+    _parse_obc_trip_duration,
     _validate_diesel_grade,
     _validate_octane,
 )
@@ -692,6 +699,322 @@ def _json_text(row: Mapping[str, Any], key: str) -> str | None:
     if value is not None and not isinstance(value, str):
         raise _RowError(f"{key} must be text")
     return value
+
+
+def _first_present(row: Mapping[str, Any], *keys: str) -> Any:
+    """The value under the first of `keys` that holds one: a v3+ name before its v2 alias.
+
+    `row.get("odometer_km") or row.get("mileage")` read a 0 as missing (G3a-75).
+    """
+    for key in keys:
+        if not _is_blank(row.get(key)):
+            return row.get(key)
+    return None
+
+
+def _json_int(row: Mapping[str, Any], key: str) -> int | None:
+    """A whole number under `key`, None when it's missing, a row error otherwise."""
+    raw = row.get(key)
+    if _is_blank(raw):
+        return None
+    if isinstance(raw, int) and not isinstance(raw, bool):
+        return raw
+    if isinstance(raw, float) and raw.is_integer():
+        return int(raw)
+    raise _RowError(f"{key} is not a whole number")
+
+
+def _local_datetime(raw: Any, key: str) -> datetime | None:
+    """A fill-up's naive local time. The export never writes a zone; one given is dropped."""
+    if _is_blank(raw):
+        return None
+    if not isinstance(raw, str):
+        raise _RowError(f"{key} is not a valid date and time")
+    try:
+        return datetime.fromisoformat(raw.strip()).replace(tzinfo=None)
+    except ValueError as e:
+        raise _RowError(f"{key} is not a valid date and time") from e
+
+
+def _trip_seconds(raw: Any, key: str) -> int | None:
+    """The trip duration in seconds, read the way the API reads it."""
+    try:
+        return _parse_obc_trip_duration(raw)
+    except ValueError as e:
+        raise _RowError(f"{key} must be whole seconds, HH:MM or HH:MM:SS") from e
+
+
+#: The warnings for a link this instance can't confirm (R6), added once the row is written.
+_STATION_KEPT_AS_TEXT = "station not in this address book, kept as text"
+_DRIVER_KEPT_AS_TEXT = "driver not on this instance, kept as text"
+
+
+async def _portable_station(
+    db: AsyncSession, station_id: int | None, name: str | None
+) -> tuple[int | None, str | None, bool]:
+    """The station id and text to store, and whether a link was dropped (R6).
+
+    The id stays only when this address book holds it under the same name (the
+    export writes the resolved name), so a file from another instance never
+    links someone else's entry. Otherwise the name is kept as text.
+    """
+    text = (name or "").strip()[:150] or None
+    if station_id is None:
+        return None, text, False
+    entry = await db.get(AddressBookEntry, station_id)
+    if (
+        entry is not None
+        and text
+        and (entry.business_name or "").strip().casefold() == text.casefold()
+    ):
+        return station_id, None, False
+    return None, text, True
+
+
+async def _portable_driver(
+    db: AsyncSession, driver_id: int | None, username: str | None, freetext: str | None
+) -> tuple[int | None, str | None, bool]:
+    """The driver id and text to store, and whether a link was dropped (R6).
+
+    The id stays only when it is a user here with the exported username. The
+    API checks nothing more for a driver (T-5).
+    """
+    if driver_id is None:
+        return None, freetext, False
+    user = await db.get(User, driver_id)
+    if user is not None and username and user.username.casefold() == username.strip().casefold():
+        return driver_id, freetext, False
+    return None, ((freetext or username or "").strip()[:100] or None), True
+
+
+#: Who writes a DEF row: a purchase (the column default, models/def_record.py:44-46)
+#: or the fuel form's fill-level sync (utils/def_sync.py:72). No CHECK backs it.
+_DEF_ENTRY_TYPES = ("purchase", "auto_fuel_sync")
+
+
+def _fuel_record_from_json(
+    vin: str,
+    date: date_type,
+    row: Mapping[str, Any],
+    *,
+    idx: int,
+    odometer_km: Decimal | None,
+    liters: Decimal | None,
+    price_per_unit: Decimal | None,
+) -> FuelRecord:
+    """A JSON fuel row as an unsaved record, the API's rules re-applied (R2).
+
+    `odometer_km`, `liters` and `price_per_unit` arrive converted from a legacy
+    file. The station and driver links are left for the caller to set once this
+    instance has confirmed them (R6).
+    """
+    filled_at = _local_datetime(row.get("filled_at"), "filled_at")
+    engine_hours = _json_decimal(row, "engine_hours")
+    propane_liters = _json_decimal(row, "propane_liters")
+    tank_size_kg = _json_decimal(row, "tank_size_kg")
+    tank_quantity = _json_int(row, "tank_quantity")
+    kwh = _json_decimal(row, "kwh")
+    soc_start_pct = _json_decimal(row, "soc_start_pct")
+    soc_end_pct = _json_decimal(row, "soc_end_pct")
+    battery_soh_pct = _json_decimal(row, "battery_soh_pct")
+    cost = _json_decimal(row, "cost")
+    rebate = _json_decimal(row, "rebate")
+    outside_temp_c = _json_decimal(row, "outside_temp_c")
+    obc_l_per_100km = _json_decimal(row, "obc_l_per_100km")
+    obc_avg_speed_kmh = _json_decimal(row, "obc_avg_speed_kmh")
+    obc_trip_duration_s = _trip_seconds(row.get("obc_trip_duration_s"), "obc_trip_duration_s")
+    _within_api_bounds(
+        FuelRecordCreate,
+        odometer_km=odometer_km,
+        engine_hours=engine_hours,
+        liters=liters,
+        propane_liters=propane_liters,
+        tank_size_kg=tank_size_kg,
+        tank_quantity=tank_quantity,
+        kwh=kwh,
+        soc_start_pct=soc_start_pct,
+        soc_end_pct=soc_end_pct,
+        battery_soh_pct=battery_soh_pct,
+        cost=cost,
+        rebate=rebate,
+        price_per_unit=price_per_unit,
+        outside_temp_c=outside_temp_c,
+        obc_l_per_100km=obc_l_per_100km,
+        obc_avg_speed_kmh=obc_avg_speed_kmh,
+        obc_trip_duration_s=obc_trip_duration_s,
+    )
+    price_basis = _in_vocabulary(
+        _blank_to_none(row.get("price_basis")), "price_basis", PRICE_BASIS_VALUES
+    ) or _derive_price_basis(price_per_unit, liters=liters, propane_liters=propane_liters, kwh=kwh)
+
+    # The export has always written fuel_type_used and is_hauling but the
+    # importer silently dropped both, so a restored backup lost them. Same
+    # locale-tolerant normalization as the CSV path.
+    raw_fuel_type = (row.get("fuel_type_used") or "").strip() or None
+    normalized_fuel_type = normalize_fuel_type(raw_fuel_type)
+    if raw_fuel_type and normalized_fuel_type is None:
+        logger.warning(
+            "Fuel import record %s: unrecognized fuel type %r → 'other'",
+            idx,
+            raw_fuel_type,
+        )
+        normalized_fuel_type = FuelTypeEnum.OTHER
+
+    return FuelRecord(
+        vin=vin,
+        date=date,
+        filled_at=filled_at,
+        odometer_km=odometer_km,
+        engine_hours=engine_hours,
+        liters=liters,
+        propane_liters=propane_liters,
+        tank_size_kg=tank_size_kg,
+        tank_quantity=tank_quantity,
+        kwh=kwh,
+        soc_start_pct=soc_start_pct,
+        soc_end_pct=soc_end_pct,
+        charge_level=_in_vocabulary(
+            _blank_to_none(row.get("charge_level")), "charge_level", CHARGE_LEVEL_VALUES
+        ),
+        charge_location=_in_vocabulary(
+            _blank_to_none(row.get("charge_location")), "charge_location", CHARGE_LOCATION_VALUES
+        ),
+        battery_soh_pct=battery_soh_pct,
+        cost=cost,
+        rebate=rebate,
+        price_per_unit=price_per_unit,
+        price_basis=price_basis,
+        fuel_type_used=normalized_fuel_type.value if normalized_fuel_type is not None else None,
+        # #164: direct ORM construction bypasses Pydantic, so the shared
+        # validators run here per row (R1-M2). _coerce_octane rejects a
+        # fractional value instead of silently truncating it the way a bare
+        # int() would (91.9 -> 91; codex review R1-M1).
+        octane=_validate_octane(_coerce_octane(row.get("octane"))),
+        diesel_grade=_validate_diesel_grade(row.get("diesel_grade")),
+        is_full_tank=row.get("is_full_tank", True),
+        missed_fillup=row.get("missed_fillup", False),
+        is_hauling=row.get("is_hauling", False),
+        notes=row.get("notes"),
+        payment_method=_in_vocabulary(
+            _blank_to_none(row.get("payment_method")), "payment_method", PAYMENT_METHOD_VALUES
+        ),
+        trip_type=_in_vocabulary(
+            _blank_to_none(row.get("trip_type")), "trip_type", TRIP_TYPE_VALUES
+        ),
+        outside_temp_c=outside_temp_c,
+        obc_l_per_100km=obc_l_per_100km,
+        obc_avg_speed_kmh=obc_avg_speed_kmh,
+        obc_trip_duration_s=obc_trip_duration_s,
+    )
+
+
+def _json_fuel_key(
+    row: Mapping[str, Any], record: FuelRecord, *, converted: bool, last_id: int
+) -> list[ColumnElement[bool]]:
+    """R5's fuel key: date and odometer always, the rest only when the row has the key (T-16).
+
+    A v9 row carries every key, so an hours-only or propane fill-up with no
+    odometer is told apart by its quantities (R1-H1).
+    """
+    key = [
+        FuelRecord.date == record.date,
+        _odometer_matches(
+            FuelRecord, record.odometer_km, converted=converted, last_id_before_import=last_id
+        ),
+    ]
+    if "filled_at" in row:
+        key.append(_matches(FuelRecord.filled_at, record.filled_at))
+    if "liters" in row or "gallons" in row:
+        key.append(
+            _converted_value_matches(
+                FuelRecord.liters,
+                record.liters,
+                LITRE_STEP,
+                converted=converted,
+                stored_before_import=FuelRecord.id <= last_id,
+            )
+        )
+    # NUMERIC(8,3) and (9,3).
+    if "kwh" in row:
+        key.append(_same_figure(FuelRecord.kwh, record.kwh, Decimal("0.001")))
+    if "propane_liters" in row:
+        key.append(_same_figure(FuelRecord.propane_liters, record.propane_liters, Decimal("0.001")))
+    if "cost" in row:
+        key.append(_money_matches(FuelRecord.cost, record.cost))
+    return key
+
+
+def _def_record_from_json(
+    vin: str,
+    date: date_type,
+    row: Mapping[str, Any],
+    *,
+    odometer_km: Decimal | None,
+    liters: Decimal | None,
+    price_per_unit: Decimal | None,
+) -> DEFRecord:
+    """A JSON DEF row as an unsaved record, the API's rules re-applied (R2).
+
+    No price_basis: DEF is volume-only, has no such column, and the UI passes
+    'per_volume' as a literal when displaying it. No origin_fuel_record_id
+    either: the fill-up it named is on the instance that wrote the file.
+    """
+    cost = _json_decimal(row, "cost")
+    fill_level = _json_decimal(row, "fill_level")
+    _within_api_bounds(
+        DEFRecordCreate,
+        odometer_km=odometer_km,
+        liters=liters,
+        price_per_unit=price_per_unit,
+        cost=cost,
+        fill_level=fill_level,
+    )
+    return DEFRecord(
+        vin=vin,
+        date=date,
+        odometer_km=odometer_km,
+        liters=liters,
+        price_per_unit=price_per_unit,
+        cost=cost,
+        fill_level=fill_level,
+        source=row.get("source"),
+        brand=row.get("brand"),
+        notes=row.get("notes"),
+        entry_type=_in_vocabulary(
+            _blank_to_none(row.get("entry_type")), "entry_type", _DEF_ENTRY_TYPES
+        )
+        or "purchase",
+    )
+
+
+def _json_def_key(
+    row: Mapping[str, Any], record: DEFRecord, *, converted: bool, last_id: int
+) -> list[ColumnElement[bool]]:
+    """R5's DEF key: date and odometer always, the rest only when the row has the key (T-16)."""
+    key = [
+        DEFRecord.date == record.date,
+        _odometer_matches(
+            DEFRecord, record.odometer_km, converted=converted, last_id_before_import=last_id
+        ),
+    ]
+    if "liters" in row or "gallons" in row:
+        key.append(
+            _converted_value_matches(
+                DEFRecord.liters,
+                record.liters,
+                LITRE_STEP,
+                converted=converted,
+                stored_before_import=DEFRecord.id <= last_id,
+            )
+        )
+    if "cost" in row:
+        key.append(_money_matches(DEFRecord.cost, record.cost))
+    # NUMERIC(3,2).
+    if "fill_level" in row:
+        key.append(_same_figure(DEFRecord.fill_level, record.fill_level, Decimal("0.01")))
+    if "entry_type" in row:
+        key.append(DEFRecord.entry_type == record.entry_type)
+    return key
 
 
 def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str, Any], int | None]:
@@ -1510,6 +1833,7 @@ async def import_fuel_csv(
     await lock_vehicle_for_write(db, vin)
     # Taken before the first write; see `_converted_value_matches` for why.
     odometer_converted = units.converts(DISTANCE)
+    has_volume = units.column(VOLUME) is not None
     matcher = await _DuplicateMatcher.before_import(db, FuelRecord)
     readings = _ImportReadings()
 
@@ -1547,18 +1871,6 @@ async def import_fuel_csv(
 
             cost = parse_decimal(row.get("Total Cost", "") or row.get("Cost", ""))
             rebate = parse_decimal(row.get("Rebate", ""))
-            _within_api_bounds(
-                FuelRecordCreate,
-                odometer_km=odometer_km,
-                engine_hours=engine_hours,
-                liters=liters,
-                price_per_unit=price_per_unit,
-                cost=cost,
-                rebate=rebate,
-                outside_temp_c=outside_temp_c,
-                obc_l_per_100km=obc_l_per_100km,
-                obc_avg_speed_kmh=obc_avg_speed_kmh,
-            )
             is_full_tank = parse_bool(row.get("Full Tank", "True"))
             missed_fillup = parse_bool(row.get("Missed Fill-up", "False"))
             notes = row.get("Notes", "").strip() or None
@@ -1595,13 +1907,62 @@ async def import_fuel_csv(
             raw_grade = (row.get("Diesel Grade", "") or "").strip()
             diesel_grade = _validate_diesel_grade(raw_grade) if raw_grade else None
 
-            # Check for duplicates if requested
-            if (
-                skip_duplicates
-                and await matcher.take(
-                    db,
-                    FuelRecord,
-                    FuelRecord.vin == vin,
+            # The fourteen columns the export has written since v4 and this
+            # importer dropped (G3a-68). A short row's missing cell is None in
+            # DictReader, hence `or ""` on every text read.
+            filled_at = _local_datetime(row.get("Filled At"), "Filled At")
+            is_hauling = parse_bool(row.get("Is Hauling", "False"))
+            station_id = parse_int(row.get("Station ID", ""))
+            station_cell = unquote_csv_cell((row.get("Station") or "").strip()) or None
+            driver_id = parse_int(row.get("Driver ID", ""))
+            driver_cell = unquote_csv_cell((row.get("Driver") or "").strip()) or None
+            payment_method = _in_vocabulary(
+                _blank_to_none((row.get("Payment Method") or "").strip()),
+                "payment_method",
+                PAYMENT_METHOD_VALUES,
+            )
+            trip_type = _in_vocabulary(
+                _blank_to_none((row.get("Trip Type") or "").strip()), "trip_type", TRIP_TYPE_VALUES
+            )
+            obc_trip_duration_s = _trip_seconds(
+                row.get("OBC Trip Duration (s)", ""), "OBC Trip Duration (s)"
+            )
+            soc_start_pct = parse_decimal(row.get("SOC Start (%)", ""))
+            soc_end_pct = parse_decimal(row.get("SOC End (%)", ""))
+            battery_soh_pct = parse_decimal(row.get("Battery SOH (%)", ""))
+            charge_level = _in_vocabulary(
+                _blank_to_none((row.get("Charge Level") or "").strip()),
+                "charge_level",
+                CHARGE_LEVEL_VALUES,
+            )
+            charge_location = _in_vocabulary(
+                _blank_to_none((row.get("Charge Location") or "").strip()),
+                "charge_location",
+                CHARGE_LOCATION_VALUES,
+            )
+            # After every read, so each figure it names has been read (R1-F1).
+            _within_api_bounds(
+                FuelRecordCreate,
+                odometer_km=odometer_km,
+                engine_hours=engine_hours,
+                liters=liters,
+                price_per_unit=price_per_unit,
+                cost=cost,
+                rebate=rebate,
+                outside_temp_c=outside_temp_c,
+                obc_l_per_100km=obc_l_per_100km,
+                obc_avg_speed_kmh=obc_avg_speed_kmh,
+                soc_start_pct=soc_start_pct,
+                soc_end_pct=soc_end_pct,
+                battery_soh_pct=battery_soh_pct,
+                obc_trip_duration_s=obc_trip_duration_s,
+            )
+
+            # R5's fuel key. The CSV carries no kWh or propane (J7). A part is
+            # compared only when the file has its column (T-16), so two same-day
+            # fill-ups at one odometer both import (R1-H1).
+            if skip_duplicates:
+                key = [
                     FuelRecord.date == date,
                     _odometer_matches(
                         FuelRecord,
@@ -1609,11 +1970,35 @@ async def import_fuel_csv(
                         converted=odometer_converted,
                         last_id_before_import=matcher.last_id(FuelRecord),
                     ),
-                )
-                is not None
-            ):
-                import_result.add_skip()
-                continue
+                ]
+                if "Filled At" in row:
+                    key.append(_matches(FuelRecord.filled_at, filled_at))
+                if has_volume:
+                    key.append(
+                        _converted_value_matches(
+                            FuelRecord.liters,
+                            liters,
+                            LITRE_STEP,
+                            converted=units.converts(VOLUME),
+                            stored_before_import=FuelRecord.id <= matcher.last_id(FuelRecord),
+                        )
+                    )
+                if "Total Cost" in row or "Cost" in row:
+                    key.append(_money_matches(FuelRecord.cost, cost))
+                if await matcher.take(db, FuelRecord, FuelRecord.vin == vin, *key) is not None:
+                    import_result.add_skip()
+                    continue
+
+            # With a Driver ID the Driver cell is the linked user's username (T-5).
+            station_id, station_text, station_dropped = await _portable_station(
+                db, station_id, station_cell
+            )
+            driver_id, driver_text, driver_dropped = await _portable_driver(
+                db,
+                driver_id,
+                username=driver_cell if driver_id is not None else None,
+                freetext=None if driver_id is not None else driver_cell,
+            )
 
             # Create record
             record = FuelRecord(
@@ -1637,6 +2022,20 @@ async def import_fuel_csv(
                 outside_temp_c=outside_temp_c,
                 obc_l_per_100km=obc_l_per_100km,
                 obc_avg_speed_kmh=obc_avg_speed_kmh,
+                filled_at=filled_at,
+                is_hauling=is_hauling,
+                station_address_book_id=station_id,
+                station_name_freetext=station_text,
+                driver_user_id=driver_id,
+                driver_name_freetext=driver_text,
+                payment_method=payment_method,
+                trip_type=trip_type,
+                obc_trip_duration_s=obc_trip_duration_s,
+                soc_start_pct=soc_start_pct,
+                soc_end_pct=soc_end_pct,
+                charge_level=charge_level,
+                charge_location=charge_location,
+                battery_soh_pct=battery_soh_pct,
             )
             # A savepoint per row, flushed inside it so the end-of-import sync
             # has the record's id, and a row the database rejects rolls back
@@ -1652,8 +2051,12 @@ async def import_fuel_csv(
                 engine_hours=record.engine_hours,
             )
             import_result.add_success()
+            if station_dropped:
+                import_result.add_warning(row_num, _STATION_KEPT_AS_TEXT)
+            if driver_dropped:
+                import_result.add_warning(row_num, _DRIVER_KEPT_AS_TEXT)
 
-        except _ImportBoundError as e:
+        except _RowError as e:
             import_result.add_error(row_num, e.reason)
         except Exception as e:
             logger.error("Fuel import row %d failed: %s", row_num, e)
@@ -1688,6 +2091,7 @@ async def import_def_csv(
     await lock_vehicle_for_write(db, vin)
     # Taken before the first write; see `_converted_value_matches` for why.
     odometer_converted = units.converts(DISTANCE)
+    has_volume = units.column(VOLUME) is not None
     matcher = await _DuplicateMatcher.before_import(db, DEFRecord)
     readings = _ImportReadings()
 
@@ -1722,12 +2126,10 @@ async def import_def_csv(
             brand = row.get("Brand", "").strip() or None
             notes = row.get("Notes", "").strip() or None
 
-            if (
-                skip_duplicates
-                and await matcher.take(
-                    db,
-                    DEFRecord,
-                    DEFRecord.vin == vin,
+            # R5's DEF key, each part only when the file has its column (T-16).
+            # The CSV has no entry type.
+            if skip_duplicates:
+                key = [
                     DEFRecord.date == date,
                     _odometer_matches(
                         DEFRecord,
@@ -1735,11 +2137,25 @@ async def import_def_csv(
                         converted=odometer_converted,
                         last_id_before_import=matcher.last_id(DEFRecord),
                     ),
-                )
-                is not None
-            ):
-                import_result.add_skip()
-                continue
+                ]
+                if has_volume:
+                    key.append(
+                        _converted_value_matches(
+                            DEFRecord.liters,
+                            liters,
+                            LITRE_STEP,
+                            converted=units.converts(VOLUME),
+                            stored_before_import=DEFRecord.id <= matcher.last_id(DEFRecord),
+                        )
+                    )
+                if "Total Cost" in row or "Cost" in row:
+                    key.append(_money_matches(DEFRecord.cost, cost))
+                if "Fill Level" in row:
+                    # NUMERIC(3,2).
+                    key.append(_same_figure(DEFRecord.fill_level, fill_level, Decimal("0.01")))
+                if await matcher.take(db, DEFRecord, DEFRecord.vin == vin, *key) is not None:
+                    import_result.add_skip()
+                    continue
 
             record = DEFRecord(
                 vin=vin,
@@ -2615,48 +3031,31 @@ async def import_vehicle_json(
             logger.warning("Import: service visit %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Service visit {idx}: could not be imported")
 
-    # Import fuel records
+    # Import fuel records. Every column the export writes is read back (R2); a
+    # v<=8 row lacks the newer keys, which read as None or the model default.
     for idx, record_data in enumerate(sections["fuel_records"]):
         try:
             date = _json_row_date(record_data)
-
             # v3 uses "odometer_km"/"liters"; legacy v2 uses "mileage"/"gallons"
-            # in imperial — convert via the helpers above.
-            imported_odometer_km = _maybe_mi_to_km(
-                record_data.get("odometer_km") or record_data.get("mileage")
+            # in imperial, converted by the helpers above. A 0 is a figure.
+            record = _fuel_record_from_json(
+                vin,
+                date,
+                record_data,
+                idx=idx,
+                odometer_km=_maybe_mi_to_km(_first_present(record_data, "odometer_km", "mileage")),
+                liters=_maybe_gal_to_l(_first_present(record_data, "liters", "gallons")),
+                price_per_unit=_maybe_per_gal_to_per_l(record_data.get("price_per_unit")),
             )
-            imported_liters = _maybe_gal_to_l(
-                record_data.get("liters") or record_data.get("gallons")
+            # The links are checked against this instance after the duplicate
+            # check; the station's name is the resolved one a v9 export writes.
+            station_id = _json_int(record_data, "station_address_book_id")
+            station_name = _json_text(record_data, "station_name") or _json_text(
+                record_data, "station_name_freetext"
             )
-            imported_ppu = _maybe_per_gal_to_per_l(record_data.get("price_per_unit"))
-            imported_cost = Decimal(str(record_data["cost"])) if record_data.get("cost") else None
-            imported_rebate = (
-                Decimal(str(record_data["rebate"])) if record_data.get("rebate") else None
-            )
-            _within_api_bounds(
-                FuelRecordCreate,
-                odometer_km=imported_odometer_km,
-                liters=imported_liters,
-                price_per_unit=imported_ppu,
-                cost=imported_cost,
-                rebate=imported_rebate,
-            )
-            imported_basis = _in_vocabulary(
-                record_data.get("price_basis"), "price_basis", PRICE_BASIS_VALUES
-            )
-
-            # The export has always written fuel_type_used and is_hauling but
-            # this constructor silently dropped both, so a restored backup
-            # lost them. Same locale-tolerant normalization as the CSV path.
-            raw_fuel_type = (record_data.get("fuel_type_used") or "").strip() or None
-            normalized_fuel_type = normalize_fuel_type(raw_fuel_type)
-            if raw_fuel_type and normalized_fuel_type is None:
-                logger.warning(
-                    "Fuel import record %s: unrecognized fuel type %r → 'other'",
-                    idx,
-                    raw_fuel_type,
-                )
-                normalized_fuel_type = FuelTypeEnum.OTHER
+            driver_id = _json_int(record_data, "driver_user_id")
+            driver_username = _json_text(record_data, "driver_username")
+            driver_freetext = _json_text(record_data, "driver_name_freetext")
 
             if (
                 skip_duplicates
@@ -2664,12 +3063,11 @@ async def import_vehicle_json(
                     db,
                     FuelRecord,
                     FuelRecord.vin == vin,
-                    FuelRecord.date == date,
-                    _odometer_matches(
-                        FuelRecord,
-                        imported_odometer_km,
+                    *_json_fuel_key(
+                        record_data,
+                        record,
                         converted=is_legacy_v2,
-                        last_id_before_import=matcher.last_id(FuelRecord),
+                        last_id=matcher.last_id(FuelRecord),
                     ),
                 )
                 is not None
@@ -2677,31 +3075,16 @@ async def import_vehicle_json(
                 results["fuel_records"]["skipped"] += 1
                 continue
 
-            record = FuelRecord(
-                vin=vin,
-                date=date,
-                odometer_km=imported_odometer_km,
-                liters=imported_liters,
-                price_per_unit=imported_ppu,
-                price_basis=(
-                    imported_basis or _derive_price_basis(imported_ppu, liters=imported_liters)
-                ),
-                cost=imported_cost,
-                rebate=imported_rebate,
-                is_full_tank=record_data.get("is_full_tank", True),
-                missed_fillup=record_data.get("missed_fillup", False),
-                is_hauling=record_data.get("is_hauling", False),
-                fuel_type_used=(
-                    normalized_fuel_type.value if normalized_fuel_type is not None else None
-                ),
-                # #164 — direct ORM construction bypasses Pydantic, so the
-                # shared validators run here per-row (R1-M2). _coerce_octane
-                # rejects a fractional value instead of silently truncating it
-                # the way a bare int() would (91.9 -> 91; codex review R1-M1).
-                octane=_validate_octane(_coerce_octane(record_data.get("octane"))),
-                diesel_grade=_validate_diesel_grade(record_data.get("diesel_grade")),
-                notes=record_data.get("notes"),
-            )
+            (
+                record.station_address_book_id,
+                record.station_name_freetext,
+                station_dropped,
+            ) = await _portable_station(db, station_id, station_name)
+            (
+                record.driver_user_id,
+                record.driver_name_freetext,
+                driver_dropped,
+            ) = await _portable_driver(db, driver_id, driver_username, driver_freetext)
             # A savepoint per row, flushed inside it so the end-of-import sync
             # has the record's id, and a row the database rejects rolls back
             # alone instead of failing the whole upload at the final commit.
@@ -2716,6 +3099,10 @@ async def import_vehicle_json(
                 engine_hours=record.engine_hours,
             )
             results["fuel_records"]["success"] += 1
+            if station_dropped:
+                warnings.append(f"Fuel record {idx}: {_STATION_KEPT_AS_TEXT}")
+            if driver_dropped:
+                warnings.append(f"Fuel record {idx}: {_DRIVER_KEPT_AS_TEXT}")
         except _RowError as e:
             results["fuel_records"]["errors"] += 1
             errors.append(f"Fuel record {idx}: {e.reason}")
@@ -2735,26 +3122,15 @@ async def import_vehicle_json(
     for idx, record_data in enumerate(sections["def_records"]):
         try:
             date = _json_row_date(record_data)
-
             # v3 uses "odometer_km"/"liters"; legacy v2 uses "mileage"/"gallons".
-            imported_odometer_km = _maybe_mi_to_km(
-                record_data.get("odometer_km") or record_data.get("mileage")
-            )
-            imported_liters = _maybe_gal_to_l(
-                record_data.get("liters") or record_data.get("gallons")
-            )
-            imported_ppu = _maybe_per_gal_to_per_l(record_data.get("price_per_unit"))
-            imported_cost = Decimal(str(record_data["cost"])) if record_data.get("cost") else None
-            imported_fill_level = (
-                Decimal(str(record_data["fill_level"])) if record_data.get("fill_level") else None
-            )
-            _within_api_bounds(
-                DEFRecordCreate,
-                odometer_km=imported_odometer_km,
-                liters=imported_liters,
-                price_per_unit=imported_ppu,
-                cost=imported_cost,
-                fill_level=imported_fill_level,
+            # A 0 is a figure (G3a-75).
+            record = _def_record_from_json(
+                vin,
+                date,
+                record_data,
+                odometer_km=_maybe_mi_to_km(_first_present(record_data, "odometer_km", "mileage")),
+                liters=_maybe_gal_to_l(_first_present(record_data, "liters", "gallons")),
+                price_per_unit=_maybe_per_gal_to_per_l(record_data.get("price_per_unit")),
             )
 
             if (
@@ -2763,12 +3139,11 @@ async def import_vehicle_json(
                     db,
                     DEFRecord,
                     DEFRecord.vin == vin,
-                    DEFRecord.date == date,
-                    _odometer_matches(
-                        DEFRecord,
-                        imported_odometer_km,
+                    *_json_def_key(
+                        record_data,
+                        record,
                         converted=is_legacy_v2,
-                        last_id_before_import=matcher.last_id(DEFRecord),
+                        last_id=matcher.last_id(DEFRecord),
                     ),
                 )
                 is not None
@@ -2776,20 +3151,6 @@ async def import_vehicle_json(
                 results["def_records"]["skipped"] += 1
                 continue
 
-            # No price_basis here: DEF is volume-only, has no such column, and
-            # the UI passes 'per_volume' as a literal when displaying it.
-            record = DEFRecord(
-                vin=vin,
-                date=date,
-                odometer_km=imported_odometer_km,
-                liters=imported_liters,
-                price_per_unit=imported_ppu,
-                cost=imported_cost,
-                fill_level=imported_fill_level,
-                source=record_data.get("source"),
-                brand=record_data.get("brand"),
-                notes=record_data.get("notes"),
-            )
             # A savepoint per row, flushed inside it so the end-of-import sync
             # has the record's id, and a row the database rejects rolls back
             # alone instead of failing the whole upload at the final commit.

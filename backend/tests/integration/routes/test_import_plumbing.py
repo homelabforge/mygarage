@@ -677,7 +677,7 @@ async def test_a_reimport_matches_readings_and_amounts_stored_past_their_scale(
         0,
         1,
     ), data
-    # A guard until Task 3 puts the cost in the fuel key, then its band's test.
+    # The cost is in the fuel key (Task 3), so this is its band's test too.
     assert (data["fuel_records"]["success_count"], data["fuel_records"]["skipped_count"]) == (
         0,
         1,
