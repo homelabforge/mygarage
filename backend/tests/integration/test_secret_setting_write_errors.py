@@ -5,6 +5,9 @@
   refuses a secret write. The HTTP routes answer 503 with a detail naming the
   fix; the in-process writers raise `SettingsKeyUnavailable`. Either way the
   stored row is unchanged and holds no plaintext.
+- R1-H1: a key pasted into MYGARAGE_SETTINGS_KEY_FILE is in no log line, no
+  exception and no 503 body, even when it starts with "/" and so looks like an
+  absolute path.
 - R2-9: a secret given a value that already starts with `enc:v1:` is a 422 on
   every writer, naming the key and never echoing the value. The generic
   settings routes refuse it up front; the others reach the model's
@@ -14,13 +17,18 @@
 The raw column is read with plain SQL through a fresh session.
 """
 
+import base64
+import hashlib
+import logging
+import os
 from collections.abc import Callable, Iterator
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import settings
 from app.models.settings import Setting, SettingCiphertextValue
@@ -179,6 +187,80 @@ async def test_a_secret_write_without_a_keyring_is_a_503(
     response = await _put(client, auth_headers, "ntfy_topic", "After")
     assert response.status_code == 200, response.text
     assert await raw_column(test_sessionmaker, "ntfy_topic") == "After"
+
+
+def _runs(text: str, length: int = 16) -> set[str]:
+    """Every `length`-character run of `text`: a partial echo shows up as one of them."""
+    return {text[i : i + length] for i in range(len(text) - length + 1)}
+
+
+async def test_a_key_pasted_into_the_file_variable_is_never_echoed(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    keep_rows: Keep,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path,
+) -> None:
+    """R1-H1: a standard-base64 key that starts with "/" looks like an absolute path.
+
+    Pasted into MYGARAGE_SETTINGS_KEY_FILE by mistake, it was named as the source,
+    so the whole key reached the ERROR log, the exception and the 503 detail. The
+    source is the variable's name now, never its value. And nothing falls back:
+    the data dir holds a valid key file, and it is not used.
+    """
+    raw = b"\xfc" + hashlib.sha256(b"r1-h1 pasted key").digest()[1:]
+    pasted = base64.b64encode(raw).decode()
+    assert len(raw) == 32 and pasted.startswith("/") and pasted.endswith("=")
+    runs = _runs(pasted)
+
+    key = "gotify_token"
+    await keep_rows(key)
+    before = encrypt(key, BEFORE)
+    await _seed_raw(db_session, key, before)
+
+    # A key a fallback would load. Set by hand, after `client` set its own data dir.
+    fallback_dir = tmp_path / "data"
+    fallback_dir.mkdir()
+    fallback_key = fallback_dir / settings_crypto.KEY_FILE_NAME
+    fallback_key.write_text(base64.urlsafe_b64encode(os.urandom(32)).decode() + "\n")
+    original_data_dir = settings.data_dir
+    settings.data_dir = fallback_dir
+    try:
+        monkeypatch.delenv(settings_crypto.ENV_KEY, raising=False)
+        monkeypatch.setenv(settings_crypto.ENV_KEY_FILE, pasted)
+        settings_crypto._reset_keyring_for_tests()  # pyright: ignore[reportPrivateUsage]
+
+        with caplog.at_level(logging.DEBUG):
+            response = await _put(client, auth_headers, key, PLAIN)
+            with pytest.raises(SettingsKeyUnavailable) as excinfo:
+                encrypt(key, PLAIN)
+            kid = settings_crypto.current_kid()
+    finally:
+        settings.data_dir = original_data_dir
+        settings_crypto._reset_keyring_for_tests()  # pyright: ignore[reportPrivateUsage]
+
+    assert response.status_code == 503, response.text
+    exposed = {
+        "503 body": response.text,
+        "str(exception)": str(excinfo.value),
+        "exception.source": excinfo.value.source,
+        "exception.reason": excinfo.value.reason,
+        "log text": caplog.text,
+        **{f"log record {i}": r.getMessage() for i, r in enumerate(caplog.records)},
+    }
+    assert any(r.levelno == logging.ERROR for r in caplog.records), "the unavailable ERROR"
+    for where, text in exposed.items():
+        assert pasted not in text, where
+        assert not [run for run in runs if run in text], where
+
+    assert settings_crypto.ENV_KEY_FILE in response.json()["detail"]
+    assert excinfo.value.source == settings_crypto.ENV_KEY_FILE
+    assert kid is None
+    assert fallback_key.exists()
+    assert await raw_column(test_sessionmaker, key) == before
 
 
 async def _service_set(db: AsyncSession, key: str, value: str) -> None:

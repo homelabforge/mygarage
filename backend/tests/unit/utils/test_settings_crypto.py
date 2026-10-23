@@ -335,16 +335,33 @@ class TestNoFallthrough:
         assert current_kid() is None
         assert not (data_dir / "settings.key").exists()
 
-    def test_an_absolute_key_file_path_is_named(
-        self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, tmp_path: Path
+    def test_an_absolute_key_file_path_is_not_echoed_either(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        data_dir: Path,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        missing = tmp_path / "missing"
+        """R1-H1: a standard-base64 key can start with "/", so no value of _FILE is named.
+
+        The source is the variable's name, in the exception, the ERROR and the
+        INFO line of a key file that loads.
+        """
+        missing = tmp_path / "missing-d41c9e"
         monkeypatch.setenv(ENV_KEY_FILE, str(missing))
 
-        with pytest.raises(SettingsKeyUnavailable) as excinfo:
-            encrypt("llm_api_key", "x")
+        with caplog.at_level(logging.DEBUG, logger=LOGGER):
+            with pytest.raises(SettingsKeyUnavailable) as excinfo:
+                encrypt("llm_api_key", "x")
+            missing.write_text(_new_key()[0])
+            assert current_kid() is not None
 
-        assert str(missing) in excinfo.value.source
+        assert excinfo.value.source == ENV_KEY_FILE
+        assert "does not exist" in excinfo.value.reason
+        assert ENV_KEY_FILE in str(excinfo.value)
+        assert "missing-d41c9e" not in str(excinfo.value)
+        assert "missing-d41c9e" not in caplog.text
+        assert ENV_KEY_FILE in caplog.text
 
     def test_a_missing_key_file_path_does_not_fall_through_or_generate(
         self, monkeypatch: pytest.MonkeyPatch, data_dir: Path, tmp_path: Path

@@ -22,7 +22,8 @@ Keyring sources, in order; the first one present wins, even when it is broken:
 
 1. ``MYGARAGE_SETTINGS_KEY``: the keys themselves.
 2. ``MYGARAGE_SETTINGS_KEY_FILE``: an absolute path to a file holding them
-   (Docker secrets). A relative value is refused, and never echoed.
+   (Docker secrets). A relative value is refused. Its value is never echoed,
+   absolute or not: logs and errors name the variable instead.
 3. ``settings.data_dir / "settings.key"``: generated on first use when neither
    env var is set and the file doesn't exist.
 
@@ -97,7 +98,8 @@ class SettingsKeyUnavailable(Exception):  # noqa: N818 - the name the plan and l
     (the full-backup route) must not turn it into a 500.
 
     Attributes:
-        source: The key source that was tried (an env var name or a file path).
+        source: The key source that was tried: an env var's name (never its
+            value), or the data dir's key file path, which comes from app config.
         reason: Why it isn't usable. Never contains key material.
     """
 
@@ -258,13 +260,14 @@ def _load() -> _Keyring | _Unavailable:
 
     file_value = os.environ.get(ENV_KEY_FILE, "").strip()
     if file_value:
+        # The source is the variable's name, never its value (R1-H1). A key pasted here
+        # instead of into MYGARAGE_SETTINGS_KEY is the likely mistake, and a key in
+        # standard base64 can start with "/", so not even an absolute-looking value is
+        # safe to name in a log, an exception or a 503.
         file_path = Path(file_value)
         if not file_path.is_absolute():
-            # Never echo it: a key pasted here instead of into MYGARAGE_SETTINGS_KEY is
-            # the likely mistake, and base64url never contains "/", so an absolute path
-            # is the only form that is safe to name in a log or a 503.
             return _Unavailable(ENV_KEY_FILE, "it is not an absolute path")
-        return _read_key_file(f"{ENV_KEY_FILE} ({file_value})", file_path)
+        return _read_key_file(ENV_KEY_FILE, file_path)
 
     path = settings.data_dir / KEY_FILE_NAME
     source = str(path)
