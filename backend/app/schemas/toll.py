@@ -23,12 +23,12 @@ _TOLL_SYSTEM_ALIASES = {
 }
 
 
-def _tidy_toll_system(value: Any) -> Any:
+def tidy_toll_system_name(value: Any) -> Any:
     """Trim and collapse whitespace so the length checks see the real name."""
     return " ".join(value.split()) if isinstance(value, str) else value
 
 
-def _normalize_toll_system(value: str) -> str:
+def normalize_toll_system_name(value: str) -> str:
     """Map a known spelling to the listed name, e.g. "eztag" to "EZ TAG"."""
     return _TOLL_SYSTEM_ALIASES.get(value.lower(), value)
 
@@ -45,7 +45,7 @@ class TollTagBase(BaseModel):
     @classmethod
     def validate_toll_system(cls, v: str) -> str:
         """Normalize common toll system spellings. Runs on reads too, so it never rejects."""
-        return _normalize_toll_system(v)
+        return normalize_toll_system_name(v)
 
 
 class TollTagCreate(TollTagBase):
@@ -59,7 +59,7 @@ class TollTagCreate(TollTagBase):
     @classmethod
     def tidy_toll_system(cls, v: Any) -> Any:
         """Trim and collapse whitespace before min_length runs."""
-        return _tidy_toll_system(v)
+        return tidy_toll_system_name(v)
 
     # Here and not on the base: the status column has no CHECK, and the
     # response shares the base, so a stored "lost" would 500 the tag list.
@@ -106,13 +106,13 @@ class TollTagUpdate(BaseModel):
     @classmethod
     def tidy_toll_system(cls, v: Any) -> Any:
         """Trim and collapse whitespace before min_length runs. None passes through to reject_null."""
-        return _tidy_toll_system(v)
+        return tidy_toll_system_name(v)
 
     @field_validator("toll_system")
     @classmethod
     def normalize_toll_system(cls, v: str | None) -> str | None:
         """Same spellings create normalizes."""
-        return None if v is None else _normalize_toll_system(v)
+        return None if v is None else normalize_toll_system_name(v)
 
     @field_validator("status")
     @classmethod

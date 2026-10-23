@@ -711,11 +711,6 @@ _ROW_ERRORS = [
         "Bumper-to-Bumper, Emissions, Corrosion, Other",
     ),
     (
-        "warranties",
-        {"warranty_type": "Other", "start_date": "2026-01-01", "policy_number": "p" * 51},
-        "Warranty 0: policy_number must be at most 50 characters",
-    ),
-    (
         "spot_rentals",
         {"check_in_date": "2026-01-01", "billings": {}},
         "Spot rental 0: billings must be a list",
@@ -757,3 +752,100 @@ async def test_a_value_the_column_cannot_hold_is_a_row_error(
     data = await _post_json(client, auth_headers, vin, payload)
     # main: KeyError, the section isn't read
     assert (data[section]["error_count"], data["errors"]) == (1, [error]), data
+
+
+# -- Fix round 1 -----------------------------------------------------------------
+
+
+async def test_a_tag_stored_under_a_typed_spelling_matches_its_own_backup(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """The tag update path stored "ezpass" as typed before it normalized; no migration
+    renamed it. The export writes it as stored and the import reads it as "E-ZPass", so
+    both sides are compared under the listed name."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSECTIONEZP001")
+    tag = TollTag(vin=vin, toll_system="ezpass", tag_number="B3RAWEZ1", status="active")
+    db_session.add(tag)
+    await db_session.flush()
+    db_session.add(
+        TollTransaction(
+            vin=vin,
+            toll_tag_id=tag.id,
+            date=date(2026, 3, 9),
+            amount=Decimal("3.00"),
+            location="I-95",
+        )
+    )
+    await db_session.commit()
+    exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    assert exported.json()["toll_tags"][0]["toll_system"] == "ezpass"
+
+    data = await _post_json(client, auth_headers, vin, exported.json())
+    # caaaac47: (1, 0) and (1, 0), a second tag and its toll written again
+    assert [
+        (data[s]["success_count"], data[s]["skipped_count"])
+        for s in ("toll_tags", "toll_transactions")
+    ] == [(0, 1), (0, 1)], data
+    restored = await _restored(test_sessionmaker, vin)
+    assert restored["tags"] == [("ezpass", "B3RAWEZ1", "active", None)]
+    assert len(restored["tolls"]) == 1
+
+
+async def test_a_warranty_past_its_column_but_not_the_api_restores(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """WarrantyRecordCreate bounds neither provider nor policy number, and SQLite keeps
+    a value past the String column, so a backup must restore what the API stored (R2)."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSECTIONWLONG1")
+    payload = {
+        "export_version": "9",
+        "units": "metric",
+        "warranties": [
+            {
+                "warranty_type": "Other",
+                "start_date": "2026-01-01",
+                "provider": "p" * 101,
+                "policy_number": "n" * 51,
+            }
+        ],
+    }
+    data = await _post_json(client, auth_headers, vin, payload)
+    # caaaac47: a row error, "provider must be at most 100 characters"
+    assert (data["warranties"]["success_count"], data["errors"]) == (1, []), data
+    restored = await _restored(test_sessionmaker, vin)
+    assert [(w[1], w[6]) for w in restored["warranties"]] == [("p" * 101, "n" * 51)]
+
+
+async def test_a_rental_with_no_billings_key_writes_no_bills_and_keys_without_them(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """T-16: an absent `billings` key is no bills to write and no bills to compare; a
+    present one that isn't a list is still a row error (test_a_value_the_column_...)."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSECTIONNOBIL1")
+    rental = SpotRental(vin=vin, location_name="B3 Billed Park", check_in_date=date(2026, 7, 1))
+    db_session.add(rental)
+    await db_session.flush()
+    db_session.add(
+        SpotRentalBilling(
+            spot_rental_id=rental.id, billing_date=date(2026, 7, 5), total=Decimal("90.00")
+        )
+    )
+    await db_session.commit()
+    payload = {
+        "export_version": "9",
+        "units": "metric",
+        "spot_rentals": [
+            {"location_name": "B3 Billed Park", "check_in_date": "2026-07-01"},
+            {"location_name": "B3 Bare Park", "check_in_date": "2026-08-01"},
+        ],
+    }
+    data = await _post_json(client, auth_headers, vin, payload)
+    # caaaac47: two row errors, "billings must be a list"
+    rentals = data["spot_rentals"]
+    assert (rentals["success_count"], rentals["skipped_count"], data["errors"]) == (1, 1, []), data
+    restored = await _restored(test_sessionmaker, vin)
+    assert sorted((r[0], len(r[13])) for r in restored["rentals"]) == [
+        ("B3 Bare Park", 0),
+        ("B3 Billed Park", 1),
+    ]

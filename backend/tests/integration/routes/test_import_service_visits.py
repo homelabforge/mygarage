@@ -608,6 +608,12 @@ _CATEGORY_WORDS = "Maintenance, Inspection, Collision, Upgrades, Detailing"
         pytest.param(
             {"vendor_name": 7, "line_items": []}, "vendor_name must be text", id="vendor-not-text"
         ),
+        # VendorCreate's bound, the same one the financing lender is held to.
+        pytest.param(
+            {"vendor_name": "v" * 101, "line_items": []},
+            "vendor_name must be at most 100 characters",
+            id="vendor-past-its-bound",
+        ),
         pytest.param(
             {
                 "tax_amount": 1.0,

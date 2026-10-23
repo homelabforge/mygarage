@@ -108,7 +108,11 @@ from app.schemas.service_visit import (
 from app.schemas.spot_rental import SpotRentalCreate
 from app.schemas.spot_rental_billing import SpotRentalBillingCreate
 from app.schemas.tax import TaxRecordCreate, TaxType
-from app.schemas.toll import TollTransactionCreate, _normalize_toll_system, _tidy_toll_system
+from app.schemas.toll import (
+    TollTransactionCreate,
+    normalize_toll_system_name,
+    tidy_toll_system_name,
+)
 from app.schemas.warranty import WarrantyRecordCreate
 from app.services import maintenance_service
 from app.services.auth import get_vehicle_or_403, require_auth
@@ -764,6 +768,11 @@ def _json_text(row: Mapping[str, Any], key: str, *, max_length: int | None = Non
     value = _blank_to_none(row.get(key))
     if value is not None and not isinstance(value, str):
         raise _RowError(f"{key} must be text")
+    return _within_length(value, key, max_length)
+
+
+def _within_length(value: str | None, key: str, max_length: int | None) -> str | None:
+    """The text, or a row error past the Create schema's `max_length`."""
     if value is not None and max_length is not None and len(value) > max_length:
         raise _RowError(f"{key} must be at most {max_length} characters")
     return value
@@ -1179,12 +1188,16 @@ def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str
     return columns, link
 
 
-def _json_amount(row: Mapping[str, Any], schema: type[BaseModel]) -> Decimal:
-    """A row's required `amount`, held to `schema`'s bounds."""
+def _json_amount(row: Mapping[str, Any]) -> Decimal:
+    """A row's required `amount`; a missing one is a row error.
+
+    Each caller names its schema to `_within_api_bounds` itself, so
+    test_money_input_bounds reads the call from the source and checks that
+    schema's bounds.
+    """
     amount = _json_decimal(row, "amount")
     if amount is None:
         raise _RowError("amount is missing")
-    _within_api_bounds(schema, amount=amount)
     return amount
 
 
@@ -1195,7 +1208,8 @@ def _financing_record_from_json(vin: str, row: Mapping[str, Any]) -> FinancingRe
     row's savepoint (R6).
     """
     date = _json_row_date(row)
-    amount = _json_amount(row, FinancingRecordCreate)
+    amount = _json_amount(row)
+    _within_api_bounds(FinancingRecordCreate, amount=amount)
     category = _in_vocabulary(
         _blank_to_none(row.get("category")), "category", _FINANCING_CATEGORIES
     )
@@ -1219,7 +1233,8 @@ def _tax_record_from_json(vin: str, row: Mapping[str, Any]) -> TaxRecord:
     """A v9 tax row as an unsaved record. No type is allowed: NULL passes the CHECK."""
     date = _json_row_date(row)
     tax_type = _in_vocabulary(_blank_to_none(row.get("tax_type")), "tax_type", _TAX_TYPES)
-    amount = _json_amount(row, TaxRecordCreate)
+    amount = _json_amount(row)
+    _within_api_bounds(TaxRecordCreate, amount=amount)
     return TaxRecord(
         vin=vin,
         date=date,
@@ -1243,25 +1258,33 @@ def _json_tax_key(row: Mapping[str, Any], record: TaxRecord) -> list[ColumnEleme
     return key
 
 
+def _toll_system_name(raw: str) -> str:
+    """A toll system under its listed name: the create schema's tidy, then its alias map.
+
+    A stored name goes through it too: the update path kept "ezpass" as typed
+    until it normalized, and no migration renamed the rows, so a stored and a
+    file name compare only once both are listed names.
+    """
+    return normalize_toll_system_name(tidy_toll_system_name(raw))
+
+
 def _toll_tag_from_json(vin: str, row: Mapping[str, Any]) -> TollTag:
     """A v9 toll tag as an unsaved record, its system named as the create schema names it.
 
-    The schema's two steps in its order: tidy the whitespace, hold the length,
+    The schema's steps in its order: tidy the whitespace, hold the length,
     then map a spelling people type to the listed name (schemas/toll.py).
     """
     raw_system = _json_text(row, "toll_system")
     if raw_system is None:
         raise _RowError("toll_system is missing")
-    tidied = _tidy_toll_system(raw_system)
-    if len(tidied) > 50:
-        raise _RowError("toll_system must be at most 50 characters")
+    _within_length(tidy_toll_system_name(raw_system), "toll_system", 50)
     tag_number = _json_text(row, "tag_number", max_length=50)
     if tag_number is None:
         raise _RowError("tag_number is missing")
     status = _in_vocabulary(_blank_to_none(row.get("status")), "status", _TOLL_TAG_STATUSES)
     return TollTag(
         vin=vin,
-        toll_system=_normalize_toll_system(tidied),
+        toll_system=_toll_system_name(raw_system),
         tag_number=tag_number,
         status=status or "active",
         notes=_json_text(row, "notes"),
@@ -1269,8 +1292,8 @@ def _toll_tag_from_json(vin: str, row: Mapping[str, Any]) -> TollTag:
 
 
 def _toll_tag_key(tag: TollTag | None) -> tuple[str, str] | None:
-    """A tag as a transaction's key names it: its system and number, None for no tag."""
-    return (tag.toll_system, tag.tag_number) if tag is not None else None
+    """A tag as a transaction's key names it: its listed system and number, None for no tag."""
+    return (_toll_system_name(tag.toll_system), tag.tag_number) if tag is not None else None
 
 
 def _toll_transaction_from_json(
@@ -1278,7 +1301,8 @@ def _toll_transaction_from_json(
 ) -> tuple[TollTransaction, int | None]:
     """A v9 toll as an unsaved record, and the index of its tag in the file's toll_tags."""
     date = _json_row_date(row)
-    amount = _json_amount(row, TollTransactionCreate)
+    amount = _json_amount(row)
+    _within_api_bounds(TollTransactionCreate, amount=amount)
     location = _json_text(row, "location", max_length=200)
     if location is None:
         raise _RowError("location is missing")
@@ -1314,12 +1338,12 @@ def _warranty_from_json(vin: str, row: Mapping[str, Any]) -> WarrantyRecord:
     return WarrantyRecord(
         vin=vin,
         warranty_type=warranty_type,
-        provider=_json_text(row, "provider", max_length=100),
+        provider=_json_text(row, "provider"),
         start_date=start_date,
         end_date=_json_optional_date(row, "end_date"),
         mileage_limit_km=mileage_limit_km,
         coverage_details=_json_text(row, "coverage_details"),
-        policy_number=_json_text(row, "policy_number", max_length=50),
+        policy_number=_json_text(row, "policy_number"),
         notes=_json_text(row, "notes"),
     )
 
@@ -1419,7 +1443,8 @@ def _spot_rental_from_json(
         total_cost=total_cost,
     )
     location_name = _json_text(row, "location_name", max_length=100)
-    raw_bills = row.get("billings")
+    # An absent key is no bills (T-16); the caller then leaves them out of the key.
+    raw_bills = row.get("billings", [])
     if not isinstance(raw_bills, list):
         raise _RowError("billings must be a list")
     bills = [
@@ -3369,7 +3394,8 @@ async def import_vehicle_json(
             total_cost = _visit_total(
                 (columns["cost"] for columns, _link in items), tax_amount, shop_supplies, misc_fees
             )
-            vendor_name = _json_text(visit_data, "vendor_name")
+            # VendorCreate's bound, as the financing lender's.
+            vendor_name = _json_text(visit_data, "vendor_name", max_length=100)
             insurance_claim_number = _json_text(visit_data, "insurance_claim_number")
             notes = _json_text(visit_data, "notes")
 
@@ -3969,20 +3995,22 @@ async def import_vehicle_json(
     for idx, row in enumerate(sections["toll_tags"]):
         try:
             tag = _toll_tag_from_json(vin, row)
+            # The system is compared under its listed name on the loaded rows,
+            # since a stored one may still be spelled as typed.
             stored = (
                 await matcher.take(
                     db,
                     TollTag,
                     TollTag.vin == vin,
-                    TollTag.toll_system == tag.toll_system,
                     TollTag.tag_number == tag.tag_number,
+                    same=lambda t: _toll_system_name(t.toll_system) == tag.toll_system,
                 )
                 if skip_duplicates
                 else None
             )
             if stored is not None:
                 tag_ids[idx] = stored.id
-                tag_keys[idx] = (stored.toll_system, stored.tag_number)
+                tag_keys[idx] = (tag.toll_system, tag.tag_number)
                 results["toll_tags"]["skipped"] += 1
                 continue
 
@@ -4001,7 +4029,8 @@ async def import_vehicle_json(
             errors.append(f"Toll tag {idx}: could not be imported")
 
     # Import toll transactions. Two same-day charges at one plaza are two rows,
-    # and a re-import matches each to one stored charge (R1-H1).
+    # and a re-import matches each to one stored charge (R1-H1). A null
+    # toll_tag_index is untagged; an absent key matches a toll with any tag (T-16).
     for idx, row in enumerate(sections["toll_transactions"]):
         try:
             record, tag_index = _toll_transaction_from_json(vin, row, len(sections["toll_tags"]))
@@ -4080,8 +4109,15 @@ async def import_vehicle_json(
                     SpotRental.vin == vin,
                     *_json_spot_rental_key(row, rental),
                     options=(selectinload(SpotRental.billings),),
-                    same=lambda r: (
-                        _bill_counts((b.billing_date, b.total) for b in r.billings) == bill_counts
+                    same=(
+                        (
+                            lambda r: (
+                                _bill_counts((b.billing_date, b.total) for b in r.billings)
+                                == bill_counts
+                            )
+                        )
+                        if "billings" in row
+                        else None
                     ),
                 )
                 is not None
