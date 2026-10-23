@@ -20,18 +20,14 @@ sweep is the backstop for exactly those rows. Every keyring here is an isolated
 test key in MYGARAGE_SETTINGS_KEY, reset before and after.
 """
 
-import base64
-import hashlib
 import logging
-import os
 import sqlite3
-from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import bindparam, delete, event, text
+from sqlalchemy import bindparam, event, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -46,13 +42,17 @@ from app.services.settings_secrets import SweepReport, encrypt_secret_rows, swee
 from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 from app.utils.settings_crypto import (
     CIPHERTEXT_PREFIX,
-    ENV_KEY,
-    ENV_KEY_FILE,
-    _reset_keyring_for_tests,  # pyright: ignore[reportPrivateUsage] - the suite's reset hook
-    current_kid,
     encrypt,
 )
-from tests.integration._secret_helpers import Keep, raw_column, read_back, unreadable_ciphertext
+from tests.integration._secret_helpers import (
+    Keep,
+    UseKeys,
+    keyring_entry,
+    only_these_secret_rows,
+    raw_column,
+    read_back,
+    unreadable_ciphertext,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -63,58 +63,9 @@ OLD_LLM = "llm-key-under-the-old-key-77d0"
 CURRENT_GOTIFY = "gotify-under-the-current-key-1f3b"
 
 
-def _entry(seed: bytes) -> str:
-    """A keyring entry: base64url over 32 bytes."""
-    return base64.urlsafe_b64encode(hashlib.sha256(seed).digest()).rstrip(b"=").decode()
-
-
-KEY_A = _entry(b"sweep test key A")
-KEY_B = _entry(b"sweep test key B")
-KEY_C = _entry(b"sweep test key C")
-
-UseKeys = Callable[..., str | None]
-
-
-@pytest.fixture
-def use_keys() -> Iterator[UseKeys]:
-    """Call it with keyring entries (first is current); returns the current kid.
-
-    The environment is put back by hand and the keyring reset after it, so the
-    next test loads the suite's own key, not one of these.
-    """
-    saved = {name: os.environ.get(name) for name in (ENV_KEY, ENV_KEY_FILE)}
-
-    def use(*entries: str) -> str | None:
-        os.environ.pop(ENV_KEY_FILE, None)
-        os.environ[ENV_KEY] = ",".join(entries)
-        _reset_keyring_for_tests()
-        return current_kid()
-
-    yield use
-    for name, value in saved.items():
-        if value is None:
-            os.environ.pop(name, None)
-        else:
-            os.environ[name] = value
-    _reset_keyring_for_tests()
-
-
-async def _insert_raw(db: AsyncSession, rows: dict[str, str]) -> None:
-    """Write rows with plain SQL, as a migration or an old restore would; `encrypted` false."""
-    for key, value in rows.items():
-        await db.execute(
-            text("INSERT INTO settings (key, value, encrypted) VALUES (:k, :v, :e)"),
-            {"k": key, "v": value, "e": False},
-        )
-    await db.commit()
-
-
-async def _only_these_secret_rows(db: AsyncSession, keep: Keep, rows: dict[str, str]) -> None:
-    """Leave exactly `rows` among the secret keys (the sweep reads them all)."""
-    await keep(*SECRETS, *rows)
-    await db.execute(delete(Setting).where(Setting.key.in_(sorted({*SECRETS, *rows}))))
-    await db.commit()
-    await _insert_raw(db, rows)
+KEY_A = keyring_entry(b"sweep test key A")
+KEY_B = keyring_entry(b"sweep test key B")
+KEY_C = keyring_entry(b"sweep test key C")
 
 
 async def _encrypted_flags(
@@ -167,7 +118,7 @@ async def test_the_sweep_encrypts_rekeys_and_reports(
         "pushover_user_key": "",
         "ntfy_server": "https://ntfy.example.com",
     }
-    await _only_these_secret_rows(db_session, keep_rows, seeded)
+    await only_these_secret_rows(db_session, keep_rows, seeded)
 
     with caplog.at_level(logging.INFO, logger="app.services.settings_secrets"):
         report = await sweep_secret_settings(db_session)
@@ -222,7 +173,7 @@ async def test_a_second_sweep_changes_nothing(
     use_keys(KEY_A)
     old = encrypt("llm_api_key", OLD_LLM)
     use_keys(KEY_B, KEY_A)
-    await _only_these_secret_rows(
+    await only_these_secret_rows(
         db_session,
         keep_rows,
         {
@@ -256,7 +207,7 @@ async def test_tampered_and_malformed_ciphertext_stays_byte_identical(
         "telegram_bot_token": f"enc:v1:{kid}:short",
         "pushover_api_token": f"enc:v1:{kid}:not*base64url",
     }
-    await _only_these_secret_rows(db_session, keep_rows, seeded)
+    await only_these_secret_rows(db_session, keep_rows, seeded)
 
     report = await sweep_secret_settings(db_session)
 
@@ -272,7 +223,7 @@ async def test_an_unavailable_keyring_writes_nothing(
     use_keys: UseKeys,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    await _only_these_secret_rows(db_session, keep_rows, {"ntfy_token": PLAIN_NTFY})
+    await only_these_secret_rows(db_session, keep_rows, {"ntfy_token": PLAIN_NTFY})
     assert use_keys("not-a-valid-key") is None
 
     with caplog.at_level(logging.INFO, logger="app.services.settings_secrets"):
@@ -299,7 +250,7 @@ async def test_a_database_error_is_logged_and_swallowed(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     use_keys(KEY_A)
-    await _only_these_secret_rows(db_session, keep_rows, {"ntfy_token": PLAIN_NTFY})
+    await only_these_secret_rows(db_session, keep_rows, {"ntfy_token": PLAIN_NTFY})
     failure = OperationalError(
         "UPDATE settings SET value=?", {"value": "enc:v1:bound-parameter"}, Exception("locked")
     )
@@ -330,7 +281,7 @@ async def test_encrypt_secret_rows_flushes_and_leaves_the_commit(
     use_keys: UseKeys,
 ) -> None:
     kid = use_keys(KEY_A)
-    await _only_these_secret_rows(db_session, keep_rows, {"ntfy_token": PLAIN_NTFY})
+    await only_these_secret_rows(db_session, keep_rows, {"ntfy_token": PLAIN_NTFY})
 
     report = await encrypt_secret_rows(db_session)
 

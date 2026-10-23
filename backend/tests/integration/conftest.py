@@ -5,14 +5,49 @@ Integration tests use the database and test full request/response cycles.
 These fixtures extend the base conftest.py fixtures.
 """
 
+import os
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
+from app.utils.settings_crypto import (
+    ENV_KEY,
+    ENV_KEY_FILE,
+    _reset_keyring_for_tests,  # pyright: ignore[reportPrivateUsage] - the suite's reset hook
+    current_kid,
+)
+from tests.integration._secret_helpers import UseKeys
+
 # The shared OIDC assertions aren't in a test module, so pytest only rewrites
 # them if asked. Without it a failure there is a bare AssertionError.
 pytest.register_assert_rewrite("tests.integration._oidc_refusals")
+
+
+@pytest.fixture
+def use_keys() -> Iterator[UseKeys]:
+    """Call it with keyring entries (first is current); returns the current kid.
+
+    The environment is put back by hand and the keyring reset after it, so the
+    next test loads the suite's own key, not one of these.
+    """
+    saved = {name: os.environ.get(name) for name in (ENV_KEY, ENV_KEY_FILE)}
+
+    def use(*entries: str) -> str | None:
+        os.environ.pop(ENV_KEY_FILE, None)
+        os.environ[ENV_KEY] = ",".join(entries)
+        _reset_keyring_for_tests()
+        return current_kid()
+
+    yield use
+    for name, value in saved.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+    _reset_keyring_for_tests()
+
 
 # Seed dates for `test_vehicle_with_records` are FIXED, never relative to today.
 #

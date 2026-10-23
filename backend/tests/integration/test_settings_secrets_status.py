@@ -12,30 +12,21 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
-from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
 from app.utils.settings_crypto import (
     CIPHERTEXT_PREFIX,
     ENV_KEY,
     _reset_keyring_for_tests,  # pyright: ignore[reportPrivateUsage] - the suite's reset hook
     encrypt,
 )
-from tests.integration._secret_helpers import Keep, unreadable_ciphertext
+from tests.integration._secret_helpers import Keep, only_these_secret_rows, unreadable_ciphertext
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 URL = "/api/settings/secrets/status"
 
 
-async def _only_these_secret_rows(db: AsyncSession, keep: Keep, rows: dict[str, str]) -> None:
-    """Leave exactly `rows` among the secret keys, stored as given."""
-    await keep(*SECRET_SETTING_KEYS, *rows, "auth_mode")
-    await db.execute(delete(Setting).where(Setting.key.in_([*SECRET_SETTING_KEYS, *rows])))
-    for key, raw in rows.items():
-        db.add(Setting(key=key, stored_value=raw))
-    await db.commit()
-
-
-async def _set_auth_mode(db: AsyncSession, mode: str) -> None:
+async def _set_auth_mode(db: AsyncSession, keep: Keep, mode: str) -> None:
+    await keep("auth_mode")
     await db.execute(delete(Setting).where(Setting.key == "auth_mode"))
     db.add(Setting(key="auth_mode", value=mode))
     await db.commit()
@@ -44,7 +35,7 @@ async def _set_auth_mode(db: AsyncSession, mode: str) -> None:
 async def test_an_admin_gets_ok_and_no_keys_when_everything_reads(
     client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _only_these_secret_rows(
+    await only_these_secret_rows(
         db_session,
         keep_rows,
         {"ntfy_token": encrypt("ntfy_token", "readable"), "gotify_token": "legacy-plaintext"},
@@ -59,7 +50,7 @@ async def test_an_admin_gets_ok_and_no_keys_when_everything_reads(
 async def test_unreadable_rows_are_listed_sorted(
     client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _only_these_secret_rows(
+    await only_these_secret_rows(
         db_session,
         keep_rows,
         {
@@ -87,7 +78,7 @@ async def test_an_unavailable_keyring_is_reported_live(
     keep_rows: Keep,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    await _only_these_secret_rows(
+    await only_these_secret_rows(
         db_session,
         keep_rows,
         {"ntfy_token": encrypt("ntfy_token", "readable"), "gotify_token": "legacy-plaintext"},
@@ -116,10 +107,10 @@ async def test_a_non_admin_gets_a_403_when_sign_in_is_on(
     db_session: AsyncSession,
     keep_rows: Keep,
 ) -> None:
-    await _only_these_secret_rows(
+    await only_these_secret_rows(
         db_session, keep_rows, {"gotify_token": unreadable_ciphertext("gotify_token")}
     )
-    await _set_auth_mode(db_session, "local")
+    await _set_auth_mode(db_session, keep_rows, "local")
 
     response = await client.get(URL, headers=non_admin_headers)
     assert response.status_code == 403, response.text
@@ -132,10 +123,10 @@ async def test_a_non_admin_gets_a_403_when_sign_in_is_on(
 async def test_auth_mode_none_answers_without_sign_in(
     client: AsyncClient, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
-    await _only_these_secret_rows(
+    await only_these_secret_rows(
         db_session, keep_rows, {"gotify_token": unreadable_ciphertext("gotify_token")}
     )
-    await _set_auth_mode(db_session, "none")
+    await _set_auth_mode(db_session, keep_rows, "none")
 
     response = await client.get(URL)
 
