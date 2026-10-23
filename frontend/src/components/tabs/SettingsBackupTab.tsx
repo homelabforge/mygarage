@@ -62,6 +62,9 @@ function isPostgresBackupTarget(stats: BackupStats | null): boolean {
   return stats.database?.path === 'PostgreSQL'
 }
 
+/** The statuses whose detail `backupErrorMessage` shows. */
+const DETAIL_STATUSES = [400, 401, 403, 404, 422, 503]
+
 /**
  * A failed backup action's message: the server's detail when it is one the admin can act on, else
  * `fallback`.
@@ -71,8 +74,6 @@ function isPostgresBackupTarget(stats: BackupStats | null): boolean {
  * (set MYGARAGE_SETTINGS_KEY, or make the data directory writable), and `getActionErrorMessage`
  * shows every 503 as a generic retry line, which hid it. Any other detail stays hidden.
  */
-const DETAIL_STATUSES = [400, 401, 403, 404, 422, 503]
-
 function backupErrorMessage(err: unknown, fallback: string): string {
   const { status, detail } = parseApiError(err)
   return DETAIL_STATUSES.includes(status) && detail ? detail : fallback
