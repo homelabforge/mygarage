@@ -71,10 +71,20 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - The units a WiCAN declares at boot are kept per device, so they survive a MyGarage restart
 - Deleting a preset sensor is admin-only
 - Device and broker statuses, preset descriptions and reading labels are translated, and refused device and SD actions show the server's reason
+- A reminder's Service due notification is a heads-up sent once, when the reminder turns due soon: 30 days before it's expected, or 90% of the way to its target when there's no driving rate to project a date from. Changing its due date, distance or hours arms a new one
+- The first reminder check after upgrading sends one heads-up for each reminder already due soon. After that, each reminder gets one
+- An overdue reminder is sent as Service overdue, at high priority, at most once a day until it's done, dismissed or snoozed
+- Settings > Notifications no longer has the Service due lead-time fields (days and distance before), which nothing read; the heads-up follows the reminder's own due status. The settings API refuses (422) `notify_service_days` and `notify_service_miles`
+- The notification bell lists reminders due soon by that same rule, so up to 30 days out instead of 14
+- A reminder with two or three targets shows what's left on each in the reminder list, the progress bar's own first
+- Low-tread reminders show the tread and the minimum in the notification bell, on the calendar and in the PDF report's Due column
+- A reminder's calendar description, in the app and in the iCal export, is "Reminder" instead of naming its type ("Reminder (smart)")
+- The reminder list refreshes every minute while it's open, so a fill-up logged from Telegram or LiveLink moves it without a reload
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
 - The `MYGARAGE_RECALL_CHECK_INTERVAL_DAYS` environment variable, which nothing read. The interval is the Recall Check Interval setting
+- `duplicate_of` on the reminder API response. `GET /api/vehicles/{vin}/reminders/duplicates` returns the same groups, and is what the app reads
 
 ### Fixed
 - DTCs from a WiCAN are recorded over MQTT as well as HTTPS, and only codes shaped like a DTC are kept
@@ -130,6 +140,15 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - A CSV export in km/L carries six decimal places, so economy past 31.6 L/100km (under 3.16 km/L) re-imports as it was
 - The homepage widget counts a mileage reminder overdue as soon as the odometer passes it, like the dashboard, instead of up to 1 km later
 - Deleting a vehicle with odometer or engine-hours readings synced from its fuel records or service visits no longer logs a SQLAlchemy warning
+- The Service due and Service overdue switches in Settings > Notifications work; reminder notifications went out whatever they were set to
+- Reminder notifications follow the same due status as the reminder list. Before, only a smart reminder got a heads-up, and only inside a week, and a target the reminder's type didn't check (a date reminder's distance target) never sent a notification
+- Archived vehicles no longer send reminder notifications
+- A reminder notification that no provider delivered (none set up, or every provider failed) is no longer marked as sent, so the next check tries again
+- The notification bell lists the same overdue and due-soon reminders the vehicle's due counts show; one due soon by its distance or hours share was missing
+- The calendar shows a reminder's due status, with a Snoozed chip for a snoozed reminder instead of On Track or Due Soon, and its urgency matches the chip
+- A reminder due soon with no expected date (no driving rate to project one from) shows on today on the calendar, marked estimated, instead of not at all
+- Low-tread reminders follow their tire: dismounting it dismisses the reminder, retiring it completes it, a rotation or set fit renames it to the new corner or closes it, and deleting the tire dismisses it. A tire in storage raises none, and an older "(in storage)" reminder is dismissed the next time its tire is updated
+- The reminder list's type chip shows a translated label instead of the stored value (such as "smart")
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)

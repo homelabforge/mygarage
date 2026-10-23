@@ -2,10 +2,10 @@
  * Copy that names a unit must name the READER'S unit. RESOLVED PROSE.
  *
  * ★ WHY THIS FILE EXISTS. `setup.ts` mocks react-i18next with
- * `t: (key) => key`, so every existing test reads `'events.card.milesBefore'`
- * and calls it correct. The defect was entirely in the STRING that key
- * resolves to: "miles before", shown to a kilometre account beside a number it
- * had typed in kilometres. A test that never resolves a key cannot see that,
+ * `t: (key) => key`, so every existing test read `'events.card.milesBefore'`
+ * (a key since removed, with its field) and called it correct. The defect was
+ * entirely in the STRING that key resolved to: "miles before", shown to a
+ * kilometre account beside a number it had typed in kilometres. A test that never resolves a key cannot see that,
  * and a test written against the mock would CERTIFY it. So this file resolves
  * against the real bundles on disk and asserts what a reader actually sees.
  *
