@@ -83,6 +83,9 @@ if is_sqlite:
         settings.database_url,
         echo=settings.debug,
         future=True,
+        # A failed statement's message names its bound values, and the error
+        # handlers log that message: a failed settings write would log the secret.
+        hide_parameters=True,
         connect_args={"timeout": 30},
     )
     configure_sqlite_engine(engine)
@@ -94,6 +97,7 @@ else:
         settings.database_url,
         echo=settings.debug,
         future=True,
+        hide_parameters=True,  # Bound values stay out of error messages and logs, as above
         pool_size=5,  # Maintain 5 connections in the pool
         max_overflow=10,  # Allow up to 10 additional connections if needed
         pool_timeout=30,  # Wait up to 30 seconds for a connection

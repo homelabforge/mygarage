@@ -24,7 +24,8 @@ class MigrationRunner:
         """
         self.database_url = database_url
         self.migrations_dir = Path(migrations_dir)
-        self.engine = create_engine(database_url)
+        # Bound values stay out of error messages, so a failed migration logs no setting value.
+        self.engine = create_engine(database_url, hide_parameters=True)
 
     def _ensure_migration_tracking_table(self) -> None:
         """Create schema_migrations table if it doesn't exist."""
