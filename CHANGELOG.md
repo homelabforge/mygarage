@@ -72,7 +72,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - Deleting a preset sensor is admin-only
 - Device and broker statuses, preset descriptions and reading labels are translated, and refused device and SD actions show the server's reason
 - A reminder's Service due notification is a heads-up sent once, when the reminder turns due soon: 30 days before it's expected, or 90% of the way to its target when there's no driving rate to project a date from. Changing its due date, distance or hours arms a new one
-- The first reminder check after upgrading sends one heads-up for each reminder already due soon. After that, each reminder gets one
+- The first reminder check after upgrading sends a heads-up for each reminder already due soon that hasn't been notified before, as long as Service due is switched on and a notification service is set up. A smart reminder an earlier release already notified in its last week gets none. After that, each reminder gets one when it turns due soon
 - An overdue reminder is sent as Service overdue, at high priority, at most once a day until it's done, dismissed or snoozed
 - Settings > Notifications no longer has the Service due lead-time fields (days and distance before), which nothing read; the heads-up follows the reminder's own due status. The settings API refuses (422) `notify_service_days` and `notify_service_miles`
 - The notification bell lists reminders due soon by that same rule, so up to 30 days out instead of 14
@@ -147,7 +147,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - The notification bell lists the same overdue and due-soon reminders the vehicle's due counts show; one due soon by its distance or hours share was missing
 - The calendar shows a reminder's due status, with a Snoozed chip for a snoozed reminder instead of On Track or Due Soon, and its urgency matches the chip
 - A reminder due soon with no expected date (no driving rate to project one from) shows on today on the calendar, marked estimated, instead of not at all
-- Low-tread reminders follow their tire: dismounting it dismisses the reminder, retiring it completes it, a rotation or set fit renames it to the new corner or closes it, and deleting the tire dismisses it. A tire in storage raises none, and an older "(in storage)" reminder is dismissed the next time its tire is updated
+- Low-tread reminders follow their tire: dismounting it dismisses the reminder, retiring it completes it, a rotation or set fit renames it to the new corner or closes it, and deleting the tire dismisses it. A tire in storage raises none. On the tire's next save (a reading added, edited or deleted, an edit, a restore, a retire, a mount, a rotation or a set fit), an older "(in storage)" reminder is dismissed if the tire stays off the vehicle, completed if the tire is retired or goes back on above the minimum, and becomes that corner's reminder if it goes back on still below the minimum
 - The reminder list's type chip shows a translated label instead of the stored value (such as "smart")
 
 ### Security

@@ -5,9 +5,10 @@
  * `t: (key) => key`, so every existing test read `'events.card.milesBefore'`
  * (a key since removed, with its field) and called it correct. The defect was
  * entirely in the STRING that key resolved to: "miles before", shown to a
- * kilometre account beside a number it had typed in kilometres. A test that never resolves a key cannot see that,
- * and a test written against the mock would CERTIFY it. So this file resolves
- * against the real bundles on disk and asserts what a reader actually sees.
+ * kilometre account beside a number it had typed in kilometres. A test that
+ * never resolves a key cannot see that, and a test written against the mock
+ * would CERTIFY it. So this file resolves against the real bundles on disk and
+ * asserts what a reader actually sees.
  *
  * ★ THE BUNDLE LIST IS ENUMERATED FROM DISK, NEVER TYPED. There are seven
  * bundles (`src/locales/en` plus six under `public/locales`), and this task's
