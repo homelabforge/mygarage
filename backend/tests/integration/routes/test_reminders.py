@@ -10,6 +10,7 @@ due_hours null) must still create/update/persist exactly as before.
 """
 
 from datetime import date, timedelta
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
@@ -244,3 +245,137 @@ class TestReminderRoutesHours:
         assert response.status_code == 200
         data = response.json()
         assert any(r["reminder_type"] == "hours" for r in data)
+
+
+_STORED_FIELDS = ("title", "reminder_type", "due_date", "due_mileage_km", "due_hours")
+
+
+async def _stored(
+    client: AsyncClient, auth_headers: dict[str, str], vin: str, reminder_id: int
+) -> dict[str, Any]:
+    """The reminder's due fields as the list endpoint reads them back."""
+    response = await client.get(f"/api/vehicles/{vin}/reminders?status=all", headers=auth_headers)
+    assert response.status_code == 200
+    (row,) = [r for r in response.json() if r["id"] == reminder_id]
+    return {field: row[field] for field in _STORED_FIELDS}
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestReminderUpdateRejections:
+    """G2c-91: PUT checks the merged state, so a patch that leaves a smart
+    reminder with both usage targets, neither, or no date is a 422 and the
+    row stays as it was.
+
+    Control tests: each passes on main by design, since the update path
+    already refuses these. Proved by mutation: drop the
+    ``validate_reminder_state`` call from ``update_reminder`` and every one
+    fails.
+    """
+
+    async def _create(
+        self, client: AsyncClient, auth_headers: dict[str, str], vin: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        response = await client.post(
+            f"/api/vehicles/{vin}/reminders", json=body, headers=auth_headers
+        )
+        assert response.status_code == 201, response.text
+        return response.json()
+
+    async def _smart(
+        self, client: AsyncClient, auth_headers: dict[str, str], vin: str
+    ) -> dict[str, Any]:
+        return await self._create(
+            client,
+            auth_headers,
+            vin,
+            {
+                "title": "Oil change",
+                "reminder_type": "smart",
+                "due_date": (date.today() + timedelta(days=180)).isoformat(),
+                "due_mileage_km": 65000,
+            },
+        )
+
+    async def _assert_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        vin: str,
+        reminder_id: int,
+        patch: dict[str, Any],
+    ) -> None:
+        before = await _stored(client, auth_headers, vin, reminder_id)
+
+        response = await client.put(
+            f"/api/vehicles/{vin}/reminders/{reminder_id}", json=patch, headers=auth_headers
+        )
+
+        assert response.status_code == 422, response.text
+        assert await _stored(client, auth_headers, vin, reminder_id) == before
+
+    async def test_adding_hours_to_a_smart_mileage_reminder_is_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        test_vehicle: dict[str, object],
+    ) -> None:
+        """Control (passes on main by design): smart with both metrics."""
+        vin = str(test_vehicle["vin"])
+        reminder = await self._smart(client, auth_headers, vin)
+
+        await self._assert_rejected(
+            client, auth_headers, vin, int(reminder["id"]), {"due_hours": 500.0}
+        )
+
+    async def test_clearing_mileage_on_a_smart_reminder_is_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        test_vehicle: dict[str, object],
+    ) -> None:
+        """Control (passes on main by design): smart with neither metric."""
+        vin = str(test_vehicle["vin"])
+        reminder = await self._smart(client, auth_headers, vin)
+
+        await self._assert_rejected(
+            client, auth_headers, vin, int(reminder["id"]), {"due_mileage_km": None}
+        )
+
+    async def test_clearing_the_date_on_a_smart_reminder_is_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        test_vehicle: dict[str, object],
+    ) -> None:
+        """Control (passes on main by design): smart needs its date."""
+        vin = str(test_vehicle["vin"])
+        reminder = await self._smart(client, auth_headers, vin)
+
+        await self._assert_rejected(
+            client, auth_headers, vin, int(reminder["id"]), {"due_date": None}
+        )
+
+    async def test_retyping_a_date_reminder_to_smart_without_a_usage_target_is_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        test_vehicle: dict[str, object],
+    ) -> None:
+        """Control (passes on main by design): a date reminder turned smart
+        with no mileage or hours."""
+        vin = str(test_vehicle["vin"])
+        reminder = await self._create(
+            client,
+            auth_headers,
+            vin,
+            {
+                "title": "Registration renewal",
+                "reminder_type": "date",
+                "due_date": (date.today() + timedelta(days=30)).isoformat(),
+            },
+        )
+
+        await self._assert_rejected(
+            client, auth_headers, vin, int(reminder["id"]), {"reminder_type": "smart"}
+        )
