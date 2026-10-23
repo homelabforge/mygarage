@@ -10,9 +10,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from app.models.settings import SettingCiphertextValue
-from app.services.settings_secrets import PlaintextSecretsRemain
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.settings_crypto import CIPHERTEXT_PREFIX, SettingsKeyUnavailable
+from app.utils.settings_errors import PlaintextSecretsRemain
 
 logger = logging.getLogger(__name__)
 
