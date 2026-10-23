@@ -390,7 +390,7 @@ class TestMarkerDiscriminatesOnTheResolvedSet:
             headers, row = _read(response.text)
             assert headers == _FUEL_HEADERS_METRIC
             assert row["unit_system"] == "metric"
-            assert row["units_version"] == "7"
+            assert row["units_version"] == "8"
             assert row["Odometer (km)"] == "500.00"
             assert row["Volume (L)"] == "40.000"
             assert row["Price Per Unit (L)"] == "1.5000"
@@ -587,6 +587,7 @@ class TestEveryUnitBearingPairEmitsTokenisedHeaders:
             assert headers == [
                 "units_version",
                 "unit_system",
+                "Visit",
                 "Date",
                 "Category",
                 "Description",
@@ -594,7 +595,12 @@ class TestEveryUnitBearingPairEmitsTokenisedHeaders:
                 "Engine Hours",
                 "Cost",
                 "Vendor",
-                "Notes",
+                "Item Notes",
+                "Tax",
+                "Shop Supplies",
+                "Misc Fees",
+                "Insurance Claim",
+                "Visit Notes",
             ]
             assert row["unit_system"] == "custom"
             # 600 km / 1.609344 = 372.82272...
@@ -683,7 +689,7 @@ class TestEveryUnitBearingPairEmitsTokenisedHeaders:
                 "Notes",
                 "Source",
             ]
-            assert row["units_version"] == "7"
+            assert row["units_version"] == "8"
             assert row["unit_system"] == "metric"
             assert row["Engine Hours"] == "77.7"
         finally:

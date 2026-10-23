@@ -31,12 +31,13 @@ import json
 import logging
 import operator
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections import Counter
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, get_args
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
@@ -44,7 +45,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import ColumnElement, Numeric, and_, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.orm import InstrumentedAttribute, selectinload
 from sqlalchemy.sql.base import ExecutableOption
 
 from app.config import settings
@@ -81,9 +82,16 @@ from app.schemas.fuel import (
 )
 from app.schemas.hours import HoursRecordCreate
 from app.schemas.insurance import CoverageEntry, PolicyVehicleCreate
+from app.schemas.maintenance import validate_maintenance_type
 from app.schemas.odometer import OdometerRecordCreate
 from app.schemas.reminder import ReminderCreate
-from app.schemas.service_visit import ServiceLineItemCreate, ServiceVisitCreate
+from app.schemas.service_visit import (
+    InspectionResult,
+    InspectionSeverity,
+    ServiceCategory,
+    ServiceLineItemCreate,
+    ServiceVisitCreate,
+)
 from app.schemas.tax import TaxRecordCreate
 from app.schemas.warranty import WarrantyRecordCreate
 from app.services import maintenance_service
@@ -92,6 +100,7 @@ from app.services.fuel_side_effects import invalidate_cache_for_vehicle
 from app.services.insurance_service import InsuranceService
 from app.services.reminder_service import start_readings
 from app.services.vehicle_lock import lock_vehicle_for_write
+from app.utils.csv_safe import unquote_csv_cell
 from app.utils.csv_units import (
     CONSUMPTION,
     DEF_PRICE,
@@ -124,7 +133,7 @@ from app.utils.insurance_coverages import (
     place_leftovers,
 )
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.maintenance_types import classify
+from app.utils.maintenance_types import classify, resolve_type
 from app.utils.money_fits import too_large
 from app.utils.odometer_sync import sync_odometer_from_record
 from app.utils.odometer_tolerance import KM_STEP, LITRE_STEP, conversion_tolerance
@@ -496,6 +505,7 @@ router = APIRouter(prefix="/api/import", tags=["import"])
 #: The record lists a vehicle JSON backup may carry, in the order they import.
 _JSON_IMPORT_SECTIONS = (
     "service_records",
+    "service_visits",
     "fuel_records",
     "def_records",
     "odometer_records",
@@ -507,6 +517,11 @@ _JSON_IMPORT_SECTIONS = (
 
 # Valid service categories matching the ServiceVisit check constraint
 VALID_SERVICE_CATEGORIES = {"Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"}
+#: The API's words for a visit's and a line item's category and an inspection's
+#: result and severity (the CHECK lists, `models/service_line_item.py`).
+_SERVICE_CATEGORIES: tuple[str, ...] = get_args(ServiceCategory)
+_INSPECTION_RESULTS: tuple[str, ...] = get_args(InspectionResult)
+_INSPECTION_SEVERITIES: tuple[str, ...] = get_args(InspectionSeverity)
 limiter = Limiter(key_func=get_remote_address)
 
 
@@ -645,6 +660,79 @@ def _in_vocabulary(value: Any, field: str, vocabulary: tuple[str, ...]) -> str |
     if value is None or value == "" or value in vocabulary:
         return value
     raise _RowError(f"{field} must be one of {', '.join(vocabulary)}")
+
+
+def _blank_to_none(value: Any) -> Any:
+    """None for a blank cell. A CHECK refuses '' where it allows NULL (P2E2)."""
+    return None if _is_blank(value) else value
+
+
+def _json_decimal(row: Mapping[str, Any], key: str) -> Decimal | None:
+    """The number under `key`, None when it's missing or blank, a row error when it isn't one."""
+    value = row.get(key)
+    if _is_blank(value):
+        return None
+    if isinstance(value, bool):
+        raise _RowError(f"{key} is not a number")
+    try:
+        return Decimal(str(value))
+    except InvalidOperation as e:
+        raise _RowError(f"{key} is not a number") from e
+
+
+def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str, Any], int | None]:
+    """One v9 line item's columns, and the index of the item that triggered it.
+
+    The API's rules re-applied (R2); a row error names the item by `position`.
+    """
+    try:
+        description = _blank_to_none(item.get("description"))
+        if description is None:
+            raise _RowError("description is missing")
+        cost = _json_decimal(item, "cost")
+        _within_api_bounds(ServiceLineItemCreate, cost=cost)
+        category = _in_vocabulary(
+            _blank_to_none(item.get("category")), "category", _SERVICE_CATEGORIES
+        )
+        inspection_result = _in_vocabulary(
+            _blank_to_none(item.get("inspection_result")), "inspection_result", _INSPECTION_RESULTS
+        )
+        inspection_severity = _in_vocabulary(
+            _blank_to_none(item.get("inspection_severity")),
+            "inspection_severity",
+            _INSPECTION_SEVERITIES,
+        )
+        try:
+            maintenance_type = validate_maintenance_type(
+                _blank_to_none(item.get("maintenance_type"))
+            )
+        except (ValueError, TypeError) as e:
+            raise _RowError(
+                "maintenance_type must be a lowercase snake_case code (2-50 chars)"
+            ) from e
+        link = item.get("triggered_by_inspection")
+        if link is not None and (
+            isinstance(link, bool)
+            or not isinstance(link, int)
+            or link not in range(count)
+            or link == position
+        ):
+            raise _RowError(
+                "triggered_by_inspection must be the index of another line item in this visit"
+            )
+    except _RowError as e:
+        raise _RowError(f"line item {position}: {e.reason}") from e
+    columns = {
+        "description": description,
+        "category": category,
+        "maintenance_type": resolve_type(maintenance_type, description),
+        "cost": cost,
+        "notes": item.get("notes"),
+        "is_inspection": bool(item.get("is_inspection", False)),
+        "inspection_result": inspection_result,
+        "inspection_severity": inspection_severity,
+    }
+    return columns, link
 
 
 def _coverages_from_rows(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1001,6 +1089,244 @@ def _canonical_cell(units: CsvUnitContext, row: Mapping[str, Any], quantity: str
     return _at_scale(value, _COLUMN_SCALE[quantity]) if units.converts(quantity) else value
 
 
+@dataclass(frozen=True)
+class _ServiceCsvRow:
+    """One service CSV row: its visit's columns and its own line item."""
+
+    row_num: int
+    visit_number: str | None
+    date: date_type
+    category: str | None
+    odometer_km: Decimal | None
+    engine_hours: Decimal | None
+    vendor_name: str | None
+    tax_amount: Decimal | None
+    shop_supplies: Decimal | None
+    misc_fees: Decimal | None
+    insurance_claim_number: str | None
+    split_notes: bool  # the file has Item Notes and Visit Notes (v8)
+    visit_notes: str | None
+    item_notes: str | None  # a v<=7 file's one Notes cell lands here and in visit_notes
+    description: str | None
+    cost: Decimal | None
+    has_item: bool
+
+    @property
+    def group(self) -> tuple[Any, ...]:
+        """The visit the row belongs to: its number, else what one visit's rows share."""
+        if self.visit_number:
+            return ("visit", self.visit_number)
+        return ("shared", self.date, self.odometer_km, self.vendor_name, self.category)
+
+
+def _parse_service_row(
+    row_num: int, row: Mapping[str, Any], units: CsvUnitContext
+) -> _ServiceCsvRow:
+    """One service CSV row read and held to the API's bounds; a row error says what's wrong."""
+
+    def text(column: str) -> str | None:
+        # The export quotes a formula-like cell; the quote isn't the text (T-21).
+        return unquote_csv_cell(row.get(column) or "").strip() or None
+
+    date = parse_date(row.get("Date") or "")
+    if not date:
+        raise _RowError("Date is required")
+
+    # Parse optional fields; accept both old and new header names
+    raw_category = text("Category")
+    service_type = text("Service Type")
+    raw_description = text("Description")
+
+    # "Category" maps to service_category if valid; "Service Type" is the description
+    if raw_category and raw_category in VALID_SERVICE_CATEGORIES:
+        category = raw_category
+    elif service_type and service_type in VALID_SERVICE_CATEGORIES:
+        category = service_type
+    else:
+        category = None
+
+    # Distance arrives as a v6 token header (`Odometer (mi)`), as
+    # `Odometer (km)`, or as legacy v2 `Mileage` in miles. `units`
+    # already resolved which, from the file and nothing else.
+    odometer_km = _canonical_cell(units, row, DISTANCE)
+    # Engine-hours: hour-metered vehicles (ATVs, side-by-sides, equipment).
+    # Dimensionless, no unit conversion (never present in legacy v2 CSVs).
+    engine_hours = parse_decimal(row.get("Engine Hours") or "")
+    cost = parse_decimal(row.get("Cost") or "")
+    tax_amount = parse_decimal(row.get("Tax") or "")
+    shop_supplies = parse_decimal(row.get("Shop Supplies") or "")
+    misc_fees = parse_decimal(row.get("Misc Fees") or "")
+    _within_api_bounds(
+        ServiceVisitCreate,
+        odometer_km=odometer_km,
+        engine_hours=engine_hours,
+        tax_amount=tax_amount,
+        shop_supplies=shop_supplies,
+        misc_fees=misc_fees,
+    )
+    _within_api_bounds(ServiceLineItemCreate, cost=cost)
+
+    split_notes = "Item Notes" in row or "Visit Notes" in row
+    if split_notes:
+        item_notes = text("Item Notes")
+        visit_notes = text("Visit Notes")
+    else:
+        item_notes = visit_notes = text("Notes")
+    return _ServiceCsvRow(
+        row_num=row_num,
+        visit_number=(row.get("Visit") or "").strip() or None,
+        date=date,
+        category=category,
+        odometer_km=odometer_km,
+        engine_hours=engine_hours,
+        vendor_name=text("Vendor") or text("Vendor Name"),
+        tax_amount=tax_amount,
+        shop_supplies=shop_supplies,
+        misc_fees=misc_fees,
+        insurance_claim_number=text("Insurance Claim"),
+        split_notes=split_notes,
+        visit_notes=visit_notes,
+        item_notes=item_notes,
+        # Use service_type or raw_category as description fallback
+        description=raw_description or service_type or raw_category,
+        cost=cost,
+        # In v8 a row with no item cells is a visit with no line items, the
+        # one row the export writes for one. An older file has no such row.
+        has_item=(
+            not split_notes
+            or raw_description is not None
+            or cost is not None
+            or item_notes is not None
+        ),
+    )
+
+
+async def _vendor_id_for(db: AsyncSession, name: str | None) -> int | None:
+    """The vendor called `name`, made when there's none yet; None for no name."""
+    if not name:
+        return None
+    vendor = (
+        (await db.execute(select(Vendor).where(Vendor.name == name).limit(1))).scalars().first()
+    )
+    if vendor is None:
+        vendor = Vendor(name=name)
+        db.add(vendor)
+        await db.flush()
+    return vendor.id
+
+
+def _visit_fee_key(row: _ServiceCsvRow) -> tuple[ColumnElement[bool], ...]:
+    """A visit's own amounts and claim number as match conditions; 0 and NULL alike.
+
+    Without them two visits that differ only in tax match the same stored
+    visit, and the first spends it (Codex R2).
+    """
+    return (
+        _money_matches(ServiceVisit.tax_amount, row.tax_amount),
+        _money_matches(ServiceVisit.shop_supplies, row.shop_supplies),
+        _money_matches(ServiceVisit.misc_fees, row.misc_fees),
+        _matches(ServiceVisit.insurance_claim_number, row.insurance_claim_number),
+    )
+
+
+#: What `_same_visit` reads off a stored visit.
+_VISIT_MATCH_LOADS = (selectinload(ServiceVisit.vendor), selectinload(ServiceVisit.line_items))
+
+
+def _item_counts(pairs: Iterable[tuple[str, Decimal | None]]) -> Counter[tuple[str, Decimal]]:
+    """(description, cost) pairs as counts, the cost at the cent, a missing one as 0 (v7 wrote $0 blank).
+
+    The cent is the column's scale; a stored row reads back at it through the ORM (T-20).
+    """
+    return Counter(
+        (description, _at_scale(cost, _MONEY_STEP) or Decimal(0)) for description, cost in pairs
+    )
+
+
+def _row_item_counts(group: list[_ServiceCsvRow]) -> Counter[tuple[str, Decimal]]:
+    """The line items a group of rows writes, as `_write_service_csv_visit` names them."""
+    return _item_counts(
+        (row.description or row.category or "Service", row.cost) for row in group if row.has_item
+    )
+
+
+def _same_visit(
+    visit: ServiceVisit,
+    *,
+    vendor_name: str | None,
+    check_vendor: bool,
+    items: Counter[tuple[str, Decimal]] | None,
+) -> bool:
+    """Whether a stored visit (vendor and items loaded) is the file's visit (R5).
+
+    `items` None means the file doesn't carry them, so they aren't compared.
+    """
+    if check_vendor and (visit.vendor.name if visit.vendor else None) != vendor_name:
+        return False
+    return items is None or _item_counts((i.description, i.cost) for i in visit.line_items) == items
+
+
+def _visit_total(item_costs: Iterable[Decimal | None], *fees: Decimal | None) -> Decimal:
+    """A written visit's total: its items' costs and its fees, the ones it has.
+
+    A row error past the largest amount the column holds, though each part fits.
+    """
+    total = sum((amount for amount in (*item_costs, *fees) if amount is not None), Decimal(0))
+    if total > MONEY_MAX:
+        raise _ImportBoundError(too_large("The visit total"))
+    return total
+
+
+async def _write_service_csv_visit(
+    db: AsyncSession, vin: str, group: list[_ServiceCsvRow]
+) -> ServiceVisit:
+    """One visit and its line items from a group of rows; the first row supplies the visit's columns."""
+    first = group[0]
+    if first.split_notes:
+        visit_notes = first.visit_notes
+        visit_took_notes = False
+    else:
+        # A v<=7 row's Notes were its item's, or the visit's when the item had
+        # none, so the same Notes on every row are the visit's (T-13).
+        visit_took_notes = len({row.item_notes for row in group}) == 1
+        visit_notes = first.item_notes if visit_took_notes else None
+    item_rows = [row for row in group if row.has_item]
+    total_cost = _visit_total(
+        (row.cost for row in item_rows), first.tax_amount, first.shop_supplies, first.misc_fees
+    )
+
+    visit = ServiceVisit(
+        vin=vin,
+        date=first.date,
+        odometer_km=first.odometer_km,
+        engine_hours=first.engine_hours,
+        service_category=first.category or "Maintenance",
+        vendor_id=await _vendor_id_for(db, first.vendor_name),
+        tax_amount=first.tax_amount,
+        shop_supplies=first.shop_supplies,
+        misc_fees=first.misc_fees,
+        insurance_claim_number=first.insurance_claim_number,
+        notes=visit_notes,
+        total_cost=total_cost,
+    )
+    db.add(visit)
+    await db.flush()
+    for row in item_rows:
+        description = row.description or row.category or "Service"
+        db.add(
+            ServiceLineItem(
+                visit_id=visit.id,
+                description=description,
+                maintenance_type=classify(description),
+                # A blank cost stays blank (R2); it used to be written as 0.
+                cost=row.cost,
+                notes=None if visit_took_notes else row.item_notes,
+            )
+        )
+    await db.flush()
+    return visit
+
+
 @router.post("/vehicles/{vin}/service/csv")
 @limiter.limit(settings.rate_limit_uploads)
 async def import_service_csv(
@@ -1032,122 +1358,89 @@ async def import_service_csv(
     readings = _ImportReadings()
 
     import_result = ImportResult()
+    # The key compares only the columns the file has (T-16): a v8 file writes
+    # Tax, Shop Supplies, Misc Fees and Insurance Claim together, an older one
+    # none of them. Read off the first row, so an upload with none has none.
+    header: set[str] = set(rows[0]) if rows else set()
+    carries_vendor = "Vendor" in header or "Vendor Name" in header
+    carries_description = "Description" in header
+    carries_fees = "Tax" in header
 
+    # Every row first, then each visit: a v8 row names its visit by number, an
+    # older one belongs with the rows sharing its date, odometer, vendor and
+    # category (G4-73). Counts stay per row (T-4).
+    groups: dict[tuple[Any, ...], list[_ServiceCsvRow]] = {}
     for row_num, row in enumerate(rows, start=2):  # Start at 2 (header is row 1)
         try:
-            # Parse required fields
-            date = parse_date(row.get("Date", ""))
-            if not date:
-                import_result.add_error(row_num, "Date is required")
-                continue
+            parsed = _parse_service_row(row_num, row, units)
+        except _RowError as e:
+            import_result.add_error(row_num, e.reason)
+            continue
+        except Exception as e:
+            # Intentional catch-all: per-row errors should not stop the import
+            logger.error("Service import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid service record data")
+            continue
+        groups.setdefault(parsed.group, []).append(parsed)
 
-            # Parse optional fields — accept both old and new header names
-            raw_category = row.get("Category", "").strip() or None
-            service_type = row.get("Service Type", "").strip() or None
-            description = row.get("Description", "").strip() or None
-
-            # "Category" maps to service_category if valid; "Service Type" is the description
-            if raw_category and raw_category in VALID_SERVICE_CATEGORIES:
-                category = raw_category
-            elif service_type and service_type in VALID_SERVICE_CATEGORIES:
-                category = service_type
-            else:
-                category = None
-
-            # Use service_type or raw_category as description fallback
-            if not description:
-                description = service_type or raw_category
-            # Distance arrives as a v6 token header (`Odometer (mi)`), as
-            # `Odometer (km)`, or as legacy v2 `Mileage` in miles. `units`
-            # already resolved which, from the file and nothing else.
-            odometer_km = _canonical_cell(units, row, DISTANCE)
-            # Engine-hours: hour-metered vehicles (ATVs, side-by-sides, equipment).
-            # Dimensionless — no unit conversion (never present in legacy v2 CSVs).
-            engine_hours = parse_decimal(row.get("Engine Hours", ""))
-            cost = parse_decimal(row.get("Cost", ""))
-            _within_api_bounds(
-                ServiceVisitCreate, odometer_km=odometer_km, engine_hours=engine_hours
-            )
-            _within_api_bounds(ServiceLineItemCreate, cost=cost)
-            vendor_name = (
-                row.get("Vendor", "").strip() or row.get("Vendor Name", "").strip() or None
-            )
-            notes = row.get("Notes", "").strip() or None
-
-            # Check for duplicates against ServiceVisit
+    for group in groups.values():
+        first = group[0]
+        try:
+            # R5's service key: a stored visit on the day and odometer with the
+            # same shop, fees and line items, each only where the file has it.
             if (
                 skip_duplicates
                 and await matcher.take(
                     db,
                     ServiceVisit,
                     ServiceVisit.vin == vin,
-                    ServiceVisit.date == date,
+                    ServiceVisit.date == first.date,
                     _odometer_matches(
                         ServiceVisit,
-                        odometer_km,
+                        first.odometer_km,
                         converted=odometer_converted,
                         last_id_before_import=matcher.last_id(ServiceVisit),
+                    ),
+                    *(_visit_fee_key(first) if carries_fees else ()),
+                    options=_VISIT_MATCH_LOADS,
+                    same=lambda visit: _same_visit(
+                        visit,
+                        vendor_name=first.vendor_name,
+                        check_vendor=carries_vendor,
+                        items=_row_item_counts(group) if carries_description else None,
                     ),
                 )
                 is not None
             ):
-                import_result.add_skip()
+                for _row in group:
+                    import_result.add_skip()
                 continue
 
-            # A savepoint per row, covering the vendor lookup/create, the
-            # visit and its line item together: a CHECK or length violation
-            # on any of them rolls the whole row back alone instead of
-            # poisoning the session for every row and loop still to come.
+            # A savepoint per visit, covering the vendor lookup/create, the
+            # visit and its line items together: a CHECK or length violation
+            # on any of them rolls the visit back alone instead of poisoning
+            # the session for every visit and loop still to come.
             async with db.begin_nested():
-                # Lookup or create Vendor
-                vendor_id = None
-                if vendor_name:
-                    vendor_result = await db.execute(
-                        select(Vendor).where(Vendor.name == vendor_name).limit(1)
-                    )
-                    vendor = vendor_result.scalar_one_or_none()
-                    if not vendor:
-                        vendor = Vendor(name=vendor_name)
-                        db.add(vendor)
-                        await db.flush()
-                    vendor_id = vendor.id
-
-                # Create ServiceVisit with one line item per CSV row
-                visit = ServiceVisit(
-                    vin=vin,
-                    date=date,
-                    odometer_km=odometer_km,
-                    engine_hours=engine_hours,
-                    service_category=category or "Maintenance",
-                    vendor_id=vendor_id,
-                    notes=notes,
-                    total_cost=cost or Decimal("0"),
-                )
-                db.add(visit)
-                await db.flush()
-
-                line_item = ServiceLineItem(
-                    visit_id=visit.id,
-                    description=description or category or "Service",
-                    maintenance_type=classify(description or category or "Service"),
-                    cost=cost or Decimal("0"),
-                )
-                db.add(line_item)
-            readings.add(
-                "service_visit",
-                visit.id,
-                visit.date,
-                odometer_km=visit.odometer_km,
-                engine_hours=visit.engine_hours,
-            )
-            import_result.add_success()
-
-        except _ImportBoundError as e:
-            import_result.add_error(row_num, e.reason)
+                visit = await _write_service_csv_visit(db, vin, group)
+        except _RowError as e:
+            for row in group:
+                import_result.add_error(row.row_num, e.reason)
+            continue
         except Exception as e:
-            # Intentional catch-all: per-row errors should not stop the import
-            logger.error("Service import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid service record data")
+            # Intentional catch-all: one visit's failure should not stop the import
+            logger.error("Service import rows %s failed: %s", [r.row_num for r in group], e)
+            for row in group:
+                import_result.add_error(row.row_num, "Invalid service record data")
+            continue
+        for _row in group:
+            import_result.add_success()
+        readings.add(
+            "service_visit",
+            visit.id,
+            visit.date,
+            odometer_km=visit.odometer_km,
+            engine_hours=visit.engine_hours,
+        )
 
     await readings.apply(db, vin, claim=False)
     await db.commit()
@@ -1623,10 +1916,9 @@ async def import_hours_csv(
                 notes=notes,
                 source="manual",
             )
-            # A savepoint per row. Leaving it flushes the insert, so the next
-            # row's duplicate check sees this one (production sessions do not
-            # autoflush), and a row the database rejects rolls back alone
-            # instead of failing the whole upload at the final commit.
+            # A savepoint per row. Leaving it flushes the insert, so a row the
+            # database rejects rolls back alone instead of failing the whole
+            # upload at the final commit (production sessions do not autoflush).
             async with db.begin_nested():
                 db.add(record)
             import_result.add_success()
@@ -2020,7 +2312,8 @@ async def import_vehicle_json(
         if val is None or val == "":
             return None
         d = Decimal(str(val))
-        # Infinity and NaN pass for the bounds check to name; sNaN would raise here.
+        # Infinity and NaN pass for the bounds check to name. An sNaN isn't
+        # finite either, so it passes too: multiplying it below would raise.
         if not is_legacy_v2 or not d.is_finite():
             return d
         return _at_scale(d * UnitConverter.MILES_TO_KM, Decimal("0.01"))
@@ -2079,6 +2372,9 @@ async def import_vehicle_json(
             _within_api_bounds(ServiceVisitCreate, odometer_km=imported_odometer_km)
             _within_api_bounds(ServiceLineItemCreate, cost=cost)
 
+            # T-18: a v<=8 entry carries the first item's description and the
+            # visit total, which sums the items, tax and fees; so the total
+            # stands in for them. v8 wrote no claim number.
             if (
                 skip_duplicates
                 and await matcher.take(
@@ -2091,6 +2387,18 @@ async def import_vehicle_json(
                         imported_odometer_km,
                         converted=is_legacy_v2,
                         last_id_before_import=matcher.last_id(ServiceVisit),
+                    ),
+                    *(
+                        [_money_matches(ServiceVisit.total_cost, cost)]
+                        if "cost" in record_data
+                        else []
+                    ),
+                    options=_VISIT_MATCH_LOADS,
+                    same=lambda visit: _same_visit(
+                        visit,
+                        vendor_name=record_data.get("vendor_name"),
+                        check_vendor="vendor_name" in record_data,
+                        items=None,
                     ),
                 )
                 is not None
@@ -2120,26 +2428,12 @@ async def import_vehicle_json(
             # on any of them rolls the whole row back alone instead of
             # poisoning the session for every row and loop still to come.
             async with db.begin_nested():
-                # Lookup or create Vendor
-                vendor_id = None
-                vendor_name = record_data.get("vendor_name")
-                if vendor_name:
-                    vendor_result = await db.execute(
-                        select(Vendor).where(Vendor.name == vendor_name).limit(1)
-                    )
-                    vendor = vendor_result.scalar_one_or_none()
-                    if not vendor:
-                        vendor = Vendor(name=vendor_name)
-                        db.add(vendor)
-                        await db.flush()
-                    vendor_id = vendor.id
-
                 visit = ServiceVisit(
                     vin=vin,
                     date=date,
                     odometer_km=imported_odometer_km,
                     service_category=category,
-                    vendor_id=vendor_id,
+                    vendor_id=await _vendor_id_for(db, record_data.get("vendor_name")),
                     notes=record_data.get("notes"),
                     total_cost=cost,
                 )
@@ -2168,6 +2462,137 @@ async def import_vehicle_json(
             results["service_records"]["errors"] += 1
             logger.warning("Import: service record %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Service record {idx}: could not be imported")
+
+    # Import v9 service visits whole: the visit, its line items in order and
+    # the inspection links between them. Counted with the v<=8 entries (T-4).
+    for idx, visit_data in enumerate(sections["service_visits"]):
+        try:
+            date = _json_row_date(visit_data)
+            odometer_km = _maybe_mi_to_km(visit_data.get("odometer_km"))
+            engine_hours = _json_decimal(visit_data, "engine_hours")
+            tax_amount = _json_decimal(visit_data, "tax_amount")
+            shop_supplies = _json_decimal(visit_data, "shop_supplies")
+            misc_fees = _json_decimal(visit_data, "misc_fees")
+            _within_api_bounds(
+                ServiceVisitCreate,
+                odometer_km=odometer_km,
+                engine_hours=engine_hours,
+                tax_amount=tax_amount,
+                shop_supplies=shop_supplies,
+                misc_fees=misc_fees,
+            )
+            # The API allows a visit with no category, so None stays None.
+            service_category = _in_vocabulary(
+                _blank_to_none(visit_data.get("service_category")),
+                "service_category",
+                _SERVICE_CATEGORIES,
+            )
+            raw_items = visit_data.get("line_items")
+            if not isinstance(raw_items, list):
+                raise _RowError("line_items must be a list")
+            line_items = cast(list[Any], raw_items)
+            items = [
+                _line_item_from_json(position, item, len(line_items))
+                for position, item in enumerate(line_items)
+            ]
+            total_cost = _visit_total(
+                (columns["cost"] for columns, _link in items), tax_amount, shop_supplies, misc_fees
+            )
+            vendor_name = visit_data.get("vendor_name")
+
+            # R5's service key. The visit's own amounts and claim number are in
+            # it, so two visits that differ only there can't both match one
+            # stored visit (Codex R2); each only when the entry has it (T-16).
+            fee_key = [
+                condition
+                for key, condition in (
+                    ("tax_amount", _money_matches(ServiceVisit.tax_amount, tax_amount)),
+                    ("shop_supplies", _money_matches(ServiceVisit.shop_supplies, shop_supplies)),
+                    ("misc_fees", _money_matches(ServiceVisit.misc_fees, misc_fees)),
+                    (
+                        "insurance_claim_number",
+                        _matches(
+                            ServiceVisit.insurance_claim_number,
+                            visit_data.get("insurance_claim_number"),
+                        ),
+                    ),
+                )
+                if key in visit_data  # T-16: a v9 export writes all four
+            ]
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    ServiceVisit,
+                    ServiceVisit.vin == vin,
+                    ServiceVisit.date == date,
+                    _odometer_matches(
+                        ServiceVisit,
+                        odometer_km,
+                        converted=is_legacy_v2,
+                        last_id_before_import=matcher.last_id(ServiceVisit),
+                    ),
+                    *fee_key,
+                    options=_VISIT_MATCH_LOADS,
+                    same=lambda visit: _same_visit(
+                        visit,
+                        vendor_name=vendor_name,
+                        check_vendor=True,
+                        items=_item_counts(
+                            (columns["description"], columns["cost"]) for columns, _link in items
+                        ),
+                    ),
+                )
+                is not None
+            ):
+                results["service_records"]["skipped"] += 1
+                continue
+
+            # One savepoint for the visit, its items and their links, so a row
+            # the database rejects rolls back whole and alone.
+            async with db.begin_nested():
+                visit = ServiceVisit(
+                    vin=vin,
+                    date=date,
+                    odometer_km=odometer_km,
+                    engine_hours=engine_hours,
+                    service_category=service_category,
+                    vendor_id=await _vendor_id_for(db, vendor_name),
+                    tax_amount=tax_amount,
+                    shop_supplies=shop_supplies,
+                    misc_fees=misc_fees,
+                    insurance_claim_number=visit_data.get("insurance_claim_number"),
+                    notes=visit_data.get("notes"),
+                    total_cost=total_cost,
+                )
+                db.add(visit)
+                await db.flush()
+                written = [
+                    ServiceLineItem(visit_id=visit.id, **columns) for columns, _link in items
+                ]
+                db.add_all(written)
+                await db.flush()
+                # An item's link is an index into this visit's items, so it's
+                # set once every item has its id.
+                for line_item, (_columns, link) in zip(written, items, strict=True):
+                    if link is not None:
+                        line_item.triggered_by_inspection_id = written[link].id
+                await db.flush()
+            readings.add(
+                "service_visit",
+                visit.id,
+                visit.date,
+                odometer_km=visit.odometer_km,
+                engine_hours=visit.engine_hours,
+            )
+            results["service_records"]["success"] += 1
+        except _RowError as e:
+            results["service_records"]["errors"] += 1
+            errors.append(f"Service visit {idx}: {e.reason}")
+        except Exception as e:
+            results["service_records"]["errors"] += 1
+            logger.warning("Import: service visit %s failed: %s", idx, sanitize_for_log(e))
+            errors.append(f"Service visit {idx}: could not be imported")
 
     # Import fuel records
     for idx, record_data in enumerate(sections["fuel_records"]):
@@ -2399,10 +2824,9 @@ async def import_vehicle_json(
                 notes=_without_sync_marker(record_data.get("notes")),
                 source=_portable_odometer_source(record_data.get("source")),
             )
-            # A savepoint per row. Leaving it flushes the insert, so the next
-            # row's duplicate check sees this one (production sessions do not
-            # autoflush), and a row the database rejects rolls back alone
-            # instead of failing the whole upload at the final commit.
+            # A savepoint per row. Leaving it flushes the insert, so a row the
+            # database rejects rolls back alone instead of failing the whole
+            # upload at the final commit (production sessions do not autoflush).
             async with db.begin_nested():
                 db.add(record)
             results["odometer_records"]["success"] += 1

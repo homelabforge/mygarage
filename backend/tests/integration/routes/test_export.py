@@ -87,7 +87,7 @@ class TestExportRoutes:
         data = response.json()
         assert "vehicle" in data
         assert "export_date" in data
-        assert "service_records" in data
+        assert "service_visits" in data
         assert "fuel_records" in data
 
     async def test_export_unauthorized(self, client: AsyncClient, test_vehicle_with_records):

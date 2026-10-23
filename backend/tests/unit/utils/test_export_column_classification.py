@@ -52,7 +52,7 @@ _EXPORT_SOURCE = Path(__file__).resolve().parents[3] / "app" / "routes" / "expor
 EXPECTED_HEADER_LISTS: dict[str, int] = {
     # The four unit-bearing pairs, which go through `build_csv` ->
     # `apply_unit_set`. These are the ones a miss actually corrupts.
-    "export_service_records_csv": 8,
+    "export_service_records_csv": 14,
     "export_fuel_records_csv": 30,
     "export_def_records_csv": 9,
     "export_odometer_records_csv": 3,
@@ -88,6 +88,9 @@ DIMENSIONLESS_HEADERS: frozenset[str] = frozenset(
         "Premium",
         "Deductible",
         "Amount",
+        "Tax",
+        "Shop Supplies",
+        "Misc Fees",
         # Free text, names and identifiers.
         "Category",
         "Description",
@@ -119,6 +122,11 @@ DIMENSIONLESS_HEADERS: frozenset[str] = frozenset(
         "Premium Frequency",
         "Title",
         "Content",
+        # Service CSV v8 (J6): the visit number, the claim number and the two notes columns.
+        "Visit",
+        "Insurance Claim",
+        "Visit Notes",
+        "Item Notes",
         # Booleans and counts.
         "Full Tank",
         "Missed Fill-up",

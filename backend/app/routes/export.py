@@ -1,16 +1,18 @@
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Mapper, selectinload
 
 from app.config import settings
 from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet
@@ -31,7 +33,6 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import resolve_station_names
-from app.services.service_visit_service import service_visit_cost_load_options
 from app.utils.csv_emission import apply_unit_set, marker_for
 from app.utils.csv_safe import sanitize_csv_row
 from app.utils.insurance_coverages import coverage_text
@@ -81,8 +82,19 @@ limiter = Limiter(key_func=get_remote_address)
 #   catalogue, migration 108) in place of the `coverage_limits` text box. The
 #   CSV keeps its `Coverage Limits` column, now rendered from those rows and
 #   read back through the same parser, so its shape and version are unchanged.
-CSV_SCHEMA_VERSION = "7"
-JSON_SCHEMA_VERSION = "8"
+# - CSV "8": the service CSV numbers each visit in a `Visit` column, splits
+#   `Notes` into `Item Notes` and `Visit Notes`, and adds `Tax`,
+#   `Shop Supplies`, `Misc Fees` and `Insurance Claim` (J6). Rows sharing a
+#   number import as one visit; an older file groups by date, odometer,
+#   vendor and category. The other CSVs keep their shape.
+# - JSON "9": every section writes every column (R1): `service_visits` with
+#   nested `line_items` replaces `service_records`, the fuel, DEF, odometer
+#   and hours rows carry the rest of their columns, the vehicle is written
+#   whole, and `financing_records`, `tax_records`, `toll_tags`,
+#   `toll_transactions`, `warranties` and `spot_rentals` are new. The
+#   importer still reads v2 to v8, and a section a file lacks is empty.
+CSV_SCHEMA_VERSION = "8"
+JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
 
 
@@ -163,6 +175,61 @@ def build_csv(headers: list[str], rows: list[list[Any]], units: UnitSet) -> io.S
     return generate_csv_stream(headers, rows, unit_system=marker_for(units))
 
 
+def _money_cell(value: Decimal | None) -> str:
+    """A money cell: two places, blank only when there's no amount."""
+    return f"{value:.2f}" if value is not None else ""
+
+
+def _json_value(value: Any) -> Any:
+    """A column value for the JSON backup: Decimal as a number, dates as ISO text."""
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    return value
+
+
+def _json_columns(row: Any, exclude: frozenset[str]) -> dict[str, Any]:
+    """Every column of `row` but `exclude`, in model order (R1).
+
+    A column added to the model is exported by default; the JSON coverage test
+    fails until it is named there as exported or excluded.
+    """
+    mapper: Mapper[Any] = sa_inspect(type(row))
+    return {
+        column.key: _json_value(getattr(row, column.key))
+        for column in mapper.columns
+        if column.key not in exclude
+    }
+
+
+#: Left out of every section: the row's key, its vehicle (the file is the
+#: vehicle's) and the bookkeeping timestamps.
+_ALWAYS_EXCLUDED = frozenset({"id", "vin", "created_at", "updated_at"})
+#: The vendor travels by name; the total is recomputed from the items and fees.
+_SERVICE_VISIT_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"vendor_id", "total_cost"}
+#: The visit is the parent; the inspection link travels as an index in the visit.
+_LINE_ITEM_JSON_EXCLUDE = frozenset({"id", "visit_id", "triggered_by_inspection_id", "created_at"})
+#: What the service exports read off a visit.
+_SERVICE_VISIT_EXPORT_LOADS = (
+    selectinload(ServiceVisit.line_items),
+    selectinload(ServiceVisit.vendor),
+)
+
+
+def _line_items_json(visit: ServiceVisit) -> list[dict[str, Any]]:
+    """A visit's line items; an inspection link is the linked item's index here."""
+    position = {item.id: index for index, item in enumerate(visit.line_items)}
+    return [
+        {
+            **_json_columns(item, _LINE_ITEM_JSON_EXCLUDE),
+            # A link outside the visit has no index here, so it drops.
+            "triggered_by_inspection": position.get(item.triggered_by_inspection_id),
+        }
+        for item in visit.line_items
+    ]
+
+
 @router.get("/vehicles/{vin}/service/csv")
 @limiter.limit(settings.rate_limit_exports)
 async def export_service_records_csv(
@@ -180,19 +247,22 @@ async def export_service_records_csv(
     # Verify vehicle exists and user has access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
-    # Get all service visits with line items (+ supply usages) and vendor.
-    # service_visit_cost_load_options: this route only reads
-    # calculated_total_cost (needs cost_snapshot), never a usage's Supply row.
+    # Every service visit with its line items and vendor. The rows carry each
+    # item's own cost and the visit's fees, not the supply-inclusive total, so
+    # supply usages aren't loaded.
     result = await db.execute(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
-        .options(*service_visit_cost_load_options())
+        .options(*_SERVICE_VISIT_EXPORT_LOADS)
         .order_by(ServiceVisit.date.desc())
     )
     visits = result.scalars().all()
 
-    # Generate CSV — one row per line item for backward-compatible format
+    # One row per line item, numbered by visit (J6): rows sharing a `Visit`
+    # number import as one visit. A visit with no items is one row with the
+    # item's cells blank.
     headers = [
+        "Visit",
         "Date",
         "Category",
         "Description",
@@ -200,42 +270,43 @@ async def export_service_records_csv(
         "Engine Hours",
         "Cost",
         "Vendor",
-        "Notes",
+        "Item Notes",
+        "Tax",
+        "Shop Supplies",
+        "Misc Fees",
+        "Insurance Claim",
+        "Visit Notes",
     ]
 
-    rows = []
-    for visit in visits:
+    rows: list[list[Any]] = []
+    for number, visit in enumerate(visits, start=1):
         vendor_name = visit.vendor.name if visit.vendor else ""
         # engine_hours: hour-metered vehicles (ATVs, side-by-sides, equipment).
         # Dimensionless — no unit conversion. `is not None` (not `or ""`) so a
         # genuine 0.0 reading isn't dropped, matching fuel's outside_temp_c/
         # obc_l_per_100km convention.
         engine_hours = f"{visit.engine_hours:.1f}" if visit.engine_hours is not None else ""
-        if visit.line_items:
-            for item in visit.line_items:
-                rows.append(
-                    [
-                        visit.date.isoformat() if visit.date else "",
-                        visit.service_category or "",
-                        item.description or "",
-                        visit.odometer_km or None,
-                        engine_hours,
-                        f"{item.cost:.2f}" if item.cost else "",
-                        vendor_name,
-                        item.notes or visit.notes or "",
-                    ]
-                )
-        else:
-            # Visit with no line items — single row with visit-level data
+        # Description, Cost and Item Notes; blank on a visit with no items.
+        item_cells = [
+            [item.description, _money_cell(item.cost), item.notes or ""]
+            for item in visit.line_items
+        ] or [["", "", ""]]
+        for description, cost, item_notes in item_cells:
             rows.append(
                 [
-                    visit.date.isoformat() if visit.date else "",
+                    str(number),
+                    visit.date.isoformat(),
                     visit.service_category or "",
-                    "",
-                    visit.odometer_km or None,
+                    description,
+                    visit.odometer_km,  # canonical Decimal or None; build_csv converts it
                     engine_hours,
-                    f"{visit.calculated_total_cost:.2f}" if visit.calculated_total_cost else "",
+                    cost,
                     vendor_name,
+                    item_notes,
+                    _money_cell(visit.tax_amount),
+                    _money_cell(visit.shop_supplies),
+                    _money_cell(visit.misc_fees),
+                    visit.insurance_claim_number or "",
                     visit.notes or "",
                 ]
             )
@@ -829,13 +900,12 @@ async def export_vehicle_json(
     # Verify vehicle exists and user has access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
-    # Get all related records. service_visit_cost_load_options: this route
-    # only reads calculated_total_cost (needs cost_snapshot), never a usage's
-    # Supply row.
+    # Get all related records. A visit carries its line items and vendor name;
+    # supply usages aren't exported (J4), so they aren't loaded.
     service_result = await db.execute(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
-        .options(*service_visit_cost_load_options())
+        .options(*_SERVICE_VISIT_EXPORT_LOADS)
         .order_by(ServiceVisit.date.desc())
     )
     service_visits = service_result.scalars().all()
@@ -889,16 +959,11 @@ async def export_vehicle_json(
             "purchase_date": vehicle.purchase_date.isoformat() if vehicle.purchase_date else None,
             "purchase_price": float(vehicle.purchase_price) if vehicle.purchase_price else None,
         },
-        # Keep "service_records" key for backward-compatible JSON re-import
-        "service_records": [
+        "service_visits": [
             {
-                "date": v.date.isoformat() if v.date else None,
-                "service_category": v.service_category,
-                "service_type": v.line_items[0].description if v.line_items else None,
-                "odometer_km": float(v.odometer_km) if v.odometer_km is not None else None,
-                "cost": float(v.calculated_total_cost) if v.calculated_total_cost else None,
+                **_json_columns(v, _SERVICE_VISIT_JSON_EXCLUDE),
                 "vendor_name": v.vendor.name if v.vendor else None,
-                "notes": v.notes,
+                "line_items": _line_items_json(v),
             }
             for v in service_visits
         ],

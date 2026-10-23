@@ -1445,3 +1445,153 @@ class TestR9OrderedTupleSignature:
             assert resp.status_code == 200, resp.text
             visit = await _one(test_sessionmaker, ServiceVisit, vin)
             assert Decimal(visit.odometer_km) == Decimal("531.08")
+
+
+# --------------------------------------------------------------------------
+# Batch 3a (R8): a multi-row v7 service file and a v8 JSON backup.
+# --------------------------------------------------------------------------
+
+
+class TestV7ServiceRowsOfOneVisit:
+    """v7 wrote one row per line item and no visit number (G4-73)."""
+
+    async def test_two_rows_of_one_visit_import_as_one_visit(
+        self, client, auth_headers, test_user, db_session, test_sessionmaker
+    ) -> None:
+        body = (
+            f"{_SVC_MARKER_KM}\n"
+            f"7,metric,2026-08-01,Maintenance,Oil,5000.00,10.0,40.00,{CORPUS_VENDOR},shared\n"
+            f"7,metric,2026-08-01,Maintenance,Filter,5000.00,10.0,10.00,{CORPUS_VENDOR},shared\n"
+        )
+        async with _vehicle(db_session, test_user["id"], "CORPUSV7TWOITEM01") as vin:
+            resp = await _post(client, auth_headers, vin, "service", body)
+            assert resp.status_code == 200, resp.text
+            async with test_sessionmaker() as fresh:
+                visits = (
+                    (await fresh.execute(select(ServiceVisit).where(ServiceVisit.vin == vin)))
+                    .scalars()
+                    .all()
+                )
+                items = (
+                    (
+                        await fresh.execute(
+                            select(ServiceLineItem.description)
+                            .join(ServiceVisit)
+                            .where(ServiceVisit.vin == vin)
+                            .order_by(ServiceLineItem.id)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            # main: two visits, one item each
+            assert len(visits) == 1, [v.id for v in visits]
+            assert (visits[0].notes, items) == ("shared", ["Oil", "Filter"])
+
+
+# A v8 backup's reading-bearing sections as the v3.9.0 export wrote them: the
+# odometer row a fill-up synced carries its marker, the hours row its source.
+_V8_BACKUP = {
+    "export_version": "8",
+    "units": "metric",
+    "export_date": "2026-10-01T12:00:00",
+    "vehicle": {"vin": "IGNORED", "year": 2024, "make": "Test", "model": "Corpus"},
+    "service_records": [
+        {
+            "date": "2026-08-02",
+            "service_category": "Maintenance",
+            "service_type": "Oil",
+            "odometer_km": 5100.0,
+            "cost": 45.0,
+            "vendor_name": CORPUS_VENDOR,
+            "notes": None,
+        }
+    ],
+    "fuel_records": [
+        {
+            "date": "2026-08-03",
+            "odometer_km": 5200.0,
+            "liters": 40.0,
+            "price_per_unit": 1.5,
+            "price_basis": "per_volume",
+            "rebate": None,
+            "cost": 60.0,
+            "is_full_tank": True,
+            "missed_fillup": False,
+            "is_hauling": False,
+            "fuel_type_used": "diesel",
+            "octane": None,
+            "diesel_grade": "onroad",
+            "notes": None,
+        }
+    ],
+    "def_records": [
+        {
+            "date": "2026-08-04",
+            "odometer_km": 5300.0,
+            "liters": 9.5,
+            "price_per_unit": 1.1,
+            "cost": 10.45,
+            "fill_level": 0.8,
+            "source": "Pump",
+            "brand": "Blue",
+            "notes": None,
+        }
+    ],
+    "odometer_records": [
+        {"date": "2026-08-03", "reading": 5200.0, "notes": "[AUTO-SYNC from fuel #41]"},
+        {"date": "2026-08-05", "reading": 5400.0, "notes": "Monthly"},
+    ],
+    "hours_records": [
+        {"date": "2026-08-05", "engine_hours": 12.5, "notes": None, "source": "manual"}
+    ],
+}
+
+
+def _synced_from(notes: str | None) -> str | None:
+    """The source a sync marker names (its id is the new row's); other notes as they are."""
+    prefix = "[AUTO-SYNC from "
+    if notes and notes.startswith(prefix) and notes.endswith("]"):
+        return notes[len(prefix) :].split(" #")[0]
+    return notes
+
+
+class TestJsonV8Backup:
+    async def test_a_v8_backup_still_imports_every_reading_once(
+        self, client, auth_headers, test_user, db_session, test_sessionmaker
+    ) -> None:
+        import json
+
+        async with _vehicle(db_session, test_user["id"], "CORPUSJSONV8BACK1") as vin:
+            resp = await client.post(
+                f"/api/import/vehicles/{vin}/json",
+                headers=auth_headers,
+                files={"file": ("v8.json", json.dumps(_V8_BACKUP).encode(), "application/json")},
+                data={"skip_duplicates": "true"},
+            )
+            assert resp.status_code == 200, resp.text
+            data = resp.json()
+            assert [
+                data[s]["success_count"]
+                for s in ("service_records", "fuel_records", "def_records", "odometer_records")
+            ] == [1, 1, 1, 2], data
+            assert data["hours_records"]["success_count"] == 1, data
+            async with test_sessionmaker() as fresh:
+                readings = (
+                    await fresh.execute(
+                        select(
+                            OdometerRecord.date, OdometerRecord.odometer_km, OdometerRecord.notes
+                        )
+                        .where(OdometerRecord.vin == vin)
+                        .order_by(OdometerRecord.date)
+                    )
+                ).all()
+            # The 3rd's copied marker is gone, and the fill-up's own sync found the day
+            # already read; the 2nd and 4th are synced from the visit and the DEF fill.
+            # main: no rows for the 2nd and 4th, and the 3rd still marked fuel #41
+            assert [(d.isoformat(), str(km), _synced_from(n)) for d, km, n in readings] == [
+                ("2026-08-02", "5100.00", "service_visit"),
+                ("2026-08-03", "5200.00", None),
+                ("2026-08-04", "5300.00", "def"),
+                ("2026-08-05", "5400.00", "Monthly"),
+            ]

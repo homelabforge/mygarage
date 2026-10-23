@@ -129,11 +129,29 @@ def _iterations(fn: ast.AST):
     """
     for node in ast.walk(fn):
         if isinstance(node, ast.For):
-            yield node.target, node.iter, node.body
+            yield *_unenumerated(node.target, node.iter), node.body
         elif isinstance(node, ast.ListComp | ast.SetComp | ast.GeneratorExp | ast.DictComp):
             elts = [node.key, node.value] if isinstance(node, ast.DictComp) else [node.elt]
             for gen in node.generators:
-                yield gen.target, gen.iter, elts + list(gen.ifs)
+                yield *_unenumerated(gen.target, gen.iter), elts + list(gen.ifs)
+
+
+def _unenumerated(target: ast.expr, iterable: ast.expr) -> tuple[ast.expr, ast.expr]:
+    """`for number, visit in enumerate(visits)` binds `visit` as `for visit in visits` would.
+
+    The service CSV numbers its visits that way; read as a tuple target, every
+    read on the visit and on its line items went unchecked.
+    """
+    if (
+        isinstance(target, ast.Tuple)
+        and len(target.elts) == 2
+        and isinstance(iterable, ast.Call)
+        and isinstance(iterable.func, ast.Name)
+        and iterable.func.id == "enumerate"
+        and iterable.args
+    ):
+        return target.elts[1], iterable.args[0]
+    return target, iterable
 
 
 def export_attribute_reads() -> list[tuple[str, type, str]]:

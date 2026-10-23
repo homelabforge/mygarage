@@ -108,7 +108,10 @@ class TestThirdPartyFuelImport:
         """A failed derived odometer write must not cost the user their import."""
         from app.routes import import_data
 
+        called: list[object] = []
+
         async def boom(*args, **kwargs):
+            called.append(kwargs.get("date"))
             raise RuntimeError("simulated sync failure")
 
         monkeypatch.setattr(import_data, "sync_odometer_from_record", boom)
@@ -121,6 +124,8 @@ class TestThirdPartyFuelImport:
             test_vehicle["vin"], parsed, False, db_session
         )
         assert result["success_count"] == 2
+        # The patch reached the sync: a moved target would leave this test vacuous.
+        assert called == [date(2027, 7, 1), date(2027, 7, 2)]
 
         count = await db_session.scalar(
             select(func.count())

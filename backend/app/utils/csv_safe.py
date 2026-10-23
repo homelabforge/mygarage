@@ -49,6 +49,23 @@ def sanitize_csv_cell(value: Any) -> Any:
     return value
 
 
+def unquote_csv_cell(value: str) -> str:
+    """Undo `sanitize_csv_cell` on a cell read back: one `'` before a formula lead character.
+
+    The export quotes a text cell that starts with = + - @, a tab or a CR and
+    isn't a number, so a spreadsheet won't run it. Read back as it is, the
+    quote became part of the stored text and no key matched it (T-21).
+    """
+    if (
+        len(value) > 1
+        and value[0] == "'"
+        and value[1] in _DANGEROUS_LEAD
+        and not _is_number(value[1:])
+    ):
+        return value[1:]
+    return value
+
+
 def sanitize_csv_row(row: list[Any]) -> list[Any]:
     """Apply :func:`sanitize_csv_cell` to each cell of a row."""
     return [sanitize_csv_cell(cell) for cell in row]

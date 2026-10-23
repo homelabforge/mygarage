@@ -236,7 +236,7 @@ async def test_the_json_backup_carries_insurance_with_named_fields_at_both_level
 
     exported = await client.get(f"/api/export/vehicles/{RAM}/json", headers=auth_headers)
     backup = exported.json()
-    assert backup["export_version"] == "8"
+    assert backup["export_version"] == "9"
     (entry,) = backup["insurance_policies"]
     assert entry["premium_share"] == 300.0, "the vehicle's EFFECTIVE share, not the policy total"
 

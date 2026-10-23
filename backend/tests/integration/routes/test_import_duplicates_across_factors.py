@@ -647,7 +647,8 @@ class TestTwoDifferentReadingsInsideTheBandBothImport:
             # Both rows import: a row this import wrote is never a duplicate (T-14).
             assert resp.json()["success_count"] == 2, resp.json()
             assert resp.json()["skipped_count"] == 0, resp.json()
-            assert await _count(db_session, model, vin) == 2
+            # Two service rows of one day and odometer are one visit's two line items (G4-73).
+            assert await _count(db_session, model, vin) == (1 if pair == "service" else 2)
 
     async def test_legacy_json_backup_two_readings(
         self, client, auth_headers, test_user, db_session
