@@ -77,6 +77,19 @@ def _to_response(setting: Setting) -> SettingResponse:
     return response
 
 
+def _stored_secret_mask(setting: Setting | None) -> str:
+    """The mask for a stored secret row: the placeholder when one is set, "" when none is.
+
+    The same rule as `_to_response`: a secret that can't be decrypted reads as
+    None but is still configured, so it shows the placeholder too (D3a).
+    """
+    if setting is None:
+        return ""
+    if setting.unreadable:
+        return MASKED_SECRET_PLACEHOLDER
+    return display_mask_secret(setting.value or "")
+
+
 class _KeepStored(Enum):
     """The type of `KEEP_STORED`: a one-member enum, so pyright narrows on `is`."""
 
@@ -354,7 +367,6 @@ async def get_poi_providers(
         # Get usage tracking
         usage_stats = await get_provider_usage(db, provider_name)
 
-        api_key_value = api_key_setting.value or ""
         providers.append(
             {
                 "name": provider_name,
@@ -362,7 +374,7 @@ async def get_poi_providers(
                 "enabled": enabled,
                 "is_default": False,
                 "api_key_configured": True,
-                "api_key_masked": (f"{api_key_value[:8]}***" if len(api_key_value) > 8 else "***"),
+                "api_key_masked": _stored_secret_mask(api_key_setting),
                 "api_usage": usage_stats["usage"],
                 "api_limit": metadata["api_limit"],
                 "priority": metadata["priority"],
@@ -450,7 +462,7 @@ async def add_poi_provider(
     return {
         "name": provider_name,
         "enabled": enabled,
-        "api_key_masked": f"{api_key[:8]}***" if len(api_key) > 8 else "***",
+        "api_key_masked": display_mask_secret(api_key),
     }
 
 
@@ -497,16 +509,23 @@ async def update_poi_provider(
 
     # The placeholder means "keep the stored key": write nothing (D3a), so a key
     # that can't be decrypted survives for the right settings key to open.
-    if api_key is not None and api_key != MASKED_SECRET_PLACEHOLDER:
+    key_written = api_key is not None and api_key != MASKED_SECRET_PLACEHOLDER
+    if key_written:
         await SettingsService.set(db, f"{provider_name}_api_key", api_key)
     await db.commit()
 
     logger.info("Updated POI provider %s", sanitize_for_log(provider_name))
 
+    # A key left alone is masked as stored, unreadable included.
+    api_key_masked = (
+        display_mask_secret(api_key)
+        if key_written
+        else _stored_secret_mask(await SettingsService.get(db, f"{provider_name}_api_key"))
+    )
     return {
         "name": provider_name,
         "enabled": enabled if enabled is not None else True,
-        "api_key_masked": f"{api_key[:8]}***" if api_key and len(api_key) > 8 else "***",
+        "api_key_masked": api_key_masked,
     }
 
 

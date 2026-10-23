@@ -1031,7 +1031,7 @@ class TestPOIProviderPersistence:
         assert await _committed_provider_rows(test_sessionmaker) == {}
 
 
-# Long enough to mask, so the list has a real prefix in it.
+# Longer than the 8 characters the list used to show, so a prefix would be visible.
 _LISTED_KEY = "fsq-list-key-0123456789"
 
 
@@ -1067,12 +1067,14 @@ class TestPOIProviderListIsAdminOnly:
     async def test_an_admin_gets_the_masked_key(
         self, client: AsyncClient, set_auth_mode, auth_headers
     ):
-        """Control, passes before the gate too. The admin drawer shows the prefix."""
+        """Control, passes before the gate too. The admin sees the key as configured, masked
+        as the placeholder: the 8-character prefix is gone (I4)."""
         await set_auth_mode("local")
         response = await client.get("/api/settings/poi-providers", headers=auth_headers)
         assert response.status_code == 200, response.text
         listed = {p["name"]: p for p in response.json()["providers"]}
-        assert listed[_PROVIDER]["api_key_masked"] == f"{_LISTED_KEY[:8]}***"
+        assert listed[_PROVIDER]["api_key_masked"] == "********"
+        assert _LISTED_KEY[:8] not in response.text
 
     async def test_none_mode_stays_open(self, client: AsyncClient, set_auth_mode):
         """Control, passes before the gate too. With no login, everyone runs the instance."""
