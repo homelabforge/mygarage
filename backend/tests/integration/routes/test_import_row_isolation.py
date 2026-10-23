@@ -292,10 +292,12 @@ class TestOneUploadKeepsARowRepeatedInIt:
 class TestADatabaseInvalidRowDoesNotDiscardTheUpload:
     """A row that passes parsing but violates the database must not poison
     the whole upload the way `PendingRollbackError` would without a savepoint
-    per row.
+    per row. Since batch 3a (T-6) the missing reading is refused before the
+    write, so this pins the row error and the rows around it, not the
+    savepoint.
 
-    Only the vehicle JSON odometer loop has a reachable case: an entry with
-    no odometer at all builds `None` into `odometer_km`, which is
+    Only the vehicle JSON odometer loop had a reachable case: an entry with
+    no odometer at all built `None` into `odometer_km`, which is
     non-nullable. The fuel, DEF and hours CSV loops and the JSON fuel and DEF
     loops share `FuelRecord`/`DEFRecord`/`HoursRecord`, none of which declare
     a `CheckConstraint`, and their non-nullable columns (`vin`, `date`, and
@@ -335,6 +337,7 @@ class TestADatabaseInvalidRowDoesNotDiscardTheUpload:
             data = response.json()
             assert data["odometer_records"]["success_count"] == 2, data
             assert data["odometer_records"]["error_count"] == 1, data
+            assert data["errors"] == ["Odometer record 1: odometer_km is missing"], data
 
             count = await session.execute(
                 select(func.count())

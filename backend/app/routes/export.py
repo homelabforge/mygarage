@@ -421,17 +421,16 @@ async def export_fuel_records_csv(
                 # `Decimal`: `csv_emission` owns both the conversion and the
                 # per-column decimal places, so a cell's precision cannot
                 # differ between the metric and non-metric spellings of the
-                # same column. `or None` keeps the pre-v6 behaviour of
-                # blanking a falsy reading.
-                record.odometer_km or None,
+                # same column.
+                record.odometer_km,
                 # Dimensionless — no unit conversion. `is not None` (not `or ""`)
                 # so a genuine 0.0 reading isn't dropped, matching outside_temp_c
                 # / obc_l_per_100km below.
                 f"{record.engine_hours:.1f}" if record.engine_hours is not None else "",
-                record.liters or None,
-                record.price_per_unit or None,
-                f"{record.rebate:.2f}" if record.rebate else "",
-                f"{record.cost:.2f}" if record.cost else "",
+                record.liters,
+                record.price_per_unit,
+                _money_cell(record.rebate),
+                _money_cell(record.cost),
                 "Yes" if record.is_full_tank else "No",
                 "Yes" if record.missed_fillup else "No",
                 "Yes" if record.is_hauling else "No",
@@ -452,7 +451,7 @@ async def export_fuel_records_csv(
                 record.outside_temp_c,
                 record.obc_l_per_100km,
                 record.obc_avg_speed_kmh,
-                record.obc_trip_duration_s or "",
+                record.obc_trip_duration_s if record.obc_trip_duration_s is not None else "",
                 f"{record.soc_start_pct:.1f}" if record.soc_start_pct is not None else "",
                 f"{record.soc_end_pct:.1f}" if record.soc_end_pct is not None else "",
                 record.charge_level or "",
@@ -514,11 +513,11 @@ async def export_def_records_csv(
         rows.append(
             [
                 record.date.isoformat() if record.date else "",
-                record.odometer_km or None,
-                record.liters or None,
-                record.price_per_unit or None,
-                f"{record.cost:.2f}" if record.cost else "",
-                f"{record.fill_level:.2f}" if record.fill_level else "",
+                record.odometer_km,
+                record.liters,
+                record.price_per_unit,
+                _money_cell(record.cost),
+                f"{record.fill_level:.2f}" if record.fill_level is not None else "",
                 record.source or "",
                 record.brand or "",
                 record.notes or "",
@@ -571,7 +570,7 @@ async def export_odometer_records_csv(
         rows.append(
             [
                 record.date.isoformat() if record.date else "",
-                record.odometer_km or None,
+                record.odometer_km,
                 record.notes or "",
             ]
         )
@@ -846,7 +845,7 @@ async def export_tax_records_csv(
             [
                 record.date.isoformat() if record.date else "",
                 record.tax_type or "",
-                f"{record.amount:.2f}" if record.amount else "",
+                _money_cell(record.amount),
                 record.renewal_date.isoformat() if record.renewal_date else "",
                 record.notes or "",
             ]

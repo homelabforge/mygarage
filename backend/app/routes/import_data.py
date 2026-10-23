@@ -2896,9 +2896,9 @@ async def import_vehicle_json(
 
             # Legacy v2 used "mileage" (miles); v3 uses "odometer_km" (km).
             imported_odometer_km = _maybe_mi_to_km(
-                record_data.get("odometer_km") or record_data.get("mileage")
+                _first_present(record_data, "odometer_km", "mileage")
             )
-            cost = Decimal(str(record_data["cost"])) if record_data.get("cost") else Decimal("0")
+            cost = _json_decimal(record_data, "cost")
             _within_api_bounds(ServiceVisitCreate, odometer_km=imported_odometer_km)
             _within_api_bounds(ServiceLineItemCreate, cost=cost)
 
@@ -2965,7 +2965,7 @@ async def import_vehicle_json(
                     service_category=category,
                     vendor_id=await _vendor_id_for(db, record_data.get("vendor_name")),
                     notes=record_data.get("notes"),
-                    total_cost=cost,
+                    total_cost=cost if cost is not None else Decimal("0"),
                 )
                 db.add(visit)
                 await db.flush()
@@ -3268,8 +3268,11 @@ async def import_vehicle_json(
 
             # v2 used "reading" (miles), v3 uses "odometer_km".
             imported_odometer_km = _maybe_mi_to_km(
-                record_data.get("odometer_km") or record_data.get("reading")
+                _first_present(record_data, "odometer_km", "reading")
             )
+            # The column is NOT NULL: refused here, not by the database (T-6).
+            if imported_odometer_km is None:
+                raise _RowError("odometer_km is missing")
             _within_api_bounds(OdometerRecordCreate, odometer_km=imported_odometer_km)
 
             if (
