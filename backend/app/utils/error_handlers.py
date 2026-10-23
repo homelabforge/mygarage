@@ -111,7 +111,8 @@ async def handle_generic_exception(request: Request, exc: Exception) -> JSONResp
 
 
 #: A field whose name (the last `loc` segment, any case) contains one of these may
-#: hold a secret, so its rejected value isn't echoed back in the 422 (L2).
+#: hold a secret, so neither its rejected value nor its `ctx` is echoed back in the
+#: 422 (L2, F-2).
 _SECRET_FIELD_MARKERS = ("password", "secret", "token", "key")
 
 #: All the log line keeps of each error. `input` is the rejected value (for a
@@ -134,9 +135,11 @@ def _is_secret_field(loc: object) -> bool:
 async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle validation errors.
 
-    The 422 body keeps each error's `input` except for a field named like a
-    secret; the log line keeps only `type`, `loc` and `msg`, so no rejected
-    value reaches the log.
+    The 422 body keeps each error's `input` and `ctx`, except for a field named
+    like a secret, which loses both, and except for an `input` that is a dict
+    or a list (the whole parent object, on a missing field), which is dropped
+    for any field. The log line keeps only `type`, `loc` and `msg`, so no
+    rejected value reaches the log.
 
     Args:
         request: The request that caused the exception
@@ -165,13 +168,19 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
             else:
                 json_error[key] = str(value)
         if _is_secret_field(error.get("loc")):
+            # `ctx` too: a validator's exception lands in `ctx.error`, value and all (F-2).
+            json_error.pop("input", None)
+            json_error.pop("ctx", None)
+        elif isinstance(error.get("input"), dict | list | tuple):
+            # A whole object, not one value: on a missing field it is the parent
+            # body, whatever secret fields that holds (T6 m3).
             json_error.pop("input", None)
         errors.append(json_error)
 
     logged = [{k: e[k] for k in _LOGGED_ERROR_FIELDS if k in e} for e in errors]
     logger.warning("Validation error (request_id=%s): %s", request_id, logged)
 
-    # Return validation errors (a secret-named field's input is already dropped)
+    # Return validation errors (the inputs that could hold a secret are already dropped)
     return SecureErrorResponse.validation_error(
         errors=errors,
         request_id=request_id,
