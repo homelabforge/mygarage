@@ -77,9 +77,9 @@ type DueStatus = NonNullable<Reminder['due_status']>
  * `border-border`, and two utilities on one property resolve by stylesheet
  * order, not class order. `border-left-color` is its own property.
  */
-const STATUS_STYLE: Record<DueStatus, { tone: ProgressMeterTone; stripe?: string; chipKey?: string }> = {
-  overdue: { tone: 'danger', stripe: 'border-l-4 border-l-danger', chipKey: 'reminderList.statusOverdue' },
-  due_soon: { tone: 'warning', stripe: 'border-l-4 border-l-warning', chipKey: 'reminderList.statusDueSoon' },
+const STATUS_STYLE: Record<DueStatus, { tone: ProgressMeterTone; stripe?: string; labelKey?: string }> = {
+  overdue: { tone: 'danger', stripe: 'border-l-4 border-l-danger', labelKey: 'reminderList.statusOverdue' },
+  due_soon: { tone: 'warning', stripe: 'border-l-4 border-l-warning', labelKey: 'reminderList.statusDueSoon' },
   on_track: { tone: 'accent' },
   snoozed: { tone: 'muted' },
 }
@@ -396,7 +396,7 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
                     <div className="min-w-0">
                       <h4 className="text-sm font-medium text-text">{reminder.title}</h4>
                       <div className="flex flex-wrap gap-2 mt-1 items-center">
-                        {style?.chipKey && <Chip tone={style.tone}>{t(style.chipKey)}</Chip>}
+                        {style?.labelKey && <Chip tone={style.tone}>{t(style.labelKey)}</Chip>}
                         {typeKey && <Chip>{tForms(typeKey)}</Chip>}
                         {recurrence && reminder.rule?.is_active && (
                           <Chip tone="accent">
@@ -436,13 +436,13 @@ export default function ReminderList({ vehicle }: ReminderListProps) {
                           </span>
                         )}
                       </div>
-                      {status && reminder.progress != null && (
+                      {style && reminder.progress != null && (
                         <div className="mt-2 flex items-center gap-2">
                           <ProgressMeter
                             className="max-w-48 flex-1"
                             label={t('reminderList.progressLabel', { title: reminder.title })}
                             percent={reminder.progress * 100}
-                            tone={STATUS_STYLE[status].tone}
+                            tone={style.tone}
                             valueText={remaining ?? undefined}
                           />
                           {remaining && (

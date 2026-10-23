@@ -46,10 +46,10 @@ import ReminderList from '../ReminderList'
 const base = makeReminder({ id: 8, reminder_type: 'date', due_date: '2026-09-01' })
 const vehicle = makeVehicle()
 
-const snoozedFuture = makeReminder({ ...base, snoozed_until: addDaysToIsoDate(todayInHousehold(), 5) })
+const snoozedFuture = { ...base, snoozed_until: addDaysToIsoDate(todayInHousehold(), 5) }
 // today == snoozed_until means the snooze has expired (strictly-before
 // semantics, matching the backend's is_reminder_snoozed).
-const snoozedExpired = makeReminder({ ...base, snoozed_until: todayInHousehold() })
+const snoozedExpired = { ...base, snoozed_until: todayInHousehold() }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -84,7 +84,7 @@ describe('ReminderList — snooze action + dialog', () => {
 
   it('a done reminder gets no snooze action (pending-only, like mark-done and dismiss)', () => {
     useRemindersMock.mockReturnValue({
-      data: [makeReminder({ ...base, status: 'done' })],
+      data: [{ ...base, status: 'done' }],
       isLoading: false,
     })
     render(<ReminderList vehicle={vehicle} />)

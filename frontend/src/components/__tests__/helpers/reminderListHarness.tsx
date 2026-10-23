@@ -29,13 +29,15 @@ export function makeReminder(over: Partial<Reminder> = {}): Reminder {
 
 /** The vehicle ReminderList is handed, a distance-only car on VIN V1. */
 export function makeVehicle(over: Partial<Vehicle> = {}): Vehicle {
-  return {
+  // `satisfies` keeps the base checked against Vehicle; the cast only covers
+  // the fields a test never reads.
+  const base = {
     vin: 'V1', nickname: 'Test Car', vehicle_type: 'Car',
     usage_unit: 'distance', secondary_usage_enabled: false,
     archived_visible: true, location_tracking_enabled: false,
     created_at: '2026-01-01T00:00:00Z',
-    ...over,
-  } as Vehicle
+  } satisfies Partial<Vehicle>
+  return { ...base, ...over } as Vehicle
 }
 
 type HookMocks = Record<string, (...args: never[]) => unknown>
