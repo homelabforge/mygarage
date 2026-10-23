@@ -109,9 +109,24 @@ class SettingsKeyUnavailable(Exception):  # noqa: N818 - the name the plan and l
         self.reason = reason
         super().__init__(
             f"The settings encryption key is unavailable ({source}: {reason}). "
-            f"Set {ENV_KEY} to a valid key, or make the data directory writable "
-            "so a key can be generated."
+            f"{_fix_advice(source)}"
         )
+
+
+def _fix_advice(source: str) -> str:
+    """What fixes an unavailable keyring, by the source that broke (F-6).
+
+    A broken env var wins over the data dir, so a key generated there would be
+    ignored: only the data dir's own key file is fixed by making it writable.
+    """
+    if source == ENV_KEY:
+        return f"Set {ENV_KEY} to a valid key."
+    if source == ENV_KEY_FILE:
+        return f"Point {ENV_KEY_FILE} at the absolute path of a readable file holding a valid key."
+    return (
+        f"Set {ENV_KEY} to a valid key, or make the data directory writable so a key "
+        "can be generated."
+    )
 
 
 class DecryptStatus(StrEnum):
@@ -305,11 +320,11 @@ def _get_keyring() -> _Keyring | _Unavailable:
             _unavailable_logged = True
             logger.error(
                 "Settings encryption key unavailable from %s: %s. Secret settings can't be "
-                "saved, and encrypted ones read as unreadable, until %s is set to a valid key "
-                "or the data directory is writable. Logged once; fixing it needs no restart.",
+                "saved, and encrypted ones read as unreadable, until it is fixed. %s Logged "
+                "once; fixing it needs no restart.",
                 result.source,
                 result.reason,
-                ENV_KEY,
+                _fix_advice(result.source),
             )
         return result
 

@@ -474,6 +474,54 @@ class TestUnavailableIsNotCached:
         assert "SENTINEL" not in message
         assert not isinstance(excinfo.value, RuntimeError)
 
+    @pytest.mark.parametrize(
+        ("broken", "advice"),
+        [
+            pytest.param("env", f"Set {ENV_KEY} to a valid key.", id="env"),
+            pytest.param(
+                "file",
+                f"Point {ENV_KEY_FILE} at the absolute path of a readable file holding a valid key.",
+                id="file",
+            ),
+            pytest.param(
+                "data_dir",
+                f"Set {ENV_KEY} to a valid key, or make the data directory writable so a key "
+                "can be generated.",
+                id="data_dir",
+            ),
+        ],
+    )
+    def test_the_fix_advice_follows_the_broken_source(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        data_dir: Path,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+        broken: str,
+        advice: str,
+    ) -> None:
+        """F-6: a writable data dir fixes only the data dir's own key file.
+
+        A broken MYGARAGE_SETTINGS_KEY or _FILE wins over the data dir, so a key
+        generated there would be ignored: the advice names that variable instead,
+        in the exception (the 503 detail) and in the once-per-process ERROR alike.
+        """
+        if broken == "env":
+            monkeypatch.setenv(ENV_KEY, "not-a-key")
+        elif broken == "file":
+            monkeypatch.setenv(ENV_KEY_FILE, str(tmp_path / "missing"))
+        else:
+            _block_data_dir(monkeypatch, tmp_path)
+
+        with caplog.at_level(logging.DEBUG, logger=LOGGER):
+            with pytest.raises(SettingsKeyUnavailable) as excinfo:
+                encrypt("llm_api_key", "x")
+
+        (error,) = [r for r in caplog.records if r.name == LOGGER and r.levelno >= logging.ERROR]
+        for text in (str(excinfo.value), error.getMessage()):
+            assert advice in text
+            assert ("writable" in text) is (broken == "data_dir")
+
 
 class TestGeneration:
     """Plan test 8: generated on first use, 0600, only when nothing is present."""

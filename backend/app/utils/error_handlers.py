@@ -279,8 +279,8 @@ async def handle_settings_key_unavailable(
     """A secret setting write with no usable keyring: 503, saying what to fix (D3a, F-2).
 
     The setter raises it, so it can come from any writer. Its message names the
-    key source, a fixed reason and the fix, never key material or the value
-    being written.
+    key source (an env var by name, never its value), a fixed reason and the fix
+    for that source, never key material or the value being written.
     """
     logger.warning(
         "Refused a secret settings write on %s %s: the settings encryption key is unavailable",
