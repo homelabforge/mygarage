@@ -337,7 +337,9 @@ def _make_reminder(
     due_date: str | None = None,
     due_mileage_km: Decimal | None = None,
     due_hours: Decimal | None = None,
-) -> dict:
+    tread_depth_mm: Decimal | None = None,
+    tread_threshold_mm: Decimal | None = None,
+) -> dict[str, Any]:
     """Build a reminder dict mirroring ``schemas.reminder.ReminderResponse``."""
     from datetime import date as date_type
 
@@ -347,7 +349,21 @@ def _make_reminder(
         "due_date": date_type.fromisoformat(due_date) if due_date else None,
         "due_mileage_km": due_mileage_km,
         "due_hours": due_hours,
+        "tread_depth_mm": tread_depth_mm,
+        "tread_threshold_mm": tread_threshold_mm,
     }
+
+
+def _make_low_tread_reminder(**overrides: Any) -> dict[str, Any]:
+    """A low-tread reminder as the tire sync writes it: a ``date`` reminder
+    carrying the tire's tread and minimum in canonical mm."""
+    fields: dict[str, Any] = {
+        "due_date": "2026-11-01",
+        "tread_depth_mm": Decimal("1.5"),
+        "tread_threshold_mm": Decimal("3.0"),
+    }
+    fields.update(overrides)
+    return _make_reminder("Tire tread low (FL)", "date", **fields)
 
 
 class TestUsageEfficiencySection:
@@ -520,7 +536,7 @@ IMPERIAL_CTX = RenderContext(units=IMPERIAL_PRESET, show_both=False)
 METRIC_BOTH_CTX = RenderContext(units=METRIC_PRESET, show_both=True)
 
 
-def _make_unit_bearing_data() -> dict:
+def _make_unit_bearing_data() -> dict[str, Any]:
     """Analytics data populating every unit-bearing figure this report renders.
 
     One fixture for the whole matrix so each expectation below differs only
@@ -698,6 +714,61 @@ class TestRenderContextDrivesUnits:
             # hours-targeted reminder: all three, both unit sets.
             assert "250.0 hr" in text
             assert "100.0 hr" in text
+
+    def test_low_tread_reminder_due_text_carries_metric_tread(self) -> None:
+        """D7a: the Due cell states the tread and its minimum, in mm on a
+        metric context (1.5 and 3.0 at precision 2). Main shows the date only."""
+        data = _make_unit_bearing_data()
+
+        text = _normalized_text(
+            generate_vehicle_analytics_pdf(
+                data, reminders_data=[_make_low_tread_reminder()], render_context=METRIC_CTX
+            ).read()
+        )
+
+        assert "Tread 1.50 mm (min 3.00 mm)" in text
+
+    def test_low_tread_reminder_due_text_carries_imperial_tread(self) -> None:
+        """Same cell on an imperial context, in 32nds:
+        1.5 / (25.4 / 32) = 1.89 -> "2/32 in", 3.0 / (25.4 / 32) = 3.78 -> "4/32 in"."""
+        data = _make_unit_bearing_data()
+
+        text = _normalized_text(
+            generate_vehicle_analytics_pdf(
+                data, reminders_data=[_make_low_tread_reminder()], render_context=IMPERIAL_CTX
+            ).read()
+        )
+
+        assert "Tread 2/32 in (min 4/32 in)" in text
+        assert "1.50 mm" not in text
+
+    def test_low_tread_reminder_due_text_shows_both_tread_units(self) -> None:
+        """show_both appends each figure's counterpart through the formatter."""
+        data = _make_unit_bearing_data()
+
+        text = _normalized_text(
+            generate_vehicle_analytics_pdf(
+                data, reminders_data=[_make_low_tread_reminder()], render_context=METRIC_BOTH_CTX
+            ).read()
+        )
+
+        assert "Tread 1.50 mm (2/32 in) (min 3.00 mm (4/32 in))" in text
+
+    def test_tread_needs_both_fields(self) -> None:
+        """Control (passes on main by design): a reminder missing its minimum
+        gets no tread text, only its date."""
+        data = _make_unit_bearing_data()
+        reminder = _make_low_tread_reminder(tread_threshold_mm=None)
+
+        text = _normalized_text(
+            generate_vehicle_analytics_pdf(
+                data, reminders_data=[reminder], render_context=METRIC_CTX
+            ).read()
+        )
+
+        assert "Tire tread low (FL)" in text
+        assert "Tread" not in text
+        assert "1.50 mm" not in text
 
     def test_cost_per_distance_card_label_names_no_unit(self) -> None:
         """The label must not hardcode a unit: D4c gives a km reader

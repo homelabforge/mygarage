@@ -285,7 +285,8 @@ def _reminder_due_text(reminder: dict[str, Any], render_context: RenderContext) 
     hours-targeted reminder from ever silently falling back to a mileage
     figure). ``due_hours`` is dimensionless (R6) and stays in ``hr``;
     ``due_mileage_km`` is canonical km and renders in ``render_context``'s
-    distance unit.
+    distance unit. A low-tread reminder adds its tread and minimum in the
+    context's tread unit, when both are set (D7a).
     """
     parts: list[str] = []
     due_date = _parse_date(reminder.get("due_date"))
@@ -298,6 +299,13 @@ def _reminder_due_text(reminder: dict[str, Any], render_context: RenderContext) 
         parts.append(format_hours(due_hours))
     elif due_mileage_km is not None:
         parts.append(format_quantity(due_mileage_km, render_context, "distance"))
+
+    tread_depth_mm = _safe_decimal(reminder.get("tread_depth_mm"))
+    tread_threshold_mm = _safe_decimal(reminder.get("tread_threshold_mm"))
+    if tread_depth_mm is not None and tread_threshold_mm is not None:
+        depth = format_quantity(tread_depth_mm, render_context, "tread")
+        minimum = format_quantity(tread_threshold_mm, render_context, "tread")
+        parts.append(f"Tread {depth} (min {minimum})")
 
     return " · ".join(parts) if parts else "N/A"
 
