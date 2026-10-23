@@ -117,6 +117,23 @@ describe('SettingsBackupTab full restore', () => {
     expect(within(notice).getByRole('button', { name: 'backupTab.cancelRestore' })).toBeInTheDocument()
   })
 
+  it('shows the preflight 503 detail when a restore is refused', async () => {
+    const refusal =
+      'Backups are refused while these secret settings are stored unencrypted: ntfy_token. ' +
+      'Set MYGARAGE_SETTINGS_KEY to a valid key, or make the data directory writable so a key ' +
+      'can be generated, then try again.'
+    mockedApi.post.mockRejectedValue({
+      isAxiosError: true,
+      message: 'Request failed with status code 503',
+      response: { status: 503, data: { detail: refusal } },
+    })
+    render(<SettingsBackupTab />)
+
+    fireEvent.click(await screen.findByTitle('backup.restore'))
+
+    expect(await screen.findByText(refusal)).toBeInTheDocument()
+  })
+
   it('reloads after a refused restore, which can have dropped an earlier staging', async () => {
     pending = { source_backup: FULL, staged_at: '2026-10-02T12:00:00+00:00' }
     mockedApi.post.mockImplementation(() => {
