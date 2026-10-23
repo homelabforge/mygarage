@@ -391,7 +391,8 @@ async def test_a_busy_checkpoint_is_logged_and_the_sweep_still_commits(
             if r.name == "app.services.settings_secrets" and r.levelno == logging.WARNING
         ]
         assert len(warnings) == 1
-        assert "checkpoint" in warnings[0].getMessage()
+        # The busy branch, not the failed one, which also names the checkpoint (F-4).
+        assert "busy" in warnings[0].getMessage()
         assert "Encrypted 1, re-keyed 0, unreadable: none" in caplog.text
     finally:
         reader.execute("ROLLBACK")
