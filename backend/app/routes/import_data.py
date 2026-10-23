@@ -515,11 +515,13 @@ _JSON_IMPORT_SECTIONS = (
     "insurance_policies",
 )
 
-# Valid service categories matching the ServiceVisit check constraint
-VALID_SERVICE_CATEGORIES = {"Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"}
 #: The API's words for a visit's and a line item's category and an inspection's
-#: result and severity (the CHECK lists, `models/service_line_item.py`).
+#: result and severity (the CHECK lists, `models/service_visit.py` and
+#: `models/service_line_item.py`).
 _SERVICE_CATEGORIES: tuple[str, ...] = get_args(ServiceCategory)
+# Valid service categories matching the ServiceVisit check constraint; the same
+# list, so the two can't drift.
+VALID_SERVICE_CATEGORIES = frozenset(_SERVICE_CATEGORIES)
 _INSPECTION_RESULTS: tuple[str, ...] = get_args(InspectionResult)
 _INSPECTION_SEVERITIES: tuple[str, ...] = get_args(InspectionSeverity)
 limiter = Limiter(key_func=get_remote_address)
@@ -680,15 +682,31 @@ def _json_decimal(row: Mapping[str, Any], key: str) -> Decimal | None:
         raise _RowError(f"{key} is not a number") from e
 
 
+def _json_text(row: Mapping[str, Any], key: str) -> str | None:
+    """The text under `key`, None when it's missing or blank, a row error when it isn't text.
+
+    PostgreSQL refuses a number in a text column where SQLite stores it, so the
+    two backends would disagree about the same file.
+    """
+    value = _blank_to_none(row.get(key))
+    if value is not None and not isinstance(value, str):
+        raise _RowError(f"{key} must be text")
+    return value
+
+
 def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str, Any], int | None]:
     """One v9 line item's columns, and the index of the item that triggered it.
 
     The API's rules re-applied (R2); a row error names the item by `position`.
     """
     try:
-        description = _blank_to_none(item.get("description"))
+        if not isinstance(item, Mapping):
+            raise _RowError("must be an object")
+        item = cast(Mapping[str, Any], item)
+        description = _json_text(item, "description")
         if description is None:
             raise _RowError("description is missing")
+        notes = _json_text(item, "notes")
         cost = _json_decimal(item, "cost")
         _within_api_bounds(ServiceLineItemCreate, cost=cost)
         category = _in_vocabulary(
@@ -727,7 +745,7 @@ def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str
         "category": category,
         "maintenance_type": resolve_type(maintenance_type, description),
         "cost": cost,
-        "notes": item.get("notes"),
+        "notes": notes,
         "is_inspection": bool(item.get("is_inspection", False)),
         "inspection_result": inspection_result,
         "inspection_severity": inspection_severity,
@@ -1378,7 +1396,7 @@ async def import_service_csv(
             continue
         except Exception as e:
             # Intentional catch-all: per-row errors should not stop the import
-            logger.error("Service import row %d failed: %s", row_num, e)
+            logger.error("Service import row %d failed: %s", row_num, sanitize_for_log(e))
             import_result.add_error(row_num, "Invalid service record data")
             continue
         groups.setdefault(parsed.group, []).append(parsed)
@@ -1428,7 +1446,11 @@ async def import_service_csv(
             continue
         except Exception as e:
             # Intentional catch-all: one visit's failure should not stop the import
-            logger.error("Service import rows %s failed: %s", [r.row_num for r in group], e)
+            logger.error(
+                "Service import rows %s failed: %s",
+                [r.row_num for r in group],
+                sanitize_for_log(e),
+            )
             for row in group:
                 import_result.add_error(row.row_num, "Invalid service record data")
             continue
@@ -2498,7 +2520,9 @@ async def import_vehicle_json(
             total_cost = _visit_total(
                 (columns["cost"] for columns, _link in items), tax_amount, shop_supplies, misc_fees
             )
-            vendor_name = visit_data.get("vendor_name")
+            vendor_name = _json_text(visit_data, "vendor_name")
+            insurance_claim_number = _json_text(visit_data, "insurance_claim_number")
+            notes = _json_text(visit_data, "notes")
 
             # R5's service key. The visit's own amounts and claim number are in
             # it, so two visits that differ only there can't both match one
@@ -2511,10 +2535,7 @@ async def import_vehicle_json(
                     ("misc_fees", _money_matches(ServiceVisit.misc_fees, misc_fees)),
                     (
                         "insurance_claim_number",
-                        _matches(
-                            ServiceVisit.insurance_claim_number,
-                            visit_data.get("insurance_claim_number"),
-                        ),
+                        _matches(ServiceVisit.insurance_claim_number, insurance_claim_number),
                     ),
                 )
                 if key in visit_data  # T-16: a v9 export writes all four
@@ -2561,8 +2582,8 @@ async def import_vehicle_json(
                     tax_amount=tax_amount,
                     shop_supplies=shop_supplies,
                     misc_fees=misc_fees,
-                    insurance_claim_number=visit_data.get("insurance_claim_number"),
-                    notes=visit_data.get("notes"),
+                    insurance_claim_number=insurance_claim_number,
+                    notes=notes,
                     total_cost=total_cost,
                 )
                 db.add(visit)

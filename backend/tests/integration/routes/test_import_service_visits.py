@@ -3,6 +3,7 @@
 import csv
 import io
 import json
+import zlib
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
@@ -156,7 +157,8 @@ async def test_the_service_csv_export_numbers_each_visit_and_splits_the_notes(
     assert r.status_code == 200, r.text
     rows = list(csv.reader(io.StringIO(r.text)))
 
-    # main: the seven-column v7 header, and "Notes" merging the item's and the visit's
+    # main: the v7 header (eight columns after the two markers), and "Notes" merging
+    # the item's and the visit's
     assert rows[0] == _V8_HEADER.split(",")
     assert rows[1:] == [
         [
@@ -548,6 +550,116 @@ async def test_a_line_item_link_outside_its_visit_is_a_row_error(
         "Service visit 0: line item 0: triggered_by_inspection must be the index "
         "of another line item in this visit"
     ]
+    assert await _visits(test_sessionmaker, vin) == []
+
+
+_CATEGORY_WORDS = "Maintenance, Inspection, Collision, Upgrades, Detailing"
+
+
+@pytest.mark.parametrize(
+    ("visit", "reason"),
+    [
+        pytest.param(
+            {"tax_amount": "abc", "line_items": []},
+            "tax_amount is not a number",
+            id="a-fee-that-is-not-a-number",
+        ),
+        pytest.param(
+            {"misc_fees": True, "line_items": []},
+            "misc_fees is not a number",
+            id="a-fee-that-is-a-bool",
+        ),
+        pytest.param({"line_items": "Oil"}, "line_items must be a list", id="items-not-a-list"),
+        pytest.param({}, "line_items must be a list", id="items-missing"),
+        pytest.param(
+            {"line_items": ["Oil"]}, "line item 0: must be an object", id="item-not-an-object"
+        ),
+        pytest.param(
+            {"line_items": [{"description": "Oil", "category": "Bogus"}]},
+            f"line item 0: category must be one of {_CATEGORY_WORDS}",
+            id="item-category",
+        ),
+        pytest.param(
+            {"line_items": [{"description": "Pads", "inspection_result": "meh"}]},
+            "line item 0: inspection_result must be one of passed, failed, needs_attention",
+            id="item-inspection-result",
+        ),
+        pytest.param(
+            {"line_items": [{"description": "Pads", "inspection_severity": "blue"}]},
+            "line item 0: inspection_severity must be one of green, yellow, red",
+            id="item-inspection-severity",
+        ),
+        pytest.param(
+            {"line_items": [{"description": "Oil", "maintenance_type": "Oil Change"}]},
+            "line item 0: maintenance_type must be a lowercase snake_case code (2-50 chars)",
+            id="item-maintenance-type",
+        ),
+        pytest.param(
+            {"line_items": [{"description": 5}]},
+            "line item 0: description must be text",
+            id="item-description-not-text",
+        ),
+        pytest.param({"notes": 5, "line_items": []}, "notes must be text", id="notes-not-text"),
+        pytest.param(
+            {"insurance_claim_number": 123, "line_items": []},
+            "insurance_claim_number must be text",
+            id="claim-not-text",
+        ),
+        pytest.param(
+            {"vendor_name": 7, "line_items": []}, "vendor_name must be text", id="vendor-not-text"
+        ),
+        pytest.param(
+            {
+                "tax_amount": 1.0,
+                "line_items": [{"description": "Engine", "cost": 9999999999.99}],
+            },
+            "The visit total would exceed the largest amount MyGarage can store (9999999999.99)",
+            id="total-past-the-column",
+        ),
+    ],
+)
+async def test_a_json_visit_the_api_would_refuse_is_a_row_error(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    visit: dict[str, Any],
+    reason: str,
+    request: pytest.FixtureRequest,
+):
+    """Each refusal names its reason, and the backends agree: nothing is written (R2)."""
+    # One vehicle per case: the suite's database outlives a test.
+    case = zlib.crc32(request.node.callspec.id.encode()) % 10**9
+    vin = await _vehicle(db_session, test_user["id"], f"B3SVCBAD{case:09d}")
+    data = await _post_json(
+        client,
+        auth_headers,
+        vin,
+        {
+            "export_version": "9",
+            "units": "metric",
+            "service_visits": [{"date": "2026-07-11", "odometer_km": 9200.0, **visit}],
+        },
+    )
+    assert data["errors"] == [f"Service visit 0: {reason}"], data
+    assert await _visits(test_sessionmaker, vin) == []
+
+
+async def test_a_csv_visit_whose_total_is_past_the_column_is_a_row_error_on_every_row(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """Each amount fits on its own; the visit total they add up to does not."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSVCCSVBIG0001")
+    body = (
+        f"{_V8_HEADER}\n"
+        "8,metric,1,2026-07-12,Maintenance,Engine,9300.00,,9999999999.99,,,1.00,,,,\n"
+        "8,metric,1,2026-07-12,Maintenance,Oil,9300.00,,40.00,,,1.00,,,,\n"
+    )
+    data = await _post_csv(client, auth_headers, vin, body)
+    reason = "The visit total would exceed the largest amount MyGarage can store (9999999999.99)"
+    assert (data["success_count"], data["error_count"]) == (0, 2), data
+    assert data["errors"] == [f"Row 2: {reason}", f"Row 3: {reason}"]
     assert await _visits(test_sessionmaker, vin) == []
 
 

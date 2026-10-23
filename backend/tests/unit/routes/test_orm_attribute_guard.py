@@ -238,8 +238,8 @@ def test_every_export_read_is_a_real_attribute():
     # `hasattr`, not the mapper set. The export defect is an AttributeError at
     # request time, so a hybrid property or a plain `@property` on the model is
     # a perfectly good read even though it is not a mapped column.
-    # `ServiceVisit.calculated_total_cost` is exactly that, and a mapper-only
-    # check calls it broken.
+    # `InsurancePolicy.fields`, which the JSON backup reads for a policy's
+    # named fields, is exactly that, and a mapper-only check calls it broken.
     offenders = sorted(
         {
             f"{fn}: {cls.__name__}.{attr}"
