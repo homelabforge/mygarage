@@ -36,28 +36,13 @@ from app.utils.settings_crypto import (
     is_ciphertext,
 )
 
+# Raised by the setter below; it lives in a utils leaf so the error handlers can
+# map it without importing a model (F-3). Re-exported, so existing imports work.
+from app.utils.settings_errors import SettingCiphertextValue
+
+__all__ = ["Setting", "SettingCiphertextValue"]
+
 _UNSET: Any = object()
-
-
-class SettingCiphertextValue(ValueError):  # noqa: N818 - the name the plan and later tasks use
-    """A secret setting's ``value`` was given something that is already ciphertext.
-
-    Encrypting it again would store the ciphertext as if it were the secret.
-    Code restoring raw stored bytes sets ``stored_value`` instead. A client can
-    type such a value, so the routes map this to a 422. Carries the key name
-    only, never the value.
-
-    Attributes:
-        key: The setting key that was being written.
-    """
-
-    def __init__(self, key: str) -> None:
-        """Build the error for one setting key."""
-        self.key = key
-        super().__init__(
-            f"Setting '{key}' was given a value that is already ciphertext "
-            f"(it starts with '{CIPHERTEXT_PREFIX}'); set stored_value to restore raw bytes"
-        )
 
 
 class Setting(Base):

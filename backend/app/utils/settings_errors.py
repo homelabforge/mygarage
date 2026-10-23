@@ -1,11 +1,34 @@
 """Settings-secret errors that the error handlers map, kept in a leaf module.
 
 ``app.utils.error_handlers`` maps these to HTTP responses, and a utils module
-must not import a service to do it. ``app.services.settings_secrets`` raises
-``PlaintextSecretsRemain`` and re-exports it, so existing imports keep working.
+must not import a service or a model to do it. ``app.services.settings_secrets``
+raises ``PlaintextSecretsRemain`` and re-exports it; ``app.models.settings``
+raises ``SettingCiphertextValue`` and re-exports it. Existing imports keep
+working.
 """
 
-from app.utils.settings_crypto import ENV_KEY
+from app.utils.settings_crypto import CIPHERTEXT_PREFIX, ENV_KEY
+
+
+class SettingCiphertextValue(ValueError):  # noqa: N818 - the name the plan and later tasks use
+    """A secret setting's ``value`` was given something that is already ciphertext.
+
+    Encrypting it again would store the ciphertext as if it were the secret.
+    Code restoring raw stored bytes sets ``stored_value`` instead. A client can
+    type such a value, so the routes map this to a 422. Carries the key name
+    only, never the value.
+
+    Attributes:
+        key: The setting key that was being written.
+    """
+
+    def __init__(self, key: str) -> None:
+        """Build the error for one setting key."""
+        self.key = key
+        super().__init__(
+            f"Setting '{key}' was given a value that is already ciphertext "
+            f"(it starts with '{CIPHERTEXT_PREFIX}'); set stored_value to restore raw bytes"
+        )
 
 
 class PlaintextSecretsRemain(Exception):  # noqa: N818 - the name the plan and later tasks use
