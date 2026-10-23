@@ -52,7 +52,7 @@ interface ReminderFormProps {
  * 15) — hours-only vehicles never offer mileage/both, distance-only vehicles
  * never offer hours.
  */
-const REMINDER_TYPE_DEFS: Record<ReminderType, { labelKey: string; descriptionKey: string }> = {
+export const REMINDER_TYPE_DEFS: Record<ReminderType, { labelKey: string; descriptionKey: string }> = {
   date: { labelKey: 'reminderForm.typeDate', descriptionKey: 'reminderForm.typeDateDescription' },
   mileage: { labelKey: 'reminderForm.typeMileage', descriptionKey: 'reminderForm.typeMileageDescription' },
   hours: { labelKey: 'reminderForm.typeHours', descriptionKey: 'reminderForm.typeHoursDescription' },

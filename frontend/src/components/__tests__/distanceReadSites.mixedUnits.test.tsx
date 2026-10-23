@@ -115,7 +115,11 @@ vi.mock('../../hooks/useReminders', () => ({
 }))
 vi.mock('../../hooks/useLatestMileage', () => ({ useLatestMileage: () => ({ data: null }) }))
 vi.mock('../../hooks/useLatestHours', () => ({ useLatestHours: () => ({ data: null }) }))
-vi.mock('../ReminderForm', () => ({ default: () => null }))
+// ReminderList reads its type chip's label from the real module's REMINDER_TYPE_DEFS.
+vi.mock('../ReminderForm', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../ReminderForm')>()),
+  default: () => null,
+}))
 vi.mock('../../hooks/queries/useDEFRecords', () => ({
   useDEFRecords: () => ({ data: { records: [DEF_RECORD] }, isLoading: false, error: null }),
   useDEFAnalytics: () => ({ data: DEF_ANALYTICS }),
@@ -217,7 +221,7 @@ const SITES: { name: string; mount: () => void }[] = [
   { name: 'ServiceVisitList odometer (format)',
     mount: () => { render(<ServiceVisitList vin="V1" onAddClick={vi.fn()} onEditClick={vi.fn()} />) } },
   { name: 'ReminderList due mileage (format)',
-    mount: () => { render(<ReminderList vin="V1" />) } },
+    mount: () => { render(<ReminderList vehicle={{ ...VEHICLE, vin: 'V1' }} />) } },
   { name: 'DEFRecordList odometer column (format)',
     mount: () => { render(<DEFRecordList vin="V1" />) } },
 ]

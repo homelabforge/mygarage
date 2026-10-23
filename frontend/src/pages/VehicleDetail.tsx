@@ -727,7 +727,7 @@ export default function VehicleDetail() {
 
         {/* Tracking Sub-tabs */}
         {activePrimaryTab === 'tracking' && activeSubTab === 'notes' && vin && <NotesTab vin={vin} />}
-        {activePrimaryTab === 'tracking' && activeSubTab === 'reminders' && vin && <ReminderList vin={vin} />}
+        {activePrimaryTab === 'tracking' && activeSubTab === 'reminders' && vin && vehicle && <ReminderList vehicle={vehicle} />}
         {activePrimaryTab === 'tracking' && activeSubTab === 'reports' && vin && <ReportsTab vin={vin} />}
 
         {/* Financial Sub-tabs */}

@@ -11,10 +11,11 @@
  *
  * A pending row says where it stands (#192): a status chip and stripe when
  * overdue or due soon, and a bar from its start to due with what's left, all
- * computed by the server.
+ * computed by the server. A row with two targets says what's left on both,
+ * the bar's first (D4a).
  */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bell, Plus, Check, X, Edit, Trash2, Clock, Gauge, Zap, Timer, Package, PackagePlus, Repeat, GitMerge } from 'lucide-react'
 import { toast } from 'sonner'
@@ -30,7 +31,7 @@ import { useLatestMileage } from '../hooks/useLatestMileage'
 import { useLatestHours } from '../hooks/useLatestHours'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
-import ReminderForm from './ReminderForm'
+import ReminderForm, { REMINDER_TYPE_DEFS } from './ReminderForm'
 import CompleteReminderDialog from './CompleteReminderDialog'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import ApplyPackDialog from './ApplyPackDialog'
@@ -40,15 +41,15 @@ import ReconcileDuplicatesDialog from './ReconcileDuplicatesDialog'
 import SnoozeReminderDialog from './SnoozeReminderDialog'
 import { describeRecurrence } from './RecurrenceFields'
 import { todayInHousehold } from '../constants/i18n'
-import type { DuplicateGroup, Reminder, ReminderStatus } from '../types/reminder'
+import type { DuplicateGroup, Reminder, ReminderStatus, ReminderType } from '../types/reminder'
 import type { Vehicle } from '../types/vehicle'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { getUsageTracking } from '../utils/usageTracking'
 import { Button, IconButton, Card, Chip, Mono, EmptyState, ProgressMeter, Select, type ProgressMeterTone } from './ui'
-import api from '../services/api'
 
 interface ReminderListProps {
-  vin: string
+  /** The parent already holds it (G5a-10). */
+  vehicle: Vehicle
 }
 
 const STATUS_TABS: { id: ReminderStatus | 'all'; labelKey: string }[] = [
@@ -67,25 +68,32 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
 
 type DueStatus = NonNullable<Reminder['due_status']>
 
-/** The bar's fill per status, the same colour as the row's stripe and chip. */
-const METER_TONE: Record<DueStatus, ProgressMeterTone> = {
-  overdue: 'danger',
-  due_soon: 'warning',
-  on_track: 'accent',
-  snoozed: 'muted',
-}
-
 /**
+ * How each status looks, in one place (RD-8): the bar's fill, which is also
+ * the chip's tone, and for the two that need attention a row stripe and a
+ * chip.
+ *
  * A left stripe rather than a recoloured border: Card's base sets
  * `border-border`, and two utilities on one property resolve by stylesheet
  * order, not class order. `border-left-color` is its own property.
  */
-const ROW_STRIPE: Partial<Record<DueStatus, string>> = {
-  overdue: 'border-l-4 border-l-danger',
-  due_soon: 'border-l-4 border-l-warning',
+const STATUS_STYLE: Record<DueStatus, { tone: ProgressMeterTone; stripe?: string; chipKey?: string }> = {
+  overdue: { tone: 'danger', stripe: 'border-l-4 border-l-danger', chipKey: 'reminderList.statusOverdue' },
+  due_soon: { tone: 'warning', stripe: 'border-l-4 border-l-warning', chipKey: 'reminderList.statusDueSoon' },
+  on_track: { tone: 'accent' },
+  snoozed: { tone: 'muted' },
 }
 
-export default function ReminderList({ vin }: ReminderListProps) {
+/** What's left is read in this order after the bar's own dimension (D4a). */
+const REMAINING_ORDER = ['date', 'distance', 'hours'] as const
+type RemainingBasis = (typeof REMAINING_ORDER)[number]
+
+/** The form's label for a stored type, or undefined for one it doesn't offer (D6a). */
+const typeLabelKey = (type: string): string | undefined =>
+  Object.hasOwn(REMINDER_TYPE_DEFS, type) ? REMINDER_TYPE_DEFS[type as ReminderType].labelKey : undefined
+
+export default function ReminderList({ vehicle }: ReminderListProps) {
+  const vin = vehicle.vin
   const { t } = useTranslation('vehicles')
   const { t: tForms } = useTranslation('forms')
   const dateLocale = useDateLocale()
@@ -105,28 +113,12 @@ export default function ReminderList({ vin }: ReminderListProps) {
   const [renamingPack, setRenamingPack] = useState<{ id: string; name: string } | undefined>()
   const [reviewingGroup, setReviewingGroup] = useState<DuplicateGroup | undefined>()
   const [snoozing, setSnoozing] = useState<Reminder | undefined>()
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    void api
-      .get(`/vehicles/${vin}`)
-      .then((res) => {
-        if (!cancelled) setVehicle(res.data ?? null)
-      })
-      .catch(() => {
-        if (!cancelled) setVehicle(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [vin])
 
   const { tracksDistance, tracksHours } = getUsageTracking({
-    usage_unit: vehicle?.usage_unit,
-    secondary_usage_enabled: vehicle?.secondary_usage_enabled,
+    usage_unit: vehicle.usage_unit,
+    secondary_usage_enabled: vehicle.secondary_usage_enabled,
   })
-  const { data: packs = [] } = useReminderPacks(vehicle?.vehicle_type ?? null)
+  const { data: packs = [] } = useReminderPacks(vehicle.vehicle_type)
   const deletePackMutation = useDeletePack()
 
   const formatDate = (dateStr: string | null | undefined): string => {
@@ -204,9 +196,9 @@ export default function ReminderList({ vin }: ReminderListProps) {
     return t('reminderList.lastDone', { date: formatDate(reminder.anchor_date), reading: reading ?? '' })
   }
 
-  /** What is left along the dimension the bar measures, in the vehicle's units. */
-  const remainingText = (reminder: Reminder): string | null => {
-    switch (reminder.progress_basis) {
+  /** What is left along one dimension, in the vehicle's units; null when that target isn't set. */
+  const remainingFor = (reminder: Reminder, basis: RemainingBasis): string | null => {
+    switch (basis) {
       case 'distance': {
         if (reminder.km_until_due == null) return null
         const km = Number(reminder.km_until_due)
@@ -229,9 +221,14 @@ export default function ReminderList({ vin }: ReminderListProps) {
           ? t('reminderList.daysOverdue', { count: -days })
           : t('reminderList.daysLeft', { count: days })
       }
-      default:
-        return null
     }
+  }
+
+  /** The bar's dimension first, then each other set one, date, distance, hours (D4a). */
+  const remainingParts = (reminder: Reminder): string[] => {
+    const lead = REMAINING_ORDER.find((basis) => basis === reminder.progress_basis)
+    const order = lead ? [lead, ...REMAINING_ORDER.filter((basis) => basis !== lead)] : REMAINING_ORDER
+    return order.map((basis) => remainingFor(reminder, basis)).filter((part): part is string => part !== null)
   }
 
   // The groups are pending reminders only, so a closed row is never in one.
@@ -387,19 +384,20 @@ export default function ReminderList({ vin }: ReminderListProps) {
             const anchor = anchorText(reminder)
             // Only a pending row says where it stands; a closed one keeps its history look.
             const status = reminder.status === 'pending' ? reminder.due_status ?? null : null
-            const remaining = status ? remainingText(reminder) : null
+            const style = status ? STATUS_STYLE[status] : undefined
+            const remaining = status ? remainingParts(reminder).join(' · ') || null : null
+            const typeKey = typeLabelKey(reminder.reminder_type)
             const supersededBy = reminder.superseded_by_id != null ? rulesById.get(reminder.superseded_by_id) : undefined
             return (
-              <Card key={reminder.id} padding="sm" className={status ? ROW_STRIPE[status] ?? '' : ''}>
+              <Card key={reminder.id} padding="sm" className={style?.stripe ?? ''}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     <TypeIcon aria-hidden="true" className="w-5 h-5 text-(--accent-fg) mt-0.5 shrink-0" />
                     <div className="min-w-0">
                       <h4 className="text-sm font-medium text-text">{reminder.title}</h4>
                       <div className="flex flex-wrap gap-2 mt-1 items-center">
-                        {status === 'overdue' && <Chip tone="danger">{t('reminderList.statusOverdue')}</Chip>}
-                        {status === 'due_soon' && <Chip tone="warning">{t('reminderList.statusDueSoon')}</Chip>}
-                        <Chip>{reminder.reminder_type}</Chip>
+                        {style?.chipKey && <Chip tone={style.tone}>{t(style.chipKey)}</Chip>}
+                        {typeKey && <Chip>{tForms(typeKey)}</Chip>}
                         {recurrence && reminder.rule?.is_active && (
                           <Chip tone="accent">
                             <Repeat aria-hidden="true" className="w-3 h-3" />
@@ -444,7 +442,7 @@ export default function ReminderList({ vin }: ReminderListProps) {
                             className="max-w-48 flex-1"
                             label={t('reminderList.progressLabel', { title: reminder.title })}
                             percent={reminder.progress * 100}
-                            tone={METER_TONE[status]}
+                            tone={STATUS_STYLE[status].tone}
                             valueText={remaining ?? undefined}
                           />
                           {remaining && (
@@ -543,7 +541,7 @@ export default function ReminderList({ vin }: ReminderListProps) {
       {savingPack && (
         <SavePackDialog
           vin={vin}
-          vehicleType={vehicle?.vehicle_type}
+          vehicleType={vehicle.vehicle_type}
           existingPack={savingPack === true ? undefined : savingPack}
           onClose={() => setSavingPack(false)}
           onSaved={() => setSavingPack(false)}

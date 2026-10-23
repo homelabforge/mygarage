@@ -49,11 +49,17 @@ export function invalidateReadingViews(queryClient: QueryClient, vin: string): v
   }
 }
 
+/**
+ * A fill-up from Telegram or LiveLink moves a reminder with no write in this
+ * tab, so the list polls at the bell's cadence (FUEL-stale). Only while the
+ * tab is visible: `refetchIntervalInBackground` stays off.
+ */
 export function useReminders(vin: string, status?: string) {
   return useQuery({
     queryKey: ['reminders', vin, status],
     queryFn: () => reminderService.list(vin, status),
     enabled: !!vin,
+    refetchInterval: 60_000,
   })
 }
 

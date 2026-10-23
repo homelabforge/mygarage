@@ -7,6 +7,7 @@ import { render, screen } from '../../__tests__/test-utils'
 import { METRIC_UNITS } from '../../__tests__/factories'
 import { VehicleUnitScope } from '../../contexts/VehicleUnitScope'
 import type { Reminder } from '../../types/reminder'
+import { NO_READING, makeReminder, makeVehicle, reminderHooks } from './helpers/reminderListHarness'
 
 const i18nMock = vi.hoisted(() => ({
   t: (key: string, options?: Record<string, unknown>): string =>
@@ -25,24 +26,16 @@ vi.mock('../../contexts/AuthContext', () => ({
     defaultUnitPrefs: null,
   }),
 }))
-const DUE_SOON = {
-  id: 2, vin: 'V1', title: 'Oil change', reminder_type: 'mileage', status: 'pending',
-  due_date: null, due_mileage_km: null, due_hours: null, estimated_due_date: null,
-  projected_usage_date: null, snoozed_until: null, notes: null, line_item_id: null,
-  last_notified_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
-  due_status: 'due_soon', progress: 0.9, progress_basis: 'distance',
-  days_until_due: null, km_until_due: '1995.59', hours_until_due: null,
-} as unknown as Reminder
-vi.mock('../../hooks/useReminders', () => ({
-  useReminders: () => ({ data: [DUE_SOON], isLoading: false }),
-  useMarkReminderDismissed: () => ({ mutateAsync: vi.fn() }),
-  useDeleteReminder: () => ({ mutateAsync: vi.fn() }),
-  useReminderDuplicates: () => ({ data: [] }),
-  useReminderPacks: () => ({ data: [] }),
-  useDeletePack: () => ({ mutateAsync: vi.fn(), isPending: false }),
+const DUE_SOON = vi.hoisted((): Partial<Reminder> => ({
+  id: 2, title: 'Oil change', due_status: 'due_soon', progress: 0.9, progress_basis: 'distance',
+  km_until_due: '1995.59',
 }))
-vi.mock('../../hooks/useLatestMileage', () => ({ useLatestMileage: () => ({ data: null }) }))
-vi.mock('../../hooks/useLatestHours', () => ({ useLatestHours: () => ({ data: null }) }))
+vi.mock('../../hooks/useReminders', () => {
+  const data = [makeReminder(DUE_SOON)]
+  return reminderHooks({ useReminders: () => ({ data, isLoading: false }) })
+})
+vi.mock('../../hooks/useLatestMileage', () => ({ useLatestMileage: () => NO_READING }))
+vi.mock('../../hooks/useLatestHours', () => ({ useLatestHours: () => NO_READING }))
 vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -52,7 +45,7 @@ describe('ReminderList inside a mi vehicle on a km account', () => {
   it('says what is left in the vehicle\'s miles, not the account\'s km', () => {
     render(
       <VehicleUnitScope distanceUnit="mi">
-        <ReminderList vin="V1" />
+        <ReminderList vehicle={makeVehicle()} />
       </VehicleUnitScope>,
     )
     expect(screen.getByText('reminderList.distanceLeft|1,240 mi')).toBeInTheDocument()

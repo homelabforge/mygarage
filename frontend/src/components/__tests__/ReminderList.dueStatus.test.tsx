@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import type { Reminder } from '../../types/reminder'
 import { IMPERIAL_UNITS } from '../../__tests__/factories'
+import { NO_READING, makeReminder, makeVehicle, reminderHooks, unitPreference } from './helpers/reminderListHarness'
 
 // The remaining text carries its figure through interpolation, so this file
 // swaps the global key-only mock for one that appends the options. Held at
@@ -22,41 +23,18 @@ vi.mock('react-i18next', () => ({
 }))
 
 const useRemindersMock = vi.fn()
-vi.mock('../../hooks/useReminders', () => ({
-  useReminders: () => useRemindersMock(),
-  useMarkReminderDone: () => ({ mutateAsync: vi.fn() }),
-  useMarkReminderDismissed: () => ({ mutateAsync: vi.fn() }),
-  useDeleteReminder: () => ({ mutateAsync: vi.fn() }),
-  useReminderDuplicates: () => ({ data: [] }),
-  useReminderPacks: () => ({ data: [] }),
-  useDeletePack: () => ({ mutateAsync: vi.fn(), isPending: false }),
-}))
-vi.mock('../../hooks/useLatestMileage', () => ({ useLatestMileage: () => ({ data: null }) }))
-vi.mock('../../hooks/useLatestHours', () => ({ useLatestHours: () => ({ data: null }) }))
+vi.mock('../../hooks/useReminders', () => reminderHooks({ useReminders: () => useRemindersMock() }))
+vi.mock('../../hooks/useLatestMileage', () => ({ useLatestMileage: () => NO_READING }))
+vi.mock('../../hooks/useLatestHours', () => ({ useLatestHours: () => NO_READING }))
 vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
 vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
-    system: 'imperial',
-    showBoth: false,
-    gallonStandard: 'us',
-    units: IMPERIAL_UNITS,
-  }),
+  useUnitPreference: () => unitPreference(IMPERIAL_UNITS, 'imperial'),
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import ReminderList from '../ReminderList'
 
-const row = (over: Partial<Reminder>): Reminder =>
-  ({
-    vin: 'V1', reminder_type: 'mileage', status: 'pending',
-    due_date: null, due_mileage_km: null, due_hours: null,
-    estimated_due_date: null, projected_usage_date: null, snoozed_until: null,
-    notes: null, line_item_id: null, last_notified_at: null,
-    created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
-    due_status: null, progress: null, progress_basis: null,
-    days_until_due: null, km_until_due: null, hours_until_due: null,
-    ...over,
-  }) as unknown as Reminder
+const row = makeReminder
 
 // 1995.59 km is 1,240.00 mi and 482.80 km is 300.00 mi (/ 1.609344): whole
 // numbers at the mile adapter's zero decimals.
@@ -71,7 +49,7 @@ const meter = (title: string): HTMLElement =>
   screen.getByRole('progressbar', { name: `reminderList.progressLabel|${title}` })
 const show = (...rows: Reminder[]): void => {
   useRemindersMock.mockReturnValue({ data: rows, isLoading: false })
-  render(<ReminderList vin="V1" />)
+  render(<ReminderList vehicle={makeVehicle()} />)
 }
 
 describe('ReminderList: where each reminder stands (#192)', () => {
@@ -150,5 +128,34 @@ describe('ReminderList: where each reminder stands (#192)', () => {
     expect(screen.queryByText('reminderList.statusOverdue')).not.toBeInTheDocument()
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
     expect(card('Old task').className).not.toMatch(/border-l-danger/)
+  })
+
+  describe('a row with two targets says both (D4a)', () => {
+    const both = row({
+      id: 11, title: 'Timing belt', reminder_type: 'both', due_status: 'on_track', progress: 0.4,
+      progress_basis: 'date', days_until_due: 12, km_until_due: '1995.59',
+    })
+
+    it('leads with the bar\'s dimension, then the other, in the text and the meter', () => {
+      show(both)
+      const text = 'reminderList.daysLeft|12 · reminderList.distanceLeft|1,240 mi'
+      expect(screen.getByText(text)).toBeInTheDocument()
+      expect(meter('Timing belt')).toHaveAttribute('aria-valuetext', text)
+    })
+
+    it('puts distance first when the bar measures distance, and reads overdue days as such', () => {
+      show({ ...both, progress_basis: 'distance', progress: 0.9, days_until_due: -3 })
+      expect(screen.getByText('reminderList.distanceLeft|1,240 mi · reminderList.daysOverdue|3')).toBeInTheDocument()
+    })
+
+    it('adds hours after date and distance when all three are set', () => {
+      show(row({
+        id: 12, title: 'Service', reminder_type: 'date', due_status: 'due_soon', progress: 0.95,
+        progress_basis: 'hours', hours_until_due: '4.0', days_until_due: 30, km_until_due: '482.80',
+      }))
+      expect(
+        screen.getByText('reminderList.hoursLeft|4.0 · reminderList.daysLeft|30 · reminderList.distanceLeft|300 mi'),
+      ).toBeInTheDocument()
+    })
   })
 })
