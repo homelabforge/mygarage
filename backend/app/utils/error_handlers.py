@@ -2,6 +2,7 @@
 
 import logging
 import math
+from typing import cast
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -109,8 +110,33 @@ async def handle_generic_exception(request: Request, exc: Exception) -> JSONResp
     )
 
 
+#: A field whose name (the last `loc` segment, any case) contains one of these may
+#: hold a secret, so its rejected value isn't echoed back in the 422 (L2).
+_SECRET_FIELD_MARKERS = ("password", "secret", "token", "key")
+
+#: All the log line keeps of each error. `input` is the rejected value (for a
+#: missing field, the whole parent object) and `ctx` the constraint, which can
+#: carry it too; neither is logged, for any field (L2).
+_LOGGED_ERROR_FIELDS = ("type", "loc", "msg")
+
+
+def _is_secret_field(loc: object) -> bool:
+    """Whether a validation error's `loc` ends in a field named like a secret."""
+    if not isinstance(loc, list | tuple):
+        return False
+    segments = cast("list[object] | tuple[object, ...]", loc)
+    if not segments:
+        return False
+    name = str(segments[-1]).lower()
+    return any(marker in name for marker in _SECRET_FIELD_MARKERS)
+
+
 async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle validation errors.
+
+    The 422 body keeps each error's `input` except for a field named like a
+    secret; the log line keeps only `type`, `loc` and `msg`, so no rejected
+    value reaches the log.
 
     Args:
         request: The request that caused the exception
@@ -122,10 +148,10 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
     request_id = getattr(request.state, "request_id", None)
 
     # Convert validation errors to JSON-serializable format
-    errors = []
+    errors: list[dict[str, object]] = []
     for error in exc.errors():
         # Convert each error dict, ensuring all values are JSON-serializable
-        json_error = {}
+        json_error: dict[str, object] = {}
         for key, value in error.items():
             # Convert any non-serializable objects to strings. NaN and
             # infinity are floats JSON has no spelling for: echoed back as
@@ -138,12 +164,12 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
                 json_error[key] = [str(v) for v in value]
             else:
                 json_error[key] = str(value)
+        if _is_secret_field(error.get("loc")):
+            json_error.pop("input", None)
         errors.append(json_error)
 
-    # Log validation errors
-    logger.warning(
-        f"Validation error (request_id={request_id}): {errors}",
-    )
+    logged = [{k: e[k] for k in _LOGGED_ERROR_FIELDS if k in e} for e in errors]
+    logger.warning("Validation error (request_id=%s): %s", request_id, logged)
 
     # Return validation errors (these are safe to expose)
     return SecureErrorResponse.validation_error(
