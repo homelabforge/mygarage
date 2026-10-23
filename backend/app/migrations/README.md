@@ -50,11 +50,13 @@ from sqlalchemy import create_engine, inspect, text
 
 def _get_fallback_engine():
     """Build a SQLite engine from environment for standalone execution."""
+    # hide_parameters: a failed statement's message leaves out its bound values,
+    # which can be a secret setting's value.
     db_path = os.environ.get("DATABASE_PATH")
     if db_path:
-        return create_engine(f"sqlite:///{db_path}")
+        return create_engine(f"sqlite:///{db_path}", hide_parameters=True)
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}", hide_parameters=True)
 
 
 def upgrade(engine=None):
