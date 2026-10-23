@@ -441,13 +441,27 @@ async def add_poi_provider(
             detail="OSM provider cannot be configured (always available)",
         )
 
-    # Validate API key (basic check - just ensure it's not empty if enabling)
-    if enabled and not api_key:
+    # The placeholder means "keep the stored key", as on the PUT (D3a, R1-H2): writing
+    # it would replace the key, readable or not, with literal asterisks. With no key
+    # row it stands for no key, so the row is created blank, as the batch does.
+    key_setting = f"{provider_name}_api_key"
+    stored = await SettingsService.get(db, key_setting)
+    resolved = _resolve_write_value(key_setting, api_key)
+    if resolved is KEEP_STORED and stored is None:
+        resolved = ""
+    # A key left alone is masked as stored, unreadable included.
+    api_key_masked = (
+        _stored_secret_mask(stored) if resolved is KEEP_STORED else display_mask_secret(resolved)
+    )
+
+    # Enabling needs a key: the one sent, or the stored one the placeholder keeps.
+    if enabled and not api_key_masked:
         raise HTTPException(status_code=400, detail="API key is required when enabling provider")
 
     # Save provider settings
     await SettingsService.set(db, f"{provider_name}_enabled", str(enabled).lower())
-    await SettingsService.set(db, f"{provider_name}_api_key", api_key)
+    if resolved is not KEEP_STORED:
+        await SettingsService.set(db, key_setting, resolved)
 
     # Initialize usage tracking
     usage_setting = await SettingsService.get(db, f"{provider_name}_api_usage")
@@ -462,7 +476,7 @@ async def add_poi_provider(
     return {
         "name": provider_name,
         "enabled": enabled,
-        "api_key_masked": display_mask_secret(api_key),
+        "api_key_masked": api_key_masked,
     }
 
 

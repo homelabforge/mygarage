@@ -6,15 +6,18 @@ mask the settings GET uses: `********` when a key is stored, `""` when none is.
 
 A key that can't be decrypted reads as None but is still configured, so it
 shows the placeholder too, not `""` (D3a). The PUT that leaves the key alone
-(omitted, or the placeholder sent back) reports what is stored.
+(omitted, or the placeholder sent back) reports what is stored, and so does the
+POST given the placeholder back (R1-H2).
 """
 
 import pytest
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from httpx import AsyncClient, Response
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.models.settings import Setting
 from app.utils.settings_crypto import encrypt
-from tests.integration._secret_helpers import Keep, seed_rows, unreadable_ciphertext
+from tests.integration._secret_helpers import Keep, raw_column, seed_rows, unreadable_ciphertext
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -125,3 +128,78 @@ async def test_editing_a_provider_answers_what_is_stored(
     assert LONG_KEY[:8] not in response.text
     assert response.json()["api_key_masked"] == expected
     assert await _listed_mask(client, auth_headers) == expected
+
+
+# ------------------------------------------------- the placeholder on the POST
+
+
+async def _post_placeholder(
+    client: AsyncClient, headers: dict[str, str], *, enabled: bool
+) -> Response:
+    return await client.post(
+        "/api/settings/poi-providers",
+        headers=headers,
+        json={"name": PROVIDER, "api_key": PLACEHOLDER, "enabled": enabled},
+    )
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [pytest.param(LONG_KEY, id="readable"), pytest.param(None, id="unreadable")],
+)
+async def test_adding_a_provider_with_the_placeholder_keeps_the_stored_key(
+    stored: str | None,
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    keep_rows: Keep,
+) -> None:
+    """R1-H2: the POST upsert honours the placeholder as the PUT does.
+
+    The POST answered the placeholder as the mask, so a client that sent it back
+    saved literal asterisks over the key, readable or not (D3a).
+    """
+    await _seed(db_session, keep_rows, stored)
+    before = await raw_column(test_sessionmaker, KEY)
+    assert before
+
+    response = await _post_placeholder(client, auth_headers, enabled=True)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["api_key_masked"] == PLACEHOLDER
+    assert await raw_column(test_sessionmaker, KEY) == before
+    assert await _listed_mask(client, auth_headers) == PLACEHOLDER
+
+
+async def test_adding_a_provider_with_the_placeholder_and_no_key_stored_stores_none(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    keep_rows: Keep,
+) -> None:
+    """R1-H2: with no key row, the placeholder stands for no key, so the row is created blank.
+
+    The generic batch does the same. Enabling still needs a key, so the same
+    save with `enabled` is a 400 that writes nothing; so is one over a blank row.
+    """
+    await keep_rows(*PROVIDER_KEYS)
+    await db_session.execute(delete(Setting).where(Setting.key.in_(PROVIDER_KEYS)))
+    await db_session.commit()
+
+    response = await _post_placeholder(client, auth_headers, enabled=True)
+    assert response.status_code == 400, response.text
+    assert await raw_column(test_sessionmaker, KEY) is None
+    assert await raw_column(test_sessionmaker, f"{PROVIDER}_enabled") is None
+
+    response = await _post_placeholder(client, auth_headers, enabled=False)
+    assert response.status_code == 200, response.text
+    assert response.json()["api_key_masked"] == ""
+    assert await raw_column(test_sessionmaker, KEY) == ""
+    assert await raw_column(test_sessionmaker, f"{PROVIDER}_enabled") == "false"
+
+    response = await _post_placeholder(client, auth_headers, enabled=True)
+    assert response.status_code == 400, response.text
+    assert await raw_column(test_sessionmaker, KEY) == ""
+    assert await raw_column(test_sessionmaker, f"{PROVIDER}_enabled") == "false"

@@ -42,6 +42,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 PLAIN = "plain-secret-5be21d"
 BEFORE = "the-value-before"
+PLACEHOLDER = "********"
 
 
 async def _seed_raw(db: AsyncSession, key: str, raw: str | None) -> None:
@@ -261,6 +262,41 @@ async def test_a_key_pasted_into_the_file_variable_is_never_echoed(
     assert kid is None
     assert fallback_key.exists()
     assert await raw_column(test_sessionmaker, key) == before
+
+
+async def test_a_poi_placeholder_save_without_a_keyring_writes_nothing(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    keep_rows: Keep,
+    make_keyring_unavailable: Callable[[], None],
+) -> None:
+    """R1-H2: the placeholder writes nothing to the key, so it needs no keyring.
+
+    The PUT already answered 200 here and kept the row; the POST tried to
+    encrypt the placeholder and answered 503. Both keep the ciphertext byte
+    for byte now, and report it as configured.
+    """
+    key = "yelp_api_key"
+    await keep_rows(key, "yelp_enabled", "yelp_api_usage")
+    before = encrypt(key, BEFORE)
+    await _seed_raw(db_session, key, before)
+    make_keyring_unavailable()
+
+    saves = (
+        ("PUT", "/api/settings/poi-providers/yelp", {"api_key": PLACEHOLDER, "enabled": True}),
+        (
+            "POST",
+            "/api/settings/poi-providers",
+            {"name": "yelp", "api_key": PLACEHOLDER, "enabled": True},
+        ),
+    )
+    for save, url, body in saves:
+        response = await client.request(save, url, headers=auth_headers, json=body)
+        assert response.status_code == 200, f"{save}: {response.text}"
+        assert response.json()["api_key_masked"] == PLACEHOLDER, save
+        assert await raw_column(test_sessionmaker, key) == before, save
 
 
 async def _service_set(db: AsyncSession, key: str, value: str) -> None:
