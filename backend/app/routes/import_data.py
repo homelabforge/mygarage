@@ -30,11 +30,13 @@ import io
 import json
 import logging
 import operator
-from collections.abc import Mapping, Sequence
+import re
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
-from decimal import Decimal, InvalidOperation
-from typing import Any, cast
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
@@ -43,6 +45,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy import ColumnElement, Numeric, and_, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.base import ExecutableOption
 
 from app.config import settings
 from app.constants.fuel import FuelTypeEnum, normalize_fuel_type
@@ -85,10 +88,7 @@ from app.schemas.tax import TaxRecordCreate
 from app.schemas.warranty import WarrantyRecordCreate
 from app.services import maintenance_service
 from app.services.auth import get_vehicle_or_403, require_auth
-from app.services.fuel_side_effects import (
-    apply_fuel_record_side_effects,
-    invalidate_cache_for_vehicle,
-)
+from app.services.fuel_side_effects import invalidate_cache_for_vehicle
 from app.services.insurance_service import InsuranceService
 from app.services.reminder_service import start_readings
 from app.services.vehicle_lock import lock_vehicle_for_write
@@ -114,6 +114,8 @@ from app.utils.csv_units import (
 )
 from app.utils.def_sync import ensure_def_capable
 from app.utils.file_validation import validate_csv_upload
+from app.utils.hours_sync import same_day_hours, sync_hours_from_record
+from app.utils.hours_tolerance import hours_below
 from app.utils.household_time import household_date, household_today
 from app.utils.insurance_coverages import (
     COVERAGE_BY_KEY,
@@ -124,6 +126,7 @@ from app.utils.insurance_coverages import (
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.maintenance_types import classify
 from app.utils.money_fits import too_large
+from app.utils.odometer_sync import sync_odometer_from_record
 from app.utils.odometer_tolerance import KM_STEP, LITRE_STEP, conversion_tolerance
 from app.utils.units import UnitConverter
 
@@ -252,6 +255,240 @@ def _odometer_matches(
         converted=converted,
         stored_before_import=model.id <= last_id_before_import,
     )
+
+
+def _matches(column: InstrumentedAttribute[Any], value: Any) -> ColumnElement[bool]:
+    """`column` equal to `value`, or NULL when `value` is None."""
+    return column.is_(None) if value is None else column == value
+
+
+def _same_figure(
+    column: InstrumentedAttribute[Any], value: Decimal | None, step: Decimal
+) -> ColumnElement[bool]:
+    """`column` holds `value` at its scale: within half a `step`, or NULL for None.
+
+    SQLite keeps a REAL as given, so a figure stored past the scale (an API or
+    metric-JSON write is never rounded) reads back, and exports, rounded; an
+    exact `=` against that export never meets the stored row (Fable F-1, T-20).
+    `step` is the column's own: 0.01 for NUMERIC(n,2), 0.001 for (n,3), 0.1 for (n,1).
+    """
+    return column.is_(None) if value is None else _within(column, value, step / 2)
+
+
+#: Every money column is NUMERIC(12,2) (schemas/_money.py).
+_MONEY_STEP = Decimal("0.01")
+
+
+def _money_matches(
+    column: InstrumentedAttribute[Any], value: Decimal | None
+) -> ColumnElement[bool]:
+    """`column` holds the same amount to the cent; 0 and NULL match each other (v8 wrote $0 as null)."""
+    if value is None or value == 0:
+        return or_(column.is_(None), _within(column, Decimal(0), _MONEY_STEP / 2))
+    return _within(column, value, _MONEY_STEP / 2)
+
+
+class _DuplicateMatcher:
+    """Duplicate checks that pair the file with the stored rows one to one (R5).
+
+    A file row is a duplicate only of a row stored before this import began,
+    with the same portable content, that no earlier file row has matched; the
+    lowest such id is taken and spent. So a file's identical rows all import
+    into an empty target, a target holding one of them gains the rest, a
+    re-import adds nothing, and a row this import wrote is never a duplicate.
+    """
+
+    def __init__(self, last_ids: Mapping[type[Any], int]) -> None:
+        self._last_ids = dict(last_ids)
+        self._spent: dict[type[Any], set[int]] = {}
+
+    @classmethod
+    async def before_import(cls, db: AsyncSession, *models: type[Any]) -> _DuplicateMatcher:
+        """Taken after the vehicle lock and before the first write, like `_last_id_before_import`."""
+        return cls({model: await _last_id_before_import(db, model) for model in models})
+
+    def last_id(self, model: type[Any]) -> int:
+        """The highest id `model` held when the import began."""
+        return self._last_ids[model]
+
+    async def take(
+        self,
+        db: AsyncSession,
+        model: type[Any],
+        *conditions: ColumnElement[bool],
+        options: Sequence[ExecutableOption] = (),
+        same: Callable[[Any], bool] | None = None,
+    ) -> Any | None:
+        """Spend the lowest unspent stored row matching `conditions` and `same`; None when none does.
+
+        `same` compares what SQL can't, such as a visit's line items, on rows
+        loaded with `options`.
+        """
+        spent = self._spent.setdefault(model, set())
+        result = await db.execute(
+            select(model)
+            .where(model.id <= self._last_ids[model], *conditions)
+            .options(*options)
+            .order_by(model.id)
+        )
+        for row in result.scalars():
+            if row.id in spent or (same is not None and not same(row)):
+                continue
+            spent.add(row.id)
+            return row
+        return None
+
+
+#: Every sync marker: `auto_sync_marker` writes `[AUTO-SYNC from <source> #<id>]`
+#: (utils/odometer_sync.py:51-59, utils/hours_sync.py:142), and the odometer
+#: claim rule treats any note containing `[AUTO-SYNC from` as auto-synced
+#: (odometer_sync.py:228).
+_SYNC_MARKER = re.compile(r"\[AUTO-SYNC from [^\]]*\]")
+
+#: The odometer sources a reading keeps through a move. The rest (fuel,
+#: service_visit, def, the legacy service, and tire, tire_rotation, tire_set,
+#: tire_mount, tire_dismount) name a record on the instance that wrote them.
+_PORTABLE_ODOMETER_SOURCES = frozenset({"manual", "livelink", "webhook"})
+
+
+def _without_sync_marker(notes: Any) -> Any:
+    """Notes with every sync marker taken out, None when nothing else is left.
+
+    A copied marker made the reading look owned: the next same-day fill-up took
+    it over, and a delete of a record with the marker's id removed it (N-2).
+    """
+    if not isinstance(notes, str):
+        return notes
+    return _SYNC_MARKER.sub("", notes).strip() or None
+
+
+def _portable_odometer_source(source: Any) -> str:
+    """The source an imported odometer reading keeps: its own if portable, else manual."""
+    return source if source in _PORTABLE_ODOMETER_SOURCES else "manual"
+
+
+#: The scale of the column each converted quantity lands in: odometer and
+#: mileage limit NUMERIC(10,2), volume NUMERIC(9,3), unit price NUMERIC(12,3),
+#: temperature NUMERIC(4,1), consumption NUMERIC(5,2), speed NUMERIC(5,1).
+_COLUMN_SCALE: Mapping[str, Decimal] = {
+    DISTANCE: Decimal("0.01"),
+    VOLUME: Decimal("0.001"),
+    PRICE_PER_VOLUME: Decimal("0.001"),
+    TEMPERATURE: Decimal("0.1"),
+    CONSUMPTION: Decimal("0.01"),
+    SPEED: Decimal("0.1"),
+}
+
+
+def _at_scale(value: Decimal | None, scale: Decimal) -> Decimal | None:
+    """`value` rounded to its column's scale, half up, as PostgreSQL rounds NUMERIC.
+
+    SQLite keeps a REAL as given, so an unrounded conversion read back differently
+    there (G5a-80). A value that can't be rounded (Infinity, NaN, more digits than
+    the context holds) passes through, and the bounds check after it refuses it.
+    """
+    if value is None or not value.is_finite():
+        return value
+    try:
+        return value.quantize(scale, rounding=ROUND_HALF_UP)
+    except InvalidOperation:
+        return value
+
+
+@dataclass(frozen=True)
+class _Reading:
+    """One reading an imported record carries, and the record that owns it."""
+
+    source_type: str
+    source_id: int
+    value: Decimal
+
+
+class _ImportReadings:
+    """The readings an import's records carry, synced once a day at its end (R3).
+
+    The create paths sync each record as it's written. An import syncs once per
+    day and track, with that day's highest reading: the odometer sync takes over
+    an auto-synced row on its date, so syncing every row let file order pick the
+    stored value. A tie keeps the record added first.
+    """
+
+    def __init__(self) -> None:
+        self._odometer: dict[date_type, _Reading] = {}
+        self._hours: dict[date_type, _Reading] = {}
+
+    def add(
+        self,
+        source_type: Literal["fuel", "service_visit", "def"],
+        source_id: int,
+        day: date_type,
+        *,
+        odometer_km: Decimal | None,
+        engine_hours: Decimal | None = None,
+    ) -> None:
+        """Note one written record's readings. Only fuel and service visits carry hours."""
+        for readings, value in ((self._odometer, odometer_km), (self._hours, engine_hours)):
+            if value is None:
+                continue
+            best = readings.get(day)
+            if best is None or value > best.value:
+                readings[day] = _Reading(source_type, source_id, value)
+
+    async def apply(self, db: AsyncSession, vin: str, *, claim: bool) -> None:
+        """Sync each day's reading. A failure is logged and the imported rows stay.
+
+        With `claim`, the odometer sync may take over a same-day automatic or
+        LiveLink row (the create paths' rule, kept for the third-party importers).
+        Without it, nothing stored is touched: a day that already reads at or
+        above the figure gets nothing, any other day a row of its own (R1-H2).
+        """
+        for day, reading in self._odometer.items():
+            try:
+                async with db.begin_nested():
+                    await sync_odometer_from_record(
+                        db=db,
+                        vin=vin,
+                        date=day,
+                        odometer_km=reading.value,
+                        source_type=reading.source_type,
+                        source_id=reading.source_id,
+                        commit=False,
+                        claim_other_records=claim,
+                    )
+            except Exception as e:
+                # Derived data only. Escaping would reach get_db's handler, which
+                # rolls back the outer transaction and the whole import with it.
+                logger.warning(
+                    "Odometer sync failed for imported %s record %s: %s",
+                    reading.source_type,
+                    reading.source_id,
+                    sanitize_for_log(e),
+                )
+        for day, reading in self._hours.items():
+            try:
+                async with db.begin_nested():
+                    # The hours sync has no same-day rule, so a reading the file's
+                    # hours section already restored would land twice (T-1). This
+                    # is the odometer's non-claiming rule, applied to hours.
+                    same_day = await same_day_hours(db, vin, day)
+                    if any(not hours_below(row.engine_hours, reading.value) for row in same_day):
+                        continue
+                    await sync_hours_from_record(
+                        db=db,
+                        vin=vin,
+                        date=day,
+                        engine_hours=reading.value,
+                        source_type=reading.source_type,
+                        source_id=reading.source_id,
+                        commit=False,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Hours sync failed for imported %s record %s: %s",
+                    reading.source_type,
+                    reading.source_id,
+                    sanitize_for_log(e),
+                )
 
 
 router = APIRouter(prefix="/api/import", tags=["import"])
@@ -645,6 +882,7 @@ class ImportResult:
         self.error_count: int = 0
         self.skipped_count: int = 0
         self.errors: list[str] = []
+        self.warnings: list[str] = []
 
     def add_success(self) -> None:
         self.success_count += 1
@@ -652,6 +890,10 @@ class ImportResult:
     def add_error(self, row_num: int, message: str) -> None:
         self.error_count += 1
         self.errors.append(f"Row {row_num}: {message}")
+
+    def add_warning(self, row_num: int, message: str) -> None:
+        """A row that imported, but not whole."""
+        self.warnings.append(f"Row {row_num}: {message}")
 
     def add_skip(self) -> None:
         self.skipped_count += 1
@@ -662,6 +904,7 @@ class ImportResult:
             "error_count": self.error_count,
             "skipped_count": self.skipped_count,
             "errors": self.errors,
+            "warnings": self.warnings,
             "total_processed": self.success_count + self.error_count + self.skipped_count,
         }
 
@@ -752,7 +995,10 @@ def _canonical_cell(units: CsvUnitContext, row: Mapping[str, Any], quantity: str
     header = units.column(quantity)
     if header is None:
         return None
-    return units.to_canonical(quantity, parse_decimal(row.get(header, "")))
+    value = units.to_canonical(quantity, parse_decimal(row.get(header, "")))
+    # R7: a converted figure is rounded to its column's scale before the write,
+    # so SQLite stores what PostgreSQL would; a canonical one is left as given.
+    return _at_scale(value, _COLUMN_SCALE[quantity]) if units.converts(quantity) else value
 
 
 @router.post("/vehicles/{vin}/service/csv")
@@ -782,7 +1028,8 @@ async def import_service_csv(
     await lock_vehicle_for_write(db, vin)
     # Taken before the first write; see `_converted_value_matches` for why.
     odometer_converted = units.converts(DISTANCE)
-    last_id = await _last_id_before_import(db, ServiceVisit)
+    matcher = await _DuplicateMatcher.before_import(db, ServiceVisit)
+    readings = _ImportReadings()
 
     import_result = ImportResult()
 
@@ -828,22 +1075,24 @@ async def import_service_csv(
             notes = row.get("Notes", "").strip() or None
 
             # Check for duplicates against ServiceVisit
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(ServiceVisit).where(
-                        ServiceVisit.vin == vin,
-                        ServiceVisit.date == date,
-                        _odometer_matches(
-                            ServiceVisit,
-                            odometer_km,
-                            converted=odometer_converted,
-                            last_id_before_import=last_id,
-                        ),
-                    )
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    ServiceVisit,
+                    ServiceVisit.vin == vin,
+                    ServiceVisit.date == date,
+                    _odometer_matches(
+                        ServiceVisit,
+                        odometer_km,
+                        converted=odometer_converted,
+                        last_id_before_import=matcher.last_id(ServiceVisit),
+                    ),
                 )
-                if existing.scalars().first():
-                    import_result.add_skip()
-                    continue
+                is not None
+            ):
+                import_result.add_skip()
+                continue
 
             # A savepoint per row, covering the vendor lookup/create, the
             # visit and its line item together: a CHECK or length violation
@@ -884,6 +1133,13 @@ async def import_service_csv(
                     cost=cost or Decimal("0"),
                 )
                 db.add(line_item)
+            readings.add(
+                "service_visit",
+                visit.id,
+                visit.date,
+                odometer_km=visit.odometer_km,
+                engine_hours=visit.engine_hours,
+            )
             import_result.add_success()
 
         except _ImportBoundError as e:
@@ -893,10 +1149,12 @@ async def import_service_csv(
             logger.error("Service import row %d failed: %s", row_num, e)
             import_result.add_error(row_num, "Invalid service record data")
 
+    await readings.apply(db, vin, claim=False)
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once per
     # upload (own lock, own commit), never per row.
     await maintenance_service.reconcile_vehicle(db, vin)
+    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -937,7 +1195,8 @@ async def import_fuel_csv(
     await lock_vehicle_for_write(db, vin)
     # Taken before the first write; see `_converted_value_matches` for why.
     odometer_converted = units.converts(DISTANCE)
-    last_id = await _last_id_before_import(db, FuelRecord)
+    matcher = await _DuplicateMatcher.before_import(db, FuelRecord)
+    readings = _ImportReadings()
 
     import_result = ImportResult()
 
@@ -1022,22 +1281,24 @@ async def import_fuel_csv(
             diesel_grade = _validate_diesel_grade(raw_grade) if raw_grade else None
 
             # Check for duplicates if requested
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(FuelRecord).where(
-                        FuelRecord.vin == vin,
-                        FuelRecord.date == date,
-                        _odometer_matches(
-                            FuelRecord,
-                            odometer_km,
-                            converted=odometer_converted,
-                            last_id_before_import=last_id,
-                        ),
-                    )
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    FuelRecord,
+                    FuelRecord.vin == vin,
+                    FuelRecord.date == date,
+                    _odometer_matches(
+                        FuelRecord,
+                        odometer_km,
+                        converted=odometer_converted,
+                        last_id_before_import=matcher.last_id(FuelRecord),
+                    ),
                 )
-                if existing.scalars().first():
-                    import_result.add_skip()
-                    continue
+                is not None
+            ):
+                import_result.add_skip()
+                continue
 
             # Create record
             record = FuelRecord(
@@ -1062,12 +1323,19 @@ async def import_fuel_csv(
                 obc_l_per_100km=obc_l_per_100km,
                 obc_avg_speed_kmh=obc_avg_speed_kmh,
             )
-            # A savepoint per row. Leaving it flushes the insert, so the next
-            # row's duplicate check sees this one (production sessions do not
-            # autoflush), and a row the database rejects rolls back alone
-            # instead of failing the whole upload at the final commit.
+            # A savepoint per row, flushed inside it so the end-of-import sync
+            # has the record's id, and a row the database rejects rolls back
+            # alone instead of failing the whole upload at the final commit.
             async with db.begin_nested():
                 db.add(record)
+                await db.flush()
+            readings.add(
+                "fuel",
+                record.id,
+                record.date,
+                odometer_km=record.odometer_km,
+                engine_hours=record.engine_hours,
+            )
             import_result.add_success()
 
         except _ImportBoundError as e:
@@ -1076,7 +1344,9 @@ async def import_fuel_csv(
             logger.error("Fuel import row %d failed: %s", row_num, e)
             import_result.add_error(row_num, "Invalid fuel record data")
 
+    await readings.apply(db, vin, claim=False)
     await db.commit()
+    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1103,7 +1373,8 @@ async def import_def_csv(
     await lock_vehicle_for_write(db, vin)
     # Taken before the first write; see `_converted_value_matches` for why.
     odometer_converted = units.converts(DISTANCE)
-    last_id = await _last_id_before_import(db, DEFRecord)
+    matcher = await _DuplicateMatcher.before_import(db, DEFRecord)
+    readings = _ImportReadings()
 
     import_result = ImportResult()
 
@@ -1136,22 +1407,24 @@ async def import_def_csv(
             brand = row.get("Brand", "").strip() or None
             notes = row.get("Notes", "").strip() or None
 
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(DEFRecord).where(
-                        DEFRecord.vin == vin,
-                        DEFRecord.date == date,
-                        _odometer_matches(
-                            DEFRecord,
-                            odometer_km,
-                            converted=odometer_converted,
-                            last_id_before_import=last_id,
-                        ),
-                    )
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    DEFRecord,
+                    DEFRecord.vin == vin,
+                    DEFRecord.date == date,
+                    _odometer_matches(
+                        DEFRecord,
+                        odometer_km,
+                        converted=odometer_converted,
+                        last_id_before_import=matcher.last_id(DEFRecord),
+                    ),
                 )
-                if existing.scalars().first():
-                    import_result.add_skip()
-                    continue
+                is not None
+            ):
+                import_result.add_skip()
+                continue
 
             record = DEFRecord(
                 vin=vin,
@@ -1165,12 +1438,13 @@ async def import_def_csv(
                 brand=brand,
                 notes=notes,
             )
-            # A savepoint per row. Leaving it flushes the insert, so the next
-            # row's duplicate check sees this one (production sessions do not
-            # autoflush), and a row the database rejects rolls back alone
-            # instead of failing the whole upload at the final commit.
+            # A savepoint per row, flushed inside it so the end-of-import sync
+            # has the record's id, and a row the database rejects rolls back
+            # alone instead of failing the whole upload at the final commit.
             async with db.begin_nested():
                 db.add(record)
+                await db.flush()
+            readings.add("def", record.id, record.date, odometer_km=record.odometer_km)
             import_result.add_success()
 
         except _ImportBoundError as e:
@@ -1179,7 +1453,9 @@ async def import_def_csv(
             logger.error("DEF import row %d failed: %s", row_num, e)
             import_result.add_error(row_num, "Invalid DEF record data")
 
+    await readings.apply(db, vin, claim=False)
     await db.commit()
+    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1205,7 +1481,7 @@ async def import_odometer_csv(
     await lock_vehicle_for_write(db, vin)
     # Taken before the first write; see `_converted_value_matches` for why.
     odometer_converted = units.converts(DISTANCE)
-    last_id = await _last_id_before_import(db, OdometerRecord)
+    matcher = await _DuplicateMatcher.before_import(db, OdometerRecord)
 
     import_result = ImportResult()
 
@@ -1226,25 +1502,28 @@ async def import_odometer_csv(
                 continue
             _within_api_bounds(OdometerRecordCreate, odometer_km=odometer_km)
 
-            notes = row.get("Notes", "").strip() or None
+            # A copied sync marker would make the reading look owned (R4, N-2).
+            notes = _without_sync_marker(row.get("Notes", "").strip() or None)
 
             # Check for duplicates if requested
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(OdometerRecord).where(
-                        OdometerRecord.vin == vin,
-                        OdometerRecord.date == date,
-                        _odometer_matches(
-                            OdometerRecord,
-                            odometer_km,
-                            converted=odometer_converted,
-                            last_id_before_import=last_id,
-                        ),
-                    )
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    OdometerRecord,
+                    OdometerRecord.vin == vin,
+                    OdometerRecord.date == date,
+                    _odometer_matches(
+                        OdometerRecord,
+                        odometer_km,
+                        converted=odometer_converted,
+                        last_id_before_import=matcher.last_id(OdometerRecord),
+                    ),
                 )
-                if existing.scalars().first():
-                    import_result.add_skip()
-                    continue
+                is not None
+            ):
+                import_result.add_skip()
+                continue
 
             # Create record
             record = OdometerRecord(vin=vin, date=date, odometer_km=odometer_km, notes=notes)
@@ -1263,6 +1542,7 @@ async def import_odometer_csv(
             import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
+    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1297,6 +1577,7 @@ async def import_hours_csv(
     csv_reader = csv.DictReader(io.StringIO(csv_data))
 
     await lock_vehicle_for_write(db, vin)
+    matcher = await _DuplicateMatcher.before_import(db, HoursRecord)
 
     import_result = ImportResult()
 
@@ -1316,20 +1597,23 @@ async def import_hours_csv(
                 continue
             _within_api_bounds(HoursRecordCreate, engine_hours=engine_hours)
 
-            notes = row.get("Notes", "").strip() or None
+            # A copied sync marker would make the reading look owned (R4, N-2).
+            notes = _without_sync_marker(row.get("Notes", "").strip() or None)
 
-            # Check for duplicates if requested
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(HoursRecord).where(
-                        HoursRecord.vin == vin,
-                        HoursRecord.date == date,
-                        HoursRecord.engine_hours == engine_hours,
-                    )
+            # Check for duplicates if requested. NUMERIC(10,1); no source (T-19).
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    HoursRecord,
+                    HoursRecord.vin == vin,
+                    HoursRecord.date == date,
+                    _same_figure(HoursRecord.engine_hours, engine_hours, Decimal("0.1")),
                 )
-                if existing.scalar_one_or_none():
-                    import_result.add_skip()
-                    continue
+                is not None
+            ):
+                import_result.add_skip()
+                continue
 
             # Create record — always a manual reading (see docstring).
             record = HoursRecord(
@@ -1354,6 +1638,7 @@ async def import_hours_csv(
             import_result.add_error(row_num, "Invalid hours record data")
 
     await db.commit()
+    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1379,6 +1664,8 @@ async def import_warranties_csv(
     rows, units = _read_csv_with_units(csv_data, (MILEAGE_LIMIT_DISTANCE,))
 
     await lock_vehicle_for_write(db, vin)
+    matcher = await _DuplicateMatcher.before_import(db, WarrantyRecord)
+    has_mileage_limit = units.column(DISTANCE) is not None
 
     import_result = ImportResult()
 
@@ -1399,16 +1686,35 @@ async def import_warranties_csv(
             _within_api_bounds(WarrantyRecordCreate, mileage_limit_km=mileage_limit_km)
             notes = row.get("Notes", "").strip() or None
 
-            # Check for duplicates if requested
-            if skip_duplicates and provider and start_date:
-                existing = await db.execute(
-                    select(WarrantyRecord).where(
-                        WarrantyRecord.vin == vin,
-                        WarrantyRecord.provider == provider,
-                        WarrantyRecord.start_date == start_date,
+            # Check for duplicates if requested. A key part is compared only
+            # when the file has its column (T-16): DictReader gives every row
+            # each header key, so `in row` is a header check.
+            if skip_duplicates and start_date and warranty_type:
+                key = [
+                    WarrantyRecord.warranty_type == warranty_type,
+                    _matches(WarrantyRecord.provider, provider),
+                    WarrantyRecord.start_date == start_date,
+                ]
+                if "End Date" in row:
+                    key.append(_matches(WarrantyRecord.end_date, end_date))
+                if "Policy Number" in row:
+                    key.append(_matches(WarrantyRecord.policy_number, policy_number))
+                if has_mileage_limit:
+                    key.append(
+                        _converted_value_matches(
+                            WarrantyRecord.mileage_limit_km,
+                            mileage_limit_km,
+                            KM_STEP,
+                            converted=units.converts(DISTANCE),
+                            stored_before_import=(
+                                WarrantyRecord.id <= matcher.last_id(WarrantyRecord)
+                            ),
+                        )
                     )
-                )
-                if existing.scalar_one_or_none():
+                if (
+                    await matcher.take(db, WarrantyRecord, WarrantyRecord.vin == vin, *key)
+                    is not None
+                ):
                     import_result.add_skip()
                     continue
 
@@ -1439,6 +1745,7 @@ async def import_warranties_csv(
             import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
+    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1500,6 +1807,7 @@ async def import_insurance_csv(
             import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
+    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1522,6 +1830,7 @@ async def import_tax_csv(
     csv_reader = csv.DictReader(io.StringIO(csv_data))
 
     await lock_vehicle_for_write(db, vin)
+    matcher = await _DuplicateMatcher.before_import(db, TaxRecord)
 
     import_result = ImportResult()
 
@@ -1542,16 +1851,16 @@ async def import_tax_csv(
             )
             notes = row.get("Notes", "").strip() or None
 
-            # Check for duplicates if requested
-            if skip_duplicates and record_date and tax_type:
-                existing = await db.execute(
-                    select(TaxRecord).where(
-                        TaxRecord.vin == vin,
-                        TaxRecord.date == record_date,
-                        TaxRecord.tax_type == tax_type,
-                    )
-                )
-                if existing.scalar_one_or_none():
+            # Check for duplicates if requested. A key part is compared only
+            # when the file has its column (T-16): DictReader gives every row
+            # each header key, so `in row` is a header check.
+            if skip_duplicates and record_date:
+                key = [TaxRecord.date == record_date, _matches(TaxRecord.tax_type, tax_type)]
+                if "Amount" in row:
+                    key.append(_money_matches(TaxRecord.amount, amount))
+                if "Renewal Date" in row or "Due Date" in row:
+                    key.append(_matches(TaxRecord.renewal_date, renewal_date))
+                if await matcher.take(db, TaxRecord, TaxRecord.vin == vin, *key) is not None:
                     import_result.add_skip()
                     continue
 
@@ -1579,6 +1888,7 @@ async def import_tax_csv(
             import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
+    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1601,6 +1911,7 @@ async def import_notes_csv(
     csv_reader = csv.DictReader(io.StringIO(csv_data))
 
     await lock_vehicle_for_write(db, vin)
+    matcher = await _DuplicateMatcher.before_import(db, Note)
 
     import_result = ImportResult()
 
@@ -1610,12 +1921,16 @@ async def import_notes_csv(
             title = row.get("Title", "").strip() or None
             content = row.get("Content", "").strip() or None
 
-            # Check for duplicates if requested
-            if skip_duplicates and date and title:
-                existing = await db.execute(
-                    select(Note).where(Note.vin == vin, Note.date == date, Note.title == title)
-                )
-                if existing.scalar_one_or_none():
+            # Check for duplicates if requested. A key part is compared only
+            # when the file has its column (T-16): DictReader gives every row
+            # each header key, so `in row` is a header check.
+            if skip_duplicates and date:
+                key = [Note.date == date]
+                if "Title" in row:
+                    key.append(_matches(Note.title, title))
+                if "Content" in row:
+                    key.append(_matches(Note.content, content))
+                if await matcher.take(db, Note, Note.vin == vin, *key) is not None:
                     import_result.add_skip()
                     continue
 
@@ -1634,6 +1949,7 @@ async def import_notes_csv(
             import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
+    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1698,34 +2014,45 @@ async def import_vehicle_json(
             sanitize_for_log(vin),
         )
 
+    # A legacy figure is converted, so it is rounded to its column's scale
+    # (R7, T-10); a v3+ figure is canonical already and is left as given.
     def _maybe_mi_to_km(val: Any) -> Decimal | None:
         if val is None or val == "":
             return None
         d = Decimal(str(val))
-        return d * UnitConverter.MILES_TO_KM if is_legacy_v2 else d
+        # Infinity and NaN pass for the bounds check to name; sNaN would raise here.
+        if not is_legacy_v2 or not d.is_finite():
+            return d
+        return _at_scale(d * UnitConverter.MILES_TO_KM, Decimal("0.01"))
 
     def _maybe_gal_to_l(val: Any) -> Decimal | None:
         if val is None or val == "":
             return None
         d = Decimal(str(val))
-        return d * UnitConverter.US_GALLONS_TO_LITERS if is_legacy_v2 else d
+        if not is_legacy_v2 or not d.is_finite():
+            return d
+        return _at_scale(d * UnitConverter.US_GALLONS_TO_LITERS, Decimal("0.001"))
 
     def _maybe_per_gal_to_per_l(val: Any) -> Decimal | None:
         if val is None or val == "":
             return None
         d = Decimal(str(val))
-        return d / UnitConverter.US_GALLONS_TO_LITERS if is_legacy_v2 else d
+        if not is_legacy_v2 or not d.is_finite():
+            return d
+        return _at_scale(d / UnitConverter.US_GALLONS_TO_LITERS, Decimal("0.001"))
 
     await lock_vehicle_for_write(db, vin)
     # Taken before the first section writes: only a row at or below these can
     # carry the pre-v3.4.0 factors (see `_converted_value_matches`), and a v3
-    # backup is canonical already, so only a legacy one was converted.
-    last_ids = {
-        model: await _last_id_before_import(db, model)
-        for model in (ServiceVisit, FuelRecord, DEFRecord, OdometerRecord)
-    }
+    # backup is canonical already, so only a legacy one was converted. The same
+    # ceilings keep a row this import wrote from being a duplicate (R5).
+    matcher = await _DuplicateMatcher.before_import(
+        db, ServiceVisit, FuelRecord, DEFRecord, OdometerRecord, HoursRecord
+    )
+    readings = _ImportReadings()
 
     errors: list[str] = []
+    warnings: list[str] = []
     results = {
         "service_records": {"success": 0, "errors": 0, "skipped": 0},
         "fuel_records": {"success": 0, "errors": 0, "skipped": 0},
@@ -1736,6 +2063,7 @@ async def import_vehicle_json(
         "notes": {"success": 0, "errors": 0, "skipped": 0},
         "insurance_policies": {"success": 0, "errors": 0, "skipped": 0},
         "errors": errors,
+        "warnings": warnings,
     }
 
     # Import service records (creates ServiceVisit + ServiceLineItem + Vendor)
@@ -1751,22 +2079,24 @@ async def import_vehicle_json(
             _within_api_bounds(ServiceVisitCreate, odometer_km=imported_odometer_km)
             _within_api_bounds(ServiceLineItemCreate, cost=cost)
 
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(ServiceVisit).where(
-                        ServiceVisit.vin == vin,
-                        ServiceVisit.date == date,
-                        _odometer_matches(
-                            ServiceVisit,
-                            imported_odometer_km,
-                            converted=is_legacy_v2,
-                            last_id_before_import=last_ids[ServiceVisit],
-                        ),
-                    )
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    ServiceVisit,
+                    ServiceVisit.vin == vin,
+                    ServiceVisit.date == date,
+                    _odometer_matches(
+                        ServiceVisit,
+                        imported_odometer_km,
+                        converted=is_legacy_v2,
+                        last_id_before_import=matcher.last_id(ServiceVisit),
+                    ),
                 )
-                if existing.scalars().first():
-                    results["service_records"]["skipped"] += 1
-                    continue
+                is not None
+            ):
+                results["service_records"]["skipped"] += 1
+                continue
 
             description = (
                 record_data.get("service_type") or record_data.get("description") or "Service"
@@ -1823,6 +2153,13 @@ async def import_vehicle_json(
                     cost=cost,
                 )
                 db.add(line_item)
+            readings.add(
+                "service_visit",
+                visit.id,
+                visit.date,
+                odometer_km=visit.odometer_km,
+                engine_hours=visit.engine_hours,
+            )
             results["service_records"]["success"] += 1
         except _RowError as e:
             results["service_records"]["errors"] += 1
@@ -1875,22 +2212,24 @@ async def import_vehicle_json(
                 )
                 normalized_fuel_type = FuelTypeEnum.OTHER
 
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(FuelRecord).where(
-                        FuelRecord.vin == vin,
-                        FuelRecord.date == date,
-                        _odometer_matches(
-                            FuelRecord,
-                            imported_odometer_km,
-                            converted=is_legacy_v2,
-                            last_id_before_import=last_ids[FuelRecord],
-                        ),
-                    )
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    FuelRecord,
+                    FuelRecord.vin == vin,
+                    FuelRecord.date == date,
+                    _odometer_matches(
+                        FuelRecord,
+                        imported_odometer_km,
+                        converted=is_legacy_v2,
+                        last_id_before_import=matcher.last_id(FuelRecord),
+                    ),
                 )
-                if existing.scalars().first():
-                    results["fuel_records"]["skipped"] += 1
-                    continue
+                is not None
+            ):
+                results["fuel_records"]["skipped"] += 1
+                continue
 
             record = FuelRecord(
                 vin=vin,
@@ -1917,12 +2256,19 @@ async def import_vehicle_json(
                 diesel_grade=_validate_diesel_grade(record_data.get("diesel_grade")),
                 notes=record_data.get("notes"),
             )
-            # A savepoint per row. Leaving it flushes the insert, so the next
-            # row's duplicate check sees this one (production sessions do not
-            # autoflush), and a row the database rejects rolls back alone
-            # instead of failing the whole upload at the final commit.
+            # A savepoint per row, flushed inside it so the end-of-import sync
+            # has the record's id, and a row the database rejects rolls back
+            # alone instead of failing the whole upload at the final commit.
             async with db.begin_nested():
                 db.add(record)
+                await db.flush()
+            readings.add(
+                "fuel",
+                record.id,
+                record.date,
+                odometer_km=record.odometer_km,
+                engine_hours=record.engine_hours,
+            )
             results["fuel_records"]["success"] += 1
         except _RowError as e:
             results["fuel_records"]["errors"] += 1
@@ -1965,22 +2311,24 @@ async def import_vehicle_json(
                 fill_level=imported_fill_level,
             )
 
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(DEFRecord).where(
-                        DEFRecord.vin == vin,
-                        DEFRecord.date == date,
-                        _odometer_matches(
-                            DEFRecord,
-                            imported_odometer_km,
-                            converted=is_legacy_v2,
-                            last_id_before_import=last_ids[DEFRecord],
-                        ),
-                    )
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    DEFRecord,
+                    DEFRecord.vin == vin,
+                    DEFRecord.date == date,
+                    _odometer_matches(
+                        DEFRecord,
+                        imported_odometer_km,
+                        converted=is_legacy_v2,
+                        last_id_before_import=matcher.last_id(DEFRecord),
+                    ),
                 )
-                if existing.scalars().first():
-                    results["def_records"]["skipped"] += 1
-                    continue
+                is not None
+            ):
+                results["def_records"]["skipped"] += 1
+                continue
 
             # No price_basis here: DEF is volume-only, has no such column, and
             # the UI passes 'per_volume' as a literal when displaying it.
@@ -1996,12 +2344,13 @@ async def import_vehicle_json(
                 brand=record_data.get("brand"),
                 notes=record_data.get("notes"),
             )
-            # A savepoint per row. Leaving it flushes the insert, so the next
-            # row's duplicate check sees this one (production sessions do not
-            # autoflush), and a row the database rejects rolls back alone
-            # instead of failing the whole upload at the final commit.
+            # A savepoint per row, flushed inside it so the end-of-import sync
+            # has the record's id, and a row the database rejects rolls back
+            # alone instead of failing the whole upload at the final commit.
             async with db.begin_nested():
                 db.add(record)
+                await db.flush()
+            readings.add("def", record.id, record.date, odometer_km=record.odometer_km)
             results["def_records"]["success"] += 1
         except _RowError as e:
             results["def_records"]["errors"] += 1
@@ -2022,28 +2371,33 @@ async def import_vehicle_json(
             )
             _within_api_bounds(OdometerRecordCreate, odometer_km=imported_odometer_km)
 
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(OdometerRecord).where(
-                        OdometerRecord.vin == vin,
-                        OdometerRecord.date == date,
-                        _odometer_matches(
-                            OdometerRecord,
-                            imported_odometer_km,
-                            converted=is_legacy_v2,
-                            last_id_before_import=last_ids[OdometerRecord],
-                        ),
-                    )
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    OdometerRecord,
+                    OdometerRecord.vin == vin,
+                    OdometerRecord.date == date,
+                    _odometer_matches(
+                        OdometerRecord,
+                        imported_odometer_km,
+                        converted=is_legacy_v2,
+                        last_id_before_import=matcher.last_id(OdometerRecord),
+                    ),
                 )
-                if existing.scalars().first():
-                    results["odometer_records"]["skipped"] += 1
-                    continue
+                is not None
+            ):
+                results["odometer_records"]["skipped"] += 1
+                continue
 
+            # No copied sync marker and a portable source (R4, N-2): a v8 file
+            # has no source, so its rows read as manual.
             record = OdometerRecord(
                 vin=vin,
                 date=date,
                 odometer_km=imported_odometer_km,
-                notes=record_data.get("notes"),
+                notes=_without_sync_marker(record_data.get("notes")),
+                source=_portable_odometer_source(record_data.get("source")),
             )
             # A savepoint per row. Leaving it flushes the insert, so the next
             # row's duplicate check sees this one (production sessions do not
@@ -2074,23 +2428,26 @@ async def import_vehicle_json(
             engine_hours = Decimal(str(raw_hours))
             _within_api_bounds(HoursRecordCreate, engine_hours=engine_hours)
 
-            if skip_duplicates:
-                existing = await db.execute(
-                    select(HoursRecord).where(
-                        HoursRecord.vin == vin,
-                        HoursRecord.date == date,
-                        HoursRecord.engine_hours == engine_hours,
-                    )
+            # NUMERIC(10,1); no source in the key (T-19).
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    HoursRecord,
+                    HoursRecord.vin == vin,
+                    HoursRecord.date == date,
+                    _same_figure(HoursRecord.engine_hours, engine_hours, Decimal("0.1")),
                 )
-                if existing.scalars().first():
-                    results["hours_records"]["skipped"] += 1
-                    continue
+                is not None
+            ):
+                results["hours_records"]["skipped"] += 1
+                continue
 
             record = HoursRecord(
                 vin=vin,
                 date=date,
                 engine_hours=engine_hours,
-                notes=record_data.get("notes"),
+                notes=_without_sync_marker(record_data.get("notes")),
                 source="manual",
             )
             async with db.begin_nested():
@@ -2103,6 +2460,9 @@ async def import_vehicle_json(
             results["hours_records"]["errors"] += 1
             logger.warning("Import: hours record %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Hours record {idx}: could not be imported")
+
+    # Before the reminders, which count from the current reading (T-2).
+    await readings.apply(db, vin, claim=False)
 
     # Read once, here: the odometer and hours sections have flushed by now
     # (each row leaves a savepoint), and no reminder row writes a reading.
@@ -2297,6 +2657,7 @@ async def import_vehicle_json(
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once.
     await maintenance_service.reconcile_vehicle(db, vin)
+    await invalidate_cache_for_vehicle(vin)
 
     metric_keys = (
         "service_records",
@@ -2514,11 +2875,11 @@ async def _persist_parsed_fuel(
     db: AsyncSession,
 ):
     import_result = ImportResult()
-    # date -> (odometer_km, record). Odometer sync matches on (vin, date) and
-    # overwrites, so syncing every row would let CSV order decide the stored
-    # value and reassign the cascade FK. Sync once per date with the highest
-    # reading, which is the only choice that survives reordering the file.
-    best_per_date: dict[date_type, tuple[Decimal, FuelRecord]] = {}
+    # Odometer sync matches on (vin, date) and overwrites, so syncing every row
+    # would let CSV order decide the stored value and reassign the cascade FK.
+    # Sync once per date with the highest reading, which is the only choice
+    # that survives reordering the file.
+    readings = _ImportReadings()
     # Callers take the vehicle write lock first; see `_converted_value_matches`.
     last_id = await _last_id_before_import(db, FuelRecord)
     for row_num, row in enumerate(parsed, start=2):
@@ -2583,10 +2944,7 @@ async def _persist_parsed_fuel(
             async with db.begin_nested():
                 db.add(record)
                 await db.flush()
-            if record.odometer_km is not None:
-                best = best_per_date.get(record.date)
-                if best is None or record.odometer_km > best[0]:
-                    best_per_date[record.date] = (record.odometer_km, record)
+            readings.add("fuel", record.id, record.date, odometer_km=record.odometer_km)
             import_result.add_success()
         except _RowError as e:
             import_result.add_error(row_num, e.reason)
@@ -2594,15 +2952,9 @@ async def _persist_parsed_fuel(
             logger.error("External fuel import row %d failed: %s", row_num, e)
             import_result.add_error(row_num, "Invalid fuel record data")
 
-    for _odometer, record in best_per_date.values():
-        try:
-            async with db.begin_nested():
-                await apply_fuel_record_side_effects(db, record)
-        except Exception as e:
-            # Derived data only. Log and keep the fuel rows: letting this escape
-            # would reach get_db's handler, which rolls back the outer
-            # transaction and would discard the entire import.
-            logger.warning("Odometer sync failed for imported fuel record %s: %s", record.id, e)
+    # The create path's claiming sync: a third-party export is no backup, so a
+    # same-day automatic or LiveLink row is taken over as before (T-15, T-17).
+    await readings.apply(db, vin, claim=True)
 
     await db.commit()
     await invalidate_cache_for_vehicle(vin)

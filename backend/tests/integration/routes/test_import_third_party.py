@@ -111,7 +111,7 @@ class TestThirdPartyFuelImport:
         async def boom(*args, **kwargs):
             raise RuntimeError("simulated sync failure")
 
-        monkeypatch.setattr(import_data, "apply_fuel_record_side_effects", boom)
+        monkeypatch.setattr(import_data, "sync_odometer_from_record", boom)
 
         parsed = [
             {"date": date(2027, 7, 1), "odometer_km": Decimal("1000"), "liters": Decimal("40")},

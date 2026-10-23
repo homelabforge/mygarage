@@ -356,7 +356,10 @@ class TestJsonSectionsAreCheckedBeforeAnyWrite:
         assert response.status_code == 200, response.text
         assert response.json()["service_records"]["success_count"] == 2
         assert response.json()["fuel_records"]["success_count"] == 0
-        assert await _committed_rows(test_sessionmaker, vin) == {"service_visits": 2}
+        assert await _committed_rows(test_sessionmaker, vin) == {
+            "service_visits": 2,
+            "odometer_records": 2,
+        }
 
     async def test_a_file_that_is_not_an_object_is_refused(
         self, vin, auth_headers, test_sessionmaker

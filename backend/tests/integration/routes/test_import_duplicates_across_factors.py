@@ -633,11 +633,10 @@ class TestTwoDifferentReadingsInsideTheBandBothImport:
     async def test_imperial_csv_same_reading_twice_in_one_file(
         self, client, auth_headers, test_user, db_session, pair
     ):
-        """The first copy is stored rounded to the column; the second must still match it.
+        """The second copy is not a duplicate of the first: it was written by this import.
 
-        2008 mi is 3231.562752 km, which PostgreSQL's NUMERIC(10, 2) holds as
-        3231.56 (SQLite keeps it as given): a figure the same reading converts to
-        only within half a step, so this only discriminates on PostgreSQL.
+        Matching a stored row rounded to the column now belongs to
+        `test_metric_csv_finer_than_the_column_matches_its_stored_rounding`.
         """
         assert converted_today("2008") == Decimal("3231.562752")
         model = _CSV_PAIRS[pair][0]
@@ -645,9 +644,10 @@ class TestTwoDifferentReadingsInsideTheBandBothImport:
             body = _csv(pair, "imperial", "mi", ["2008", "2008"])
             resp = await _post_csv(client, auth_headers, vin, pair, body)
             assert resp.status_code == 200, resp.text
-            assert resp.json()["success_count"] == 1, resp.json()
-            assert resp.json()["skipped_count"] == 1, resp.json()
-            assert await _count(db_session, model, vin) == 1
+            # Both rows import: a row this import wrote is never a duplicate (T-14).
+            assert resp.json()["success_count"] == 2, resp.json()
+            assert resp.json()["skipped_count"] == 0, resp.json()
+            assert await _count(db_session, model, vin) == 2
 
     async def test_legacy_json_backup_two_readings(
         self, client, auth_headers, test_user, db_session

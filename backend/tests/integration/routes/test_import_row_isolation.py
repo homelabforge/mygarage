@@ -67,11 +67,13 @@ async def _production_session(test_engine):
 
 
 @pytest.mark.asyncio
-class TestOneUploadCannotImportTheSameRowTwice:
-    """Each of these loops checks for a duplicate with a SELECT and then
-    `db.add`s the record with no flush in between. Two identical rows in one
-    upload both pass the check against a table that does not yet hold either
-    of them, so both import despite `skip_duplicates`.
+class TestOneUploadKeepsARowRepeatedInIt:
+    """A row this import wrote is never a duplicate (T-14).
+
+    Duplicates match the rows stored before the import began, one to one, so
+    two identical rows in one upload into a table holding neither both import
+    with `skip_duplicates`. Each loop still flushes its row in a savepoint, so
+    a later check would see it; the matcher's id ceiling is what keeps it out.
 
     Uses `_production_session`, an explicitly non-autoflushing session pinned
     directly over `test_engine` (`app/database.py`), independent of
@@ -79,7 +81,7 @@ class TestOneUploadCannotImportTheSameRowTwice:
     unit of work even if conftest's setting changes.
     """
 
-    async def test_fuel_csv_skips_a_row_repeated_within_one_upload(
+    async def test_fuel_csv_keeps_a_row_repeated_within_one_upload(
         self, client: AsyncClient, auth_headers, test_vehicle, test_engine
     ):
         csv_content = (
@@ -95,8 +97,8 @@ class TestOneUploadCannotImportTheSameRowTwice:
             )
             assert response.status_code == 200, response.text
             data = response.json()
-            assert data["success_count"] == 1, data
-            assert data["skipped_count"] == 1, data
+            assert data["success_count"] == 2, data
+            assert data["skipped_count"] == 0, data
 
             count = await session.execute(
                 select(func.count())
@@ -107,9 +109,9 @@ class TestOneUploadCannotImportTheSameRowTwice:
                     FuelRecord.odometer_km == Decimal("70000"),
                 )
             )
-            assert count.scalar() == 1
+            assert count.scalar() == 2
 
-    async def test_def_csv_skips_a_row_repeated_within_one_upload(
+    async def test_def_csv_keeps_a_row_repeated_within_one_upload(
         self, client: AsyncClient, auth_headers, test_vehicle, test_engine
     ):
         csv_content = (
@@ -125,8 +127,8 @@ class TestOneUploadCannotImportTheSameRowTwice:
             )
             assert response.status_code == 200, response.text
             data = response.json()
-            assert data["success_count"] == 1, data
-            assert data["skipped_count"] == 1, data
+            assert data["success_count"] == 2, data
+            assert data["skipped_count"] == 0, data
 
             count = await session.execute(
                 select(func.count())
@@ -137,9 +139,9 @@ class TestOneUploadCannotImportTheSameRowTwice:
                     DEFRecord.odometer_km == Decimal("70010"),
                 )
             )
-            assert count.scalar() == 1
+            assert count.scalar() == 2
 
-    async def test_hours_csv_skips_a_row_repeated_within_one_upload(
+    async def test_hours_csv_keeps_a_row_repeated_within_one_upload(
         self, client: AsyncClient, auth_headers, test_vehicle, test_engine
     ):
         csv_content = "Date,Engine Hours,Notes\n2027-01-12,55.5,Repeat\n2027-01-12,55.5,Repeat\n"
@@ -151,8 +153,8 @@ class TestOneUploadCannotImportTheSameRowTwice:
             )
             assert response.status_code == 200, response.text
             data = response.json()
-            assert data["success_count"] == 1, data
-            assert data["skipped_count"] == 1, data
+            assert data["success_count"] == 2, data
+            assert data["skipped_count"] == 0, data
 
             count = await session.execute(
                 select(func.count())
@@ -163,9 +165,9 @@ class TestOneUploadCannotImportTheSameRowTwice:
                     HoursRecord.engine_hours == Decimal("55.5"),
                 )
             )
-            assert count.scalar() == 1
+            assert count.scalar() == 2
 
-    async def test_vehicle_json_fuel_skips_a_row_repeated_within_one_upload(
+    async def test_vehicle_json_fuel_keeps_a_row_repeated_within_one_upload(
         self, client: AsyncClient, auth_headers, test_vehicle, test_engine
     ):
         json_data = {
@@ -191,8 +193,8 @@ class TestOneUploadCannotImportTheSameRowTwice:
             )
             assert response.status_code == 200, response.text
             data = response.json()
-            assert data["fuel_records"]["success_count"] == 1, data
-            assert data["fuel_records"]["skipped_count"] == 1, data
+            assert data["fuel_records"]["success_count"] == 2, data
+            assert data["fuel_records"]["skipped_count"] == 0, data
 
             count = await session.execute(
                 select(func.count())
@@ -203,9 +205,9 @@ class TestOneUploadCannotImportTheSameRowTwice:
                     FuelRecord.odometer_km == Decimal("70020"),
                 )
             )
-            assert count.scalar() == 1
+            assert count.scalar() == 2
 
-    async def test_vehicle_json_def_skips_a_row_repeated_within_one_upload(
+    async def test_vehicle_json_def_keeps_a_row_repeated_within_one_upload(
         self, client: AsyncClient, auth_headers, test_vehicle, test_engine
     ):
         json_data = {
@@ -231,8 +233,8 @@ class TestOneUploadCannotImportTheSameRowTwice:
             )
             assert response.status_code == 200, response.text
             data = response.json()
-            assert data["def_records"]["success_count"] == 1, data
-            assert data["def_records"]["skipped_count"] == 1, data
+            assert data["def_records"]["success_count"] == 2, data
+            assert data["def_records"]["skipped_count"] == 0, data
 
             count = await session.execute(
                 select(func.count())
@@ -243,9 +245,9 @@ class TestOneUploadCannotImportTheSameRowTwice:
                     DEFRecord.odometer_km == Decimal("70030"),
                 )
             )
-            assert count.scalar() == 1
+            assert count.scalar() == 2
 
-    async def test_vehicle_json_odometer_skips_a_row_repeated_within_one_upload(
+    async def test_vehicle_json_odometer_keeps_a_row_repeated_within_one_upload(
         self, client: AsyncClient, auth_headers, test_vehicle, test_engine
     ):
         json_data = {
@@ -271,8 +273,8 @@ class TestOneUploadCannotImportTheSameRowTwice:
             )
             assert response.status_code == 200, response.text
             data = response.json()
-            assert data["odometer_records"]["success_count"] == 1, data
-            assert data["odometer_records"]["skipped_count"] == 1, data
+            assert data["odometer_records"]["success_count"] == 2, data
+            assert data["odometer_records"]["skipped_count"] == 0, data
 
             count = await session.execute(
                 select(func.count())
@@ -283,7 +285,7 @@ class TestOneUploadCannotImportTheSameRowTwice:
                     OdometerRecord.odometer_km == Decimal("70040"),
                 )
             )
-            assert count.scalar() == 1
+            assert count.scalar() == 2
 
 
 @pytest.mark.asyncio
