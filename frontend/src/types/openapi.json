@@ -35567,7 +35567,7 @@
     },
     "/api/backup/create": {
       "post": {
-        "description": "Create a new backup of all settings.\n\nArgs:\n    db: Database session\n\nReturns:\n    Metadata about the created backup file",
+        "description": "Create a new backup of all settings.\n\nSecret settings are written as their stored ciphertext. 503 while one is\nstill stored as plaintext and can't be encrypted first.\n\nArgs:\n    db: Database session\n\nReturns:\n    Metadata about the created backup file",
         "operationId": "create_settings_backup_api_backup_create_post",
         "responses": {
           "200": {
@@ -35596,7 +35596,7 @@
     },
     "/api/backup/create-full": {
       "post": {
-        "description": "Create a full backup including database and all uploaded files.\n\nThis may take several minutes depending on the size of your data.\n\nReturns:\n    Metadata about the created backup file",
+        "description": "Create a full backup including database and all uploaded files.\n\nThis may take several minutes depending on the size of your data. 503 while\na secret setting is still stored as plaintext and can't be encrypted first:\nthe archive copies the database.\n\nArgs:\n    db: Database session, for the preflight only\n\nReturns:\n    Metadata about the created backup file",
         "operationId": "create_full_backup_api_backup_create_full_post",
         "responses": {
           "200": {
@@ -35751,7 +35751,7 @@
     },
     "/api/backup/restore/{filename}": {
       "post": {
-        "description": "Restore a settings backup now, or stage a full backup for the next start.\n\nEither way a safety backup comes first. A full restore is SQLite only and finishes when MyGarage\nrestarts.\n\nArgs:\n    filename: Name of the backup file to restore from\n    db: Database session\n\nReturns:\n    Success message with details about restore operation",
+        "description": "Restore a settings backup now, or stage a full backup for the next start.\n\nEither way a safety backup comes first. A full restore is SQLite only and finishes when MyGarage\nrestarts. 503 while a secret setting is still stored as plaintext and can't be encrypted first,\nsince the safety backup would copy it.\n\nA settings restore that skipped secret keys (ciphertext no key in the keyring opens, or\nplaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names\nthem in `warning`; those keys keep their current values.\n\nArgs:\n    filename: Name of the backup file to restore from\n    db: Database session\n\nReturns:\n    Success message with details about restore operation",
         "operationId": "restore_backup_api_backup_restore__filename__post",
         "parameters": [
           {

@@ -12,14 +12,16 @@ import tarfile
 import tempfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import quote, unquote, urlparse
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.settings import Setting
 from app.services import restore_staging
 from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
+from app.services.oidc.tokens import MASKED_SECRET_PLACEHOLDER
 from app.services.setting_rules import check_setting_value
 from app.services.settings_service import SettingsService
 from app.utils.default_unit_prefs import (
@@ -28,8 +30,36 @@ from app.utils.default_unit_prefs import (
 )
 from app.utils.household_time import EFFECTIVE_TIMEZONE_KEY, TIMEZONE_SETTING_KEY
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.secret_setting_keys import SECRET_SETTING_KEYS
+from app.utils.settings_crypto import DecryptStatus, current_kid, decrypt, is_ciphertext
 
 logger = logging.getLogger(__name__)
+
+#: The settings backup format. 2.1 carries each secret setting as its stored
+#: ciphertext; 2.0 (3.9.0 and older) carried plaintext. The restore takes both,
+#: and tells them apart per value, not by this field.
+SETTINGS_BACKUP_VERSION = "2.1"
+
+#: What the restore did with one secret setting from the file.
+type _SecretRestore = Literal["restored", "placeholder", "skipped"]
+
+
+def _settings_backup_rows(settings: list[Setting]) -> list[dict[str, Any]]:
+    """The rows of a settings backup: each secret as stored (ciphertext), the rest as is.
+
+    `stored_value`, not `value`: the getter would decrypt, and the file would
+    carry every secret in the clear (D4.1a).
+    """
+    return [
+        {
+            "key": s.key,
+            "value": s.stored_value if s.key in SECRET_SETTING_KEYS else s.value,
+            "category": s.category,
+            "description": s.description,
+            "encrypted": s.encrypted,
+        }
+        for s in settings
+    ]
 
 
 class BackupService:
@@ -270,19 +300,10 @@ class BackupService:
 
         # Build backup data structure
         backup_data = {
-            "version": "2.0",
+            "version": SETTINGS_BACKUP_VERSION,
             "type": "settings",
             "exported_at": datetime.now().isoformat(),
-            "settings": [
-                {
-                    "key": s.key,
-                    "value": s.value,
-                    "category": s.category,
-                    "description": s.description,
-                    "encrypted": s.encrypted,
-                }
-                for s in settings
-            ],
+            "settings": _settings_backup_rows(settings),
         }
 
         # Generate filename with timestamp
@@ -324,7 +345,11 @@ class BackupService:
 
         logger.info("Creating full backup: %s", filename)
 
-        # Create tar.gz archive
+        # An allowlist: the database and the three media folders, nothing else from the
+        # data directory. That keeps both key files out on purpose (D4.2a, F-8):
+        # `settings.key` would make every secret in the archive readable to whoever holds
+        # it, and `secret.key` would let them forge sessions. A same-host restore needs
+        # neither; a new host needs `settings.key` copied over, or the secrets re-entered.
         with tarfile.open(backup_path, "w:gz") as tar:
             if self.is_sqlite:
                 # SQLite: archive a consistent Online-Backup-API snapshot, not
@@ -388,7 +413,12 @@ class BackupService:
             create_safety: Whether to create a safety backup first
 
         Returns:
-            Details about restore operation
+            Details about restore operation. `skipped_secret_keys` lists the
+            secret settings left at their current values (sorted).
+
+        Secret settings are restored per value, whatever the file's version or
+        `encrypted` flag says; see `_restore_secret`. Call the backup preflight
+        (`ensure_secrets_encrypted`) first, so the safety backup holds no plaintext.
         """
         # A name in the backup folder, as download and delete take it: `../` can't reach past it.
         backup_path = self.validate_filename(filename)
@@ -405,20 +435,11 @@ class BackupService:
             # Get current settings for safety backup
             current_settings = await SettingsService.get_all(db)
             safety_data = {
-                "version": "2.0",
+                "version": SETTINGS_BACKUP_VERSION,
                 "type": "settings",
                 "exported_at": datetime.now().isoformat(),
                 "note": f"Safety backup created before restoring from {filename}",
-                "settings": [
-                    {
-                        "key": s.key,
-                        "value": s.value,
-                        "category": s.category,
-                        "description": s.description,
-                        "encrypted": s.encrypted,
-                    }
-                    for s in current_settings
-                ],
+                "settings": _settings_backup_rows(current_settings),
             }
 
             safety_path = self.backup_dir / safety_filename
@@ -440,6 +461,7 @@ class BackupService:
 
         # Restore settings
         restored_count = 0
+        skipped_secret_keys: list[str] = []
         for setting_data in backup_data["settings"]:
             try:
                 key = setting_data.get("key")
@@ -535,6 +557,20 @@ class BackupService:
                         )
                         continue
 
+                if key in SECRET_SETTING_KEYS:
+                    outcome = await self._restore_secret(
+                        db,
+                        key,
+                        value,
+                        category=setting_data.get("category"),
+                        description=setting_data.get("description"),
+                    )
+                    if outcome == "restored":
+                        restored_count += 1
+                    elif outcome == "skipped":
+                        skipped_secret_keys.append(key)
+                    continue
+
                 # Update setting in database
                 await SettingsService.set(
                     db,
@@ -554,11 +590,114 @@ class BackupService:
 
         logger.info("Restored %s settings from %s", restored_count, sanitize_for_log(filename))
 
+        if skipped_secret_keys:
+            logger.warning(
+                "Left %d secret settings at their current values: %s",
+                len(skipped_secret_keys),
+                ", ".join(sorted(skipped_secret_keys)),
+            )
+
         return {
             "restored_count": restored_count,
             "safety_backup": safety_filename,
             "source_backup": filename,
+            "skipped_secret_keys": sorted(skipped_secret_keys),
         }
+
+    @staticmethod
+    async def _restore_secret(
+        db: AsyncSession,
+        key: str,
+        value: str | None,
+        *,
+        category: str | None,
+        description: str | None,
+    ) -> _SecretRestore:
+        """Restore one secret setting from a backup file, by what its value is (D4.1a).
+
+        - The mask placeholder: skipped; it was never a value.
+        - Ciphertext under the current key id that opens (associated data = this key):
+          stored byte for byte.
+        - Ciphertext that opens under an older key id: decrypted and written through
+          the setter, so it lands under the current key now. The sweep runs only at
+          start, and the admin may drop the old key before the next one (R1-H2).
+        - Ciphertext that doesn't open: skipped, the current value kept.
+        - Plaintext (a 2.0 file): written through the setter, which encrypts it. With
+          no usable keyring it is skipped instead, never stored in the clear (D3a).
+        - Blank: stored as is.
+
+        The file's `encrypted` flag plays no part, and the row is marked encrypted, as
+        the sweep marks every secret row. Logs name the key, never the value.
+
+        Returns:
+            "restored", "placeholder", or "skipped" (the caller lists those).
+        """
+        name = sanitize_for_log(key)
+        if value == MASKED_SECRET_PLACEHOLDER:
+            logger.info("Skipping %s during restore: the backup holds the mask, not a value", name)
+            return "placeholder"
+        if value and is_ciphertext(value):
+            result = decrypt(key, value)
+            if result.status is not DecryptStatus.DECRYPTED or result.plaintext is None:
+                # Under a key no longer in the keyring, or another instance's. Dropping a key
+                # makes every backup taken under it unreadable for secrets, even after the
+                # live rows are re-keyed (R1-F4; the backup docs say to keep old keys).
+                logger.warning(
+                    "Skipping %s during restore: the backup's value can't be decrypted with "
+                    "the settings keys configured now; the current value is kept",
+                    name,
+                )
+                return "skipped"
+            if result.kid == current_kid():
+                await BackupService._put_stored_secret(
+                    db, key, value, category=category, description=description
+                )
+                return "restored"
+            value = result.plaintext
+        if value and current_kid() is None:
+            logger.warning(
+                "Skipping %s during restore: no settings encryption key is available to "
+                "encrypt it; the current value is kept",
+                name,
+            )
+            return "skipped"
+        await SettingsService.set(
+            db, key, value, category=category, description=description, encrypted=True
+        )
+        return "restored"
+
+    @staticmethod
+    async def _put_stored_secret(
+        db: AsyncSession,
+        key: str,
+        stored: str,
+        *,
+        category: str | None,
+        description: str | None,
+    ) -> None:
+        """Store a current-key ciphertext as is, through `stored_value`.
+
+        Not through `value`: the setter refuses a value that is already ciphertext.
+        """
+        row = await SettingsService.get(db, key)
+        if row is None:
+            db.add(
+                Setting(
+                    key=key,
+                    stored_value=stored,
+                    category=category or "general",
+                    description=description,
+                    encrypted=True,
+                )
+            )
+        else:
+            row.stored_value = stored
+            if category is not None:
+                row.category = category
+            if description is not None:
+                row.description = description
+            row.encrypted = True
+        await db.flush()
 
     async def restore_full_backup(
         self, filename: str, create_safety: bool = True
@@ -683,6 +822,11 @@ class BackupService:
         The apply calls this only before its applying marker is down. An archive that's
         already there is kept: if the marker was deleted by hand after the live -wal went,
         it is the only copy of those rows.
+
+        The one backup the preflight (`ensure_secrets_encrypted`) doesn't cover: it is
+        written at start, before the database opens. Its database is the one the
+        preflight checked when the restore was staged, and every secret write since then
+        has gone through the encrypting setter.
         """
         archive = self.validate_filename(filename)
         if not archive.exists():

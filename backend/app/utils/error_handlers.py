@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from app.models.settings import SettingCiphertextValue
+from app.services.settings_secrets import PlaintextSecretsRemain
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.settings_crypto import CIPHERTEXT_PREFIX, SettingsKeyUnavailable
 
@@ -282,6 +283,26 @@ async def handle_setting_ciphertext_value(
     )
 
 
+async def handle_plaintext_secrets_remain(
+    request: Request, exc: PlaintextSecretsRemain
+) -> JSONResponse:
+    """A backup or restore refused because a secret is still plaintext: 503 (R1-H1).
+
+    Raised by the backup preflight before anything is written. Its message names
+    the setting keys and the fix, never a value.
+    """
+    logger.warning(
+        "Refused %s %s: secret settings still stored unencrypted: %s",
+        request.method,
+        sanitize_for_log(request.url.path),
+        sanitize_for_log(", ".join(exc.keys)),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": str(exc)},
+    )
+
+
 def register_error_handlers(app: FastAPI, *, debug: bool) -> None:
     """Register the app's exception handlers.
 
@@ -289,7 +310,7 @@ def register_error_handlers(app: FastAPI, *, debug: bool) -> None:
     in debug too: an overflow is the client's number, so it's a 422 either way.
     Validation stays the fence; this is the backstop for a path it missed.
 
-    The two secret-setting mappings are registered after the branch, in either
+    The three secret-setting mappings are registered after the branch, in either
     mode. Starlette picks a handler by walking the exception's MRO, so their
     order against the production ``Exception`` catch-all doesn't matter; but
     debug registers no catch-all, and without them would answer with a
@@ -305,6 +326,7 @@ def register_error_handlers(app: FastAPI, *, debug: bool) -> None:
     app.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
     app.add_exception_handler(SettingsKeyUnavailable, handle_settings_key_unavailable)  # type: ignore[arg-type]
     app.add_exception_handler(SettingCiphertextValue, handle_setting_ciphertext_value)  # type: ignore[arg-type]
+    app.add_exception_handler(PlaintextSecretsRemain, handle_plaintext_secrets_remain)  # type: ignore[arg-type]
 
 
 def safe_error_detail(exc: Exception, development_mode: bool = False) -> str:

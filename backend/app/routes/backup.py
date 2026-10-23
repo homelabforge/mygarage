@@ -15,6 +15,7 @@ from app.models.user import User
 from app.services.auth import get_current_admin_user
 from app.services.backup_service import BackupService
 from app.services.restore_staging import RestoreInProgressError
+from app.services.settings_secrets import ensure_secrets_encrypted
 from app.utils.logging_utils import sanitize_for_log
 
 router = APIRouter(prefix="/api/backup", tags=["Backup"])
@@ -36,6 +37,23 @@ def get_backup_service() -> BackupService:
         data_dir=settings.data_dir,
         database_url=settings.database_url,
         is_sqlite=is_sqlite,
+    )
+
+
+def _skipped_secrets_warning(keys: list[str]) -> str:
+    """The restore's warning for secret keys it left alone. Names keys only.
+
+    Args:
+        keys: The skipped secret setting keys, sorted.
+
+    Returns:
+        An English sentence the Backup tab appends to the success message.
+    """
+    return (
+        f"These secret settings were not restored and keep their current values: "
+        f"{', '.join(keys)}. The backup's copy can't be decrypted with the settings keys "
+        "configured now, or no settings key is available to encrypt it. Re-enter them in "
+        "Settings, or add the key the backup was made under and restore again."
     )
 
 
@@ -119,12 +137,17 @@ async def create_settings_backup(
 ) -> dict[str, Any]:
     """Create a new backup of all settings.
 
+    Secret settings are written as their stored ciphertext. 503 while one is
+    still stored as plaintext and can't be encrypted first.
+
     Args:
         db: Database session
 
     Returns:
         Metadata about the created backup file
     """
+    # Before the try: its excepts must not see the refusal (R2-2).
+    await ensure_secrets_encrypted(db)
     try:
         backup_service = get_backup_service()
         backup_info = await backup_service.create_settings_backup(db)
@@ -147,15 +170,24 @@ async def create_settings_backup(
 
 @router.post("/create-full")
 async def create_full_backup(
+    db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Create a full backup including database and all uploaded files.
 
-    This may take several minutes depending on the size of your data.
+    This may take several minutes depending on the size of your data. 503 while
+    a secret setting is still stored as plaintext and can't be encrypted first:
+    the archive copies the database.
+
+    Args:
+        db: Database session, for the preflight only
 
     Returns:
         Metadata about the created backup file
     """
+    # Before the try, whose `except RuntimeError` would turn the refusal into a 500 (R2-2).
+    # It commits, so the snapshot's own connection sees the encrypted rows.
+    await ensure_secrets_encrypted(db)
     try:
         backup_service = get_backup_service()
         backup_info = await backup_service.create_full_backup()
@@ -233,7 +265,12 @@ async def restore_backup(
     """Restore a settings backup now, or stage a full backup for the next start.
 
     Either way a safety backup comes first. A full restore is SQLite only and finishes when MyGarage
-    restarts.
+    restarts. 503 while a secret setting is still stored as plaintext and can't be encrypted first,
+    since the safety backup would copy it.
+
+    A settings restore that skipped secret keys (ciphertext no key in the keyring opens, or
+    plaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names
+    them in `warning`; those keys keep their current values.
 
     Args:
         filename: Name of the backup file to restore from
@@ -242,6 +279,8 @@ async def restore_backup(
     Returns:
         Success message with details about restore operation
     """
+    # Before the try: its broad excepts must not see the refusal (R2-2).
+    await ensure_secrets_encrypted(db)
     try:
         backup_service = get_backup_service()
 
@@ -250,11 +289,14 @@ async def restore_backup(
             # Settings backup (works on all backends)
             details = await backup_service.restore_settings_backup(filename, db)
 
-            return {
+            response: dict[str, Any] = {
                 "success": True,
                 "message": f"Settings restored successfully from {filename}",
                 "details": details,
             }
+            if skipped := details["skipped_secret_keys"]:
+                response["warning"] = _skipped_secrets_warning(skipped)
+            return response
         elif filename.endswith(".tar.gz"):
             # Full backup restore — guard PostgreSQL
             if not is_sqlite:

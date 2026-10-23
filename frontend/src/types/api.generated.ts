@@ -922,6 +922,9 @@ export interface paths {
          * Create Settings Backup
          * @description Create a new backup of all settings.
          *
+         *     Secret settings are written as their stored ciphertext. 503 while one is
+         *     still stored as plaintext and can't be encrypted first.
+         *
          *     Args:
          *         db: Database session
          *
@@ -948,7 +951,12 @@ export interface paths {
          * Create Full Backup
          * @description Create a full backup including database and all uploaded files.
          *
-         *     This may take several minutes depending on the size of your data.
+         *     This may take several minutes depending on the size of your data. 503 while
+         *     a secret setting is still stored as plaintext and can't be encrypted first:
+         *     the archive copies the database.
+         *
+         *     Args:
+         *         db: Database session, for the preflight only
          *
          *     Returns:
          *         Metadata about the created backup file
@@ -1049,7 +1057,12 @@ export interface paths {
          * @description Restore a settings backup now, or stage a full backup for the next start.
          *
          *     Either way a safety backup comes first. A full restore is SQLite only and finishes when MyGarage
-         *     restarts.
+         *     restarts. 503 while a secret setting is still stored as plaintext and can't be encrypted first,
+         *     since the safety backup would copy it.
+         *
+         *     A settings restore that skipped secret keys (ciphertext no key in the keyring opens, or
+         *     plaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names
+         *     them in `warning`; those keys keep their current values.
          *
          *     Args:
          *         filename: Name of the backup file to restore from
