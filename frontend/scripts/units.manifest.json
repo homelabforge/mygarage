@@ -1874,7 +1874,7 @@
     {
       "path": "src/components/tabs/SettingsBackupTab.tsx",
       "disposition": "no unit behaviour",
-      "digest": "9627ddff0663f462a97a778ba80588e4511f9cbb695e387eacfb8017a3f75561",
+      "digest": "b9aad79425d12230d8fc240bdbe6e0c7513f3d0b11366b4fa131c0b3feddfabf",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-18: re-reviewed for the household-timezone change: date defaults, the zone store and copy only; no unit-bearing value, conversion or label touched. 2026-10-02: re-reviewed for the staged full restore: two renamed restore keys, a staged-restore notice with a Cancel button and a reload after a refused restore; no unit-bearing value, conversion or label touched. 2026-10-02 (F8 fix round): refreshes the public settings after a settings restore only, not after a staged full one; no unit-bearing value, conversion or label touched. 2026-10-23: re-reviewed for the backup preflight's 503: the create and restore error messages show the server's 4xx or 503 detail; error text only, no unit-bearing value, conversion or label touched."
     },
     {
