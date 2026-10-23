@@ -386,7 +386,7 @@ def _projected(reminder: Reminder, ctx: DueContext) -> date | None:
     )
 
 
-def _expected(reminder: Reminder, ctx: DueContext) -> date | None:
+def expected_for(reminder: Reminder, ctx: DueContext) -> date | None:
     """``expected_due_date`` on the context's readings and rates."""
     return expected_due_date(
         reminder, ctx.current_km, ctx.current_hours, ctx.km_per_day, ctx.hours_per_day, ctx.today
@@ -416,7 +416,7 @@ def reminder_due_status(reminder: Reminder, ctx: DueContext) -> DueStatus:
         return "snoozed"
     if is_reminder_overdue(reminder, ctx.current_km, ctx.current_hours, ctx.today):
         return "overdue"
-    expected = _expected(reminder, ctx)
+    expected = expected_for(reminder, ctx)
     if expected is not None and expected <= ctx.today + DUE_SOON_WINDOW:
         return "due_soon"
     basis = _usage_basis(reminder)
@@ -790,7 +790,7 @@ async def enrich_with_estimate(
     projected = _projected(reminder, ctx)
     if projected is not None:
         response.projected_usage_date = projected
-        response.estimated_due_date = _expected(reminder, ctx)
+        response.estimated_due_date = expected_for(reminder, ctx)
     response.due_status = reminder_due_status(reminder, ctx)
     leading = leading_progress(progress_fractions(reminder, ctx))
     if leading is not None:

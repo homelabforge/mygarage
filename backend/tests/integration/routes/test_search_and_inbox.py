@@ -16,11 +16,18 @@ from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
+from app.models import HoursRecord
 from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
+from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.services.reminder_service import (
+    count_pending_reminders,
+    get_current_hours,
+    get_current_mileage,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -215,7 +222,7 @@ class TestNotificationInbox:
         kinds = {item["title"]: item["kind"] for item in response.json()["items"]}
         assert kinds.get("Tyre rotation") != "reminder_overdue"
 
-    async def test_a_mileage_reminder_projected_within_two_weeks_is_upcoming(
+    async def test_a_mileage_reminder_projected_due_soon_is_upcoming(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
         """The bell uses the same expected date as the card badge and the
@@ -331,8 +338,6 @@ class TestNotificationInbox:
         """The hours bit renders through hours_formatting.format_hours, the
         same string the push notification and the vehicle PDF print, so one
         stored value cannot drift into two spellings across surfaces."""
-        from app.models import HoursRecord
-
         vin = "INBOXBODY00000003"
         await _vehicle(db_session, test_user, vin)
         db_session.add_all(
@@ -414,58 +419,61 @@ class TestNotificationInbox:
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
         """D7a: a low-tread item names the tread and its minimum, in the
-        caller's tread unit, like the push message does."""
-        from sqlalchemy import select
-
-        from app.models.user import User
-        from app.utils.render_context import render_context_for_user
-        from app.utils.unit_formatting import format_quantity
-
-        vin = "INBOXTREAD0000001"
-        await _vehicle(db_session, test_user, vin)
-        db_session.add(
-            Reminder(
-                vin=vin,
-                title="Tire tread low (FL)",
-                reminder_type="date",
-                status="pending",
-                source="low_tread",
-                due_date=date.today(),
-                tread_depth_mm=Decimal("1.5"),
-                tread_threshold_mm=Decimal("3.0"),
-            )
-        )
-        await db_session.commit()
-
-        response = await client.get("/api/notifications/inbox", headers=auth_headers)
-
-        assert response.status_code == 200
+        caller's tread unit, like the push message does. The unit is pinned
+        here: the shared test user's preferences carry over between tests."""
         user = (
             await db_session.execute(select(User).where(User.id == test_user["id"]))
         ).scalar_one()
-        units = render_context_for_user(user)
-        tread = format_quantity(Decimal("1.5"), units, "tread")
-        minimum = format_quantity(Decimal("3.0"), units, "tread")
-        item = _own_items(response, vin)["Tire tread low (FL)"]
-        assert item["kind"] == "reminder_overdue"
-        assert item["body"] == (
-            f"{vin} · due {date.today().isoformat()}, tread {tread} (minimum {minimum})"
-        )
+        saved = (user.unit_tread, user.show_both_units)
+        user.unit_tread = "in32"
+        user.show_both_units = False
+        await db_session.commit()
+        try:
+            vin = "INBOXTREAD0000001"
+            await _vehicle(db_session, test_user, vin)
+            db_session.add(
+                Reminder(
+                    vin=vin,
+                    title="Tire tread low (FL)",
+                    reminder_type="date",
+                    status="pending",
+                    source="low_tread",
+                    due_date=date.today(),
+                    tread_depth_mm=Decimal("1.5"),
+                    tread_threshold_mm=Decimal("3.0"),
+                )
+            )
+            await db_session.commit()
+
+            response = await client.get("/api/notifications/inbox", headers=auth_headers)
+
+            assert response.status_code == 200
+            item = _own_items(response, vin)["Tire tread low (FL)"]
+            assert item["kind"] == "reminder_overdue"
+            assert item["body"] == (
+                f"{vin} · due {date.today().isoformat()}, tread 2/32 in (minimum 4/32 in)"
+            )
+        finally:
+            await db_session.rollback()
+            user = (
+                await db_session.execute(select(User).where(User.id == test_user["id"]))
+            ).scalar_one()
+            user.unit_tread, user.show_both_units = saved
+            await db_session.commit()
 
     async def test_one_vehicles_bell_items_equal_its_hero_counts(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
         """F-12: the bell lists exactly what the hero counts as overdue plus
-        due soon, for the same readings. Snoozed and on-track rows are in
-        neither."""
-        from app.services.reminder_service import count_pending_reminders, get_current_mileage
-
+        due soon, for the same readings (odometer and hours). Snoozed and
+        on-track rows are in neither."""
         vin = "INBOXCOUNT0000001"
         await _vehicle(db_session, test_user, vin)
         today = date.today()
         db_session.add_all(
             [
                 OdometerRecord(vin=vin, date=today, odometer_km=Decimal("19200")),
+                HoursRecord(vin=vin, date=today, engine_hours=Decimal("960")),
                 Reminder(
                     vin=vin,
                     title="Count overdue",
@@ -505,6 +513,14 @@ class TestNotificationInbox:
                 ),
                 Reminder(
                     vin=vin,
+                    title="Count soon by hours share",
+                    reminder_type="hours",
+                    status="pending",
+                    due_hours=Decimal("1000"),
+                    start_hours=Decimal("500"),
+                ),
+                Reminder(
+                    vin=vin,
                     title="Count on track by share",
                     reminder_type="mileage",
                     status="pending",
@@ -520,9 +536,17 @@ class TestNotificationInbox:
         assert response.status_code == 200
         items = _own_items(response, vin)
         counts = await count_pending_reminders(
-            db_session, vin, await get_current_mileage(vin, db_session), None
+            db_session,
+            vin,
+            await get_current_mileage(vin, db_session),
+            await get_current_hours(vin, db_session),
         )
         kinds = [item["kind"] for item in items.values()]
         assert kinds.count("reminder_overdue") == counts.overdue == 1
-        assert kinds.count("reminder_upcoming") == counts.due_soon == 2
-        assert set(items) == {"Count overdue", "Count soon by date", "Count soon by share"}
+        assert kinds.count("reminder_upcoming") == counts.due_soon == 3
+        assert set(items) == {
+            "Count overdue",
+            "Count soon by date",
+            "Count soon by share",
+            "Count soon by hours share",
+        }

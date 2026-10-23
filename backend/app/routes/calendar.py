@@ -25,7 +25,7 @@ from app.schemas.reminder import DueStatus
 from app.services.auth import require_auth, visible_vehicles_filter
 from app.services.reminder_service import (
     DUE_SOON_WINDOW,
-    expected_due_date,
+    expected_for,
     load_due_context,
     reminder_due_status,
 )
@@ -64,6 +64,7 @@ def _reminder_urgency(status: DueStatus, event_date: date, today: date) -> Urgen
         return "high"
     if status == "snoozed":
         return "low"
+    # Only ever "low": anything inside DUE_SOON_WINDOW is already due_soon.
     return calculate_urgency(event_date, False, today)
 
 
@@ -153,16 +154,9 @@ async def get_calendar_events(
                     # has passed; an estimate when only a usage target tripped.
                     is_estimated = not (reminder.due_date and reminder.due_date <= today)
                 else:
-                    # Not overdue: the earliest expected date, exactly what
-                    # the reminders list and the bell show (expected_due_date).
-                    expected = expected_due_date(
-                        reminder,
-                        due.current_km,
-                        due.current_hours,
-                        due.km_per_day,
-                        due.hours_per_day,
-                        today,
-                    )
+                    # Not overdue: the earliest expected date, the one the
+                    # status above was read from (expected_for).
+                    expected = expected_for(reminder, due)
                     if status == "snoozed" and reminder.snoozed_until is not None:
                         # A snooze silences the nag, not the plan: a reminder
                         # still ahead keeps its expected date (decision 4 of

@@ -543,7 +543,8 @@ async def notification_inbox(
             due_bits: list[str] = []
             if reminder.due_date is not None:
                 due_bits.append(f"due {reminder.due_date.isoformat()}")
-            if reminder.due_mileage_km is not None and units is not None:
+            if reminder.due_mileage_km is not None:
+                assert units is not None  # resolved above for any mileage row
                 distance_units = units
                 due_bits.append(
                     _due_at(
@@ -555,7 +556,8 @@ async def notification_inbox(
             if reminder.due_hours is not None:
                 due_bits.append(_due_at(reminder.due_hours, due.current_hours, format_hours))
             tread = _tread_of(reminder)
-            if tread is not None and units is not None:
+            if tread is not None:
+                assert units is not None  # resolved above for any tread row
                 depth, minimum = tread
                 due_bits.append(
                     f"tread {format_quantity(depth, units, 'tread')}"
