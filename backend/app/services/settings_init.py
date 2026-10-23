@@ -685,7 +685,9 @@ async def initialize_default_settings(db: AsyncSession) -> None:
             )
             db.add(setting)
             settings_added += 1
-            logger.info("Added default setting: %s = %s", key, value)
+            # A secret's value never reaches the log, even a default (Task 2 review, M4).
+            logged_value = "<secret>" if key in SECRET_SETTING_KEYS else value
+            logger.info("Added default setting: %s = %s", key, logged_value)
         else:
             # Update category and description if they don't match
             # (preserves user-modified values)

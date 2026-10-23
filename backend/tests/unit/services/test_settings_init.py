@@ -104,3 +104,46 @@ class TestDefaultUnitPrefsReseed:
             else:
                 db_session.add(Setting(key=DEFAULT_UNIT_PREFS_KEY, value=original_prefs_value))
             await db_session.commit()
+
+
+@pytest.mark.asyncio
+class TestDefaultSettingLogLine:
+    """Seeding a default logs the key and its value, except a secret's value (Task 2 review, M4).
+
+    Every secret default is "" today, so the test patches `DEFAULT_SETTINGS`
+    down to one secret key with a non-empty default and one plain key, and
+    deletes their rows first so both are seeded.
+    """
+
+    async def test_a_seeded_secret_default_logs_no_value(
+        self, db_session, keep_rows, monkeypatch: pytest.MonkeyPatch, caplog
+    ) -> None:
+        import logging
+
+        from sqlalchemy import delete
+
+        secret_default = "seeded-default-secret-value"
+        plain_default = "seeded-plain-default"
+        monkeypatch.setattr(
+            settings_init,
+            "DEFAULT_SETTINGS",
+            {
+                "ntfy_token": {**DEFAULT_SETTINGS["ntfy_token"], "value": secret_default},
+                "oidc_provider_name": {
+                    **DEFAULT_SETTINGS["oidc_provider_name"],
+                    "value": plain_default,
+                },
+            },
+        )
+        await keep_rows("ntfy_token", "oidc_provider_name")
+        await db_session.execute(
+            delete(Setting).where(Setting.key.in_(["ntfy_token", "oidc_provider_name"]))
+        )
+        await db_session.commit()
+
+        with caplog.at_level(logging.INFO, logger=settings_init.logger.name):
+            await initialize_default_settings(db_session)
+
+        assert secret_default not in caplog.text
+        assert "Added default setting: ntfy_token = <secret>" in caplog.text
+        assert f"Added default setting: oidc_provider_name = {plain_default}" in caplog.text
