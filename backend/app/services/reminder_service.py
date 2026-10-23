@@ -872,20 +872,8 @@ async def list_reminders(
     query = select(Reminder).where(Reminder.vin == vin)
     if status and status != "all":
         query = query.where(Reminder.status == status)
-    # The response order is order_reminders'. This one is for duplicate_map, which
-    # lists each row's siblings in the order it meets them.
-    query = query.order_by(Reminder.created_at.desc())
     reminders = list((await db.execute(query)).scalars().all())
-
-    # Duplicates are judged over PENDING reminders only, so a done-tab listing
-    # carries no flags and a pending-tab listing sees every sibling.
-    from app.services.maintenance_service import duplicate_map
-
-    duplicates = duplicate_map([r for r in reminders if r.status == "pending"])
-    responses = await enrich_reminders(reminders, db)
-    for response in responses:
-        response.duplicate_of = duplicates.get(response.id, [])
-    return order_reminders(responses)
+    return order_reminders(await enrich_reminders(reminders, db))
 
 
 class ReminderMessageSource(Protocol):

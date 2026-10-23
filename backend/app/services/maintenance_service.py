@@ -1632,21 +1632,6 @@ async def duplicate_groups(db: AsyncSession, vin: str) -> list[DuplicateGroup]:
     return groups
 
 
-def duplicate_map(reminders: list[Reminder]) -> dict[int, list[int]]:
-    """For each pending typed reminder, the ids of the others of its type."""
-    by_type: dict[str, list[int]] = {}
-    for r in reminders:
-        if r.status == ACTIVE_STATUS and r.maintenance_type is not None:
-            by_type.setdefault(r.maintenance_type, []).append(r.id)
-    out: dict[int, list[int]] = {}
-    for ids in by_type.values():
-        if len(ids) < 2:
-            continue
-        for rid in ids:
-            out[rid] = [other for other in ids if other != rid]
-    return out
-
-
 async def reconcile_duplicates(
     db: AsyncSession, vin: str, req: ReconcileDuplicatesRequest
 ) -> list[Reminder]:

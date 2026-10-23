@@ -8,12 +8,13 @@ const useRemindersMock = vi.fn()
 const markDoneMock = vi.fn().mockResolvedValue(undefined)
 const dismissMock = vi.fn().mockResolvedValue(undefined)
 const deleteMock = vi.fn().mockResolvedValue(undefined)
+const useReminderDuplicatesMock = vi.fn()
 vi.mock('../../hooks/useReminders', () => ({
   useReminders: () => useRemindersMock(),
   useMarkReminderDone: () => ({ mutateAsync: markDoneMock }),
   useMarkReminderDismissed: () => ({ mutateAsync: dismissMock }),
   useDeleteReminder: () => ({ mutateAsync: deleteMock }),
-  useReminderDuplicates: () => ({ data: [] }),
+  useReminderDuplicates: () => useReminderDuplicatesMock(),
   useReminderPacks: () => ({ data: [] }),
   useDeletePack: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
@@ -66,6 +67,7 @@ beforeEach(() => {
   reminderFormProps.reminder = 'UNSET'
   completeDialogProps.reminder = 'UNSET'
   useRemindersMock.mockReturnValue({ data: [pending], isLoading: false })
+  useReminderDuplicatesMock.mockReturnValue({ data: [] })
 })
 
 describe('ReminderList — rendering + row actions (pending)', () => {
@@ -148,5 +150,24 @@ describe('ReminderList — status both ways', () => {
     useRemindersMock.mockReturnValue({ data: [], isLoading: false })
     render(<ReminderList vin="V1" />)
     expect(screen.getByText('reminderList.noReminders')).toBeInTheDocument()
+  })
+})
+
+describe('ReminderList: possible duplicates (G5a-11)', () => {
+  const group = {
+    maintenance_type: 'engine_oil_filter', label: 'Oil & Filter', reminder_ids: [8, 12], suggested_keep_id: 12,
+  }
+
+  it('flags a pending row the duplicate groups name, with no duplicate_of on the row', () => {
+    useReminderDuplicatesMock.mockReturnValue({ data: [group] })
+    render(<ReminderList vin="V1" />)
+    expect(screen.getByText('reminderList.possibleDuplicate')).toBeInTheDocument()
+  })
+
+  // Control: passes on main too; it pins that membership, not any group, sets the chip.
+  it('leaves a row out of every group unflagged', () => {
+    useReminderDuplicatesMock.mockReturnValue({ data: [{ ...group, reminder_ids: [11, 12] }] })
+    render(<ReminderList vin="V1" />)
+    expect(screen.queryByText('reminderList.possibleDuplicate')).not.toBeInTheDocument()
   })
 })

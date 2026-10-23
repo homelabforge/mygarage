@@ -247,6 +247,39 @@ class TestReminderRoutesHours:
         assert any(r["reminder_type"] == "hours" for r in data)
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestReminderResponseShape:
+    """Fields the reminder response no longer carries."""
+
+    async def test_responses_carry_no_duplicate_of(
+        self, client: AsyncClient, auth_headers: dict[str, str], test_vehicle: dict[str, Any]
+    ) -> None:
+        """G5a-11: duplicates come from GET /duplicates; the row field is gone."""
+        vin: str = test_vehicle["vin"]
+        created: list[dict[str, Any]] = []
+        for _ in range(2):
+            response = await client.post(
+                f"/api/vehicles/{vin}/reminders",
+                json={
+                    "title": "Oil & Filter Change",
+                    "reminder_type": "date",
+                    "due_date": (date.today() + timedelta(days=30)).isoformat(),
+                },
+                headers=auth_headers,
+            )
+            assert response.status_code == 201
+            created.append(response.json())
+        assert all("duplicate_of" not in r for r in created)
+
+        ids = {r["id"] for r in created}
+        response = await client.get(f"/api/vehicles/{vin}/reminders", headers=auth_headers)
+        rows: list[dict[str, Any]] = response.json()
+        listed = [r for r in rows if r["id"] in ids]
+        assert len(listed) == 2
+        assert all("duplicate_of" not in r for r in listed)
+
+
 _STORED_FIELDS = ("title", "reminder_type", "due_date", "due_mileage_km", "due_hours")
 
 

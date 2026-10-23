@@ -17400,13 +17400,6 @@
             ],
             "title": "Due Status"
           },
-          "duplicate_of": {
-            "items": {
-              "type": "integer"
-            },
-            "title": "Duplicate Of",
-            "type": "array"
-          },
           "estimated_due_date": {
             "anyOf": [
               {

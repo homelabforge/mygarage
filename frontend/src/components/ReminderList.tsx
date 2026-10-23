@@ -234,6 +234,9 @@ export default function ReminderList({ vin }: ReminderListProps) {
     }
   }
 
+  // The groups are pending reminders only, so a closed row is never in one.
+  const duplicateIds = new Set(duplicateGroups.flatMap((group) => group.reminder_ids))
+
   const rulesById = new Map<number, Reminder>()
   for (const r of reminders) rulesById.set(r.id, r)
 
@@ -380,7 +383,7 @@ export default function ReminderList({ vin }: ReminderListProps) {
               (km) => u.distance.format(km),
               (key, options) => tForms(key, options),
             )
-            const isDuplicate = (reminder.duplicate_of?.length ?? 0) > 0
+            const isDuplicate = duplicateIds.has(reminder.id)
             const anchor = anchorText(reminder)
             // Only a pending row says where it stands; a closed one keeps its history look.
             const status = reminder.status === 'pending' ? reminder.due_status ?? null : null

@@ -182,8 +182,6 @@ class ReminderResponse(BaseModel):
     completed_hours: Decimal | None = None
     completed_line_item_id: int | None = None
     superseded_by_id: int | None = None
-    #: Other PENDING reminders on the vehicle with the same maintenance type.
-    duplicate_of: list[int] = Field(default_factory=list)
 
 
 class ReminderCompleteResponse(BaseModel):

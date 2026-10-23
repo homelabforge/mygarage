@@ -984,7 +984,8 @@ class TestODuplicates:
 
         listed = _of_type(await _pending(client, auth_headers, vin), "engine_oil_filter")
         assert len(listed) == 2
-        assert {tuple(r["duplicate_of"]) for r in listed} == {(ruled["id"],), (loose["id"],)}
+        # The pairing lives on GET /duplicates only (G5a-11).
+        assert all("duplicate_of" not in r for r in listed)
 
         groups = (
             await client.get(f"/api/vehicles/{vin}/reminders/duplicates", headers=auth_headers)

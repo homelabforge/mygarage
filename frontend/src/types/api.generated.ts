@@ -15005,8 +15005,6 @@ export interface components {
             due_mileage_km: string | null;
             /** Due Status */
             due_status?: ("overdue" | "due_soon" | "on_track" | "snoozed") | null;
-            /** Duplicate Of */
-            duplicate_of?: number[];
             /** Estimated Due Date */
             estimated_due_date?: string | null;
             /** Hours Until Due */
