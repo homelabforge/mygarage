@@ -305,6 +305,20 @@ describe('SettingsSystemTab: switching the mode', () => {
     expect(mockedApi.put.mock.calls[0][1]).not.toHaveProperty('redirect_uri')
   })
 
+  it("the SSO switch's PUT leaves out the GET-only client_secret_unreadable flag", async () => {
+    serveSettings('none', true, { client_secret_unreadable: true })
+    renderTab()
+    fireEvent.click(await screen.findByRole('button', { name: /auth\.oidc/ }))
+    await clickWhenEnabled('auth.switchToOidc')
+
+    await waitFor(() => expect(refreshUser).toHaveBeenCalledTimes(1))
+    expect(mockedApi.put).toHaveBeenCalledWith(
+      '/auth/oidc/config/admin',
+      expect.objectContaining({ enabled: true, client_secret: '********' }),
+    )
+    expect(mockedApi.put.mock.calls[0][1]).not.toHaveProperty('client_secret_unreadable')
+  })
+
   it('away from SSO: saves the mode first, then turns OIDC off', async () => {
     serveSettings('oidc')
     renderTab()

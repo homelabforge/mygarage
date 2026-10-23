@@ -1,8 +1,8 @@
 """Startup recomputes the trips migration 130 listed, but not in maintenance mode (#223).
 
 The integration client never runs the lifespan, so this drives it through
-TestClient, as test_trusted_proxy_lifespan.py does, with init_db and the
-settings bootstrap stubbed out.
+TestClient, as test_trusted_proxy_lifespan.py does, with init_db, the
+settings bootstrap and the secret settings sweep stubbed out.
 """
 
 from pathlib import Path
@@ -13,7 +13,7 @@ from starlette.testclient import TestClient
 
 from app import main as app_main
 from app.config import settings
-from app.services import auth, session_repair, settings_init
+from app.services import auth, session_repair, settings_init, settings_secrets
 from app.tasks import scheduled
 
 
@@ -31,7 +31,12 @@ def _stub_startup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     async def _local(_db: object) -> str:
         return "local"
 
+    # The secret settings sweep runs just before the repair; keep it off the app's database.
+    async def _no_sweep(_db: object) -> settings_secrets.SweepReport:
+        return settings_secrets.SweepReport()
+
     monkeypatch.setattr(app_main, "init_db", _nothing)
+    monkeypatch.setattr(settings_secrets, "sweep_secret_settings", _no_sweep)
     monkeypatch.setattr(settings_init, "initialize_default_settings", _nothing)
     monkeypatch.setattr(auth, "get_auth_mode", _local)
 

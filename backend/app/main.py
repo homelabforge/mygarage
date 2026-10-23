@@ -225,6 +225,20 @@ async def lifespan(app: FastAPI):
     from sqlalchemy.exc import SQLAlchemyError
 
     from app.services import session_repair
+    from app.services.settings_secrets import sweep_secret_settings
+
+    # Encrypts leftover plaintext secrets and re-keys old ones. It logs and
+    # swallows its own failures; this guard only keeps a bug in it from
+    # stopping the start (D5a: never fatal). Type name only: an exception's
+    # text could carry a setting value.
+    try:
+        async with get_db_context() as db:
+            await sweep_secret_settings(db)
+    except Exception as exc:
+        logger.error(
+            "The secret settings sweep stopped (%s); the next start tries again",
+            type(exc).__name__,
+        )
 
     try:
         async with get_db_context() as db:

@@ -21,13 +21,16 @@ type RawSetting = {
 
 type AuthMode = 'none' | 'local' | 'oidc'
 type OIDCAdminConfig = components['schemas']['OIDCAdminConfig']
+// What the admin GET returns: the PUT body plus the read-only client_secret_unreadable flag.
+type OIDCAdminConfigResponse = components['schemas']['OIDCAdminConfigResponse']
 
 const AUTH_MODES: AuthMode[] = ['none', 'local', 'oidc']
 
 // Left out, the stored Callback URL stays as it is. Re-sending it would put an
-// old pin through today's rule and fail a switch over an unrelated field.
-function ssoPayload(config: OIDCAdminConfig, enabled: boolean): Omit<OIDCAdminConfig, 'redirect_uri'> {
-  const { redirect_uri: _pin, ...sso } = config
+// old pin through today's rule and fail a switch over an unrelated field. The
+// GET-only client_secret_unreadable flag isn't part of the PUT body either.
+function ssoPayload(config: OIDCAdminConfigResponse, enabled: boolean): Omit<OIDCAdminConfig, 'redirect_uri'> {
+  const { redirect_uri: _pin, client_secret_unreadable: _unreadable, ...sso } = config
   return { ...sso, enabled }
 }
 
@@ -56,7 +59,7 @@ export default function SettingsSystemTab() {
   const [savedAuthMode, setSavedAuthMode] = useState<AuthMode>('none')
   const [viewedMode, setViewedMode] = useState<AuthMode | null>(null)
   const [switchingMode, setSwitchingMode] = useState(false)
-  const [oidcConfig, setOidcConfig] = useState<OIDCAdminConfig | null>(null)
+  const [oidcConfig, setOidcConfig] = useState<OIDCAdminConfigResponse | null>(null)
   const shownMode: AuthMode = viewedMode ?? savedAuthMode
   const [loadedFormData, setLoadedFormData] = useState<typeof formData | null>(null)
   // The server's own default zone, known only when the page loaded with no zone
@@ -124,10 +127,10 @@ export default function SettingsSystemTab() {
 
   // The SSO config, from its admin endpoint (the secret comes back as "********").
   // Its own callback so the modal's onSaved can re-read just this.
-  const loadOidcConfig = useCallback(async (): Promise<OIDCAdminConfig | null> => {
+  const loadOidcConfig = useCallback(async (): Promise<OIDCAdminConfigResponse | null> => {
     try {
       const response = await api.get('/auth/oidc/config/admin')
-      const config = response.data as OIDCAdminConfig
+      const config = response.data as OIDCAdminConfigResponse
       setOidcConfig(config)
       return config
     } catch {
@@ -137,7 +140,7 @@ export default function SettingsSystemTab() {
   }, [])
 
   // Load settings. Returns what it read, so a mode switch can tell what landed.
-  const loadSettings = useCallback(async (): Promise<{ mode: AuthMode; oidc: OIDCAdminConfig | null } | null> => {
+  const loadSettings = useCallback(async (): Promise<{ mode: AuthMode; oidc: OIDCAdminConfigResponse | null } | null> => {
     try {
       const response = await api.get('/settings')
       const data = response.data

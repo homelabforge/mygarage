@@ -11,7 +11,9 @@ import OIDCModal from '../OIDCModal'
 vi.mock('@/services/api', () => ({ default: { put: vi.fn(), post: vi.fn(), get: vi.fn() } }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-type OIDCAdminConfig = ComponentProps<typeof OIDCModal>['config']
+// What the GET returns, and the PUT body: the same fields less client_secret_unreadable.
+type OIDCAdminConfigResponse = ComponentProps<typeof OIDCModal>['config']
+type OIDCAdminConfig = Omit<OIDCAdminConfigResponse, 'client_secret_unreadable'>
 
 const CONFIG: OIDCAdminConfig = {
   enabled: false,
@@ -37,8 +39,15 @@ const onSaved = vi.fn()
 const onClose = vi.fn()
 const mockedPut = vi.mocked(api.put)
 
-function renderModal(config: Partial<OIDCAdminConfig> = {}): void {
-  render(<OIDCModal isOpen onClose={onClose} config={{ ...CONFIG, ...config }} onSaved={onSaved} />)
+function renderModal(config: Partial<OIDCAdminConfigResponse> = {}): void {
+  render(
+    <OIDCModal
+      isOpen
+      onClose={onClose}
+      config={{ ...CONFIG, client_secret_unreadable: false, ...config }}
+      onSaved={onSaved}
+    />,
+  )
 }
 
 const callbackInput = (): HTMLInputElement =>
@@ -101,6 +110,16 @@ describe('OIDCModal: Save writes the draft once', () => {
     expect(onSaved).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(toast.success).toHaveBeenCalledWith('modal.oidc.saved')
+  })
+
+  it('leaves the GET-only client_secret_unreadable flag out of the PUT', async () => {
+    mockedPut.mockResolvedValue({ data: {} })
+    renderModal({ client_secret_unreadable: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'modal.oidc.save' }))
+
+    await waitFor(() => expect(mockedPut).toHaveBeenCalledWith('/auth/oidc/config/admin', CONFIG))
+    expect(mockedPut.mock.calls[0][1]).not.toHaveProperty('client_secret_unreadable')
   })
 
   it("waits for the parent's re-read before it reports and closes", async () => {

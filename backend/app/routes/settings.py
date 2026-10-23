@@ -21,6 +21,7 @@ from app.models.vehicle import Vehicle
 from app.schemas.settings import (
     POIProviderCreate,
     POIProviderUpdate,
+    SecretsStatusResponse,
     SettingCreate,
     SettingResponse,
     SettingsBatchUpdate,
@@ -45,7 +46,7 @@ from app.utils.household_time import (
     household_zone,
 )
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.settings_crypto import CIPHERTEXT_PREFIX
+from app.utils.settings_crypto import CIPHERTEXT_PREFIX, current_kid
 
 logger = logging.getLogger(__name__)
 
@@ -856,6 +857,27 @@ async def delete_setting(
 
     logger.info("Deleted setting: %s", sanitize_for_log(key))
     return Response(status_code=204)
+
+
+@router.get("/secrets/status", response_model=SecretsStatusResponse)
+async def get_secrets_status(
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_admin_user),
+) -> SecretsStatusResponse:
+    """Whether the keyring is usable, and which secrets can't be decrypted (admin only).
+
+    Computed live, so the Settings banner reflects a key fixed or a secret
+    re-entered since the last start. Names setting keys only.
+    """
+    rows = (
+        (await db.execute(select(Setting).where(Setting.key.in_(SENSITIVE_SETTING_KEYS))))
+        .scalars()
+        .all()
+    )
+    return SecretsStatusResponse(
+        keyring="ok" if current_kid() is not None else "unavailable",
+        unreadable_keys=sorted(row.key for row in rows if row.unreadable),
+    )
 
 
 @router.get("/system/info", response_model=SystemInfoResponse)

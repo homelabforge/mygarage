@@ -191,6 +191,11 @@
     "label": "Secret Key:",
     "description": "Automatically generated and stored at {{path}}, or set via the MYGARAGE_SECRET_KEY environment variable. The key persists across application restarts."
   },
+  "secretsStatus": {
+    "title": "Some secret settings can't be read",
+    "keyringUnavailable": "The settings encryption key is unavailable, so secret settings can't be saved and encrypted ones can't be read. Set MYGARAGE_SETTINGS_KEY to a valid key, or make the data directory writable, then reload this page.",
+    "unreadable": "These secrets can't be decrypted with the current settings key, so they read as unset. Add the key they were saved under back to MYGARAGE_SETTINGS_KEY, or re-enter them:"
+  },
   "stats": {
     "serviceRecords": "Service Records",
     "fuelRecords": "Fuel Records",

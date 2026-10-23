@@ -623,6 +623,10 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.routes.search.global_search",
         "a constant per kind of hit",
     ),
+    ("SecretsStatusResponse", "keyring"): (
+        "app.routes.settings.get_secrets_status",
+        "a ternary of two constants",
+    ),
     ("SupplyLedgerEntry", "entry_type"): (
         "app.services.supply_service.SupplyService.get_supply_history",
         "a constant per kind of entry",

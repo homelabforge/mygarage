@@ -3763,6 +3763,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/secrets/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Secrets Status
+         * @description Whether the keyring is usable, and which secrets can't be decrypted (admin only).
+         *
+         *     Computed live, so the Settings banner reflects a key fixed or a secret
+         *     re-entered since the last start. Names setting keys only.
+         */
+        get: operations["get_secrets_status_api_settings_secrets_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/system/info": {
         parameters: {
             query?: never;
@@ -15157,6 +15180,26 @@ export interface components {
             seasons: components["schemas"]["SeasonalAnalysis"][];
         };
         /**
+         * SecretsStatusResponse
+         * @description Whether the secret settings can be read, for the Settings page banner.
+         *
+         *     Computed live on each request, not from the startup sweep. Names setting
+         *     keys only, never values.
+         */
+        SecretsStatusResponse: {
+            /**
+             * Keyring
+             * @description 'unavailable' when no usable settings encryption key is configured: secret settings can't be saved, and encrypted ones can't be read.
+             * @enum {string}
+             */
+            keyring: "ok" | "unavailable";
+            /**
+             * Unreadable Keys
+             * @description Secret setting keys, sorted, whose stored value can't be decrypted with the current keyring. Each reads as unset until its key is restored or it is re-entered.
+             */
+            unreadable_keys: string[];
+        };
+        /**
          * ServiceHistoryItem
          * @description Service history timeline item.
          */
@@ -26428,6 +26471,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsListResponse"];
+                };
+            };
+        };
+    };
+    get_secrets_status_api_settings_secrets_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretsStatusResponse"];
                 };
             };
         };

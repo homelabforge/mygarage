@@ -31,12 +31,18 @@ const DISCOVERY_PATH = '/.well-known/openid-configuration'
 const EXAMPLE_ISSUER_URL = 'https://rauthy.example.com/auth/v1'
 
 type OIDCAdminConfig = components['schemas']['OIDCAdminConfig']
+type OIDCAdminConfigResponse = components['schemas']['OIDCAdminConfigResponse']
+
+/** The editable PUT body from what the GET returned: without the read-only client_secret_unreadable flag. */
+function toDraft({ client_secret_unreadable: _unreadable, ...config }: OIDCAdminConfigResponse): OIDCAdminConfig {
+  return config
+}
 
 interface OIDCModalProps {
   isOpen: boolean
   onClose: () => void
   /** What's stored, as GET /auth/oidc/config/admin returns it. The modal edits a copy. */
-  config: OIDCAdminConfig
+  config: OIDCAdminConfigResponse
   /**
    * After a Save went through, so the parent can re-read what's stored. The modal
    * waits for it before closing, so nothing can act on the old config meanwhile.
@@ -46,7 +52,7 @@ interface OIDCModalProps {
 
 export default function OIDCModal({ isOpen, onClose, config, onSaved }: OIDCModalProps) {
   const { t } = useTranslation('forms')
-  const [draft, setDraft] = useState<OIDCAdminConfig>(config)
+  const [draft, setDraft] = useState<OIDCAdminConfig>(() => toDraft(config))
   const [saving, setSaving] = useState(false)
   const [redirectUriError, setRedirectUriError] = useState<string | null>(null)
   const [oidcTestLoading, setOidcTestLoading] = useState(false)
@@ -65,7 +71,7 @@ export default function OIDCModal({ isOpen, onClose, config, onSaved }: OIDCModa
   // Each time it opens, start from what's stored. Nothing is written until Save.
   useEffect(() => {
     if (isOpen) {
-      setDraft(config)
+      setDraft(toDraft(config))
       setRedirectUriError(null)
     }
   }, [isOpen, config])
