@@ -39,6 +39,7 @@ from app.services.reminder_service import (
     DueContext,
     ReminderStart,
     _build_reminder_message,
+    _due_event,  # pyright: ignore[reportPrivateUsage]
     anchor_start,
     calculate_hours_driving_rate,
     check_due_reminders,
@@ -1704,6 +1705,41 @@ class TestCheckDueRemindersNaiveLastNotifiedAt:
         # normalized and compared — a broken dedup (e.g. always False on
         # exception, or always True without normalization) would fail here.
         assert own_messages == []
+
+
+@pytest.mark.unit
+class TestTheOverdueCooldownAllowsSweepJitter:
+    """Fable F-2. The sweep runs once a day at 08:00 and captures `now` a few
+    hundred ms after the hour, so yesterday's stamp can read as just under 24 h
+    old. A heads-up the day before the due date then held back the first
+    overdue nag for a whole day."""
+
+    _SWEEP = datetime(2026, 10, 2, 8, 0, 0, 300_000, tzinfo=UTC)
+
+    @staticmethod
+    def _stamped(at: datetime) -> Reminder:
+        # Transient, so the due values don't clear the stamp (`_rearm_heads_up`).
+        # Naive, as the column holds it.
+        return Reminder(
+            vin="COOLDOWNJITTER",
+            title="Cooldown jitter",
+            reminder_type="date",
+            due_date=date(2026, 10, 1),
+            status="pending",
+            last_notified_at=at.replace(tzinfo=None),
+        )
+
+    def test_yesterdays_sweep_does_not_hold_back_todays_nag(self) -> None:
+        """Heads-up stamped at D 08:00:00.500, overdue at D+1 08:00:00.300."""
+        reminder = self._stamped(datetime(2026, 10, 1, 8, 0, 0, 500_000, tzinfo=UTC))
+        assert _due_event(reminder, "overdue", self._SWEEP) == "service_overdue"
+
+    @pytest.mark.parametrize("age", [timedelta(hours=2), timedelta(hours=22)])
+    def test_a_stamp_well_inside_the_day_still_holds_it_back(self, age: timedelta) -> None:
+        """Control, passes before the fix too: the slack covers jitter, not a
+        second nag the same day."""
+        reminder = self._stamped(self._SWEEP - age)
+        assert _due_event(reminder, "overdue", self._SWEEP) is None
 
 
 # ---------------------------------------------------------------------------

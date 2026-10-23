@@ -41,6 +41,8 @@ logger = logging.getLogger(__name__)
 
 # Notification dedup cooldown (24 hours)
 NOTIFICATION_COOLDOWN = timedelta(hours=24)
+# The sweep runs once a day, so yesterday's stamp can read a little under 24 h.
+NOTIFICATION_COOLDOWN_SLACK = timedelta(hours=1)
 
 # A pending reminder expected within this window is "due soon" (card/hero badge, fleet strip).
 DUE_SOON_WINDOW = timedelta(days=30)
@@ -948,10 +950,11 @@ class _DueNotification:
 def _due_event(reminder: Reminder, status: DueStatus, now: datetime) -> DueEvent | None:
     """What the sweep sends for a reminder in ``status``, if anything (D2a).
 
-    Overdue goes daily, 24 h after the last stamp. Due soon goes once: any
-    stamp holds it back, and a due-value change clears the stamp
-    (`Reminder._rearm_heads_up`). Snoozed and on track send nothing, and leave
-    the stamp alone, so a snooze that ends notifies the next morning.
+    Overdue goes daily: the next sweep after a stamp at least 23 h old (the
+    cooldown less its slack). Due soon goes once: any stamp holds it back, and
+    a due-value change clears the stamp (`Reminder._rearm_heads_up`). Snoozed
+    and on track send nothing, and leave the stamp alone, so a snooze that
+    ends notifies the next morning.
     """
     if status == "overdue":
         # The column is naive (SQLite drops tzinfo on write), so re-attach UTC
@@ -959,7 +962,7 @@ def _due_event(reminder: Reminder, status: DueStatus, now: datetime) -> DueEvent
         last = reminder.last_notified_at
         if last is not None and last.tzinfo is None:
             last = last.replace(tzinfo=UTC)
-        if last is not None and now - last < NOTIFICATION_COOLDOWN:
+        if last is not None and now - last < NOTIFICATION_COOLDOWN - NOTIFICATION_COOLDOWN_SLACK:
             return None
         return "service_overdue"
     if status == "due_soon" and reminder.last_notified_at is None:
