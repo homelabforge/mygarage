@@ -657,7 +657,13 @@ class TestTheStamp:
         real_execute = db_session.execute
 
         async def _execute(statement: object, *args: object, **kwargs: object) -> Result[object]:
-            if isinstance(statement, Update) and failing in statement.compile().params.values():
+            # The stamp, by its table and its `Reminder.id ==` bind. Any bound
+            # value equal to the id (a due_hours of 7 for reminder 7) is not it.
+            if (
+                isinstance(statement, Update)
+                and statement.table.is_derived_from(Reminder.__table__)
+                and statement.compile().params.get("id_1") == failing
+            ):
                 await real_execute(text("SELECT no_such_column FROM vehicle_reminders"))
             return await real_execute(statement, *args, **kwargs)  # type: ignore[arg-type]
 

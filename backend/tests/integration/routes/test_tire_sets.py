@@ -26,13 +26,12 @@ from httpx import AsyncClient
 from sqlalchemy import delete, select
 
 from app.models.odometer import OdometerRecord
-from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod
 from app.models.vehicle import Vehicle
-from app.services import tire_service as tire_service_module
 from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.tire_service import ODOMETER_SOURCE_SET
 from app.utils.odometer_sync import auto_sync_marker
+from tests.integration.routes._low_tread import fail_the_second_sync, low_tread_rows
 
 TODAY = date(2026, 4, 1)
 
@@ -604,20 +603,6 @@ class TestFittingASet:
         assert goner["id"] not in by_id
 
 
-async def _low_tread_rows(db_session, vin: str) -> list[Reminder]:
-    """Every reminder on the vehicle, as the requests committed them."""
-    db_session.expire_all()
-    return list(
-        (
-            await db_session.execute(
-                select(Reminder).where(Reminder.vin == vin).order_by(Reminder.id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-
 async def _worn_swap(client: AsyncClient, headers, vin: str) -> tuple[dict, dict, dict]:
     """A winter set of one, worn down in storage, and the worn summer tire it displaces.
 
@@ -668,7 +653,7 @@ class TestTheFitMovesTheLowTreadReminders:
         self, client: AsyncClient, auth_headers, vehicle, db_session
     ):
         winter, stored, displaced = await _worn_swap(client, auth_headers, vehicle)
-        assert [(r.tire_id, r.status) for r in await _low_tread_rows(db_session, vehicle)] == [
+        assert [(r.tire_id, r.status) for r in await low_tread_rows(db_session, vehicle)] == [
             (displaced["id"], "pending")
         ]
 
@@ -679,7 +664,7 @@ class TestTheFitMovesTheLowTreadReminders:
         )
         assert fitted.status_code == 200, fitted.text
 
-        rows = {r.tire_id: r for r in await _low_tread_rows(db_session, vehicle)}
+        rows = {r.tire_id: r for r in await low_tread_rows(db_session, vehicle)}
         assert rows.keys() == {displaced["id"], stored["id"]}
         assert rows[displaced["id"]].status == "dismissed"
         assert (rows[stored["id"]].status, rows[stored["id"]].title) == (
@@ -692,19 +677,7 @@ class TestTheFitMovesTheLowTreadReminders:
     ):
         """The displaced tire's sync has dismissed its reminder when the fitted one's raises."""
         winter, stored, displaced = await _worn_swap(client, auth_headers, vehicle)
-        real = getattr(tire_service_module, "sync_low_tread_reminder", None)
-        calls: list[int] = []
-
-        async def second_one_fails(db, tire):
-            calls.append(tire.id)
-            if len(calls) == 2:
-                raise RuntimeError("sync failed")
-            assert real is not None
-            return await real(db, tire)
-
-        monkeypatch.setattr(
-            tire_service_module, "sync_low_tread_reminder", second_one_fails, raising=False
-        )
+        calls = fail_the_second_sync(monkeypatch)
 
         with pytest.raises(RuntimeError, match="sync failed"):
             await client.post(
@@ -713,6 +686,7 @@ class TestTheFitMovesTheLowTreadReminders:
                 json={"mounted_on": TODAY.isoformat(), "odometer_km": "24000"},
             )
 
+        # Order pinned: the displaced sync runs first, so the rollback has something to undo.
         assert calls == [displaced["id"], stored["id"]]
         db_session.expire_all()
         placed = {
@@ -733,6 +707,6 @@ class TestTheFitMovesTheLowTreadReminders:
             .all()
         )
         assert [p.tire_id for p in open_periods] == [displaced["id"]]
-        assert [(r.tire_id, r.status) for r in await _low_tread_rows(db_session, vehicle)] == [
+        assert [(r.tire_id, r.status) for r in await low_tread_rows(db_session, vehicle)] == [
             (displaced["id"], "pending")
         ]

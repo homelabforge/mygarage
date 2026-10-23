@@ -22,7 +22,7 @@ from sqlalchemy import delete, select
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading
 from app.models.vehicle import Vehicle
-from app.services import tire_service as tire_service_module
+from tests.integration.routes._low_tread import fail_the_second_sync, low_tread_rows
 
 
 @pytest_asyncio.fixture
@@ -655,31 +655,15 @@ class TestRestore:
         assert (
             await client.post(f"{base}/{tire_id}/restore", headers=auth_headers)
         ).status_code == 200
-        assert [
-            r for r in await _low_tread_rows(db_session, vehicle) if r.status == "pending"
-        ] == []
+        assert [r for r in await low_tread_rows(db_session, vehicle) if r.status == "pending"] == []
 
         assert (
             await client.post(
                 f"{base}/{tire_id}/mount", headers=auth_headers, json={"position": "RL"}
             )
         ).status_code == 200
-        pending = [r for r in await _low_tread_rows(db_session, vehicle) if r.status == "pending"]
+        pending = [r for r in await low_tread_rows(db_session, vehicle) if r.status == "pending"]
         assert [(r.tire_id, r.title) for r in pending] == [(tire_id, "Tire tread low (RL)")]
-
-
-async def _low_tread_rows(db_session, vin: str) -> list[Reminder]:
-    """Every reminder on the vehicle, as the requests committed them."""
-    db_session.expire_all()
-    return list(
-        (
-            await db_session.execute(
-                select(Reminder).where(Reminder.vin == vin).order_by(Reminder.id)
-            )
-        )
-        .scalars()
-        .all()
-    )
 
 
 async def _worn(client: AsyncClient, headers, vin: str, position: str, **extra) -> dict:
@@ -701,7 +685,7 @@ class TestTheLowTreadReminderFollowsTheTire:
         self, client: AsyncClient, auth_headers, vehicle, db_session
     ):
         tire = await _worn(client, auth_headers, vehicle, "FL")
-        (raised,) = await _low_tread_rows(db_session, vehicle)
+        (raised,) = await low_tread_rows(db_session, vehicle)
         assert raised.status == "pending"
 
         response = await client.post(
@@ -711,7 +695,7 @@ class TestTheLowTreadReminderFollowsTheTire:
         )
         assert response.status_code == 200, response.text
 
-        (row,) = await _low_tread_rows(db_session, vehicle)
+        (row,) = await low_tread_rows(db_session, vehicle)
         assert (row.id, row.status, row.tire_id) == (raised.id, "dismissed", tire["id"])
         assert row.completed_at is None
 
@@ -719,7 +703,7 @@ class TestTheLowTreadReminderFollowsTheTire:
         self, client: AsyncClient, auth_headers, vehicle, db_session
     ):
         tire = await _worn(client, auth_headers, vehicle, "FL", mounted_on="2026-03-01")
-        (raised,) = await _low_tread_rows(db_session, vehicle)
+        (raised,) = await low_tread_rows(db_session, vehicle)
         raised.snoozed_until = date(2026, 12, 1)
         await db_session.commit()
 
@@ -730,7 +714,7 @@ class TestTheLowTreadReminderFollowsTheTire:
         )
         assert response.status_code == 200, response.text
 
-        (row,) = await _low_tread_rows(db_session, vehicle)
+        (row,) = await low_tread_rows(db_session, vehicle)
         assert (row.id, row.status, row.completed_date) == (raised.id, "done", date(2026, 4, 2))
         assert row.completed_at is not None
         assert row.snoozed_until is None
@@ -740,7 +724,7 @@ class TestTheLowTreadReminderFollowsTheTire:
     ):
         worn = await _worn(client, auth_headers, vehicle, "FL")
         other = await _mount(client, auth_headers, vehicle, "RL")
-        (raised,) = await _low_tread_rows(db_session, vehicle)
+        (raised,) = await low_tread_rows(db_session, vehicle)
 
         response = await client.post(
             f"/api/vehicles/{vehicle}/tires/rotate",
@@ -754,7 +738,7 @@ class TestTheLowTreadReminderFollowsTheTire:
         )
         assert response.status_code == 200, response.text
 
-        (row,) = await _low_tread_rows(db_session, vehicle)
+        (row,) = await low_tread_rows(db_session, vehicle)
         assert (row.id, row.status, row.title) == (raised.id, "pending", "Tire tread low (RL)")
 
     async def test_a_refused_rotation_keeps_the_reminder_as_it_was(
@@ -783,7 +767,7 @@ class TestTheLowTreadReminderFollowsTheTire:
         )
         assert response.status_code == 409, response.text
 
-        (row,) = await _low_tread_rows(db_session, vehicle)
+        (row,) = await low_tread_rows(db_session, vehicle)
         assert (row.status, row.title) == ("pending", "Tire tread low (FL)")
 
     async def test_a_failing_sync_rolls_back_the_whole_rotation(
@@ -795,19 +779,7 @@ class TestTheLowTreadReminderFollowsTheTire:
         """
         worn = await _worn(client, auth_headers, vehicle, "FL")
         other = await _mount(client, auth_headers, vehicle, "RL")
-        real = getattr(tire_service_module, "sync_low_tread_reminder", None)
-        calls: list[int] = []
-
-        async def second_one_fails(db, tire):
-            calls.append(tire.id)
-            if len(calls) == 2:
-                raise RuntimeError("sync failed")
-            assert real is not None
-            return await real(db, tire)
-
-        monkeypatch.setattr(
-            tire_service_module, "sync_low_tread_reminder", second_one_fails, raising=False
-        )
+        fail_the_second_sync(monkeypatch)
 
         with pytest.raises(RuntimeError, match="sync failed"):
             await client.post(
@@ -840,7 +812,7 @@ class TestTheLowTreadReminderFollowsTheTire:
         )
         assert len(periods) == 2
         assert all(p.dismounted_on is None for p in periods)
-        (row,) = await _low_tread_rows(db_session, vehicle)
+        (row,) = await low_tread_rows(db_session, vehicle)
         assert (row.status, row.title) == ("pending", "Tire tread low (FL)")
 
     async def test_delete_dismisses_the_pending_one_and_detaches_every_row(
@@ -871,7 +843,7 @@ class TestTheLowTreadReminderFollowsTheTire:
         )
         assert response.status_code in (200, 204), response.text
 
-        rows = await _low_tread_rows(db_session, vehicle)
+        rows = await low_tread_rows(db_session, vehicle)
         assert sorted(r.status for r in rows) == ["dismissed", "dismissed", "done"]
         assert all((r.tire_id, r.source) == (None, None) for r in rows)
 
@@ -899,7 +871,7 @@ class TestTheLowTreadReminderFollowsTheTire:
             )
         ).status_code == 200
 
-        pending = [r for r in await _low_tread_rows(db_session, vehicle) if r.status == "pending"]
+        pending = [r for r in await low_tread_rows(db_session, vehicle) if r.status == "pending"]
         assert [(r.tire_id, r.title) for r in pending] == [(tire["id"], "Tire tread low (FR)")]
 
     async def test_a_stored_tire_read_below_the_minimum_raises_none(
@@ -920,4 +892,4 @@ class TestTheLowTreadReminderFollowsTheTire:
         )
         assert reading.status_code == 201, reading.text
 
-        assert await _low_tread_rows(db_session, vehicle) == []
+        assert await low_tread_rows(db_session, vehicle) == []
