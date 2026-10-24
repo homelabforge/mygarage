@@ -109,11 +109,11 @@ def check_setting_value(key: str, value: object) -> None:
     every stored value on each save, all or nothing, so a rule on a key whose
     reader already copes would only turn a harmless stored oddity into a tab
     that cannot save. Not checked for that reason: `max_upload_size_mb` (uploads
-    read the environment setting), `nhtsa_recall_check_interval` and
-    `notify_service_days` / `notify_service_miles` (no backend reader),
-    `notification_retry_attempts` and `email_smtp_port` (read through
-    `_get_setting_int`, which falls back), `auto_archive_inactive_days` and
-    `notify_def_low_threshold_percent` (their readers fall back), and the
+    read the environment setting), `notify_service_days` /
+    `notify_service_miles` (no backend reader), `notification_retry_attempts`
+    and `email_smtp_port` (read through `_get_setting_int`, which falls back),
+    `auto_archive_inactive_days`, `notify_def_low_threshold_percent` and
+    `nhtsa_recall_check_interval` (their readers fall back), and the
     switches (`SettingsService.get_bool` reads leniently).
 
     `None` and `""` are blank. Anything else is read as `str(value)`, so a

@@ -9,7 +9,7 @@
 import asyncio
 import logging
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -39,12 +39,13 @@ from app.tasks.livelink_tasks import (
     generate_daily_summaries,
     prune_old_telemetry,
 )
-from app.utils.datetime_utils import utc_now
+from app.utils.datetime_utils import to_naive_utc, utc_now
 from app.utils.household_time import (
     household_date,
     household_today,
     load_household_zone,
 )
+from app.utils.logging_utils import sanitize_for_log
 from app.utils.render_context import render_context_for_vehicle, render_context_for_vehicle_row
 from app.utils.unit_adapters import adapter_for
 from app.utils.usage_tracking import tracks_distance
@@ -448,22 +449,93 @@ async def check_def_levels() -> None:
             logger.error("DEF level check failed: %s", str(e))
 
 
-async def check_recalls_all_vehicles() -> None:
-    """Auto-check NHTSA recalls for all vehicles.
+#: Days between scheduled recall checks when `nhtsa_recall_check_interval`
+#: is blank, not a whole number, or outside 1..MAX_RECALL_CHECK_INTERVAL_DAYS.
+DEFAULT_RECALL_CHECK_INTERVAL_DAYS = 7
 
-    Runs weekly (Sunday 2 AM UTC). Checks nhtsa_auto_check setting,
-    queries NHTSA for each vehicle, inserts new recalls, and sends
-    notifications for any newly discovered recalls.
+#: Ten years. Without a ceiling, `timedelta(days=n)` overflows above
+#: 999,999,999 days and every daily run would fail instead of checking.
+MAX_RECALL_CHECK_INTERVAL_DAYS = 3650
+
+#: A daily tick can land a moment short of N whole days after the last
+#: check's stamp; this slack makes it due then, not a whole day late.
+RECALL_CHECK_SLACK = timedelta(hours=1)
+
+
+async def _recall_check_interval_days(db: AsyncSession) -> int:
+    """Read nhtsa_recall_check_interval as a whole number of days.
+
+    Falls back to DEFAULT_RECALL_CHECK_INTERVAL_DAYS for a blank, non-integer,
+    below-1 or above-MAX_RECALL_CHECK_INTERVAL_DAYS value.
     """
-    from app.services.nhtsa import NHTSAService
+    raw = await _get_setting(db, "nhtsa_recall_check_interval")
+    try:
+        days = int(raw.strip())
+    except ValueError:
+        return DEFAULT_RECALL_CHECK_INTERVAL_DAYS
+    if not 1 <= days <= MAX_RECALL_CHECK_INTERVAL_DAYS:
+        return DEFAULT_RECALL_CHECK_INTERVAL_DAYS
+    return days
+
+
+async def _recall_check_due(db: AsyncSession, now: datetime) -> bool:
+    """Whether the scheduled recall check should query NHTSA at `now`.
+
+    Due when nhtsa_last_check is blank, doesn't parse as an ISO timestamp
+    (naive is read as UTC), lies more than RECALL_CHECK_SLACK after `now` (a
+    wrong clock at one run, or a restored backup), or is at least the
+    interval, less RECALL_CHECK_SLACK, before `now`.
+    """
+    raw = (await _get_setting(db, "nhtsa_last_check")).strip()
+    if not raw:
+        return True
+    try:
+        last = to_naive_utc(datetime.fromisoformat(raw))
+    except ValueError:
+        logger.warning(
+            "nhtsa_last_check %s is not a timestamp; checking recalls now",
+            sanitize_for_log(raw),
+        )
+        return True
+    now = to_naive_utc(now)
+    if last - now > RECALL_CHECK_SLACK:
+        logger.warning(
+            "nhtsa_last_check %s is in the future; checking recalls now",
+            sanitize_for_log(raw),
+        )
+        return True
+    interval = timedelta(days=await _recall_check_interval_days(db))
+    return now - last >= interval - RECALL_CHECK_SLACK
+
+
+async def check_recalls_all_vehicles() -> None:
+    """Auto-check NHTSA recalls for all vehicles when the interval is due.
+
+    Runs daily at 2 AM UTC. Skips when nhtsa_enabled or nhtsa_auto_check is
+    off, or when nhtsa_recall_check_interval days (less an hour) haven't
+    passed since nhtsa_last_check. Otherwise queries NHTSA for each vehicle,
+    inserts new recalls, and sends notifications for newly discovered ones.
+
+    An NHTSA outage for any vehicle leaves nhtsa_last_check unchanged, so the
+    next daily run tries again; the recalls found meanwhile are committed
+    anyway, because they were already announced, and the campaign-number
+    check keeps the retry from storing or announcing them twice. A VIN NHTSA
+    can't resolve to a make, model and year counts as checked.
+    """
+    from app.services.nhtsa import NHTSAService, NHTSAUnavailableError
 
     async with AsyncSessionLocal() as db:
         await load_household_zone(db)
         try:
-            # Check if auto-check is enabled
-            auto_check = await _get_setting(db, "nhtsa_auto_check", "true")
-            if auto_check.lower() != "true":
+            if not await SettingsService.get_bool(db, "nhtsa_enabled", True):
+                logger.info("NHTSA recalls switched off, skipping the scheduled check")
+                return
+            if not await SettingsService.get_bool(db, "nhtsa_auto_check", True):
                 logger.info("NHTSA auto-check disabled, skipping")
+                return
+            now = utc_now()
+            if not await _recall_check_due(db, now):
+                logger.debug("NHTSA recall check not due yet, skipping")
                 return
 
             nhtsa = NHTSAService()
@@ -474,6 +546,7 @@ async def check_recalls_all_vehicles() -> None:
             vehicles = vehicles_result.scalars().all()
 
             total_new = 0
+            outage = False
 
             for vehicle in vehicles:
                 try:
@@ -482,7 +555,9 @@ async def check_recalls_all_vehicles() -> None:
                     )
 
                     # Fetch recalls from NHTSA
-                    recalls_data = await nhtsa.get_vehicle_recalls(vehicle.vin, db)
+                    recalls_data = await nhtsa.get_vehicle_recalls(
+                        vehicle.vin, db, raise_on_error=True
+                    )
 
                     # Get existing campaign numbers for this vehicle
                     existing_result = await db.execute(
@@ -529,6 +604,19 @@ async def check_recalls_all_vehicles() -> None:
                     # Rate limit: 2 seconds between vehicles
                     await asyncio.sleep(2)
 
+                except NHTSAUnavailableError as e:
+                    outage = True
+                    logger.warning(
+                        "NHTSA unavailable checking recalls for %s: %s",
+                        vehicle.vin,
+                        str(e),
+                    )
+                except ValueError as e:
+                    logger.warning(
+                        "Recalls can't be checked for %s: %s",
+                        vehicle.vin,
+                        str(e),
+                    )
                 except Exception as e:
                     logger.error(
                         "Error checking recalls for %s: %s",
@@ -536,8 +624,15 @@ async def check_recalls_all_vehicles() -> None:
                         str(e),
                     )
 
-            # Update last check timestamp
-            await SettingsService.set(db, "nhtsa_last_check", utc_now().isoformat())
+            # The commit always runs: recalls found this pass were announced
+            # already. Only the timestamp waits for a pass NHTSA fully answered.
+            if outage:
+                logger.warning(
+                    "NHTSA recall check incomplete; nhtsa_last_check unchanged, "
+                    "the next run retries"
+                )
+            else:
+                await SettingsService.set(db, "nhtsa_last_check", now.isoformat())
             await db.commit()
 
             logger.info(
@@ -669,7 +764,7 @@ def start_scheduler() -> None:
         - Document expiration check at 9 AM UTC
         - Odometer milestone check at 10 AM UTC
         - DEF level check at 11 AM UTC
-        - NHTSA recall check Sunday 2 AM UTC
+        - NHTSA recall check daily at 2 AM UTC, when its interval is due
         - LiveLink: Session timeout check every minute
         - LiveLink: Device offline check every 5 minutes
         - LiveLink: Pending offline finalization every 15 seconds
@@ -748,13 +843,17 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
-    # NHTSA recall check Sunday 2 AM UTC
+    # NHTSA recall check daily at 2 AM UTC; the job itself decides whether
+    # nhtsa_recall_check_interval is due. The only job pinned to UTC: the
+    # scheduler has no timezone, so the other jobs' "UTC" is really the
+    # container's local zone. The due check's hour of slack assumes 24 hours
+    # between ticks, and a local-zone cron puts 23 or 25 between them on DST days.
     scheduler.add_job(
         check_recalls_all_vehicles,
         "cron",
-        day_of_week="sun",
         hour=2,
         minute=0,
+        timezone="UTC",
         id="check_recalls_all_vehicles",
         replace_existing=True,
     )

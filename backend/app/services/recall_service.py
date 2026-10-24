@@ -17,6 +17,7 @@ from app.schemas.recall import (
     RecallUpdate,
 )
 from app.services.nhtsa import NHTSAService
+from app.services.settings_service import SettingsService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 
@@ -104,6 +105,14 @@ class RecallService:
 
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+
+            # After the access check, so a caller who can't write the vehicle
+            # learns nothing about the switch.
+            if not await SettingsService.get_bool(self.db, "nhtsa_enabled", True):
+                raise HTTPException(
+                    status_code=409,
+                    detail="NHTSA recalls are switched off in Settings > Integrations",
+                )
 
             # Fetch recalls from NHTSA
             nhtsa_service = NHTSAService()

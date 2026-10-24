@@ -7,9 +7,12 @@ Tests recall CRUD operations and NHTSA integration endpoints.
 import datetime as dt
 import os
 import time
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
+
+from app.services.settings_service import SettingsService
 
 
 @pytest.mark.integration
@@ -557,3 +560,68 @@ class TestRecallCampaignNumberWidth:
             assert response.status_code == expected, response.text
         finally:
             await client.delete(f"/api/vehicles/{vin}/recalls/{recall_id}", headers=auth_headers)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestCheckNhtsaSwitch:
+    """The manual check honours `nhtsa_enabled`, after the vehicle access check."""
+
+    @pytest.mark.parametrize(("enabled", "expected"), [("false", 409), ("yes", 200)])
+    async def test_the_switch_gates_the_manual_check(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        test_vehicle,
+        db_session,
+        keep_rows,
+        monkeypatch,
+        enabled: str,
+        expected: int,
+    ):
+        """Switched off is a 409 that names where to switch it back on, and
+        NHTSA is not asked. Red as a whole on main, which ignored the switch;
+        the "yes" row alone is a guard (any on word still checks)."""
+        await keep_rows("nhtsa_enabled")
+        await SettingsService.set(db_session, "nhtsa_enabled", enabled)
+        await db_session.commit()
+        fetch = AsyncMock(return_value=[])
+        monkeypatch.setattr("app.services.nhtsa.NHTSAService.get_vehicle_recalls", fetch)
+
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/recalls/check-nhtsa",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == expected, response.text
+        if expected == 409:
+            assert response.json()["detail"] == (
+                "NHTSA recalls are switched off in Settings > Integrations"
+            )
+            fetch.assert_not_awaited()
+        else:
+            fetch.assert_awaited_once()
+
+    async def test_a_non_owner_still_gets_403_with_the_switch_off(
+        self,
+        client: AsyncClient,
+        non_admin_headers,
+        test_vehicle,
+        db_session,
+        keep_rows,
+    ):
+        """The switch state isn't disclosed for a vehicle the caller can't write.
+
+        Regression guard (main answered 403 too); mutant: check the switch
+        before `get_vehicle_or_403`.
+        """
+        await keep_rows("nhtsa_enabled")
+        await SettingsService.set(db_session, "nhtsa_enabled", "false")
+        await db_session.commit()
+
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/recalls/check-nhtsa",
+            headers=non_admin_headers,
+        )
+
+        assert response.status_code == 403, response.text

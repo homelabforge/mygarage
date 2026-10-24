@@ -215,9 +215,6 @@ class Settings(BaseSettings):
     shop_search_radius_meters: int = 8000  # ~5 miles
     shop_search_max_results: int = 20
 
-    # Recall Checking
-    recall_check_interval_days: int = 7
-
     # File Upload Limits
     max_upload_size_mb: int = 10
     max_document_size_mb: int = 25
