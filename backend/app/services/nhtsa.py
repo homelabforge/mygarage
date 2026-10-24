@@ -1,5 +1,6 @@
 """NHTSA (National Highway Traffic Safety Administration) API service."""
 
+import json
 import logging
 from typing import Any
 
@@ -21,6 +22,37 @@ DEFAULT_TSB_API_URL = "https://api.nhtsa.gov/products/vehicle/tsbs"
 # The recalls setting is a base; the fetch adds this. The TSB setting is the
 # whole endpoint, so it has no suffix to double.
 RECALLS_BY_VEHICLE_PATH = "/recallsByVehicle"
+
+
+class NHTSAUnavailableError(Exception):
+    """NHTSA didn't answer usably, so a recall lookup says nothing.
+
+    Raised by `get_vehicle_recalls(raise_on_error=True)` for a transport error
+    (timeouts, connect, read, protocol and proxy errors), any HTTP error
+    status, or a 200 whose body isn't JSON (a maintenance page), from the vPIC
+    decode and the recalls fetch alike. Chained from the original error; the
+    message names the API and the error type only, never the response body.
+    """
+
+
+class _VPICBodyNotJSONError(ValueError):
+    """vPIC answered with a body that isn't JSON.
+
+    Still a ValueError with the same message, as `decode_vin`'s callers have
+    always seen it; the subclass only lets `get_vehicle_recalls` tell this
+    outage from a VIN vPIC can't resolve.
+    """
+
+
+#: What `get_vehicle_recalls(raise_on_error=True)` reads as NHTSA being down.
+#: Every HTTPStatusError counts, 4xx included (ruling F2-1): a permanent 4xx
+#: for one model re-queries the fleet daily, which is noisy but misses nothing.
+_OUTAGE_ERRORS: tuple[type[Exception], ...] = (
+    httpx.TransportError,
+    httpx.HTTPStatusError,
+    json.JSONDecodeError,
+    _VPICBodyNotJSONError,
+)
 
 
 class NHTSAService:
@@ -132,6 +164,13 @@ class NHTSAService:
                     sanitize_for_log(e),
                 )
                 raise
+            except json.JSONDecodeError as e:
+                logger.error(
+                    "Error parsing NHTSA response for VIN %s: %s",
+                    sanitize_for_log(vin),
+                    sanitize_for_log(e),
+                )
+                raise _VPICBodyNotJSONError(f"Invalid NHTSA response: {e}") from e
             except (ValueError, KeyError) as e:
                 logger.error(
                     "Error parsing NHTSA response for VIN %s: %s",
@@ -227,7 +266,9 @@ class NHTSAService:
         except ValueError, TypeError:
             return None
 
-    async def get_vehicle_recalls(self, vin: str, db: AsyncSession) -> list[dict[str, Any]]:
+    async def get_vehicle_recalls(
+        self, vin: str, db: AsyncSession, *, raise_on_error: bool = False
+    ) -> list[dict[str, Any]]:
         """
         Get recalls for a specific VIN from NHTSA.
 
@@ -238,16 +279,28 @@ class NHTSAService:
         Args:
             vin: The 17-character VIN
             db: Database session for fetching settings
+            raise_on_error: Raise NHTSAUnavailableError when NHTSA doesn't
+                answer, instead of the manual check's fallbacks (a decode
+                failure as ValueError, a failed recalls fetch as no recalls).
 
         Returns:
             List of recall dictionaries
 
         Raises:
             ValueError: If VIN is invalid or vehicle info cannot be decoded
+            NHTSAUnavailableError: Only with raise_on_error, when NHTSA times
+                out, can't be reached, answers an HTTP error, or answers a
+                body that isn't JSON
         """
+        # Empty unless asked, so `except ()` matches nothing and the manual
+        # check keeps the fallbacks below.
+        outage_errors = _OUTAGE_ERRORS if raise_on_error else ()
+
         # First, decode the VIN to get make/model/year
         try:
             vehicle_info = await self.decode_vin(vin)
+        except outage_errors as e:
+            raise NHTSAUnavailableError(f"NHTSA vPIC API unavailable ({type(e).__name__})") from e
         except Exception as e:
             logger.error(
                 "Failed to decode VIN %s: %s",
@@ -336,6 +389,10 @@ class NHTSAService:
 
                 return recalls
 
+            except outage_errors as e:
+                raise NHTSAUnavailableError(
+                    f"NHTSA recalls API unavailable ({type(e).__name__})"
+                ) from e
             except httpx.TimeoutException:
                 logger.error(
                     "NHTSA recalls API timeout for %s %s %s",
