@@ -1,4 +1,4 @@
-"""The settings write rules: which keys the generic API writes, and which values a reader can use.
+"""The settings write rules: which keys the API writes, which values work, how a switch is stored.
 
 `app.services.setting_rules` is shared by the three generic write routes and the
 settings restore. The route-level behaviour is pinned in
@@ -11,7 +11,13 @@ from __future__ import annotations
 import pytest
 
 from app.models.settings import Setting
-from app.services.setting_rules import GENERIC_WRITABLE_KEYS, check_setting_value
+from app.services.setting_rules import (
+    GENERIC_WRITABLE_KEYS,
+    SWITCH_SETTING_KEYS,
+    _switch_keys,
+    canonical_setting_value,
+    check_setting_value,
+)
 from app.services.settings_init import DEFAULT_SETTINGS
 
 # Every key a settings screen or E2E spec sends through `/settings/batch` today,
@@ -212,3 +218,75 @@ def test_a_value_its_reader_cannot_use_is_refused(key: str, value: str | None) -
 )
 def test_a_usable_value_passes(key: str, value: object) -> None:
     check_setting_value(key, value)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("key", ["nhtsa_enabled", "oidc_enabled"])
+def test_a_seeded_switch_is_a_switch_key(key: str) -> None:
+    assert key in SWITCH_SETTING_KEYS
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("key", ["auth_mode", "nhtsa_recall_check_interval"])
+def test_a_seeded_non_switch_is_not_a_switch_key(key: str) -> None:
+    assert key not in SWITCH_SETTING_KEYS
+
+
+@pytest.mark.unit
+def test_the_switch_keys_derive_from_the_seed() -> None:
+    """A newly seeded switch is canonicalized without a second edit; an entry with
+    no `value` (as `default_unit_prefs` is seeded) is skipped, not a KeyError."""
+    seed: dict[str, dict[str, str]] = {
+        "fake_feature_enabled": {"value": "false", "category": "general"},
+        "fake_other_switch": {"value": "true", "category": "general"},
+        "fake_number": {"value": "0", "category": "general"},
+        "fake_derived": {"category": "general"},
+    }
+    assert _switch_keys(seed) == {"fake_feature_enabled", "fake_other_switch"}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("true", "true"),
+        ("TRUE", "true"),
+        ("1", "true"),
+        ("yes", "true"),
+        ("Yes", "true"),
+        ("on", "true"),
+        (" On ", "true"),
+        ("false", "false"),
+        ("False", "false"),
+        ("0", "false"),
+        ("no", "false"),
+        ("NO", "false"),
+        ("off", "false"),
+        ("\toff\n", "false"),
+    ],
+)
+def test_a_switch_word_is_stored_as_its_canonical_spelling(raw: str, expected: str) -> None:
+    assert canonical_setting_value("nhtsa_enabled", raw) == expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("raw", ["maybe", "2", "enabled", "", "   ", None])
+def test_an_unrecognised_switch_value_passes_through_unchanged(raw: str | None) -> None:
+    """Nothing is refused: what the reader makes of it is `parse_bool`'s call."""
+    assert canonical_setting_value("nhtsa_enabled", raw) == raw
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("key", "raw"),
+    [
+        ("auto_archive_inactive_days", "1"),
+        ("auto_archive_inactive_days", "0"),
+        ("auth_mode", "Yes"),
+        ("ntfy_topic", "off"),
+        ("ntfy_topic", None),
+        ("ntfy_topic", ""),
+    ],
+)
+def test_a_non_switch_key_passes_through_unchanged(key: str, raw: str | None) -> None:
+    assert canonical_setting_value(key, raw) == raw

@@ -1281,3 +1281,57 @@ class TestGenericWriteAllowlist:
         assert response.status_code == 200, response.text
         for key, value in payload.items():
             assert await _stored_value(db_session, key) == value
+
+
+# ---------------------------------------------------------------------------
+# Switch values are stored canonically (batch 5, D5a)
+# ---------------------------------------------------------------------------
+
+
+# A seeded switch any settings screen writes.
+_SWITCH_KEY = "nhtsa_enabled"
+# Seeded "0", so "1" there is a day count, not a switch word.
+_NON_SWITCH_KEY = "auto_archive_inactive_days"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestSwitchValuesAreCanonicalized:
+    """A switch written as any word of the on/off vocabulary is stored as "true" or
+    "false", so an exact reader and `parse_bool` agree on it. Nothing is refused."""
+
+    @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
+    @pytest.mark.parametrize(("raw", "stored"), [("Yes", "true"), ("0", "false")])
+    async def test_a_switch_word_is_stored_canonically(
+        self, client, auth_headers, db_session, keep_rows, endpoint, raw, stored
+    ):
+        await keep_rows(_SWITCH_KEY)
+        response = await _write_through(
+            client, endpoint, auth_headers, db_session, raw, key=_SWITCH_KEY, seed=_SEED
+        )
+        assert response.status_code in (200, 201), response.text
+        assert await _stored_or_none(db_session, _SWITCH_KEY) == stored
+
+    @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
+    async def test_an_unrecognised_switch_value_is_stored_as_sent(
+        self, client, auth_headers, db_session, keep_rows, endpoint
+    ):
+        """Regression guard, passes on main too: "maybe" is not refused or rewritten."""
+        await keep_rows(_SWITCH_KEY)
+        response = await _write_through(
+            client, endpoint, auth_headers, db_session, "maybe", key=_SWITCH_KEY, seed=_SEED
+        )
+        assert response.status_code in (200, 201), response.text
+        assert await _stored_or_none(db_session, _SWITCH_KEY) == "maybe"
+
+    @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
+    async def test_a_non_switch_key_keeps_a_switch_like_value(
+        self, client, auth_headers, db_session, keep_rows, endpoint
+    ):
+        """Regression guard, passes on main too: "1" on a day count stays "1"."""
+        await keep_rows(_NON_SWITCH_KEY)
+        response = await _write_through(
+            client, endpoint, auth_headers, db_session, "1", key=_NON_SWITCH_KEY, seed="0"
+        )
+        assert response.status_code in (200, 201), response.text
+        assert await _stored_or_none(db_session, _NON_SWITCH_KEY) == "1"

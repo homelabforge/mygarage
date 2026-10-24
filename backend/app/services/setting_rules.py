@@ -1,13 +1,21 @@
-"""Which settings the generic settings API may write, and which values a reader can use.
+"""Which settings the API may write, which values a reader can use, and how a switch is stored.
 
 Two writers share these rules: the three generic write routes in
 `app.routes.settings` (`POST /settings`, `PUT /settings/{key}`,
-`POST /settings/batch`) and `BackupService.restore_settings_backup`. The routes
-apply both halves. The restore applies only `check_setting_value`: it
-round-trips the instance's own export, which legitimately holds keys the API
-refuses (the `livelink_*` rows, provider usage counters, the Telegram offset).
+`POST /settings/batch`) and `BackupService.restore_settings_backup`. Each rule
+does one of three things:
 
-The key half closes G3b-20, where an admin call could write any key, and with it
+- `GENERIC_WRITABLE_KEYS` says which keys may be written. Only the routes apply
+  it: the restore round-trips the instance's own export, which legitimately
+  holds keys the API refuses (the `livelink_*` rows, provider usage counters,
+  the Telegram offset).
+- `check_setting_value` refuses a value its reader could not use. Both writers
+  apply it.
+- `canonical_setting_value` stores a switch written as any on/off word as
+  "true" or "false" (D5a), so a reader that matches the exact word and one that
+  reads leniently agree. Both writers apply it; it never refuses anything.
+
+The key rule closes G3b-20, where an admin call could write any key, and with it
 O-T1: a `livelink_telemetry_retention_days` of 0 written through the generic API
 made the daily prune delete every raw reading and location point.
 """
@@ -15,9 +23,11 @@ made the daily prune delete every raw reading and location point.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 
 from app.schemas.livelink import TELEMETRY_RETENTION_MAX_DAYS, TELEMETRY_RETENTION_MIN_DAYS
 from app.services.settings_init import DEFAULT_SETTINGS
+from app.services.settings_service import SWITCH_OFF_VALUES, SWITCH_ON_VALUES
 from app.utils.household_time import TIMEZONE_SETTING_KEY
 
 #: Kept by the app itself, never by an admin: the running version, the last
@@ -40,6 +50,48 @@ GENERIC_WRITABLE_KEYS: frozenset[str] = frozenset(
 ) | {TIMEZONE_SETTING_KEY}
 
 _AUTH_MODES = frozenset({"none", "local", "oidc"})
+
+
+def _switch_keys(seed: Mapping[str, Mapping[str, object]]) -> frozenset[str]:
+    """The keys in `seed` whose seeded value is "true" or "false".
+
+    An entry with no `value` (`default_unit_prefs` is derived at seed time) is
+    not a switch; `meta["value"]` there would be a KeyError at import.
+    """
+    return frozenset(key for key, meta in seed.items() if meta.get("value") in ("true", "false"))
+
+
+#: Every seeded on/off setting. Derived from the seed list, so a newly seeded
+#: switch is stored canonically without a second edit here.
+SWITCH_SETTING_KEYS: frozenset[str] = _switch_keys(DEFAULT_SETTINGS)
+
+
+def canonical_setting_value(key: str, value: str | None) -> str | None:
+    """`value` as it should be stored under `key`: a switch word becomes "true" or "false".
+
+    Some readers (the settings screens among them) match the stored text
+    exactly, so a switch written as "Yes" or "1" would read as off there and on
+    through `parse_bool`. Storing the canonical word makes them agree. Nothing
+    is refused.
+
+    Args:
+        key: The settings key being written.
+        value: The value as submitted or as found in a backup file.
+
+    Returns:
+        For a key in `SWITCH_SETTING_KEYS`: "true" for a word in
+        `SWITCH_ON_VALUES` and "false" for one in `SWITCH_OFF_VALUES`, in any
+        case and with surrounding whitespace. Anything else, and every value
+        under any other key, unchanged, blank and None included.
+    """
+    if key not in SWITCH_SETTING_KEYS or value is None:
+        return value
+    word = value.strip().lower()
+    if word in SWITCH_ON_VALUES:
+        return "true"
+    if word in SWITCH_OFF_VALUES:
+        return "false"
+    return value
 
 
 def _as_int(value: str) -> int:

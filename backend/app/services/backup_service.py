@@ -22,7 +22,7 @@ from app.models.settings import Setting
 from app.services import restore_staging
 from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.oidc.tokens import MASKED_SECRET_PLACEHOLDER
-from app.services.setting_rules import check_setting_value
+from app.services.setting_rules import canonical_setting_value, check_setting_value
 from app.services.settings_service import SettingsService
 from app.utils.default_unit_prefs import (
     DEFAULT_UNIT_PREFS_KEY,
@@ -571,11 +571,12 @@ class BackupService:
                         skipped_secret_keys.append(key)
                     continue
 
-                # Update setting in database
+                # A switch is stored as "true" or "false", as the settings
+                # routes store it. No secret key is a switch.
                 await SettingsService.set(
                     db,
                     key,
-                    value,
+                    canonical_setting_value(key, value),
                     category=setting_data.get("category"),
                     description=setting_data.get("description"),
                     encrypted=setting_data.get("encrypted"),

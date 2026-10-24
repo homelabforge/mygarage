@@ -408,3 +408,52 @@ class TestSettingsRestoreAppliesTheValueRules:
             in record.getMessage()
             for record in caplog.records
         )
+
+
+# A seeded switch, and a seeded day count whose "1" is a number, not a switch word.
+_SWITCH_KEY = "nhtsa_enabled"
+_NON_SWITCH_KEY = "auto_archive_inactive_days"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestSettingsRestoreCanonicalizesSwitches:
+    """The restore stores a switch the way the settings routes do (batch 5, D5a)."""
+
+    async def _restore_one(
+        self, db_session: AsyncSession, tmp_path: Path, keep_rows, key: str, raw: str
+    ) -> dict[str, object]:
+        """Restore a file holding just `key` = `raw`; the original row goes back afterwards."""
+        await keep_rows(key)
+        service = _service(tmp_path)
+        filename = _write_backup(service, [{"key": key, "value": raw, "category": "general"}])
+        details = await service.restore_settings_backup(filename, db_session, create_safety=False)
+        db_session.expire_all()
+        return details
+
+    @pytest.mark.parametrize(("raw", "stored"), [("Yes", "true"), ("0", "false")])
+    async def test_a_switch_word_is_stored_canonically(
+        self, db_session: AsyncSession, tmp_path: Path, keep_rows, raw: str, stored: str
+    ) -> None:
+        details = await self._restore_one(db_session, tmp_path, keep_rows, _SWITCH_KEY, raw)
+
+        assert await _stored(db_session, _SWITCH_KEY) == stored
+        assert details["restored_count"] == 1
+
+    async def test_an_unrecognised_switch_value_is_restored_as_found(
+        self, db_session: AsyncSession, tmp_path: Path, keep_rows
+    ) -> None:
+        """Regression guard, passes on main too: "maybe" is not skipped or rewritten."""
+        details = await self._restore_one(db_session, tmp_path, keep_rows, _SWITCH_KEY, "maybe")
+
+        assert await _stored(db_session, _SWITCH_KEY) == "maybe"
+        assert details["restored_count"] == 1
+
+    async def test_a_non_switch_key_keeps_a_switch_like_value(
+        self, db_session: AsyncSession, tmp_path: Path, keep_rows
+    ) -> None:
+        """Regression guard, passes on main too: "1" on a day count stays "1"."""
+        details = await self._restore_one(db_session, tmp_path, keep_rows, _NON_SWITCH_KEY, "1")
+
+        assert await _stored(db_session, _NON_SWITCH_KEY) == "1"
+        assert details["restored_count"] == 1

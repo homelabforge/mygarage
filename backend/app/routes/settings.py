@@ -32,7 +32,11 @@ from app.schemas.settings import (
 from app.services.auth import get_current_admin_user
 from app.services.oidc import MASKED_SECRET_PLACEHOLDER, display_mask_secret
 from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
-from app.services.setting_rules import GENERIC_WRITABLE_KEYS, check_setting_value
+from app.services.setting_rules import (
+    GENERIC_WRITABLE_KEYS,
+    canonical_setting_value,
+    check_setting_value,
+)
 from app.services.settings_init import SENSITIVE_SETTING_KEYS
 from app.services.settings_service import SettingsService
 from app.utils.default_unit_prefs import (
@@ -732,12 +736,13 @@ async def create_setting(
     if existing:
         raise HTTPException(status_code=400, detail=f"Setting '{setting.key}' already exists")
 
-    _reject_unwritable_value(setting.key, setting.value)
+    value = canonical_setting_value(setting.key, setting.value)
+    _reject_unwritable_value(setting.key, value)
 
     # Create new setting
     db_setting = Setting(
         key=setting.key,
-        value=setting.value,
+        value=value,
         description=setting.description,
         updated_at=dt.datetime.now(),
     )
@@ -782,6 +787,7 @@ async def update_setting(
         # there is something to write.
         resolved = _resolve_write_value(key, update_data.pop("value"))
         if resolved is not KEEP_STORED:
+            resolved = canonical_setting_value(key, resolved)
             _reject_unwritable_value(key, resolved)
             update_data["value"] = resolved
 
@@ -830,6 +836,7 @@ async def batch_update_settings(
                 continue
             # Nothing stored yet, so a masked placeholder creates the row blank.
             resolved = ""
+        resolved = canonical_setting_value(key, resolved)
         _reject_unwritable_value(key, resolved)
         resolved_writes.append((key, resolved, setting))
 
