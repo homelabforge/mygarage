@@ -5,10 +5,19 @@ hardening plan): `notify_def_low` and `notify_def_low_threshold_percent`.
 
 Also covers `default_unit_prefs`'s reseed derivation (task-3 review, Fix 1):
 see `TestDefaultUnitPrefsReseed` below.
+
+And the six seeds batch 5 retired (Task 5): see `TestRetiredSeeds` below.
 """
 
-import pytest
+from collections.abc import AsyncIterator
+from pathlib import Path
 
+import pytest
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.database import Base, configure_sqlite_engine
 from app.models.settings import Setting
 from app.services import settings_init
 from app.services.settings_init import DEFAULT_SETTINGS, initialize_default_settings
@@ -147,3 +156,67 @@ class TestDefaultSettingLogLine:
         assert secret_default not in caplog.text
         assert "Added default setting: ntfy_token = <secret>" in caplog.text
         assert f"Added default setting: oidc_provider_name = {plain_default}" in caplog.text
+
+
+# Seeded, and read by nothing (batch 5, Task 5): uploads follow the environment
+# and each kind's fixed list in code, and the three display settings were never
+# read at all.
+RETIRED_SEED_KEYS = (
+    "max_upload_size_mb",
+    "allowed_photo_types",
+    "allowed_attachment_types",
+    "date_format",
+    "distance_unit",
+    "fuel_unit",
+)
+
+
+@pytest_asyncio.fixture
+async def fresh_db(tmp_path: Path) -> AsyncIterator[AsyncSession]:
+    """A session on a brand-new SQLite database: every table, no rows.
+
+    The shared test database persists for the whole run and never sees the
+    full seed, so "a fresh install" needs its own file. Seeding the whole
+    `DEFAULT_SETTINGS` here touches nothing another test reads.
+    """
+    engine = create_async_engine("sqlite+aiosqlite:///" + str(tmp_path / "fresh.db"))
+    configure_sqlite_engine(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False, autoflush=False)
+    try:
+        async with maker() as session:
+            yield session
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+class TestRetiredSeeds:
+    """Six settings nothing reads are no longer seeded.
+
+    Existing rows stay as orphans: the seeder only adds and re-describes, it
+    never deletes, and no migration removes them.
+    """
+
+    async def test_a_fresh_install_seeds_none_of_them(self, fresh_db: AsyncSession) -> None:
+        await initialize_default_settings(fresh_db)
+
+        seeded = set((await fresh_db.execute(select(Setting.key))).scalars())
+        # The seed ran: a key it still carries is there.
+        assert "window_sticker_enabled" in seeded
+        assert seeded.isdisjoint(RETIRED_SEED_KEYS), sorted(seeded & set(RETIRED_SEED_KEYS))
+
+    async def test_a_row_already_stored_survives_startup(self, fresh_db: AsyncSession) -> None:
+        """Regression guard, passes on main by design: the seeder never deletes a
+        row, so an upgraded instance keeps its old value as an orphan row."""
+        fresh_db.add(
+            Setting(key="max_upload_size_mb", value="25", category="files", description="old")
+        )
+        await fresh_db.commit()
+
+        await initialize_default_settings(fresh_db)
+
+        row = await fresh_db.get(Setting, "max_upload_size_mb")
+        assert row is not None
+        assert row.value == "25"

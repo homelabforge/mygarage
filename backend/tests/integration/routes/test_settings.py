@@ -60,6 +60,11 @@ class TestSettingsRoutes:
                 "llm_receipt_parse_enabled",
                 "llm_garage_assistant_enabled",
                 "default_unit_prefs",
+                # Feature flags the non-admin UI reads (batch 5, R3).
+                "nhtsa_enabled",
+                "carcomplaints_enabled",
+                "window_sticker_enabled",
+                "window_sticker_ocr_enabled",
                 # Computed per request from the household-zone fallback chain,
                 # never a stored row (every write path rejects the key).
                 "effective_timezone",
@@ -1335,3 +1340,146 @@ class TestSwitchValuesAreCanonicalized:
         )
         assert response.status_code in (200, 201), response.text
         assert await _stored_or_none(db_session, _NON_SWITCH_KEY) == "1"
+
+
+# ---------------------------------------------------------------------------
+# Upload limits, the retired seeds and the public feature flags (batch 5, Task 5)
+# ---------------------------------------------------------------------------
+
+
+# Seeded once and read by nothing; off the write allowlist now (D1a).
+_RETIRED_KEYS = (
+    "max_upload_size_mb",
+    "allowed_photo_types",
+    "allowed_attachment_types",
+    "date_format",
+    "distance_unit",
+    "fuel_unit",
+)
+
+# Read by the Recalls tab and the window sticker UI, which non-admins see (R3).
+_PUBLIC_FLAGS = {
+    "nhtsa_enabled": "false",
+    "carcomplaints_enabled": "true",
+    "window_sticker_enabled": "false",
+    "window_sticker_ocr_enabled": "true",
+}
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestUploadLimits:
+    """`GET /settings/upload-limits` reports what the upload validators enforce.
+
+    On main the path fell through to `GET /{key}` and answered 404 "Setting
+    'upload-limits' not found".
+    """
+
+    async def test_an_admin_gets_the_limits_the_validators_use(
+        self,
+        client: AsyncClient,
+        set_auth_mode,
+        auth_headers,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        from app.config import settings as app_settings
+        from app.services import file_upload_service as uploads
+
+        # An odd size no setting or env default produces, so the number can only
+        # have come from the config the document validator checks against.
+        monkeypatch.setattr(uploads.DOCUMENT_UPLOAD_CONFIG, "max_size_bytes", 7_340_033)
+        await set_auth_mode("local")
+
+        response = await client.get("/api/settings/upload-limits", headers=auth_headers)
+
+        assert response.status_code == 200, response.text
+        body = response.json()
+        for kind, config in (
+            ("photos", uploads.PHOTO_UPLOAD_CONFIG),
+            ("attachments", uploads.ATTACHMENT_UPLOAD_CONFIG),
+            ("documents", uploads.DOCUMENT_UPLOAD_CONFIG),
+        ):
+            assert body[kind] == {
+                "max_size_bytes": config.max_size_bytes,
+                "extensions": sorted(ext.lstrip(".") for ext in config.allowed_extensions),
+            }, kind
+        assert body["documents"]["max_size_bytes"] == 7_340_033
+        assert "jpg" in body["photos"]["extensions"]
+        assert body["storage"] == {
+            "data_dir": str(app_settings.data_dir),
+            "photos_dir": str(app_settings.photos_dir),
+            "attachments_dir": str(app_settings.attachments_dir),
+            "documents_dir": str(app_settings.documents_dir),
+        }
+
+    async def test_a_non_admin_is_a_403(
+        self, client: AsyncClient, set_auth_mode, non_admin_headers
+    ):
+        """Regression guard, passes on main by design: there `GET /{key}` caught the
+        path, and it is admin-only too."""
+        await set_auth_mode("local")
+        response = await client.get("/api/settings/upload-limits", headers=non_admin_headers)
+        assert response.status_code == 403, response.text
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestRetiredSettingsAreNotWritable:
+    """The six retired seeds left `GENERIC_WRITABLE_KEYS` with the seed."""
+
+    @pytest.mark.parametrize("key", _RETIRED_KEYS)
+    async def test_a_batch_carrying_a_retired_key_is_a_422(
+        self, client, auth_headers, db_session, keep_rows, key
+    ):
+        """An orphan row from before the upgrade keeps its value."""
+        await keep_rows(key)
+        await _set_setting(db_session, key, _SEED)
+        response = await client.post(
+            "/api/settings/batch", headers=auth_headers, json={"settings": {key: "20"}}
+        )
+        assert response.status_code == 422, response.text
+        assert await _stored_value(db_session, key) == _SEED
+
+    async def test_the_old_files_tab_save_is_a_422_and_writes_nothing(
+        self, client, auth_headers, db_session, keep_rows
+    ):
+        """The upgrade transient: a browser still on the old bundle sends the size
+        and type keys with the sticker switches, and the whole save fails until
+        it reloads."""
+        payload = {
+            "max_upload_size_mb": "20",
+            "allowed_photo_types": "jpg,png",
+            "allowed_attachment_types": "pdf",
+            "window_sticker_enabled": "false",
+            "window_sticker_ocr_enabled": "false",
+        }
+        await keep_rows(*payload)
+        await _set_setting(db_session, "window_sticker_enabled", "true")
+        response = await client.post(
+            "/api/settings/batch", headers=auth_headers, json={"settings": payload}
+        )
+        assert response.status_code == 422, response.text
+        assert "max_upload_size_mb" in response.text
+        assert await _stored_value(db_session, "window_sticker_enabled") == "true"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestPublicFeatureFlags:
+    """`GET /settings` is admin-only, so a non-admin never saw the CarComplaints
+    link and couldn't tell NHTSA or the sticker upload was off (R3)."""
+
+    async def test_the_four_flags_are_served_without_auth(
+        self, client: AsyncClient, db_session, keep_rows, set_auth_mode
+    ):
+        await set_auth_mode("local")
+        await keep_rows(*_PUBLIC_FLAGS)
+        for key, value in _PUBLIC_FLAGS.items():
+            await _set_setting(db_session, key, value)
+
+        response = await client.get("/api/settings/public")
+
+        assert response.status_code == 200, response.text
+        served = {s["key"]: s["value"] for s in response.json()["settings"]}
+        for key, value in _PUBLIC_FLAGS.items():
+            assert served.get(key) == value, key

@@ -25968,6 +25968,84 @@
         "title": "UnitSet",
         "type": "object"
       },
+      "UploadKindLimits": {
+        "description": "What one kind of upload accepts, as its validator checks it.",
+        "properties": {
+          "extensions": {
+            "description": "The file extensions accepted, sorted, without the leading dot.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Extensions",
+            "type": "array"
+          },
+          "max_size_bytes": {
+            "description": "The largest file accepted, in bytes.",
+            "title": "Max Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_size_bytes",
+          "extensions"
+        ],
+        "title": "UploadKindLimits",
+        "type": "object"
+      },
+      "UploadLimitsResponse": {
+        "description": "The upload limits in force, for the Settings Files tab (read-only).\n\nThe sizes come from `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments)\nand `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents); each kind's file types are\nfixed in code.",
+        "properties": {
+          "attachments": {
+            "$ref": "#/components/schemas/UploadKindLimits"
+          },
+          "documents": {
+            "$ref": "#/components/schemas/UploadKindLimits"
+          },
+          "photos": {
+            "$ref": "#/components/schemas/UploadKindLimits"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/UploadStorageDirs"
+          }
+        },
+        "required": [
+          "photos",
+          "attachments",
+          "documents",
+          "storage"
+        ],
+        "title": "UploadLimitsResponse",
+        "type": "object"
+      },
+      "UploadStorageDirs": {
+        "description": "Where uploads are stored on the server.",
+        "properties": {
+          "attachments_dir": {
+            "title": "Attachments Dir",
+            "type": "string"
+          },
+          "data_dir": {
+            "title": "Data Dir",
+            "type": "string"
+          },
+          "documents_dir": {
+            "title": "Documents Dir",
+            "type": "string"
+          },
+          "photos_dir": {
+            "title": "Photos Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "data_dir",
+          "photos_dir",
+          "attachments_dir",
+          "documents_dir"
+        ],
+        "title": "UploadStorageDirs",
+        "type": "object"
+      },
       "UserCreate": {
         "description": "Schema for creating a new user.",
         "properties": {
@@ -42126,7 +42204,7 @@
     },
     "/api/settings/public": {
       "get": {
-        "description": "Get public settings (no authentication required).\n\nReturns only non-sensitive settings required for frontend initialization:\n- auth_mode: Authentication mode (local/oidc)\n- app_name: Application name\n- theme: UI theme preference\n- family_friends_enabled: garage section feature flag\n\nSecurity: This endpoint is intentionally public to allow frontend\ninitialization before login. All sensitive settings are excluded.",
+        "description": "Get public settings (no authentication required).\n\nReturns only non-sensitive settings required for frontend initialization:\n- auth_mode: Authentication mode (local/oidc)\n- app_name: Application name\n- theme: UI theme preference\n- family_friends_enabled: garage section feature flag\n- the other feature flags and unit defaults every user's UI reads\n\nSecurity: This endpoint is intentionally public to allow frontend\ninitialization before login. All sensitive settings are excluded.",
         "operationId": "get_public_settings_api_settings_public_get",
         "responses": {
           "200": {
@@ -42195,6 +42273,33 @@
           }
         ],
         "summary": "Get System Info",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/settings/upload-limits": {
+      "get": {
+        "description": "The upload limits in force, read-only (admin only).\n\nRead from the configs the upload validators use, so it reports what an\nupload is actually checked against. The sizes are set by\n`MYGARAGE_MAX_UPLOAD_SIZE_MB` and `MYGARAGE_MAX_DOCUMENT_SIZE_MB`; each\nkind's file types are fixed in code.",
+        "operationId": "get_upload_limits_api_settings_upload_limits_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadLimitsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Upload Limits",
         "tags": [
           "Settings"
         ]

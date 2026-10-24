@@ -28,8 +28,17 @@ from app.schemas.settings import (
     SettingsListResponse,
     SettingUpdate,
     SystemInfoResponse,
+    UploadKindLimits,
+    UploadLimitsResponse,
+    UploadStorageDirs,
 )
 from app.services.auth import get_current_admin_user
+from app.services.file_upload_service import (
+    ATTACHMENT_UPLOAD_CONFIG,
+    DOCUMENT_UPLOAD_CONFIG,
+    PHOTO_UPLOAD_CONFIG,
+    FileUploadConfig,
+)
 from app.services.oidc import MASKED_SECRET_PLACEHOLDER, display_mask_secret
 from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.setting_rules import (
@@ -238,6 +247,7 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
     - app_name: Application name
     - theme: UI theme preference
     - family_friends_enabled: garage section feature flag
+    - the other feature flags and unit defaults every user's UI reads
 
     Security: This endpoint is intentionally public to allow frontend
     initialization before login. All sensitive settings are excluded.
@@ -261,6 +271,13 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
         # so they have no user row to resolve units from (spec D5). Non-sensitive:
         # it is a unit preference, not a credential.
         "default_unit_prefs",
+        # GET /settings is admin-only, so a non-admin never saw the CarComplaints
+        # link and couldn't tell NHTSA or the window sticker upload was switched
+        # off. Non-sensitive: feature flags, like the llm_* ones above.
+        "nhtsa_enabled",
+        "carcomplaints_enabled",
+        "window_sticker_enabled",
+        "window_sticker_ocr_enabled",
     }
 
     result = await db.execute(
@@ -703,6 +720,39 @@ async def test_poi_provider(
             "valid": False,
             "message": "Test failed - check server logs for details",
         }
+
+
+def _upload_kind_limits(config: FileUploadConfig) -> UploadKindLimits:
+    """One upload kind's limits, read from the config its validator checks against."""
+    return UploadKindLimits(
+        max_size_bytes=config.max_size_bytes,
+        extensions=sorted(ext.removeprefix(".") for ext in config.allowed_extensions),
+    )
+
+
+# Declared before GET /{key}, which would otherwise take "upload-limits" as a key.
+@router.get("/upload-limits", response_model=UploadLimitsResponse)
+async def get_upload_limits(
+    current_user: User | None = Depends(get_current_admin_user),
+) -> UploadLimitsResponse:
+    """The upload limits in force, read-only (admin only).
+
+    Read from the configs the upload validators use, so it reports what an
+    upload is actually checked against. The sizes are set by
+    `MYGARAGE_MAX_UPLOAD_SIZE_MB` and `MYGARAGE_MAX_DOCUMENT_SIZE_MB`; each
+    kind's file types are fixed in code.
+    """
+    return UploadLimitsResponse(
+        photos=_upload_kind_limits(PHOTO_UPLOAD_CONFIG),
+        attachments=_upload_kind_limits(ATTACHMENT_UPLOAD_CONFIG),
+        documents=_upload_kind_limits(DOCUMENT_UPLOAD_CONFIG),
+        storage=UploadStorageDirs(
+            data_dir=str(app_settings.data_dir),
+            photos_dir=str(app_settings.photos_dir),
+            attachments_dir=str(app_settings.attachments_dir),
+            documents_dir=str(app_settings.documents_dir),
+        ),
+    )
 
 
 @router.get("/{key}", response_model=SettingResponse)

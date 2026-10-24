@@ -134,3 +134,36 @@ class SecretsStatusResponse(BaseModel):
             "current keyring. Each reads as unset until its key is restored or it is re-entered."
         ),
     )
+
+
+class UploadKindLimits(BaseModel):
+    """What one kind of upload accepts, as its validator checks it."""
+
+    max_size_bytes: int = Field(..., description="The largest file accepted, in bytes.")
+    extensions: list[str] = Field(
+        ...,
+        description="The file extensions accepted, sorted, without the leading dot.",
+    )
+
+
+class UploadStorageDirs(BaseModel):
+    """Where uploads are stored on the server."""
+
+    data_dir: str
+    photos_dir: str
+    attachments_dir: str
+    documents_dir: str
+
+
+class UploadLimitsResponse(BaseModel):
+    """The upload limits in force, for the Settings Files tab (read-only).
+
+    The sizes come from `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments)
+    and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents); each kind's file types are
+    fixed in code.
+    """
+
+    photos: UploadKindLimits
+    attachments: UploadKindLimits
+    documents: UploadKindLimits
+    storage: UploadStorageDirs

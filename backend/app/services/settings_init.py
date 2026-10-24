@@ -125,43 +125,6 @@ DEFAULT_SETTINGS = {
         "description": "Enable multi-user mode (allows creating additional users beyond first admin)",
         "encrypted": False,
     },
-    "date_format": {
-        "value": "MM/DD/YYYY",
-        "category": "general",
-        "description": "Date format for display",
-        "encrypted": False,
-    },
-    "distance_unit": {
-        "value": "miles",
-        "category": "general",
-        "description": "Distance unit (miles or km)",
-        "encrypted": False,
-    },
-    "fuel_unit": {
-        "value": "gallons",
-        "category": "general",
-        "description": "Fuel unit (gallons or liters)",
-        "encrypted": False,
-    },
-    # File management settings
-    "max_upload_size_mb": {
-        "value": "10",
-        "category": "files",
-        "description": "Maximum file upload size in MB",
-        "encrypted": False,
-    },
-    "allowed_photo_types": {
-        "value": "jpg,jpeg,png,webp",
-        "category": "files",
-        "description": "Allowed photo file types",
-        "encrypted": False,
-    },
-    "allowed_attachment_types": {
-        "value": "pdf,jpg,jpeg,png,doc,docx",
-        "category": "files",
-        "description": "Allowed attachment file types",
-        "encrypted": False,
-    },
     # NHTSA Integration
     "nhtsa_enabled": {
         "value": "true",

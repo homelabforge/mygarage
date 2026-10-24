@@ -108,8 +108,7 @@ def check_setting_value(key: str, value: object) -> None:
     Only those readers. The Notifications, Files and Integrations tabs re-send
     every stored value on each save, all or nothing, so a rule on a key whose
     reader already copes would only turn a harmless stored oddity into a tab
-    that cannot save. Not checked for that reason: `max_upload_size_mb` (uploads
-    read the environment setting), `notify_service_days` /
+    that cannot save. Not checked for that reason: `notify_service_days` /
     `notify_service_miles` (no backend reader), `notification_retry_attempts`
     and `email_smtp_port` (read through `_get_setting_int`, which falls back),
     `auto_archive_inactive_days`, `notify_def_low_threshold_percent` and

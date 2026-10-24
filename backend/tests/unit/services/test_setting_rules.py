@@ -85,10 +85,9 @@ UI_WRITTEN_KEYS: dict[str, tuple[str, ...]] = {
         "llm_model",
         "llm_api_key",
     ),
+    # The size and type settings are retired (batch 5, Task 5): the tab shows
+    # GET /settings/upload-limits read-only and writes only the sticker switches.
     "components/tabs/SettingsFilesTab.tsx": (
-        "max_upload_size_mb",
-        "allowed_photo_types",
-        "allowed_attachment_types",
         "window_sticker_enabled",
         "window_sticker_ocr_enabled",
     ),
@@ -212,7 +211,7 @@ def test_a_value_its_reader_cannot_use_is_refused(key: str, value: str | None) -
         ("notify_service_miles", "-1"),
         ("email_smtp_port", "not a port"),
         ("notify_def_low_threshold_percent", "banana"),
-        ("max_upload_size_mb", "1.5"),
+        ("notify_service_days", "1.5"),
         ("ntfy_topic", "anything"),
     ],
 )

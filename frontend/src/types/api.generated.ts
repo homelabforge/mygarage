@@ -3763,6 +3763,7 @@ export interface paths {
          *     - app_name: Application name
          *     - theme: UI theme preference
          *     - family_friends_enabled: garage section feature flag
+         *     - the other feature flags and unit defaults every user's UI reads
          *
          *     Security: This endpoint is intentionally public to allow frontend
          *     initialization before login. All sensitive settings are excluded.
@@ -3811,6 +3812,31 @@ export interface paths {
          * @description Get system information and statistics (admin only).
          */
         get: operations["get_system_info_api_settings_system_info_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/upload-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Upload Limits
+         * @description The upload limits in force, read-only (admin only).
+         *
+         *     Read from the configs the upload validators use, so it reports what an
+         *     upload is actually checked against. The sizes are set by
+         *     `MYGARAGE_MAX_UPLOAD_SIZE_MB` and `MYGARAGE_MAX_DOCUMENT_SIZE_MB`; each
+         *     kind's file types are fixed in code.
+         */
+        get: operations["get_upload_limits_api_settings_upload_limits_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -18302,6 +18328,50 @@ export interface components {
             volume: "L" | "gal_us" | "gal_uk";
         };
         /**
+         * UploadKindLimits
+         * @description What one kind of upload accepts, as its validator checks it.
+         */
+        UploadKindLimits: {
+            /**
+             * Extensions
+             * @description The file extensions accepted, sorted, without the leading dot.
+             */
+            extensions: string[];
+            /**
+             * Max Size Bytes
+             * @description The largest file accepted, in bytes.
+             */
+            max_size_bytes: number;
+        };
+        /**
+         * UploadLimitsResponse
+         * @description The upload limits in force, for the Settings Files tab (read-only).
+         *
+         *     The sizes come from `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments)
+         *     and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents); each kind's file types are
+         *     fixed in code.
+         */
+        UploadLimitsResponse: {
+            attachments: components["schemas"]["UploadKindLimits"];
+            documents: components["schemas"]["UploadKindLimits"];
+            photos: components["schemas"]["UploadKindLimits"];
+            storage: components["schemas"]["UploadStorageDirs"];
+        };
+        /**
+         * UploadStorageDirs
+         * @description Where uploads are stored on the server.
+         */
+        UploadStorageDirs: {
+            /** Attachments Dir */
+            attachments_dir: string;
+            /** Data Dir */
+            data_dir: string;
+            /** Documents Dir */
+            documents_dir: string;
+            /** Photos Dir */
+            photos_dir: string;
+        };
+        /**
          * UserCreate
          * @description Schema for creating a new user.
          */
@@ -26535,6 +26605,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemInfoResponse"];
+                };
+            };
+        };
+    };
+    get_upload_limits_api_settings_upload_limits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadLimitsResponse"];
                 };
             };
         };
