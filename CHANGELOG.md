@@ -21,6 +21,21 @@ The old plaintext can outlive the encryption inside the database files. On SQLit
 
 The encryption protects the secret settings in every copy that leaves without the key (backups, `pg_dump`s, a database file attached to a bug report), apart from the remnants above. It doesn't protect against someone who has the whole data directory with `settings.key` in it.
 
+The scheduled recall check now follows the Recall Check Interval in Settings > Integrations instead of running every Sunday. Upload size limits are set with `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments) and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents), not in Settings; the Files tab shows the limits in force.
+
+### Changed
+- The NHTSA recalls switch in Settings > Integrations is honoured. Off, the scheduled recall check skips, Check NHTSA on the Recalls tab is disabled with a line saying where to switch it on, and the API answers 409
+- The Recall Check Interval is honoured. The scheduled check runs daily at 2 AM UTC and checks your vehicles once the interval has passed since the last check. If NHTSA can't be reached for any vehicle, the last check time stays put and the next day's run tries again
+- The window sticker upload switch in Settings > Files is honoured. Off, uploading or replacing a sticker and the OCR test answer 409, and the vehicle's edit drawer hides upload and replace. The sticker already saved can still be viewed and downloaded
+- The window sticker OCR switch is honoured. Off, an upload saves the file without a scan and says so, and fills or clears no sticker field. The parser, confidence score and extracted VIN of the previous sticker's scan are cleared, with or without replace, since they would describe a file that wasn't scanned. The OCR test answers 409
+- Every on/off setting is read the same way by the backend and the UI: true, 1, yes and on, in any case, are on, so they no longer disagree about a switch stored as "1" or "yes". A switch saved through the settings API or a settings restore as true/false, 1/0, yes/no or on/off is stored as "true" or "false"
+- Settings > Files shows the upload limits in force, read-only: the size cap and file types for photos, attachments and documents, the two environment variables that set the sizes, and the storage directories. Admins can read the same from `GET /api/settings/upload-limits`
+- The NHTSA, CarComplaints and window sticker switches are readable from `/api/settings/public`, so non-admins see the CarComplaints link on the Recalls tab, and the UI follows the switches for them too
+
+### Removed
+- The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
+- The `MYGARAGE_RECALL_CHECK_INTERVAL_DAYS` environment variable, which nothing read. The interval is the Recall Check Interval setting
+
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)
 - The Google Places, Yelp and Foursquare API keys are masked in `GET /api/settings` like the other secrets
