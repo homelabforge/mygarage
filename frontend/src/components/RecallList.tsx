@@ -6,6 +6,8 @@ import type { Recall } from '../types/recall'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { isSettingOn } from '../utils/settingSwitch'
+import { usePublicSettings } from '../hooks/usePublicSettings'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
 import { formatAPITimestamp } from '../utils/parseAPITimestamp'
@@ -25,7 +27,13 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
   const dateLocale = useDateLocale()
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'resolved'>('all')
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
-  const [carComplaintsEnabled, setCarComplaintsEnabled] = useState(false)
+  // Both switches are public, so a non-admin reads them too (/settings is
+  // admin-only). NHTSA reads as on until it says otherwise, matching the
+  // backend default, so a failed read never disables the button; the
+  // backend's 409 is the enforcement.
+  const publicSettings = usePublicSettings()
+  const nhtsaEnabled = isSettingOn(publicSettings.nhtsa_enabled, true)
+  const carComplaintsEnabled = isSettingOn(publicSettings.carcomplaints_enabled)
 
   const { data, isLoading, error } = useRecallRecords(vin, statusFilter)
   const deleteMutation = useDeleteRecallRecord(vin)
@@ -51,24 +59,18 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
     }
   }, [onRefresh, vin, queryClient])
 
-  // Fetch vehicle data and settings for CarComplaints integration
+  // Fetch vehicle data for the CarComplaints link
   useEffect(() => {
-    const fetchVehicleAndSettings = async () => {
+    const fetchVehicle = async () => {
       try {
-        // Fetch vehicle data
         const vehicleResponse = await api.get(`/vehicles/${vin}`)
         setVehicle(vehicleResponse.data)
-
-        // Fetch settings
-        const settingsResponse = await api.get('/settings')
-        const carComplaintsSetting = settingsResponse.data.settings.find((s: { key: string }) => s.key === 'carcomplaints_enabled')
-        setCarComplaintsEnabled(carComplaintsSetting?.value === 'true')
       } catch {
         // Silent fail - non-critical background operation
       }
     }
 
-    fetchVehicleAndSettings()
+    fetchVehicle()
   }, [vin])
 
   const handleCheckNHTSA = () => {
@@ -144,6 +146,9 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
         <div>
           <h2 className="text-2xl font-bold text-text">{t('recallList.title')}</h2>
           <p className="text-sm text-text-mute">{t('recallList.activeCount', { active: stats.active_count, resolved: stats.resolved_count })}</p>
+          {!nhtsaEnabled && (
+            <p className="mt-1 text-sm text-text-mute">{t('recallList.nhtsaSwitchedOff')}</p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Select
@@ -155,7 +160,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
               { value: 'resolved', label: t('recallList.resolvedOnly') },
             ]}
           />
-          <Button variant="secondary" icon={RefreshCw} onClick={handleCheckNHTSA} loading={nhtsaMutation.isPending} title={t('recallList.checkNHTSATitle')}>
+          <Button variant="secondary" icon={RefreshCw} onClick={handleCheckNHTSA} loading={nhtsaMutation.isPending} disabled={!nhtsaEnabled} title={t('recallList.checkNHTSATitle')}>
             {nhtsaMutation.isPending ? t('recallList.checking') : t('recallList.checkNHTSA')}
           </Button>
           <Button variant="primary" icon={Plus} onClick={onAddClick}>{t('recallList.addRecall')}</Button>
@@ -168,7 +173,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
           title={t('recallList.noRecords')}
           action={
             <div className="flex gap-2 justify-center">
-              <Button variant="secondary" icon={RefreshCw} onClick={handleCheckNHTSA} loading={nhtsaMutation.isPending}>
+              <Button variant="secondary" icon={RefreshCw} onClick={handleCheckNHTSA} loading={nhtsaMutation.isPending} disabled={!nhtsaEnabled}>
                 {nhtsaMutation.isPending ? t('recallList.checking') : t('recallList.checkNHTSA')}
               </Button>
               <Button variant="primary" onClick={onAddClick}>{t('recallList.addManualEntry')}</Button>

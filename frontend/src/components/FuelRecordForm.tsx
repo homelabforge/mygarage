@@ -20,6 +20,7 @@ import {
 } from '../constants/fuel'
 import { FormError } from './FormError'
 import api from '../services/api'
+import { isSettingOn } from '../utils/settingSwitch'
 import { useCreateFuelRecord, useUpdateFuelRecord, useParseFuelReceipt, type FuelReceiptDraft } from '../hooks/queries/useFuelRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useAuth } from '../contexts/AuthContext'
@@ -204,7 +205,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           response.data?.settings ?? []
         const enabled = settings.find((s) => s.key === 'llm_receipt_parse_enabled')
         if (!cancelled) {
-          setLlmReceiptEnabled((enabled?.value || 'false').toLowerCase() === 'true')
+          setLlmReceiptEnabled(isSettingOn(enabled?.value))
         }
       })
       .catch(() => {

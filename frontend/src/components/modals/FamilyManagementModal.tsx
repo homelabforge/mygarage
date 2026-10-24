@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner'
 import api from '@/services/api'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
+import { isSettingOn } from '@/utils/settingSwitch'
 import { useAuth } from '@/contexts/AuthContext'
 import { familyService } from '@/services/familyService'
 import type { FamilyMemberData } from '@/types/family'
@@ -65,7 +66,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
   // Derived state
   const authEverEnabled = users.length > 0
   const activeAdminCount = users.filter(u => u.is_admin && u.is_active).length
-  const shouldLoadUsers = authMode === 'oidc' || (authMode === 'local' && multiUserEnabled === 'true')
+  const shouldLoadUsers = authMode === 'oidc' || (authMode === 'local' && isSettingOn(multiUserEnabled))
 
   // Stats (active users only, computed from allMembers)
   const totalMembers = allMembers.length
@@ -145,7 +146,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
       setMultiUserEnabled(fetchedMultiUser)
 
       // Load users if auth mode warrants it
-      const shouldLoad = fetchedAuthMode === 'oidc' || (fetchedAuthMode === 'local' && fetchedMultiUser === 'true')
+      const shouldLoad = fetchedAuthMode === 'oidc' || (fetchedAuthMode === 'local' && isSettingOn(fetchedMultiUser))
       if (shouldLoad) {
         try {
           const usersRes = await api.get('/auth/users')
@@ -481,7 +482,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={multiUserEnabled === 'true'}
+                        checked={isSettingOn(multiUserEnabled)}
                         onChange={(e) => void handleMultiUserToggle(e.target.checked)}
                         className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
                       />

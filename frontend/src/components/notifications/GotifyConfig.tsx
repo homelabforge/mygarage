@@ -1,6 +1,7 @@
 import { Radio, Send, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
+import { isSettingOn } from '@/utils/settingSwitch'
 
 interface GotifyConfigProps {
   settings: Record<string, unknown>;
@@ -20,7 +21,7 @@ export function GotifyConfig({
   saving,
 }: GotifyConfigProps) {
   const { t } = useTranslation('settings')
-  const isEnabled = settings.gotify_enabled === 'true';
+  const isEnabled = isSettingOn(String(settings.gotify_enabled ?? ''));
   const hasRequiredFields = Boolean(settings.gotify_server && settings.gotify_token);
 
   return (

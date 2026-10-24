@@ -1,6 +1,7 @@
 import { Send, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
+import { isSettingOn } from '@/utils/settingSwitch'
 
 interface PushoverConfigProps {
   settings: Record<string, unknown>;
@@ -20,7 +21,7 @@ export function PushoverConfig({
   saving,
 }: PushoverConfigProps) {
   const { t } = useTranslation('settings')
-  const isEnabled = settings.pushover_enabled === 'true';
+  const isEnabled = isSettingOn(String(settings.pushover_enabled ?? ''));
   const hasRequiredFields = Boolean(settings.pushover_user_key && settings.pushover_api_token);
 
   return (

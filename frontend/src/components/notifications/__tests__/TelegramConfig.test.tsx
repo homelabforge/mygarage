@@ -117,3 +117,17 @@ describe('TelegramConfig fuel commands', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })
+
+describe('TelegramConfig — a switch stored as another on word', () => {
+  // Rows written before the writers normalised to "true"/"false" can hold
+  // "1" or "yes"; the backend reads both as on, so the toggles must too.
+  it('shows telegram_enabled "1" and telegram_inbound_enabled "yes" as on', async () => {
+    status({ state: 'off' })
+    renderConfig({ telegram_enabled: '1', telegram_inbound_enabled: 'yes' })
+
+    expect(screen.getByRole('checkbox', { name: 'telegram.enable' })).toBeChecked()
+    expect(screen.getByRole('checkbox', FUEL)).toBeChecked()
+    expect(screen.getByRole('checkbox', FUEL)).toBeEnabled()
+    await waitFor(() => expect(api.get).toHaveBeenCalled())
+  })
+})

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Bell, Settings2 } from 'lucide-react';
 import { Toggle } from '@/components/ui'
+import { isSettingOn } from '@/utils/settingSwitch'
 import { useUnitFormat } from '@/hooks/useUnitFormat'
 
 interface EventNotificationsCardProps {
@@ -209,7 +210,7 @@ export function EventNotificationsCard({
                   <div className="flex-1 min-w-0">
                     <Toggle
                       label={event.label}
-                      checked={settings[event.key] === 'true'}
+                      checked={isSettingOn(String(settings[event.key] ?? ''))}
                       onChange={(next) => onSettingChange(event.key, next)}
                       disabled={saving}
                     />
@@ -223,7 +224,7 @@ export function EventNotificationsCard({
                             type="number"
                             value={String(settings[field.key] ?? field.default)}
                             onChange={(e) => onTextChange(field.key, e.target.value)}
-                            disabled={saving || settings[event.key] !== 'true'}
+                            disabled={saving || !isSettingOn(String(settings[event.key] ?? ''))}
                             min={field.min}
                             max={field.max}
                             step={field.step}

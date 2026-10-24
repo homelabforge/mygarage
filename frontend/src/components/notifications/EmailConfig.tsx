@@ -1,6 +1,7 @@
 import { Mail, Send, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
+import { isSettingOn } from '@/utils/settingSwitch'
 
 interface EmailConfigProps {
   settings: Record<string, unknown>;
@@ -20,7 +21,7 @@ export function EmailConfig({
   saving,
 }: EmailConfigProps) {
   const { t } = useTranslation('settings')
-  const isEnabled = settings.email_enabled === 'true';
+  const isEnabled = isSettingOn(String(settings.email_enabled ?? ''));
   const hasRequiredFields = Boolean(
     settings.email_smtp_host &&
     settings.email_smtp_user &&
@@ -115,7 +116,7 @@ export function EmailConfig({
         {/* TLS Toggle */}
         <Toggle
           label={t('email.misc.useStartTls')}
-          checked={settings.email_smtp_tls === 'true'}
+          checked={isSettingOn(String(settings.email_smtp_tls ?? ''), true)}
           onChange={(next) => onSettingChange('email_smtp_tls', next)}
           disabled={saving || !isEnabled}
         />

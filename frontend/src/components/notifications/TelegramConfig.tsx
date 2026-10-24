@@ -1,6 +1,7 @@
 import { AtSign, Send, Info, ExternalLink, Fuel } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
+import { isSettingOn } from '@/utils/settingSwitch'
 
 import { FuelCommandStatus } from './FuelCommandStatus'
 
@@ -22,7 +23,7 @@ export function TelegramConfig({
   saving,
 }: TelegramConfigProps) {
   const { t } = useTranslation('settings')
-  const isEnabled = settings.telegram_enabled === 'true';
+  const isEnabled = isSettingOn(String(settings.telegram_enabled ?? ''));
   const hasRequiredFields = Boolean(settings.telegram_bot_token && settings.telegram_chat_id);
 
   return (
@@ -130,7 +131,7 @@ export function TelegramConfig({
           </div>
           <Toggle
             label={t('telegram.fuel.enable')}
-            checked={settings.telegram_inbound_enabled === 'true'}
+            checked={isSettingOn(String(settings.telegram_inbound_enabled ?? ''))}
             onChange={(next) => onSettingChange('telegram_inbound_enabled', next)}
             disabled={saving || !isEnabled}
           />

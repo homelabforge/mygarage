@@ -4,6 +4,7 @@ import { CheckCircle, AlertCircle, Plug, Shield, Radio, HelpCircle, Webhook, Spa
 import { useSettings } from '@/contexts/SettingsContext'
 import { useCanManageInstance } from '@/hooks/useCanManageInstance'
 import api from '@/services/api'
+import { isSettingOn } from '@/utils/settingSwitch'
 import WidgetKeysPanel from '../settings/WidgetKeysPanel'
 import { Card, IconButton, Select, Toggle, Drawer } from '../ui'
 import type { IconType } from '../ui/types'
@@ -264,7 +265,7 @@ function IntegrationsAdminView(): React.ReactElement {
           <div className="space-y-4">
             <Toggle
               label={t('integrations.enableLlmReceipt')}
-              checked={formData.llm_receipt_parse_enabled === 'true'}
+              checked={isSettingOn(formData.llm_receipt_parse_enabled, false)}
               onChange={(next) =>
                 setFormData({ ...formData, llm_receipt_parse_enabled: next ? 'true' : 'false' })
               }
@@ -276,7 +277,7 @@ function IntegrationsAdminView(): React.ReactElement {
             <div>
               <Toggle
                 label={t('integrations.enableLlmAssistant')}
-                checked={formData.llm_garage_assistant_enabled === 'true'}
+                checked={isSettingOn(formData.llm_garage_assistant_enabled, false)}
                 onChange={(next) =>
                   setFormData({ ...formData, llm_garage_assistant_enabled: next ? 'true' : 'false' })
                 }
@@ -295,8 +296,8 @@ function IntegrationsAdminView(): React.ReactElement {
                   id="llm_base_url"
                   value={formData.llm_base_url}
                   disabled={
-                    formData.llm_receipt_parse_enabled === 'false' &&
-                    formData.llm_garage_assistant_enabled === 'false'
+                    !isSettingOn(formData.llm_receipt_parse_enabled, false) &&
+                    !isSettingOn(formData.llm_garage_assistant_enabled, false)
                   }
                   onChange={(e) => setFormData({ ...formData, llm_base_url: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono text-sm"
@@ -312,8 +313,8 @@ function IntegrationsAdminView(): React.ReactElement {
                   id="llm_model"
                   value={formData.llm_model}
                   disabled={
-                    formData.llm_receipt_parse_enabled === 'false' &&
-                    formData.llm_garage_assistant_enabled === 'false'
+                    !isSettingOn(formData.llm_receipt_parse_enabled, false) &&
+                    !isSettingOn(formData.llm_garage_assistant_enabled, false)
                   }
                   onChange={(e) => setFormData({ ...formData, llm_model: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
@@ -329,8 +330,8 @@ function IntegrationsAdminView(): React.ReactElement {
                   id="llm_api_key"
                   value={formData.llm_api_key}
                   disabled={
-                    formData.llm_receipt_parse_enabled === 'false' &&
-                    formData.llm_garage_assistant_enabled === 'false'
+                    !isSettingOn(formData.llm_receipt_parse_enabled, false) &&
+                    !isSettingOn(formData.llm_garage_assistant_enabled, false)
                   }
                   onChange={(e) => setFormData({ ...formData, llm_api_key: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
@@ -359,7 +360,7 @@ function IntegrationsAdminView(): React.ReactElement {
           <div>
             <Toggle
               label={t('integrations.enableNHTSA')}
-              checked={formData.nhtsa_enabled === 'true'}
+              checked={isSettingOn(formData.nhtsa_enabled, true)}
               onChange={(next) => setFormData({ ...formData, nhtsa_enabled: next ? 'true' : 'false' })}
             />
             <p className="mt-1 ml-14 text-sm text-garage-text-muted">
@@ -371,8 +372,8 @@ function IntegrationsAdminView(): React.ReactElement {
           <div>
             <Toggle
               label={t('integrations.enableAutoCheck')}
-              checked={formData.nhtsa_auto_check === 'true'}
-              disabled={formData.nhtsa_enabled === 'false'}
+              checked={isSettingOn(formData.nhtsa_auto_check, true)}
+              disabled={!isSettingOn(formData.nhtsa_enabled, true)}
               onChange={(next) => setFormData({ ...formData, nhtsa_auto_check: next ? 'true' : 'false' })}
             />
             <p className="mt-1 ml-14 text-sm text-garage-text-muted">
@@ -388,7 +389,7 @@ function IntegrationsAdminView(): React.ReactElement {
             <Select
               id="recall_interval"
               value={formData.nhtsa_recall_check_interval}
-              disabled={formData.nhtsa_enabled === 'false' || formData.nhtsa_auto_check === 'false'}
+              disabled={!isSettingOn(formData.nhtsa_enabled, true) || !isSettingOn(formData.nhtsa_auto_check, true)}
               onChange={(e) => setFormData({ ...formData, nhtsa_recall_check_interval: e.target.value })}
               options={[
                 { value: '1', label: t('integrations.daily') },
@@ -412,7 +413,7 @@ function IntegrationsAdminView(): React.ReactElement {
               type="url"
               id="recalls_api_url"
               value={formData.nhtsa_recalls_api_url}
-              disabled={formData.nhtsa_enabled === 'false'}
+              disabled={!isSettingOn(formData.nhtsa_enabled, true)}
               onChange={(e) => setFormData({ ...formData, nhtsa_recalls_api_url: e.target.value })}
               className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono text-sm"
               placeholder={NHTSA_RECALLS_BASE_URL}
@@ -426,7 +427,7 @@ function IntegrationsAdminView(): React.ReactElement {
           <div className="pt-4 border-t border-garage-border">
             <button
               onClick={handleTestNHTSA}
-              disabled={testing || formData.nhtsa_enabled === 'false'}
+              disabled={testing || !isSettingOn(formData.nhtsa_enabled, true)}
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
             >
               <CheckCircle size={16} />
@@ -488,7 +489,7 @@ function IntegrationsAdminView(): React.ReactElement {
           <div>
             <Toggle
               label={t('integrations.enableCarComplaints')}
-              checked={formData.carcomplaints_enabled === 'true'}
+              checked={isSettingOn(formData.carcomplaints_enabled, true)}
               onChange={(next) => setFormData({ ...formData, carcomplaints_enabled: next ? 'true' : 'false' })}
             />
             <p className="mt-1 ml-14 text-sm text-garage-text-muted">

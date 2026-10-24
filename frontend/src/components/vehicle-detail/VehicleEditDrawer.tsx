@@ -20,6 +20,8 @@ import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../
 import { getUsageTracking } from '../../utils/usageTracking'
 import { applyServerErrors } from '../../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
+import { usePublicSettings } from '../../hooks/usePublicSettings'
+import { isSettingOn } from '../../utils/settingSwitch'
 
 /** Vehicles with no engine, VIN-decoded drivetrain, or DEF system. */
 const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
@@ -147,6 +149,11 @@ export default function VehicleEditDrawer({
   const seedType = seedSource?.vehicle_type ?? null
   const isMotorized = seedSource ? seedType === null || !NON_MOTORIZED.includes(seedType) : false
   const hasWindowSticker = seedType !== null && WINDOW_STICKER_TYPES.includes(seedType)
+  // Settings > Files can switch new stickers off. The one on file stays
+  // viewable; only upload and replace go. On until the public read says off
+  // (the backend's default), so a failed read hides nothing and the 409 rules.
+  const publicSettings = usePublicSettings()
+  const stickersOn = isSettingOn(publicSettings.window_sticker_enabled, true)
 
   // Zod bakes its messages in at construction, so the schema is rebuilt when
   // the language changes. Only the resolver depends on it — no fetch, no
@@ -614,21 +621,27 @@ export default function VehicleEditDrawer({
                     </span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={onUploadWindowSticker}
-                  className="cursor-pointer text-sm text-text-mute transition-colors hover:text-text"
-                >
-                  {t('detail.replaceSticker')}
-                </button>
+                {stickersOn && (
+                  <button
+                    type="button"
+                    onClick={onUploadWindowSticker}
+                    className="cursor-pointer text-sm text-text-mute transition-colors hover:text-text"
+                  >
+                    {t('detail.replaceSticker')}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="rounded-panel border border-dashed border-border py-4 text-center">
                 <FileText className="mx-auto mb-2 h-10 w-10 text-text-mute opacity-50" />
                 <p className="mb-3 text-sm text-text-mute">{t('detail.noWindowSticker')}</p>
-                <Button variant="primary" size="sm" onClick={onUploadWindowSticker}>
-                  {t('detail.uploadWindowSticker')}
-                </Button>
+                {stickersOn ? (
+                  <Button variant="primary" size="sm" onClick={onUploadWindowSticker}>
+                    {t('detail.uploadWindowSticker')}
+                  </Button>
+                ) : (
+                  <p className="text-xs text-text-faint">{t('windowSticker.stickersSwitchedOff')}</p>
+                )}
               </div>
             )}
           </section>

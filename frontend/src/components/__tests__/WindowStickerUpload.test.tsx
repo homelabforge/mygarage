@@ -2,10 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 
+const apiGet = vi.fn()
 const apiPost = vi.fn()
 const apiPatch = vi.fn()
 vi.mock('../../services/api', () => ({
   default: {
+    // Only /settings/public: the sticker and OCR switches.
+    get: (...args: unknown[]) => apiGet(...args),
     post: (...args: unknown[]) => apiPost(...args),
     patch: (...args: unknown[]) => apiPatch(...args),
   },
@@ -22,6 +25,8 @@ import WindowStickerUpload from '../WindowStickerUpload'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Both switches on, as on a fresh install.
+  apiGet.mockResolvedValue({ data: { settings: [] } })
   apiPost.mockResolvedValue({ data: { msrp_base: 30000 } })
 })
 
@@ -254,5 +259,121 @@ describe('WindowStickerUpload: closing says whether a sticker was saved', () => 
 
     await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1), { timeout: 2000 })
     expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+// Settings > Files can switch new stickers, or their OCR, off. The switches
+// come from /settings/public; the backend's 409 is the enforcement.
+describe('WindowStickerUpload: the sticker and OCR switches', () => {
+  const switches = (settings: Record<string, string>): void => {
+    apiGet.mockResolvedValue({
+      data: { settings: Object.entries(settings).map(([key, value]) => ({ key, value })) },
+    })
+  }
+
+  // What an unscanned upload returns: nothing filled or cleared, so the
+  // sticker fields are the ones the vehicle already had.
+  const unscanned = {
+    msrp_base: '30000.00',
+    exterior_color: 'Blu',
+    scan_read_nothing: false,
+    ocr_skipped: true,
+  }
+
+  const upload = async (user: ReturnType<typeof userEvent.setup>): Promise<void> => {
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, new File(['%PDF-1.4'], 'sticker.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' }))
+    await screen.findByRole('button', { name: 'windowSticker.misc.saveData' })
+  }
+
+  it('with OCR off, says up front that the sticker will be saved without a scan', async () => {
+    switches({ window_sticker_ocr_enabled: 'false' })
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    expect(await screen.findByText('windowSticker.ocrSwitchedOff')).toBeInTheDocument()
+    // The upload itself is still offered.
+    expect(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' })).toBeInTheDocument()
+  })
+
+  it('with OCR off, a sticker on file offers no keep choice: an unscanned upload changes no field', async () => {
+    switches({ window_sticker_ocr_enabled: 'off' })
+    render(<WindowStickerUpload vin="V1" hasExistingSticker onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    await screen.findByText('windowSticker.ocrSwitchedOff')
+    expect(screen.queryByRole('checkbox', { name: 'windowSticker.keepSavedValues' })).not.toBeInTheDocument()
+  })
+
+  it('an ocr_skipped upload says it was saved without a scan, and the review holds the retained fields', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    switches({ window_sticker_ocr_enabled: 'false' })
+    apiPost.mockResolvedValueOnce({ data: unscanned })
+    render(<WindowStickerUpload vin="V1" hasExistingSticker onSuccess={vi.fn()} onClose={vi.fn()} />)
+    await screen.findByText('windowSticker.ocrSwitchedOff')
+
+    await upload(user)
+
+    expect(screen.getByText('windowSticker.ocrSkipped')).toBeInTheDocument()
+    expect(screen.queryByText('windowSticker.scanReadNothing')).not.toBeInTheDocument()
+    expect(screen.queryByText('windowSticker.misc.uploadSuccess')).not.toBeInTheDocument()
+    // The pre-upload line goes with the drop zone.
+    expect(screen.queryByText('windowSticker.ocrSwitchedOff')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('detail.misc.exteriorColor')).toHaveValue('Blu')
+  })
+
+  // Regression guard: an unscanned upload reviews like a scan that read
+  // nothing, so these pass on main for that case already (R1-F4).
+  it('after an ocr_skipped upload, an untouched review saves nothing and still finishes', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    switches({ window_sticker_ocr_enabled: 'false' })
+    apiPost.mockResolvedValueOnce({ data: unscanned })
+    const onSuccess = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={onSuccess} onClose={vi.fn()} />)
+    await upload(user)
+
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.saveData' }))
+
+    await vi.waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1), { timeout: 2000 })
+    expect(apiPatch).not.toHaveBeenCalled()
+  })
+
+  // Regression guard: closing reports the upload by the seed's presence,
+  // whatever the scan did, so this passes on main too (R1-F4).
+  it('closing after an ocr_skipped upload tells the page a sticker was saved', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    switches({ window_sticker_ocr_enabled: 'false' })
+    apiPost.mockResolvedValueOnce({ data: unscanned })
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+    await upload(user)
+
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledWith(true)
+  })
+
+  it('with stickers off, says so and offers no upload', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    switches({ window_sticker_enabled: 'false' })
+    const onClose = vi.fn()
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={onClose} />)
+
+    expect(await screen.findByText('windowSticker.stickersSwitchedOff')).toBeInTheDocument()
+    expect(document.querySelector('input[type="file"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'windowSticker.uploadAndExtract' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.cancel' }))
+    expect(onClose).toHaveBeenCalledWith(false)
+  })
+
+  // The fallback (Fable F2-4): a failed read hides nothing; the 409 rules.
+  it('when the switches cannot be read, the upload is offered with no OCR notice', async () => {
+    apiGet.mockRejectedValue(new Error('down'))
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledWith('/settings/public'))
+    expect(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' })).toBeInTheDocument()
+    expect(screen.queryByText('windowSticker.ocrSwitchedOff')).not.toBeInTheDocument()
+    expect(screen.queryByText('windowSticker.stickersSwitchedOff')).not.toBeInTheDocument()
   })
 })

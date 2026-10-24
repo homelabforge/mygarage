@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { CheckCircle, AlertCircle } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import api from '@/services/api'
+import { isSettingOn } from '@/utils/settingSwitch'
 import {
   NotificationSubTabs,
   type NotificationSubTab,
@@ -199,14 +200,14 @@ export default function SettingsNotificationsTab() {
   }
 
   const enabledServices: Record<NotificationSubTab, boolean> = {
-    ntfy: formData.ntfy_enabled === 'true',
-    gotify: formData.gotify_enabled === 'true',
-    pushover: formData.pushover_enabled === 'true',
-    slack: formData.slack_enabled === 'true',
-    discord: formData.discord_enabled === 'true',
-    matrix: formData.matrix_enabled === 'true',
-    telegram: formData.telegram_enabled === 'true',
-    email: formData.email_enabled === 'true',
+    ntfy: isSettingOn(formData.ntfy_enabled),
+    gotify: isSettingOn(formData.gotify_enabled),
+    pushover: isSettingOn(formData.pushover_enabled),
+    slack: isSettingOn(formData.slack_enabled),
+    discord: isSettingOn(formData.discord_enabled),
+    matrix: isSettingOn(formData.matrix_enabled),
+    telegram: isSettingOn(formData.telegram_enabled),
+    email: isSettingOn(formData.email_enabled),
   }
 
   const hasAnyServiceEnabled = Object.values(enabledServices).some(Boolean)

@@ -2,10 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 
+const apiGet = vi.fn()
 const apiPost = vi.fn()
 const apiPatch = vi.fn()
 vi.mock('../../services/api', () => ({
   default: {
+    // Only /settings/public: the sticker and OCR switches.
+    get: (...args: unknown[]) => apiGet(...args),
     post: (...args: unknown[]) => apiPost(...args),
     patch: (...args: unknown[]) => apiPatch(...args),
   },
@@ -54,6 +57,8 @@ const extracted = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Both switches on, as on a fresh install.
+  apiGet.mockResolvedValue({ data: { settings: [] } })
   apiPost.mockResolvedValue({ data: extracted })
   apiPatch.mockResolvedValue({ data: extracted })
 })

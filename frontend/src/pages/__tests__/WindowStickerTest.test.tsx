@@ -88,9 +88,16 @@ function testButton(): HTMLElement {
   return screen.getByRole('button', { name: /^windowSticker\.(testExtraction|processing)$/ })
 }
 
+/** No parsers; `publicSettings` as /settings/public (both switches on when empty). */
+function serve(publicSettings: { key: string; value: string }[] = []): void {
+  apiGet.mockImplementation((url: string) =>
+    Promise.resolve({ data: url === '/settings/public' ? { settings: publicSettings } : [] }),
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  apiGet.mockResolvedValue({ data: [] })
+  serve()
 })
 
 describe('WindowStickerTest drop zone', () => {
@@ -247,5 +254,41 @@ describe('WindowStickerTest test still running when the file goes', () => {
     expect(testButton()).toHaveTextContent('windowSticker.testExtraction')
     expect(vi.mocked(toast.success)).toHaveBeenCalledTimes(1)
     expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
+  })
+})
+
+// Settings > Files can switch window stickers, or their OCR, off; the test
+// endpoint 409s then, so the page says why instead of offering the form. The
+// link to this page stays in the vehicle drawer, so the notice is what a
+// user lands on.
+describe('WindowStickerTest with a switch off', () => {
+  it('with stickers off, shows the notice and no upload control', async () => {
+    serve([{ key: 'window_sticker_enabled', value: 'false' }])
+    const container = await renderPage()
+
+    expect(await screen.findByText('windowSticker.stickersSwitchedOff')).toBeInTheDocument()
+    expect(container.querySelector('input[type="file"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'windowSticker.testExtraction' })).not.toBeInTheDocument()
+  })
+
+  it('with OCR off, says there is nothing to test and offers no upload control', async () => {
+    serve([{ key: 'window_sticker_ocr_enabled', value: 'no' }])
+    const container = await renderPage()
+
+    expect(await screen.findByText('windowSticker.ocrSwitchedOffTest')).toBeInTheDocument()
+    expect(container.querySelector('input[type="file"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'windowSticker.testExtraction' })).not.toBeInTheDocument()
+  })
+
+  // The fallback (Fable F2-4): a failed read hides nothing; the 409 rules.
+  it('when the switches cannot be read, the form is offered', async () => {
+    apiGet.mockImplementation((url: string) =>
+      url === '/settings/public' ? Promise.reject(new Error('down')) : Promise.resolve({ data: [] }),
+    )
+    const container = await renderPage()
+
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/settings/public'))
+    expect(container.querySelector(OVERLAY_INPUT)).not.toBeNull()
+    expect(screen.queryByText('windowSticker.stickersSwitchedOff')).not.toBeInTheDocument()
   })
 })

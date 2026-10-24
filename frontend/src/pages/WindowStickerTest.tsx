@@ -24,6 +24,8 @@ import { Select } from '../components/ui'
 import { formatCurrency } from '../utils/formatUtils'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { usePublicSettings } from '../hooks/usePublicSettings'
+import { isSettingOn } from '../utils/settingSwitch'
 import { formatAtPrecision } from '@/utils/unitFormat'
 
 interface ExtractedData {
@@ -82,6 +84,16 @@ export default function WindowStickerTest() {
   const [selectedParser, setSelectedParser] = useState<string>('')
   const [showRawText, setShowRawText] = useState(false)
   const [showEquipment, setShowEquipment] = useState(false)
+  // A test needs both switches (the endpoint 409s otherwise). Each reads as on
+  // until /settings/public says off, so a failed read still offers the form.
+  const publicSettings = usePublicSettings()
+  const stickersOn = isSettingOn(publicSettings.window_sticker_enabled, true)
+  const ocrOn = isSettingOn(publicSettings.window_sticker_ocr_enabled, true)
+  const switchedOff = !stickersOn
+    ? t('windowSticker.stickersSwitchedOff')
+    : !ocrOn
+      ? t('windowSticker.ocrSwitchedOffTest')
+      : null
 
   // Fetch available parsers on mount
   useEffect(() => {
@@ -181,82 +193,90 @@ export default function WindowStickerTest() {
               {t('windowSticker.upload')}
             </h2>
 
-            {/* Drop Zone */}
-            <div
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              className={`
-                relative border-2 border-dashed rounded-lg p-8 text-center transition-colors
-                ${file ? 'border-primary bg-primary/10' : 'border-garage-border hover:border-primary/50'}
-              `}
-            >
-              {file ? (
-                <div className="flex flex-col items-center gap-2">
-                  <FileText className="w-12 h-12 text-primary" />
-                  <p className="text-garage-text font-medium">{file.name}</p>
-                  <p className="text-garage-text-muted text-sm">
-                    {t('windowSticker.test.fileSizeMb', { size: formatAtPrecision(file.size / 1024 / 1024, 2) })}
-                  </p>
-                  <button
-                    onClick={() => replaceFile(null)}
-                    className="text-red-500 text-sm hover:underline"
-                  >
-                    {t('common:remove')}
-                  </button>
+            {switchedOff ? (
+              <div className="p-3 rounded-lg bg-warning-500/10 border border-warning-500">
+                <p className="text-sm text-warning-500">{switchedOff}</p>
+              </div>
+            ) : (
+              <>
+                {/* Drop Zone */}
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  className={`
+                    relative border-2 border-dashed rounded-lg p-8 text-center transition-colors
+                    ${file ? 'border-primary bg-primary/10' : 'border-garage-border hover:border-primary/50'}
+                  `}
+                >
+                  {file ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <FileText className="w-12 h-12 text-primary" />
+                      <p className="text-garage-text font-medium">{file.name}</p>
+                      <p className="text-garage-text-muted text-sm">
+                        {t('windowSticker.test.fileSizeMb', { size: formatAtPrecision(file.size / 1024 / 1024, 2) })}
+                      </p>
+                      <button
+                        onClick={() => replaceFile(null)}
+                        className="text-red-500 text-sm hover:underline"
+                      >
+                        {t('common:remove')}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="w-12 h-12 text-garage-text-muted" />
+                      <p className="text-garage-text">
+                        {t('windowSticker.dropOrClick')}
+                      </p>
+                      <p className="text-garage-text-muted text-sm">
+                        {t('windowSticker.fileTypes')}
+                      </p>
+                    </div>
+                  )}
+                  {/* The invisible input covered Remove, so Remove opened the picker.
+                      It only covers the panel while there's no file now. */}
+                  {!file && (
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={handleFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  )}
                 </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <Upload className="w-12 h-12 text-garage-text-muted" />
-                  <p className="text-garage-text">
-                    {t('windowSticker.dropOrClick')}
-                  </p>
-                  <p className="text-garage-text-muted text-sm">
-                    {t('windowSticker.fileTypes')}
-                  </p>
+
+                {/* Parser Selection */}
+                <div className="mt-4">
+                  <label className="block text-sm text-garage-text-muted mb-2">
+                    {t('windowSticker.test.parserSelectLabel')}
+                  </label>
+                  <Select
+                    value={selectedParser}
+                    onChange={(e) => setSelectedParser(e.target.value)}
+                    placeholder={t('windowSticker.test.autoDetect')}
+                    options={parsers.map((p) => ({
+                      value: p.manufacturer,
+                      label: `${p.parser_class} (${p.supported_makes.join(', ') || t('windowSticker.test.genericParser')})`,
+                    }))}
+                  />
                 </div>
-              )}
-              {/* The invisible input covered Remove, so Remove opened the picker.
-                  It only covers the panel while there's no file now. */}
-              {!file && (
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              )}
-            </div>
 
-            {/* Parser Selection */}
-            <div className="mt-4">
-              <label className="block text-sm text-garage-text-muted mb-2">
-                {t('windowSticker.test.parserSelectLabel')}
-              </label>
-              <Select
-                value={selectedParser}
-                onChange={(e) => setSelectedParser(e.target.value)}
-                placeholder={t('windowSticker.test.autoDetect')}
-                options={parsers.map((p) => ({
-                  value: p.manufacturer,
-                  label: `${p.parser_class} (${p.supported_makes.join(', ') || t('windowSticker.test.genericParser')})`,
-                }))}
-              />
-            </div>
-
-            {/* Test Button */}
-            <button
-              onClick={handleTest}
-              disabled={!file || loading}
-              className={`
-                w-full mt-4 py-3 px-4 rounded-lg font-medium transition-colors
-                ${file && !loading
-                  ? 'bg-primary text-(--accent-on-solid) hover:bg-primary-600'
-                  : 'bg-garage-border text-garage-text-muted cursor-not-allowed'
-                }
-              `}
-            >
-              {loading ? t('windowSticker.processing') : t('windowSticker.testExtraction')}
-            </button>
+                {/* Test Button */}
+                <button
+                  onClick={handleTest}
+                  disabled={!file || loading}
+                  className={`
+                    w-full mt-4 py-3 px-4 rounded-lg font-medium transition-colors
+                    ${file && !loading
+                      ? 'bg-primary text-(--accent-on-solid) hover:bg-primary-600'
+                      : 'bg-garage-border text-garage-text-muted cursor-not-allowed'
+                    }
+                  `}
+                >
+                  {loading ? t('windowSticker.processing') : t('windowSticker.testExtraction')}
+                </button>
+              </>
+            )}
           </div>
 
           {/* Results Section */}

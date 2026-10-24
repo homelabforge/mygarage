@@ -1,6 +1,7 @@
 import { MessageSquare, Send, Info, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
+import { isSettingOn } from '@/utils/settingSwitch'
 
 interface DiscordConfigProps {
   settings: Record<string, unknown>;
@@ -20,7 +21,7 @@ export function DiscordConfig({
   saving,
 }: DiscordConfigProps) {
   const { t } = useTranslation('settings')
-  const isEnabled = settings.discord_enabled === 'true';
+  const isEnabled = isSettingOn(String(settings.discord_enabled ?? ''));
   const hasRequiredFields = Boolean(settings.discord_webhook_url);
 
   return (

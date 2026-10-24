@@ -195,6 +195,21 @@ describe('SettingsIntegrationsTab', () => {
     expect(body.settings).not.toHaveProperty('telegram_inbound_enabled')
   })
 
+  // Rows written before the writers normalised to "true"/"false" can hold
+  // "1"; the backend reads that as on, so the toggle must too.
+  it('shows a switch stored as "1" as on', async () => {
+    mockedApi.get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url === '/settings' ? { settings: [{ key: 'llm_receipt_parse_enabled', value: '1' }] } : { settings: [] },
+      }),
+    )
+    renderTab()
+
+    expect(await screen.findByRole('checkbox', { name: 'integrations.enableLlmReceipt' })).toBeChecked()
+    // The LLM fields follow the switch, so they are open too.
+    expect(screen.getByLabelText('integrations.llmModel')).toBeEnabled()
+  })
+
   describe('the NHTSA recalls URL', () => {
     // The backend adds /recallsByVehicle itself, so the form's default has to be
     // the base. The full endpoint got saved and fetched with the path twice.

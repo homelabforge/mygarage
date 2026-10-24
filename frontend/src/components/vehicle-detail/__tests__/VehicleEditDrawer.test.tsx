@@ -89,16 +89,22 @@ function drawerEl(
 
 // The drawer seeds from a fresh GET /vehicles/{vin} (not the possibly-stale
 // `vehicle` prop — see the lost-update fix) in parallel with detail-stats, so
-// the api mock discriminates by URL: detail-stats gets `detailStats`,
+// the api mock discriminates by URL: detail-stats gets `detailStats`, the
+// public settings (the window sticker switch) get `publicSettings`, and
 // everything else (the vehicle refetch) gets `vehicle`. vehicleService.update()
 // wraps api.put and returns response.data, so every existing `mockedApi.put`
 // payload assertion still applies unchanged.
-function renderVehicleEdit(vehicle: Vehicle, detailStats: VehicleDetailStats = baseDetailStats): {
+function renderVehicleEdit(
+  vehicle: Vehicle,
+  detailStats: VehicleDetailStats = baseDetailStats,
+  publicSettings: { key: string; value: string }[] = [],
+): {
   onClose: ReturnType<typeof vi.fn>
   onUpdated: ReturnType<typeof vi.fn>
 } {
   mockedApi.get.mockImplementation((url: string) => {
     if (url.includes('detail-stats')) return Promise.resolve({ data: detailStats })
+    if (url === '/settings/public') return Promise.resolve({ data: { settings: publicSettings } })
     return Promise.resolve({ data: vehicle })
   })
   const onClose = vi.fn()
@@ -746,6 +752,60 @@ describe('VehicleEditDrawer — window sticker section', () => {
     // Belt-and-braces, now that it can actually observe a submit: flush the
     // async validation both clicks would have kicked off.
     await waitFor(() => expect(mockedApi.put).not.toHaveBeenCalled())
+  })
+
+  describe('with window stickers switched off in Settings > Files', () => {
+    const OFF = [{ key: 'window_sticker_enabled', value: 'false' }]
+
+    it('hides Replace, and keeps View and the Test OCR link', async () => {
+      const onDownloadWindowSticker = vi.fn()
+      mockedApi.get.mockImplementation((url: string) => {
+        if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
+        if (url === '/settings/public') return Promise.resolve({ data: { settings: OFF } })
+        return Promise.resolve({ data: withSticker })
+      })
+      render(
+        drawerEl({
+          open: true,
+          vin: withSticker.vin,
+          vehicle: withSticker,
+          onClose: vi.fn(),
+          onUpdated: vi.fn(),
+          onDownloadWindowSticker,
+        }),
+      )
+      await screen.findByLabelText('edit.nickname *')
+
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'detail.replaceSticker' })).not.toBeInTheDocument())
+      fireEvent.click(screen.getByText('detail.viewWindowSticker').closest('button')!)
+      expect(onDownloadWindowSticker).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('link', { name: 'detail.misc.testOcr' })).toBeInTheDocument()
+    })
+
+    it('hides Upload when no sticker is on file, and says why', async () => {
+      renderVehicleEdit(baseVehicle, baseDetailStats, OFF)
+      await screen.findByLabelText('edit.nickname *')
+
+      expect(await screen.findByText('windowSticker.stickersSwitchedOff')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'detail.uploadWindowSticker' })).not.toBeInTheDocument()
+      expect(screen.getByText('detail.noWindowSticker')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'detail.misc.testOcr' })).toBeInTheDocument()
+    })
+
+    // The fallback (Fable F2-4): a failed read hides nothing; the 409 rules.
+    it('keeps Upload when the public settings cannot be read', async () => {
+      mockedApi.get.mockImplementation((url: string) => {
+        if (url.includes('detail-stats')) return Promise.resolve({ data: baseDetailStats })
+        if (url === '/settings/public') return Promise.reject(new Error('down'))
+        return Promise.resolve({ data: baseVehicle })
+      })
+      render(drawerEl({ open: true, vin: baseVehicle.vin, vehicle: baseVehicle, onClose: vi.fn(), onUpdated: vi.fn() }))
+      await screen.findByLabelText('edit.nickname *')
+
+      await waitFor(() => expect(mockedApi.get).toHaveBeenCalledWith('/settings/public'))
+      expect(screen.getByRole('button', { name: 'detail.uploadWindowSticker' })).toBeInTheDocument()
+      expect(screen.queryByText('windowSticker.stickersSwitchedOff')).not.toBeInTheDocument()
+    })
   })
 })
 

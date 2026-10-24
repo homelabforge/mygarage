@@ -5,6 +5,7 @@ import { MessageSquare, Send, Sparkles } from 'lucide-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, Button, Textarea } from '../ui'
 import api from '@/services/api'
+import { isSettingOn } from '@/utils/settingSwitch'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 
 type ChatRole = 'user' | 'assistant'
@@ -60,7 +61,7 @@ export default function GarageAssistantPanel({ vin, onEditSpecs }: GarageAssista
         '/settings/public',
       )
       const row = data.settings.find((s) => s.key === 'llm_garage_assistant_enabled')
-      return (row?.value || 'false').toLowerCase() === 'true'
+      return isSettingOn(row?.value)
     },
     staleTime: 60_000,
   })

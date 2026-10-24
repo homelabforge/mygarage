@@ -12,6 +12,8 @@ import { useCurrencySymbol } from '../hooks/useCurrencySymbol'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { formatStickerValue } from '../utils/formatUtils'
 import { useUnitFormat } from '../hooks/useUnitFormat'
+import { usePublicSettings } from '../hooks/usePublicSettings'
+import { isSettingOn } from '../utils/settingSwitch'
 import { seedUnitField, unitFieldUnchanged, type UnitFieldOrigin } from '../utils/unitFormat'
 import type { components } from '../types/api.generated'
 
@@ -78,6 +80,11 @@ export default function WindowStickerUpload({
   const currencySymbol = useCurrencySymbol()
   const { currencyCode, locale } = useCurrencyPreference()
   const u = useUnitFormat()
+  // Both read as on until /settings/public says otherwise (the backend's
+  // default); a failed read hides nothing, and the upload's 409 still stops it.
+  const publicSettings = usePublicSettings()
+  const stickersOn = isSettingOn(publicSettings.window_sticker_enabled, true)
+  const ocrOn = isSettingOn(publicSettings.window_sticker_ocr_enabled, true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -174,7 +181,9 @@ export default function WindowStickerUpload({
       setSeed(data)
       setEconomyOrigins(origins)
       setDraft(seeded)
-      if (data.scan_read_nothing) setNotice(t('windowSticker.scanReadNothing'))
+      // OCR off: stored unscanned. Same review as a scan that read nothing.
+      if (data.ocr_skipped) setNotice(t('windowSticker.ocrSkipped'))
+      else if (data.scan_read_nothing) setNotice(t('windowSticker.scanReadNothing'))
       else setSuccess(t('windowSticker.misc.uploadSuccess'))
       setEditMode(true)
     } catch (err) {
@@ -341,9 +350,34 @@ export default function WindowStickerUpload({
           </div>
         )}
 
-        {!seed && (
+        {!seed && !stickersOn && (
           <>
-            {hasExistingSticker && (
+            <div className="bg-warning-500/10 border border-warning-500 rounded-lg p-3">
+              <p className="text-sm text-warning-500">{t('windowSticker.stickersSwitchedOff')}</p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={close}
+                className="px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-border/50 transition-colors"
+              >
+                {t('windowSticker.misc.cancel')}
+              </button>
+            </div>
+          </>
+        )}
+
+        {!seed && stickersOn && (
+          <>
+            {!ocrOn && (
+              <div className="bg-warning-500/10 border border-warning-500 rounded-lg p-3">
+                <p className="text-sm text-warning-500">{t('windowSticker.ocrSwitchedOff')}</p>
+              </div>
+            )}
+
+            {/* Unscanned, the upload neither fills nor clears a field, so
+                there is nothing for "keep" to choose between. */}
+            {hasExistingSticker && ocrOn && (
               <div className="space-y-1">
                 <Checkbox
                   label={t('windowSticker.keepSavedValues')}

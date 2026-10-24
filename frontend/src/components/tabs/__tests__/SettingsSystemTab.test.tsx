@@ -655,3 +655,26 @@ describe('SettingsSystemTab: the local panel reads has_users (S1a-13 control)', 
     expect(screen.queryByText('auth.localConfigured')).not.toBeInTheDocument()
   })
 })
+
+describe('SettingsSystemTab: a switch stored as another on word', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // Rows written before the writers normalised to "true"/"false" can hold
+  // "1"; the backend reads that as on, so the toggle must too.
+  it('shows family_friends_enabled stored as "1" as on', async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings') {
+        return Promise.resolve({
+          data: { settings: [{ key: 'auth_mode', value: 'local' }, { key: 'family_friends_enabled', value: '1' }] },
+        })
+      }
+      if (url === '/auth/users/count') return Promise.resolve({ data: { has_users: true } })
+      return Promise.resolve({ data: {} })
+    })
+    renderTab()
+
+    await waitFor(() => expect(screen.getByLabelText('garageSections.familyFriends')).toBeChecked())
+  })
+})

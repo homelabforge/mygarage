@@ -1,6 +1,7 @@
 import { Network, Send, Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
+import { isSettingOn } from '@/utils/settingSwitch'
 
 interface MatrixConfigProps {
   settings: Record<string, unknown>
@@ -20,7 +21,7 @@ export function MatrixConfig({
   saving,
 }: MatrixConfigProps) {
   const { t } = useTranslation('settings')
-  const isEnabled = settings.matrix_enabled === 'true'
+  const isEnabled = isSettingOn(String(settings.matrix_enabled ?? ''))
   const hasRequiredFields = Boolean(
     settings.matrix_homeserver && settings.matrix_access_token && settings.matrix_room_id,
   )

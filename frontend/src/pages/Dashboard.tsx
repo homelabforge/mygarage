@@ -15,6 +15,7 @@ import type { DashboardResponse, VehicleStatistics } from '../types/dashboard'
 import type { ExternalVehicle } from '../types/externalVehicle'
 import { listExternalVehicles } from '../services/externalVehicleService'
 import api from '../services/api'
+import { isSettingOn } from '../utils/settingSwitch'
 import { useDashboardSortOrder } from '../hooks/useDashboardSort'
 import { DASHBOARD_SORT_OPTIONS, type DashboardSort } from '../constants/dashboardSort'
 
@@ -43,7 +44,7 @@ function settingEnabled(
   key: string,
 ): boolean {
   const row = settings.find((s) => s.key === key)
-  return (row?.value || 'false').toLowerCase() === 'true'
+  return isSettingOn(row?.value)
 }
 
 export default function Dashboard() {

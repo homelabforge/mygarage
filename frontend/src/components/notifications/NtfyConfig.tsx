@@ -1,6 +1,7 @@
 import { Bell, Send, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
+import { isSettingOn } from '@/utils/settingSwitch'
 
 interface NtfyConfigProps {
   settings: Record<string, unknown>;
@@ -20,7 +21,7 @@ export function NtfyConfig({
   saving,
 }: NtfyConfigProps) {
   const { t } = useTranslation('settings')
-  const isEnabled = settings.ntfy_enabled === 'true';
+  const isEnabled = isSettingOn(String(settings.ntfy_enabled ?? ''));
   const hasRequiredFields = Boolean(settings.ntfy_server && settings.ntfy_topic);
 
   return (

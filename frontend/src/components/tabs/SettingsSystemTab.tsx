@@ -7,6 +7,7 @@ import { useCanManageInstance } from '@/hooks/useCanManageInstance'
 import type { DashboardResponse } from '@/types/dashboard'
 import type { components } from '@/types/api.generated'
 import api from '@/services/api'
+import { isSettingOn } from '@/utils/settingSwitch'
 import { toast } from 'sonner'
 import OIDCModal from '@/components/modals/OIDCModal'
 import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
@@ -480,7 +481,7 @@ export default function SettingsSystemTab() {
               <Toggle
                 id="family_friends_enabled"
                 label={t('garageSections.familyFriends')}
-                checked={formData.family_friends_enabled === 'true'}
+                checked={isSettingOn(formData.family_friends_enabled)}
                 onChange={(next) =>
                   setFormData({
                     ...formData,

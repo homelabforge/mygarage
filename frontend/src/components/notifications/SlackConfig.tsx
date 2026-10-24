@@ -1,6 +1,7 @@
 import { Hash, Send, Info, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
+import { isSettingOn } from '@/utils/settingSwitch'
 
 interface SlackConfigProps {
   settings: Record<string, unknown>;
@@ -20,7 +21,7 @@ export function SlackConfig({
   saving,
 }: SlackConfigProps) {
   const { t } = useTranslation('settings')
-  const isEnabled = settings.slack_enabled === 'true';
+  const isEnabled = isSettingOn(String(settings.slack_enabled ?? ''));
   const hasRequiredFields = Boolean(settings.slack_webhook_url);
 
   return (

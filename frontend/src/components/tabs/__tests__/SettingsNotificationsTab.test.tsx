@@ -137,3 +137,21 @@ describe('SettingsNotificationsTab — Telegram fuel commands', () => {
     expect(body.settings.telegram_inbound_enabled).toBe('false')
   })
 })
+
+describe('SettingsNotificationsTab — a switch stored as another on word', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedApi.post.mockResolvedValue({ data: {} })
+  })
+
+  // Rows written before the writers normalised to "true"/"false" can hold
+  // "1"; the backend reads that as on, so the tab must too.
+  it('shows ntfy_enabled stored as "1" as on, and offers the event switches', async () => {
+    answerGet([{ key: 'ntfy_enabled', value: '1' }])
+    renderTab()
+
+    expect(await screen.findByRole('checkbox', { name: 'ntfy.enable' })).toBeChecked()
+    // The event card only opens once some service reads as on.
+    expect(screen.getByText('events.defLow.group')).toBeInTheDocument()
+  })
+})

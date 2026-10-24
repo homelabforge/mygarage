@@ -15,11 +15,31 @@ vi.mock('../../hooks/queries/useRecallRecords', () => ({
   useToggleRecallResolved: () => ({ mutate: toggleMutate, isPending: false }),
 }))
 vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries }) }))
-vi.mock('../../services/api', () => ({ default: { get: vi.fn().mockResolvedValue({ data: { settings: [] } }) } }))
+// Answers per URL: the vehicle for the CarComplaints link, and the public
+// settings for the two switches. /settings is admin-only, so it refuses, as it
+// does for a non-admin.
+const apiGet = vi.hoisted(() => vi.fn())
+vi.mock('../../services/api', () => ({ default: { get: apiGet } }))
 vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+import { toast } from 'sonner'
 import RecallList from '../RecallList'
+
+const VEHICLE = { vin: 'V1', year: 2020, make: 'Honda', model: 'Civic', vehicle_type: 'Car' }
+
+/** Serves `public` as /settings/public (or fails it), the vehicle, and a 403 from /settings. */
+function serve(publicSettings: { key: string; value: string }[] | Error = []): void {
+  apiGet.mockImplementation((url: string) => {
+    if (url === '/settings/public') {
+      return publicSettings instanceof Error
+        ? Promise.reject(publicSettings)
+        : Promise.resolve({ data: { settings: publicSettings } })
+    }
+    if (url === '/vehicles/V1') return Promise.resolve({ data: VEHICLE })
+    return Promise.reject({ response: { status: 403 } })
+  })
+}
 
 const active = {
   id: 1, vin: 'V1', component: 'Airbag Inflator', nhtsa_campaign_number: '23V123000',
@@ -34,6 +54,7 @@ const PROPS = { vin: 'V1', onAddClick, onEditClick, onRefresh: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(window, 'confirm').mockReturnValue(true)
+  serve()
   useRecallRecordsMock.mockReturnValue({ data: { recalls: [active], total: 1, active_count: 1, resolved_count: 0 }, isLoading: false, error: null })
 })
 
@@ -102,5 +123,75 @@ describe('RecallList — resolved timestamp', () => {
     render(<RecallList {...PROPS} />)
     expect(screen.getByText('Mar 1, 2026')).toBeInTheDocument()
     expect(screen.queryByText(/Invalid Date/)).toBeNull()
+  })
+})
+
+describe('RecallList — the NHTSA and CarComplaints switches come from /settings/public', () => {
+  const checkButton = (): HTMLElement => screen.getByRole('button', { name: 'recallList.checkNHTSA' })
+
+  it('with nhtsa_enabled "false", Check NHTSA is disabled and a line says where to switch it on', async () => {
+    serve([{ key: 'nhtsa_enabled', value: 'false' }])
+    render(<RecallList {...PROPS} />)
+
+    expect(await screen.findByText('recallList.nhtsaSwitchedOff')).toBeInTheDocument()
+    expect(checkButton()).toBeDisabled()
+  })
+
+  it('with nhtsa_enabled off, the empty state\'s Check NHTSA is disabled too', async () => {
+    useRecallRecordsMock.mockReturnValue({ data: { recalls: [], total: 0, active_count: 0, resolved_count: 0 }, isLoading: false, error: null })
+    serve([{ key: 'nhtsa_enabled', value: 'off' }])
+    render(<RecallList {...PROPS} />)
+
+    await screen.findByText('recallList.nhtsaSwitchedOff')
+    for (const button of screen.getAllByRole('button', { name: 'recallList.checkNHTSA' })) {
+      expect(button).toBeDisabled()
+    }
+  })
+
+  // The fallback (Fable F2-4): absent or unreadable reads as on, the backend's
+  // default, so a failed read never takes the button away; the 409 rules.
+  it.each([
+    ['absent', []],
+    ['unreadable', new Error('down')],
+  ] as const)('with the switch %s, Check NHTSA stays enabled', async (_case, payload) => {
+    serve(payload instanceof Error ? payload : [...payload])
+    render(<RecallList {...PROPS} />)
+
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/settings/public'))
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/vehicles/V1'))
+    expect(checkButton()).toBeEnabled()
+    expect(screen.queryByText('recallList.nhtsaSwitchedOff')).not.toBeInTheDocument()
+  })
+
+  // Regression guard: getActionErrorMessage already shows a 409's detail. It
+  // pins that the switched-off 409 reaches the user as the backend wrote it.
+  it("a 409 from the check toasts the backend's detail", async () => {
+    const detail = 'NHTSA recalls are switched off in Settings > Integrations'
+    nhtsaMutate.mockImplementationOnce((_vars: unknown, opts: { onError: (e: unknown) => void }) =>
+      opts.onError({ isAxiosError: true, message: 'Request failed', response: { status: 409, data: { detail } } }),
+    )
+    render(<RecallList {...PROPS} />)
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/vehicles/V1'))
+
+    fireEvent.click(checkButton())
+
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith(detail)
+  })
+
+  it('with carcomplaints_enabled "true" in the public payload, a non-admin gets the CarComplaints link', async () => {
+    serve([{ key: 'carcomplaints_enabled', value: 'true' }])
+    render(<RecallList {...PROPS} />)
+
+    expect(await screen.findByText('recallList.viewOnCarComplaints')).toBeInTheDocument()
+    expect(apiGet).not.toHaveBeenCalledWith('/settings')
+  })
+
+  // CarComplaints keeps its fallback (off) when the key is absent.
+  it('with carcomplaints_enabled absent, there is no CarComplaints link', async () => {
+    render(<RecallList {...PROPS} />)
+
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/vehicles/V1'))
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/settings/public'))
+    expect(screen.queryByText('recallList.viewOnCarComplaints')).not.toBeInTheDocument()
   })
 })
