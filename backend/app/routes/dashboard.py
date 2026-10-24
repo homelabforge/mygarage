@@ -18,7 +18,6 @@ from app.models import (
     TrailerDetails,
     Vehicle,
 )
-from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle_share import VehicleShare
 from app.schemas.dashboard import (
@@ -40,6 +39,7 @@ from app.services.hours_service import latest_engine_hours_and_date
 from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.reminder_service import count_pending_reminders
 from app.services.service_visit_service import service_visit_cost_load_options
+from app.services.settings_service import SettingsService
 from app.utils.household_time import household_today
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -484,11 +484,7 @@ async def get_dashboard(
 
     fleet_health = await calculate_fleet_health(db, vehicle_stats)
 
-    multi_user_enabled = False
-    setting_result = await db.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
-    setting = setting_result.scalar_one_or_none()
-    if setting is not None and str(setting.value).lower() in {"1", "true", "yes", "on"}:
-        multi_user_enabled = True
+    multi_user_enabled = await SettingsService.get_bool(db, "multi_user_enabled", default=False)
 
     return DashboardResponse(
         total_vehicles=len(vehicle_stats),

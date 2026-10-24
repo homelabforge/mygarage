@@ -416,6 +416,23 @@ class TestCheckDefLevels:
         assert _def_calls(mock) == []
         assert vehicle.def_low_notified_at is None
 
+    async def test_a_stored_one_reads_as_the_toggle_on(
+        self, patch_session, db_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
+    ):
+        """R5: "1" is on. Written to the raw column, past any write path that might rewrite it."""
+        await enable_def_low(threshold="25")
+        row = await db_session.get(Setting, "notify_def_low")
+        assert row is not None
+        row.stored_value = "1"
+        await db_session.flush()
+        vehicle = await make_vehicle()
+        await add_def_record(vehicle.vin, fill_level=Decimal("0.05"), record_date=date(2026, 7, 1))
+        mock = _patch_notify_def_low(monkeypatch)
+
+        await check_def_levels()
+
+        assert [c.kwargs["vin"] for c in _def_calls(mock)] == [vehicle.vin]
+
     async def test_garbage_threshold_falls_back_to_25(
         self, patch_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
     ):

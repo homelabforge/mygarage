@@ -174,8 +174,7 @@ class MQTTSubscriber:
         """Get MQTT configuration from settings."""
         async with AsyncSessionLocal() as db:
             await load_household_zone(db)
-            enabled = await SettingsService.get(db, "livelink_mqtt_enabled")
-            if not enabled or enabled.value != "true":
+            if not await SettingsService.get_bool(db, "livelink_mqtt_enabled", default=False):
                 return None
 
             broker_host = await SettingsService.get(db, "livelink_mqtt_broker_host")
@@ -196,7 +195,7 @@ class MQTTSubscriber:
                 )
                 return None
             topic_prefix = await SettingsService.get(db, "livelink_mqtt_topic_prefix")
-            use_tls = await SettingsService.get(db, "livelink_mqtt_use_tls")
+            use_tls = await SettingsService.get_bool(db, "livelink_mqtt_use_tls", default=False)
 
             return {
                 "host": broker_host.value,
@@ -206,7 +205,7 @@ class MQTTSubscriber:
                 "topic_prefix": topic_prefix.value
                 if topic_prefix and topic_prefix.value
                 else "wican",
-                "use_tls": use_tls and use_tls.value == "true",
+                "use_tls": use_tls,
             }
 
     async def configured_topic_prefix(self, db: AsyncSession) -> str | None:
@@ -220,8 +219,7 @@ class MQTTSubscriber:
         Mirrors the two keys `_get_config` consults for this, including its
         "wican" default.
         """
-        enabled = await SettingsService.get(db, "livelink_mqtt_enabled")
-        if not enabled or enabled.value != "true":
+        if not await SettingsService.get_bool(db, "livelink_mqtt_enabled", default=False):
             return None
         prefix = await SettingsService.get(db, "livelink_mqtt_topic_prefix")
         return prefix.value if prefix and prefix.value else "wican"

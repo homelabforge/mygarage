@@ -40,6 +40,7 @@ from app.services.auth import (
     require_auth,
     verify_password,
 )
+from app.services.settings_service import parse_bool
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.request_scheme import get_cookie_secure
@@ -521,7 +522,8 @@ async def create_user(
     result = await db.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
     multi_user_setting = result.scalar_one_or_none()
 
-    if multi_user_setting and multi_user_setting.value != "true":
+    # No row allows; a saved value must read as on, so a blank one refuses (R4).
+    if multi_user_setting is not None and not parse_bool(multi_user_setting.value, default=False):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Multi-user mode is disabled. Enable it in Settings > System to create additional users.",

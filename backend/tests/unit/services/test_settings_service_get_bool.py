@@ -66,6 +66,35 @@ async def test_default_applies_to_an_empty_value(db_session, value):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["on", " Yes ", "ON", "\ttrue\n"])
+async def test_reads_r5s_on_words_and_ignores_whitespace(db_session, value):
+    """R5: "on" is on, and the whitespace around a stored word doesn't matter."""
+    db_session.add(Setting(key=_KEY, value=value))
+    await db_session.commit()
+
+    assert await SettingsService.get_bool(db_session, _KEY) is True
+
+
+@pytest.mark.asyncio
+async def test_a_whitespace_only_value_is_blank(db_session):
+    """Blank after a strip reads as the default, as an empty value does."""
+    db_session.add(Setting(key=_KEY, value="   "))
+    await db_session.commit()
+
+    assert await SettingsService.get_bool(db_session, _KEY, default=True) is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["off", " No ", "0", "enabled"])
+async def test_off_words_and_junk_beat_a_true_default(db_session, value):
+    """Regression guard: passes on main by design, and must keep passing under R5."""
+    db_session.add(Setting(key=_KEY, value=value))
+    await db_session.commit()
+
+    assert await SettingsService.get_bool(db_session, _KEY, default=True) is False
+
+
+@pytest.mark.asyncio
 async def test_a_saved_false_beats_a_true_default(db_session):
     db_session.add(Setting(key=_KEY, value="false"))
     await db_session.commit()

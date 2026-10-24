@@ -27,6 +27,7 @@ from app.constants.oidc import SSO_ACCOUNT_DISABLED, SSOError
 from app.exceptions import OIDCLoginRefusedError, PendingLinkRequiredError
 from app.models.audit_log import AuditLog
 from app.models.user import User
+from app.services.settings_service import parse_bool
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.unit_resolution import new_user_unit_kwargs
@@ -435,7 +436,8 @@ async def create_or_update_user_from_oidc(
         )
 
     # Step 4: no match. Refused like the others when auto-create is off, so it's audited too.
-    auto_create = config.get("auto_create_users", "true").lower() == "true"
+    # A missing setting falls back to "true", so on; a blank one is off (R4).
+    auto_create = parse_bool(config.get("auto_create_users", "true"), default=False)
     if not auto_create:
         logger.warning(
             "User not found for email %s and auto-create is disabled", sanitize_for_log(email)

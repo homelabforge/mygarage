@@ -425,8 +425,7 @@ async def finalize_pending_offlines():
 async def is_mqtt_enabled() -> bool:
     """Check if MQTT is enabled in settings."""
     async with AsyncSessionLocal() as db:
-        setting = await SettingsService.get(db, "livelink_mqtt_enabled")
-        return setting is not None and setting.value == "true"
+        return await SettingsService.get_bool(db, "livelink_mqtt_enabled", default=False)
 
 
 async def start_mqtt_subscriber() -> None:

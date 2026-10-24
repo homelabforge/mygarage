@@ -355,10 +355,7 @@ async def get_poi_providers(
         if not api_key_setting:
             continue  # Skip if no API key configured
 
-        enabled_setting = await SettingsService.get(db, f"{provider_name}_enabled")
-        enabled = bool(
-            enabled_setting and enabled_setting.value and enabled_setting.value.lower() == "true"
-        )
+        enabled = await SettingsService.get_bool(db, f"{provider_name}_enabled", default=False)
 
         # Get usage tracking
         usage_stats = await get_provider_usage(db, provider_name)

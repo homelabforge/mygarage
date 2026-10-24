@@ -23,9 +23,7 @@ router = APIRouter(prefix="/api/external-vehicles", tags=["external-vehicles"])
 
 async def _family_friends_enabled(db: AsyncSession) -> bool:
     """Return True when Family & Friends reference vehicles are enabled."""
-    setting = await SettingsService.get(db, "family_friends_enabled")
-    value = (setting.value if setting and setting.value is not None else "false").lower()
-    return value in ("true", "1", "yes")
+    return await SettingsService.get_bool(db, "family_friends_enabled", default=False)
 
 
 async def _require_family_friends_enabled(db: AsyncSession) -> None:

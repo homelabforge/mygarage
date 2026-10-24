@@ -37,7 +37,7 @@ from app.services.oidc.config import (
     checked_redirect_uri,
     effective_oidc_value,
 )
-from app.services.settings_service import SettingsService, reenter_message
+from app.services.settings_service import SettingsService, parse_bool, reenter_message
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.request_scheme import get_cookie_secure, get_external_base_url
@@ -242,7 +242,7 @@ async def get_oidc_config(db: AsyncSession = Depends(get_db)):
     config = await oidc_service.get_oidc_config(db)
 
     return OIDCConfigResponse(
-        enabled=config.get("enabled", "false").lower() == "true",
+        enabled=parse_bool(config.get("enabled"), default=False),
         provider_name=config.get("provider_name", ""),
         issuer_url=config.get("issuer_url", ""),
         client_id=config.get("client_id", ""),
@@ -287,7 +287,7 @@ async def get_oidc_admin_config(
     secret_row = await SettingsService.get(db, OIDC_CLIENT_SECRET_KEY)
     secret_unreadable = secret_row is not None and secret_row.unreadable
     return OIDCAdminConfigResponse(
-        enabled=config.get("enabled", "false").lower() == "true",
+        enabled=parse_bool(config.get("enabled"), default=False),
         provider_name=config.get("provider_name", ""),
         issuer_url=config.get("issuer_url", ""),
         client_id=config.get("client_id", ""),
@@ -299,7 +299,8 @@ async def get_oidc_admin_config(
         client_secret_unreadable=secret_unreadable,
         redirect_uri=config.get("redirect_uri", ""),
         scopes=effective_oidc_value(config, "scopes"),
-        auto_create_users=(config.get("auto_create_users", "true").lower() == "true"),
+        # Missing falls back to "true", so on; blank is off (R4), as at login.
+        auto_create_users=parse_bool(config.get("auto_create_users", "true"), default=False),
         admin_group=config.get("admin_group", ""),
         username_claim=effective_oidc_value(config, "username_claim"),
         email_claim=effective_oidc_value(config, "email_claim"),
@@ -387,7 +388,7 @@ async def oidc_login(
     config = await oidc_service.get_oidc_config(db)
 
     # Check if OIDC is enabled
-    if config.get("enabled", "false").lower() != "true":
+    if not parse_bool(config.get("enabled"), default=False):
         logger.warning("OIDC login started while OIDC authentication is not enabled")
         return _to_login(request, SSOError.FAILED)
 

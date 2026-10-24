@@ -18,7 +18,7 @@ from app.models.livelink_topic_map import LiveLinkTopicMap
 from app.models.vehicle_telemetry import VehicleTelemetry
 from app.schemas.livelink import DeviceStatusType, ECUStatusType
 from app.services.livelink_sources.presets.sensors import delete_sensor_readings
-from app.services.settings_service import SettingsService
+from app.services.settings_service import SettingsService, parse_bool
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.movement_keys import is_parked_heartbeat_key, is_speed_param_key
@@ -698,7 +698,7 @@ class LiveLinkService:
     async def is_enabled(self) -> bool:
         """Check if LiveLink is globally enabled."""
         setting = await SettingsService.get(self.db, "livelink_enabled")
-        return setting is not None and setting.value == "true"
+        return parse_bool(setting.value if setting is not None else None, default=False)
 
     async def get_session_timeout_minutes(self) -> int:
         """Get session timeout in minutes."""

@@ -60,16 +60,14 @@ class ShopDiscoveryService:
 
     async def _load_settings(self) -> None:
         """Load TomTom settings from database."""
-        # Get tomtom_enabled setting
-        enabled_setting = await SettingsService.get(self.db, "tomtom_enabled")
-        tomtom_enabled_str = (enabled_setting.value or "false") if enabled_setting else "false"
+        tomtom_switch = await SettingsService.get_bool(self.db, "tomtom_enabled", default=False)
 
         # Get tomtom_api_key setting
         key_setting = await SettingsService.get(self.db, "tomtom_api_key")
         self.tomtom_api_key = (key_setting.value or "") if key_setting else ""
 
         # Enable TomTom only if both settings are set correctly
-        self.tomtom_enabled = tomtom_enabled_str.lower() == "true" and bool(self.tomtom_api_key)
+        self.tomtom_enabled = tomtom_switch and bool(self.tomtom_api_key)
 
         if self.tomtom_enabled:
             logger.info(
@@ -94,7 +92,7 @@ class ShopDiscoveryService:
         else:
             logger.info(
                 "TomTom API disabled (enabled=%s, has_key=%s)",
-                tomtom_enabled_str,
+                tomtom_switch,
                 bool(self.tomtom_api_key),
             )
 

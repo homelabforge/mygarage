@@ -38,6 +38,35 @@ def reenter_message(label: str) -> str:
     return f"The stored {label} can't be decrypted; re-enter it"
 
 
+#: What an on/off setting reads as on, after a strip and lower-casing (R5).
+SWITCH_ON_VALUES: frozenset[str] = frozenset({"true", "1", "yes", "on"})
+
+#: What an on/off setting reads as off, after a strip and lower-casing (R5).
+#: ``parse_bool`` reads anything outside ``SWITCH_ON_VALUES`` as off anyway;
+#: this set names the words that mean off on purpose.
+SWITCH_OFF_VALUES: frozenset[str] = frozenset({"false", "0", "no", "off"})
+
+
+def parse_bool(text: str | None, default: bool) -> bool:
+    """Read an on/off setting's stored text with the one vocabulary (R5).
+
+    Args:
+        text: The stored value, or None when there is none.
+        default: What a missing or blank value means at this reader.
+
+    Returns:
+        ``default`` for None or text that is blank after a strip; True for a
+        word in ``SWITCH_ON_VALUES`` (true, 1, yes, on) in any case; False for
+        anything else, so an unknown word never turns a feature on.
+    """
+    if text is None:
+        return default
+    word = text.strip().lower()
+    if not word:
+        return default
+    return word in SWITCH_ON_VALUES
+
+
 class SettingsService:
     """Utility helpers for CRUD operations on Setting rows."""
 
@@ -77,16 +106,16 @@ class SettingsService:
 
     @staticmethod
     async def get_bool(db: AsyncSession, key: str, default: bool = False) -> bool:
-        """Whether a switch setting is on: "true", "1" or "yes", any case.
+        """Whether a switch setting is on, read by ``parse_bool``.
 
-        A missing row or an empty value reads as ``default``. Every on/off
-        setting in the app is read through here, so a value the notification
-        dispatcher treats as on is on everywhere.
+        On is "true", "1", "yes" or "on" (``SWITCH_ON_VALUES``), in any case
+        and with surrounding whitespace ignored. A missing row, or a value that
+        is blank after a strip, reads as ``default``; any other text is off.
+        Every on/off setting in the app is read with this vocabulary, so a
+        value the notification dispatcher treats as on is on everywhere.
         """
         setting = await SettingsService.get(db, key)
-        if setting is None or not setting.value:
-            return default
-        return setting.value.lower() in ("true", "1", "yes")
+        return parse_bool(setting.value if setting is not None else None, default)
 
     @staticmethod
     async def set(

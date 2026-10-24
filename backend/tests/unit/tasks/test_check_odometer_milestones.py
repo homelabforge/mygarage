@@ -310,6 +310,29 @@ class TestCheckOdometerMilestonesUnits:
 
         assert _messages_for(mock, _OWNED_NICKNAME) == [_EXPECTED_OWNER_MESSAGE]
 
+    async def test_a_stored_one_reads_as_the_toggle_on(
+        self,
+        patch_session,
+        enable_milestones,
+        metric_instance_default,
+        seeded_vehicles,
+        db_session: AsyncSession,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """R5: "1" is on. Written to the raw column, past any write path that might rewrite it."""
+        row = await db_session.get(Setting, "notify_milestones")
+        assert row is not None
+        row.stored_value = "1"
+        await db_session.commit()
+        mock = AsyncMock(return_value={"ntfy": True})
+        monkeypatch.setattr(
+            "app.services.notifications.dispatcher.NotificationDispatcher.dispatch", mock
+        )
+
+        await check_odometer_milestones()
+
+        assert _messages_for(mock, _OWNED_NICKNAME) == [_EXPECTED_OWNER_MESSAGE]
+
     async def test_ownerless_vehicle_falls_back_to_the_instance_default(
         self,
         patch_session,

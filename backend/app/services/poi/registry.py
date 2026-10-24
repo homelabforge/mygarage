@@ -42,12 +42,7 @@ class POIProviderRegistry:
         configs = []
 
         # Load TomTom configuration
-        tomtom_enabled_setting = await SettingsService.get(self.db, "tomtom_enabled")
-        tomtom_enabled = bool(
-            tomtom_enabled_setting
-            and tomtom_enabled_setting.value
-            and tomtom_enabled_setting.value.lower() == "true"
-        )
+        tomtom_enabled = await SettingsService.get_bool(self.db, "tomtom_enabled", default=False)
 
         tomtom_key_setting = await SettingsService.get(self.db, "tomtom_api_key")
         tomtom_api_key = (tomtom_key_setting.value or "") if tomtom_key_setting else ""
@@ -64,11 +59,8 @@ class POIProviderRegistry:
             logger.info("TomTom provider configured with priority 1")
 
         # Load Google Places configuration
-        google_enabled_setting = await SettingsService.get(self.db, "google_places_enabled")
-        google_enabled = bool(
-            google_enabled_setting
-            and google_enabled_setting.value
-            and google_enabled_setting.value.lower() == "true"
+        google_enabled = await SettingsService.get_bool(
+            self.db, "google_places_enabled", default=False
         )
 
         google_key_setting = await SettingsService.get(self.db, "google_places_api_key")
@@ -86,12 +78,7 @@ class POIProviderRegistry:
             logger.info("Google Places provider configured with priority 2")
 
         # Load Yelp configuration
-        yelp_enabled_setting = await SettingsService.get(self.db, "yelp_enabled")
-        yelp_enabled = bool(
-            yelp_enabled_setting
-            and yelp_enabled_setting.value
-            and yelp_enabled_setting.value.lower() == "true"
-        )
+        yelp_enabled = await SettingsService.get_bool(self.db, "yelp_enabled", default=False)
 
         yelp_key_setting = await SettingsService.get(self.db, "yelp_api_key")
         yelp_api_key = (yelp_key_setting.value or "") if yelp_key_setting else ""
@@ -108,11 +95,8 @@ class POIProviderRegistry:
             logger.info("Yelp provider configured with priority 3")
 
         # Load Foursquare configuration
-        foursquare_enabled_setting = await SettingsService.get(self.db, "foursquare_enabled")
-        foursquare_enabled = bool(
-            foursquare_enabled_setting
-            and foursquare_enabled_setting.value
-            and foursquare_enabled_setting.value.lower() == "true"
+        foursquare_enabled = await SettingsService.get_bool(
+            self.db, "foursquare_enabled", default=False
         )
 
         foursquare_key_setting = await SettingsService.get(self.db, "foursquare_api_key")

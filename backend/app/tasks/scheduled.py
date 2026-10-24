@@ -234,8 +234,7 @@ async def check_odometer_milestones() -> None:
                 return
 
             # Check if milestone notifications are enabled
-            milestones_enabled = await _get_setting(db, "notify_milestones", "false")
-            if milestones_enabled.lower() != "true":
+            if not await SettingsService.get_bool(db, "notify_milestones", default=False):
                 return
 
             # The owner comes WITH the vehicle: `Vehicle.user` is lazy, and
@@ -361,8 +360,7 @@ async def check_def_levels() -> None:
             if not await dispatcher._has_any_service_enabled():
                 return
 
-            notify_def_low = await _get_setting(db, "notify_def_low", "false")
-            if notify_def_low.lower() != "true":
+            if not await SettingsService.get_bool(db, "notify_def_low", default=False):
                 return
 
             threshold_percent = await _get_def_low_threshold_percent(db)
