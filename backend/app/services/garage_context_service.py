@@ -19,7 +19,7 @@ from app.models.tire import Tire
 from app.models.vehicle import TrailerDetails, Vehicle
 from app.models.vehicle_dtc import VehicleDTC
 from app.services.dtc_service import DTCService
-from app.utils.render_context import RenderContext, render_context_default
+from app.utils.render_context import RenderContext, render_context_default, with_vehicle
 from app.utils.unit_formatting import format_quantity
 
 # SAE-style OBD codes: P/B/C/U + 4 hex digits (e.g. P0420, B0001).
@@ -41,6 +41,15 @@ def _jsonable(value: Any) -> Any:
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return value
+
+
+def _measure(value: Decimal | None, ctx: RenderContext, quantity: str) -> str | None:
+    """A canonical reading as the string the model quotes, unit included.
+
+    None stays None rather than format_quantity's "N/A", so the model still
+    sees the field as missing and says so.
+    """
+    return None if value is None else format_quantity(value, ctx, quantity)
 
 
 def extract_dtc_codes(text: str) -> list[str]:
@@ -67,10 +76,11 @@ async def build_garage_context(
     Pure DB reads — no LLM call. Truncates deterministically to stay under
     ``_MAX_CONTEXT_CHARS`` when serialized.
 
-    :param ctx: Whose units the reader reads in. The unit-bearing maintenance
-        specs are ALSO rendered as finished strings under
-        ``maintenance_specs.display``, so the model quotes a value instead of
-        converting one. Defaults to the instance default when omitted.
+    :param ctx: Whose units the reader reads in. Every measurement goes out
+        as a finished string in those units, with the vehicle's own odometer
+        unit laid on top, and the canonical number is never sent: a model
+        handed both quotes whichever it likes (#237). Defaults to the instance
+        default when omitted.
     """
     vin = vin.upper().strip()
     vehicle = await db.get(Vehicle, vin)
@@ -79,6 +89,7 @@ async def build_garage_context(
 
     if ctx is None:
         ctx = await render_context_default(db)
+    ctx = with_vehicle(ctx, vehicle)
 
     dtc_service = DTCService(db)
 
@@ -212,22 +223,13 @@ async def build_garage_context(
             "drive_type": vehicle.drive_type,
             "tire_specs": vehicle.tire_specs,
             "wheel_specs": vehicle.wheel_specs,
-            "def_tank_capacity_liters": _jsonable(vehicle.def_tank_capacity_liters),
+            "def_tank_capacity": _measure(vehicle.def_tank_capacity_liters, ctx, "volume"),
         },
         "maintenance_specs": {
             "oil_viscosity": vehicle.oil_viscosity,
-            "oil_capacity_liters": _jsonable(vehicle.oil_capacity_liters),
+            "oil_capacity": _measure(vehicle.oil_capacity_liters, ctx, "volume"),
             "oil_filter_part_number": vehicle.oil_filter_part_number,
-            "lug_nut_torque_nm": _jsonable(vehicle.lug_nut_torque_nm),
-            # Canonical liters/Nm stay above for anything that compares them;
-            # these are what the model is told to quote. Rendering here rather
-            # than naming units in the prompt is deliberate: the prompt cannot
-            # know whether this reader uses Nm or lb-ft, and a model asked to
-            # convert is a model doing arithmetic on a torque spec.
-            "display": {
-                "oil_capacity": format_quantity(vehicle.oil_capacity_liters, ctx, "volume"),
-                "lug_nut_torque": format_quantity(vehicle.lug_nut_torque_nm, ctx, "torque"),
-            },
+            "lug_nut_torque": _measure(vehicle.lug_nut_torque_nm, ctx, "torque"),
             "coolant_type": vehicle.coolant_type,
             "brake_fluid_type": vehicle.brake_fluid_type,
             "transmission_fluid_type": vehicle.transmission_fluid_type,
@@ -236,7 +238,7 @@ async def build_garage_context(
         "service_visits": [
             {
                 "date": _jsonable(v.date),
-                "odometer_km": _jsonable(v.odometer_km),
+                "odometer": _measure(v.odometer_km, ctx, "distance"),
                 "engine_hours": _jsonable(v.engine_hours),
                 "total_cost": _jsonable(v.total_cost),
                 "service_category": v.service_category,
@@ -277,8 +279,8 @@ async def build_garage_context(
                 "brand": t.brand,
                 "model_name": t.model_name,
                 "size": t.size,
-                "pressure_kpa": _jsonable(t.pressure_kpa),
-                "tread_depth_mm": _jsonable(t.tread_depth_mm),
+                "pressure": _measure(t.pressure_kpa, ctx, "pressure"),
+                "tread_depth": _measure(t.tread_depth_mm, ctx, "tread"),
             }
             for t in tires
         ],
@@ -287,7 +289,7 @@ async def build_garage_context(
                 "title": r.title,
                 "reminder_type": r.reminder_type,
                 "due_date": _jsonable(r.due_date),
-                "due_mileage_km": _jsonable(r.due_mileage_km),
+                "due_mileage": _measure(r.due_mileage_km, ctx, "distance"),
                 "due_hours": _jsonable(r.due_hours),
                 "notes": (r.notes or "")[:200] or None,
             }
@@ -302,13 +304,13 @@ async def build_garage_context(
 
     if trailer is not None:
         context["trailer"] = {
-            "gvwr_kg": _jsonable(trailer.gvwr_kg),
+            "gvwr": _measure(trailer.gvwr_kg, ctx, "mass"),
             "hitch_type": trailer.hitch_type,
             "axle_count": trailer.axle_count,
             "brake_type": trailer.brake_type,
-            "length_m": _jsonable(trailer.length_m),
-            "width_m": _jsonable(trailer.width_m),
-            "height_m": _jsonable(trailer.height_m),
+            "length": _measure(trailer.length_m, ctx, "length"),
+            "width": _measure(trailer.width_m, ctx, "length"),
+            "height": _measure(trailer.height_m, ctx, "length"),
             "tow_vehicle_vin": trailer.tow_vehicle_vin,
         }
 
