@@ -250,6 +250,12 @@ _JUST_UNDER_7 = timedelta(days=6, hours=22)
         pytest.param("7", partial(_ago, -timedelta(days=2)), True, id="future-2-days"),
         pytest.param("7", _literal(""), True, id="guard-blank-last-check"),
         pytest.param("7", _literal("last tuesday"), True, id="guard-unparseable-last-check"),
+        pytest.param(
+            "7", _literal("0001-01-01T00:00:00+01:00"), True, id="aware-before-year-1-in-utc"
+        ),
+        pytest.param(
+            "7", _literal("9999-12-31T23:59:59-01:00"), True, id="aware-after-year-9999-in-utc"
+        ),
     ],
 )
 async def test_the_check_runs_only_when_the_interval_is_due(
@@ -268,7 +274,10 @@ async def test_the_check_runs_only_when_the_interval_is_due(
     covers `timedelta` overflowing, which would fail every run. A last check
     in the future (a wrong clock, a restored backup) is due rather than
     blocking checks until that date. The blank and unparseable last-check
-    rows are regression guards: main ran those too. Times are taken when the
+    rows are regression guards: main ran those too. The two aware stamps at
+    the calendar's edges parse but fall outside it in UTC; they are due too,
+    rather than failing the job every day (red before the fix wave, which
+    caught only `ValueError` around the conversion). Times are taken when the
     test runs, not when it's collected, so a long suite can't age a negative
     row past its boundary.
     """
@@ -310,6 +319,32 @@ async def test_a_future_last_check_logs_one_warning(
     assert "future" in warnings[0].getMessage()
 
 
+async def test_a_last_check_outside_the_calendar_in_utc_logs_one_warning(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A stamp that overflows on the way to UTC is reported like an
+    unparseable one, as a WARNING, and the job carries on rather than ending
+    in "NHTSA recall check failed". Red before the fix wave."""
+    await make_vehicle()
+    await _store(
+        db_session,
+        nhtsa_enabled="true",
+        nhtsa_auto_check="true",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="9999-12-31T23:59:59-01:00",
+    )
+    caplog.set_level("WARNING", logger="app.tasks.scheduled")
+
+    await check_recalls_all_vehicles()
+
+    records = [r for r in caplog.records if r.name == "app.tasks.scheduled"]
+    assert [r.levelname for r in records] == ["WARNING"], [r.getMessage() for r in records]
+    assert "9999-12-31T23:59:59-01:00" in records[0].getMessage()
+
+
 # --- outages, through the real NHTSAService ----------------------------------
 
 
@@ -334,6 +369,8 @@ class _FakeNHTSA:
             raise httpx.ReadTimeout("timed out", request=request)
         if how == "503":
             return httpx.Response(503, request=request, text="Service Unavailable")
+        if how == "decoding-error":
+            raise httpx.DecodingError("bad gzip stream", request=request)
         raise AssertionError(how)
 
     def answer(self, url: str) -> httpx.Response:
@@ -402,6 +439,8 @@ async def _recall_rows(db: AsyncSession, vehicle: Vehicle) -> int:
         pytest.param("recalls", "timeout", id="recalls-timeout"),
         pytest.param("recalls", "503", id="recalls-503"),
         pytest.param("decode", "timeout", id="decode-timeout"),
+        pytest.param("recalls", "decoding-error", id="recalls-decoding-error"),
+        pytest.param("decode", "decoding-error", id="decode-decoding-error"),
     ],
 )
 async def test_an_outage_leaves_the_last_check_alone(
@@ -417,7 +456,10 @@ async def test_an_outage_leaves_the_last_check_alone(
     Main swallowed the error, wrote `nhtsa_last_check` and so waited a whole
     interval: red. The other vehicle's new recall is still stored (the pass
     commits), and the next tick, still due, neither stores nor announces it
-    a second time.
+    a second time. The decoding-error rows (a body httpx can't decode, such
+    as a maintenance page with a bad Content-Encoding) were red before the fix
+    wave too: the decode step counted the vehicle as checked and the recalls
+    step fell through to the generic handler, so the clock advanced either way.
     """
     failing = await make_vehicle()
     healthy = await make_vehicle()
@@ -444,6 +486,46 @@ async def test_an_outage_leaves_the_last_check_alone(
     assert any(healthy.vin in url for url in nhtsa.requested), "the next tick was not due"
     assert await _recall_rows(db_session, healthy) == 1
     assert _notified(notify, healthy) == 1
+
+
+async def test_an_outage_still_waits_between_vehicles(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    nhtsa: _FakeNHTSA,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The two seconds between vehicles hold when NHTSA is down for one, so
+    a down NHTSA isn't sent the rest of the fleet back to back.
+
+    The pass order isn't pinned and other modules' vehicles may join the
+    sweep, so the test asserts that the failed request is followed by a
+    wait, not a count. Red before the fix wave: the wait was the last line of
+    the per-vehicle `try`, which the outage skipped.
+    """
+    failing = await make_vehicle()
+    healthy = await make_vehicle()
+    nhtsa.models = {failing.vin: "FailingModel", healthy.vin: "HealthyModel"}
+    nhtsa.fail = (failing.vin, "decode", "timeout")
+    events = nhtsa.requested
+
+    async def fake_sleep(seconds: float) -> None:
+        events.append(f"sleep {seconds}")
+
+    monkeypatch.setattr("app.tasks.scheduled.asyncio.sleep", fake_sleep)
+    await _store(
+        db_session,
+        nhtsa_enabled="true",
+        nhtsa_auto_check="true",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+    )
+
+    await check_recalls_all_vehicles()
+
+    failed_at = next(
+        i for i, event in enumerate(events) if "/DecodeVinValues/" in event and failing.vin in event
+    )
+    assert events[failed_at + 1 : failed_at + 2] == ["sleep 2"], events
 
 
 async def _assert_advanced(db: AsyncSession) -> None:

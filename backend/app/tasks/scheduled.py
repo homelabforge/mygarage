@@ -482,18 +482,19 @@ async def _recall_check_due(db: AsyncSession, now: datetime) -> bool:
     """Whether the scheduled recall check should query NHTSA at `now`.
 
     Due when nhtsa_last_check is blank, doesn't parse as an ISO timestamp
-    (naive is read as UTC), lies more than RECALL_CHECK_SLACK after `now` (a
-    wrong clock at one run, or a restored backup), or is at least the
-    interval, less RECALL_CHECK_SLACK, before `now`.
+    (naive is read as UTC), falls outside the calendar once converted to UTC
+    (an aware stamp at year 1 or 9999), lies more than RECALL_CHECK_SLACK
+    after `now` (a wrong clock at one run, or a restored backup), or is at
+    least the interval, less RECALL_CHECK_SLACK, before `now`.
     """
     raw = (await _get_setting(db, "nhtsa_last_check")).strip()
     if not raw:
         return True
     try:
         last = to_naive_utc(datetime.fromisoformat(raw))
-    except ValueError:
+    except ValueError, OverflowError:
         logger.warning(
-            "nhtsa_last_check %s is not a timestamp; checking recalls now",
+            "nhtsa_last_check %s is not a usable timestamp; checking recalls now",
             sanitize_for_log(raw),
         )
         return True
@@ -601,9 +602,6 @@ async def check_recalls_all_vehicles() -> None:
                             vehicle_name,
                         )
 
-                    # Rate limit: 2 seconds between vehicles
-                    await asyncio.sleep(2)
-
                 except NHTSAUnavailableError as e:
                     outage = True
                     logger.warning(
@@ -623,6 +621,12 @@ async def check_recalls_all_vehicles() -> None:
                         vehicle.vin,
                         str(e),
                     )
+
+                # Rate limit: 2 seconds between vehicles, whatever NHTSA
+                # answered, so an outage isn't sent the fleet back to back.
+                # After the handlers rather than in a `finally`, so a
+                # cancelled job stops at once.
+                await asyncio.sleep(2)
 
             # The commit always runs: recalls found this pass were announced
             # already. Only the timestamp waits for a pass NHTSA fully answered.

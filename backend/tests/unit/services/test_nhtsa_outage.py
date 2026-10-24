@@ -1,9 +1,10 @@
 """`get_vehicle_recalls(raise_on_error=True)`: an NHTSA outage is not "no recalls".
 
 The scheduled recall check asks for this so it can leave `nhtsa_last_check`
-alone when NHTSA didn't answer. A timeout, any other transport error, an HTTP
-error status or a 200 whose body isn't JSON raises `NHTSAUnavailableError`
-from the vPIC decode and from the recalls fetch alike. A VIN vPIC can't
+alone when NHTSA didn't answer. A timeout, any other transport error, a body
+httpx can't decode, a redirect loop, an HTTP error status or a 200 whose body
+isn't JSON raises `NHTSAUnavailableError` from the vPIC decode and from the
+recalls fetch alike. A VIN vPIC can't
 resolve is still a `ValueError`: that vehicle can't be checked, which no
 retry fixes. Without the flag (the manual check) nothing changes.
 
@@ -38,6 +39,10 @@ def _failure(request: httpx.Request, how: str) -> httpx.Response:
         raise httpx.ReadTimeout("timed out", request=request)
     if how == "read-error":
         raise httpx.ReadError("connection reset", request=request)
+    if how == "decoding-error":
+        raise httpx.DecodingError("bad gzip stream", request=request)
+    if how == "too-many-redirects":
+        raise httpx.TooManyRedirects("redirect loop", request=request)
     if how == "503":
         return httpx.Response(503, request=request, text=MAINTENANCE_PAGE)
     if how == "not-json":
@@ -65,20 +70,26 @@ def _serve(monkeypatch: pytest.MonkeyPatch, *, step: str | None, how: str = "") 
 _ORIGINAL = {
     "timeout": httpx.TransportError,
     "read-error": httpx.TransportError,
+    "decoding-error": httpx.DecodingError,
+    "too-many-redirects": httpx.TooManyRedirects,
     "503": httpx.HTTPStatusError,
     "not-json": ValueError,
 }
 
 
 @pytest.mark.parametrize("step", ["decode", "recalls"])
-@pytest.mark.parametrize("how", ["timeout", "read-error", "503", "not-json"])
+@pytest.mark.parametrize("how", list(_ORIGINAL))
 async def test_an_outage_raises_unavailable_when_asked(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, step: str, how: str
 ) -> None:
     """Every outage shape, at either step, is `NHTSAUnavailableError`, chained
     from the original error and carrying none of the response body.
 
-    Red on main: there was no such error and no `raise_on_error`.
+    Red on main: there was no such error and no `raise_on_error`. The
+    decoding-error and too-many-redirects rows were also red on the branch
+    before the fix wave, whose outage set was `httpx.TransportError`: those
+    two are `httpx.RequestError`s outside it, so the decode step wrapped them
+    as a `ValueError` and the recalls step let them escape unclassified.
     """
     unavailable = nhtsa_module.NHTSAUnavailableError
     _serve(monkeypatch, step=step, how=how)
@@ -124,3 +135,20 @@ async def test_by_default_a_decode_timeout_is_still_a_value_error(
 
     with pytest.raises(ValueError, match="Could not decode VIN"):
         await NHTSAService().get_vehicle_recalls(VIN, db_session)
+
+
+@pytest.mark.parametrize("step", ["decode", "recalls"])
+async def test_by_default_a_decoding_error_is_not_unavailable(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, step: str
+) -> None:
+    """Regression guard: without the flag a body httpx can't decode is what it
+    always was, a `ValueError` from the decode step and the httpx error itself
+    from the recalls fetch, never `NHTSAUnavailableError`."""
+    unavailable = nhtsa_module.NHTSAUnavailableError
+    expected = ValueError if step == "decode" else httpx.DecodingError
+    _serve(monkeypatch, step=step, how="decoding-error")
+
+    with pytest.raises(expected) as caught:
+        await NHTSAService().get_vehicle_recalls(VIN, db_session)
+
+    assert not isinstance(caught.value, unavailable)

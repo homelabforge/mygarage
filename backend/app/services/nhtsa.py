@@ -27,10 +27,11 @@ RECALLS_BY_VEHICLE_PATH = "/recallsByVehicle"
 class NHTSAUnavailableError(Exception):
     """NHTSA didn't answer usably, so a recall lookup says nothing.
 
-    Raised by `get_vehicle_recalls(raise_on_error=True)` for a transport error
-    (timeouts, connect, read, protocol and proxy errors), any HTTP error
-    status, or a 200 whose body isn't JSON (a maintenance page), from the vPIC
-    decode and the recalls fetch alike. Chained from the original error; the
+    Raised by `get_vehicle_recalls(raise_on_error=True)` for any httpx request
+    error (timeouts, connect, read, protocol and proxy errors, a body httpx
+    can't decode, too many redirects), any HTTP error status, or a 200 whose
+    body isn't JSON (a maintenance page), from the vPIC decode and the
+    recalls fetch alike. Chained from the original error; the
     message names the API and the error type only, never the response body.
     """
 
@@ -45,10 +46,13 @@ class _VPICBodyNotJSONError(ValueError):
 
 
 #: What `get_vehicle_recalls(raise_on_error=True)` reads as NHTSA being down.
+#: RequestError, not just TransportError: DecodingError (a page served with a
+#: bad Content-Encoding) and TooManyRedirects are request errors outside
+#: TransportError, and either one is NHTSA not answering usably.
 #: Every HTTPStatusError counts, 4xx included (ruling F2-1): a permanent 4xx
 #: for one model re-queries the fleet daily, which is noisy but misses nothing.
 _OUTAGE_ERRORS: tuple[type[Exception], ...] = (
-    httpx.TransportError,
+    httpx.RequestError,
     httpx.HTTPStatusError,
     json.JSONDecodeError,
     _VPICBodyNotJSONError,
@@ -290,7 +294,7 @@ class NHTSAService:
             ValueError: If VIN is invalid or vehicle info cannot be decoded
             NHTSAUnavailableError: Only with raise_on_error, when NHTSA times
                 out, can't be reached, answers an HTTP error, or answers a
-                body that isn't JSON
+                body that can't be decoded or isn't JSON
         """
         # Empty unless asked, so `except ()` matches nothing and the manual
         # check keeps the fallbacks below.
