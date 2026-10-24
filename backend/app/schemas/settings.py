@@ -159,8 +159,10 @@ class UploadLimitsResponse(BaseModel):
     """The upload limits in force, for the Settings Files tab (read-only).
 
     The sizes come from `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments)
-    and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents); each kind's file types are
-    fixed in code.
+    and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents). Each kind's file types
+    come from the server's configuration, not from Settings: defaults in code,
+    which the environment can override within what the MIME and content
+    checks accept.
     """
 
     photos: UploadKindLimits

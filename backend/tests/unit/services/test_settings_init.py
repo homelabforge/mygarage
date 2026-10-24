@@ -158,9 +158,10 @@ class TestDefaultSettingLogLine:
         assert f"Added default setting: oidc_provider_name = {plain_default}" in caplog.text
 
 
-# Seeded, and read by nothing (batch 5, Task 5): uploads follow the environment
-# and each kind's fixed list in code, and the three display settings were never
-# read at all.
+# Seeded, and read by nothing (batch 5, Task 5): uploads follow the server's
+# configuration (sizes from the environment, each kind's file types from
+# defaults in code the environment can override), and the three display
+# settings were never read at all.
 RETIRED_SEED_KEYS = (
     "max_upload_size_mb",
     "allowed_photo_types",

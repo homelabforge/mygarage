@@ -3833,8 +3833,10 @@ export interface paths {
          *
          *     Read from the configs the upload validators use, so it reports what an
          *     upload is actually checked against. The sizes are set by
-         *     `MYGARAGE_MAX_UPLOAD_SIZE_MB` and `MYGARAGE_MAX_DOCUMENT_SIZE_MB`; each
-         *     kind's file types are fixed in code.
+         *     `MYGARAGE_MAX_UPLOAD_SIZE_MB` and `MYGARAGE_MAX_DOCUMENT_SIZE_MB`. Each
+         *     kind's file types come from the server's configuration, not from
+         *     Settings: defaults in code, which the environment can override within
+         *     what the MIME and content checks accept.
          */
         get: operations["get_upload_limits_api_settings_upload_limits_get"];
         put?: never;
@@ -18348,8 +18350,10 @@ export interface components {
          * @description The upload limits in force, for the Settings Files tab (read-only).
          *
          *     The sizes come from `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments)
-         *     and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents); each kind's file types are
-         *     fixed in code.
+         *     and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents). Each kind's file types
+         *     come from the server's configuration, not from Settings: defaults in code,
+         *     which the environment can override within what the MIME and content
+         *     checks accept.
          */
         UploadLimitsResponse: {
             attachments: components["schemas"]["UploadKindLimits"];

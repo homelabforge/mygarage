@@ -739,8 +739,10 @@ async def get_upload_limits(
 
     Read from the configs the upload validators use, so it reports what an
     upload is actually checked against. The sizes are set by
-    `MYGARAGE_MAX_UPLOAD_SIZE_MB` and `MYGARAGE_MAX_DOCUMENT_SIZE_MB`; each
-    kind's file types are fixed in code.
+    `MYGARAGE_MAX_UPLOAD_SIZE_MB` and `MYGARAGE_MAX_DOCUMENT_SIZE_MB`. Each
+    kind's file types come from the server's configuration, not from
+    Settings: defaults in code, which the environment can override within
+    what the MIME and content checks accept.
     """
     return UploadLimitsResponse(
         photos=_upload_kind_limits(PHOTO_UPLOAD_CONFIG),

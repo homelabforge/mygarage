@@ -25993,7 +25993,7 @@
         "type": "object"
       },
       "UploadLimitsResponse": {
-        "description": "The upload limits in force, for the Settings Files tab (read-only).\n\nThe sizes come from `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments)\nand `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents); each kind's file types are\nfixed in code.",
+        "description": "The upload limits in force, for the Settings Files tab (read-only).\n\nThe sizes come from `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments)\nand `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents). Each kind's file types\ncome from the server's configuration, not from Settings: defaults in code,\nwhich the environment can override within what the MIME and content\nchecks accept.",
         "properties": {
           "attachments": {
             "$ref": "#/components/schemas/UploadKindLimits"
@@ -42280,7 +42280,7 @@
     },
     "/api/settings/upload-limits": {
       "get": {
-        "description": "The upload limits in force, read-only (admin only).\n\nRead from the configs the upload validators use, so it reports what an\nupload is actually checked against. The sizes are set by\n`MYGARAGE_MAX_UPLOAD_SIZE_MB` and `MYGARAGE_MAX_DOCUMENT_SIZE_MB`; each\nkind's file types are fixed in code.",
+        "description": "The upload limits in force, read-only (admin only).\n\nRead from the configs the upload validators use, so it reports what an\nupload is actually checked against. The sizes are set by\n`MYGARAGE_MAX_UPLOAD_SIZE_MB` and `MYGARAGE_MAX_DOCUMENT_SIZE_MB`. Each\nkind's file types come from the server's configuration, not from\nSettings: defaults in code, which the environment can override within\nwhat the MIME and content checks accept.",
         "operationId": "get_upload_limits_api_settings_upload_limits_get",
         "responses": {
           "200": {

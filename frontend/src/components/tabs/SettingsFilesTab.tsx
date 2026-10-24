@@ -20,7 +20,11 @@ type SettingsResponse = {
 type UploadLimits = components['schemas']['UploadLimitsResponse']
 type UploadKindLimits = components['schemas']['UploadKindLimits']
 
-/** The env vars that set the upload sizes; the file types are fixed in code. */
+/**
+ * The env vars that set the upload sizes. The file types come from the
+ * server's configuration too (defaults in code, overridable by env), not from
+ * Settings.
+ */
 const UPLOAD_SIZE_ENV = 'MYGARAGE_MAX_UPLOAD_SIZE_MB'
 const DOCUMENT_SIZE_ENV = 'MYGARAGE_MAX_DOCUMENT_SIZE_MB'
 
