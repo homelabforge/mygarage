@@ -451,7 +451,11 @@ export default function WindowStickerUpload({
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Upload className="w-4 h-4" />
-                {uploading ? t('windowSticker.uploading') : t('windowSticker.uploadAndExtract')}
+                {uploading
+                  ? t('windowSticker.uploading')
+                  : ocrOn
+                    ? t('windowSticker.uploadAndExtract')
+                    : t('windowSticker.upload')}
               </button>
             </div>
           </>

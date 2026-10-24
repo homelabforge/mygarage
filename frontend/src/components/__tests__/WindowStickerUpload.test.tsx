@@ -283,7 +283,8 @@ describe('WindowStickerUpload: the sticker and OCR switches', () => {
   const upload = async (user: ReturnType<typeof userEvent.setup>): Promise<void> => {
     const input = document.querySelector('input[type="file"]') as HTMLInputElement
     await user.upload(input, new File(['%PDF-1.4'], 'sticker.pdf', { type: 'application/pdf' }))
-    await user.click(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' }))
+    // Every caller switches OCR off, so the button offers a plain upload.
+    await user.click(screen.getByRole('button', { name: 'windowSticker.upload' }))
     await screen.findByRole('button', { name: 'windowSticker.misc.saveData' })
   }
 
@@ -292,8 +293,20 @@ describe('WindowStickerUpload: the sticker and OCR switches', () => {
     render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
 
     expect(await screen.findByText('windowSticker.ocrSwitchedOff')).toBeInTheDocument()
-    // The upload itself is still offered.
+    // The upload itself is still offered, as a plain upload: nothing is extracted.
+    expect(screen.getByRole('button', { name: 'windowSticker.upload' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'windowSticker.uploadAndExtract' })).not.toBeInTheDocument()
+  })
+
+  // Regression guard: with OCR on the button still offers to extract.
+  it('with OCR on, the upload button offers to extract the data', async () => {
+    switches({ window_sticker_ocr_enabled: 'true' })
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+
+    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledWith('/settings/public'))
     expect(screen.getByRole('button', { name: 'windowSticker.uploadAndExtract' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'windowSticker.upload' })).not.toBeInTheDocument()
+    expect(screen.queryByText('windowSticker.ocrSwitchedOff')).not.toBeInTheDocument()
   })
 
   it('with OCR off, a sticker on file offers no keep choice: an unscanned upload changes no field', async () => {
