@@ -22,6 +22,7 @@ from app.services.auth import (
     get_vehicle_or_403,
     require_auth,
 )
+from app.services.settings_service import SettingsService
 from app.services.window_sticker_ocr import WindowStickerOCRService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -37,6 +38,23 @@ STICKER_STORAGE_PATH = settings.documents_dir
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+# The Settings > Files switches. Off stops new stickers and scans only: the
+# sticker on file can still be read, downloaded, edited and deleted (Fable F-12).
+STICKERS_SWITCHED_OFF = "Window sticker uploads are switched off in Settings > Files"
+OCR_SWITCHED_OFF = "Window sticker OCR is switched off in Settings > Files"
+
+
+async def _require_stickers_on(db: AsyncSession) -> None:
+    """409 when `window_sticker_enabled` is off. Call it after the access check,
+    so a caller who can't reach the vehicle learns nothing about the switch."""
+    if not await SettingsService.get_bool(db, "window_sticker_enabled", True):
+        raise HTTPException(status_code=409, detail=STICKERS_SWITCHED_OFF)
+
+
+async def _ocr_on(db: AsyncSession) -> bool:
+    """Whether `window_sticker_ocr_enabled` is on (missing or blank reads as on)."""
+    return await SettingsService.get_bool(db, "window_sticker_ocr_enabled", True)
 
 
 # Numeric(5,2) on the vehicle row.
@@ -213,6 +231,8 @@ class WindowStickerResponse(BaseModel):
     window_sticker_extracted_vin: str | None
     # Only the upload sets it: the scan found no sticker field, or OCR failed.
     scan_read_nothing: bool = False
+    # Only the upload sets it: OCR is switched off, so the file was stored unscanned.
+    ocr_skipped: bool = False
 
     class Config:
         from_attributes = True
@@ -313,9 +333,16 @@ async def upload_window_sticker(
     sticker already on file, the old sticker's fields are cleared first. A scan
     that read nothing changes no field and says so in `scan_read_nothing`.
     Extracted data can be edited via the PATCH endpoint.
+
+    With `window_sticker_enabled` off this is a 409. With
+    `window_sticker_ocr_enabled` off the file is stored without a scan: no
+    field is filled or cleared, the scan metadata empties, and the response
+    says so in `ocr_skipped`.
     """
     # Window-sticker upload mutates the vehicle row (incl. vehicle.color) -> OWNER-only (D-8).
     vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
+    await _require_stickers_on(db)
+    ocr_skipped = not await _ocr_on(db)
 
     # Validate file
     validate_sticker_file(file)
@@ -361,29 +388,38 @@ async def upload_window_sticker(
         raise HTTPException(status_code=500, detail="Failed to save file")
 
     try:
+        extracted_data: dict[str, Any] = {}
         ocr_failed = False
-        try:
-            extracted_data = await WindowStickerOCRService().extract_data_from_file(
-                str(file_path), vin=vin, make=vehicle.make
-            )
-            logger.info("Extracted %d fields from window sticker", len(extracted_data))
-        except Exception as e:
-            logger.error("OCR extraction failed: %s", sanitize_for_log(e))
-            extracted_data, ocr_failed = {}, True
+        if ocr_skipped:
+            logger.info("Window sticker OCR is switched off; stored the file unscanned")
+        else:
+            try:
+                extracted_data = await WindowStickerOCRService().extract_data_from_file(
+                    str(file_path), vin=vin, make=vehicle.make
+                )
+                logger.info("Extracted %d fields from window sticker", len(extracted_data))
+            except Exception as e:
+                logger.error("OCR extraction failed: %s", sanitize_for_log(e))
+                ocr_failed = True
         _drop_numbers_that_cannot_be_stored(extracted_data)
-        scan_read_nothing = ocr_failed or not any(f in extracted_data for f in STICKER_DATA_FIELDS)
+        # No scan ran when OCR is off, so it can't have read nothing.
+        scan_read_nothing = not ocr_skipped and (
+            ocr_failed or not any(f in extracted_data for f in STICKER_DATA_FIELDS)
+        )
 
         # D1 (2026-08-01): a scan fills empty fields only, so values typed by
         # hand or corrected in the review survive a re-upload. `replace` clears
-        # first, but never on a scan that read nothing (it would just erase).
+        # first, but never on a scan that read nothing (it would just erase),
+        # nor on a file OCR never scanned (nothing would take their place).
         # `old_path`: replace means replacing a sticker; with none on file it
         # would only erase values typed through PATCH (Fable F-6).
-        if replace and old_path and not scan_read_nothing:
+        if replace and old_path and not ocr_skipped and not scan_read_nothing:
             for field in STICKER_DATA_FIELDS:
                 setattr(vehicle, field, None)
         for field in STICKER_DATA_FIELDS:
             if field in extracted_data and _is_empty_sticker_value(getattr(vehicle, field)):
                 setattr(vehicle, field, _fit_to_column(field, extracted_data[field]))
+        # Unscanned (OCR off) included: these describe the file on record.
         for field in STICKER_SCAN_FIELDS:  # None passes _fit_to_column untouched
             setattr(vehicle, field, _fit_to_column(field, extracted_data.get(field)))
         # From the colour the row ends up with: keep mode may have kept a typed
@@ -409,6 +445,7 @@ async def upload_window_sticker(
     await db.refresh(vehicle)
     response = WindowStickerResponse.model_validate(vehicle)
     response.scan_read_nothing = scan_read_nothing
+    response.ocr_skipped = ocr_skipped
     return response
 
 
@@ -424,11 +461,15 @@ async def test_window_sticker_extraction(
     Test window sticker extraction without saving.
 
     Returns detailed extraction results including raw text,
-    parsed data, validation warnings, and debug information.
+    parsed data, validation warnings, and debug information. A 409 when
+    window stickers or their OCR are switched off.
     """
     # Dry-run OCR test: reads the vehicle but persists nothing, so read access
     # (incl. a read-share) is sufficient.
     vehicle = await get_vehicle_or_403(vin, current_user, db)  # tripwire: read-only
+    await _require_stickers_on(db)
+    if not await _ocr_on(db):
+        raise HTTPException(status_code=409, detail=OCR_SWITCHED_OFF)
 
     # Validate file
     validate_sticker_file(file)

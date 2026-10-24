@@ -33147,6 +33147,11 @@
             ],
             "title": "Msrp Total"
           },
+          "ocr_skipped": {
+            "default": false,
+            "title": "Ocr Skipped",
+            "type": "boolean"
+          },
           "optional_equipment": {
             "anyOf": [
               {
@@ -54520,7 +54525,7 @@
     },
     "/api/vehicles/{vin}/window-sticker/test": {
       "post": {
-        "description": "Test window sticker extraction without saving.\n\nReturns detailed extraction results including raw text,\nparsed data, validation warnings, and debug information.",
+        "description": "Test window sticker extraction without saving.\n\nReturns detailed extraction results including raw text,\nparsed data, validation warnings, and debug information. A 409 when\nwindow stickers or their OCR are switched off.",
         "operationId": "test_window_sticker_extraction_api_vehicles__vin__window_sticker_test_post",
         "parameters": [
           {
@@ -54596,7 +54601,7 @@
     },
     "/api/vehicles/{vin}/window-sticker/upload": {
       "post": {
-        "description": "Upload a window sticker file and extract data using OCR.\n\nThe scan fills only the sticker fields that are empty. With `replace` and a\nsticker already on file, the old sticker's fields are cleared first. A scan\nthat read nothing changes no field and says so in `scan_read_nothing`.\nExtracted data can be edited via the PATCH endpoint.",
+        "description": "Upload a window sticker file and extract data using OCR.\n\nThe scan fills only the sticker fields that are empty. With `replace` and a\nsticker already on file, the old sticker's fields are cleared first. A scan\nthat read nothing changes no field and says so in `scan_read_nothing`.\nExtracted data can be edited via the PATCH endpoint.\n\nWith `window_sticker_enabled` off this is a 409. With\n`window_sticker_ocr_enabled` off the file is stored without a scan: no\nfield is filled or cleared, the scan metadata empties, and the response\nsays so in `ocr_skipped`.",
         "operationId": "upload_window_sticker_api_vehicles__vin__window_sticker_upload_post",
         "parameters": [
           {

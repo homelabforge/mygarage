@@ -6,7 +6,7 @@ Tests window sticker OCR and file management endpoints.
 
 import logging
 import string
-from collections.abc import AsyncGenerator, Iterator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from decimal import Decimal
@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.vehicle import Vehicle
 from app.routes import window_sticker as window_sticker_route
+from app.services.settings_service import SettingsService
 from tests.integration.routes._legacy_reads import read_ok
 
 
@@ -371,6 +372,19 @@ async def _upload_with_ocr(
 ) -> Response:
     """Upload a sticker whose OCR returns `parsed`, or raises it when it's an
     exception. `replace` sends the field the drawer sends with "keep" off."""
+    response, _ = await _upload_watching_ocr(client, headers, vin, parsed, replace=replace)
+    return response
+
+
+async def _upload_watching_ocr(
+    client: AsyncClient,
+    headers: dict[str, str],
+    vin: str,
+    parsed: dict[str, Any] | Exception,
+    *,
+    replace: bool = False,
+) -> tuple[Response, MagicMock]:
+    """`_upload_with_ocr`, also handing back the OCR mock to ask what it was called with."""
     with patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class:
         ocr = MagicMock()
         if isinstance(parsed, Exception):
@@ -379,12 +393,13 @@ async def _upload_with_ocr(
             # A copy: the route drops misread numbers from the dict it gets.
             ocr.extract_data_from_file = AsyncMock(return_value=dict(parsed))
         ocr_class.return_value = ocr
-        return await client.post(
+        response = await client.post(
             f"/api/vehicles/{vin}/window-sticker/upload",
             files={"file": ("sticker.pdf", NEW_BYTES, "application/pdf")},
             data={"replace": "true"} if replace else None,
             headers=headers,
         )
+    return response, ocr
 
 
 async def _stored(sessionmaker: async_sessionmaker[AsyncSession], vin: str, column: str) -> Any:
@@ -920,3 +935,243 @@ def test_the_field_lists_cover_what_upload_and_delete_wrote():
     fields = (*STICKER_DATA_FIELDS, *STICKER_SCAN_FIELDS)
     assert len(fields) == len(set(fields)) == 26
     assert set(fields) == set(TODAY_DELETE_CLEARS[2:])
+
+
+# ---------------------------------------------------------------------------
+# The Settings > Files switches: window_sticker_enabled, window_sticker_ocr_enabled
+# ---------------------------------------------------------------------------
+
+STICKERS_OFF = "Window sticker uploads are switched off in Settings > Files"
+OCR_OFF = "Window sticker OCR is switched off in Settings > Files"
+
+Switches = Callable[..., Awaitable[None]]
+
+
+@pytest_asyncio.fixture
+async def sticker_switches(db_session: AsyncSession, keep_rows) -> Switches:
+    """Set both switches for one test; `keep_rows` puts the rows back after."""
+    await keep_rows("window_sticker_enabled", "window_sticker_ocr_enabled")
+
+    async def switch(*, stickers: str = "true", ocr: str = "true") -> None:
+        await SettingsService.set(db_session, "window_sticker_enabled", stickers)
+        await SettingsService.set(db_session, "window_sticker_ocr_enabled", ocr)
+        await db_session.commit()
+
+    return switch
+
+
+async def _test_watching_ocr(
+    client: AsyncClient, headers: dict[str, str], vin: str
+) -> tuple[Response, MagicMock]:
+    """POST the dry-run test endpoint with a mocked OCR that would succeed."""
+    with patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class:
+        ocr = MagicMock()
+        ocr.test_extraction = AsyncMock(
+            return_value={
+                "success": True,
+                "parser_name": "generic",
+                "manufacturer_detected": "Unknown",
+                "raw_text": "Sample OCR text",
+                "extracted_data": {"msrp_total": 30000},
+                "validation_warnings": [],
+                "error": None,
+            }
+        )
+        ocr_class.return_value = ocr
+        response = await client.post(
+            f"/api/vehicles/{vin}/window-sticker/test",
+            files={"file": ("sticker.pdf", NEW_BYTES, "application/pdf")},
+            headers=headers,
+        )
+    return response, ocr
+
+
+def _files_under(root: Path) -> list[Path]:
+    return sorted(p for p in root.rglob("*") if p.is_file())
+
+
+@pytest.mark.integration
+async def test_stickers_off_refuses_the_upload_and_changes_nothing(
+    client,
+    auth_headers,
+    own_vehicle,
+    sticker_on_file,
+    sticker_switches,
+    test_sessionmaker,
+    tmp_path,
+):
+    """A 409 that says where to switch it back on; no file lands in storage, the
+    sticker on file stays, and no column moves. Red on main, which stored it."""
+    vin = own_vehicle.vin
+    await sticker_switches(stickers="false")
+    columns = (*TODAY_DELETE_CLEARS, "color")
+    before = {c: await _stored(test_sessionmaker, vin, c) for c in columns}
+
+    uploaded, ocr = await _upload_watching_ocr(client, auth_headers, vin, SCAN, replace=True)
+
+    assert uploaded.status_code == 409, uploaded.text
+    assert uploaded.json()["detail"] == STICKERS_OFF
+    ocr.extract_data_from_file.assert_not_awaited()
+    assert _files_under(tmp_path) == [sticker_on_file]
+    assert sticker_on_file.read_bytes() == OLD_BYTES
+    assert {c: await _stored(test_sessionmaker, vin, c) for c in columns} == before
+
+
+@pytest.mark.integration
+async def test_stickers_off_refuses_the_test_scan(
+    client, auth_headers, own_vehicle, sticker_on_file, sticker_switches, tmp_path
+):
+    """The dry run scans an uploaded file too, so it is gated with the upload.
+    Red on main, which ran it."""
+    await sticker_switches(stickers="false")
+
+    response, ocr = await _test_watching_ocr(client, auth_headers, own_vehicle.vin)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == STICKERS_OFF
+    ocr.test_extraction.assert_not_awaited()
+    assert _files_under(tmp_path) == [sticker_on_file]
+
+
+@pytest.mark.integration
+async def test_stickers_off_still_shows_edits_and_deletes_the_sticker_on_file(
+    client, auth_headers, own_vehicle, sticker_on_file, sticker_switches, test_sessionmaker
+):
+    """Regression guard (main passes: it gated nothing). The switch stops new
+    stickers only (Fable F-12): the one on file can still be read, downloaded,
+    corrected in the review and deleted, and the parser list and OCR status
+    still answer."""
+    vin = own_vehicle.vin
+    await sticker_switches(stickers="false")
+
+    shown = await client.get(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
+    assert shown.status_code == 200, shown.text
+    assert shown.json()["window_sticker_file_path"] == str(sticker_on_file)
+
+    downloaded = await client.get(f"/api/vehicles/{vin}/window-sticker/file", headers=auth_headers)
+    assert downloaded.status_code == 200, downloaded.text
+    assert downloaded.content == OLD_BYTES
+
+    edited = await client.patch(
+        f"/api/vehicles/{vin}/window-sticker/data",
+        json={"assembly_location": "Ohio"},
+        headers=auth_headers,
+    )
+    assert edited.status_code == 200, edited.text
+    assert await _stored(test_sessionmaker, vin, "assembly_location") == "Ohio"
+
+    with patch("app.routes.window_sticker.WindowStickerOCRService") as ocr_class:
+        ocr_class.return_value.list_available_parsers.return_value = []
+        ocr_class.return_value.get_ocr_status.return_value = {
+            "pymupdf_available": True,
+            "tesseract_available": True,
+            "paddleocr_enabled": False,
+            "paddleocr_available": False,
+        }
+        parsers = await client.get("/api/vehicles/window-sticker/parsers", headers=auth_headers)
+        status = await client.get("/api/vehicles/window-sticker/ocr-status", headers=auth_headers)
+    assert parsers.status_code == 200, parsers.text
+    assert status.status_code == 200, status.text
+
+    deleted = await client.delete(f"/api/vehicles/{vin}/window-sticker", headers=auth_headers)
+    assert deleted.status_code == 204, deleted.text
+    assert not sticker_on_file.exists()
+    assert await _stored(test_sessionmaker, vin, "window_sticker_file_path") is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("endpoint", ["upload", "test"])
+async def test_a_non_owner_still_gets_403_with_stickers_off(
+    client, non_admin_headers, own_vehicle, sticker_switches, endpoint
+):
+    """The switch isn't disclosed for a vehicle the caller can't reach.
+
+    Regression guard (main answered 403 too); mutant: read the switch before
+    the access check.
+    """
+    await sticker_switches(stickers="false", ocr="false")
+    vin = own_vehicle.vin
+
+    if endpoint == "upload":
+        response = await _upload_with_ocr(client, non_admin_headers, vin, SCAN)
+    else:
+        response, _ = await _test_watching_ocr(client, non_admin_headers, vin)
+
+    assert response.status_code == 403, response.text
+
+
+@pytest.mark.integration
+async def test_ocr_off_stores_the_file_without_a_scan(
+    client, auth_headers, own_vehicle, sticker_on_file, sticker_switches, test_sessionmaker
+):
+    """The file becomes the sticker on record, OCR never runs, and the response
+    says so in `ocr_skipped`, not `scan_read_nothing` (no scan ran). The scan
+    metadata describes the file on record, which had no scan, so it empties.
+    Red on main, which scanned and had no `ocr_skipped`."""
+    vin = own_vehicle.vin
+    await sticker_switches(ocr="false")
+
+    uploaded, ocr = await _upload_watching_ocr(client, auth_headers, vin, SCAN)
+
+    assert uploaded.status_code == 201, uploaded.text
+    body = uploaded.json()
+    assert body.get("ocr_skipped") is True
+    assert body["scan_read_nothing"] is False
+    ocr.extract_data_from_file.assert_not_awaited()
+    new_path = Path(await _stored(test_sessionmaker, vin, "window_sticker_file_path"))
+    assert str(new_path) == body["window_sticker_file_path"]
+    assert new_path != sticker_on_file
+    assert new_path.read_bytes() == NEW_BYTES
+    assert not sticker_on_file.exists()
+    for column in window_sticker_route.STICKER_SCAN_FIELDS:
+        assert await _stored(test_sessionmaker, vin, column) is None, column
+    # Nothing was read, so nothing filled: the empty fields stay empty.
+    assert await _stored(test_sessionmaker, vin, "msrp_base") == Decimal("25000")
+    assert await _stored(test_sessionmaker, vin, "exterior_color") is None
+
+
+@pytest.mark.integration
+async def test_ocr_off_replace_keeps_the_sticker_fields(
+    client,
+    auth_headers,
+    own_vehicle,
+    sticker_on_file,
+    sticker_switches,
+    db_session,
+    test_sessionmaker,
+):
+    """Replace clears only for a sticker that was actually scanned; with OCR off
+    there is nothing to put back. Red on main: its scan (SCAN, different values)
+    cleared the old sticker's fields and wrote its own over them."""
+    vin = own_vehicle.vin
+    own_vehicle.assembly_location = "Ohio"
+    own_vehicle.exterior_color = "Blue"
+    await db_session.commit()
+    await sticker_switches(ocr="false")
+
+    uploaded, ocr = await _upload_watching_ocr(client, auth_headers, vin, SCAN, replace=True)
+
+    assert uploaded.status_code == 201, uploaded.text
+    kept = {
+        "msrp_base": Decimal("25000"),
+        "assembly_location": "Ohio",
+        "exterior_color": "Blue",
+        "standard_equipment": None,
+    }
+    assert {c: await _stored(test_sessionmaker, vin, c) for c in kept} == kept
+    ocr.extract_data_from_file.assert_not_awaited()
+
+
+@pytest.mark.integration
+async def test_ocr_off_refuses_the_test_scan(
+    client, auth_headers, own_vehicle, sticker_on_file, sticker_switches, tmp_path
+):
+    """The test endpoint is nothing but a scan. Red on main, which ran it."""
+    await sticker_switches(ocr="false")
+
+    response, ocr = await _test_watching_ocr(client, auth_headers, own_vehicle.vin)
+
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == OCR_OFF
+    ocr.test_extraction.assert_not_awaited()
+    assert _files_under(tmp_path) == [sticker_on_file]

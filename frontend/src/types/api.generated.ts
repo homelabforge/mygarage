@@ -7699,7 +7699,8 @@ export interface paths {
          * @description Test window sticker extraction without saving.
          *
          *     Returns detailed extraction results including raw text,
-         *     parsed data, validation warnings, and debug information.
+         *     parsed data, validation warnings, and debug information. A 409 when
+         *     window stickers or their OCR are switched off.
          */
         post: operations["test_window_sticker_extraction_api_vehicles__vin__window_sticker_test_post"];
         delete?: never;
@@ -7725,6 +7726,11 @@ export interface paths {
          *     sticker already on file, the old sticker's fields are cleared first. A scan
          *     that read nothing changes no field and says so in `scan_read_nothing`.
          *     Extracted data can be edited via the PATCH endpoint.
+         *
+         *     With `window_sticker_enabled` off this is a 409. With
+         *     `window_sticker_ocr_enabled` off the file is stored without a scan: no
+         *     field is filled or cleared, the scan metadata empties, and the response
+         *     says so in `ocr_skipped`.
          */
         post: operations["upload_window_sticker_api_vehicles__vin__window_sticker_upload_post"];
         delete?: never;
@@ -20897,6 +20903,11 @@ export interface components {
             msrp_options: string | null;
             /** Msrp Total */
             msrp_total: string | null;
+            /**
+             * Ocr Skipped
+             * @default false
+             */
+            ocr_skipped: boolean;
             /** Optional Equipment */
             optional_equipment: {
                 [key: string]: unknown;
