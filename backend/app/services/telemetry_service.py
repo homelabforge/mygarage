@@ -362,25 +362,23 @@ class TelemetryService:
         `resolve_odometer_unit` has the order: device unit, then that, then
         the key shape (WiCAN only).
         """
-        keys = [
-            k
+        # Values narrowed here, so the loop below needs no None check.
+        odometers = {
+            k: v
             for k, v in autopid_data.items()
             if v is not None and self._is_odometer_param(k, declared)
-        ]
-        if not keys:
+        }
+        if not odometers:
             return autopid_data
 
         device_unit, device_kind = await self._odometer_units_for(device_id)
         given = key_units or {}
-        units = await DeviceUnitService(self.db).resolve_units(
-            device_id, {k: given.get(k) for k in keys}
+        units = await DeviceUnitService(self.db).resolve_key_units(
+            device_id, {k: given.get(k) for k in odometers}
         )
 
         normalized = dict(autopid_data)
-        for param_key in keys:
-            value = autopid_data[param_key]
-            if value is None:
-                continue
+        for param_key, value in odometers.items():
             try:
                 converted = odometer_value_to_km(
                     float(value), param_key, device_unit, device_kind, units.get(param_key)

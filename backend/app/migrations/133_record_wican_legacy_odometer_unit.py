@@ -49,19 +49,20 @@ FATAL = True
 #: Inlined, like 096: a migration is a snapshot of intent, not the live rule.
 _KEY = "ODOMETER"
 
-_DEVICES = text(
+#: The unit-less WiCANs, split by whether they declare ODOMETER as their key.
+#: `{held}` drops the ones that already have a row, when the table exists.
+_DEVICES = (
     "SELECT device_id, vin, created_at FROM livelink_devices "
     "WHERE kind = 'wican' AND odometer_unit IS NULL "
-    "AND (odometer_param_key IS NULL OR UPPER(odometer_param_key) <> :k) "
-    "AND NOT EXISTS (SELECT 1 FROM livelink_device_units u "
-    "  WHERE u.device_id = livelink_devices.device_id AND u.param_key = :k)"
+    "AND (odometer_param_key IS NULL OR UPPER(odometer_param_key) <> :k){held}"
 )
-
-_DECLARED = text(
+_DECLARED = (
     "SELECT device_id FROM livelink_devices "
-    "WHERE kind = 'wican' AND odometer_unit IS NULL AND UPPER(odometer_param_key) = :k "
-    "AND NOT EXISTS (SELECT 1 FROM livelink_device_units u "
-    "  WHERE u.device_id = livelink_devices.device_id AND u.param_key = :k)"
+    "WHERE kind = 'wican' AND odometer_unit IS NULL AND UPPER(odometer_param_key) = :k{held}"
+)
+_NOT_HELD = (
+    " AND NOT EXISTS (SELECT 1 FROM livelink_device_units u "
+    "WHERE u.device_id = livelink_devices.device_id AND u.param_key = :k)"
 )
 
 _RAW_KEY = text("SELECT 1 FROM vehicle_telemetry WHERE device_id = :d AND param_key = :k LIMIT 1")
@@ -103,28 +104,41 @@ def _reported(conn: Connection, device_id: str, vin: str | None, created_at: obj
     return conn.execute(_LATEST_SINCE, since).first() is not None
 
 
+def legacy_odometer_devices(conn: Connection) -> list[str]:
+    """The WiCANs main read a bare ODOMETER on as miles, with no row for it yet.
+
+    Public because the odometer repair tools call it when they run before the
+    first boot, when this hasn't run and there's no R12 table to read: they
+    have to read those devices the way the first boot will.
+    """
+    inspector = inspect(conn)
+    if not inspector.has_table("livelink_devices") or not inspector.has_table("vehicle_telemetry"):
+        return []
+    held = _NOT_HELD if inspector.has_table("livelink_device_units") else ""
+    has_latest = inspector.has_table("vehicle_telemetry_latest")
+
+    found = [row.device_id for row in conn.execute(text(_DECLARED.format(held=held)), {"k": _KEY})]
+    for row in conn.execute(text(_DEVICES.format(held=held)), {"k": _KEY}).all():
+        if has_latest:
+            reported = _reported(conn, row.device_id, row.vin, row.created_at)
+        else:
+            reported = conn.execute(_RAW_KEY, {"d": row.device_id, "k": _KEY}).first() is not None
+        if reported:
+            found.append(row.device_id)
+    return found
+
+
 def upgrade(engine: Engine | None = None) -> None:
     """Insert the legacy row for each WiCAN that main read a bare ODOMETER on."""
     if engine is None:
         engine = _get_fallback_engine()
 
-    inspector = inspect(engine)
-    needed = ("livelink_devices", "livelink_device_units", "vehicle_telemetry")
-    if not all(inspector.has_table(t) for t in needed):
-        print("  → LiveLink tables missing; skip (nothing to record)")
+    if not inspect(engine).has_table("livelink_device_units"):
+        print("  → livelink_device_units missing; skip (nothing to record into)")
         return
-    has_latest = inspector.has_table("vehicle_telemetry_latest")
 
     with engine.begin() as conn:
-        found = [row.device_id for row in conn.execute(_DECLARED, {"k": _KEY})]
-        for row in conn.execute(_DEVICES, {"k": _KEY}).all():
-            if has_latest:
-                reported = _reported(conn, row.device_id, row.vin, row.created_at)
-            else:
-                reported = conn.execute(_RAW_KEY, {"d": row.device_id, "k": _KEY}).first()
-            if reported:
-                found.append(row.device_id)
-
+        found = legacy_odometer_devices(conn)
         for device_id in found:
             conn.execute(_INSERT, {"d": device_id, "k": _KEY})
 

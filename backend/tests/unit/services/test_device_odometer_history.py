@@ -213,10 +213,12 @@ async def test_a_wire_declaration_replaces_a_legacy_row_without_history(
     db_session: AsyncSession, make_livelink_vehicle
 ):
     """Regression guard: with nothing recorded under the old reading, the
-    device's own declaration wins."""
+    device's own declaration wins. It has reported other keys since it was
+    added, so 133's no-raw-rows fallback doesn't apply."""
     vin, device = await _device(db_session, make_livelink_vehicle, "10")
     db_session.add_all(
         [
+            _raw(vin, device.device_id, "COOLANT", AFTER),
             LiveLinkDeviceUnit(
                 device_id=device.device_id,
                 param_key="ODOMETER",

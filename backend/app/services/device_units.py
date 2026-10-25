@@ -20,6 +20,7 @@ from app.database import is_sqlite
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_device_unit import SOURCE_LEGACY, SOURCE_WIRE, LiveLinkDeviceUnit
 from app.models.livelink_parameter import LiveLinkParameter
+from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
 from app.services.livelink_sources.base import Reading, WireUnit
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -93,7 +94,6 @@ class DeviceUnitService:
                 for key in stale:
                     del held[key]
 
-        has_history: bool | None = None
         now = utc_now()
         values: list[dict[str, object]] = []
         dropped = 0
@@ -101,9 +101,7 @@ class DeviceUnitService:
             if held.get(key) == SOURCE_LEGACY and is_odometer_param_key(
                 key, device.odometer_param_key
             ):
-                if has_history is None:
-                    has_history = await self._has_odometer_history(device)
-                if has_history:
+                if await self._keeps_legacy(device, key):
                     self._warn_legacy_kept(device_id, key, wire.unit)
                     continue
             if key not in held and len(held) >= MAX_KEYS_PER_DEVICE:
@@ -145,11 +143,39 @@ class DeviceUnitService:
                 MAX_KEYS_PER_DEVICE,
             )
 
-    async def _has_odometer_history(self, device: LiveLinkDevice) -> bool:
+    async def _keeps_legacy(self, device: LiveLinkDevice, key: str) -> bool:
+        """Whether a legacy row for ``key`` still guards readings it was written for.
+
+        The bounded history predicate (the same one `update_device`'s 409
+        uses), or migration 133's fallback for a device with no raw rows at
+        all: a re-discovered one whose VIN's last bare reading predates it
+        (Fable F5-5). 133 gave it the row on that evidence, so a km boot
+        config mustn't take it back while the evidence stands. 133's
+        `odometer_param_key` clause isn't here: with nothing recorded under the
+        old reading there's no floor to protect.
+        """
         # Lazy: livelink_service is a much bigger import, and nothing else here needs it.
         from app.services.livelink_service import LiveLinkService
 
-        return await LiveLinkService(self.db).device_has_odometer_history(device)
+        if await LiveLinkService(self.db).device_has_odometer_history(device):
+            return True
+        if not device.vin:
+            return False
+        raw = await self.db.execute(
+            select(VehicleTelemetry.id)
+            .where(VehicleTelemetry.device_id == device.device_id)
+            .limit(1)
+        )
+        if raw.first() is not None:
+            return False
+        latest = await self.db.execute(
+            select(VehicleTelemetryLatest.id)
+            .where(
+                VehicleTelemetryLatest.vin == device.vin, VehicleTelemetryLatest.param_key == key
+            )
+            .limit(1)
+        )
+        return latest.first() is not None
 
     @staticmethod
     def _warn_legacy_kept(device_id: str, key: str, declared_unit: str | None) -> None:
@@ -227,7 +253,7 @@ class DeviceUnitService:
             await self._move_rows_to_kmh(converted)
         return resolved
 
-    async def resolve_units(
+    async def resolve_key_units(
         self, device_id: str, units: Mapping[str, str | None]
     ) -> dict[str, str | None]:
         """Each key's resolved unit, by the same rule as `resolve_readings`.

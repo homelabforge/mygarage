@@ -21,8 +21,10 @@ CI-tested deployment, so those instances had no repair path at all.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 from datetime import date, datetime
+from pathlib import Path
 
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import URL, Connection
@@ -101,15 +103,52 @@ def as_date(value: object) -> date:
     return date.fromisoformat(str(value))
 
 
-def device_key_units(conn: Connection) -> dict[tuple[str, str], str | None]:
-    """Each device's stored R12 unit, by ``(device_id, param_key)``.
+#: The migration that records main's miles reading of a bare ODOMETER.
+_LEGACY_ODOMETER_MIGRATION = "133_record_wican_legacy_odometer_unit"
 
-    The unit live ingest resolves a key to when no request declares one, so a
-    tool converting an odometer agrees with it (``resolve_odometer_unit``'s
-    ``key_unit``). Empty before ``livelink_device_units`` exists, which is the
-    case when a tool runs before the first boot of the version that adds it.
+
+def _migration_applied(conn: Connection, name: str) -> bool:
+    """Whether the runner has recorded ``name`` in ``schema_migrations``."""
+    if not inspect(conn).has_table("schema_migrations"):
+        return False
+    found = conn.execute(
+        text("SELECT 1 FROM schema_migrations WHERE migration_name = :n"), {"n": name}
+    ).first()
+    return found is not None
+
+
+def _legacy_odometer_devices(conn: Connection) -> list[str]:
+    """Migration 133's own evidence query, loaded from the migration file.
+
+    Loaded by path (the name starts with a digit) so the migration stays
+    self-contained and the tools can't drift from what it will record.
     """
-    if not inspect(conn).has_table("livelink_device_units"):
-        return {}
-    rows = conn.execute(text("SELECT device_id, param_key, unit FROM livelink_device_units"))
-    return {(row.device_id, row.param_key): row.unit for row in rows}
+    import app.migrations
+
+    path = Path(app.migrations.__file__).parent / f"{_LEGACY_ODOMETER_MIGRATION}.py"
+    spec = importlib.util.spec_from_file_location(_LEGACY_ODOMETER_MIGRATION, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.legacy_odometer_devices(conn)
+
+
+def device_key_units(conn: Connection) -> dict[tuple[str, str], str | None]:
+    """Each device's R12 unit, by ``(device_id, param_key)``, as live ingest will see it.
+
+    The stored rows, so a tool converting an odometer agrees with the live
+    path (``resolve_odometer_unit``'s ``key_unit``). Before migration 133 has
+    run (a tool run before the first boot, often with no
+    ``livelink_device_units`` at all) its legacy rows aren't there yet, so the
+    devices it will record read bare ``ODOMETER`` in miles here too. Without
+    that, the km key rule would skip every one of them as already metric.
+    """
+    units: dict[tuple[str, str], str | None] = {}
+    if inspect(conn).has_table("livelink_device_units"):
+        rows = conn.execute(text("SELECT device_id, param_key, unit FROM livelink_device_units"))
+        units = {(row.device_id, row.param_key): row.unit for row in rows}
+    if not _migration_applied(conn, _LEGACY_ODOMETER_MIGRATION):
+        for device_id in _legacy_odometer_devices(conn):
+            units.setdefault((device_id, "ODOMETER"), "mi")
+    return units

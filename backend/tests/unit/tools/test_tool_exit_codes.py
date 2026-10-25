@@ -30,17 +30,19 @@ def _seed(db_path: str) -> None:
     conn = sqlite3.connect(db_path)
     conn.executescript("""
         CREATE TABLE livelink_devices (
-            device_id TEXT, vin TEXT, odometer_unit TEXT, kind TEXT);
+            device_id TEXT, vin TEXT, odometer_unit TEXT, kind TEXT,
+            odometer_param_key TEXT, created_at TEXT);
         CREATE TABLE vehicle_telemetry (
             vin TEXT, device_id TEXT, param_key TEXT, value REAL, timestamp TEXT);
-        CREATE TABLE vehicle_telemetry_latest (vin TEXT, param_key TEXT, value REAL);
+        CREATE TABLE vehicle_telemetry_latest (
+            vin TEXT, param_key TEXT, value REAL, timestamp TEXT);
         CREATE TABLE odometer_records (vin TEXT, date TEXT, odometer_km REAL);
         CREATE TABLE drive_sessions (
             device_id TEXT, started_at TEXT, start_odometer REAL,
             end_odometer REAL, distance_km REAL);
     """)
     conn.executemany(
-        "INSERT INTO livelink_devices VALUES (?,?,?,?)",
+        "INSERT INTO livelink_devices VALUES (?,?,?,?,NULL,'2026-08-01 00:00:00')",
         [("devmixed", "VINMIXED", "mi", "wican"), ("devplain", "VINPLAIN", "mi", "wican")],
     )
     conn.executemany(
@@ -53,7 +55,7 @@ def _seed(db_path: str) -> None:
         ],
     )
     conn.executemany(
-        "INSERT INTO vehicle_telemetry_latest VALUES (?,?,?)",
+        "INSERT INTO vehicle_telemetry_latest VALUES (?,?,?,'2026-09-01 10:01:00')",
         [("VINMIXED", "ODOMETER", _MIXED[1]), ("VINPLAIN", "ODOMETER", 1001.0)],
     )
     # devplain's km records tower over its stored miles by the miles factor,

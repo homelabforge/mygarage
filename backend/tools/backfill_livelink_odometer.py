@@ -93,7 +93,9 @@ def main() -> int:
         # second: the documented upgrade order says so, and this enforces it.
         already_canonical: list[str] = []
         for device_id, (dev_vin, unit, kind) in devices.items():
-            if not dev_vin:
+            # --vin limits the refusal too: another vehicle's converted
+            # history says nothing about this one's.
+            if not dev_vin or (args.vin and dev_vin != args.vin):
                 continue
             for key_row in conn.execute(
                 text("SELECT DISTINCT param_key FROM vehicle_telemetry WHERE device_id = :d"),

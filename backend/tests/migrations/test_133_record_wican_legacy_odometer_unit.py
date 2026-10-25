@@ -34,6 +34,7 @@ import app.models  # noqa: F401  (registers every table on Base.metadata)
 from app.database import Base, is_sqlite
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_device_unit import LiveLinkDeviceUnit
+from app.models.odometer import OdometerRecord
 from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -288,6 +289,30 @@ def test_133_gives_a_second_wican_on_the_vin_the_row_too(db):
     assert _rows(engine) == {("first", "ODOMETER"): LEGACY, ("second", "ODOMETER"): LEGACY}
 
 
+def test_133_does_not_read_odometer_records(db):
+    """Regression guard on ruling T7-a: a `livelink` odometer record names no
+    key, so it isn't evidence of a bare ODOMETER (it may well be `A6-`). Kills
+    a migration that adds record evidence."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINRECORD0001")
+        _device(s, "recorded", "M133VINRECORD0001")
+        s.add(
+            OdometerRecord(
+                vin="M133VINRECORD0001",
+                date=AFTER.date(),
+                odometer_km=80000,
+                source="livelink",
+                created_at=AFTER,
+            )
+        )
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _rows(engine) == {}
+
+
 def test_133_skips_an_install_with_no_devices_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _load().upgrade(engine)
@@ -306,6 +331,8 @@ async def migrated(db) -> AsyncGenerator[AsyncSession]:
     - `pidonly`: only `A6-ODOMETER` history.
     - `mixed`: both.
     - `unitkm`: bare `ODOMETER` history, `odometer_unit='km'`.
+    - `redisc`: re-discovered (F5-5), no raw rows, its VIN's bare `ODOMETER`
+      latest row from before it was added.
     """
     dialect, engine, url = db
     if is_sqlite != (dialect == "sqlite"):
@@ -323,6 +350,9 @@ async def migrated(db) -> AsyncGenerator[AsyncSession]:
             _device(s, device_id, vin, **fields)
             for key in keys:
                 _raw(s, device_id, vin, key, 1000, at=AFTER)
+        _vehicle(s, "M133INGREDISC0001")
+        _device(s, "redisc", "M133INGREDISC0001")
+        _latest(s, "M133INGREDISC0001", "ODOMETER", 50000, BEFORE)
         s.commit()
 
     _load().upgrade(engine)
@@ -429,6 +459,23 @@ async def test_a_boot_config_declaring_km_does_not_replace_the_legacy_row(
         .order_by(VehicleTelemetry.timestamp)
     )
     assert list(values.scalars().all()) == [KM_50000_MI, 80469.0]
+
+
+@pytest.mark.asyncio
+async def test_a_rediscovered_device_keeps_its_legacy_row_through_a_km_boot(
+    migrated: AsyncSession,
+):
+    """133 gave the F5-5 device its row from the unbounded VIN check. Its
+    bounded history is empty, so the R12 exception has to read 133's evidence
+    too, or its first boot config swaps the row out and every reading lands
+    below the floor its earlier self recorded (F1-3)."""
+    db = migrated
+    assert await _held(db, "redisc") == {"ODOMETER": ("mi", "legacy")}
+
+    await _boot(db, "redisc", {"ODOMETER": {"class": "distance", "unit": "km"}}, ODOMETER=50001)
+
+    assert await _held(db, "redisc") == {"ODOMETER": ("mi", "legacy")}
+    assert await _newest(db, "redisc", "ODOMETER") == 80469.0
 
 
 @pytest.mark.asyncio
