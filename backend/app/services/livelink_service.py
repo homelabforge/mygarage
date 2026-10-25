@@ -539,9 +539,11 @@ class LiveLinkService:
                     "record is kept as a floor rather than corrected by later readings. If "
                     "the history holds raw miles from before the v2.26 conversion, convert "
                     "it first with backend/tools/normalize_telemetry_odometer_units.py and "
-                    "fix_session_odometer_units.py, then set the unit. If it was recorded "
-                    "in the wrong unit the other way (read as miles, really km), no tool "
-                    "converts it yet; it needs a manual repair."
+                    "fix_session_odometer_units.py, then set the unit. If a WiCAN with no "
+                    "unit set was read in the wrong unit, repair that key instead with "
+                    "backend/tools/repair_wican_odometer_unit.py: --to km if it really "
+                    "reports km but was read as miles, --to mi if it really reports miles "
+                    "but was read as km."
                 )
             device.odometer_unit = resolved
 

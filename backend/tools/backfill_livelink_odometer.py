@@ -92,14 +92,30 @@ def main() -> int:
         # forever, so the damage outlives the run. Reconstruct first, convert
         # second: the documented upgrade order says so, and this enforces it.
         already_canonical: list[str] = []
-        for device_id, (dev_vin, unit, kind) in devices.items():
-            # --vin limits the refusal too: another vehicle's converted
-            # history says nothing about this one's.
-            if not dev_vin or (args.vin and dev_vin != args.vin):
-                continue
+        # --vin limits the refusal too, to what the reconstruction reads: rows
+        # on that VIN, by each row's own VIN. A device since relinked to
+        # another car still has its rows here, and its current VIN says
+        # nothing about them. Another vehicle's history says nothing either.
+        if args.vin:
+            scoped = [
+                (row.device_id, args.vin)
+                for row in conn.execute(
+                    text("SELECT DISTINCT device_id FROM vehicle_telemetry WHERE vin = :v"),
+                    {"v": args.vin},
+                )
+                if row.device_id in devices
+            ]
+        else:
+            scoped = [(d, vin) for d, (vin, _unit, _kind) in devices.items() if vin]
+        for device_id, scope_vin in scoped:
+            _dev_vin, unit, kind = devices[device_id]
+            row_vin = " AND vin = :v" if args.vin else ""
             for key_row in conn.execute(
-                text("SELECT DISTINCT param_key FROM vehicle_telemetry WHERE device_id = :d"),
-                {"d": device_id},
+                text(
+                    "SELECT DISTINCT param_key FROM vehicle_telemetry WHERE device_id = :d"
+                    + row_vin
+                ),
+                {"d": device_id, "v": scope_vin},
             ):
                 param_key = key_row.param_key
                 if not is_odometer_param_key(param_key):
@@ -110,13 +126,13 @@ def main() -> int:
                 stored_max = conn.execute(
                     text(
                         "SELECT MAX(value) FROM vehicle_telemetry "
-                        "WHERE device_id = :d AND param_key = :p"
+                        "WHERE device_id = :d AND param_key = :p" + row_vin
                     ),
-                    {"d": device_id, "p": param_key},
+                    {"d": device_id, "p": param_key, "v": scope_vin},
                 ).scalar()
                 record_max = conn.execute(
                     text("SELECT MAX(odometer_km) FROM odometer_records WHERE vin = :v"),
-                    {"v": dev_vin},
+                    {"v": scope_vin},
                 ).scalar()
                 if not stored_max or not record_max:
                     continue

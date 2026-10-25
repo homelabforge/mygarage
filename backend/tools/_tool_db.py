@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import sys
 from datetime import date, datetime
 from pathlib import Path
+from types import ModuleType
 
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import URL, Connection
@@ -117,8 +119,8 @@ def _migration_applied(conn: Connection, name: str) -> bool:
     return found is not None
 
 
-def _legacy_odometer_devices(conn: Connection) -> list[str]:
-    """Migration 133's own evidence query, loaded from the migration file.
+def _load_legacy_migration() -> ModuleType:
+    """Migration 133, loaded from its file.
 
     Loaded by path (the name starts with a digit) so the migration stays
     self-contained and the tools can't drift from what it will record.
@@ -131,7 +133,12 @@ def _legacy_odometer_devices(conn: Connection) -> list[str]:
         raise RuntimeError(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.legacy_odometer_devices(conn)
+    return module
+
+
+def legacy_migration_applied(conn: Connection) -> bool:
+    """Whether the runner has recorded migration 133, so its legacy rows are in place."""
+    return _migration_applied(conn, _LEGACY_ODOMETER_MIGRATION)
 
 
 def device_key_units(conn: Connection) -> dict[tuple[str, str], str | None]:
@@ -141,14 +148,64 @@ def device_key_units(conn: Connection) -> dict[tuple[str, str], str | None]:
     path (``resolve_odometer_unit``'s ``key_unit``). Before migration 133 has
     run (a tool run before the first boot, often with no
     ``livelink_device_units`` at all) its legacy rows aren't there yet, so the
-    devices it will record read bare ``ODOMETER`` in miles here too. Without
-    that, the km key rule would skip every one of them as already metric.
+    keys it will record read in main's unit here too. Without that, the km
+    key rule would skip every bare ``ODOMETER`` as already metric.
+
+    A database too old for 133's query (no ``kind`` on ``livelink_devices``,
+    say) gets no emulation and a note on stderr rather than a crash.
     """
     units: dict[tuple[str, str], str | None] = {}
     if inspect(conn).has_table("livelink_device_units"):
         rows = conn.execute(text("SELECT device_id, param_key, unit FROM livelink_device_units"))
         units = {(row.device_id, row.param_key): row.unit for row in rows}
-    if not _migration_applied(conn, _LEGACY_ODOMETER_MIGRATION):
-        for device_id in _legacy_odometer_devices(conn):
-            units.setdefault((device_id, "ODOMETER"), "mi")
+    if not legacy_migration_applied(conn):
+        migration = _load_legacy_migration()
+        missing = migration.missing_device_columns(conn)
+        if missing:
+            columns = ", ".join(f"livelink_devices.{col}" for col in missing)
+            print(
+                f"Note: this database has no {columns}, so it predates the migrations "
+                "these tools read. Odometer keys are read by the key rule alone. To read "
+                "them the way this version will, start this version once (with "
+                "MYGARAGE_MAINTENANCE_MODE=1, so no reading lands) and run the tools then.",
+                file=sys.stderr,
+            )
+            return units
+        for device_id, key, unit in migration.legacy_odometer_rows(conn):
+            units.setdefault((device_id, key), unit)
     return units
+
+
+#: A unit change inside one series shows up as a step of the miles factor
+#: between readings that are adjacent in time. An odometer never really moves
+#: 55% in one sample interval, so a step in this band is a units discontinuity.
+MIXED_STEP_LOW = 1.55
+MIXED_STEP_HIGH = 1.67
+
+
+def mixed_units_step(
+    conn: Connection, device_id: str, param_key: str
+) -> tuple[float, float] | None:
+    """Return a (previous, next) reading straddling a units change, or None.
+
+    `stored_max` alone cannot tell a converted series from a half-converted
+    one: post-fix rows are already kilometres and are numerically the largest,
+    so one new reading after the ingest fix makes the max-ratio test report
+    "already converted" while every older row is still in miles. Converting
+    such a series would double the new rows; skipping it leaves the old ones
+    wrong. Neither is safe, so detect it and stop.
+    """
+    row = conn.execute(
+        text(
+            "SELECT prev, value FROM ("
+            "  SELECT value, LAG(value) OVER (ORDER BY timestamp) AS prev"
+            "  FROM vehicle_telemetry WHERE device_id = :d AND param_key = :p"
+            ") stepped "
+            "WHERE prev IS NOT NULL AND prev > 0 AND value > 0 "
+            "  AND ((value / prev BETWEEN :lo AND :hi)"
+            "    OR (prev / value BETWEEN :lo AND :hi)) "
+            "LIMIT 1"
+        ),
+        {"d": device_id, "p": param_key, "lo": MIXED_STEP_LOW, "hi": MIXED_STEP_HIGH},
+    ).first()
+    return (float(row.prev), float(row.value)) if row else None

@@ -46,48 +46,15 @@ from app.utils.odometer_units import (  # noqa: E402
     resolve_odometer_unit,
 )
 from app.utils.units import UnitConverter  # noqa: E402
-from tools._tool_db import device_key_units, resolve_sync_url  # noqa: E402
+from tools._tool_db import (  # noqa: E402
+    device_key_units,
+    mixed_units_step,
+    resolve_sync_url,
+)
 
 #: Above this, the vehicle's km odometer records tower over its stored odometer
 #: telemetry by roughly the miles factor, so the telemetry is still in miles.
 NEEDS_CONVERSION_RATIO = 1.4
-
-#: A unit change inside one series shows up as a step of the miles factor
-#: between readings that are adjacent in time. An odometer never really moves
-#: 55% in one sample interval, so a step in this band is a units discontinuity.
-MIXED_STEP_LOW = 1.55
-MIXED_STEP_HIGH = 1.67
-
-
-def _mixed_units_step(conn, device_id: str, param_key: str):
-    """Return a (previous, next) reading straddling a units change, or None.
-
-    `stored_max` alone cannot tell a converted series from a half-converted
-    one: post-fix rows are already kilometres and are numerically the largest,
-    so one new reading after the ingest fix makes the max-ratio test report
-    "already converted" while every older row is still in miles. Converting
-    such a series would double the new rows; skipping it leaves the old ones
-    wrong. Neither is safe, so detect it and stop.
-    """
-    row = conn.execute(
-        text(
-            "SELECT prev, value FROM ("
-            "  SELECT value, LAG(value) OVER (ORDER BY timestamp) AS prev"
-            "  FROM vehicle_telemetry WHERE device_id = :d AND param_key = :p"
-            ") stepped "
-            "WHERE prev IS NOT NULL AND prev > 0 AND value > 0 "
-            "  AND ((value / prev BETWEEN :lo AND :hi)"
-            "    OR (prev / value BETWEEN :lo AND :hi)) "
-            "LIMIT 1"
-        ),
-        {
-            "d": device_id,
-            "p": param_key,
-            "lo": MIXED_STEP_LOW,
-            "hi": MIXED_STEP_HIGH,
-        },
-    ).first()
-    return (row.prev, row.value) if row else None
 
 
 def _parse_args() -> argparse.Namespace:
@@ -144,7 +111,7 @@ def main() -> int:
                 if resolve_odometer_unit(param_key, unit, kind, key_unit) == ODOMETER_UNIT_KM:
                     continue  # already metric on the wire
 
-                mixed = _mixed_units_step(conn, device_id, param_key)
+                mixed = mixed_units_step(conn, device_id, param_key)
                 if mixed:
                     before, after = mixed
                     print(f"\n{device_id} / {param_key}")

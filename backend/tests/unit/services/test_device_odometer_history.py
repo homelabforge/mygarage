@@ -209,23 +209,33 @@ async def test_a_wire_declaration_keeps_a_legacy_row_on_a_pruned_device(
     assert [tuple(r) for r in rows] == [("mi", "legacy")]
 
 
-async def test_a_wire_declaration_replaces_a_legacy_row_without_history(
+def _legacy(device_id: str, key: str, unit: str) -> LiveLinkDeviceUnit:
+    return LiveLinkDeviceUnit(
+        device_id=device_id, param_key=key, unit=unit, param_class="distance", source="legacy"
+    )
+
+
+async def _units(db: AsyncSession, device_id: str) -> list[tuple[str, str | None, str]]:
+    rows = await db.execute(
+        select(
+            LiveLinkDeviceUnit.param_key, LiveLinkDeviceUnit.unit, LiveLinkDeviceUnit.source
+        ).where(LiveLinkDeviceUnit.device_id == device_id)
+    )
+    return sorted(tuple(r) for r in rows.all())
+
+
+async def test_a_device_that_reported_another_key_first_keeps_its_legacy_row(
     db_session: AsyncSession, make_livelink_vehicle
 ):
-    """Regression guard: with nothing recorded under the old reading, the
-    device's own declaration wins. It has reported other keys since it was
-    added, so 133's no-raw-rows fallback doesn't apply."""
+    """Fable FB-2: a re-discovered WiCAN that has sent COOLANT but no
+    ODOMETER yet hasn't reported the odometer since re-creation, so its VIN's
+    older bare reading is still the evidence 133 wrote the row on. Red on
+    ed8fbef9, where any raw row dropped the fallback."""
     vin, device = await _device(db_session, make_livelink_vehicle, "10")
     db_session.add_all(
         [
             _raw(vin, device.device_id, "COOLANT", AFTER),
-            LiveLinkDeviceUnit(
-                device_id=device.device_id,
-                param_key="ODOMETER",
-                unit="mi",
-                param_class="distance",
-                source="legacy",
-            ),
+            _legacy(device.device_id, "ODOMETER", "mi"),
             _latest(vin, "ODOMETER", BEFORE),
         ]
     )
@@ -235,14 +245,59 @@ async def test_a_wire_declaration_replaces_a_legacy_row_without_history(
         device, {"ODOMETER": WireUnit("km", "distance")}, whole_profile=True
     )
 
-    rows = (
-        await db_session.execute(
-            select(LiveLinkDeviceUnit.unit, LiveLinkDeviceUnit.source).where(
-                LiveLinkDeviceUnit.device_id == device.device_id
-            )
-        )
-    ).all()
-    assert [tuple(r) for r in rows] == [("km", "wire")]
+    assert await _units(db_session, device.device_id) == [("ODOMETER", "mi", "legacy")]
+
+
+async def test_a_wire_declaration_replaces_a_legacy_row_without_history(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """Regression guard: with nothing recorded under the old reading for that
+    key, on this device or its VIN, the device's own declaration wins. Kills a
+    `_keeps_legacy` that always keeps."""
+    vin, device = await _device(db_session, make_livelink_vehicle, "14")
+    db_session.add_all(
+        [
+            _raw(vin, device.device_id, "COOLANT", AFTER),
+            _legacy(device.device_id, "ODOMETER", "mi"),
+            # Another key's evidence says nothing about this one.
+            _latest(vin, "ODO", BEFORE),
+        ]
+    )
+    await db_session.flush()
+
+    await DeviceUnitService(db_session).record(
+        device, {"ODOMETER": WireUnit("km", "distance")}, whole_profile=True
+    )
+
+    assert await _units(db_session, device.device_id) == [("ODOMETER", "km", "wire")]
+
+
+@pytest.mark.parametrize(
+    ("key", "legacy", "declared"),
+    [
+        # Codex R1-H1: a user autopid main read in miles.
+        ("MILEAGE", "mi", "km"),
+        # The opposite conflict: a standard PID main read in km.
+        ("A6-ODOMETER", "km", "mi"),
+    ],
+)
+async def test_every_odometer_key_keeps_its_legacy_row_against_a_declaration(
+    db_session: AsyncSession, make_livelink_vehicle, key: str, legacy: str, declared: str
+):
+    """Regression guard: the R12 exception isn't bare-ODOMETER only, so 133's
+    new rows hold. Kills a gate narrowed to `key == "ODOMETER"`."""
+    suffix = "15" if key == "MILEAGE" else "16"
+    vin, device = await _device(db_session, make_livelink_vehicle, suffix)
+    db_session.add_all(
+        [_raw(vin, device.device_id, key, AFTER), _legacy(device.device_id, key, legacy)]
+    )
+    await db_session.flush()
+
+    await DeviceUnitService(db_session).record(
+        device, {key: WireUnit(declared, "distance")}, whole_profile=True
+    )
+
+    assert await _units(db_session, device.device_id) == [(key, legacy, "legacy")]
 
 
 async def test_a_kept_legacy_row_beats_the_unit_in_the_same_request(
@@ -292,12 +347,16 @@ async def test_created_at_comes_from_the_app_clock(db_session: AsyncSession, mak
         assert before <= stamped <= after
 
 
-async def test_the_unit_409_names_no_tool_for_the_reverse_case(
-    db_session: AsyncSession, make_livelink_vehicle
+@pytest.mark.parametrize("current", ["mi", None])
+async def test_the_unit_409_names_the_repair_tool_for_both_directions(
+    db_session: AsyncSession, make_livelink_vehicle, current: str | None
 ):
-    """The normalise tools convert raw miles to km only, so the message can't
-    send a legacy-miles-but-really-km device to them (Fable F3-8)."""
-    vin, device = await _device(db_session, make_livelink_vehicle, "13", odometer_unit="mi")
+    """The normalise tools convert raw miles from before v2.26 only, so the
+    message can't send a device read in the wrong unit to them (Fable F3-8).
+    It names the repair tool for that, both ways (Fable FB-3). Red on
+    ed8fbef9, whose text said no tool existed."""
+    suffix = "13" if current else "17"
+    vin, device = await _device(db_session, make_livelink_vehicle, suffix, odometer_unit=current)
     db_session.add(_raw(vin, device.device_id, "ODOMETER", AFTER))
     await db_session.flush()
 
@@ -306,4 +365,5 @@ async def test_the_unit_409_names_no_tool_for_the_reverse_case(
     message = str(exc.value)
     assert "this device, or another device on this vehicle since this one was added" in message
     assert "before the v2.26 conversion" in message
-    assert "manual repair" in message
+    assert "repair_wican_odometer_unit.py" in message
+    assert "--to km" in message and "--to mi" in message

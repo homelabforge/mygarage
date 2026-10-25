@@ -160,3 +160,100 @@ def test_backfill_vin_limits_the_refusal_too(tmp_path, monkeypatch, capsys):
 
     # Unscoped, the converted vehicle still refuses the run.
     assert _run("tools.backfill_livelink_odometer", path, monkeypatch) == 2
+
+
+def _device_key_units(path: str) -> dict[tuple[str, str], str | None]:
+    from sqlalchemy import create_engine
+
+    from tools._tool_db import device_key_units
+
+    engine = create_engine(f"sqlite:///{path}")
+    try:
+        with engine.connect() as conn:
+            return device_key_units(conn)
+    finally:
+        engine.dispose()
+
+
+def test_the_pre_boot_emulation_covers_every_odometer_key(tmp_path):
+    """133 now records main's unit for each odometer key with history, not
+    just bare ODOMETER (Codex R1-H1), and the tools read the same before the
+    first boot. Red against an emulation that only knew ODOMETER."""
+    path = str(tmp_path / "mygarage.db")
+    _seed(path, with_units=False, legacy=False, booted=False)
+    conn = sqlite3.connect(path)
+    conn.executemany(
+        "INSERT INTO vehicle_telemetry VALUES ('VINLEGACY', 'devlegacy', ?, 1000.0, "
+        "'2026-09-03 10:00:00')",
+        [("MILEAGE",), ("A6-ODOMETER",)],
+    )
+    conn.commit()
+    conn.close()
+
+    assert _device_key_units(path) == {
+        ("devlegacy", "ODOMETER"): "mi",
+        ("devlegacy", "MILEAGE"): "mi",
+        ("devlegacy", "A6-ODOMETER"): "km",
+    }
+
+
+def test_the_pre_boot_emulation_reads_a_database_older_than_migration_112(tmp_path, capsys):
+    """Before 112 there's no `odometer_param_key`, and 133's query named it,
+    so a pre-boot tool run crashed with OperationalError (carry 17). No
+    column means nothing was declared, which is how main read it. Red on
+    ed8fbef9."""
+    path = str(tmp_path / "mygarage.db")
+    conn = sqlite3.connect(path)
+    conn.executescript(_SCHEMA.replace("odometer_param_key TEXT, ", ""))
+    conn.executescript(
+        "INSERT INTO livelink_devices VALUES "
+        "('devold', 'VINOLD', NULL, 'wican', '2026-08-01 00:00:00');"
+        "INSERT INTO vehicle_telemetry VALUES "
+        "('VINOLD', 'devold', 'ODOMETER', 1000.0, '2026-09-01 10:00:00');"
+    )
+    conn.commit()
+    conn.close()
+
+    assert _device_key_units(path) == {("devold", "ODOMETER"): "mi"}
+
+
+def test_the_pre_boot_emulation_skips_a_database_it_cannot_read(tmp_path, capsys):
+    """Missing a column 133 can't do without (here `kind`), the tools say so
+    and carry on with no emulation rather than crash. Red on ed8fbef9."""
+    path = str(tmp_path / "mygarage.db")
+    conn = sqlite3.connect(path)
+    conn.executescript(_SCHEMA.replace(" kind TEXT,", ""))
+    conn.execute(
+        "INSERT INTO livelink_devices VALUES ('devold', 'VINOLD', NULL, NULL, '2026-08-01 00:00:00')"
+    )
+    conn.commit()
+    conn.close()
+
+    assert _device_key_units(path) == {}
+    err = capsys.readouterr().err
+    assert "livelink_devices.kind" in err and "start this version once" in err
+
+
+def test_backfill_vin_refuses_on_the_telemetry_s_vin(tmp_path, monkeypatch, capsys):
+    """The reconstruction reads each row's own VIN, so the refusal must too.
+    A device relinked to another car still has its converted rows on this
+    one, and `--vin` would rebuild them 1.609x high (carry 18). Red on
+    ed8fbef9, which scoped the refusal by the device's current VIN."""
+    path = str(tmp_path / "mygarage.db")
+    _seed(path, with_units=True, legacy=False)
+    conn = sqlite3.connect(path)
+    # Converted km rows on VINWAS, but the device now sits on VINNOW.
+    conn.execute(
+        "INSERT INTO livelink_devices VALUES "
+        "('devmoved', 'VINNOW', 'mi', 'wican', NULL, '2026-08-01 00:00:00')"
+    )
+    conn.execute(
+        "INSERT INTO vehicle_telemetry VALUES "
+        "('VINWAS', 'devmoved', 'ODOMETER', 1609.0, '2026-09-01 10:00:00')"
+    )
+    conn.execute("INSERT INTO odometer_records VALUES ('VINWAS', '2026-08-01', 1600.0, 'fuel')")
+    conn.commit()
+    conn.close()
+
+    assert _run("tools.backfill_livelink_odometer", path, monkeypatch, "--vin", "VINWAS") == 2
+    assert "devmoved / ODOMETER" in capsys.readouterr().out

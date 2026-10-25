@@ -1,9 +1,10 @@
-"""Migration 133: record main's miles reading of a WiCAN's bare ODOMETER (D6a, R12).
+"""Migration 133: record main's reading of a WiCAN's odometer keys (D6a, R12, R1-H1).
 
-T7 reads a bare `ODOMETER` as km, as upstream defines it. A WiCAN with no unit
-set that has already reported one was read as miles on main, so its odometer
-records are in that scale; 133 stores a `legacy` R12 row so it keeps reading
-the same. `odometer_unit` isn't touched, so an `A6-` key keeps km.
+T7 reads a bare `ODOMETER` as km, as upstream defines it, and R12 honours a
+unit the device declares for any key. Main ignored both: a PID key read km and
+any bare key read miles. So 133 stores a `legacy` R12 row with main's unit for
+every odometer key a unit-less WiCAN has history under, and its records keep
+their scale whatever the next boot config says. `odometer_unit` isn't touched.
 
 Asserted on stored VALUES after the migration plus a fresh ingest, not just on
 the row (Codex R1-H4). Each test builds its own schema with `create_all`, on
@@ -25,7 +26,7 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import Engine, inspect, select, text
+from sqlalchemy import Engine, func, inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session
 
@@ -114,6 +115,7 @@ def _rows(engine: Engine) -> dict[tuple[str, str], tuple[str | None, str | None,
 
 
 LEGACY = ("mi", "distance", "legacy")
+LEGACY_KM = ("km", "distance", "legacy")
 
 
 # --- The rows it writes --------------------------------------------------------
@@ -124,7 +126,9 @@ def test_133_is_fatal():
     assert _load().FATAL is True
 
 
-def test_133_records_a_bare_odometer_device_and_nothing_else(db):
+def test_133_records_every_odometer_key_in_mains_unit(db):
+    """A PID key read km on main and a bare one miles; each keeps that (R1-H1).
+    The A6- rows are red against a 133 that only knew bare ODOMETER."""
     _dialect, engine, _url = db
     with Session(engine) as s:
         for vin in ("M133VINBARE000001", "M133VINPID0000001", "M133VINBOTH000001"):
@@ -146,7 +150,12 @@ def test_133_records_a_bare_odometer_device_and_nothing_else(db):
 
     _load().upgrade(engine)
 
-    assert _rows(engine) == {("bare", "ODOMETER"): LEGACY, ("both", "ODOMETER"): LEGACY}
+    assert _rows(engine) == {
+        ("bare", "ODOMETER"): LEGACY,
+        ("pid", "A6-ODOMETER"): LEGACY_KM,
+        ("both", "A6-ODOMETER"): LEGACY_KM,
+        ("both", "ODOMETER"): LEGACY,
+    }
     with engine.connect() as conn:
         found = conn.execute(text("SELECT device_id, odometer_unit FROM livelink_devices"))
         units = {device_id: unit for device_id, unit in found.all()}
@@ -211,20 +220,75 @@ def test_133_reads_the_latest_row_for_a_pruned_device(db):
     assert _rows(engine) == {("pruned", "ODOMETER"): LEGACY}
 
 
-def test_133_ignores_a_latest_row_from_before_the_device(db):
-    """A replacement dongle with raw rows of its own isn't stamped from a dead
-    device's latest row (Fable F4-2). Red against the plain VIN-scope check."""
+def test_133_reads_the_vin_for_a_device_that_reported_other_keys_first(db):
+    """Re-discovered, it has sent COOLANT but no ODOMETER yet, and its VIN's
+    last bare ODOMETER predates it. Raw rows of OTHER keys don't show it has
+    reported the odometer since, so the unbounded VIN check still applies, or
+    its first km reading lands below the floor its earlier self wrote (Fable
+    FB-2). Red against the any-key raw check."""
     _dialect, engine, _url = db
     with Session(engine) as s:
-        _vehicle(s, "M133VINREPLACE001")
-        _device(s, "replaced", "M133VINREPLACE001")
-        _raw(s, "replaced", "M133VINREPLACE001", "A6-ODOMETER", 80000)
-        _latest(s, "M133VINREPLACE001", "ODOMETER", 50000, BEFORE)
+        _vehicle(s, "M133VINOTHER00001")
+        _device(s, "otherfirst", "M133VINOTHER00001")
+        _raw(s, "otherfirst", "M133VINOTHER00001", "COOLANT", 90)
+        _latest(s, "M133VINOTHER00001", "ODOMETER", 50000, BEFORE)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _rows(engine) == {("otherfirst", "ODOMETER"): LEGACY}
+
+
+def test_133_records_a_user_autopid_key_in_miles(db):
+    """Codex R1-H1: `MILEAGE` read miles on main, and a km boot config would
+    switch it now that R12 honours one. Red against a 133 that only knew bare
+    ODOMETER."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINMILEAGE001")
+        _device(s, "mileage", "M133VINMILEAGE001")
+        _raw(s, "mileage", "M133VINMILEAGE001", "MILEAGE", 128748)
+        _vehicle(s, "M133VINODOLAT0001")
+        # Pruned: only the latest row says it ever reported ODO.
+        _device(s, "odolatest", "M133VINODOLAT0001")
+        _latest(s, "M133VINODOLAT0001", "ODO", 128748, AFTER)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _rows(engine) == {("mileage", "MILEAGE"): LEGACY, ("odolatest", "ODO"): LEGACY}
+
+
+def test_133_follows_a_declared_key_and_nothing_else(db):
+    """A declared `odometer_param_key` replaces name matching, as it did on
+    main, so a bare ODOMETER beside it was stored raw and gets no miles row
+    (Fable FB-4). Red against a 133 that included declared-other devices."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINDECLOTHER1")
+        _device(s, "declother", "M133VINDECLOTHER1", odometer_param_key="A6-ODOMETER")
+        _raw(s, "declother", "M133VINDECLOTHER1", "ODOMETER", 50000)
+        _latest(s, "M133VINDECLOTHER1", "ODOMETER", 50000, AFTER)
         s.commit()
 
     _load().upgrade(engine)
 
     assert _rows(engine) == {}
+
+
+def test_133_records_a_declared_key_with_history_in_mains_unit(db):
+    """The declared key itself is covered: bare reads miles, as on main."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINDECLMY0001")
+        _device(s, "declmy", "M133VINDECLMY0001", odometer_param_key="MY_ODO")
+        _raw(s, "declmy", "M133VINDECLMY0001", "MY_ODO", 50000)
+        _raw(s, "declmy", "M133VINDECLMY0001", "A6-ODOMETER", 80467)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _rows(engine) == {("declmy", "MY_ODO"): LEGACY}
 
 
 def test_133_gives_a_rediscovered_device_main_s_reading(db):
@@ -333,6 +397,9 @@ async def migrated(db) -> AsyncGenerator[AsyncSession]:
     - `unitkm`: bare `ODOMETER` history, `odometer_unit='km'`.
     - `redisc`: re-discovered (F5-5), no raw rows, its VIN's bare `ODOMETER`
       latest row from before it was added.
+    - `mileage`: a `MILEAGE` autopid read as miles (Codex R1-H1), with the
+      record main wrote from it: 80,000 mi is 128,748 km.
+    - `pidkmdev`: `A6-ODOMETER` history in km, with its record.
     """
     dialect, engine, url = db
     if is_sqlite != (dialect == "sqlite"):
@@ -353,6 +420,24 @@ async def migrated(db) -> AsyncGenerator[AsyncSession]:
         _vehicle(s, "M133INGREDISC0001")
         _device(s, "redisc", "M133INGREDISC0001")
         _latest(s, "M133INGREDISC0001", "ODOMETER", 50000, BEFORE)
+        for device_id, vin, key, km in (
+            ("mileage", "M133INGMILEAGE001", "MILEAGE", 128748.0),
+            ("pidkmdev", "M133INGPIDKM00001", "A6-ODOMETER", 80000.0),
+        ):
+            _vehicle(s, vin)
+            _device(s, device_id, vin)
+            _raw(s, device_id, vin, key, km, at=AFTER)
+            _latest(s, vin, key, km, AFTER)
+            s.add(
+                OdometerRecord(
+                    vin=vin,
+                    date=AFTER.date(),
+                    odometer_km=km,
+                    source="livelink",
+                    notes=f"Auto-recorded from LiveLink ({key})",
+                    created_at=AFTER,
+                )
+            )
         s.commit()
 
     _load().upgrade(engine)
@@ -432,7 +517,7 @@ async def test_no_existing_install_reads_differently(migrated: AsyncSession):
 
     assert await _newest(db, "legacy", "ODOMETER") == KM_50000_MI
     assert await _newest(db, "pidonly", "A6-ODOMETER") == 80467.0
-    assert await _held(db, "pidonly") == {}
+    assert await _held(db, "pidonly") == {"A6-ODOMETER": ("km", "legacy")}
     assert await _newest(db, "mixed", "A6-ODOMETER") == 80467.0
     assert await _newest(db, "mixed", "ODOMETER") == KM_50000_MI
     assert await _newest(db, "unitkm", "ODOMETER") == 80467.0
@@ -478,14 +563,68 @@ async def test_a_rediscovered_device_keeps_its_legacy_row_through_a_km_boot(
     assert await _newest(db, "redisc", "ODOMETER") == 80469.0
 
 
+async def _record_max(db: AsyncSession, vin: str) -> float:
+    found = await db.execute(
+        select(func.max(OdometerRecord.odometer_km)).where(OdometerRecord.vin == vin)
+    )
+    return float(found.scalar_one())
+
+
+@pytest.mark.asyncio
+async def test_a_km_boot_config_keeps_a_mileage_autopid_in_miles(migrated: AsyncSession):
+    """Codex R1-H1's reproduction. On main `MILEAGE` read miles whatever the
+    config said, so its record floor is 128,748 km. A km declaration switching
+    it would store 80,010 km and leave the floor where it was, silently, for
+    good. Red against a 133 that only recorded bare ODOMETER."""
+    db = migrated
+    await _boot(db, "mileage", {"MILEAGE": {"class": "distance", "unit": "km"}}, MILEAGE=80010)
+
+    assert await _held(db, "mileage") == {"MILEAGE": ("mi", "legacy")}
+    assert await _newest(db, "mileage", "MILEAGE") == 128764.0
+    assert await _record_max(db, "M133INGMILEAGE001") == 128764.0
+
+
+@pytest.mark.asyncio
+async def test_a_miles_boot_config_keeps_a_pid_odometer_in_km(migrated: AsyncSession):
+    """The opposite conflict: a standard PID read km on main. A miles
+    declaration would put the next reading 1.609x up, past the jump guard, and
+    drop it. Red against a 133 that only recorded bare ODOMETER."""
+    db = migrated
+    await _boot(
+        db,
+        "pidkmdev",
+        {"A6-ODOMETER": {"class": "distance", "unit": "mi"}},
+        **{"A6-ODOMETER": 80010},
+    )
+
+    assert await _held(db, "pidkmdev") == {"A6-ODOMETER": ("km", "legacy")}
+    assert await _newest(db, "pidkmdev", "A6-ODOMETER") == 80010.0
+    assert await _record_max(db, "M133INGPIDKM00001") == 80010.0
+
+
+@pytest.mark.asyncio
+async def test_a_rediscovered_device_that_sends_another_key_first_keeps_its_row(
+    migrated: AsyncSession,
+):
+    """Fable FB-2: one COOLANT frame isn't the odometer reporting since
+    re-creation. With the any-key raw check the km boot config replaced the
+    row and 50,001 stored as km, below the floor. Red on ed8fbef9."""
+    db = migrated
+    await _rx(db, "redisc", COOLANT=90)
+    await _boot(db, "redisc", {"ODOMETER": {"class": "distance", "unit": "km"}}, ODOMETER=50001)
+
+    assert await _held(db, "redisc") == {"ODOMETER": ("mi", "legacy")}
+    assert await _newest(db, "redisc", "ODOMETER") == 80469.0
+
+
 @pytest.mark.asyncio
 async def test_an_sd_backfill_stores_what_live_ingest_would(migrated: AsyncSession):
     """The SD path resolves through the same step: the legacy `ODOMETER` reads
     miles and an R12 mph `SPEED` becomes km/h (R12, R4). The speed is red on
     main; the odometer is red against a T7 that fixed the live path only.
 
-    Live ingest rounds an odometer (`_sanitize_odometer_value`), the SD path
-    never has, hence the half-km tolerance on that one.
+    Live ingest rounds an odometer (`_sanitize_odometer_value`), and so does
+    the SD path now (B6-11), so the two match exactly.
     """
     from app.services.sd_log_parser import SdRow
     from app.services.telemetry_service import TelemetryService
@@ -514,6 +653,6 @@ async def test_an_sd_backfill_stores_what_live_ingest_would(migrated: AsyncSessi
         )
     )
     stored = {key: value for key, value in sd.all()}
-    assert stored["ODOMETER"] == pytest.approx(live_odometer, abs=0.5)
+    assert stored["ODOMETER"] == live_odometer
     assert stored["SPEED"] == pytest.approx(live_speed)
     assert live_speed == pytest.approx(50 * 1.609344)
