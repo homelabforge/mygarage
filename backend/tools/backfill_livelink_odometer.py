@@ -41,7 +41,7 @@ from app.utils.odometer_units import (  # noqa: E402
     odometer_value_to_km,
     resolve_odometer_unit,
 )
-from tools._tool_db import as_date, resolve_sync_url  # noqa: E402
+from tools._tool_db import as_date, device_key_units, resolve_sync_url  # noqa: E402
 
 #: Below this, a "mi" device's stored telemetry already sits in the same range
 #: as the vehicle's kilometre odometer records, so it has been converted and
@@ -80,6 +80,10 @@ def main() -> int:
             )
         }
 
+        # Units as live ingest resolves them: a legacy row keeps a bare
+        # ODOMETER in miles, where the key rule alone now says km.
+        key_units = device_key_units(conn)
+
         # Refuse if the telemetry has already been converted. This reads
         # `value` as the device reported it and applies the device's declared
         # unit, so running it after normalize_telemetry_odometer_units.py would
@@ -98,7 +102,8 @@ def main() -> int:
                 param_key = key_row.param_key
                 if not is_odometer_param_key(param_key):
                     continue
-                if resolve_odometer_unit(param_key, unit, kind) == ODOMETER_UNIT_KM:
+                key_unit = key_units.get((device_id, param_key))
+                if resolve_odometer_unit(param_key, unit, kind, key_unit) == ODOMETER_UNIT_KM:
                     continue  # nothing would be converted for this key anyway
                 stored_max = conn.execute(
                     text(
@@ -178,7 +183,9 @@ def main() -> int:
             if (vin, day) in taken:
                 continue
             _dev_vin, unit, kind = devices.get(device_id, (None, None, None))
-            km = odometer_value_to_km(value, param_key, unit, kind)
+            km = odometer_value_to_km(
+                value, param_key, unit, kind, key_units.get((device_id, param_key))
+            )
             if km is None or km <= 0:
                 continue
             rounded = int(round(km))

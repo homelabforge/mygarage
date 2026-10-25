@@ -126,6 +126,7 @@ const OBD2_PID_PREFIX = /^[0-9A-Fa-f]{2}-/
  */
 const NORMALISED_DISTANCE_KEYS = new Set([
   'odometer',
+  'odometer_mi',
   'odo',
   'mileage',
   'total_distance',

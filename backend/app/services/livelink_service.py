@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_topic_map import LiveLinkTopicMap
-from app.models.vehicle_telemetry import VehicleTelemetry
+from app.models.odometer import OdometerRecord
+from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
 from app.schemas.livelink import DeviceStatusType, ECUStatusType
 from app.services.livelink_sources.presets.sensors import delete_sensor_readings
 from app.services.settings_service import SettingsService, parse_bool
@@ -525,16 +526,18 @@ class LiveLinkService:
         odometer_unit = changes.get("odometer_unit")
         if odometer_unit is not None:
             resolved = None if odometer_unit == "auto" else odometer_unit
-            if resolved != device.odometer_unit and await self._has_odometer_history(
-                device_id, device.odometer_param_key
-            ):
+            if resolved != device.odometer_unit and await self.device_has_odometer_history(device):
                 raise ValueError(
-                    "This device has already recorded odometer readings under its current "
-                    "unit. Changing the unit now would leave that history in one unit and "
-                    "write new readings in the other, and an inflated odometer record is "
-                    "kept as a floor rather than corrected by later readings. Convert the "
-                    "stored data first with backend/tools/normalize_telemetry_odometer_units.py "
-                    "and fix_session_odometer_units.py, then set the unit."
+                    "Odometer readings have already been recorded under this device's "
+                    "current unit, by this device, or another device on this vehicle since "
+                    "this one was added. Changing the unit now would leave that history in "
+                    "one unit and write new readings in the other, and an inflated odometer "
+                    "record is kept as a floor rather than corrected by later readings. If "
+                    "the history holds raw miles from before the v2.26 conversion, convert "
+                    "it first with backend/tools/normalize_telemetry_odometer_units.py and "
+                    "fix_session_odometer_units.py, then set the unit. If it was recorded "
+                    "in the wrong unit the other way (read as miles, really km), no tool "
+                    "converts it yet; it needs a manual repair."
                 )
             device.odometer_unit = resolved
 
@@ -543,15 +546,16 @@ class LiveLinkService:
             resolved_key = odometer_param_key.upper().replace(" ", "_") or None
             # Same reasoning as the unit guard above: changing which parameter
             # IS the odometer mid-stream splits the history between two keys.
-            # Checked against the CURRENT declaration, or the predicate falls
-            # back to name matching and answers False for exactly the devices
-            # this feature serves.
-            if resolved_key != device.odometer_param_key and await self._has_odometer_history(
-                device_id, device.odometer_param_key
+            # The predicate reads the CURRENT declaration, or it falls back to
+            # name matching and answers False for exactly the devices this
+            # feature serves.
+            if resolved_key != device.odometer_param_key and await self.device_has_odometer_history(
+                device
             ):
                 raise ValueError(
-                    "This device has already recorded odometer readings under its "
-                    "current parameter. Changing it now would split that history. "
+                    "Odometer readings have already been recorded under this device's "
+                    "current parameter, by this device, or another device on this vehicle "
+                    "since this one was added. Changing it now would split that history. "
                     "Normalise the stored data first, then change the parameter."
                 )
             device.odometer_param_key = resolved_key
@@ -561,24 +565,47 @@ class LiveLinkService:
 
         return device
 
-    async def _has_odometer_history(self, device_id: str, declared: str | None = None) -> bool:
-        """Whether this device has stored any odometer reading.
+    async def device_has_odometer_history(self, device: LiveLinkDevice) -> bool:
+        """Whether odometer readings were recorded that this device could have written.
 
-        `declared` is the device's `odometer_param_key`. It MUST be passed by
-        every caller that guards a change, or the predicate falls back to name
-        matching and answers False forever for a device whose odometer key the
-        patterns do not recognise. That silently disables the guard for exactly
-        the devices the declaration exists to serve.
+        Any of: an odometer-key `vehicle_telemetry` row from the device; an
+        odometer-key `vehicle_telemetry_latest` row on its VIN; a
+        `source='livelink'` odometer record on its VIN. The last two survive
+        `prune_old_telemetry`, so a car parked past the 90-day retention keeps
+        its guard (Fable F3-1). They're keyed by VIN, so they only count from
+        the device's `created_at` on: a replacement dongle isn't blocked by a
+        dead one's history (Fable F4-2). A second device live on the same VIN
+        still blocks it; accepted.
+
+        Odometer keys match by the device's `odometer_param_key` when it has
+        one, by name otherwise (`is_odometer_param_key`).
         """
-        from app.models.vehicle_telemetry import VehicleTelemetry
-        from app.utils.odometer_units import is_odometer_param_key
-
-        result = await self.db.execute(
+        declared = device.odometer_param_key
+        raw = await self.db.execute(
             select(VehicleTelemetry.param_key)
-            .where(VehicleTelemetry.device_id == device_id)
+            .where(VehicleTelemetry.device_id == device.device_id)
             .distinct()
         )
-        return any(is_odometer_param_key(key, declared) for (key,) in result.all())
+        if any(is_odometer_param_key(key, declared) for (key,) in raw.all()):
+            return True
+        if not device.vin:
+            return False
+
+        since = device.created_at
+        latest = select(VehicleTelemetryLatest.param_key).where(
+            VehicleTelemetryLatest.vin == device.vin
+        )
+        if since is not None:
+            latest = latest.where(VehicleTelemetryLatest.timestamp >= since)
+        if any(is_odometer_param_key(key, declared) for (key,) in (await self.db.execute(latest))):
+            return True
+
+        record = select(OdometerRecord.id).where(
+            OdometerRecord.vin == device.vin, OdometerRecord.source == "livelink"
+        )
+        if since is not None:
+            record = record.where(OdometerRecord.created_at >= since)
+        return (await self.db.execute(record.limit(1))).first() is not None
 
     async def device_reported_param_keys(self, device_id: str) -> list[str]:
         """Distinct parameter keys THIS device has reported.

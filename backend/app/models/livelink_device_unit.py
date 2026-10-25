@@ -18,7 +18,7 @@ from app.database import Base
 
 #: Declared by the device itself.
 SOURCE_WIRE = "wire"
-#: Recorded by a migration from how main used to read a key (T7); a `wire`
+#: Recorded by migration 133 from how main used to read a key; a `wire`
 #: declaration doesn't replace it for an odometer key with history.
 SOURCE_LEGACY = "legacy"
 

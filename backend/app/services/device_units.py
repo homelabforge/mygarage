@@ -54,14 +54,7 @@ class DeviceUnitService:
 
     async def units_for(self, device_id: str) -> dict[str, WireUnit]:
         """Every unit the device has on file, by canonical key."""
-        rows = await self.db.execute(
-            select(
-                LiveLinkDeviceUnit.param_key,
-                LiveLinkDeviceUnit.unit,
-                LiveLinkDeviceUnit.param_class,
-            ).where(LiveLinkDeviceUnit.device_id == device_id)
-        )
-        return {key: WireUnit(unit, cls) for key, unit, cls in rows.all()}
+        return {key: row for key, (row, _source) in (await self._stored(device_id)).items()}
 
     async def record(
         self,
@@ -153,12 +146,10 @@ class DeviceUnitService:
             )
 
     async def _has_odometer_history(self, device: LiveLinkDevice) -> bool:
-        # T7 swaps this for the shared `device_has_odometer_history`.
+        # Lazy: livelink_service is a much bigger import, and nothing else here needs it.
         from app.services.livelink_service import LiveLinkService
 
-        return await LiveLinkService(self.db)._has_odometer_history(  # pyright: ignore[reportPrivateUsage]
-            device.device_id, device.odometer_param_key
-        )
+        return await LiveLinkService(self.db).device_has_odometer_history(device)
 
     @staticmethod
     def _warn_legacy_kept(device_id: str, key: str, declared_unit: str | None) -> None:
@@ -173,30 +164,58 @@ class DeviceUnitService:
             sanitize_for_log(declared_unit),
         )
 
+    async def _stored(self, device_id: str) -> dict[str, tuple[WireUnit, str]]:
+        """The device's rows by key, with each one's source."""
+        rows = await self.db.execute(
+            select(
+                LiveLinkDeviceUnit.param_key,
+                LiveLinkDeviceUnit.unit,
+                LiveLinkDeviceUnit.param_class,
+                LiveLinkDeviceUnit.source,
+            ).where(LiveLinkDeviceUnit.device_id == device_id)
+        )
+        return {key: (WireUnit(unit, cls), source) for key, unit, cls, source in rows.all()}
+
+    @staticmethod
+    def _pick(
+        unit: str | None, param_class: str | None, stored: tuple[WireUnit, str] | None
+    ) -> tuple[str | None, str | None]:
+        """The one precedence rule: the reading's own > the stored row > none.
+
+        Except a `legacy` row, which beats the reading's own. `record` runs
+        first in `ingest` and only keeps a legacy row against a declaration
+        when the device has odometer history, so a legacy row still here means
+        the boot POST that declared otherwise must read the old unit too.
+        """
+        if stored is None:
+            return unit, param_class
+        row, source = stored
+        if source == SOURCE_LEGACY:
+            return row.unit, row.param_class
+        return (
+            unit if unit is not None else row.unit,
+            param_class if param_class is not None else row.param_class,
+        )
+
     async def resolve_readings(self, device_id: str, readings: Sequence[Reading]) -> list[Reading]:
         """Give each reading its unit and class, then store mph as km/h.
 
         A reading's own unit and class (this request's `config`, a topic map's
-        `unit`) win, then the device's stored row, then nothing. A reading that
-        resolves to mph is converted and carries `km/h` from here on (R4), and
-        its parameter row follows (`_move_rows_to_kmh`).
+        `unit`) win, then the device's stored row, then nothing; a kept
+        `legacy` row wins outright (`_pick`). A reading that resolves to mph is
+        converted and carries `km/h` from here on (R4), and its parameter row
+        follows (`_move_rows_to_kmh`).
         """
-        stored: dict[str, WireUnit] = {}
-        if any(r.unit is None or r.param_class is None for r in readings):
-            stored = await self.units_for(device_id)
+        stored = await self._stored(device_id) if readings else {}
 
         resolved: list[Reading] = []
         converted: set[str] = set()
         for reading in readings:
-            row = stored.get(reading.param_key)
-            if row is not None:
-                reading = replace(
-                    reading,
-                    unit=reading.unit if reading.unit is not None else row.unit,
-                    param_class=reading.param_class
-                    if reading.param_class is not None
-                    else row.param_class,
-                )
+            unit, param_class = self._pick(
+                reading.unit, reading.param_class, stored.get(reading.param_key)
+            )
+            if (unit, param_class) != (reading.unit, reading.param_class):
+                reading = replace(reading, unit=unit, param_class=param_class)
             if is_mph(reading.unit):
                 reading = replace(
                     reading, value=mph_to_kmh(reading.value), unit=CANONICAL_SPEED_UNIT
@@ -207,6 +226,17 @@ class DeviceUnitService:
         if converted:
             await self._move_rows_to_kmh(converted)
         return resolved
+
+    async def resolve_units(
+        self, device_id: str, units: Mapping[str, str | None]
+    ) -> dict[str, str | None]:
+        """Each key's resolved unit, by the same rule as `resolve_readings`.
+
+        For the odometer step, which has values and the units they came with
+        but no `Reading`s. No mph step: an odometer is a distance.
+        """
+        stored = await self._stored(device_id) if units else {}
+        return {key: self._pick(unit, None, stored.get(key))[0] for key, unit in units.items()}
 
     async def _move_rows_to_kmh(self, keys: set[str]) -> None:
         """A parameter row still labelled mph now holds km/h values.

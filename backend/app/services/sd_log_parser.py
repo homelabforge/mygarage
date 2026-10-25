@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import sqlite3
 import tempfile
 from datetime import UTC, datetime
@@ -61,7 +62,10 @@ class SdLogParser:
             param_key = canonical_param_key(name)
             if not is_telemetry_param(param_key):
                 continue  # drop WiCAN frame-metadata (TS, TIMESTAMP); not telemetry
-            rows.append(SdRow(param_key, float(value), datetime.fromtimestamp(ts, UTC)))
+            number = float(value)
+            if not math.isfinite(number):
+                continue  # live ingest drops these too; a NaN can't be stored
+            rows.append(SdRow(param_key, number, datetime.fromtimestamp(ts, UTC)))
         return rows
 
     @staticmethod

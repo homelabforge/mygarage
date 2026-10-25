@@ -76,3 +76,21 @@ def test_parse_bad_schema_raises():
     db = _make_db([], good_schema=False)
     with pytest.raises(SdLogSchemaError):
         SdLogParser().parse(db)
+
+
+def test_parse_drops_nan_and_infinity():
+    """A NaN binds as NULL into NOT NULL columns, and inf is no reading either.
+
+    Live ingest has dropped both since T1; the SD path has to agree. SQLite
+    keeps an Inf REAL as is, and a 'NaN' string as text that float() reads.
+    """
+    db = _make_db(
+        [
+            ("0C-EngineRPM", 1781967506, float("inf")),
+            ("0C-EngineRPM", 1781967507, "NaN"),
+            ("0C-EngineRPM", 1781967508, "-Infinity"),
+            ("0C-EngineRPM", 1781967509, 957.0),
+        ]
+    )
+    rows = SdLogParser().parse(db)
+    assert [r.value for r in rows] == [957.0]

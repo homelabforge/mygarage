@@ -24,7 +24,8 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 
-from sqlalchemy.engine import URL
+from sqlalchemy import inspect, text
+from sqlalchemy.engine import URL, Connection
 
 from app.utils.db_url import to_sync_url
 
@@ -98,3 +99,17 @@ def as_date(value: object) -> date:
     if isinstance(value, date):
         return value
     return date.fromisoformat(str(value))
+
+
+def device_key_units(conn: Connection) -> dict[tuple[str, str], str | None]:
+    """Each device's stored R12 unit, by ``(device_id, param_key)``.
+
+    The unit live ingest resolves a key to when no request declares one, so a
+    tool converting an odometer agrees with it (``resolve_odometer_unit``'s
+    ``key_unit``). Empty before ``livelink_device_units`` exists, which is the
+    case when a tool runs before the first boot of the version that adds it.
+    """
+    if not inspect(conn).has_table("livelink_device_units"):
+        return {}
+    rows = conn.execute(text("SELECT device_id, param_key, unit FROM livelink_device_units"))
+    return {(row.device_id, row.param_key): row.unit for row in rows}

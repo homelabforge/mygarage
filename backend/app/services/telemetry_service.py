@@ -30,6 +30,7 @@ from app.models.vehicle_telemetry import (
     VehicleTelemetry,
     VehicleTelemetryLatest,
 )
+from app.services.device_units import DeviceUnitService
 from app.services.telemetry_validator import TelemetryValidator
 from app.utils.autopid_normalizer import (
     canonical_param_key,
@@ -351,25 +352,39 @@ class TelemetryService:
         device_id: str,
         autopid_data: dict[str, float | int | str | None],
         declared: str | None = None,
+        key_units: Mapping[str, str | None] | None = None,
     ) -> dict[str, float | int | str | None]:
         """Return ``autopid_data`` with any odometer value converted to km.
 
-        Only the standard SAE J1979 PID is guaranteed metric; a bare autopid key
-        is a user-defined CAN expression and is usually miles on a US-market
-        car. The device's declared `odometer_unit` decides, falling back to the
-        key shape (WiCAN only) when it has not been set.
+        ``key_units`` is each key's unit as it arrived (this request's
+        `config`). It goes through R12's resolution with the device's stored
+        rows, so a kept `legacy` row and a boot declaration both reach this.
+        `resolve_odometer_unit` has the order: device unit, then that, then
+        the key shape (WiCAN only).
         """
-        if not any(self._is_odometer_param(k, declared) for k in autopid_data):
+        keys = [
+            k
+            for k, v in autopid_data.items()
+            if v is not None and self._is_odometer_param(k, declared)
+        ]
+        if not keys:
             return autopid_data
 
         device_unit, device_kind = await self._odometer_units_for(device_id)
+        given = key_units or {}
+        units = await DeviceUnitService(self.db).resolve_units(
+            device_id, {k: given.get(k) for k in keys}
+        )
 
         normalized = dict(autopid_data)
-        for param_key, value in autopid_data.items():
-            if value is None or not self._is_odometer_param(param_key, declared):
+        for param_key in keys:
+            value = autopid_data[param_key]
+            if value is None:
                 continue
             try:
-                converted = odometer_value_to_km(float(value), param_key, device_unit, device_kind)
+                converted = odometer_value_to_km(
+                    float(value), param_key, device_unit, device_kind, units.get(param_key)
+                )
             except TypeError, ValueError:
                 continue
             if converted is not None:
@@ -466,7 +481,12 @@ class TelemetryService:
         # the session stamp) reads the same units. Doing it per-consumer is what
         # let the record path and the storage path disagree for four months.
         declared_key = await self._declared_odometer_key(device_id)
-        autopid_data = await self._normalize_odometer_units(device_id, autopid_data, declared_key)
+        autopid_data = await self._normalize_odometer_units(
+            device_id,
+            autopid_data,
+            declared_key,
+            {canonical_param_key(k): (c or {}).get("unit") for k, c in config.items()},
+        )
 
         received_at = utc_now()
 
@@ -900,21 +920,34 @@ class TelemetryService:
         stamps: list[datetime] = []
         observed: list[tuple[datetime, str, float]] = []
 
-        # The SD path writes `r.value` straight to a metric-canonical column,
-        # so it needs the same odometer conversion `store_telemetry` applies:
-        # a bare `ODOMETER` autopid on a US-market car reports miles. Fetched
-        # once here rather than per row; a pull is one device.
-        device_unit, device_kind = await self._odometer_units_for(device_id)
+        # A NaN binds as NULL into a NOT NULL column. The parser drops them;
+        # this keeps the method safe on its own, as store_telemetry is.
+        rows = [r for r in rows if math.isfinite(r.value)]
+        if not rows:
+            return 0
 
-        for i, r in enumerate(rows, start=1):
+        # The SD path writes straight to metric-canonical columns, so it
+        # resolves units through the same step live ingest does (R12): stored
+        # rows, mph to km/h, and the odometer order below. Otherwise one key
+        # holds two scales depending on which path wrote it. A pull is one
+        # device, so this is fetched once.
+        resolved = await DeviceUnitService(self.db).resolve_readings(
+            device_id, [Reading(r.param_key, r.value) for r in rows]
+        )
+        device_unit, device_kind = await self._odometer_units_for(device_id)
+        declared = await self._declared_odometer_key(device_id)
+
+        for i, (r, reading) in enumerate(zip(rows, resolved, strict=True), start=1):
             # Normalise to naive UTC once so the (device_id, param_key, timestamp)
             # dedup index matches live-ingest rows (which store naive UTC via utc_now()).
             # Binding tz-aware datetimes into PG's TIMESTAMP WITHOUT TIME ZONE is also unsafe.
             ts = r.timestamp.replace(tzinfo=None) if r.timestamp.tzinfo is not None else r.timestamp
 
-            value = r.value
-            if self._is_odometer_param(r.param_key):
-                converted = odometer_value_to_km(value, r.param_key, device_unit, device_kind)
+            value = reading.value
+            if self._is_odometer_param(r.param_key, declared):
+                converted = odometer_value_to_km(
+                    value, r.param_key, device_unit, device_kind, reading.unit
+                )
                 if converted is not None:
                     value = converted
             # Kept for the session reconstruction below, in CANONICAL km. The
@@ -1537,7 +1570,10 @@ class TelemetryService:
         declared = device.odometer_param_key if device else None
         if declared:
             normalised = await self._normalize_odometer_units(
-                device_id, {r.param_key: r.value for r in readings}, declared
+                device_id,
+                {r.param_key: r.value for r in readings},
+                declared,
+                {r.param_key: r.unit for r in readings},
             )
             readings = [
                 replace(r, value=float(normalised[r.param_key]))

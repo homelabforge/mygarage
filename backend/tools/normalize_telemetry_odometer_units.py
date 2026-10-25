@@ -46,7 +46,7 @@ from app.utils.odometer_units import (  # noqa: E402
     resolve_odometer_unit,
 )
 from app.utils.units import UnitConverter  # noqa: E402
-from tools._tool_db import resolve_sync_url  # noqa: E402
+from tools._tool_db import device_key_units, resolve_sync_url  # noqa: E402
 
 #: Above this, the vehicle's km odometer records tower over its stored odometer
 #: telemetry by roughly the miles factor, so the telemetry is still in miles.
@@ -120,6 +120,11 @@ def main() -> int:
             )
         ]
 
+        # The device's stored units, as live ingest reads them: after 3.10 a
+        # bare ODOMETER is km unless a legacy row says miles, and without this
+        # every legacy device would be skipped as "already metric".
+        key_units = device_key_units(conn)
+
         total_hist = 0
         total_latest = 0
         plan: list[tuple[str, str, str]] = []
@@ -135,7 +140,8 @@ def main() -> int:
                 if is_odometer_param_key(row.param_key)
             ]
             for param_key in keys:
-                if resolve_odometer_unit(param_key, unit, kind) == ODOMETER_UNIT_KM:
+                key_unit = key_units.get((device_id, param_key))
+                if resolve_odometer_unit(param_key, unit, kind, key_unit) == ODOMETER_UNIT_KM:
                     continue  # already metric on the wire
 
                 mixed = _mixed_units_step(conn, device_id, param_key)

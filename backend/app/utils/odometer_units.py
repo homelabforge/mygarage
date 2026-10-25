@@ -1,23 +1,30 @@
 """Resolve the units a LiveLink device reports its odometer in.
 
-Storage is metric-canonical (km), but a device's raw odometer value is only
-metric if it came from the standard SAE J1979 PID. WiCAN lets a user define an
-*autopid* — an arbitrary CAN expression under a name of their choosing — and on
-a US-market car that expression typically reads the dash odometer, in miles.
+Storage is metric-canonical (km). Which unit a raw reading is in comes from,
+in order:
 
-The key shape is the only signal available on the wire, so it is the default:
+1. the device's ``LiveLinkDevice.odometer_unit``, when set: it always wins;
+2. the unit the device declared for that key (this request's HTTPS ``config``,
+   else its stored R12 row in ``livelink_device_units``, ``wire`` or
+   ``legacy``), WiCAN only;
+3. the key's shape:
 
     A6-ODOMETER   standard PID 0xA6, metric per SAE J1979   -> km
-    ODOMETER      bare autopid, user-defined expression     -> mi
+    ODOMETER      upstream WiCAN's name for a km odometer   -> km
+    ODOMETER_MI   upstream WiCAN's name for a miles one     -> mi
+    ODO, MILEAGE  any other bare key: a user autopid        -> mi (a guess)
 
-That is a heuristic about hardware, not a fact about the protocol, so
-``LiveLinkDevice.odometer_unit`` overrides it per device and always wins.
+Any other device kind reads km unless its ``odometer_unit`` says otherwise.
 
 History: `6f04e53` ("Fix/v2.26.2 currency and metric canonical") collapsed the
-two cases into `int(round(value))`, which silently killed odometer
+key shapes into `int(round(value))`, which silently killed odometer
 auto-recording for every bare-autopid device — a miles value read as kilometres
 lands *below* the vehicle's real odometer and the monotonic guard in
 ``TelemetryService._sync_odometer_from_telemetry`` drops it with no log line.
+The fix guessed miles for EVERY bare key, bare ``ODOMETER`` included, which
+upstream defines as km (N-1). A WiCAN that reported one before 3.10 keeps that
+miles reading through a ``legacy`` R12 row (migration 133), because its
+odometer records were written in it.
 """
 
 from __future__ import annotations
@@ -46,7 +53,13 @@ OBD2_PID_PREFIX_RE = re.compile(r"^[0-9A-F]{2}-")
 #: set rather than a substring scan: `21-DISTANCEMILON` and
 #: `31-DISTANCESINCECODECLEAR` are trip counters, not odometers, and a loose
 #: "DISTANCE" match would silently stamp a session's odometer from one of them.
-_ODOMETER_BARE_KEYS = frozenset({"ODOMETER", "ODO", "MILEAGE", "TOTAL_DISTANCE", "DISTANCE_TOTAL"})
+_ODOMETER_BARE_KEYS = frozenset(
+    {"ODOMETER", "ODOMETER_MI", "ODO", "MILEAGE", "TOTAL_DISTANCE", "DISTANCE_TOTAL"}
+)
+
+#: Upstream WiCAN's own odometer names. Every other bare key is a user autopid.
+UPSTREAM_KM_ODOMETER_KEY = "ODOMETER"
+UPSTREAM_MI_ODOMETER_KEY = "ODOMETER_MI"
 
 
 def bare_param_key(param_key: str) -> str:
@@ -78,31 +91,47 @@ def is_odometer_param_key(param_key: str, declared: str | None = None) -> bool:
 
 
 def infer_odometer_unit(param_key: str) -> str:
-    """Guess a device's odometer units from the param key shape.
+    """Guess a WiCAN's odometer units from the param key shape.
 
-    Returns ``'km'`` for a standard OBD2 PID key, ``'mi'`` otherwise.
+    ``'km'`` for a standard OBD2 PID key and for upstream's bare ``ODOMETER``,
+    ``'mi'`` for ``ODOMETER_MI`` and for any other bare key (a user autopid,
+    usually reading a US dash).
     """
-    return ODOMETER_UNIT_KM if OBD2_PID_PREFIX_RE.match(param_key.upper()) else ODOMETER_UNIT_MI
+    key = param_key.upper()
+    if OBD2_PID_PREFIX_RE.match(key) or key == UPSTREAM_KM_ODOMETER_KEY:
+        return ODOMETER_UNIT_KM
+    return ODOMETER_UNIT_MI
+
+
+def _distance_unit(unit: str | None) -> str | None:
+    """``unit`` as 'km' or 'mi', or None when it names neither."""
+    if not unit:
+        return None
+    unit = unit.strip().lower()
+    return unit if unit in VALID_ODOMETER_UNITS else None
 
 
 def resolve_odometer_unit(
     param_key: str,
     device_unit: str | None,
     device_kind: str | None = None,
+    key_unit: str | None = None,
 ) -> str:
     """Return the units to read ``param_key`` in for a device.
 
-    An explicit, recognised ``device_unit`` always wins. Otherwise the key-shape
-    heuristic applies, but ONLY for WiCAN devices: "a bare key is an autopid, so
-    probably miles" is a fact about WiCAN's user-defined CAN expressions, not
-    about odometers in general. Torque Pro publishes a bare ``ODOMETER`` too and
-    does not report miles, so any other device kind gets the metric default.
+    An explicit, recognised ``device_unit`` always wins. Then ``key_unit``,
+    the unit the device declared for this key (resolved through
+    ``DeviceUnitService``), then the key-shape rules. Both of those are WiCAN
+    only: Torque Pro publishes a bare ``ODOMETER`` too and does not report
+    miles, and whether it sends the phone's display units is unverified
+    (B6-8), so any other device kind gets the metric default.
     """
-    if device_unit and device_unit.lower() in VALID_ODOMETER_UNITS:
-        return device_unit.lower()
+    unit = _distance_unit(device_unit)
+    if unit:
+        return unit
     if device_kind is not None and device_kind != WICAN_DEVICE_KIND:
         return ODOMETER_UNIT_KM
-    return infer_odometer_unit(param_key)
+    return _distance_unit(key_unit) or infer_odometer_unit(param_key)
 
 
 def odometer_value_to_km(
@@ -110,12 +139,13 @@ def odometer_value_to_km(
     param_key: str,
     device_unit: str | None = None,
     device_kind: str | None = None,
+    key_unit: str | None = None,
 ) -> float | None:
     """Convert a raw device odometer reading to kilometres.
 
     Conversion goes through ``UnitConverter`` so it stays Decimal-precise, per
     the metric-canonical rule that unit conversion never uses float maths.
     """
-    if resolve_odometer_unit(param_key, device_unit, device_kind) == ODOMETER_UNIT_KM:
+    if resolve_odometer_unit(param_key, device_unit, device_kind, key_unit) == ODOMETER_UNIT_KM:
         return float(value)
     return UnitConverter.miles_to_km(value)

@@ -52,7 +52,7 @@ describe('classifyTelemetryParam', () => {
     // Only for the keys ingest actually converts, though: this list is
     // `_ODOMETER_BARE_KEYS` in backend/app/utils/odometer_units.py. A bare
     // `DISTANCE` is NOT in it and is asserted the other way below.
-    for (const key of ['ODOMETER', 'odometer', 'ODO', 'MILEAGE', 'TOTAL_DISTANCE']) {
+    for (const key of ['ODOMETER', 'odometer', 'ODOMETER_MI', 'ODO', 'MILEAGE', 'TOTAL_DISTANCE']) {
       expect(classifyTelemetryParam(key, null)).toStrictEqual({
         kind: 'quantity',
         quantity: 'distance',

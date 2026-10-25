@@ -15,7 +15,9 @@ vehicle's real odometer, so the monotonic guard
 swallowed every reading with no log line for four months.
 
 Units are a per-device property, so `LiveLinkDevice.odometer_unit` carries it;
-when unset we fall back to inferring from the param key shape.
+when unset we fall back to inferring from the param key shape. Since 3.10 that
+shape rule follows upstream: bare `ODOMETER` is km, `ODOMETER_MI` and any other
+bare key are miles (N-1).
 """
 
 from datetime import date
@@ -95,9 +97,10 @@ class TestOdometerUnitResolution:
     async def test_bare_odometer_key_is_read_as_miles_and_converted(
         self, db_session, make_odo_vehicle
     ):
-        """A WiCAN autopid `ODOMETER` in miles must land as kilometres.
+        """A WiCAN user autopid (`MILEAGE`) in miles must land as kilometres.
 
-        The device reports 89,984 mi. The vehicle already has a 144,784 km
+        Upstream's own bare `ODOMETER` is km since 3.10 (N-1), so the miles
+        guess is for the other bare keys. The device reports 89,984 mi. The vehicle already has a 144,784 km
         record from a fuel entry, so treating the raw value as kilometres makes
         it look like a backwards reading and the monotonic guard drops it.
         """
@@ -116,7 +119,7 @@ class TestOdometerUnitResolution:
         await service.store_telemetry(
             vin=vin,
             device_id=device_id,
-            autopid_data={"odometer": 89984.0},
+            autopid_data={"mileage": 89984.0},
             config={},
         )
         await db_session.flush()

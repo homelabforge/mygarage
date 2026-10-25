@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.utils.datetime_utils import utc_now
 
 
 class OdometerRecord(Base):
@@ -36,7 +37,11 @@ class OdometerRecord(Base):
     fuel_record_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("fuel_records.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    #: The app clock as well as the server default, so the odometer-history
+    #: bound compares it with telemetry timestamps on one clock (Fable F5-6).
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), default=utc_now
+    )
 
     # Relationships
     vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="odometer_records")
