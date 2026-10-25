@@ -107,7 +107,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - Validation error logs no longer include the rejected input, and a 422 body leaves it out for fields named like a password, secret, token or key
 - POI provider key masks show `********` instead of the key's first 8 characters
 - A secret setting's default value is logged as `<secret>` when it is seeded
-- LiveLink ingest only takes a device of its own kind: a WiCAN upload or topic naming a sensor or a Torque phone, or a Torque token sent to the WiCAN endpoint, is refused
+- LiveLink ingest only takes a device of its own kind: a WiCAN upload or topic naming a sensor or a Torque phone, or a Torque token sent to the WiCAN endpoint, is refused, and a new topic map naming a device that isn't generic MQTT answers 422
 - An SD pull checks the device address is still private when it connects, not only when it was saved, and skips it if not
 
 ## [3.9.0] - 2026-10-18

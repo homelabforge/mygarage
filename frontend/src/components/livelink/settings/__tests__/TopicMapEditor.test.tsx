@@ -97,4 +97,16 @@ describe('TopicMapEditor', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Topic shed/volts is already mapped')
   })
+
+  // Regression guard (FW-B-c5): the 422 for a map naming another kind's
+  // device shows its detail too.
+  it("shows the server's reason when a create names another kind's device", async () => {
+    const detail = 'Device fc01 is a wican device. Topic maps are for generic MQTT devices.'
+    createTopicMap.mockRejectedValue(httpError(422, detail))
+    render(<TopicMapEditor deviceId="fc01" onMappingsChanged={vi.fn()} />)
+    await userEvent.type(screen.getByLabelText('integrations.mqttMapTopic'), 'shed/volts')
+    await userEvent.click(screen.getByRole('button', { name: 'integrations.mqttAddMapping' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(detail)
+  })
 })

@@ -152,7 +152,8 @@ describe('DeviceTable', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('LiveLink is switched off'))
   })
 
-  // FB-9: a device that's gone answers 404 now, not an all-zero summary.
+  // Regression guard (FB-9): a device that's gone answers 404 now, not an
+  // all-zero summary, and the toast already shows a 404's detail.
   it('names the missing device when an SD pull finds none', async () => {
     triggerSdBackfill.mockRejectedValue(httpError(404, 'Device d1 not found'))
     render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />)
