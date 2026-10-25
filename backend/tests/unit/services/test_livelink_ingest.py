@@ -157,6 +157,9 @@ async def test_thresholds_are_checked_for_each_validated_param(db_session, linke
         tel.return_value.check_thresholds.assert_awaited_once()
         # Not a preset sensor: alerts repeat every cooldown, as WiCAN's do.
         assert tel.return_value.check_thresholds.await_args.kwargs["once"] is False
+        # No ODOMETER capability, so nothing here went through odometer
+        # normalisation and an odometer-named key is not known to be km (D2a).
+        assert tel.return_value.check_thresholds.await_args.kwargs["odometer_normalised"] is False
 
 
 @pytest.mark.asyncio

@@ -17,10 +17,12 @@ via ``LiveLinkService.get_alert_cooldown_minutes``, default 30 when unset):
 - the stamp is only set when at least one service actually ACCEPTED the
   notification — an empty result (no services enabled) or an all-failed
   result (transient outage) must not start the cooldown clock
+- a send nothing accepted holds the next try until the cooldown has passed,
+  as a preset sensor's does (R2)
 - changing the admin setting changes the window
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
@@ -201,9 +203,9 @@ class TestCheckThresholdsCooldown:
     async def test_stamp_not_set_when_no_services_enabled(
         self, db_session, make_vehicle, make_param, monkeypatch
     ):
-        """Dispatch reaches zero enabled services (empty result dict) — the
-        cooldown clock must not start, so the very next breach dispatches
-        again instead of silently going dark for the whole window."""
+        """Dispatch reaches zero enabled services (empty result dict): nothing
+        was delivered, so the cooldown stamp stays unset. The send is held for
+        a retry instead (R2, the test below)."""
         vin = await make_vehicle()
         param = await make_param()
         mock = _patch_dispatcher(monkeypatch, results={})
@@ -230,6 +232,39 @@ class TestCheckThresholdsCooldown:
 
         mock.assert_awaited_once()
         assert param.warning_last_notified_at is None
+
+    async def test_a_failed_send_waits_out_the_cooldown_then_tries_again(
+        self, db_session, make_vehicle, make_param, monkeypatch
+    ):
+        """R2 (A-1): a send no service accepted is retried once per cooldown,
+        not on every breaching frame. Each retry is `send_with_retry` inline on
+        the MQTT loop, so a webhook outage used to stall all ingest."""
+        vin = await make_vehicle()
+        param = await make_param()
+        mock = _patch_dispatcher(monkeypatch, results={"discord": False})
+        failed_at = datetime(2026, 10, 24, 12, 0)
+        monkeypatch.setattr("app.services.telemetry_service.utc_now", lambda: failed_at)
+
+        svc = TelemetryService(db_session)
+        await svc.check_thresholds(vin=vin, param_key=param.param_key, value=150.0)
+        assert mock.await_count == 1
+        assert param.alert_retry_at == failed_at + timedelta(minutes=30)
+
+        # 5 minutes on, still breaching, inside the default 30-minute window.
+        monkeypatch.setattr(
+            "app.services.telemetry_service.utc_now", lambda: failed_at + timedelta(minutes=5)
+        )
+        await svc.check_thresholds(vin=vin, param_key=param.param_key, value=160.0)
+        assert mock.await_count == 1
+
+        # Past the window: tried again, and this time it lands.
+        mock.return_value = {"discord": True}
+        later = failed_at + timedelta(minutes=31)
+        monkeypatch.setattr("app.services.telemetry_service.utc_now", lambda: later)
+        await svc.check_thresholds(vin=vin, param_key=param.param_key, value=160.0)
+        assert mock.await_count == 2
+        assert param.warning_last_notified_at == later
+        assert param.alert_retry_at is None
 
     async def test_stamp_set_when_at_least_one_send_succeeded(
         self, db_session, make_vehicle, make_param, monkeypatch

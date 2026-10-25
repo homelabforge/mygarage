@@ -12728,7 +12728,7 @@ export interface components {
             category?: string | null;
             /**
              * Critical Min
-             * @description Urgent alert if value drops below; must sit under warning_min
+             * @description Urgent alert if value drops below; must sit under warning_min. In the reading's canonical metric unit (°C, km/h, kPa, km); a raw-unit reading in its own unit
              */
             critical_min?: number | null;
             /**
@@ -12758,12 +12758,12 @@ export interface components {
             storage_interval_seconds?: number | null;
             /**
              * Warning Max
-             * @description Alert if value exceeds
+             * @description Alert if value exceeds, in the reading's canonical metric unit (°C, km/h, kPa, km); a raw-unit reading in its own unit
              */
             warning_max?: number | null;
             /**
              * Warning Min
-             * @description Alert if value drops below
+             * @description Alert if value drops below, in the reading's canonical metric unit (°C, km/h, kPa, km); a raw-unit reading in its own unit
              */
             warning_min?: number | null;
         };

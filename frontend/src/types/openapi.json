@@ -11802,7 +11802,7 @@
                 "type": "null"
               }
             ],
-            "description": "Urgent alert if value drops below; must sit under warning_min",
+            "description": "Urgent alert if value drops below; must sit under warning_min. In the reading's canonical metric unit (\u00b0C, km/h, kPa, km); a raw-unit reading in its own unit",
             "title": "Critical Min"
           },
           "display_name": {
@@ -11876,7 +11876,7 @@
                 "type": "null"
               }
             ],
-            "description": "Alert if value exceeds",
+            "description": "Alert if value exceeds, in the reading's canonical metric unit (\u00b0C, km/h, kPa, km); a raw-unit reading in its own unit",
             "title": "Warning Max"
           },
           "warning_min": {
@@ -11888,7 +11888,7 @@
                 "type": "null"
               }
             ],
-            "description": "Alert if value drops below",
+            "description": "Alert if value drops below, in the reading's canonical metric unit (\u00b0C, km/h, kPa, km); a raw-unit reading in its own unit",
             "title": "Warning Min"
           }
         },

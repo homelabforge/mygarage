@@ -10,6 +10,11 @@ instead: a propane tank below its low line stays there for days, and the
 cooldown would repeat the same alert every half hour until the refill. So they
 keep the band they last notified in `alert_state`, notify again only for a
 worse one, and re-arm once the value is clear of the line.
+
+Lines and `REARM_MARGIN` are in the unit the value is stored and compared in:
+the reading's canonical metric unit (°C, km/h, kPa, km), or a raw-unit
+reading's own unit. Only the notification converts, and only when it knows the
+value is canonical (`alert_quantity`).
 """
 
 from __future__ import annotations
@@ -85,3 +90,36 @@ def crossing(
         line = lines.warning_min if lines.warning_min is not None else lines.critical_min
         clear = line is None or value >= line + REARM_MARGIN
     return None, None if clear else state
+
+
+#: The `UnitSet` quantity each reading class renders as, and the unit symbols
+#: that mean a value of that class is already canonical. Compared lower-cased
+#: and stripped. Anything not here (percent, volts, rpm) has no unit to convert.
+_CANONICAL_SYMBOLS: dict[str, frozenset[str]] = {
+    "temperature": frozenset({"°c", "c"}),
+    "speed": frozenset({"km/h"}),
+    "pressure": frozenset({"kpa"}),
+    "distance": frozenset({"km"}),
+}
+
+
+def alert_quantity(
+    param_class: str | None, unit: str | None, *, odometer_normalised: bool
+) -> str | None:
+    """The `UnitSet` quantity to render an alert's value and line in, or None.
+
+    None means print them raw with the parameter's own unit. A class is only
+    rendered when the stored value is known to be canonical: the parameter
+    names no unit, or names that class's canonical one. `odometer_normalised`
+    says the reading is an odometer key that went through odometer
+    normalisation, which stores km whatever the parameter's free-text unit
+    says (an HTTPS `config` can register `mi` for a value ingest converted).
+    """
+    symbols = _CANONICAL_SYMBOLS.get(param_class) if param_class else None
+    if symbols is None:
+        return None
+    if odometer_normalised and param_class == "distance":
+        return param_class
+    if unit is None or not unit.strip() or unit.strip().lower() in symbols:
+        return param_class
+    return None

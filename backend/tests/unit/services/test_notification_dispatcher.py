@@ -353,9 +353,19 @@ class TestConvenienceMethods:
 
     @pytest.mark.asyncio
     async def test_notify_livelink_threshold_alert(self, dispatcher):
-        """Test threshold alert notification formatting."""
+        """Test threshold alert notification formatting.
+
+        No quantity, so the value prints as stored with its own unit, whatever
+        the context's units are.
+        """
         await dispatcher.notify_livelink_threshold_alert(
-            "My Truck", "Engine Temp", 250.5, "high", 230.0, "°F"
+            "My Truck",
+            "Engine Temp",
+            250.5,
+            "high",
+            230.0,
+            "°F",
+            ctx=RenderContext(units=METRIC_PRESET, show_both=False),
         )
 
         call_kwargs = dispatcher.dispatch.call_args
@@ -371,11 +381,35 @@ class TestConvenienceMethods:
     async def test_notify_livelink_threshold_alert_below(self, dispatcher, band, direction):
         """A tank's low and critical lines read differently."""
         await dispatcher.notify_livelink_threshold_alert(
-            "KZ Durango", "Tank 1 level", 8.0, band, 10.0, "%"
+            "KZ Durango",
+            "Tank 1 level",
+            8.0,
+            band,
+            10.0,
+            "%",
+            ctx=RenderContext(units=IMPERIAL_PRESET, show_both=False),
         )
 
         message = dispatcher.dispatch.call_args.kwargs["message"]
         assert f"Tank 1 level {direction} (8.0 % vs threshold 10.0 %)" in message
+
+    @pytest.mark.asyncio
+    async def test_notify_livelink_threshold_alert_converts_with_a_quantity(self, dispatcher):
+        """With a quantity both numbers are canonical and read in the context's
+        unit, show-both counterpart included; the stored unit is ignored."""
+        await dispatcher.notify_livelink_threshold_alert(
+            "My Truck",
+            "Vehicle speed",
+            130.0,
+            "high",
+            120.0,
+            "km/h",
+            ctx=RenderContext(units=IMPERIAL_PRESET, show_both=True),
+            quantity="speed",
+        )
+
+        message = dispatcher.dispatch.call_args.kwargs["message"]
+        assert "(81 mph (130 km/h) vs threshold 75 mph (120 km/h))" in message
 
     @pytest.mark.asyncio
     async def test_notify_livelink_firmware_update(self, dispatcher):

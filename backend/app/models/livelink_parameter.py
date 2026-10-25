@@ -48,7 +48,8 @@ class LiveLinkParameter(Base):
     # The band a notify-once reading last notified (low, critical, high), None
     # when re-armed. See app/services/livelink_alerts.py.
     alert_state: Mapped[str | None] = mapped_column(String(10))
-    # When such a reading may try again after a send no service accepted.
+    # When a reading may try again after a send no service accepted. Any
+    # reading, not just notify-once ones (R2).
     alert_retry_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Display control

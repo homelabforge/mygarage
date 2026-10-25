@@ -1589,14 +1589,22 @@ class TelemetryService:
         value: float,
         *,
         once: bool = False,
+        odometer_normalised: bool = False,
+        declared_odometer_key: str | None = None,
     ) -> None:
         """Notify when a value crosses one of its parameter's alert lines.
 
         `once`: notify once per crossing (`alert_state`, see `livelink_alerts`),
         as a preset sensor's readings do. Otherwise every breaching reading
         notifies again, held back by the alert cooldown.
+
+        `odometer_normalised`: the source runs odometer normalisation (it has
+        `Capability.ODOMETER`), so an odometer key, by the same match
+        normalisation used (`declared_odometer_key` is the device's
+        `odometer_param_key`), holds km. The alert then reads in the owner's
+        distance unit whatever the parameter row's unit says.
         """
-        from app.services.livelink_alerts import alert_band, band_line, crossing
+        from app.services.livelink_alerts import alert_band, alert_quantity, band_line, crossing
 
         param = await self.get_parameter(param_key)
         if not param:
@@ -1617,6 +1625,10 @@ class TelemetryService:
         else:
             band = alert_band(value, param)
             if band is None:
+                return
+            # Same hold as above (R2): without it a webhook outage retried
+            # inline on every breaching frame, and stalled MQTT ingest.
+            if param.alert_retry_at is not None and now < param.alert_retry_at:
                 return
 
         from app.services.livelink_service import LiveLinkService
@@ -1649,6 +1661,18 @@ class TelemetryService:
         else:
             vehicle_name = f"Vehicle ({vin[:8]}...)"
 
+        # Lines are canonical metric, so the alert reads in the owner's units,
+        # but only for a value known to be canonical. A custom key whose row
+        # says psi holds psi, and prints as it is (D2a).
+        from app.utils.render_context import render_context_for_vehicle
+
+        quantity = alert_quantity(
+            param.param_class,
+            param.unit,
+            odometer_normalised=odometer_normalised
+            and self._is_odometer_param(param_key, declared_odometer_key),
+        )
+
         # Send notification
         from app.services.notifications.dispatcher import NotificationDispatcher
 
@@ -1660,6 +1684,8 @@ class TelemetryService:
             band=band,
             threshold_value=band_line(band, param),
             unit=param.unit,
+            ctx=await render_context_for_vehicle(self.db, vin),
+            quantity=quantity,
         )
 
         # Stamp the cooldown, and a notify-once reading's band, only when at
@@ -1667,13 +1693,14 @@ class TelemetryService:
         # dispatcher records False for attempted-but-failed sends, so an
         # all-failed dict (e.g. transient outage) must not start the cooldown
         # clock and silence real alerts; nor must an empty dict (event
-        # disabled / no services enabled). The caller commits the surrounding
-        # transaction, so no explicit commit here.
+        # disabled / no services enabled). Either way a send nothing took
+        # waits one cooldown before it's tried again. The caller commits the
+        # surrounding transaction, so no explicit commit here.
         if any(dispatch_results.values()):
             param.warning_last_notified_at = now
+            param.alert_retry_at = None
             if once:
                 param.alert_state = band
-                param.alert_retry_at = None
-        elif once:
+        else:
             cooldown_minutes = await livelink.get_alert_cooldown_minutes()
             param.alert_retry_at = now + timedelta(minutes=cooldown_minutes)

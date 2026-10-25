@@ -471,18 +471,34 @@ class NotificationDispatcher:
         threshold_value: float,
         unit: str | None = None,
         url: str | None = None,
+        *,
+        ctx: RenderContext,
+        quantity: str | None = None,
     ) -> dict[str, bool]:
         """Send notification when telemetry value crosses a threshold.
 
         `band` is the line crossed: "high", "low", or "critical" (the urgent
         line below "low", as on a propane tank).
+
+        With a `quantity` (a `UnitSet` field), `value` and `threshold_value`
+        are canonical metric and both render in `ctx`'s unit for it. Without
+        one they print as stored, with the parameter's own `unit`. The caller
+        picks the quantity (`livelink_alerts.alert_quantity`) and resolves
+        `ctx`, as the odometer-milestone alert's does.
         """
-        unit_str = f" {unit}" if unit else ""
+        if quantity is not None:
+            # str() first: Decimal(106.1) would carry the float's binary tail.
+            shown = format_quantity(Decimal(str(value)), ctx, quantity)
+            line = format_quantity(Decimal(str(threshold_value)), ctx, quantity)
+        else:
+            unit_str = f" {unit}" if unit else ""
+            shown = f"{value:.1f}{unit_str}"
+            line = f"{threshold_value:.1f}{unit_str}"
         direction = _THRESHOLD_DIRECTION[band]
         return await self.dispatch(
             event_type="livelink_threshold_alert",
             title=f"Threshold Alert: {vehicle_name}",
-            message=f"{parameter_name} {direction} ({value:.1f}{unit_str} vs threshold {threshold_value:.1f}{unit_str}).",
+            message=f"{parameter_name} {direction} ({shown} vs threshold {line}).",
             url=url,
         )
 

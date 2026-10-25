@@ -275,9 +275,19 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> I
             # A preset sensor (a propane tank) sits past its line for days, so
             # its readings notify once per crossing rather than every cooldown.
             once = device.preset_key is not None
+            # Gated like the odometer step it stands for: only a module with
+            # ODOMETER normalises one, so a generic_mqtt ODOMETER is raw (D2a).
+            odometer_normalised = Capability.ODOMETER in module.capabilities
             for param_key, value in result.validated_data.items():
                 if isinstance(value, (int, float)):
-                    await telemetry.check_thresholds(device.vin, param_key, float(value), once=once)
+                    await telemetry.check_thresholds(
+                        device.vin,
+                        param_key,
+                        float(value),
+                        once=once,
+                        odometer_normalised=odometer_normalised,
+                        declared_odometer_key=device.odometer_param_key,
+                    )
 
     # Gated like every other side effect: only a module that declares DTC can
     # write codes, whatever its batch carries.

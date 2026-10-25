@@ -272,17 +272,31 @@ class LiveLinkParameterUpdate(BaseModel):
     icon: str | None = Field(None, description="Icon identifier for frontend")
     # The three alert lines: an explicit null switches a line off, an omitted
     # field leaves it as it is. Not NaN or infinity: NaN is a line no value
-    # ever crosses.
+    # ever crosses. Lines are compared in the stored unit, so they're in it too.
     warning_min: float | None = Field(
-        None, description="Alert if value drops below", allow_inf_nan=False
+        None,
+        description=(
+            "Alert if value drops below, in the reading's canonical metric unit "
+            "(°C, km/h, kPa, km); a raw-unit reading in its own unit"
+        ),
+        allow_inf_nan=False,
     )
     critical_min: float | None = Field(
         None,
-        description="Urgent alert if value drops below; must sit under warning_min",
+        description=(
+            "Urgent alert if value drops below; must sit under warning_min. In the "
+            "reading's canonical metric unit (°C, km/h, kPa, km); a raw-unit "
+            "reading in its own unit"
+        ),
         allow_inf_nan=False,
     )
     warning_max: float | None = Field(
-        None, description="Alert if value exceeds", allow_inf_nan=False
+        None,
+        description=(
+            "Alert if value exceeds, in the reading's canonical metric unit "
+            "(°C, km/h, kPa, km); a raw-unit reading in its own unit"
+        ),
+        allow_inf_nan=False,
     )
     display_order: int | None = Field(None, description="Gauge display order", ge=0)
     show_on_dashboard: bool | None = Field(None, description="Show in live gauges")
