@@ -789,6 +789,11 @@ class TelemetryService:
         roll the dashboard back to it. An equal timestamp still writes, so a
         re-sent reading refreshes `received_at`. `_update_latest_if_newer` is
         the strict twin, for backfill.
+
+        A stored row dated after now is always overwritten. The device
+        timestamp isn't checked against the clock, so one reading from a dongle
+        with a bad clock would otherwise freeze this value until real time
+        caught up (T4-a).
         """
         stmt = dialect_insert(VehicleTelemetryLatest).values(
             vin=vin,
@@ -804,7 +809,10 @@ class TelemetryService:
                 "timestamp": stmt.excluded.timestamp,
                 "received_at": stmt.excluded.received_at,
             },
-            where=VehicleTelemetryLatest.timestamp <= stmt.excluded.timestamp,
+            where=or_(
+                VehicleTelemetryLatest.timestamp <= stmt.excluded.timestamp,
+                VehicleTelemetryLatest.timestamp > utc_now(),
+            ),
         )
         await self.db.execute(stmt)
 
@@ -1197,6 +1205,9 @@ class TelemetryService:
         watermark unmoved and the device's SD backfill retrying that file
         forever. The conditional upsert also cannot race live ingest, and it
         holds no ORM object across `bulk_backfill`'s per-chunk commits.
+
+        A stored row dated after now loses to anything, same as
+        `_upsert_latest_value`, so a bad device clock can't freeze it.
         """
         stmt = dialect_insert(VehicleTelemetryLatest).values(
             vin=vin,
@@ -1212,7 +1223,10 @@ class TelemetryService:
                 "timestamp": stmt.excluded.timestamp,
                 "received_at": stmt.excluded.received_at,
             },
-            where=VehicleTelemetryLatest.timestamp < stmt.excluded.timestamp,
+            where=or_(
+                VehicleTelemetryLatest.timestamp < stmt.excluded.timestamp,
+                VehicleTelemetryLatest.timestamp > utc_now(),
+            ),
         )
         await self.db.execute(stmt)
 

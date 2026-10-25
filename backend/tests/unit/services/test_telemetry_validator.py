@@ -311,8 +311,12 @@ class TestRateOfChangeOnSampleTime:
 
     @pytest.mark.asyncio
     async def test_a_sample_older_than_the_latest_is_not_rate_checked(self, validator):
-        """It's not the next reading, so there's no rate to measure."""
-        latest_at = datetime(2026, 9, 1, 8, 0, 0)
+        """It's not the next reading, so there's no rate to measure.
+
+        The latest sits two seconds off the wall clock, so measuring from now
+        (the old rule) reads 0 -> 130 as a 65 km/h/s jump and rejects it.
+        """
+        latest_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=2)
         self._latest_is(validator, 0.0, latest_at)
 
         is_valid, _ = await validator.validate_rate_of_change(
@@ -321,6 +325,26 @@ class TestRateOfChangeOnSampleTime:
             "speed",
             130.0,
             sample_at=latest_at - timedelta(hours=1),
+        )
+        assert is_valid is True
+
+    @pytest.mark.asyncio
+    async def test_a_sample_at_the_latest_instant_is_not_rate_checked(self, validator):
+        """Same instant, different value: no time passed, so no rate to measure.
+
+        This is the case the `time_delta <= 0` guard exists for: without it the
+        rate divides by zero. (An older sample can't show the guard, since a
+        negative delta gives a negative rate that never rejects.)
+        """
+        latest_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=2)
+        self._latest_is(validator, 0.0, latest_at)
+
+        is_valid, _ = await validator.validate_rate_of_change(
+            "VIN123",
+            "0D-VehicleSpeed",
+            "speed",
+            130.0,
+            sample_at=latest_at,
         )
         assert is_valid is True
 

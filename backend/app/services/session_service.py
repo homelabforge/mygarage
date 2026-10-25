@@ -311,6 +311,14 @@ class SessionService:
             device.current_session_id = None
             return None
 
+        # The pointer can name a CLOSED session: awaiting a reopen, or a held
+        # replay (R9). Ending it again would restamp an hours-old drive at
+        # whatever time the caller passed and stretch it over the parked tail.
+        # Reopening is `_reopen_awaiting`'s job and letting go is the gap
+        # clock's, so leave both the session and the pointer alone.
+        if session.ended_at is not None:
+            return None
+
         # Calculate session duration
         session.ended_at = timestamp
         if session.started_at:
@@ -720,6 +728,8 @@ class SessionService:
                 started_at = previous_end
             if movement_started_at < started_at:
                 movement_started_at = started_at
+            # The clamp can push the start past the whole replayed span.
+            movement_ended_at = max(movement_ended_at, movement_started_at)
 
         # Take a row lock, then RE-READ the pointer under it.
         #
@@ -1040,7 +1050,13 @@ class SessionService:
         result = await self.db.execute(
             select(VehicleTelemetryLatest.param_key, VehicleTelemetryLatest.value)
             .where(VehicleTelemetryLatest.vin == vin)
-            .order_by(VehicleTelemetryLatest.timestamp.desc())
+            .order_by(
+                VehicleTelemetryLatest.timestamp.desc(),
+                # Ties are real (one frame can carry two odometer keys), so
+                # break them the same way every time.
+                VehicleTelemetryLatest.received_at.desc(),
+                VehicleTelemetryLatest.param_key,
+            )
         )
         for param_key, value in result.all():
             if value is not None and is_odometer_param_key(param_key, declared_key):

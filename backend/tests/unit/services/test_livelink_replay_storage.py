@@ -31,6 +31,7 @@ from app.models.location_point import LocationPoint
 from app.models.settings import Setting
 from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
 from app.services.livelink_service import LiveLinkService
+from app.services.livelink_sources.base import Reading, StoragePolicy
 from app.services.location_service import LocationService
 from app.services.session_boundaries import BOUNDARY_ALGORITHM_MOVEMENT
 from app.services.session_service import SessionService
@@ -175,6 +176,42 @@ async def test_an_older_https_sample_leaves_the_latest_value_at_the_newer_one(
     assert history.scalars().all() == [89.0]
 
 
+@pytest.mark.parametrize("policy", ["always", "if_newer"])
+async def test_a_future_dated_latest_row_heals_on_the_next_sane_reading(
+    db_session: AsyncSession, make_livelink_vehicle, policy: str
+) -> None:
+    """T4-a: one reading with a bad future clock mustn't freeze the latest value.
+
+    Both writers refuse older readings, so a row dated tomorrow would refuse
+    every real one until tomorrow. A stored timestamp past now is overwritten.
+    """
+    vin, device = await make_livelink_vehicle("t4fut", policy)
+    key = f"T4_FUTURE_{policy.upper()}"
+    poisoned_at = _now() + timedelta(days=1)
+    await _seed_latest(db_session, vin, [(key, 999.0, poisoned_at)])
+    await db_session.commit()
+
+    sane_at = _now() - timedelta(minutes=1)
+    await TelemetryService(db_session).store_readings(
+        vin=vin,
+        device_id=device.device_id,
+        readings=[Reading(key, 42.0)],
+        timestamp=sane_at,
+        policy=StoragePolicy(latest=policy),
+    )
+    await db_session.commit()
+    db_session.expire_all()
+
+    latest = (
+        await db_session.execute(
+            select(VehicleTelemetryLatest).where(
+                VehicleTelemetryLatest.vin == vin, VehicleTelemetryLatest.param_key == key
+            )
+        )
+    ).scalar_one()
+    assert (latest.value, latest.timestamp) == (42.0, sane_at)
+
+
 # --- G4-64: a reading cannot confirm itself --------------------------------------
 
 
@@ -256,6 +293,83 @@ async def test_an_older_replayed_sample_leaves_movement_ended_at_where_it_was(
 
     assert session.ended_at is None
     assert session.movement_ended_at == t0 + timedelta(seconds=20)
+
+
+async def test_a_clamped_session_never_ends_its_movement_before_it_starts(
+    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+) -> None:
+    """A replay from before the previous drive's close gets clamped past it.
+
+    The start moves up to the previous end, so the movement end has to come
+    with it, or the new session's movement span runs backwards.
+    """
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device = await make_livelink_vehicle("t4clp", "1")
+    t0 = datetime(2026, 9, 6, 9, 0, 0)
+    db_session.add(
+        DriveSession(
+            vin=vin,
+            device_id=device.device_id,
+            started_at=t0 - timedelta(hours=1),
+            ended_at=t0 + timedelta(hours=1),
+            duration_seconds=7200,
+            boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
+        )
+    )
+    await db_session.flush()
+
+    service = SessionService(db_session)
+    await service.observe_telemetry(device, {"SPEED": 40.0}, t0, live=False)
+    session = await service.observe_telemetry(
+        device, {"SPEED": 45.0}, t0 + timedelta(minutes=1), live=False
+    )
+    await db_session.flush()
+
+    assert session is not None
+    assert session.started_at == t0 + timedelta(hours=1), "fixture must hit the clamp"
+    assert session.movement_started_at is not None and session.movement_ended_at is not None
+    assert session.movement_ended_at >= session.movement_started_at
+
+
+async def test_ecu_offline_leaves_a_held_closed_session_alone(
+    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+) -> None:
+    """T4-b: the pointer can name a CLOSED session (awaiting, or a held replay).
+
+    An ECU offline with no grace period used to re-end it at wall-clock now,
+    stretching an hours-old drive over the parked tail.
+    """
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device = await make_livelink_vehicle("t4ecu", "1", ecu_status="online")
+    started = _now() - timedelta(hours=3)
+    ended = started + timedelta(minutes=20)
+    held = DriveSession(
+        vin=vin,
+        device_id=device.device_id,
+        started_at=started,
+        ended_at=ended,
+        duration_seconds=1200,
+        movement_started_at=started,
+        movement_ended_at=ended,
+        boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
+    )
+    db_session.add(held)
+    await db_session.flush()
+    device.current_session_id = held.id
+    device_id, held_id = device.device_id, held.id
+    await db_session.commit()
+
+    result = await SessionService(db_session).handle_ecu_offline(vin, device_id)
+    await db_session.commit()
+
+    assert result is None
+    db_session.expire_all()
+    after = (
+        await db_session.execute(select(DriveSession).where(DriveSession.id == held_id))
+    ).scalar_one()
+    assert (after.ended_at, after.duration_seconds) == (ended, 1200)
+    # Still held: reopening or letting go is the gap clock's call, not this one's.
+    assert (await _device(db_session, device_id)).current_session_id == held_id
 
 
 # --- R9: replay-built sessions under the scheduled job ---------------------------
@@ -465,6 +579,29 @@ async def test_a_declared_odometer_key_wins_over_both(
 
     started = await service.start_session(device, t0 + timedelta(minutes=1))
     assert started.start_odometer == 49000.0
+
+
+async def test_odometer_keys_with_one_timestamp_break_the_tie_on_received_at(
+    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+) -> None:
+    """Two odometer keys stamped alike: the one that arrived last wins, every time."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device = await make_livelink_vehicle("t4tie", "1")
+    t0 = datetime(2026, 9, 7, 8, 0, 0)
+    # Inserted older-arrival first, so storage order alone would pick it.
+    for key, value, received in (
+        ("ODOMETER", 51000.0, t0),
+        ("A6-ODOMETER", 51111.0, t0 + timedelta(seconds=30)),
+    ):
+        db_session.add(
+            VehicleTelemetryLatest(
+                vin=vin, param_key=key, value=value, timestamp=t0, received_at=received
+            )
+        )
+        await db_session.flush()
+
+    started = await SessionService(db_session).start_session(device, t0 + timedelta(minutes=1))
+    assert started.start_odometer == 51111.0
 
 
 # --- S1a-14: prune returns what the DELETE removed --------------------------------

@@ -109,7 +109,7 @@ class LiveLinkDevice(Base):
     )  # Per-device token hash (NULL = uses global)
     last_payload_hash: Mapped[str | None] = mapped_column(
         String(64)
-    )  # Hash of last autopid_data for dedup
+    )  # Dead: nothing writes or reads it; kept so dropping it doesn't need a migration
 
     # Session tracking
     current_session_id: Mapped[int | None] = mapped_column(

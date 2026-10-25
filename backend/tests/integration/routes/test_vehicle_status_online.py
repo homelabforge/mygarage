@@ -105,3 +105,44 @@ async def test_no_device_is_offline(client, auth_headers, db_session, test_user)
     vin = await _vehicle(db_session, test_user)
 
     assert (await _status(client, auth_headers, vin))["online"] is False
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_a_held_closed_session_is_not_reported_as_current(
+    client, auth_headers, db_session, test_user
+):
+    """T4-b: the pointer can hold a CLOSED session (awaiting, or a held replay).
+
+    The status used to call it current and count its duration up from hours ago.
+    """
+    from app.models.drive_session import DriveSession
+
+    vin = await _vehicle(db_session, test_user)
+    device_id = f"ol{uuid.uuid4().hex[:10]}"
+    started = utc_now() - timedelta(hours=3)
+    held = DriveSession(
+        vin=vin,
+        device_id=device_id,
+        started_at=started,
+        ended_at=started + timedelta(minutes=20),
+        duration_seconds=1200,
+    )
+    device = LiveLinkDevice(
+        device_id=device_id,
+        vin=vin,
+        enabled=True,
+        kind="wican",
+        device_status="online",
+        last_seen=utc_now() - timedelta(minutes=1),
+    )
+    db_session.add_all([device, held])
+    await db_session.flush()
+    device.current_session_id = held.id
+    await db_session.commit()
+
+    body = await _status(client, auth_headers, vin)
+
+    assert body["current_session_id"] is None
+    assert body["session_started_at"] is None
+    assert body["session_duration_seconds"] is None
