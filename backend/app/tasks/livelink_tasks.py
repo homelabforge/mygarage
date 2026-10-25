@@ -288,25 +288,9 @@ async def prune_old_telemetry():
                 )
                 return
 
-            telemetry_service = TelemetryService(db)
-            deleted_count = await telemetry_service.prune_old_telemetry(retention_days)
-
-            if deleted_count > 0:
-                logger.info(
-                    "Pruned %d telemetry records older than %d days",
-                    deleted_count,
-                    retention_days,
-                )
-
-            location_service = LocationService(db)
-            deleted_location_count = await location_service.prune_old(retention_days)
-
-            if deleted_location_count > 0:
-                logger.info(
-                    "Pruned %d location points older than %d days",
-                    deleted_location_count,
-                    retention_days,
-                )
+            # Both log their own counts.
+            await TelemetryService(db).prune_old_telemetry(retention_days)
+            await LocationService(db).prune_old(retention_days)
 
         except Exception as e:
             logger.error("Error pruning old telemetry: %s", e)

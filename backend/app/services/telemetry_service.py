@@ -1,7 +1,5 @@
 """Telemetry service for LiveLink data ingestion and storage."""
 
-import hashlib
-import json
 import logging
 import math
 from collections.abc import Mapping
@@ -9,7 +7,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any, cast
 
-from sqlalchemy import and_, delete, func, not_, or_, select, text
+from sqlalchemy import and_, delete, func, not_, or_, select
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -127,50 +125,6 @@ class TelemetryService:
     def __init__(self, db: AsyncSession):
         """Initialize with database session."""
         self.db = db
-
-    # =========================================================================
-    # Payload Hash / Deduplication
-    # =========================================================================
-
-    @staticmethod
-    def compute_payload_hash(autopid_data: dict[str, Any]) -> str:
-        """Compute a hash of the autopid_data for deduplication.
-
-        Uses sorted JSON serialization to ensure consistent hashing.
-        """
-        # Sort keys and round floats for consistent hashing
-        normalized = {}
-        for key, value in sorted(autopid_data.items()):
-            if isinstance(value, float):
-                # Round to 2 decimal places to handle float precision
-                normalized[key] = round(value, 2)
-            else:
-                normalized[key] = value
-
-        serialized = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(serialized.encode()).hexdigest()[:16]  # First 16 chars
-
-    async def is_duplicate_payload(self, device_id: str, payload_hash: str) -> bool:
-        """Check if payload is a duplicate based on hash.
-
-        Returns True if the hash matches the device's last_payload_hash.
-        """
-        result = await self.db.execute(
-            select(LiveLinkDevice.last_payload_hash).where(LiveLinkDevice.device_id == device_id)
-        )
-        row = result.first()
-        if not row or not row[0]:
-            return False
-
-        return row[0] == payload_hash
-
-    async def update_payload_hash(self, device_id: str, payload_hash: str) -> None:
-        """Update the device's last_payload_hash."""
-        await self.db.execute(
-            text(
-                "UPDATE livelink_devices SET last_payload_hash = :hash WHERE device_id = :device_id"
-            ).bindparams(hash=payload_hash, device_id=device_id)
-        )
 
     # =========================================================================
     # Parameter Management
@@ -511,7 +465,9 @@ class TelemetryService:
 
         # Validate telemetry values before storage
         validator = TelemetryValidator(self.db)
-        valid_data, _rejected = await validator.validate_batch(vin, autopid_data, parameters)
+        valid_data, _rejected = await validator.validate_batch(
+            vin, autopid_data, parameters, sample_at=timestamp
+        )
 
         stored_count = 0
 
@@ -544,7 +500,7 @@ class TelemetryService:
                     continue
                 value = sanitized_value
 
-            # Always update latest value (for live dashboard)
+            # Update the live dashboard's value, unless this reading is older
             await self._upsert_latest_value(vin, param_key, float(value), timestamp, received_at)
 
             # Check storage interval for historical storage
@@ -827,8 +783,13 @@ class TelemetryService:
         timestamp: datetime,
         received_at: datetime,
     ) -> None:
-        """Upsert a value into the latest values cache table."""
-        # Use SQLite's INSERT OR REPLACE
+        """Upsert a value into the latest values cache table, unless it's older.
+
+        A replayed reading lands after newer live ones, and overwriting would
+        roll the dashboard back to it. An equal timestamp still writes, so a
+        re-sent reading refreshes `received_at`. `_update_latest_if_newer` is
+        the strict twin, for backfill.
+        """
         stmt = dialect_insert(VehicleTelemetryLatest).values(
             vin=vin,
             param_key=param_key,
@@ -839,10 +800,11 @@ class TelemetryService:
         stmt = stmt.on_conflict_do_update(
             index_elements=["vin", "param_key"],
             set_={
-                "value": value,
-                "timestamp": timestamp,
-                "received_at": received_at,
+                "value": stmt.excluded.value,
+                "timestamp": stmt.excluded.timestamp,
+                "received_at": stmt.excluded.received_at,
             },
+            where=VehicleTelemetryLatest.timestamp <= stmt.excluded.timestamp,
         )
         await self.db.execute(stmt)
 
@@ -1358,21 +1320,15 @@ class TelemetryService:
         """
         cutoff = utc_now() - timedelta(days=retention_days)
 
-        # Count first for logging
-        count_result = await self.db.execute(
-            select(func.count(VehicleTelemetry.id)).where(VehicleTelemetry.timestamp < cutoff)
+        # The DELETE's own rowcount, not a count taken first: rows can land in between.
+        result = await self.db.execute(
+            delete(VehicleTelemetry).where(VehicleTelemetry.timestamp < cutoff)
         )
-        count_row = count_result.first()
-        to_delete = count_row[0] if count_row else 0
-
-        if to_delete > 0:
-            await self.db.execute(
-                delete(VehicleTelemetry).where(VehicleTelemetry.timestamp < cutoff)
-            )
-            await self.db.commit()
-            logger.info("Pruned %d telemetry records older than %d days", to_delete, retention_days)
-
-        return to_delete
+        await self.db.commit()
+        deleted = cast(CursorResult[Any], result).rowcount or 0
+        if deleted:
+            logger.info("Pruned %d telemetry records older than %d days", deleted, retention_days)
+        return deleted
 
     async def get_telemetry_row_count(self) -> int:
         """Get total row count for health monitoring."""

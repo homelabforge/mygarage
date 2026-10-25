@@ -5,12 +5,12 @@ Based on WiCAN Discussion #198 findings about partial ECU wakes producing garbag
 """
 
 import logging
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.vehicle_telemetry import VehicleTelemetryLatest
-from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -84,14 +84,22 @@ class TelemetryValidator:
         param_key: str,
         param_class: str | None,
         value: float,
+        *,
+        sample_at: datetime,
     ) -> tuple[bool, str | None]:
         """Check if a value's rate of change from the previous value is reasonable.
+
+        Measured between the two readings' own timestamps, not from now: a
+        replayed reading an hour old isn't a jump from what the vehicle said
+        eight seconds ago. A sample at or before the latest one isn't the next
+        reading, so it isn't rate-checked at all.
 
         Args:
             vin: Vehicle VIN
             param_key: Parameter key
             param_class: Parameter class
             value: New value
+            sample_at: The reading's own timestamp
 
         Returns:
             (True, None) if valid or check not applicable, (False, reason) if rejected
@@ -110,15 +118,14 @@ class TelemetryValidator:
         if not latest:
             return True, None  # No previous value to compare
 
-        # Calculate time delta
-        now = utc_now()
+        sample = sample_at.replace(tzinfo=None) if sample_at.tzinfo is not None else sample_at
         prev_timestamp = latest.timestamp
         if prev_timestamp.tzinfo is not None:
             prev_timestamp = prev_timestamp.replace(tzinfo=None)
-        time_delta = (now - prev_timestamp).total_seconds()
+        time_delta = (sample - prev_timestamp).total_seconds()
 
         if time_delta <= 0 or time_delta > RATE_CHECK_MAX_AGE_SECONDS:
-            return True, None  # Stale data or same timestamp, skip check
+            return True, None  # Not the next reading, or too far apart to compare
 
         # Calculate rate of change
         value_delta = abs(value - latest.value)
@@ -138,6 +145,8 @@ class TelemetryValidator:
         vin: str,
         autopid_data: dict[str, float | int | str | None],
         parameters_cache: dict[str, object],
+        *,
+        sample_at: datetime,
     ) -> tuple[dict[str, float | int | str | None], list[dict[str, object]]]:
         """Validate a batch of telemetry values.
 
@@ -145,6 +154,7 @@ class TelemetryValidator:
             vin: Vehicle VIN
             autopid_data: Raw parameter values
             parameters_cache: Cached parameter definitions (from get_all_parameters)
+            sample_at: The batch's own timestamp, for the rate check
 
         Returns:
             Tuple of (valid_data, rejected_list) where rejected_list contains
@@ -181,6 +191,7 @@ class TelemetryValidator:
                 param_key,
                 param_class,
                 float(value),
+                sample_at=sample_at,
             )
             if not is_valid:
                 rejected.append(

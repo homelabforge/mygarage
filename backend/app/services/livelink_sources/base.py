@@ -156,10 +156,11 @@ class StoragePolicy:
     behavioral difference between the WiCAN and Torque paths, made explicit so
     the port cannot silently merge them:
 
-    `latest`: WiCAN overwrites vehicle_telemetry_latest unconditionally
-    (`_upsert_latest_value`); Torque only when strictly newer
-    (`_update_latest_if_newer`), so a backfilled row never clobbers a fresher
-    live one.
+    `latest`: WiCAN's 'always' overwrites vehicle_telemetry_latest unless the
+    reading is older than the stored one (`_upsert_latest_value`; an equal
+    timestamp still refreshes `received_at`); Torque's 'if_newer' only when
+    strictly newer (`_update_latest_if_newer`), so a backfilled row never
+    clobbers a fresher live one.
 
     `apply_storage_interval`: WiCAN honours `storage_interval_seconds`;
     the old Torque writer never checked it. Torque therefore passes False to

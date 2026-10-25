@@ -146,6 +146,7 @@ class TestValidateRateOfChange:
             "0D-VehicleSpeed",
             "speed",
             70.0,
+            sample_at=datetime.now(UTC),
         )
         assert is_valid is True
         assert reason is None
@@ -167,6 +168,7 @@ class TestValidateRateOfChange:
             "0D-VehicleSpeed",
             "speed",
             200.0,
+            sample_at=datetime.now(UTC),
         )
         assert is_valid is False
         assert reason is not None
@@ -189,6 +191,7 @@ class TestValidateRateOfChange:
             "0D-VehicleSpeed",
             "speed",
             350.0,
+            sample_at=datetime.now(UTC),
         )
         assert is_valid is True
 
@@ -204,6 +207,7 @@ class TestValidateRateOfChange:
             "0C-EngineRPM",
             "frequency",
             5000.0,
+            sample_at=datetime.now(UTC),
         )
         assert is_valid is True
 
@@ -215,6 +219,7 @@ class TestValidateRateOfChange:
             "CUSTOM_SENSOR",
             "custom_sensor",
             99999.0,
+            sample_at=datetime.now(UTC),
         )
         assert is_valid is True
         validator.db.execute.assert_not_called()
@@ -227,6 +232,7 @@ class TestValidateRateOfChange:
             "UNKNOWN_PID",
             None,
             99999.0,
+            sample_at=datetime.now(UTC),
         )
         assert is_valid is True
         validator.db.execute.assert_not_called()
@@ -248,6 +254,7 @@ class TestValidateRateOfChange:
             "05-EngineCoolantTemp",
             "temperature",
             200.0,
+            sample_at=datetime.now(UTC),
         )
         assert is_valid is False
 
@@ -268,6 +275,52 @@ class TestValidateRateOfChange:
             "0D-VehicleSpeed",
             "speed",
             65.0,
+            sample_at=datetime.now(UTC),
+        )
+        assert is_valid is True
+
+
+class TestRateOfChangeOnSampleTime:
+    """G4-07: the delta is sample time minus the latest reading's time, not now."""
+
+    @pytest.fixture
+    def validator(self):
+        db = AsyncMock()
+        return TelemetryValidator(db)
+
+    def _latest_is(self, validator, value: float, timestamp: datetime) -> None:
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = _mock_latest(value, timestamp)
+        validator.db.execute = AsyncMock(return_value=mock_result)
+
+    @pytest.mark.asyncio
+    async def test_a_jump_one_second_apart_in_an_old_replay_is_rejected(self, validator):
+        """An hour-old latest and a sample one second after it: still a 140 km/h/s jump."""
+        latest_at = datetime(2026, 9, 1, 8, 0, 0)
+        self._latest_is(validator, 60.0, latest_at)
+
+        is_valid, reason = await validator.validate_rate_of_change(
+            "VIN123",
+            "0D-VehicleSpeed",
+            "speed",
+            200.0,
+            sample_at=latest_at + timedelta(seconds=1),
+        )
+        assert is_valid is False
+        assert reason is not None and "in 1.0s" in reason
+
+    @pytest.mark.asyncio
+    async def test_a_sample_older_than_the_latest_is_not_rate_checked(self, validator):
+        """It's not the next reading, so there's no rate to measure."""
+        latest_at = datetime(2026, 9, 1, 8, 0, 0)
+        self._latest_is(validator, 0.0, latest_at)
+
+        is_valid, _ = await validator.validate_rate_of_change(
+            "VIN123",
+            "0D-VehicleSpeed",
+            "speed",
+            130.0,
+            sample_at=latest_at - timedelta(hours=1),
         )
         assert is_valid is True
 
@@ -294,7 +347,9 @@ class TestValidateBatch:
         mock_result.scalar_one_or_none.return_value = None
         validator.db.execute = AsyncMock(return_value=mock_result)
 
-        valid, rejected = await validator.validate_batch("VIN123", data, params)
+        valid, rejected = await validator.validate_batch(
+            "VIN123", data, params, sample_at=datetime.now(UTC)
+        )
         assert len(valid) == 2
         assert len(rejected) == 0
         assert valid["0D-VehicleSpeed"] == 65
@@ -319,7 +374,9 @@ class TestValidateBatch:
         mock_result.scalar_one_or_none.return_value = None
         validator.db.execute = AsyncMock(return_value=mock_result)
 
-        valid, rejected = await validator.validate_batch("VIN123", data, params)
+        valid, rejected = await validator.validate_batch(
+            "VIN123", data, params, sample_at=datetime.now(UTC)
+        )
         assert len(valid) == 2
         assert len(rejected) == 1
         assert "0D-VehicleSpeed" in valid
@@ -332,7 +389,9 @@ class TestValidateBatch:
         params = {"0D-VehicleSpeed": _mock_param("speed")}
         data = {"0D-VehicleSpeed": None}
 
-        valid, rejected = await validator.validate_batch("VIN123", data, params)
+        valid, rejected = await validator.validate_batch(
+            "VIN123", data, params, sample_at=datetime.now(UTC)
+        )
         assert valid == {"0D-VehicleSpeed": None}
         assert len(rejected) == 0
 
@@ -352,7 +411,9 @@ class TestValidateBatch:
         mock_result.scalar_one_or_none.return_value = None
         validator.db.execute = AsyncMock(return_value=mock_result)
 
-        valid, rejected = await validator.validate_batch("VIN123", data, params)
+        valid, rejected = await validator.validate_batch(
+            "VIN123", data, params, sample_at=datetime.now(UTC)
+        )
         assert valid["DIAGNOSTIC_TROUBLE_CODES"] == "P0300,P0420"
         assert valid["0C-EngineRPM"] == 750
         assert len(rejected) == 0
@@ -363,7 +424,9 @@ class TestValidateBatch:
         params = {"CUSTOM_SENSOR": _mock_param("custom_class")}
         data = {"CUSTOM_SENSOR": 99999}
 
-        valid, rejected = await validator.validate_batch("VIN123", data, params)
+        valid, rejected = await validator.validate_batch(
+            "VIN123", data, params, sample_at=datetime.now(UTC)
+        )
         assert valid["CUSTOM_SENSOR"] == 99999
         assert len(rejected) == 0
 
@@ -373,14 +436,18 @@ class TestValidateBatch:
         params = {}  # Empty cache
         data = {"MYSTERY_PID": 42}
 
-        valid, rejected = await validator.validate_batch("VIN123", data, params)
+        valid, rejected = await validator.validate_batch(
+            "VIN123", data, params, sample_at=datetime.now(UTC)
+        )
         assert valid["MYSTERY_PID"] == 42
         assert len(rejected) == 0
 
     @pytest.mark.asyncio
     async def test_empty_batch(self, validator):
         """Empty batch should return empty results."""
-        valid, rejected = await validator.validate_batch("VIN123", {}, {})
+        valid, rejected = await validator.validate_batch(
+            "VIN123", {}, {}, sample_at=datetime.now(UTC)
+        )
         assert valid == {}
         assert rejected == []
 
@@ -400,7 +467,9 @@ class TestValidateBatch:
         mock_result.scalar_one_or_none.return_value = None
         validator.db.execute = AsyncMock(return_value=mock_result)
 
-        valid, rejected = await validator.validate_batch("VIN123", data, params)
+        valid, rejected = await validator.validate_batch(
+            "VIN123", data, params, sample_at=datetime.now(UTC)
+        )
         assert len(valid) == 0
         assert len(rejected) == 2
 

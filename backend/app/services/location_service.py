@@ -5,8 +5,10 @@ import math
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Any, cast
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import is_sqlite
@@ -133,19 +135,15 @@ class LocationService:
         """
         cutoff = utc_now() - timedelta(days=retention_days)
 
-        # Count first for logging
-        count_result = await self.db.execute(
-            select(func.count(LocationPoint.id)).where(LocationPoint.timestamp < cutoff)
+        # The DELETE's own rowcount, not a count taken first: rows can land in between.
+        result = await self.db.execute(
+            delete(LocationPoint).where(LocationPoint.timestamp < cutoff)
         )
-        count_row = count_result.first()
-        to_delete = count_row[0] if count_row else 0
-
-        if to_delete > 0:
-            await self.db.execute(delete(LocationPoint).where(LocationPoint.timestamp < cutoff))
-            await self.db.commit()
-            logger.info("Pruned %d location points older than %d days", to_delete, retention_days)
-
-        return to_delete
+        await self.db.commit()
+        deleted = cast(CursorResult[Any], result).rowcount or 0
+        if deleted:
+            logger.info("Pruned %d location points older than %d days", deleted, retention_days)
+        return deleted
 
     @staticmethod
     def haversine_km(points: Sequence[tuple[float, float]]) -> Decimal:

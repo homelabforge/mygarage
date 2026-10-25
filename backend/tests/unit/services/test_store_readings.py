@@ -62,29 +62,42 @@ async def test_simple_policy_writes_history_and_latest(db_session, make_livelink
 
 
 @pytest.mark.asyncio
-async def test_latest_always_overwrites_with_an_older_reading(db_session, make_livelink_vehicle):
-    """WiCAN semantics: _upsert_latest_value is unconditional."""
+async def test_latest_always_refuses_an_older_reading_but_takes_an_equal_one(
+    db_session, make_livelink_vehicle
+):
+    """WiCAN semantics (G4-70): 'always' means unless older.
+
+    It used to clobber unconditionally, so a replayed reading rolled the
+    dashboard back. An equal timestamp still writes, which is what sets it
+    apart from 'if_newer'.
+    """
     vin, device = await make_livelink_vehicle(P, "02")
     svc = TelemetryService(db_session)
     p = StoragePolicy(latest="always")
-    await svc.store_readings(
-        vin=vin,
-        device_id=device.device_id,
-        readings=[Reading("X", 2.0)],
-        timestamp=TS,
-        policy=p,
-    )
-    await svc.store_readings(
-        vin=vin,
-        device_id=device.device_id,
-        readings=[Reading("X", 1.0)],
-        timestamp=TS - timedelta(hours=1),
-        policy=p,
-    )
+    for value, at in ((2.0, TS), (1.0, TS - timedelta(hours=1))):
+        await svc.store_readings(
+            vin=vin,
+            device_id=device.device_id,
+            readings=[Reading("X", value)],
+            timestamp=at,
+            policy=p,
+        )
     await db_session.commit()
     rows = await _latest(db_session, vin)
     assert len(rows) == 1
-    assert rows[0].value == 1.0, "policy 'always' must clobber, as WiCAN does today"
+    assert rows[0].value == 2.0, "an older reading must not roll the latest value back"
+
+    await svc.store_readings(
+        vin=vin,
+        device_id=device.device_id,
+        readings=[Reading("X", 3.0)],
+        timestamp=TS,
+        policy=p,
+    )
+    await db_session.commit()
+    db_session.expire_all()  # the row above is still in the identity map
+    rows = await _latest(db_session, vin)
+    assert rows[0].value == 3.0, "an equal timestamp still writes"
 
 
 @pytest.mark.asyncio

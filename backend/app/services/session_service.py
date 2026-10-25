@@ -243,7 +243,7 @@ class SessionService:
             await self.end_session(device, timestamp)
 
         # Get start odometer if available
-        start_odometer = await self._get_current_odometer(device.vin)
+        start_odometer = await self._get_current_odometer(device.vin, device.odometer_param_key)
 
         # Create new session
         session = DriveSession(
@@ -374,6 +374,18 @@ class SessionService:
         device.pending_source = None
         device.movement_candidate_at = None
         device.movement_baseline_km = None
+
+    @classmethod
+    def _is_replay_built(cls, device: LiveLinkDevice, session: DriveSession) -> bool:
+        """True when no live sample ever touched this session (R9).
+
+        `last_movement_at` is written by live samples only, so when it's NULL
+        or older than the session's start it belongs to an earlier drive, and
+        everything this session knows came from a replay.
+        """
+        if device.last_movement_at is None:
+            return True
+        return cls._naive(device.last_movement_at) < cls._naive(session.started_at)
 
     async def observe_telemetry(
         self,
@@ -518,6 +530,11 @@ class SessionService:
         Once a session is open the debounce is spent: the vehicle has already
         been proven to move, so one above-floor sample extends the drive.
 
+        The confirming sample has to be from a different instant than the
+        candidate. A WiCAN re-sending one frame (or a replay overlapping what
+        already landed) is the same reading twice, and one reading can't
+        confirm itself.
+
         ``movement_candidate_at`` anchors the evidence window for BOTH signals.
         One consequence is worth stating rather than discovering: an above-floor
         sample, a below-floor sample, and another above-floor sample inside one
@@ -533,9 +550,14 @@ class SessionService:
                 return signals.odometer_km > float(device.movement_baseline_km)
             return False
 
+        candidate_at = (
+            self._naive(device.movement_candidate_at)
+            if device.movement_candidate_at is not None
+            else None
+        )
         if signals.is_above_floor:
-            if device.movement_candidate_at is not None:
-                return True
+            if candidate_at is not None:
+                return sample_at != candidate_at
             device.movement_candidate_at = sample_at
             if signals.odometer_km is not None:
                 device.movement_baseline_km = Decimal(str(signals.odometer_km))
@@ -544,7 +566,7 @@ class SessionService:
         if signals.odometer_km is not None:
             if device.movement_baseline_km is not None:
                 if signals.odometer_km > float(device.movement_baseline_km):
-                    return True
+                    return sample_at != candidate_at
                 # A parked vehicle republishes the same odometer on every
                 # heartbeat, and a REPLAY can report a lower one. Neither is
                 # movement, and neither should advance the baseline past what
@@ -593,7 +615,9 @@ class SessionService:
 
         if session.movement_started_at is None:
             session.movement_started_at = sample_at
-        session.movement_ended_at = sample_at
+        # Forward only: an older replayed sample inside the drive isn't its end.
+        if session.movement_ended_at is None or sample_at > self._naive(session.movement_ended_at):
+            session.movement_ended_at = sample_at
         if signals.odometer_km is not None:
             device.movement_baseline_km = Decimal(str(signals.odometer_km))
         if live:
@@ -675,11 +699,13 @@ class SessionService:
             if value is not None
         ]
         started_at = min([*candidates, sample_at])
-        movement_started_at = (
-            self._naive(device.movement_candidate_at)
-            if device.movement_candidate_at is not None
-            else sample_at
-        )
+        # A replay can confirm a newer candidate with an older sample, so the
+        # span runs earliest to latest, not candidate to sample.
+        movement_span = [sample_at]
+        if device.movement_candidate_at is not None:
+            movement_span.append(self._naive(device.movement_candidate_at))
+        movement_started_at = min(movement_span)
+        movement_ended_at = max(movement_span)
 
         previous_end = (
             await self.db.execute(
@@ -742,8 +768,8 @@ class SessionService:
             device_id=device.device_id,
             started_at=started_at,
             movement_started_at=movement_started_at,
-            movement_ended_at=sample_at,
-            start_odometer=await self._get_current_odometer(device.vin),
+            movement_ended_at=movement_ended_at,
+            start_odometer=await self._get_current_odometer(device.vin, device.odometer_param_key),
             boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
             effective_gap_minutes=gap,
         )
@@ -855,6 +881,13 @@ class SessionService:
         - an `awaiting` session past the gap can no longer be reopened, so the
           pointer is cleared and the closure becomes final.
 
+        A replay-built session (R9) is the exception to the second. Its
+        movement is hours old by wall clock, so the gap rule would clear the
+        pointer on the very tick that closed it and the replay's next batch
+        would open a new session. It's let go once the device itself has gone
+        quiet for the gap instead; the reopen call stays with
+        `_reopen_awaiting`, on sample time.
+
         Returns the number of device rows changed.
         """
         now = self._naive(now or utc_now())
@@ -886,10 +919,15 @@ class SessionService:
             )
         ).all()
         for device, session in awaiting:
-            anchor = self._naive(session.movement_ended_at or session.ended_at)
-            if now - anchor > window:
-                device.current_session_id = None
-                changed += 1
+            if self._is_replay_built(device, session):
+                if device.last_seen is not None and now - self._naive(device.last_seen) <= window:
+                    continue
+            else:
+                anchor = self._naive(session.movement_ended_at or session.ended_at)
+                if now - anchor <= window:
+                    continue
+            device.current_session_id = None
+            changed += 1
 
         return changed
 
@@ -976,12 +1014,17 @@ class SessionService:
         device.current_session_id = session.id
         return session
 
-    async def _get_current_odometer(self, vin: str) -> float | None:
+    async def _get_current_odometer(self, vin: str, declared_key: str | None) -> float | None:
         """Get the current odometer reading from latest telemetry, in kilometres.
 
         Matching is by key *shape*, not an exact name list: the standard SAE
         J1979 key is `A6-ODOMETER`, and an exact-match list that omitted it left
         every session on a standard-PID device with no odometer and no distance.
+        A device's declared ``odometer_param_key`` replaces the shape match.
+
+        The NEWEST matching row wins. A vehicle can carry two odometer keys (a
+        stale `A6-ODOMETER` beside a live `ODOMETER`), and taking whichever the
+        database returned first opened sessions on the stale one.
 
         No conversion happens here. `TelemetryService.store_telemetry`
         normalises the odometer to canonical km on the way in, so the stored
@@ -991,13 +1034,16 @@ class SessionService:
         """
         from app.models.vehicle_telemetry import VehicleTelemetryLatest
 
+        # Newest first; the key match stays in Python so it's the same
+        # `is_odometer_param_key` every other odometer path uses. The latest
+        # table holds one row per key, so this reads a handful of rows.
         result = await self.db.execute(
-            select(VehicleTelemetryLatest.param_key, VehicleTelemetryLatest.value).where(
-                VehicleTelemetryLatest.vin == vin
-            )
+            select(VehicleTelemetryLatest.param_key, VehicleTelemetryLatest.value)
+            .where(VehicleTelemetryLatest.vin == vin)
+            .order_by(VehicleTelemetryLatest.timestamp.desc())
         )
         for param_key, value in result.all():
-            if value is not None and is_odometer_param_key(param_key):
+            if value is not None and is_odometer_param_key(param_key, declared_key):
                 return float(value)
         return None
 
@@ -1422,15 +1468,22 @@ class SessionService:
                         )
                 continue
 
+            # `last_movement_at` only counts when it's from this session. A
+            # replay-built one (R9) never set it, so it still names an earlier
+            # drive, and closing there ends the session before it started.
+            replay_built = self._is_replay_built(device, session)
             moved_at = self._naive(
-                device.last_movement_at
+                (None if replay_built else device.last_movement_at)
                 or session.movement_ended_at
                 or session.movement_started_at
                 or session.started_at
             )
 
             if moved_at < gap_cutoff:
-                reason, retain = "drive gap", False
+                # A replay-built session is always past the wall-clock gap, so
+                # it keeps the pointer: the replay's next readings reopen it
+                # instead of opening one session per tick.
+                reason, retain = "drive gap", replay_built
             elif last_seen < contact_cutoff:
                 reason, retain = "contact loss", True
             else:
