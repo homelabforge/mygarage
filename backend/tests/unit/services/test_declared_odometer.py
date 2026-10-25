@@ -1,6 +1,6 @@
 """A device declares which parameter is its odometer; both predicates honour it.
 
-Name matching does not generalise: ODOMETER_PID_PATTERNS matches WiCAN's
+Name matching does not generalise: ODOMETER_NAME_PATTERNS matches WiCAN's
 `A6-ODOMETER` and nothing Torque sends, so a Torque-only user got zero odometer
 records. A declaration REPLACES the matching rather than widening it.
 

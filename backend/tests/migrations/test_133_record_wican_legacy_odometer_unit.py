@@ -520,6 +520,94 @@ def test_133_converts_odometer_mi_only_once(db):
     assert _rows(engine) == {("genonce", "ODOMETER_MI"): LEGACY}
 
 
+def test_133_records_keys_main_matched_by_substring(db):
+    """Main converted and recorded every key its substring scan matched (`ODO`,
+    `MILEAGE`, ...), not just the six names, and read a bare one as miles. So
+    `ODOMETER_KM` and `TOTAL_ODO` get main's row too, and a key the scan
+    misses (`TRIP_METER`) doesn't. Red on 5a013d2e (exact set)."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINSUBSTR0001")
+        _device(s, "substr", "M133VINSUBSTR0001")
+        for key in ("ODOMETER_KM", "TOTAL_ODO", "TRIP_METER"):
+            _raw(s, "substr", "M133VINSUBSTR0001", key, 128748)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _rows(engine) == {("substr", "ODOMETER_KM"): LEGACY, ("substr", "TOTAL_ODO"): LEGACY}
+
+
+def test_133_keeps_shared_odometer_mi_rows_a_linked_device_may_have_written(db):
+    """FW-A1, fix round 1 (M2): raw rows prune at 90 days, so they can't be
+    the only proof of who sent the key. A WiCAN linked to the VIN may have
+    sent it in km before its rows went, so the shared latest and summaries
+    stay. The generic device's own rows still move. Red on 5a013d2e."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _seed_odometer_mi(s, "genlinked", "M133VINLINKEDMI01", 50000, kind="generic_mqtt")
+        _device(s, "wiclinked", "M133VINLINKEDMI01")
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _values(engine, "M133VINLINKEDMI01") == {
+        "raw": [80467.2],
+        "latest": 50000.0,
+        "summary": (50000.0, 50010.0, 50005.0),
+    }
+
+
+def test_133_converts_shared_odometer_mi_rows_from_linked_devices_alone(db):
+    """Regression guard: with every raw row pruned, the devices linked to the
+    VIN stand in as the reporters. All of them sent it raw, so the shared rows
+    move. Kills dropping the linked devices from the candidates."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINPRUNEDMI01")
+        _device(s, "genpruned", "M133VINPRUNEDMI01", kind="generic_mqtt")
+        _latest(s, "M133VINPRUNEDMI01", "ODOMETER_MI", 50000, AFTER)
+        _summary(s, "M133VINPRUNEDMI01", "ODOMETER_MI", 50000, 50010, 50005)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _values(engine, "M133VINPRUNEDMI01") == {
+        "raw": [],
+        "latest": 80467.2,
+        "summary": (80467.2, 80483.29, 80475.25),
+    }
+    assert _rows(engine) == {("genpruned", "ODOMETER_MI"): LEGACY}
+
+
+def test_133_leaves_odometer_mi_a_wican_declares_in_km(db):
+    """Regression guard: a WiCAN whose own config declares `ODOMETER_MI` in km
+    reads it as km on 3.10, so nothing moves. Kills ignoring a held `wire` row."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _seed_odometer_mi(
+            s, "wicwirekm", "M133VINWIREKMMI01", 80467, odometer_param_key="A6-ODOMETER"
+        )
+        s.add(
+            LiveLinkDeviceUnit(
+                device_id="wicwirekm",
+                param_key="ODOMETER_MI",
+                unit="km",
+                param_class="distance",
+                source="wire",
+            )
+        )
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _values(engine, "M133VINWIREKMMI01") == {
+        "raw": [80467.0],
+        "latest": 80467.0,
+        "summary": (80467.0, 80477.0, 80472.0),
+    }
+
+
 def test_133_skips_an_install_with_no_devices_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _load().upgrade(engine)
@@ -543,6 +631,8 @@ async def migrated(db) -> AsyncGenerator[AsyncSession]:
     - `mileage`: a `MILEAGE` autopid read as miles (Codex R1-H1), with the
       record main wrote from it: 80,000 mi is 128,748 km.
     - `pidkmdev`: `A6-ODOMETER` history in km, with its record.
+    - `odokmdev`: an `ODOMETER_KM` autopid, which main matched by substring and
+      read as miles (fix round 1, I1), with its record.
     """
     dialect, engine, url = db
     if is_sqlite != (dialect == "sqlite"):
@@ -566,6 +656,7 @@ async def migrated(db) -> AsyncGenerator[AsyncSession]:
         for device_id, vin, key, km in (
             ("mileage", "M133INGMILEAGE001", "MILEAGE", 128748.0),
             ("pidkmdev", "M133INGPIDKM00001", "A6-ODOMETER", 80000.0),
+            ("odokmdev", "M133INGODOKM00001", "ODOMETER_KM", 128748.0),
         ):
             _vehicle(s, vin)
             _device(s, device_id, vin)
@@ -743,6 +834,21 @@ async def test_a_miles_boot_config_keeps_a_pid_odometer_in_km(migrated: AsyncSes
     assert await _held(db, "pidkmdev") == {"A6-ODOMETER": ("km", "legacy")}
     assert await _newest(db, "pidkmdev", "A6-ODOMETER") == 80010.0
     assert await _record_max(db, "M133INGPIDKM00001") == 80010.0
+
+
+@pytest.mark.asyncio
+async def test_a_km_boot_config_keeps_a_substring_matched_key_in_miles(migrated: AsyncSession):
+    """Fix round 1 (I1): `ODOMETER_KM` read miles on main by the substring
+    scan, which 3.10 still converts and records by. A km declaration switching
+    it would store 80,010 below its 128,748 km floor. Red on 5a013d2e."""
+    db = migrated
+    await _boot(
+        db, "odokmdev", {"ODOMETER_KM": {"class": "distance", "unit": "km"}}, ODOMETER_KM=80010
+    )
+
+    assert await _held(db, "odokmdev") == {"ODOMETER_KM": ("mi", "legacy")}
+    assert await _newest(db, "odokmdev", "ODOMETER_KM") == 128764.0
+    assert await _record_max(db, "M133INGODOKM00001") == 128764.0
 
 
 @pytest.mark.asyncio

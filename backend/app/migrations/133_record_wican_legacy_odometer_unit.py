@@ -14,12 +14,14 @@ keeps it against a conflicting declaration while the history stands. Nothing
 else changes. `odometer_unit` is deliberately left alone: a device unit wins
 for EVERY key, so stamping one would read the other keys wrong (Codex R1-H4).
 
-Keys, by main's own matching: a device's `odometer_param_key` replaces name
-matching, so a device that declares one gets only that key (Fable FB-4). Every
-other device gets the odometer-named keys (`A6-ODOMETER`, `ODOMETER`,
-`ODOMETER_MI`, `ODO`, `MILEAGE`, `TOTAL_DISTANCE`, `DISTANCE_TOTAL`, with any
-PID prefix). `ODOMETER_MI` wasn't in main's set, but main's store path matched
-it by substring and read it as miles too.
+Keys, by the match main converted and recorded odometers with
+(`odometer_units.is_converted_odometer_key`, which 3.10's store still uses): a
+device's `odometer_param_key` replaces name matching, so a device that
+declares one gets only that key (Fable FB-4). Every other device gets each key
+the substring scan takes: `A6-` anything, or a name holding `ODOMETER`, `ODO`,
+`MILEAGE`, `TOTAL_DISTANCE` or `DISTANCE_TOTAL`. So `ODOMETER_KM` and
+`TOTAL_ODO` are covered too, not just the six exact names (fix round 1, I1).
+That's main's history, fixed, so importing it is safe.
 
 Evidence, per device and key, any of:
 
@@ -49,7 +51,9 @@ WiCAN declaring another key) it went in raw. Those devices' raw rows convert
 whenever the key now reads miles (no `odometer_unit`, or `mi`), in their live
 path's rounding: whole km on a WiCAN, hundredths on the simple path. The
 vehicle's shared rows (latest value, daily summaries) convert only when every
-device reporting the key on that VIN is one of them. Nothing else was ever
+device that may have sent the key on that VIN is one of them: those with raw
+rows for it, plus, since raw rows prune at 90 days, every device linked to
+the VIN or with a drive session on it. Nothing else was ever
 derived from the key: main's odometer and distance-counter sets left it out,
 so no odometer record or session odometer came from it. A `legacy` `mi` row
 for the key is written in the same transaction, so a re-run after a commit
@@ -64,19 +68,15 @@ first. Prod is a no-op: both WiCANs have a unit set.
 from __future__ import annotations
 
 import os
-import re
 from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy import Connection, Engine, create_engine, inspect, text
 
+from app.utils.odometer_units import is_converted_odometer_key, mains_odometer_unit
+
 FATAL = True
 
-# Inlined, like 096: a migration is a snapshot of intent, not the live rule.
-_PID_PREFIX = re.compile(r"^[0-9A-F]{2}-")
-_BARE_KEYS = frozenset(
-    {"ODOMETER", "ODOMETER_MI", "ODO", "MILEAGE", "TOTAL_DISTANCE", "DISTANCE_TOTAL"}
-)
 #: The one key a declaration alone is evidence for (the plan's clause).
 _DECLARED_ALONE = "ODOMETER"
 
@@ -108,6 +108,7 @@ _MI_VIN_REPORTERS = text(
     "SELECT DISTINCT device_id FROM vehicle_telemetry WHERE vin = :v AND param_key = :k"
 )
 _MI_VIN_LINKED = text("SELECT device_id FROM livelink_devices WHERE vin = :v")
+_MI_VIN_DRIVEN = text("SELECT DISTINCT device_id FROM drive_sessions WHERE vin = :v")
 _SET_RAW = text("UPDATE vehicle_telemetry SET value = :new WHERE id = :id")
 _LATEST = text("SELECT id, value FROM vehicle_telemetry_latest WHERE vin = :v AND param_key = :k")
 _SET_LATEST = text("UPDATE vehicle_telemetry_latest SET value = :new WHERE id = :id")
@@ -137,18 +138,6 @@ def _get_fallback_engine() -> Engine:
         return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
     return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
-
-
-def _is_odometer(key: str, declared: str | None) -> bool:
-    """Main's `is_odometer_param_key`: a declaration replaces the name match."""
-    if declared:
-        return key.upper() == declared.upper()
-    return _PID_PREFIX.sub("", key.upper()) in _BARE_KEYS
-
-
-def _mains_unit(key: str) -> str:
-    """Main's reading of a unit-less WiCAN key: a PID is km, a bare key miles."""
-    return "km" if _PID_PREFIX.match(key.upper()) else "mi"
 
 
 def _device_keys(conn: Connection, device_id: str) -> set[str]:
@@ -197,12 +186,12 @@ def legacy_odometer_rows(conn: Connection) -> list[tuple[str, str, str]]:
         keys = _device_keys(conn, device_id)
         if vin and has_latest:
             keys |= {key for (key,) in conn.execute(_VIN_KEYS, {"v": vin})}
-        wanted = {key for key in keys if _is_odometer(key, declared)}
+        wanted = {key for key in keys if is_converted_odometer_key(key, declared)}
         if declared and declared.upper() == _DECLARED_ALONE:
             wanted.add(_DECLARED_ALONE)
         if has_units:
             wanted -= {key for (key,) in conn.execute(_HELD, {"d": device_id})}
-        found.extend((device_id, key, _mains_unit(key)) for key in sorted(wanted))
+        found.extend((device_id, key, mains_odometer_unit(key)) for key in sorted(wanted))
     return found
 
 
@@ -269,6 +258,7 @@ def _convert_odometer_mi(conn: Connection) -> int:
         return 0
     has_latest = inspector.has_table("vehicle_telemetry_latest")
     has_summary = inspector.has_table("telemetry_daily_summary")
+    has_sessions = inspector.has_table("drive_sessions")
     devices = odometer_mi_devices(conn)
     held = {
         device_id
@@ -298,8 +288,11 @@ def _convert_odometer_mi(conn: Connection) -> int:
             vins.add(vin)
 
     for vin in sorted(vins):
-        reporters = {d for (d,) in conn.execute(_MI_VIN_REPORTERS, {"v": vin, "k": _MI_KEY})}
-        candidates = reporters or {d for (d,) in conn.execute(_MI_VIN_LINKED, {"v": vin})}
+        # Who may have sent it: raw rows prune, links and sessions don't (M2).
+        candidates = {d for (d,) in conn.execute(_MI_VIN_REPORTERS, {"v": vin, "k": _MI_KEY})}
+        candidates |= {d for (d,) in conn.execute(_MI_VIN_LINKED, {"v": vin})}
+        if has_sessions:
+            candidates |= {d for (d,) in conn.execute(_MI_VIN_DRIVEN, {"v": vin})}
         # Shared by every device on the VIN, so only when all of them sent it raw.
         if not candidates or not candidates <= pending.keys():
             continue

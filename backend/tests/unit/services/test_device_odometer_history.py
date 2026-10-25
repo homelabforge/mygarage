@@ -279,14 +279,18 @@ async def test_a_wire_declaration_replaces_a_legacy_row_without_history(
         ("MILEAGE", "mi", "km"),
         # The opposite conflict: a standard PID main read in km.
         ("A6-ODOMETER", "km", "mi"),
+        # Fix round 1 (I1): main matched it by substring and read it as miles.
+        # Red on 5a013d2e, whose gate used the exact name set.
+        ("ODOMETER_KM", "mi", "km"),
     ],
 )
 async def test_every_odometer_key_keeps_its_legacy_row_against_a_declaration(
     db_session: AsyncSession, make_livelink_vehicle, key: str, legacy: str, declared: str
 ):
-    """Regression guard: the R12 exception isn't bare-ODOMETER only, so 133's
-    new rows hold. Kills a gate narrowed to `key == "ODOMETER"`."""
-    suffix = "15" if key == "MILEAGE" else "16"
+    """The R12 exception isn't bare-ODOMETER only, so 133's new rows hold.
+    The first two are regression guards (they kill a gate narrowed to
+    `key == "ODOMETER"`)."""
+    suffix = {"MILEAGE": "15", "A6-ODOMETER": "16"}.get(key, "18")
     vin, device = await _device(db_session, make_livelink_vehicle, suffix)
     db_session.add_all(
         [_raw(vin, device.device_id, key, AFTER), _legacy(device.device_id, key, legacy)]

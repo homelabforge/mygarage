@@ -5,7 +5,7 @@ Extracted verbatim in behavior from `routes/torque.py:_ingest`.
 Declares ODOMETER as a CAPABILITY but leaves `sync_odometer` False. Torque
 historically recorded no odometer at all: the old Torque writer never called
 `_sync_odometer_from_telemetry`, and nothing Torque sends matches
-`ODOMETER_PID_PATTERNS`. Flipping the storage policy would have started syncing
+`ODOMETER_NAME_PATTERNS`. Flipping the storage policy would have started syncing
 for every Torque user AND replaced the newer-only latest write. Instead the
 capability opens the door and each DEVICE decides by naming its own
 `odometer_param_key`; a device that names nothing behaves exactly as before.

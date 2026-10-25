@@ -20,11 +20,11 @@ from app.database import is_sqlite
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_device_unit import SOURCE_LEGACY, SOURCE_WIRE, LiveLinkDeviceUnit
 from app.models.livelink_parameter import LiveLinkParameter
-from app.models.vehicle_telemetry import VehicleTelemetryLatest
+from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
 from app.services.livelink_sources.base import Reading, WireUnit
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.odometer_units import is_odometer_param_key
+from app.utils.odometer_units import is_converted_odometer_key
 from app.utils.units import UnitConverter
 from app.utils.wire_units import CANONICAL_SPEED_UNIT, is_mph, mph_to_kmh
 
@@ -98,7 +98,7 @@ class DeviceUnitService:
         values: list[dict[str, object]] = []
         dropped = 0
         for key, wire in declared.items():
-            if held.get(key) == SOURCE_LEGACY and is_odometer_param_key(
+            if held.get(key) == SOURCE_LEGACY and is_converted_odometer_key(
                 key, device.odometer_param_key
             ):
                 if await self._keeps_legacy(device, key):
@@ -159,6 +159,17 @@ class DeviceUnitService:
         from app.services.livelink_service import LiveLinkService
 
         if await LiveLinkService(self.db).device_has_odometer_history(device):
+            return True
+        # The history predicate matches the exact name set, narrower than the
+        # scan that converted these keys (`ODOMETER_KM`), so ask about the key.
+        raw = await self.db.execute(
+            select(VehicleTelemetry.id)
+            .where(
+                VehicleTelemetry.device_id == device.device_id, VehicleTelemetry.param_key == key
+            )
+            .limit(1)
+        )
+        if raw.first() is not None:
             return True
         if not device.vin:
             return False

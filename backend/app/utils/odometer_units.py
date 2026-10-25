@@ -66,6 +66,32 @@ UPSTREAM_KM_ODOMETER_KEY = "ODOMETER"
 UPSTREAM_MI_ODOMETER_KEY = "ODOMETER_MI"
 
 
+#: How the store and record paths pick out an odometer: a SUBSTRING scan, the
+#: same on main as on 3.10. Wider than `_ODOMETER_BARE_KEYS` (it takes
+#: `ODOMETER_KM`, `TOTAL_ODO`), and that width is what decides which keys were
+#: converted and recorded, so it's what the old-reading guard follows.
+ODOMETER_NAME_PATTERNS = ("A6-", "ODOMETER", "ODO", "MILEAGE", "DISTANCE_TOTAL", "TOTAL_DISTANCE")
+
+
+def is_converted_odometer_key(param_key: str, declared: str | None = None) -> bool:
+    """True for a key the store converts to km and records as an odometer.
+
+    The one answer to "which keys did main read as an odometer", used by
+    migration 133, `DeviceUnitService`'s legacy guard, the tools and live
+    ingest itself. ``declared`` (a device's ``odometer_param_key``) replaces
+    the scan, as it always has.
+    """
+    if declared:
+        return param_key.upper() == declared.upper()
+    upper = param_key.upper()
+    return any(pattern in upper for pattern in ODOMETER_NAME_PATTERNS)
+
+
+def mains_odometer_unit(param_key: str) -> str:
+    """How main read a unit-less WiCAN's odometer key: a PID km, anything else mi."""
+    return ODOMETER_UNIT_KM if OBD2_PID_PREFIX_RE.match(param_key.upper()) else ODOMETER_UNIT_MI
+
+
 def bare_param_key(param_key: str) -> str:
     """Uppercase ``param_key`` with any two-hex-digit OBD2 PID prefix removed.
 

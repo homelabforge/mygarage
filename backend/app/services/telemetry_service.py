@@ -41,6 +41,7 @@ from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.odometer_units import (
     ODOMETER_UNIT_KM,
+    is_converted_odometer_key,
     is_miles_odometer_key,
     is_miles_unit,
     odometer_value_to_km,
@@ -100,16 +101,6 @@ class StoreResult:
     stored_count: int = 0
     validated_data: dict[str, float | int | str | None] = field(default_factory=dict)
 
-
-# PIDs that represent odometer readings (case-insensitive matching)
-ODOMETER_PID_PATTERNS = [
-    "A6-",  # Standard OBD2 PID 0xA6 (166)
-    "ODOMETER",
-    "ODO",
-    "MILEAGE",
-    "DISTANCE_TOTAL",
-    "TOTAL_DISTANCE",
-]
 
 #: How far a param's newest sample may trail the vehicle's newest sample before
 #: it stops counting as live. Generous on purpose: every reported param is
@@ -322,15 +313,10 @@ class TelemetryService:
         ``declared`` is the device's ``odometer_param_key``. When set it
         REPLACES the pattern scan for that one key, so a device can name a
         parameter no pattern would match (a vendor custom PID, say) without
-        widening the match for anything else.
+        widening the match for anything else. The scan is
+        `is_converted_odometer_key`'s, shared with the old-reading guard.
         """
-        if declared:
-            return param_key.upper() == declared.upper()
-        param_upper = param_key.upper()
-        for pattern in ODOMETER_PID_PATTERNS:
-            if pattern.upper() in param_upper:
-                return True
-        return False
+        return is_converted_odometer_key(param_key, declared)
 
     async def _declared_odometer_key(self, device_id: str) -> str | None:
         """The device's `odometer_param_key`, or None when it declares nothing.
