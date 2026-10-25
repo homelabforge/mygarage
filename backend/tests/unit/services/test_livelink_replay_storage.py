@@ -585,6 +585,54 @@ async def test_two_replayed_drives_in_one_upload_stay_two(
 
 
 @pytest.mark.usefixtures("livelink_enabled")
+async def test_a_contact_mode_drive_survives_a_switch_to_movement_mode(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """Re-review (FW-B-r2): a drive opened in contact mode has no movement
+    fields, so the ingest gap check measured from its start and closed it there,
+    zero minutes long, on the first sample after the switch. The gap clock
+    leaves a pre-movement session to the contact rule, and so does this now.
+    Red on ca2e0603."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4ctm")
+    drive = DriveSession(
+        vin=vin, device_id=device.device_id, started_at=_now() - timedelta(minutes=30)
+    )
+    db_session.add(drive)
+    await db_session.flush()
+    device.current_session_id = drive.id
+    device.ecu_status = "online"
+    await db_session.commit()
+    device_id, drive_id = device.device_id, drive.id
+
+    await _post(client, token, _now(), SPEED=60.0)
+
+    contact = next(s for s in await _sessions(db_session, device_id) if s.id == drive_id)
+    assert (contact.ended_at, contact.duration_seconds) == (None, None)
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_one_future_dated_frame_does_not_split_a_live_drive(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """Re-review (FW-B-r2): a bad device clock stamped one frame an hour ahead,
+    and the ingest gap check closed the live drive 10 s in. A live session is
+    the gap clock's to close, on the tick. Red on ca2e0603 (two sessions)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4fut2")
+    device_id = device.device_id
+    t = _now()
+    await _post(client, token, t - timedelta(seconds=20), SPEED=40.0)
+    await _post(client, token, t - timedelta(seconds=10), SPEED=45.0)
+    await _post(client, token, t + timedelta(hours=1), SPEED=50.0)
+    await _post(client, token, t, SPEED=50.0)
+    await _post(client, token, t + timedelta(seconds=5), SPEED=52.0)
+
+    sessions = await _sessions(db_session, device_id)
+    assert [s.ended_at for s in sessions] == [None]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
 async def test_a_stop_inside_the_gap_is_still_one_replayed_drive(
     db_session: AsyncSession,
     client: AsyncClient,

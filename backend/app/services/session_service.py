@@ -463,8 +463,15 @@ class SessionService:
         # closed one (R9). A session held open for its replay (B6-9) sees the
         # whole upload, so without this a morning and an evening drive sent
         # together became one eight-hour drive (wave B review I-1). Closed at
-        # its last movement, as the gap clock would have.
-        if session is not None:
+        # its last movement, as the gap clock would have. Only a replay-built
+        # movement session: a live one is the gap clock's on the tick (one bad
+        # future frame mustn't split it), and a contact-mode one has no
+        # movement fields to measure from (FW-B-r2).
+        if (
+            session is not None
+            and session.boundary_algorithm_version >= BOUNDARY_ALGORITHM_MOVEMENT
+            and self._is_replay_built(device, session)
+        ):
             anchor = self._naive(session.movement_ended_at or session.started_at)
             if sample_at - anchor > window:
                 logger.info(
