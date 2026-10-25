@@ -41,7 +41,12 @@ from app.utils.odometer_units import (  # noqa: E402
     odometer_value_to_km,
     resolve_odometer_unit,
 )
-from tools._tool_db import as_date, device_key_units, resolve_sync_url  # noqa: E402
+from tools._tool_db import (  # noqa: E402
+    as_date,
+    device_key_units,
+    migrated_odometer_mi_devices,
+    resolve_sync_url,
+)
 
 #: Below this, a "mi" device's stored telemetry already sits in the same range
 #: as the vehicle's kilometre odometer records, so it has been converted and
@@ -83,6 +88,8 @@ def main() -> int:
         # Units as live ingest resolves them: a legacy row keeps a bare
         # ODOMETER in miles, where the key rule alone now says km.
         key_units = device_key_units(conn)
+        # Raw miles main never recorded from, and km once migration 133 has run.
+        skip_odometer_mi = migrated_odometer_mi_devices(conn)
 
         # Refuse if the telemetry has already been converted. This reads
         # `value` as the device reported it and applies the device's declared
@@ -119,6 +126,8 @@ def main() -> int:
             ):
                 param_key = key_row.param_key
                 if not is_odometer_param_key(param_key):
+                    continue
+                if param_key == "ODOMETER_MI" and device_id in skip_odometer_mi:
                     continue
                 key_unit = key_units.get((device_id, param_key))
                 if resolve_odometer_unit(param_key, unit, kind, key_unit) == ODOMETER_UNIT_KM:
@@ -161,6 +170,8 @@ def main() -> int:
             )
         ):
             if not is_odometer_param_key(row.param_key):
+                continue
+            if row.param_key == "ODOMETER_MI" and row.device_id in skip_odometer_mi:
                 continue
             if args.vin and row.vin != args.vin:
                 continue

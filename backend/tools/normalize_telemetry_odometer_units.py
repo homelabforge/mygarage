@@ -48,6 +48,7 @@ from app.utils.odometer_units import (  # noqa: E402
 from app.utils.units import UnitConverter  # noqa: E402
 from tools._tool_db import (  # noqa: E402
     device_key_units,
+    migrated_odometer_mi_devices,
     mixed_units_step,
     resolve_sync_url,
 )
@@ -91,6 +92,8 @@ def main() -> int:
         # bare ODOMETER is km unless a legacy row says miles, and without this
         # every legacy device would be skipped as "already metric".
         key_units = device_key_units(conn)
+        # Migration 133 moves these to km itself.
+        left_to_133 = migrated_odometer_mi_devices(conn)
 
         total_hist = 0
         total_latest = 0
@@ -105,6 +108,7 @@ def main() -> int:
                     {"d": device_id},
                 )
                 if is_odometer_param_key(row.param_key)
+                and not (device_id in left_to_133 and row.param_key == "ODOMETER_MI")
             ]
             for param_key in keys:
                 key_unit = key_units.get((device_id, param_key))

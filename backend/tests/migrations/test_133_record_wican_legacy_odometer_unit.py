@@ -39,7 +39,11 @@ from app.models.odometer import OdometerRecord
 from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
+from app.models.vehicle_telemetry import (
+    TelemetryDailySummary,
+    VehicleTelemetry,
+    VehicleTelemetryLatest,
+)
 from app.utils.datetime_utils import utc_now
 
 _NAME = "133_record_wican_legacy_odometer_unit"
@@ -375,6 +379,145 @@ def test_133_does_not_read_odometer_records(db):
     _load().upgrade(engine)
 
     assert _rows(engine) == {}
+
+
+# --- FW-A1: ODOMETER_MI that main stored raw --------------------------------------
+
+
+def _summary(s: Session, vin: str, key: str, low: float, high: float, avg: float) -> None:
+    s.add(
+        TelemetryDailySummary(
+            vin=vin,
+            param_key=key,
+            date=AFTER.replace(hour=0, minute=0, second=0),
+            min_value=low,
+            max_value=high,
+            avg_value=avg,
+            sample_count=3,
+        )
+    )
+
+
+def _values(engine: Engine, vin: str) -> dict[str, object]:
+    with engine.connect() as conn:
+        raw = conn.execute(
+            text(
+                "SELECT value FROM vehicle_telemetry WHERE vin = :v AND param_key = 'ODOMETER_MI'"
+            ),
+            {"v": vin},
+        ).scalars()
+        latest = conn.execute(
+            text(
+                "SELECT value FROM vehicle_telemetry_latest "
+                "WHERE vin = :v AND param_key = 'ODOMETER_MI'"
+            ),
+            {"v": vin},
+        ).scalar()
+        summary = conn.execute(
+            text(
+                "SELECT min_value, max_value, avg_value FROM telemetry_daily_summary "
+                "WHERE vin = :v AND param_key = 'ODOMETER_MI'"
+            ),
+            {"v": vin},
+        ).first()
+    return {
+        "raw": sorted(float(v) for v in raw),
+        "latest": None if latest is None else float(latest),
+        "summary": None if summary is None else tuple(float(v) for v in summary),
+    }
+
+
+def _seed_odometer_mi(s: Session, device_id: str, vin: str, value: float, **device: object) -> None:
+    _vehicle(s, vin)
+    _device(s, device_id, vin, **device)
+    _raw(s, device_id, vin, "ODOMETER_MI", value)
+    _latest(s, vin, "ODOMETER_MI", value, AFTER)
+    _summary(s, vin, "ODOMETER_MI", value, value + 10, value + 5)
+
+
+def test_133_converts_odometer_mi_that_main_stored_raw(db):
+    """`ODOMETER_MI` is miles on every kind now and stored as km, so the rows
+    main wrote raw move to km with it (FW-A1): a generic topic's, and a
+    WiCAN's whose declared odometer is another key. Each in its live path's
+    rounding: the simple path's hundredths, a WiCAN's whole km. Red on
+    ed8fbef9."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _seed_odometer_mi(s, "genmqtt", "M133VINGENMI00001", 50000, kind="generic_mqtt")
+        _seed_odometer_mi(
+            s, "wicdecl", "M133VINWICDECLMI1", 50000, odometer_param_key="A6-ODOMETER"
+        )
+        _seed_odometer_mi(
+            s, "genunitmi", "M133VINGENUNITMI1", 50000, kind="generic_mqtt", odometer_unit="mi"
+        )
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _values(engine, "M133VINGENMI00001") == {
+        "raw": [80467.2],
+        "latest": 80467.2,
+        "summary": (80467.2, 80483.29, 80475.25),
+    }
+    assert _values(engine, "M133VINWICDECLMI1") == {
+        "raw": [80467.0],
+        "latest": 80467.0,
+        "summary": (80467.2, 80483.29, 80475.25),
+    }
+    assert _values(engine, "M133VINGENUNITMI1")["raw"] == [80467.2]
+
+
+def test_133_leaves_odometer_mi_that_main_already_stored_in_km(db):
+    """Regression guard: a WiCAN that declares nothing had `ODOMETER_MI`
+    converted on main, and a device unit of km means it's km. A VIN another
+    device also reports the key on keeps its shared rows: they can't be told
+    apart. Kills a conversion that ignores kind, unit or the shared VIN."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _seed_odometer_mi(s, "wicplain", "M133VINWICPLAINM1", 80467)
+        _seed_odometer_mi(
+            s, "genunitkm", "M133VINGENUNITKM1", 80467, kind="generic_mqtt", odometer_unit="km"
+        )
+        _seed_odometer_mi(s, "genshared", "M133VINSHAREDMI01", 50000, kind="generic_mqtt")
+        _device(s, "wicshared", "M133VINSHAREDMI01")
+        _raw(
+            s, "wicshared", "M133VINSHAREDMI01", "ODOMETER_MI", 80467, at=AFTER + timedelta(hours=1)
+        )
+        s.commit()
+
+    _load().upgrade(engine)
+
+    for vin in ("M133VINWICPLAINM1", "M133VINGENUNITKM1"):
+        assert _values(engine, vin) == {
+            "raw": [80467.0],
+            "latest": 80467.0,
+            "summary": (80467.0, 80477.0, 80472.0),
+        }, vin
+    shared = _values(engine, "M133VINSHAREDMI01")
+    # The generic device's own row converts; the VIN's shared ones stay.
+    assert shared["raw"] == [80467.0, 80467.2]
+    assert shared["latest"] == 50000.0
+    assert shared["summary"] == (50000.0, 50010.0, 50005.0)
+
+
+def test_133_converts_odometer_mi_only_once(db):
+    """A re-entry after a run that committed but wasn't stamped mustn't
+    convert again: the device's legacy `ODOMETER_MI` row, written in the same
+    transaction, says it's done. Red on ed8fbef9 (never converted at all)."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _seed_odometer_mi(s, "genonce", "M133VINGENONCE001", 50000, kind="generic_mqtt")
+        s.commit()
+
+    _load().upgrade(engine)
+    _load().upgrade(engine)
+
+    assert _values(engine, "M133VINGENONCE001") == {
+        "raw": [80467.2],
+        "latest": 80467.2,
+        "summary": (80467.2, 80483.29, 80475.25),
+    }
+    assert _rows(engine) == {("genonce", "ODOMETER_MI"): LEGACY}
 
 
 def test_133_skips_an_install_with_no_devices_table(engine_for_migration):

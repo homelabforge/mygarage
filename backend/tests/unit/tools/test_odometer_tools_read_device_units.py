@@ -257,3 +257,49 @@ def test_backfill_vin_refuses_on_the_telemetry_s_vin(tmp_path, monkeypatch, caps
 
     assert _run("tools.backfill_livelink_odometer", path, monkeypatch, "--vin", "VINWAS") == 2
     assert "devmoved / ODOMETER" in capsys.readouterr().out
+
+
+def _seed_generic_odometer_mi(path: str) -> None:
+    """A generic MQTT topic's ODOMETER_MI, raw miles as main stored it, before
+    the first boot, with a km fuel record that dwarfs it."""
+    conn = sqlite3.connect(path)
+    conn.executescript(_SCHEMA)
+    conn.execute(
+        "INSERT INTO livelink_devices VALUES "
+        "('devgeneric', 'VINGENERIC', NULL, 'generic_mqtt', NULL, '2026-08-01 00:00:00')"
+    )
+    conn.executemany(
+        "INSERT INTO vehicle_telemetry VALUES ('VINGENERIC', 'devgeneric', 'ODOMETER_MI', ?, ?)",
+        [(1000.0, "2026-09-01 10:00:00"), (1001.0, "2026-09-02 10:00:00")],
+    )
+    conn.execute("INSERT INTO odometer_records VALUES ('VINGENERIC', '2026-08-01', 1600.0, 'fuel')")
+    conn.commit()
+    conn.close()
+
+
+def test_normalize_leaves_a_raw_odometer_mi_to_migration_133(tmp_path, monkeypatch, capsys):
+    """133 converts these rows at the first boot (FW-A1), so the tool doing it
+    first would have them converted twice. Red on 0db487a5, which converted
+    them here once ODOMETER_MI read miles on every kind."""
+    path = str(tmp_path / "mygarage.db")
+    _seed_generic_odometer_mi(path)
+
+    assert _run("tools.normalize_telemetry_odometer_units", path, monkeypatch, "--apply") == 0
+
+    conn = sqlite3.connect(path)
+    values = [v for (v,) in conn.execute("SELECT value FROM vehicle_telemetry ORDER BY timestamp")]
+    conn.close()
+    assert values == [1000.0, 1001.0]
+    assert "devgeneric / ODOMETER_MI" not in capsys.readouterr().out
+
+
+def test_backfill_never_records_from_a_raw_odometer_mi(tmp_path, monkeypatch, capsys):
+    """Main never recorded an odometer from these rows, and after 133 they're
+    km while the key reads miles, so a record from them would be 1.609x high.
+    Red on 0db487a5, which planned records from them."""
+    path = str(tmp_path / "mygarage.db")
+    _seed_generic_odometer_mi(path)
+
+    assert _run("tools.backfill_livelink_odometer", path, monkeypatch) == 0
+
+    assert "VINGENERIC" not in capsys.readouterr().out

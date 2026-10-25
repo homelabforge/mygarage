@@ -176,6 +176,17 @@ def device_key_units(conn: Connection) -> dict[tuple[str, str], str | None]:
     return units
 
 
+def migrated_odometer_mi_devices(conn: Connection) -> set[str]:
+    """Devices whose raw `ODOMETER_MI` migration 133 moves to km (FW-A1).
+
+    Before the first boot their rows are still miles and 133 converts them,
+    so a tool converting them first would have them done twice; after it,
+    they're km. Main never recorded an odometer from them either. So the
+    tools leave these devices' `ODOMETER_MI` alone either way.
+    """
+    return set(_load_legacy_migration().odometer_mi_devices(conn))
+
+
 #: A unit change inside one series shows up as a step of the miles factor
 #: between readings that are adjacent in time. An odometer never really moves
 #: 55% in one sample interval, so a step in this band is a units discontinuity.

@@ -41,6 +41,20 @@ Evidence, per device and key, any of:
 The cost (Fable F2-3): a key whose real unit isn't main's guess keeps being
 read as on main until the owner runs `tools/repair_wican_odometer_unit.py`.
 
+`ODOMETER_MI` is miles on every kind now, stored as km (Codex R1-M1), so the
+rows main stored raw move to km too (FW-A1). Main converted it only on a
+WiCAN that declares no other odometer key (its substring match), and on
+Torque when it was the declared key. Everywhere else (a generic MQTT topic, a
+WiCAN declaring another key) it went in raw. Those devices' raw rows convert
+whenever the key now reads miles (no `odometer_unit`, or `mi`), in their live
+path's rounding: whole km on a WiCAN, hundredths on the simple path. The
+vehicle's shared rows (latest value, daily summaries) convert only when every
+device reporting the key on that VIN is one of them. Nothing else was ever
+derived from the key: main's odometer and distance-counter sets left it out,
+so no odometer record or session odometer came from it. A `legacy` `mi` row
+for the key is written in the same transaction, so a re-run after a commit
+the runner didn't stamp converts nothing twice.
+
 FATAL: a failure must not boot with the km default under these devices. Data
 only, idempotent (skips a key the device already has a row for), both
 dialects. `livelink_device_units` comes from `create_all` (or migration 132)
@@ -51,6 +65,7 @@ from __future__ import annotations
 
 import os
 import re
+from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy import Connection, Engine, create_engine, inspect, text
@@ -78,6 +93,36 @@ _NEXT_KEY = text(
 )
 _VIN_KEYS = text("SELECT DISTINCT param_key FROM vehicle_telemetry_latest WHERE vin = :v")
 _HELD = text("SELECT param_key FROM livelink_device_units WHERE device_id = :d")
+
+#: FW-A1: the key that's miles on every kind now, and the factor.
+_MI_KEY = "ODOMETER_MI"
+_MILES_TO_KM = Decimal("1.609344")
+
+_MI_DEVICES = (
+    "SELECT d.device_id, d.vin, d.kind, d.odometer_unit, {declared} AS declared, {held} "
+    "FROM livelink_devices d{join}"
+)
+_MI_JOIN = " LEFT JOIN livelink_device_units u ON u.device_id = d.device_id AND u.param_key = :k"
+_MI_RAW = text("SELECT id, value FROM vehicle_telemetry WHERE device_id = :d AND param_key = :k")
+_MI_VIN_REPORTERS = text(
+    "SELECT DISTINCT device_id FROM vehicle_telemetry WHERE vin = :v AND param_key = :k"
+)
+_MI_VIN_LINKED = text("SELECT device_id FROM livelink_devices WHERE vin = :v")
+_SET_RAW = text("UPDATE vehicle_telemetry SET value = :new WHERE id = :id")
+_LATEST = text("SELECT id, value FROM vehicle_telemetry_latest WHERE vin = :v AND param_key = :k")
+_SET_LATEST = text("UPDATE vehicle_telemetry_latest SET value = :new WHERE id = :id")
+_SUMMARIES = text(
+    "SELECT id, min_value, max_value, avg_value FROM telemetry_daily_summary "
+    "WHERE vin = :v AND param_key = :k"
+)
+_SET_SUMMARY = text(
+    "UPDATE telemetry_daily_summary SET min_value = :lo, max_value = :hi, avg_value = :avg "
+    "WHERE id = :id"
+)
+_HOLD_MI = text(
+    "UPDATE livelink_device_units SET unit = 'mi', param_class = 'distance', source = 'legacy' "
+    "WHERE device_id = :d AND param_key = :k"
+)
 
 _INSERT = text(
     "INSERT INTO livelink_device_units "
@@ -161,8 +206,136 @@ def legacy_odometer_rows(conn: Connection) -> list[tuple[str, str, str]]:
     return found
 
 
+def _main_converted_odometer_mi(kind: str | None, declared: str | None) -> bool:
+    """Whether main stored a device's `ODOMETER_MI` in km already.
+
+    A WiCAN's store path matched it by substring unless another key was
+    declared; Torque's simple path converted only its declared key.
+    """
+    named = bool(declared) and declared.upper() == _MI_KEY
+    if kind == "wican":
+        return not declared or named
+    return kind == "torque" and named
+
+
+def _reads_odometer_mi_as_miles(kind: str | None, unit: str | None, held: str | None) -> bool:
+    """Whether 3.10 reads the device's `ODOMETER_MI` as miles (and so stores km)."""
+    if unit and unit.strip().lower() in ("km", "mi"):
+        return unit.strip().lower() == "mi"
+    if kind == "wican" and held and held.strip().lower() in ("km", "mi"):
+        return held.strip().lower() == "mi"
+    return True
+
+
+def odometer_mi_devices(conn: Connection) -> dict[str, tuple[str | None, str | None]]:
+    """The devices whose `ODOMETER_MI` main stored raw and 3.10 reads as miles.
+
+    ``{device_id: (vin, kind)}``, whatever the migration has or hasn't done:
+    the rule reads only the device. Public for the odometer tools, which leave
+    these devices' `ODOMETER_MI` to this migration and never record from it
+    (main didn't either).
+    """
+    inspector = inspect(conn)
+    if not inspector.has_table("livelink_devices") or missing_device_columns(conn):
+        return {}
+    columns = {col["name"] for col in inspector.get_columns("livelink_devices")}
+    declared_expr = "d.odometer_param_key" if "odometer_param_key" in columns else "NULL"
+    # Before the first boot there may be no units table: nothing is held then.
+    if inspector.has_table("livelink_device_units"):
+        held_expr, join = "u.unit AS held, u.source AS held_source", _MI_JOIN
+    else:
+        held_expr, join = "NULL AS held, NULL AS held_source", ""
+    query = _MI_DEVICES.format(declared=declared_expr, held=held_expr, join=join)
+    found: dict[str, tuple[str | None, str | None]] = {}
+    for row in conn.execute(text(query), {"k": _MI_KEY}):
+        if _main_converted_odometer_mi(row.kind, row.declared):
+            continue
+        held = row.held if row.held_source != "legacy" else None
+        if _reads_odometer_mi_as_miles(row.kind, row.odometer_unit, held):
+            found[row.device_id] = (row.vin, row.kind)
+    return found
+
+
+def _to_km(value: float, *, whole: bool) -> float:
+    """Miles to km by the live path's rule: hundredths, then whole km on a WiCAN."""
+    km = float(round(Decimal(str(value)) * _MILES_TO_KM, 2))
+    return float(round(km)) if whole else km
+
+
+def _convert_odometer_mi(conn: Connection) -> int:
+    """Move the `ODOMETER_MI` rows main stored raw to km. Returns devices converted."""
+    inspector = inspect(conn)
+    if not inspector.has_table("vehicle_telemetry"):
+        return 0
+    has_latest = inspector.has_table("vehicle_telemetry_latest")
+    has_summary = inspector.has_table("telemetry_daily_summary")
+    devices = odometer_mi_devices(conn)
+    held = {
+        device_id
+        for (device_id,) in conn.execute(
+            text(
+                "SELECT device_id FROM livelink_device_units "
+                "WHERE param_key = :k AND source = 'legacy'"
+            ),
+            {"k": _MI_KEY},
+        )
+    }
+    # A legacy row says this already ran on that device.
+    pending = {d: info for d, info in devices.items() if d not in held}
+
+    vins: set[str] = set()
+    done: set[str] = set()
+    for device_id, (vin, kind) in pending.items():
+        rows = conn.execute(_MI_RAW, {"d": device_id, "k": _MI_KEY}).all()
+        if rows:
+            whole = kind == "wican"
+            conn.execute(
+                _SET_RAW,
+                [{"id": r.id, "new": _to_km(r.value, whole=whole)} for r in rows],
+            )
+            done.add(device_id)
+        if vin:
+            vins.add(vin)
+
+    for vin in sorted(vins):
+        reporters = {d for (d,) in conn.execute(_MI_VIN_REPORTERS, {"v": vin, "k": _MI_KEY})}
+        candidates = reporters or {d for (d,) in conn.execute(_MI_VIN_LINKED, {"v": vin})}
+        # Shared by every device on the VIN, so only when all of them sent it raw.
+        if not candidates or not candidates <= pending.keys():
+            continue
+        whole = all(pending[d][1] == "wican" for d in candidates)
+        shared = False
+        if has_latest:
+            for row in conn.execute(_LATEST, {"v": vin, "k": _MI_KEY}).all():
+                conn.execute(_SET_LATEST, {"id": row.id, "new": _to_km(row.value, whole=whole)})
+                shared = True
+        if has_summary:
+            for row in conn.execute(_SUMMARIES, {"v": vin, "k": _MI_KEY}).all():
+                conn.execute(
+                    _SET_SUMMARY,
+                    {
+                        "id": row.id,
+                        "lo": None if row.min_value is None else _to_km(row.min_value, whole=False),
+                        "hi": None if row.max_value is None else _to_km(row.max_value, whole=False),
+                        "avg": None
+                        if row.avg_value is None
+                        else _to_km(row.avg_value, whole=False),
+                    },
+                )
+                shared = True
+        if shared:
+            done |= candidates
+
+    # The marker: each device whose rows moved, so a re-run leaves them be.
+    for device_id in sorted(done):
+        updated = conn.execute(_HOLD_MI, {"d": device_id, "k": _MI_KEY}).rowcount
+        if not updated:
+            conn.execute(_INSERT, {"d": device_id, "k": _MI_KEY, "u": "mi"})
+    return len(done)
+
+
 def upgrade(engine: Engine | None = None) -> None:
-    """Insert a legacy row for each odometer key main read on a unit-less WiCAN."""
+    """Keep main's reading of each WiCAN odometer key, and move raw ODOMETER_MI to km."""
     if engine is None:
         engine = _get_fallback_engine()
 
@@ -170,7 +343,9 @@ def upgrade(engine: Engine | None = None) -> None:
         print("  → livelink_device_units missing; skip (nothing to record into)")
         return
 
+    # One transaction: the legacy rows, the conversion and its markers land together.
     with engine.begin() as conn:
+        converted = _convert_odometer_mi(conn)
         found = legacy_odometer_rows(conn)
         for device_id, key, unit in found:
             conn.execute(_INSERT, {"d": device_id, "k": key, "u": unit})
@@ -180,6 +355,8 @@ def upgrade(engine: Engine | None = None) -> None:
         print(f"  ✓ Kept main's reading of {len(found)} odometer key(s) on {devices} WiCAN(s)")
     else:
         print("  → no unit-less WiCAN has odometer history; nothing to record")
+    if converted:
+        print(f"  ✓ Moved ODOMETER_MI from miles to km on {converted} device(s)")
 
 
 def downgrade() -> None:  # pragma: no cover
