@@ -64,9 +64,9 @@ its own short-lived connection, so the live subscription set is untouched.
 |---|---|
 | Topic | **Exact**, never a wildcard. `+` and `#` are rejected. |
 | Parameter key | Where the value is stored. Prefilled from the topic's last segment, uppercased. |
-| Unit / class | Display metadata, copied onto the parameter. |
+| Unit / class | Copied onto the parameter. A unit of `mph` (or `mi/h`) is stored as km/h; any other unit is stored as it arrives. |
 | Value path | Leave empty for a bare scalar payload (`71`). Set a dotted path (`battery.voltage`) to read one value out of a JSON payload. |
-| Scale / offset | `value = raw * scale + offset`. This is where unit conversion happens. |
+| Scale / offset | `value = raw * scale + offset`. This is where any other unit conversion happens. |
 | Role | `telemetry` stores a reading. `status` marks the device online/offline, for an LWT topic. |
 
 Topics are exact by design. Subscriptions then are just the distinct topic
@@ -89,12 +89,11 @@ topic is a common example, and the discovery list flags samples like that.
 
 ### Set a storage interval
 
-This is required, not tuning. Mapped topics are usually retained, and retained
-messages replay on every resubscribe while the storage path stamps server time,
-so without an interval each reconnect writes a fresh row. Setting
-`storage_interval_seconds` on the parameter also decides how much history you
-keep: at 300 seconds, a device publishing every 10 seconds stores about 288 rows
-per parameter per day instead of 8,640.
+Setting `storage_interval_seconds` on the parameter decides how much history
+you keep: at 300 seconds, a device publishing every 10 seconds stores about 288
+rows per parameter per day instead of 8,640. Retained messages that replay on
+a reconnect are ignored (a retained LWT `offline` still counts), so only live
+publishes are stored.
 
 ### Presets
 
