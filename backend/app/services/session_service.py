@@ -2,10 +2,11 @@
 
 import logging
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, SQLColumnExpression, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,6 +76,27 @@ _DERIVED_SESSION_COLUMNS = (
 #: Devices already named by `_warn_if_no_movement_signal_ever`, this process.
 #: See that method for why this is process-local rather than a column.
 _NO_MOVEMENT_WARNED: set[str] = set()
+
+
+@dataclass(frozen=True)
+class _SessionWindow:
+    """The telemetry span a session's numbers come from (R11).
+
+    Inclusive at both ends, except a session that starts exactly where the
+    same device's previous session ended: that instant is the previous one's,
+    so the start goes exclusive. Touching sessions are made on purpose (both
+    the live open and SD reconstruction clamp a start to the last close), and
+    with both windows inclusive the shared sample counted twice.
+    """
+
+    start: datetime
+    end: datetime
+    start_exclusive: bool
+
+    def covers(self, column: SQLColumnExpression[datetime]) -> ColumnElement[bool]:
+        """The WHERE clause for a timestamp column inside this window."""
+        lower = column > self.start if self.start_exclusive else column >= self.start
+        return and_(lower, column <= self.end)
 
 
 def _moved_predicate():
@@ -712,24 +734,9 @@ class SessionService:
         movement_span = [sample_at]
         if device.movement_candidate_at is not None:
             movement_span.append(self._naive(device.movement_candidate_at))
-        movement_started_at = min(movement_span)
-        movement_ended_at = max(movement_span)
-
-        previous_end = (
-            await self.db.execute(
-                select(func.max(DriveSession.ended_at))
-                .where(DriveSession.device_id == device.device_id)
-                .where(DriveSession.ended_at.is_not(None))
-            )
-        ).scalar()
-        if previous_end is not None:
-            previous_end = self._naive(previous_end)
-            if started_at < previous_end:
-                started_at = previous_end
-            if movement_started_at < started_at:
-                movement_started_at = started_at
-            # The clamp can push the start past the whole replayed span.
-            movement_ended_at = max(movement_ended_at, movement_started_at)
+        started_at, movement_started_at, movement_ended_at = await self.clamp_past_previous_close(
+            device.device_id, started_at, min(movement_span), max(movement_span)
+        )
 
         # Take a row lock, then RE-READ the pointer under it.
         #
@@ -822,6 +829,39 @@ class SessionService:
             sanitize_for_log(sample_at),
         )
         return session
+
+    async def clamp_past_previous_close(
+        self,
+        device_id: str,
+        started_at: datetime,
+        movement_started_at: datetime,
+        movement_ended_at: datetime,
+    ) -> tuple[datetime, datetime, datetime]:
+        """Keep a new or backdated window from reaching into a closed session.
+
+        Every aggregate is a window scan, so a start before the device's last
+        close makes both sessions claim the same samples. Shared by the live
+        open and the SD backdate of an open session (R10), so the two agree.
+
+        Returns ``(started_at, movement_started_at, movement_ended_at)``, naive.
+        """
+        started_at = self._naive(started_at)
+        movement_started_at = self._naive(movement_started_at)
+        movement_ended_at = self._naive(movement_ended_at)
+        previous_end = (
+            await self.db.execute(
+                select(func.max(DriveSession.ended_at))
+                .where(DriveSession.device_id == device_id)
+                .where(DriveSession.ended_at.is_not(None))
+            )
+        ).scalar()
+        if previous_end is None:
+            return started_at, movement_started_at, movement_ended_at
+        started_at = max(started_at, self._naive(previous_end))
+        movement_started_at = max(movement_started_at, started_at)
+        # The clamp can push the start past the whole replayed span.
+        movement_ended_at = max(movement_ended_at, movement_started_at)
+        return started_at, movement_started_at, movement_ended_at
 
     async def _open_session_for_device(self, device_id: str) -> DriveSession | None:
         """The device's open session, read from the DATABASE not the pointer.
@@ -1094,11 +1134,42 @@ class SessionService:
         if clear_first:
             for column in _DERIVED_SESSION_COLUMNS:
                 setattr(session, column, None)
-        await self._calculate_session_distance(session)
-        await self._calculate_session_aggregates(session)
-        await self._calculate_driving_insights(session)
+        window = await self._telemetry_window(session)
+        if window is None:
+            return
+        await self._calculate_session_distance(session, window)
+        await self._calculate_session_aggregates(session, window)
+        await self._calculate_driving_insights(session, window)
 
-    async def _calculate_session_distance(self, session: DriveSession) -> None:
+    async def _telemetry_window(self, session: DriveSession) -> _SessionWindow | None:
+        """Decide the session's window once, for every read in `refresh_aggregates`.
+
+        One query: the latest close among the device's other sessions that
+        ended at or before this one started. Only an exact match makes the
+        start exclusive, so a drive's own first sample still counts. None
+        while the session is open or has no start.
+        """
+        if not session.started_at or not session.ended_at:
+            return None
+        previous_end = (
+            await self.db.execute(
+                select(func.max(DriveSession.ended_at))
+                .where(DriveSession.device_id == session.device_id)
+                # Not itself: a zero-length session ends where it starts.
+                .where(DriveSession.id != session.id)
+                .where(DriveSession.ended_at <= session.started_at)
+            )
+        ).scalar()
+        start = self._naive(session.started_at)
+        return _SessionWindow(
+            start=start,
+            end=self._naive(session.ended_at),
+            start_exclusive=previous_end is not None and self._naive(previous_end) == start,
+        )
+
+    async def _calculate_session_distance(
+        self, session: DriveSession, window: _SessionWindow
+    ) -> None:
         """Set the odometer span and distance from samples inside the window.
 
         Sessions open and close on device connectivity, not on the engine, so a
@@ -1129,9 +1200,6 @@ class SessionService:
         the two key sets stay disjoint, live with the rule in
         `app/utils/distance_counters.py`.
         """
-        if not session.started_at or not session.ended_at:
-            return
-
         # Which keys the window holds, so the readings query below can name them
         # in an `IN` list of literals. They cannot be listed up front: the
         # standard SAE J1979 odometer key carries an arbitrary two-hex-digit PID
@@ -1149,8 +1217,7 @@ class SessionService:
             # unset so a Torque trip cannot be stamped from the co-located
             # WiCAN's odometer. Matching on VIN alone walks back through that.
             .where(VehicleTelemetry.device_id == session.device_id)
-            .where(VehicleTelemetry.timestamp >= session.started_at)
-            .where(VehicleTelemetry.timestamp <= session.ended_at)
+            .where(window.covers(VehicleTelemetry.timestamp))
             .group_by(VehicleTelemetry.param_key)
         )
         # A device that NAMES its odometer parameter must have that name honoured
@@ -1173,7 +1240,7 @@ class SessionService:
         odometer_keys = {key for key in source_keys if is_odometer_param_key(key, declared)}
 
         if source_keys:
-            travelled = await self._distance_by_source(session, source_keys)
+            travelled = await self._distance_by_source(session, window, source_keys)
 
             # The odometer columns are the odometer's alone, and stay a span
             # rather than a sum: they answer "what did the clock read", not
@@ -1202,7 +1269,7 @@ class SessionService:
             session.distance_km = float(LocationService.haversine_km(coords))
 
     async def _distance_by_source(
-        self, session: DriveSession, source_keys: Sequence[str]
+        self, session: DriveSession, window: _SessionWindow, source_keys: Sequence[str]
     ) -> dict[str, TravelledSpan]:
         """Measure how far each distance source moved inside the session window.
 
@@ -1227,8 +1294,7 @@ class SessionService:
             )
             .where(VehicleTelemetry.vin == session.vin)
             .where(VehicleTelemetry.device_id == session.device_id)
-            .where(VehicleTelemetry.timestamp >= session.started_at)
-            .where(VehicleTelemetry.timestamp <= session.ended_at)
+            .where(window.covers(VehicleTelemetry.timestamp))
             .where(VehicleTelemetry.param_key.in_(list(source_keys)))
             .order_by(VehicleTelemetry.param_key, VehicleTelemetry.timestamp)
         )
@@ -1239,11 +1305,10 @@ class SessionService:
 
         return {key: measure_travelled(values) for key, values in series.items()}
 
-    async def _calculate_session_aggregates(self, session: DriveSession) -> None:
+    async def _calculate_session_aggregates(
+        self, session: DriveSession, window: _SessionWindow
+    ) -> None:
         """Calculate aggregate statistics for a session from telemetry data."""
-        if not session.started_at or not session.ended_at:
-            return
-
         # Define which parameters to aggregate.
         # Each entry maps to a list of possible param_key names to check,
         # since different WiCAN firmware/configs use different naming conventions
@@ -1269,8 +1334,7 @@ class SessionService:
                 session.vin,
                 session.device_id,
                 param_keys,
-                session.started_at,
-                session.ended_at,
+                window,
             )
             count = stats.get("count")
             if count and count > 0:
@@ -1279,7 +1343,9 @@ class SessionService:
                 if max_attr:
                     setattr(session, max_attr, stats["max"])
 
-    async def _calculate_driving_insights(self, session: DriveSession) -> None:
+    async def _calculate_driving_insights(
+        self, session: DriveSession, window: _SessionWindow
+    ) -> None:
         """Derive idle time and harsh accel/brake counts from SPEED samples.
 
         Idle: consecutive samples below 5 km/h contribute their Δt.
@@ -1289,9 +1355,6 @@ class SessionService:
         could use SQL window functions (LAG) to compute deltas in the database, but
         that change requires test coverage to catch regressions.
         """
-        if not session.started_at or not session.ended_at:
-            return
-
         upper_keys = [k.upper() for k in SPEED_PARAM_KEYS]
         result = await self.db.execute(
             select(VehicleTelemetry.timestamp, VehicleTelemetry.value)
@@ -1301,8 +1364,7 @@ class SessionService:
             # so a co-located device's samples would invent events.
             .where(VehicleTelemetry.device_id == session.device_id)
             .where(func.upper(VehicleTelemetry.param_key).in_(upper_keys))
-            .where(VehicleTelemetry.timestamp >= session.started_at)
-            .where(VehicleTelemetry.timestamp <= session.ended_at)
+            .where(window.covers(VehicleTelemetry.timestamp))
             .order_by(VehicleTelemetry.timestamp.asc())
         )
         rows = list(result.all())
@@ -1347,8 +1409,7 @@ class SessionService:
         vin: str,
         device_id: str | None,
         param_keys: list[str],
-        start: datetime,
-        end: datetime,
+        window: _SessionWindow,
     ) -> dict[str, float | None]:
         """Get stats for a parameter during a time range, for one device.
 
@@ -1370,8 +1431,7 @@ class SessionService:
             .where(VehicleTelemetry.vin == vin)
             .where(VehicleTelemetry.device_id == device_id)
             .where(func.upper(VehicleTelemetry.param_key).in_(upper_keys))
-            .where(VehicleTelemetry.timestamp >= start)
-            .where(VehicleTelemetry.timestamp <= end)
+            .where(window.covers(VehicleTelemetry.timestamp))
         )
         row = result.first()
         if not row:

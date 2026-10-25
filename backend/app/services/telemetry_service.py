@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import is_sqlite
 from app.services.livelink_sources.base import Reading, StoragePolicy
+from app.services.session_boundaries import DriveWindow
 from app.utils.datetime_utils import utc_now
 
 if is_sqlite:
@@ -993,6 +994,10 @@ class TelemetryService:
         - **An ambiguous window is left alone.** A drive overlapping more than
           one existing session is a history-repair problem, not a backfill one;
           merging them here would be a destructive guess made during an ingest.
+        - **An open session keeps its end** (R10). It's still running, so it
+          matches any drive that ends after it started. A drive that started
+          earlier backdates its start (clamped past the device's last close);
+          the end stays the live path's.
         """
         from app.services.session_boundaries import BOUNDARY_ALGORITHM_MOVEMENT, group_drives
 
@@ -1013,10 +1018,9 @@ class TelemetryService:
 
         changed = 0
         for index, drive in enumerate(drives):
-            session_end = func.coalesce(DriveSession.ended_at, DriveSession.started_at)
-
             # Inclusive at both bounds by default: a session matches this drive
-            # when each one's start is at or before the other's end. A
+            # when each one's start is at or before the other's end, and an
+            # open session has no end yet, so it reaches past any drive. A
             # single-instant touch with a session from the live path or from
             # another SD file is most plausibly the same physical drive seen by
             # two sources (a device reconnecting mid-drive, or one reading both
@@ -1034,7 +1038,7 @@ class TelemetryService:
                 DriveSession.device_id == device_id,
                 DriveSession.external_session_id.is_(None),
                 DriveSession.started_at <= drive.movement_ended_at,
-                session_end >= drive.started_at,
+                or_(DriveSession.ended_at.is_(None), DriveSession.ended_at >= drive.started_at),
             ]
 
             if index + 1 < len(drives) and drives[index + 1].started_at == drive.movement_ended_at:
@@ -1051,7 +1055,7 @@ class TelemetryService:
                             DriveSession.started_at == drive.movement_ended_at,
                             or_(
                                 DriveSession.ended_at.is_(None),
-                                session_end > drive.movement_ended_at,
+                                DriveSession.ended_at > drive.movement_ended_at,
                             ),
                         )
                     )
@@ -1060,14 +1064,15 @@ class TelemetryService:
             if index > 0 and drives[index - 1].movement_ended_at == drive.started_at:
                 # Left: the previous drive in this batch ends exactly at this
                 # drive's started_at, so a closed session ending there is the
-                # previous drive's. Closed sessions only: an open session
-                # collapses to a point at its own started_at and must keep
-                # matching, so the open-session branch below still protects it.
+                # previous drive's. Closed sessions only: an open session is
+                # still running past this instant, so it keeps matching and the
+                # open-session branch below handles it. The IS NOT NULL is what
+                # keeps it: NOT (NULL = x) is NULL, which drops the row.
                 conditions.append(
                     not_(
                         and_(
                             DriveSession.ended_at.is_not(None),
-                            session_end == drive.started_at,
+                            DriveSession.ended_at == drive.started_at,
                         )
                     )
                 )
@@ -1092,7 +1097,10 @@ class TelemetryService:
                 if session.ended_at is None:
                     # An OPEN session is the live path's business: it is still
                     # deciding where this drive ends, and closing it here would
-                    # race the timeout clocks.
+                    # race the timeout clocks. Its start is fair game, though:
+                    # WiFi came back mid-drive and the card holds the head.
+                    if await self._backdate_open_session(session, drive):
+                        changed += 1
                     continue
                 session.started_at = min(self._naive_ts(session.started_at), drive.started_at)
                 session.ended_at = max(self._naive_ts(session.ended_at), drive.movement_ended_at)
@@ -1142,6 +1150,42 @@ class TelemetryService:
 
         await self.db.flush()
         return changed
+
+    async def _backdate_open_session(self, session: DriveSession, drive: DriveWindow) -> bool:
+        """Pull an open session's start back to an SD drive that began first (R10).
+
+        Clamped past the device's last close the same way a live open is, and
+        only ever earlier. A session the drive started inside of is left be.
+        Returns True when the start moved.
+        """
+        from app.services.session_service import SessionService  # local: avoids a cycle
+
+        current_start = self._naive_ts(session.started_at)
+        if current_start is None or drive.started_at >= current_start:
+            return False
+        started_at, movement_started_at, _ = await SessionService(
+            self.db
+        ).clamp_past_previous_close(
+            session.device_id,
+            drive.started_at,
+            drive.movement_started_at,
+            drive.movement_ended_at,
+        )
+        if started_at >= current_start:
+            return False
+        session.started_at = started_at
+        # A contact-mode session has no movement record; don't invent one.
+        current_movement = self._naive_ts(session.movement_started_at)
+        if current_movement is not None:
+            session.movement_started_at = min(current_movement, movement_started_at)
+        logger.info(
+            "SD reconstruction: backdated open session %d for %s from %s to %s",
+            session.id,
+            sanitize_for_log(session.device_id),
+            current_start,
+            started_at,
+        )
+        return True
 
     @staticmethod
     def _naive_ts(value: datetime | None) -> datetime | None:

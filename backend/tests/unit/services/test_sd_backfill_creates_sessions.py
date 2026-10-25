@@ -967,3 +967,173 @@ class TestReconstructionAtDegenerateWindows:
             "drive 1's own session must start at its own start"
         )
         assert closed[0][2] == shared, "drive 1's own session must end at the shared instant"
+
+
+# A drive with a contact prefix: engine on at minute 0, moving at 5, 10 and 20.
+_AWAY_DRIVE_SPECS: tuple[tuple[int, str, float], ...] = (
+    (0, "ENGINE_RPM", 800.0),
+    (5, "SPEED", 40.0),
+    (10, "SPEED", 50.0),
+    (20, "SPEED", 45.0),
+)
+
+
+class TestAnOpenSessionIsUnboundedOnTheRight:
+    """R10 (G4-68): an open session is still running, so it reaches past any
+    drive that starts after it. It used to match as a point at its own
+    `started_at`, which either dropped the SD drive's head for good or wrote a
+    closed session inside the open one."""
+
+    @staticmethod
+    async def _open_session(
+        db: AsyncSession, vin: str, device_id: str, started_at: datetime
+    ) -> DriveSession:
+        session = DriveSession(
+            vin=vin,
+            device_id=device_id,
+            started_at=started_at,
+            ended_at=None,
+            movement_started_at=started_at,
+            movement_ended_at=started_at,
+            boundary_algorithm_version=1,
+            effective_gap_minutes=GAP,
+        )
+        db.add(session)
+        await db.flush()
+        return session
+
+    async def test_an_open_session_inside_the_drive_is_backdated_to_its_start(
+        self, db_session: AsyncSession, make_livelink_vehicle
+    ):
+        """Home WiFi came back mid-drive: the live path opened a session at
+        minute 12, and the SD card holds the drive from the engine-on at 0."""
+        vin, device = await make_livelink_vehicle("sdr10", "1")
+        drives = group_drives(_samples(_AWAY_DRIVE_SPECS), GAP)
+        assert len(drives) == 1, f"expected 1 drive, got {len(drives)}"
+        assert drives[0].started_at == T0
+        assert drives[0].movement_started_at == T0 + timedelta(minutes=5)
+
+        live = await self._open_session(
+            db_session, vin, device.device_id, T0 + timedelta(minutes=12)
+        )
+        device.current_session_id = live.id
+        await db_session.flush()
+
+        await TelemetryService(db_session).bulk_backfill(
+            vin, device.device_id, _rows(*_AWAY_DRIVE_SPECS)
+        )
+
+        sessions = await _sessions(db_session, device.device_id)
+        assert len(sessions) == 1, f"expected only the open session, got {len(sessions)}"
+        session = sessions[0]
+        assert session.id == live.id
+        assert session.ended_at is None, "the live path still owns the end"
+        assert session.started_at == T0, "the drive's head must not be dropped"
+        assert session.movement_started_at == T0 + timedelta(minutes=5)
+        assert session.movement_ended_at == T0 + timedelta(minutes=12), (
+            "the end side is the live path's, so its movement end stays put"
+        )
+
+    async def test_an_open_session_that_started_first_gets_no_closed_one_inside(
+        self, db_session: AsyncSession, make_livelink_vehicle
+    ):
+        vin, device = await make_livelink_vehicle("sdr10", "2")
+        started = T0 - timedelta(minutes=30)
+        live = await self._open_session(db_session, vin, device.device_id, started)
+
+        await TelemetryService(db_session).bulk_backfill(
+            vin, device.device_id, _rows(*_AWAY_DRIVE_SPECS)
+        )
+
+        sessions = await _sessions(db_session, device.device_id)
+        assert len(sessions) == 1, (
+            f"no closed session may be written inside an open one, got {len(sessions)}"
+        )
+        assert sessions[0].id == live.id
+        assert sessions[0].ended_at is None
+        assert sessions[0].started_at == started, "an earlier start must not move"
+
+    async def test_the_backdate_stops_at_the_devices_previous_close(
+        self, db_session: AsyncSession, make_livelink_vehicle
+    ):
+        """Same clamp `_open_session_for_movement` applies. A phone-bounded
+        session never matches a drive, so it's the one closed session that
+        can sit inside the backdate's reach."""
+        vin, device = await make_livelink_vehicle("sdr10", "3")
+        previous_end = T0 + timedelta(minutes=7)
+        db_session.add(
+            DriveSession(
+                vin=vin,
+                device_id=device.device_id,
+                started_at=T0 - timedelta(minutes=10),
+                ended_at=previous_end,
+                external_session_id="phone-r10",
+            )
+        )
+        live = await self._open_session(
+            db_session, vin, device.device_id, T0 + timedelta(minutes=12)
+        )
+
+        await TelemetryService(db_session).bulk_backfill(
+            vin, device.device_id, _rows(*_AWAY_DRIVE_SPECS)
+        )
+
+        await db_session.refresh(live)
+        assert live.ended_at is None
+        assert live.started_at == previous_end, "the start must not reach into a closed session"
+        assert live.movement_started_at == previous_end, (
+            "movement can't start before the clamped start"
+        )
+        assert len(await _sessions(db_session, device.device_id)) == 2
+
+
+def _second_rows(*specs: tuple[int, str, float]) -> list[SdRow]:
+    """`(second_offset, param_key, value)` triples as SdRows."""
+    return [
+        SdRow(param_key=key, value=value, timestamp=T0 + timedelta(seconds=offset))
+        for offset, key, value in specs
+    ]
+
+
+# Drive 1 ends at 40 km/h at 300 s. Two seconds later the car reads 0, and the
+# RPM at 900 s chains drive 2's walk-back to drive 1's end, so the two touch at
+# 300 s. Drive 2 never goes faster than 30.
+_TOUCHING_PARKED_SPECS: tuple[tuple[int, str, float], ...] = (
+    (0, "SPEED", 45.0),
+    (300, "SPEED", 40.0),
+    (302, "SPEED", 0.0),
+    (900, "ENGINE_RPM", 700.0),
+    (1500, "SPEED", 25.0),
+    (1800, "SPEED", 30.0),
+)
+
+
+class TestTouchingSessionsShareNoSample:
+    """R11 (G4-67): the instant two touching drives share is the first one's."""
+
+    async def test_drive_two_does_not_read_drive_ones_last_sample(
+        self, db_session: AsyncSession, make_livelink_vehicle
+    ):
+        vin, device = await make_livelink_vehicle("sdr11", "1")
+        samples = [
+            (r.timestamp, r.param_key, r.value) for r in _second_rows(*_TOUCHING_PARKED_SPECS)
+        ]
+        drives = group_drives(samples, GAP)
+        assert len(drives) == 2, f"expected 2 drives, got {len(drives)}"
+        shared = T0 + timedelta(seconds=300)
+        assert drives[0].movement_ended_at == shared
+        assert drives[1].started_at == shared, "drive 2 must touch drive 1"
+
+        await TelemetryService(db_session).bulk_backfill(
+            vin, device.device_id, _second_rows(*_TOUCHING_PARKED_SPECS)
+        )
+
+        sessions = await _sessions(db_session, device.device_id)
+        assert len(sessions) == 2, f"expected 2 sessions, got {len(sessions)}"
+        first, second = sessions
+        assert first.ended_at == second.started_at == shared
+        assert first.max_speed == pytest.approx(45.0)
+        assert second.max_speed == pytest.approx(30.0), "drive 1's 40 km/h isn't drive 2's"
+        assert second.harsh_brake_count == 0, (
+            "40 to 0 in two seconds straddles the boundary; drive 2 started parked"
+        )
