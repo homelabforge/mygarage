@@ -247,6 +247,14 @@ class _DelegatingSource(_OdometerSource):
     storage_policy = StoragePolicy(sync_odometer=True, observe_movement=True)
 
 
+class _TelemetryOnlySource(_OdometerSource):
+    """generic_mqtt-shaped: no ODOMETER capability, so the store is handed no
+    device and converts nothing, whatever key the device declares."""
+
+    kind = "telemetryonlysource"
+    capabilities = frozenset({Capability.TELEMETRY})
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("module_cls", "declared", "expected"),
@@ -257,6 +265,10 @@ class _DelegatingSource(_OdometerSource):
         (_OdometerSource, "ODOMETER", True),
         (_DelegatingSource, None, True),
         (_DelegatingSource, "ODOMETER", True),
+        # Regression guard (carry 4): a declared key on a source without the
+        # capability is still raw. Kills asking with `device` instead of the
+        # capability-gated `odometer_device`.
+        (_TelemetryOnlySource, "ODOMETER", False),
     ],
 )
 async def test_thresholds_learn_whether_the_store_normalised_the_odometer(

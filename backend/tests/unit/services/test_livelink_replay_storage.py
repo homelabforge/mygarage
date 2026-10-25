@@ -584,14 +584,19 @@ async def test_a_declared_odometer_key_wins_over_both(
 async def test_odometer_keys_with_one_timestamp_break_the_tie_on_received_at(
     db_session: AsyncSession, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Two odometer keys stamped alike: the one that arrived last wins, every time."""
+    """Two odometer keys stamped alike: the one that arrived last wins, every time.
+
+    The later arrival is the key that sorts LATER by name, so the `param_key`
+    tie-break alone would pick the other one: `received_at.desc()` is what
+    decides. Regression guard; kills dropping that ordering (carry 3).
+    """
     await _pin_session_settings(db_session, keep_rows)
     vin, device = await make_livelink_vehicle("t4tie", "1")
     t0 = datetime(2026, 9, 7, 8, 0, 0)
     # Inserted older-arrival first, so storage order alone would pick it.
     for key, value, received in (
-        ("ODOMETER", 51000.0, t0),
-        ("A6-ODOMETER", 51111.0, t0 + timedelta(seconds=30)),
+        ("A6-ODOMETER", 51000.0, t0),
+        ("ODOMETER", 51111.0, t0 + timedelta(seconds=30)),
     ):
         db_session.add(
             VehicleTelemetryLatest(
