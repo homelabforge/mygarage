@@ -85,6 +85,7 @@ async def make_vehicle_and_device(db_session: AsyncSession):
         *,
         device_address: str | None = None,
         sd_backfill_enabled: bool = False,
+        kind: str | None = None,
     ) -> tuple[str, str]:
         n = next(_VD_SEQ)
 
@@ -116,6 +117,8 @@ async def make_vehicle_and_device(db_session: AsyncSession):
             device_address=device_address,
             sd_backfill_enabled=sd_backfill_enabled,
         )
+        if kind is not None:
+            device.kind = kind
         session.add(device)
         await session.flush()
 
@@ -165,6 +168,30 @@ async def test_backfill_noop_sd_disabled(db_session, make_vehicle_and_device, mo
     monkeypatch.setattr(svc, "_client_for", lambda addr: client)
     r = await svc.backfill_device(device_id)
     assert r.files_seen == 0 and r.rows_ingested == 0
+
+
+@pytest.mark.asyncio
+async def test_backfill_skips_a_source_without_sd_backfill(
+    db_session, make_vehicle_and_device, monkeypatch
+):
+    """Fable I1: the manual route and the queued worker both land here, so a
+    generic device with a stray address and the switch on is never pulled."""
+    vin, device_id = await make_vehicle_and_device(
+        db_session, device_address="http://10.0.0.7", sd_backfill_enabled=True, kind="generic_mqtt"
+    )
+    svc = SdBackfillService(db_session)
+    calls: list[str] = []
+
+    def _record(addr: str) -> _FakeClient:
+        calls.append(addr)
+        return _FakeClient({})
+
+    monkeypatch.setattr(svc, "_client_for", _record)
+
+    r = await svc.backfill_device(device_id)
+
+    assert calls == []
+    assert r.files_seen == 0 and r.rows_ingested == 0 and r.errors == []
 
 
 @pytest.mark.asyncio

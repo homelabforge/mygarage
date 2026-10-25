@@ -5293,7 +5293,7 @@
           },
           "online": {
             "default": false,
-            "description": "Whether the device is reporting now: the integrations card's own rule, so a device with no status topic counts as online while it has reported within the offline timeout.",
+            "description": "Whether the device is reporting now, by the integrations card's rule: a device whose device_status is 'online' counts as online until the offline sweep flips it, one that never reports a status (Torque) keeps 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online.",
             "title": "Online",
             "type": "boolean"
           },
@@ -28426,7 +28426,7 @@
           },
           "online": {
             "default": false,
-            "description": "Whether the reporting device is reporting now, by the integrations card's rule: a source that never reports a status (Torque) keeps device_status 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online. Read this, not device_status.",
+            "description": "Whether the reporting device is reporting now, by the integrations card's rule: a device whose device_status is 'online' counts as online until the offline sweep flips it, one that never reports a status (Torque) keeps 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online. Read this, not device_status.",
             "title": "Online",
             "type": "boolean"
           },
@@ -39298,7 +39298,7 @@
     },
     "/api/livelink/devices/{device_id}/backfill": {
       "post": {
-        "description": "Pull and backfill the device's SD logs immediately.\n\n409 while LiveLink is switched off: the service would quietly do nothing\n(it checks the master switch too, for queued backfills), and an operator\nwho pressed \"pull now\" deserves to be told why nothing arrived.\n\n**Security:**\n- Requires admin authentication",
+        "description": "Pull and backfill the device's SD logs immediately.\n\n409 while LiveLink is switched off: the service would quietly do nothing\n(it checks the master switch too, for queued backfills), and an operator\nwho pressed \"pull now\" deserves to be told why nothing arrived. 422 for a\nkind with no SD card (only WiCAN has one), for the same reason.\n\n**Security:**\n- Requires admin authentication",
         "operationId": "trigger_backfill_api_livelink_devices__device_id__backfill_post",
         "parameters": [
           {

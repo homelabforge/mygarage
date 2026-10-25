@@ -2351,7 +2351,8 @@ export interface paths {
          *
          *     409 while LiveLink is switched off: the service would quietly do nothing
          *     (it checks the master switch too, for queued backfills), and an operator
-         *     who pressed "pull now" deserves to be told why nothing arrived.
+         *     who pressed "pull now" deserves to be told why nothing arrived. 422 for a
+         *     kind with no SD card (only WiCAN has one), for the same reason.
          *
          *     **Security:**
          *     - Requires admin authentication
@@ -10007,7 +10008,7 @@ export interface components {
             device_id: string;
             /**
              * Online
-             * @description Whether the device is reporting now: the integrations card's own rule, so a device with no status topic counts as online while it has reported within the offline timeout.
+             * @description Whether the device is reporting now, by the integrations card's rule: a device whose device_status is 'online' counts as online until the offline sweep flips it, one that never reports a status (Torque) keeps 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online.
              * @default false
              */
             online: boolean;
@@ -19318,7 +19319,7 @@ export interface components {
             latest_values?: components["schemas"]["TelemetryLatestValue"][];
             /**
              * Online
-             * @description Whether the reporting device is reporting now, by the integrations card's rule: a source that never reports a status (Torque) keeps device_status 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online. Read this, not device_status.
+             * @description Whether the reporting device is reporting now, by the integrations card's rule: a device whose device_status is 'online' counts as online until the offline sweep flips it, one that never reports a status (Torque) keeps 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online. Read this, not device_status.
              * @default false
              */
             online: boolean;

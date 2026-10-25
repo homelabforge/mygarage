@@ -346,8 +346,9 @@ class LiveLinkService:
         """Set device_address and sd_backfill_enabled on a LiveLinkDevice.
 
         Raises LookupError for no such device and ValueError for a kind with
-        no SD card to pull (Fable F5-1). Checked here rather than in the route
-        so the route's tests can keep patching this class whole.
+        no SD card to pull (Fable F5-1), unless the call only clears both
+        fields. Checked here rather than in the route so the route's tests can
+        keep patching this class whole.
         """
         kind = (
             await self.db.execute(
@@ -356,7 +357,10 @@ class LiveLinkService:
         ).scalar_one_or_none()
         if kind is None:
             raise LookupError(f"Device {device_id} not found")
-        if Capability.SD_BACKFILL not in default_registry().capabilities_for(kind):
+        # A pure clear always goes through, so a stray saved before this check
+        # can still be removed.
+        clearing = not address and not enabled
+        if not clearing and Capability.SD_BACKFILL not in default_registry().capabilities_for(kind):
             raise ValueError(f"A {kind} device has no SD card to pull")
         await self.db.execute(
             update(LiveLinkDevice)

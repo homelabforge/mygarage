@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.sd_log_ingest_state import SdLogIngestState
 from app.services.livelink_service import LiveLinkService
+from app.services.livelink_sources.base import Capability
+from app.services.livelink_sources.registry import default_registry
 from app.services.sd_log_client import SdLogClient, SdLogClientError
 from app.services.sd_log_parser import SdLogParser, SdLogSchemaError
 from app.services.telemetry_service import TelemetryService
@@ -64,11 +66,14 @@ class SdBackfillService:
             )
         ).scalar_one_or_none()
 
+        # The kind check is the one gate both the manual route and the queued
+        # worker go through, so a stray address on a sensor is never pulled.
         if (
             not device
             or not device.vin
             or not device.device_address
             or not device.sd_backfill_enabled
+            or Capability.SD_BACKFILL not in default_registry().capabilities_for(device.kind)
         ):
             return result
 

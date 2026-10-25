@@ -506,9 +506,11 @@ class DeviceReadingsResponse(BaseModel):
     online: bool = Field(
         False,
         description=(
-            "Whether the device is reporting now: the integrations card's own "
-            "rule, so a device with no status topic counts as online while it "
-            "has reported within the offline timeout."
+            "Whether the device is reporting now, by the integrations card's "
+            "rule: a device whose device_status is 'online' counts as online "
+            "until the offline sweep flips it, one that never reports a status "
+            "(Torque) keeps 'unknown' and counts as online while it has reported "
+            "within the offline timeout, and a disabled device is never online."
         ),
     )
     readings: list[DeviceReading]

@@ -257,7 +257,8 @@ async def test_a_status_topic_device_alerts_once(
 
     first = _for(await _sweep(db_session, caplog), device_id)
     second = _for(await _sweep(db_session, caplog), device_id)
-    assert len(first) + len(second) == 1
+    assert len(first) == 1
+    assert second == []
 
 
 async def test_a_retained_reading_after_offline_leaves_it_offline(

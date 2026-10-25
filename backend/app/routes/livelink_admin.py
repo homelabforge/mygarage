@@ -72,6 +72,7 @@ from app.services.livelink_integrations import (
     firmware_is_pending,
 )
 from app.services.livelink_service import LiveLinkService
+from app.services.livelink_sources.base import Capability
 from app.services.livelink_sources.presets import PRESETS
 from app.services.livelink_sources.presets.sensors import (
     create_sensor,
@@ -1106,13 +1107,19 @@ async def trigger_backfill(
 
     409 while LiveLink is switched off: the service would quietly do nothing
     (it checks the master switch too, for queued backfills), and an operator
-    who pressed "pull now" deserves to be told why nothing arrived.
+    who pressed "pull now" deserves to be told why nothing arrived. 422 for a
+    kind with no SD card (only WiCAN has one), for the same reason.
 
     **Security:**
     - Requires admin authentication
     """
-    if not await LiveLinkService(db).is_enabled():
+    livelink = LiveLinkService(db)
+    if not await livelink.is_enabled():
         raise HTTPException(status_code=409, detail="LiveLink is switched off")
+    device = await livelink.get_device_by_id(device_id)
+    kind = device.kind if device is not None else None
+    if kind is not None and Capability.SD_BACKFILL not in default_registry().capabilities_for(kind):
+        raise HTTPException(status_code=422, detail=f"A {kind} device has no SD card to pull")
     result = await SdBackfillService(db).backfill_device(device_id)
     return BackfillResultResponse(
         files_seen=result.files_seen,
