@@ -190,7 +190,6 @@
     "failedToTestMqtt": "Falha ao testar MQTT",
     "failedToTransfer": "Falha ao transferir",
     "failedToUpdateDashboard": "Falha ao atualizar painel",
-    "failedToUpdateDevice": "Falha ao atualizar dispositivo",
     "failedToUpdateMultiUser": "Falha ao atualizar modo multiusuário",
     "failedToUpdatePermission": "Falha ao atualizar permissão",
     "failedToUpdateStatus": "Falha ao atualizar status",

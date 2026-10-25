@@ -8,8 +8,8 @@
  *
  * LiveLink readings go through `telemetryUnits.ts`, which takes its
  * formatters from `useUnitFormat`, so they never match here either. Threshold
- * alerts are rendered in the user's units by the backend; the one thing that
- * prints raw is an odometer key the backend didn't normalise.
+ * alerts are rendered by the backend: in the user's units when the reading has
+ * a known quantity, and otherwise as stored, with the parameter's own unit.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'

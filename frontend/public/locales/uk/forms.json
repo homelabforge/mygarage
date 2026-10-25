@@ -190,7 +190,6 @@
     "failedToTestMqtt": "Не вдалося протестувати MQTT",
     "failedToTransfer": "Не вдалося передати",
     "failedToUpdateDashboard": "Не вдалося оновити панель керування",
-    "failedToUpdateDevice": "Не вдалося оновити пристрій",
     "failedToUpdateMultiUser": "Не вдалося оновити багатокористувацький режим",
     "failedToUpdatePermission": "Не вдалося оновити дозволи",
     "failedToUpdateStatus": "Не вдалося оновити статус",

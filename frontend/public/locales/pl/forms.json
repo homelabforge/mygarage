@@ -190,7 +190,6 @@
     "failedToTestMqtt": "Nie udało się przetestować MQTT",
     "failedToTransfer": "Nie udało się przenieść",
     "failedToUpdateDashboard": "Nie udało się zaktualizować panelu",
-    "failedToUpdateDevice": "Nie udało się zaktualizować urządzenia",
     "failedToUpdateMultiUser": "Nie udało się zaktualizować trybu dla wielu użytkowników",
     "failedToUpdatePermission": "Nie udało się zaktualizować uprawnień",
     "failedToUpdateStatus": "Nie udało się zaktualizować statusu",

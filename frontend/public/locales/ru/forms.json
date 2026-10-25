@@ -190,7 +190,6 @@
     "failedToTestMqtt": "Не удалось протестировать MQTT",
     "failedToTransfer": "Не удалось передать",
     "failedToUpdateDashboard": "Не удалось обновить панель управления",
-    "failedToUpdateDevice": "Не удалось обновить устройство",
     "failedToUpdateMultiUser": "Не удалось обновить многопользовательский режим",
     "failedToUpdatePermission": "Не удалось обновить права",
     "failedToUpdateStatus": "Не удалось обновить статус",

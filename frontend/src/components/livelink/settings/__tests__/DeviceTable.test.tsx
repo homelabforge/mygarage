@@ -107,6 +107,19 @@ describe('DeviceTable', () => {
     expect(onChanged).not.toHaveBeenCalled()
   })
 
+  it("shows the server's reason when a device update is refused", async () => {
+    // A 403, not a conflict: getErrorMessage would swap it for a generic line.
+    updateDevice.mockRejectedValue(httpError(403, 'Only an admin can manage an unlinked device'))
+    const vehicle = { vin: '1HGBH41JXMN109186', nickname: 'Durango', year: 2023, make: 'KZ', model: 'RV' }
+    render(<DeviceTable devices={[make('d1')]} vehicles={[vehicle as never]} onChanged={vi.fn()} />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'modal.vehicle' }), { target: { value: vehicle.vin } })
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Only an admin can manage an unlinked device'),
+    )
+  })
+
   it("shows the server's reason when SD settings are refused", async () => {
     setSdConfig.mockRejectedValue(httpError(422, 'A torque device has no SD card'))
     render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />)

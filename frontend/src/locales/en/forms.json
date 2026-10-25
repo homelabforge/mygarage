@@ -290,7 +290,6 @@
     "failedToTransfer": "Failed to transfer vehicle",
     "transferAction": "transfer the vehicle",
     "failedToUpdateDashboard": "Failed to update dashboard visibility",
-    "failedToUpdateDevice": "Failed to update device",
     "failedToUpdateMultiUser": "Failed to update multi-user setting",
     "failedToUpdatePermission": "Failed to update permission",
     "updatePermissionAction": "update the sharing permission",
@@ -527,7 +526,6 @@
       "deviceTokenGenerated": "Device Token Generated",
       "done": "Done",
       "ecuLabel": "ECU:",
-      "failedToSaveSdConfig": "Failed to save SD config",
       "firmware": "Firmware",
       "firmwareUpdates": "Firmware Updates",
       "generate": "Generate",
@@ -553,7 +551,6 @@
       "save": "Save",
       "saveTokenNowDesc": "It will not be shown again.",
       "saveTokenNowLabel": "Save this token now!",
-      "sdBackfillFailed": "SD backfill failed",
       "sdConfigSaved": "SD config saved",
       "seconds": "seconds",
       "sessionGracePeriod": "Session Grace Period",
@@ -600,7 +597,10 @@
         "online": "On",
         "offline": "Off",
         "unknown": "Unknown"
-      }
+      },
+      "updateDeviceAction": "update the device",
+      "saveSdConfigAction": "save the SD settings",
+      "sdBackfillAction": "pull the SD logs"
     },
     "transfer": {
       "progressLabel": "Vehicle transfer progress",

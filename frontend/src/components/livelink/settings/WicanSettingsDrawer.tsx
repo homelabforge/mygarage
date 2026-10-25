@@ -157,7 +157,10 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
   const savePrefix = async (): Promise<void> => {
     const next = prefix.trim()
     if (!next || !mqttSettings) return
-    const restarts = mqttStatus?.running === true && next !== mqttSettings.topic_prefix
+    // Switched off, the subscriber still runs in its "disabled" wait, and the
+    // PUT stops it rather than restarting it.
+    const restarts =
+      mqttSettings.enabled && mqttStatus?.running === true && next !== mqttSettings.topic_prefix
     setSavingPrefix(true)
     try {
       // The PUT restarts a running subscriber itself when the prefix changes,

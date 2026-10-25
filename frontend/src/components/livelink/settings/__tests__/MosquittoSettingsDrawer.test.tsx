@@ -123,7 +123,6 @@ describe('MosquittoSettingsDrawer', () => {
     ['disabled', 'settings:integrations.brokerStatus.disabled'],
     ['error', 'settings:integrations.brokerStatus.error'],
     ['disconnected', 'settings:integrations.brokerStatus.disconnected'],
-    ['stopped', 'settings:integrations.brokerStatus.stopped'],
     // A state this table doesn't know yet still reads as words, not a raw value.
     ['reticulating', 'settings:integrations.brokerStatus.unknown'],
   ])('says %s in words', async (connection, key) => {

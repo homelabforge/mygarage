@@ -407,7 +407,6 @@
       "disabled": "Disabled",
       "disconnected": "Not connected",
       "error": "Error",
-      "stopped": "Stopped",
       "unknown": "Unknown"
     },
     "presets": {

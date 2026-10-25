@@ -81,7 +81,6 @@ export const BROKER_STATUS_LABEL: Readonly<Record<string, StatusLabel>> = {
   disabled: { labelKey: 'settings:integrations.brokerStatus.disabled' },
   disconnected: { labelKey: 'settings:integrations.brokerStatus.disconnected' },
   error: { labelKey: 'settings:integrations.brokerStatus.error' },
-  stopped: { labelKey: 'settings:integrations.brokerStatus.stopped' },
 }
 
 /** For a state the table above doesn't know yet. */

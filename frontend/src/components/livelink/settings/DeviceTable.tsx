@@ -15,7 +15,7 @@ import type {
 } from '@/types/livelink'
 import type { SourceInfo } from '@/types/livelinkTopicMap'
 import type { Vehicle } from '@/types/vehicle'
-import { getErrorMessage, parseApiError } from '@/utils/httpErrorHandler'
+import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import DeviceRow from './DeviceRow'
 
 /**
@@ -27,17 +27,6 @@ import DeviceRow from './DeviceRow'
  * shows and bumps the card's tab strip. A drawer that also shows firmware
  * must reload that too, or a skip leaves the row's badge stale.
  */
-
-/**
- * The server's reason for refusing an SD action, else the fallback. The SD
- * routes answer 422 for a kind with no SD card, 409 with LiveLink off and
- * 403/404 for the device, each saying which; `getErrorMessage` would swap a
- * 422's reason for a generic "could not be processed".
- */
-function sdRefusal(error: unknown, fallback: string): string {
-  const { status, detail } = parseApiError(error)
-  return status >= 400 && status < 500 && detail ? detail : fallback
-}
 
 interface Props {
   /** Already filtered to the drawer's source. */
@@ -94,10 +83,11 @@ export default function DeviceTable({
       return true
     } catch (error) {
       console.error('Failed to update device:', error)
-      // The server refuses an odometer-unit change once readings depend on it,
-      // and says why and what to run. A generic failure toast would throw that
-      // away and leave the setting looking merely broken.
-      toast.error(getErrorMessage(error, t('modal.failedToUpdateDevice')))
+      // The server says why it refused: a 409 once readings depend on the
+      // odometer unit, a 403 for an unlinked device a non-admin can't manage.
+      // A generic toast would throw that away and leave the setting looking
+      // merely broken.
+      toast.error(getActionErrorMessage(error, t('modal.livelink.updateDeviceAction')))
       return false
     }
   }
@@ -180,7 +170,8 @@ export default function DeviceTable({
       onChanged()
     } catch (error) {
       console.error('Failed to save SD config:', error)
-      toast.error(sdRefusal(error, t('modal.livelink.failedToSaveSdConfig')))
+      // A kind with no SD card is a 422 that says so.
+      toast.error(getActionErrorMessage(error, t('modal.livelink.saveSdConfigAction')))
     }
   }
 
@@ -199,7 +190,8 @@ export default function DeviceTable({
       return result
     } catch (error) {
       console.error('Failed to trigger SD backfill:', error)
-      toast.error(sdRefusal(error, t('modal.livelink.sdBackfillFailed')))
+      // 422 for a kind with no SD card, 409 with LiveLink off: both say why.
+      toast.error(getActionErrorMessage(error, t('modal.livelink.sdBackfillAction')))
       return null
     }
   }
