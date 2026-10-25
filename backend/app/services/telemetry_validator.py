@@ -5,6 +5,7 @@ Based on WiCAN Discussion #198 findings about partial ECU wakes producing garbag
 """
 
 import logging
+from collections import OrderedDict
 from datetime import datetime
 
 from sqlalchemy import select
@@ -42,6 +43,37 @@ RATE_OF_CHANGE_LIMITS: dict[str, float] = {
 # Max time gap (seconds) to consider for rate-of-change check.
 # If previous value is older than this, skip the check (likely a new session).
 RATE_CHECK_MAX_AGE_SECONDS = 120.0
+
+#: The last reading the rate check accepted, per (device, vehicle, key): the
+#: baseline for the next one. Not the newest raw row, which a storage interval
+#: thins to one every few minutes, so most frames skipped the check (wave B
+#: review M-1). In memory: a restart loses it, and the check falls back to the
+#: device's newest raw row. Least recently used goes first past the cap, which
+#: is far more keys than a homelab's devices send.
+ACCEPTED_READINGS_MAX = 4096
+_ACCEPTED: OrderedDict[tuple[str, str, str], tuple[float, datetime]] = OrderedDict()
+
+
+def remember_accepted(
+    device_id: str, vin: str, param_key: str, value: float, sample_at: datetime
+) -> None:
+    """Make an accepted reading the device's baseline, unless a newer one already is.
+
+    A replay landing after live frames isn't the device's last reading.
+    """
+    key = (device_id, vin, param_key)
+    sample = sample_at.replace(tzinfo=None) if sample_at.tzinfo is not None else sample_at
+    held = _ACCEPTED.get(key)
+    if held is None or sample >= held[1]:
+        _ACCEPTED[key] = (value, sample)
+    _ACCEPTED.move_to_end(key)
+    while len(_ACCEPTED) > ACCEPTED_READINGS_MAX:
+        _ACCEPTED.popitem(last=False)
+
+
+def forget_accepted_readings() -> None:
+    """Drop every baseline, as a restart does. For tests."""
+    _ACCEPTED.clear()
 
 
 class TelemetryValidator:
@@ -95,9 +127,11 @@ class TelemetryValidator:
         eight seconds ago. A sample at or before the latest one isn't the next
         reading, so it isn't rate-checked at all.
 
-        The previous value is this device's own newest stored reading, not the
-        vehicle's latest: two devices on one car would rate-check each other
-        (B6-6), and the latest table has no device column.
+        The previous value is this device's own last accepted reading
+        (`remember_accepted`), not the vehicle's latest: two devices on one car
+        would rate-check each other (B6-6), and the latest table has no device
+        column. After a restart, until the device's next reading, it's the
+        device's newest stored row.
 
         Args:
             vin: Vehicle VIN
@@ -113,23 +147,27 @@ class TelemetryValidator:
         if not param_class or param_class not in RATE_OF_CHANGE_LIMITS:
             return True, None
 
-        # A seek on the dedup index, newest first.
-        result = await self.db.execute(
-            select(VehicleTelemetry)
-            .where(
-                VehicleTelemetry.device_id == device_id,
-                VehicleTelemetry.param_key == param_key,
-                VehicleTelemetry.vin == vin,
+        held = _ACCEPTED.get((device_id, vin, param_key))
+        if held is not None:
+            prev_value, prev_timestamp = held
+        else:
+            # A seek on the dedup index, newest first.
+            result = await self.db.execute(
+                select(VehicleTelemetry)
+                .where(
+                    VehicleTelemetry.device_id == device_id,
+                    VehicleTelemetry.param_key == param_key,
+                    VehicleTelemetry.vin == vin,
+                )
+                .order_by(VehicleTelemetry.timestamp.desc())
+                .limit(1)
             )
-            .order_by(VehicleTelemetry.timestamp.desc())
-            .limit(1)
-        )
-        latest = result.scalar_one_or_none()
-        if not latest:
-            return True, None  # No previous value to compare
+            latest = result.scalar_one_or_none()
+            if not latest:
+                return True, None  # No previous value to compare
+            prev_value, prev_timestamp = latest.value, latest.timestamp
 
         sample = sample_at.replace(tzinfo=None) if sample_at.tzinfo is not None else sample_at
-        prev_timestamp = latest.timestamp
         if prev_timestamp.tzinfo is not None:
             prev_timestamp = prev_timestamp.replace(tzinfo=None)
         time_delta = (sample - prev_timestamp).total_seconds()
@@ -138,7 +176,7 @@ class TelemetryValidator:
             return True, None  # Not the next reading, or too far apart to compare
 
         # Calculate rate of change
-        value_delta = abs(value - latest.value)
+        value_delta = abs(value - prev_value)
         rate = value_delta / time_delta
         max_rate = RATE_OF_CHANGE_LIMITS[param_class]
 
@@ -217,6 +255,8 @@ class TelemetryValidator:
                 continue
 
             valid_data[param_key] = value
+            if param_class in RATE_OF_CHANGE_LIMITS:
+                remember_accepted(device_id, vin, param_key, float(value), sample_at)
 
         if rejected:
             logger.warning(

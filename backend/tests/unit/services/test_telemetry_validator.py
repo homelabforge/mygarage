@@ -523,3 +523,58 @@ class TestRangeCompleteness:
         """Every class with a rate limit should have a range."""
         for cls in RATE_OF_CHANGE_LIMITS:
             assert cls in PARAM_CLASS_RANGES, f"Class '{cls}' has rate limit but no range"
+
+
+class TestAcceptedReadingMemo:
+    """Wave B review M-1: the rate check's in-memory baseline, per device."""
+
+    def test_it_is_bounded_and_drops_the_least_recent_first(self):
+        from app.services import telemetry_validator as tv
+
+        tv.forget_accepted_readings()
+        at = datetime(2026, 9, 1, 8, 0, 0)
+        for i in range(tv.ACCEPTED_READINGS_MAX + 10):
+            tv.remember_accepted("DEV", "VIN", f"KEY{i}", float(i), at)
+
+        assert len(tv._ACCEPTED) == tv.ACCEPTED_READINGS_MAX
+        assert ("DEV", "VIN", "KEY0") not in tv._ACCEPTED
+        assert tv._ACCEPTED[("DEV", "VIN", f"KEY{tv.ACCEPTED_READINGS_MAX + 9}")] == (
+            float(tv.ACCEPTED_READINGS_MAX + 9),
+            at,
+        )
+        tv.forget_accepted_readings()
+
+    def test_an_older_sample_does_not_replace_a_newer_one(self):
+        """A replay landing after live frames isn't the device's last reading."""
+        from app.services import telemetry_validator as tv
+
+        tv.forget_accepted_readings()
+        newer = datetime(2026, 9, 1, 8, 0, 10)
+        tv.remember_accepted("DEV", "VIN", "SPEED", 50.0, newer)
+        tv.remember_accepted("DEV", "VIN", "SPEED", 10.0, newer - timedelta(hours=1))
+
+        assert tv._ACCEPTED[("DEV", "VIN", "SPEED")] == (50.0, newer)
+        tv.forget_accepted_readings()
+
+    @pytest.mark.asyncio
+    async def test_a_remembered_reading_is_the_baseline_without_a_query(self):
+        """Two devices keep separate baselines, and a hit never asks the database."""
+        from app.services import telemetry_validator as tv
+
+        tv.forget_accepted_readings()
+        db = AsyncMock()
+        validator = TelemetryValidator(db)
+        at = datetime(2026, 9, 1, 8, 0, 0)
+        tv.remember_accepted("DEV1", "VIN", "SPEED", 0.0, at)
+        tv.remember_accepted("DEV2", "VIN", "SPEED", 100.0, at)
+
+        ok1, _ = await validator.validate_rate_of_change(
+            "VIN", "SPEED", "speed", 100.0, device_id="DEV1", sample_at=at + timedelta(seconds=1)
+        )
+        ok2, _ = await validator.validate_rate_of_change(
+            "VIN", "SPEED", "speed", 100.0, device_id="DEV2", sample_at=at + timedelta(seconds=1)
+        )
+
+        assert (ok1, ok2) == (False, True)
+        db.execute.assert_not_called()
+        tv.forget_accepted_readings()

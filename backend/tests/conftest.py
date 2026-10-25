@@ -126,6 +126,18 @@ async def _finish_post_commit_jobs() -> AsyncGenerator[None]:
     await drain()
 
 
+@pytest.fixture(autouse=True)
+def _forget_rate_baselines() -> None:
+    """Start every test with no remembered readings, as a fresh process would.
+
+    The rate check keeps each device's last accepted reading in memory, and
+    the suite reuses device ids and keys across tests.
+    """
+    from app.services.telemetry_validator import forget_accepted_readings
+
+    forget_accepted_readings()
+
+
 @pytest_asyncio.fixture
 async def db_session(test_sessionmaker, init_test_db) -> AsyncGenerator[AsyncSession]:
     """Provide a database session for tests. Depends on init_test_db to ensure tables exist."""

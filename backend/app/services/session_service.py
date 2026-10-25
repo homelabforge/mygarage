@@ -458,6 +458,27 @@ class SessionService:
 
         session = await self._live_session(device)
 
+        # More than the gap after the open session's last movement, by sample
+        # time, is another drive: the same rule `_reopen_awaiting` applies to a
+        # closed one (R9). A session held open for its replay (B6-9) sees the
+        # whole upload, so without this a morning and an evening drive sent
+        # together became one eight-hour drive (wave B review I-1). Closed at
+        # its last movement, as the gap clock would have.
+        if session is not None:
+            anchor = self._naive(session.movement_ended_at or session.started_at)
+            if sample_at - anchor > window:
+                logger.info(
+                    "Closing session %d for device %s: a sample at %s is past the %d-minute "
+                    "gap after its last movement at %s",
+                    session.id,
+                    sanitize_for_log(device.device_id),
+                    sanitize_for_log(sample_at),
+                    gap,
+                    anchor,
+                )
+                await self.end_session(device, anchor)
+                session = None
+
         # Expire a stale evidence window BEFORE evaluating this batch. Without a
         # bound, an engine-on at 08:00 and a movement sample at 17:00 are still
         # "consecutive", and the session backdates nine hours of parked

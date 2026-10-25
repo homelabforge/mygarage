@@ -553,6 +553,63 @@ async def test_a_replays_last_sample_lands_in_its_session_after_a_tick(
 
 
 @pytest.mark.usefixtures("livelink_enabled")
+async def test_two_replayed_drives_in_one_upload_stay_two(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Wave B review I-1: a dongle off WiFi all day uploads a morning and an
+    evening drive together. Held open for the replay, the morning session took
+    the evening's movement too: one 8-hour drive. Movement more than the gap
+    after the held session's last is a new drive, by sample time, the same
+    rule `_reopen_awaiting` uses (R9). Red on f3a8b81c (one session)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4two"
+    )
+    device_id = device.device_id
+    morning = await _replay(client, token, _now() - timedelta(hours=10))
+    await _tick(db_session, caplog)
+    evening = await _replay(client, token, _now() - timedelta(hours=2))
+    await _tick(db_session, caplog)
+    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
+    await _tick(db_session, caplog)
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert [(s.started_at, s.ended_at) for s in replayed] == [
+        (morning[0], morning[-1]),
+        (evening[0], evening[-1]),
+    ]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_stop_inside_the_gap_is_still_one_replayed_drive(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Regression guard: a ten-minute stop is under the 15-minute gap, so the
+    split leaves it one drive. Kills splitting at any distance in sample time."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4stop"
+    )
+    device_id = device.device_id
+    first = await _replay(client, token, _now() - timedelta(hours=3))
+    await _tick(db_session, caplog)
+    second = await _replay(client, token, first[-1] + timedelta(minutes=10))
+    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
+    await _tick(db_session, caplog)
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert [(s.started_at, s.ended_at) for s in replayed] == [(first[0], second[-1])]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
 async def test_live_frames_from_a_parked_car_do_not_hold_a_replay_built_session(
     db_session: AsyncSession,
     client: AsyncClient,
@@ -635,6 +692,54 @@ async def test_two_devices_on_one_car_do_not_rate_check_each_other(
     )
 
     assert result.validated_data == {RATE_KEY: 100.0}
+
+
+async def test_a_storage_interval_does_not_thin_the_rate_baseline(
+    db_session: AsyncSession, make_livelink_vehicle
+) -> None:
+    """Wave B review M-1: with a 300 s storage interval the device's newest raw
+    row was up to five minutes old, so a frame-to-frame jump went unchecked.
+    The check compares with the last reading it accepted from the device, kept
+    in memory. 60 degrees in 10 s is 6 C/s, over the 5 C/s line. Red on
+    f3a8b81c (stored)."""
+    vin, device = await make_livelink_vehicle("t4thin", "1")
+    key = "T4_THIN_TEMP"
+    telemetry = TelemetryService(db_session)
+    param = await telemetry.auto_register_parameter(key, "°C", "temperature")
+    param.storage_interval_seconds = 300
+    await db_session.flush()
+    t0 = _now() - timedelta(minutes=10)
+    for i in range(20):
+        await telemetry.store_telemetry(
+            vin, device.device_id, {key: 20.0}, {}, timestamp=t0 + timedelta(seconds=10 * i)
+        )
+
+    result = await telemetry.store_telemetry(
+        vin, device.device_id, {key: -40.0}, {}, timestamp=t0 + timedelta(seconds=200)
+    )
+
+    assert key not in result.validated_data
+
+
+async def test_after_a_restart_the_rate_check_falls_back_to_the_stored_row(
+    db_session: AsyncSession, make_livelink_vehicle
+) -> None:
+    """Regression guard: with nothing in memory (a restart) the device's newest
+    raw row is the baseline, as before. Kills dropping the fallback."""
+    from app.services.telemetry_validator import forget_accepted_readings
+
+    vin, device = await make_livelink_vehicle("t4rest", "1")
+    telemetry = TelemetryService(db_session)
+    await telemetry.auto_register_parameter(RATE_KEY, "km/h", "speed")
+    at = _now() - timedelta(seconds=30)
+    await telemetry.store_telemetry(vin, device.device_id, {RATE_KEY: 0.0}, {}, timestamp=at)
+    forget_accepted_readings()
+
+    result = await telemetry.store_telemetry(
+        vin, device.device_id, {RATE_KEY: 100.0}, {}, timestamp=at + timedelta(seconds=1)
+    )
+
+    assert result.validated_data == {}
 
 
 async def test_one_device_jumping_is_still_rate_rejected(
