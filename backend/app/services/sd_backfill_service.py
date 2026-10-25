@@ -54,7 +54,8 @@ class SdBackfillService:
         for a device that's unknown, has no vin, no device_address or
         sd_backfill_enabled=False, or is of a kind with no SD card to pull
         (only WiCAN has one). An address that no longer resolves to a private
-        host is skipped too, with an error and a log line (FB-7).
+        host, or doesn't resolve at all, is skipped too, with an error and a
+        log line saying which (FB-7).
         Per-file state is tracked in sd_log_ingest_state so re-runs are idempotent.
         Errors (network, schema) are collected into result.errors rather than raised.
         """
@@ -83,18 +84,26 @@ class SdBackfillService:
         ):
             return result
 
-        # Checked again here, at connect time, not just when it was saved: a
-        # LAN hostname can resolve somewhere public by the next pull (FB-7).
-        # Both the manual pull and the queued one come through here. Off the
-        # event loop, since a hostname means a DNS lookup.
+        # Checked again here, at pull time, not just when it was saved: a LAN
+        # hostname can resolve somewhere public by the next pull (FB-7). The
+        # client looks it up again per request, so a rebind inside one pull
+        # still lands; with an admin-set address on a homelab, that's
+        # accepted (FW-B-r1-m6). Both the manual pull and the queued one come
+        # through here. Off the event loop, since a hostname means a lookup.
         address = device.device_address
-        if not await asyncio.to_thread(LiveLinkService.is_private_address, address):
-            logger.warning(
-                "SD backfill %s: %s doesn't resolve to a private address now; skipped",
-                sanitize_for_log(device_id),
-                sanitize_for_log(address),
+        reach = await asyncio.to_thread(LiveLinkService.address_reach, address)
+        if reach != "private":
+            problem = (
+                f"couldn't look up {address}"
+                if reach == "unresolved"
+                else f"{address} doesn't resolve to a private address"
             )
-            result.errors.append(f"{address} doesn't resolve to a private address")
+            logger.warning(
+                "SD backfill %s: %s now; skipped",
+                sanitize_for_log(device_id),
+                sanitize_for_log(problem),
+            )
+            result.errors.append(problem)
             return result
 
         client = self._client_for(address)

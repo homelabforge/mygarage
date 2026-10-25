@@ -73,6 +73,7 @@ from app.services.livelink_integrations import (
 )
 from app.services.livelink_service import LiveLinkService
 from app.services.livelink_sources.base import Capability
+from app.services.livelink_sources.generic_mqtt import GenericMqttModule
 from app.services.livelink_sources.presets import PRESETS
 from app.services.livelink_sources.presets.sensors import (
     create_sensor,
@@ -1569,6 +1570,21 @@ async def _reject_foreign_topic_claim(
         )
 
 
+async def _reject_another_kinds_device(db: AsyncSession, device_id: str) -> None:
+    """A topic map names a generic MQTT device, or one not created yet (FW-B-c5).
+
+    Topic maps feed `GenericMqttModule`, which won't ingest another kind's
+    device (FB-1), so a map naming a WiCAN would sit there doing nothing.
+    Raises 422.
+    """
+    kind = await db.scalar(select(LiveLinkDevice.kind).where(LiveLinkDevice.device_id == device_id))
+    if kind is not None and kind != GenericMqttModule.kind:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Device {device_id} is a {kind} device. Topic maps are for generic MQTT devices.",
+        )
+
+
 async def _register_mapped_parameter(db: AsyncSession, row: LiveLinkTopicMap) -> None:
     """Give a mapped telemetry key a `livelink_parameters` row.
 
@@ -1596,6 +1612,7 @@ async def create_topic_map(
     current_user: User | None = Depends(get_current_admin_user),
 ) -> LiveLinkTopicMap:
     """Add a mapping and resubscribe."""
+    await _reject_another_kinds_device(db, body.device_id)
     await _reject_foreign_topic_claim(db, body.topic, body.device_id)
     reject_foreign_preset_key(body.param_key, body.device_id)
     row = LiveLinkTopicMap(**body.model_dump())
@@ -1647,6 +1664,9 @@ async def update_topic_map(
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
 
+    # No kind check here: a PATCH can't change `device_id` (TopicMapUpdate
+    # forbids it), so create is the only place a map names its device, and a
+    # map made before FW-B-c5 stays editable, or it couldn't be switched off.
     await _reject_foreign_topic_claim(db, validated.topic, validated.device_id, exclude_id=map_id)
     # Only a new claim: a mapping made before the rule (dev's two-tank
     # `rvgateway`) must still be editable, or it can never be switched off.

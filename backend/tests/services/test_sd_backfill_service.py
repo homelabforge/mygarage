@@ -353,3 +353,33 @@ async def test_a_queued_backfill_logs_a_refused_address_and_carries_on(
     assert connected == []
     assert not [r for r in caplog.records if r.levelname == "ERROR"]
     assert any("8.8.4.4" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_backfill_says_so_when_the_address_does_not_resolve_at_all(
+    db_session, make_vehicle_and_device, monkeypatch, caplog
+):
+    """Wave B review M-6: a DNS outage logged "doesn't resolve to a private
+    address", which reads like a rebind. It's a lookup that failed, and the log
+    says that. Still skipped. Red on f3a8b81c (the private wording)."""
+    import socket
+
+    vin, device_id = await make_vehicle_and_device(
+        db_session, device_address="http://wican.invalid", sd_backfill_enabled=True
+    )
+
+    def _no_answer(*_args: object, **_kwargs: object) -> list:
+        raise socket.gaierror("Name or service not known")
+
+    monkeypatch.setattr(socket, "getaddrinfo", _no_answer)
+    svc = SdBackfillService(db_session)
+    calls: list[str] = []
+    monkeypatch.setattr(svc, "_client_for", lambda addr: calls.append(addr) or _FakeClient({}))
+
+    with caplog.at_level("WARNING", logger="app.services.sd_backfill_service"):
+        r = await svc.backfill_device(device_id)
+
+    assert calls == []
+    assert len(r.errors) == 1 and "look up" in r.errors[0] and "private" not in r.errors[0]
+    messages = [rec.getMessage() for rec in caplog.records]
+    assert any("look up" in m and "wican.invalid" in m for m in messages)

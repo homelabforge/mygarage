@@ -7,7 +7,7 @@ import secrets
 import socket
 from collections.abc import Sequence
 from datetime import timedelta
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from sqlalchemy import delete, select, update
@@ -308,18 +308,28 @@ class LiveLinkService:
     def is_private_address(address: str) -> bool:
         """True only if `address` points exclusively to a private/LAN host.
 
+        See `address_reach`, which this answers ``== "private"`` from.
+        """
+        return LiveLinkService.address_reach(address) == "private"
+
+    @staticmethod
+    def address_reach(address: str) -> Literal["private", "not_private", "unresolved"]:
+        """Where `address` points: only private/LAN hosts, anything else, or nowhere.
+
         Parses the host with urlsplit (same URL semantics the HTTP client uses;
         handles IPv6 brackets, userinfo, ports), rejects loopback/link-local/
         reserved/unspecified, and for non-IP hostnames resolves EVERY address
-        and requires them all to be private — closing the over-broad-hostname
-        SSRF class. Admin-only setter; defence in depth.
+        and requires them all to be private, closing the over-broad-hostname
+        SSRF class. Admin-only setter; defence in depth. A hostname that won't
+        resolve is "unresolved", so the SD pull can say a lookup failed rather
+        than that the address went public (wave B review M-6).
         """
         if not address:
-            return False
+            return "not_private"
         raw = address if "://" in address else f"http://{address}"
         host = urlsplit(raw).hostname  # lowercased; strips scheme/userinfo/port/[]
         if not host or host == "localhost":
-            return False
+            return "not_private"
 
         def _ip_ok(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
             return (
@@ -331,16 +341,20 @@ class LiveLinkService:
             )
 
         try:
-            return _ip_ok(ipaddress.ip_address(host))
+            return "private" if _ip_ok(ipaddress.ip_address(host)) else "not_private"
         except ValueError:
-            pass  # not a literal IP — resolve the hostname and check every result
+            pass  # not a literal IP: resolve the hostname and check every result
 
         try:
             infos = socket.getaddrinfo(host, None)
         except socket.gaierror:
-            return False
+            return "unresolved"
         resolved = {info[4][0] for info in infos}
-        return bool(resolved) and all(_ip_ok(ipaddress.ip_address(a)) for a in resolved)
+        if not resolved:
+            return "unresolved"
+        return (
+            "private" if all(_ip_ok(ipaddress.ip_address(a)) for a in resolved) else "not_private"
+        )
 
     async def update_device_address(
         self, device_id: str, address: str | None, enabled: bool
@@ -483,6 +497,8 @@ class LiveLinkService:
         if not device:
             return False
 
+        if vin != device.vin:
+            await self._end_drive_for_relink(device)
         device.vin = vin
         device.updated_at = utc_now()
         await self.db.commit()
@@ -589,8 +605,14 @@ class LiveLinkService:
         against it. `pending_offline_at` stays. It's the ECU going quiet, a fact
         about the device, and its finalizer still has to mark the device offline;
         with the pointer gone it has no session to close.
+
+        The ECU status goes back to unknown: it was the old car's, and an
+        unlinked device's isn't written (carry 7). Kept `online`, the new car's
+        first drive never opened in contact mode, since the detector only acts
+        on a change (wave B review M-5).
         """
         SessionService.clear_movement_state(device)
+        device.ecu_status = "unknown"
         if not device.current_session_id:
             return
         session = await self.db.get(DriveSession, device.current_session_id)

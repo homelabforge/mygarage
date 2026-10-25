@@ -781,3 +781,42 @@ async def test_a_new_device_notice_waits_for_the_commit(
 
     assert retried.json()["device_new"] is True
     assert sent == [NEW_DEVICE]
+
+
+@pytest.mark.parametrize("path", ["unlink-then-link", "relink"])
+async def test_moving_a_device_to_a_vehicle_forgets_its_old_ecu_status(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    path: str,
+):
+    """Wave B review M-5: unlinked mid-drive, the device kept ECU `online` (its
+    `offline` isn't written while it's unlinked, carry 7), so linked again
+    before the offline sweep its first drive never opened in contact mode. A
+    direct relink kept the old car's status the same way. A vehicle change
+    resets it to unknown. Red on f3a8b81c (no session)."""
+    await keep_rows("livelink_session_boundary_mode")
+    await SettingsService.set(db_session, "livelink_session_boundary_mode", "contact")
+    vin, device, token = await _linked(
+        db_session, make_livelink_vehicle, "wbm5", ecu_status="online"
+    )
+    other_vin, _other = await make_livelink_vehicle("wbm5o", path[:2])
+    await db_session.commit()
+    device_id = device.device_id
+    service = LiveLinkService(db_session)
+
+    if path == "unlink-then-link":
+        await service.update_device(device_id, {"vin": ""})
+        assert (await _device(db_session, device_id)).ecu_status == "unknown"
+        await service.update_device(device_id, {"vin": vin})
+    else:
+        await service.update_device(device_id, {"vin": other_vin})
+    assert (await _device(db_session, device_id)).ecu_status == "unknown"
+
+    await _post(client, {"autopid_data": {"ENGINE_RPM": 800}}, token)
+
+    sessions = await db_session.execute(
+        select(DriveSession).where(DriveSession.device_id == device_id)
+    )
+    assert len(sessions.scalars().all()) == 1

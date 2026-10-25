@@ -214,3 +214,88 @@ async def test_sources_endpoint_reports_the_registry(client, auth_headers):
     assert set(kinds) == {"wican", "torque", "generic_mqtt"}
     assert "drive_session" not in kinds["generic_mqtt"]["capabilities"]
     assert "drive_session" in kinds["wican"]["capabilities"]
+
+
+@pytest_asyncio.fixture
+async def other_kinds(db_session):
+    """A WiCAN and a Torque phone, gone again afterwards."""
+    from app.models.livelink_device import LiveLinkDevice
+
+    ids = ("tmkindwican1", "tmkindtorque1")
+    db_session.add(LiveLinkDevice(device_id=ids[0], kind="wican", enabled=True))
+    db_session.add(LiveLinkDevice(device_id=ids[1], kind="torque", enabled=True))
+    await db_session.commit()
+    yield ids
+    await db_session.rollback()
+    await db_session.execute(delete(LiveLinkDevice).where(LiveLinkDevice.device_id.in_(ids)))
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_a_map_naming_another_kinds_device_is_refused(
+    client, auth_headers, no_reload, other_kinds
+):
+    """FW-B-c5: topic maps feed the generic MQTT module, which won't ingest
+    another kind's device (FB-1), so a map naming a WiCAN would sit there doing
+    nothing. Refused when it's made. Red on f3a8b81c (201)."""
+    wican_id, _torque_id = other_kinds
+
+    resp = await client.post(BASE, json={**ROW, "device_id": wican_id}, headers=auth_headers)
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == (
+        f"Device {wican_id} is a wican device. Topic maps are for generic MQTT devices."
+    )
+    no_reload.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_map_cant_be_repointed_at_another_device(
+    client, auth_headers, no_reload, other_kinds
+):
+    """Regression guard: a PATCH can't change a map's device at all, which is
+    why the kind check (FW-B-c5) only needs to sit on create."""
+    _wican_id, torque_id = other_kinds
+    created = await client.post(BASE, json=ROW, headers=auth_headers)
+
+    resp = await client.patch(
+        f"{BASE}/{created.json()['id']}", json={"device_id": torque_id}, headers=auth_headers
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["details"][0]["loc"] == ["body", "device_id"]
+
+
+@pytest.mark.asyncio
+async def test_a_map_made_before_the_rule_can_still_be_switched_off(
+    client, auth_headers, no_reload, other_kinds, db_session
+):
+    """Regression guard: an old map naming a WiCAN has to stay editable, or it
+    can't be switched off. Only a new claim is checked. Kills checking every
+    PATCH."""
+    from app.models.livelink_topic_map import LiveLinkTopicMap
+
+    wican_id, _torque_id = other_kinds
+    row = LiveLinkTopicMap(device_id=wican_id, topic="tmkind/old/map", param_key="OLD_MAP")
+    db_session.add(row)
+    await db_session.commit()
+
+    resp = await client.patch(f"{BASE}/{row.id}", json={"enabled": False}, headers=auth_headers)
+
+    assert resp.status_code == 200
+    assert resp.json()["enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_map_naming_a_generic_device_is_still_made(
+    client, auth_headers, no_reload, db_session
+):
+    """Regression guard, the positive control: kills refusing every device on file."""
+    from app.models.livelink_device import LiveLinkDevice
+
+    db_session.add(LiveLinkDevice(device_id="tmkindgen1", kind="generic_mqtt", enabled=True))
+    await db_session.commit()
+
+    resp = await client.post(BASE, json={**ROW, "device_id": "tmkindgen1"}, headers=auth_headers)
+
+    assert resp.status_code == 201
