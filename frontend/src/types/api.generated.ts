@@ -2354,7 +2354,8 @@ export interface paths {
          *     409 while LiveLink is switched off: the service would quietly do nothing
          *     (it checks the master switch too, for queued backfills), and an operator
          *     who pressed "pull now" deserves to be told why nothing arrived. 422 for a
-         *     kind with no SD card (only WiCAN has one), for the same reason.
+         *     kind with no SD card (only WiCAN has one), for the same reason, and 404
+         *     for no such device.
          *
          *     **Security:**
          *     - Requires admin authentication

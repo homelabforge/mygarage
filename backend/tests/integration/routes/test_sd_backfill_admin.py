@@ -156,6 +156,34 @@ class TestSdConfigAdmin:
 
         assert response.status_code == 422
 
+    async def test_set_sd_config_refuses_an_address_with_the_switch_off_on_a_source_without_sd(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+    ) -> None:
+        """Regression guard (carry 5): only a pure clear (no address, switch
+        off) goes through on a kind with no SD card. An address with the switch
+        off is still saving an address. Kills `clearing = not enabled`."""
+        device = LiveLinkDevice(device_id="sdtest000015", vin="1HGBH41JXMN109186", kind="torque")
+        db_session.add(device)
+        await db_session.commit()
+
+        response = await client.put(
+            f"/api/livelink/devices/{device.device_id}/sd-config",
+            headers=auth_headers,
+            json={"device_address": "10.10.20.247", "sd_backfill_enabled": False},
+        )
+
+        assert response.status_code == 422
+        db_session.expire_all()
+        stored = (
+            await db_session.execute(
+                select(LiveLinkDevice).where(LiveLinkDevice.device_id == "sdtest000015")
+            )
+        ).scalar_one()
+        assert stored.device_address is None
+
     async def test_set_sd_config_unknown_device_is_404(
         self,
         client: AsyncClient,
@@ -329,6 +357,26 @@ class TestBackfillTriggerAdmin:
             )
 
         assert response.status_code == 409
+        mock_svc_cls.assert_not_called()
+
+    async def test_backfill_trigger_unknown_device_is_404(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """FB-9: it answered 200 with an all-zero result, which the toast read
+        as "pulled nothing". 404, like `set_sd_config`, and the service isn't asked."""
+        from app.services.sd_backfill_service import BackfillResult
+
+        with patch("app.routes.livelink_admin.SdBackfillService") as mock_svc_cls:
+            mock_svc_cls.return_value.backfill_device = AsyncMock(return_value=BackfillResult())
+            response = await client.post(
+                "/api/livelink/devices/sdtestmissing2/backfill",
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Device sdtestmissing2 not found"
         mock_svc_cls.assert_not_called()
 
     async def test_backfill_trigger_unauthenticated(

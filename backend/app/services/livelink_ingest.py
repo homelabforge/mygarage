@@ -6,7 +6,9 @@ semantics, status updates and storage. That duplication is why adding a third
 source meant adding a third copy.
 
 Capabilities are consulted before any side effect, so a module that does not
-declare DRIVE_SESSION has no reachable path to SessionService at all.
+declare DRIVE_SESSION has no reachable path to SessionService at all. And a
+module only ever gets a device of its own kind (`BaseSourceModule.owns`), so
+a WiCAN upload naming a sensor can't borrow WiCAN's capabilities for it (FB-1).
 """
 
 from __future__ import annotations
@@ -39,6 +41,7 @@ from app.services.livelink_sources.base import (
 )
 from app.services.location_service import LocationService
 from app.services.notifications.dispatcher import NotificationDispatcher
+from app.services.post_commit import after_commit
 from app.services.session_service import SessionService
 from app.services.telemetry_service import TelemetryService, normalises_odometer
 from app.utils.datetime_utils import utc_now
@@ -121,17 +124,19 @@ async def apply_session_signal(
     return await sessions.resolve_torque_session(device, signal.external_id, timestamp or utc_now())
 
 
-async def _apply_retained_offline(batch: IngestBatch, db: AsyncSession) -> None:
+async def _apply_retained_offline(
+    module: BaseSourceModule, batch: IngestBatch, db: AsyncSession
+) -> None:
     """A retained LWT `offline`: set the status on a known device, nothing else.
 
     No discovery (a replay is no reason to create a device), no `last_seen`
     bump, and no more than the same message would do live: a disabled device
-    freezes at its last status, and an unlinked one is skipped when the batch
-    requires a link.
+    freezes at its last status, an unlinked one is skipped when the batch
+    requires a link, and another kind's device is left alone.
     """
     livelink = LiveLinkService(db)
     device = await livelink.get_device_by_id(batch.device_key)
-    if device is None or not device.enabled:
+    if device is None or not module.owns(device) or not device.enabled:
         return
     if batch.requires_link and not device.vin:
         return
@@ -161,7 +166,7 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> I
     # since a gateway that died without an LWT leaves exactly that behind (R1).
     if isinstance(env, MqttEnvelope) and env.retain:
         if batch.status_from_wire and batch.device_status == "offline":
-            await _apply_retained_offline(batch, db)
+            await _apply_retained_offline(module, batch, db)
         return IngestOutcome(reason="retained")
 
     device, discovered = await module.resolve_device(db, batch)
@@ -169,11 +174,17 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> I
         return IngestOutcome(reason="unknown_device")
     outcome = IngestOutcome(device=device, discovered=discovered)
 
-    # D4a. The dispatcher checks the General drawer's switch itself.
+    # D4a. The dispatcher checks the General drawer's switch itself. After the
+    # commit: sent before it, a commit that failed still sent it, and the
+    # device's retry discovered it again and sent it twice (carry 9).
     if discovered:
-        await NotificationDispatcher(db).notify_livelink_new_device(
-            device.device_id, batch.discovery.hw_version if batch.discovery else None
-        )
+        new_id = device.device_id
+        hw_version = batch.discovery.hw_version if batch.discovery else None
+
+        async def _notify(own: AsyncSession) -> None:
+            await NotificationDispatcher(own).notify_livelink_new_device(new_id, hw_version)
+
+        after_commit(db, _notify, label=f"new-device notice for {new_id}")
 
     # Before the enabled and link checks (R12): a WiCAN declares its units
     # only on the first POST after a boot, a new device is still unlinked
@@ -207,11 +218,13 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> I
     # AFTER the session signal: the detector above reads the old ecu_status.
     # None means LEAVE UNCHANGED and still bumps last_seen (Torque). No retained
     # batch gets here (R1, above), so a source can say 'online' for a reading.
+    # An unlinked device's ECU stays as it was: written now, a device linked
+    # mid-drive never sees the change that opens its drive (carry 7).
     battery = batch.battery_voltage
     await livelink.update_device_status(
         device_id=device.device_id,
         device_status=batch.device_status,
-        ecu_status=batch.ecu_status,
+        ecu_status=batch.ecu_status if device.vin else None,
         # Same rule as the readings below: a NaN is not a voltage.
         battery_voltage=battery if battery is not None and math.isfinite(battery) else None,
         rssi=batch.rssi,

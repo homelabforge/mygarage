@@ -281,3 +281,68 @@ async def test_nothing_online_reads_offline(client, auth_headers, db_session, te
 
     assert body["online"] is False
     assert body["device_status"] == "offline"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_a_switched_off_wican_does_not_describe_the_vehicle(
+    client, auth_headers, db_session, test_user
+):
+    """FB-6: the old dongle was switched off yesterday mid-drive, so it froze at
+    ECU on, and it was heard from after the new one's last frame (both quiet
+    now). The status described the dongle the operator turned off."""
+    vin = await _vehicle(db_session, test_user)
+    now = utc_now()
+    old = LiveLinkDevice(
+        device_id=f"olo{uuid.uuid4().hex[:9]}",
+        vin=vin,
+        enabled=False,
+        kind="wican",
+        device_status="online",
+        ecu_status="online",
+        rssi=-80,
+        last_seen=now - timedelta(hours=20),
+    )
+    new = LiveLinkDevice(
+        device_id=f"oln{uuid.uuid4().hex[:9]}",
+        vin=vin,
+        enabled=True,
+        kind="wican",
+        device_status="offline",
+        ecu_status="offline",
+        rssi=-45,
+        last_seen=now - timedelta(hours=22),
+    )
+    db_session.add_all([old, new])
+    await db_session.commit()
+
+    body = await _status(client, auth_headers, vin)
+
+    assert body["device_id"] == new.device_id
+    assert (body["ecu_status"], body["rssi"]) == ("offline", -45)
+    assert body["last_seen"].startswith(new.last_seen.isoformat()[:19])
+    assert body["online"] is False
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_a_vehicle_with_only_switched_off_devices_still_reports_one(
+    client, auth_headers, db_session, test_user
+):
+    """Regression guard: with nothing enabled it falls back to any device, so
+    the card still says which dongle it is. Kills taking enabled devices only."""
+    vin = await _vehicle(db_session, test_user)
+    await _device(
+        db_session,
+        vin,
+        kind="wican",
+        enabled=False,
+        ecu_status="offline",
+        last_seen=utc_now() - timedelta(hours=1),
+    )
+
+    body = await _status(client, auth_headers, vin)
+
+    assert body["kind"] == "wican"
+    assert body["device_id"] is not None
+    assert body["last_seen"] is not None

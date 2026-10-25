@@ -9,6 +9,7 @@ resolution, session handling, storage, alerting) belongs to
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -21,9 +22,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.livelink import DeviceStatusType, ECUStatusType
 from app.schemas.livelink_ingest import WiCANPayload
+from app.utils.logging_utils import sanitize_for_log
 
 if TYPE_CHECKING:
     from app.models.livelink_device import LiveLinkDevice
+
+logger = logging.getLogger(__name__)
+
+#: (kind, device id) pairs already warned about, this process: a topic map
+#: naming the wrong device would otherwise log on every message.
+_FOREIGN_WARNED: set[tuple[str, str]] = set()
 
 
 class Capability(Enum):
@@ -158,7 +166,8 @@ class StoragePolicy:
 
     `latest`: WiCAN's 'always' overwrites vehicle_telemetry_latest unless the
     reading is older than the stored one (`_upsert_latest_value`; an equal
-    timestamp still refreshes `received_at`); Torque's 'if_newer' only when
+    timestamp writes a new value, but an exact duplicate changes nothing);
+    Torque's 'if_newer' only when
     strictly newer (`_update_latest_if_newer`), so a backfilled row never
     clobbers a fresher live one.
 
@@ -257,6 +266,9 @@ class BaseSourceModule(ABC):
     #: topic maps), and never a shared OBD alias like `SPEED`: another kind
     #: sends those too. The registry hands a kind every other module's set, so
     #: a WiCAN's odometer scan can skip a key that was never its (FW-A-r4a).
+    #: Migration 133 reads this at run time, so a new entry changes what it
+    #: labels on a database that hasn't upgraded yet: that needs a migration
+    #: of its own, not just the edit.
     own_param_keys: ClassVar[frozenset[str]] = frozenset()
 
     async def subscriptions(self, db: AsyncSession) -> list[str]:
@@ -280,11 +292,18 @@ class BaseSourceModule(ABC):
         declares AUTO_DISCOVER and the batch allows it. A known device gets its
         versions refreshed from `batch.discovery`, enabled or not. Torque
         overrides it because its `device_key` is a path token, not a device id.
+
+        Only a device of this module's kind comes back (FB-1): the pipeline
+        runs the module's capabilities on whatever this returns, so a WiCAN
+        upload naming a sensor's id would drive a session on a parked trailer.
+        Checked here, before the version refresh writes to the row.
         """
         from app.services.livelink_service import LiveLinkService
 
         svc = LiveLinkService(db)
         device = await svc.get_device_by_id(batch.device_key)
+        if device is not None and not self.owns(device):
+            return None, False
         if device is None and not (
             Capability.AUTO_DISCOVER in self.capabilities and batch.allow_discovery
         ):
@@ -299,6 +318,24 @@ class BaseSourceModule(ABC):
             git_version=info.git_version,
             sta_ip=info.sta_ip,
         )
+
+    def owns(self, device: LiveLinkDevice) -> bool:
+        """Whether ``device`` is this source's to ingest, by kind (FB-1).
+
+        A device of another kind named by this source's batch is refused, and
+        said so once per process.
+        """
+        if device.kind == self.kind:
+            return True
+        if (self.kind, device.device_id) not in _FOREIGN_WARNED:
+            _FOREIGN_WARNED.add((self.kind, device.device_id))
+            logger.warning(
+                "Ignoring %s data for device %s, which is a %s device",
+                self.kind,
+                sanitize_for_log(device.device_id),
+                sanitize_for_log(device.kind),
+            )
+        return False
 
     @abstractmethod
     async def parse(self, env: Envelope) -> IngestBatch | None:

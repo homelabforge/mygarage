@@ -375,8 +375,9 @@ class LiveLinkService:
         """Resolve device ID from a telemetry-only payload (no status.device_id).
 
         Resolution order:
-        1. If a per-device token matches, return that device, enabled or not
-           (authoritative).
+        1. If a WiCAN's per-device token matches, return that device, enabled
+           or not (authoritative). Only a WiCAN: this is the WiCAN ingest, and
+           a Torque phone's token must not name the phone here (carry 8).
         2. If using global token and exactly one enabled device exists, return it.
         3. Otherwise return None (ambiguous — caller should reject).
 
@@ -399,7 +400,10 @@ class LiveLinkService:
         if token:
             token_hash = self.hash_token(token)
             result = await self.db.execute(
-                select(LiveLinkDevice).where(LiveLinkDevice.device_token_hash == token_hash)
+                select(LiveLinkDevice).where(
+                    LiveLinkDevice.device_token_hash == token_hash,
+                    LiveLinkDevice.kind == "wican",
+                )
             )
             device = result.scalar_one_or_none()
             if device:

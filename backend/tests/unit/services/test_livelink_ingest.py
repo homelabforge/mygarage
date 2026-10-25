@@ -33,7 +33,9 @@ class _Fake(BaseSourceModule):
 
     Parameterised rather than hardcoded because each test seeds its own
     uuid-scoped device; a fixed "gw01" collides on the UNIQUE index at the
-    second test (the suite shares one database with no rollback).
+    second test (the suite shares one database with no rollback). A fake's
+    kind must be its device's: the pipeline refuses any other (FB-1), and a
+    refused batch passes every "never called" assertion for the wrong reason.
     """
 
     def __init__(self, device_id: str) -> None:
@@ -333,8 +335,6 @@ async def test_a_disabled_device_stores_nothing(db_session, linked_device):
 @pytest.mark.asyncio
 async def test_a_module_returning_none_is_a_no_op(db_session, linked_device):
     class _Silent(_Sessionless):
-        kind = "silent"
-
         async def parse(self, env):
             return None
 
@@ -354,8 +354,6 @@ async def test_an_unlinked_device_still_gets_its_status_updated(db_session, link
     await db_session.commit()
 
     class _StatusOnly(_Sessionless):
-        kind = "statusonly"
-
         async def parse(self, env):
             return IngestBatch(
                 device_key=self.device_id, device_status="online", requires_link=False
@@ -392,8 +390,6 @@ async def test_thresholds_are_not_checked_unless_the_batch_asks(db_session, link
     """R1-H4c: WiCAN battery and Torque have never sent threshold alerts."""
 
     class _Quiet(_Sessionless):
-        kind = "quiet"
-
         async def parse(self, env):
             return IngestBatch(
                 device_key=self.device_id,
@@ -416,8 +412,6 @@ async def test_a_telemetry_batch_does_not_resurrect_an_offline_device(db_session
     """R1-H5: retained replay after an LWT offline must not mark it online."""
 
     class _NoStatus(_Sessionless):
-        kind = "nostatus"
-
         async def parse(self, env):
             return IngestBatch(
                 device_key=self.device_id, readings=[Reading("X", 1.0)], device_status=None
@@ -457,8 +451,6 @@ async def test_location_is_skipped_without_the_location_capability(db_session, l
     from app.services.livelink_sources.base import GeoPoint
 
     class _Located(_Sessionless):
-        kind = "located"
-
         async def parse(self, env):
             return IngestBatch(
                 device_key=self.device_id,

@@ -132,13 +132,20 @@ def _drive_source(devices: Sequence[LiveLinkDevice]) -> LiveLinkDevice | None:
     """The device a vehicle's status describes.
 
     The most recently seen one that can drive a session (`devices` comes
-    newest first), else the most recently seen of any kind.
+    newest first), else the most recently seen of any kind. Enabled ones
+    first: a dongle switched off mid-drive freezes at ECU on, and it may well
+    have been heard from after the one that replaced it (FB-6).
     """
     registry = default_registry()
-    for device in devices:
+    for device in _enabled_first(devices):
         if Capability.DRIVE_SESSION in registry.capabilities_for(device.kind):
             return device
-    return devices[0] if devices else None
+    return next(iter(_enabled_first(devices)), None)
+
+
+def _enabled_first(devices: Sequence[LiveLinkDevice]) -> list[LiveLinkDevice]:
+    """`devices` with the enabled ones first, each group still newest first."""
+    return sorted(devices, key=lambda device: not device.enabled)
 
 
 # =============================================================================
@@ -247,8 +254,8 @@ async def get_vehicle_livelink_status(
         device_status="online" if online else "offline",
         online=online,
         ecu_status=device.ecu_status if device else "unknown",
-        # The vehicle's last contact, from whichever device that was.
-        last_seen=devices[0].last_seen if devices else None,
+        # The vehicle's last contact, from whichever enabled device that was.
+        last_seen=_enabled_first(devices)[0].last_seen if devices else None,
         battery_voltage=device.battery_voltage if device else None,
         rssi=device.rssi if device else None,
         current_session_id=current_session_id,
@@ -472,26 +479,9 @@ async def get_session_detail(
     if session.vin != vin:
         raise HTTPException(status_code=404, detail="Session does not belong to this vehicle")
 
-    # Get additional details
-    telemetry_service = TelemetryService(db)
-
-    # Get parameters recorded during session
-    if session.started_at and session.ended_at:
-        telemetry_data = await telemetry_service.get_telemetry_range(
-            vin=vin,
-            start=session.started_at,
-            end=session.ended_at,
-            limit=1,  # Just need to know what params exist
-        )
-        parameters_recorded = list({t.param_key for t in telemetry_data})
-        data_points_count = len(
-            await telemetry_service.get_telemetry_range(
-                vin=vin, start=session.started_at, end=session.ended_at
-            )
-        )
-    else:
-        parameters_recorded = []
-        data_points_count = 0
+    # The drive's own window, the one its figures come from: this device's
+    # rows only, and a touching earlier drive keeps the sample they share.
+    parameters_recorded, data_points_count = await session_service.recorded_telemetry(session)
 
     # Get DTCs that appeared/cleared during session
     # This is a simplified implementation

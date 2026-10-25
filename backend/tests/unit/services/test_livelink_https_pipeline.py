@@ -38,6 +38,7 @@ from app.services.livelink_service import LiveLinkService
 from app.services.livelink_sources.base import MqttEnvelope
 from app.services.livelink_sources.generic_mqtt import GenericMqttModule
 from app.services.livelink_sources.wican import WicanModule
+from app.services.post_commit import drain
 from app.services.settings_service import SettingsService
 from app.utils.datetime_utils import utc_now
 
@@ -560,6 +561,7 @@ async def test_a_new_https_device_notifies_once(
 
     first = await _post(client, _boot(device_id, {}))
     await _post(client, _boot(device_id, {}))
+    await drain()
 
     assert first.json()["device_new"] is True
     assert sent == [NEW_DEVICE]
@@ -575,6 +577,7 @@ async def test_no_new_device_notice_with_the_switch_off(
     await db_session.commit()
 
     response = await _post(client, _boot(_uid("t3quiet"), {}))
+    await drain()
 
     assert response.json()["device_new"] is True
     assert sent == []
@@ -593,6 +596,7 @@ async def test_a_new_mqtt_device_notifies_too(db_session: AsyncSession, sent: li
         db_session,
     )
     await db_session.commit()
+    await drain()
 
     assert sent == [NEW_DEVICE]
     assert (await _device(db_session, device_id)).vin is None
@@ -720,3 +724,60 @@ async def test_a_disabled_devices_telemetry_only_post_is_answered_disabled(
     after = await _device(db_session, device_id)
     assert (after.device_status, after.last_seen) == ("offline", seen)
     assert await _units(db_session, device_id) == {"SPEED": ("mph", "speed", "wire")}
+
+
+# --- final wave B: an unlinked device's ECU, and the new-device notice -------------
+
+
+async def test_an_unlinked_devices_upload_leaves_its_ecu_status_for_the_link(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+):
+    """Carry 7: data from an unlinked device doesn't say its ECU is on for us.
+    Written 'online', a device linked mid-drive in contact mode never opened
+    the drive: the inferred signal only acts on a change from the stored
+    status, and there wasn't one."""
+    await keep_rows("livelink_session_boundary_mode")
+    await SettingsService.set(db_session, "livelink_session_boundary_mode", "contact")
+    vin, device, token = await _linked(
+        db_session, make_livelink_vehicle, "wbecu", ecu_status="offline"
+    )
+    device_id = device.device_id
+    device.vin = None
+    await db_session.commit()
+
+    await _post(client, {"autopid_data": {"ENGINE_RPM": 800}}, token)
+    assert (await _device(db_session, device_id)).ecu_status == "offline"
+
+    linked = await _device(db_session, device_id)
+    linked.vin = vin
+    await db_session.commit()
+    await _post(client, {"autopid_data": {"ENGINE_RPM": 800}}, token)
+
+    sessions = await db_session.execute(
+        select(DriveSession).where(DriveSession.device_id == device_id)
+    )
+    assert len(sessions.scalars().all()) == 1
+
+
+async def test_a_new_device_notice_waits_for_the_commit(
+    db_session: AsyncSession, client: AsyncClient, sent: list[str], keep_rows
+):
+    """Carry 9: sent before the route's commit, so a commit that failed still
+    sent it, and the retry discovered the device again and sent it twice."""
+    await keep_rows("livelink_notify_new_device")
+    await SettingsService.set(db_session, "livelink_notify_new_device", "true")
+    await db_session.commit()
+    device_id = _uid("wbnote")
+
+    with patch.object(db_session, "commit", new=AsyncMock(side_effect=RuntimeError("disk full"))):
+        failed = await _post(client, _boot(device_id, {}))
+    await drain()
+
+    assert failed.json()["processing_error"] is True
+    assert sent == []
+
+    retried = await _post(client, _boot(device_id, {}))
+    await drain()
+
+    assert retried.json()["device_new"] is True
+    assert sent == [NEW_DEVICE]
