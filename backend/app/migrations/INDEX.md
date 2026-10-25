@@ -141,3 +141,4 @@ migrations must swallow their own operational errors.
 | `129_add_reminder_start_readings` | **FATAL** — Store the readings an unanchored reminder counts from (PR #216). |
 | `130_move_torque_one_digit_pid_keys` | Move Torque's one-digit PID keys onto the keys the parser files them under now (#223). |
 | `131_add_brake_tracking` | Add brake tracking: axle setup, brake measurements, brake jobs and reminder marks (#202). |
+| `132_add_livelink_device_units` | Add livelink_device_units: the units each LiveLink device declared on the wire (R12). |

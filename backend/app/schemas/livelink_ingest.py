@@ -94,7 +94,8 @@ class WiCANPayload(BaseModel):
     """Schema for complete WiCAN HTTPS POST payload.
 
     WiCAN devices send two types of payloads:
-    1. Status payloads (include device info) - sent periodically
+    1. Status payloads (include device info), with `config` on the first POST
+       after a cold boot (upstream v1.2 sends `status` + `config` once per boot)
     2. Telemetry-only payloads (just autopid_data) - sent every cycle
 
     Example with status:
@@ -116,7 +117,7 @@ class WiCANPayload(BaseModel):
         default_factory=dict, description="Parameter metadata"
     )
     status: WiCANStatus | None = Field(
-        None, description="Device status (optional, sent periodically)"
+        None, description="Device status (optional; sent with config once per cold boot)"
     )
 
     # Optional timestamp for future replay/buffer support
@@ -147,19 +148,6 @@ class WiCANPayload(BaseModel):
         if not isinstance(v, (dict, list)):
             raise ValueError("autopid_data must be a dict or list")
         return normalize_autopid_data(v)
-
-
-class IngestResult(BaseModel):
-    """Schema for ingestion result response."""
-
-    success: bool = Field(True, description="Whether ingestion succeeded")
-    device_id: str = Field(..., description="Device ID from payload")
-    is_new_device: bool = Field(False, description="Whether device was auto-discovered")
-    is_linked: bool = Field(False, description="Whether device is linked to a vehicle")
-    parameters_stored: int = Field(0, description="Number of parameters stored")
-    session_status: str | None = Field(None, description="Session started/ended/active/none")
-    skipped_duplicate: bool = Field(False, description="Whether payload was a duplicate")
-    message: str | None = Field(None, description="Additional status message")
 
 
 class IngestError(BaseModel):

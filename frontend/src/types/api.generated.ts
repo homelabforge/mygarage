@@ -2902,9 +2902,9 @@ export interface paths {
          *     `topics` is checked against it here rather than on the schema.
          *
          *     Each reading's parameter gets the preset's `storage_interval_seconds`.
-         *     REQUIRED, not tuning: retained messages replay on every resubscribe and
-         *     the storage path stamps server time, so without it each reconnect writes a
-         *     fresh row.
+         *     REQUIRED, not tuning: the gateway republishes every few seconds and the
+         *     storage path stamps server time, so without it a sensor writes a row per
+         *     message.
          */
         post: operations["apply_preset_api_livelink_presets__name__apply_post"];
         delete?: never;
@@ -4202,11 +4202,14 @@ export interface paths {
          * @description Receive telemetry data from WiCAN OBD2 devices.
          *
          *     This endpoint is called by WiCAN PRO devices configured for HTTPS POST.
-         *     Authentication is via Bearer token (global or per-device).
+         *     Authentication is via Bearer token (global or per-device). The payload is
+         *     processed before the response is sent, through the same pipeline as MQTT.
          *
          *     WiCAN sends two types of payloads:
-         *     - Status payloads (with device_id) - used for discovery and status updates
-         *     - Telemetry-only payloads (just autopid_data) - for high-frequency data
+         *     - Status payloads (with device_id): sent with `config` on the first POST after
+         *       a cold boot, and used for discovery and status updates
+         *     - Telemetry-only payloads (just autopid_data): every cycle; the device is
+         *       found by its token
          *
          *     **Headers:**
          *     - **Authorization**: Bearer token (required)
@@ -4214,11 +4217,11 @@ export interface paths {
          *     **Request Body:**
          *     WiCAN payload containing:
          *     - **autopid_data**: Dictionary of parameter names to values (decoded OBD2 data)
-         *     - **config**: Dictionary of parameter metadata (units, classes) - optional
-         *     - **status**: Device status information - optional (sent periodically)
+         *     - **config**: Dictionary of parameter metadata (units, classes); kept per device
+         *     - **status**: Device status information - optional
          *
          *     **Returns:**
-         *     - 202 Accepted: Payload queued for processing
+         *     - 202 Accepted: Payload processed (a `processing_error` key says it failed)
          *     - 401 Unauthorized: Invalid or missing token
          *     - 422 Unprocessable Entity: Invalid payload format
          */
@@ -20571,7 +20574,8 @@ export interface components {
          * @description Schema for complete WiCAN HTTPS POST payload.
          *
          *     WiCAN devices send two types of payloads:
-         *     1. Status payloads (include device info) - sent periodically
+         *     1. Status payloads (include device info), with `config` on the first POST
+         *        after a cold boot (upstream v1.2 sends `status` + `config` once per boot)
          *     2. Telemetry-only payloads (just autopid_data) - sent every cycle
          *
          *     Example with status:
@@ -20600,7 +20604,7 @@ export interface components {
             config?: {
                 [key: string]: components["schemas"]["WiCANConfigEntry"];
             };
-            /** @description Device status (optional, sent periodically) */
+            /** @description Device status (optional; sent with config once per cold boot) */
             status?: components["schemas"]["WiCANStatus"] | null;
             /**
              * Timestamp

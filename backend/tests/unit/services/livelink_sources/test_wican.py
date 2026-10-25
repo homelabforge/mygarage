@@ -203,3 +203,120 @@ def test_the_dtc_string_rule(value, expected):
     from app.services.livelink_sources.wican import dtc_codes_from_wire
 
     assert dtc_codes_from_wire(value) == expected
+
+
+# --- HTTPS (G5b-14): the same module parses the route's payload ------------------
+# Imported inside each test: before T3 the envelope doesn't exist, and only
+# these cases should fail on that.
+
+
+def _https(body: dict):
+    from app.schemas.livelink_ingest import WiCANPayload
+    from app.services.livelink_sources.base import WicanHttpsEnvelope
+
+    payload = WiCANPayload.model_validate(body)
+    device_id = payload.status.device_id if payload.status else "aabbccddeeff"
+    return WicanHttpsEnvelope(device_id=device_id, payload=payload)
+
+
+@pytest.mark.asyncio
+async def test_an_https_status_payload_is_a_status_transition_with_its_metadata():
+    batch = await M.parse(
+        _https(
+            {
+                "autopid_data": {"0c-EngineRPM": 900, "TS": 4, "DIAGNOSTIC_TROUBLE_CODES": "p0301"},
+                "config": {"0c-EngineRPM": {"class": "speed", "unit": "rpm"}},
+                "status": {
+                    "device_id": "AA:BB:CC:DD:EE:FF",
+                    "ecu_status": "online",
+                    "hw_version": "WiCAN-OBD-PRO",
+                    "fw_version": "4.50",
+                    "git_version": "v4.50p",
+                    "sta_ip": "10.0.0.9",
+                    "rssi": -40,
+                    "battery_voltage": 13.9,
+                },
+                "timestamp": "2026-10-10T12:00:00Z",
+            }
+        )
+    )
+
+    assert batch.device_key == "aabbccddeeff"
+    assert batch.session == StatusTransition(ecu_status="online")
+    assert (batch.device_status, batch.ecu_status) == ("online", "online")
+    assert (batch.rssi, batch.sta_ip, batch.battery_voltage) == (-40, "10.0.0.9", 13.9)
+    assert batch.discovery is not None
+    assert (batch.discovery.hw_version, batch.discovery.fw_version) == ("WiCAN-OBD-PRO", "4.50")
+    assert (batch.discovery.git_version, batch.discovery.sta_ip) == ("v4.50p", "10.0.0.9")
+    assert batch.requires_link is False
+    assert batch.clear_pending_offline is False
+    assert batch.alert_on_thresholds is True
+    assert batch.allow_discovery is True
+    # Canonical key, TS dropped, and R5: the `rpm` unit beats the declared class.
+    assert [(r.param_key, r.value, r.unit, r.param_class) for r in batch.readings] == [
+        ("0C-ENGINERPM", 900.0, "rpm", "frequency")
+    ]
+    assert {k: (u.unit, u.param_class) for k, u in batch.declared_wire_units.items()} == {
+        "0C-ENGINERPM": ("rpm", "frequency")
+    }
+    assert batch.wire_profile is True
+    assert batch.dtcs == ["P0301"]
+    assert batch.timestamp is not None and batch.timestamp.hour == 12
+
+
+@pytest.mark.asyncio
+async def test_a_status_payload_with_the_default_empty_config_is_not_a_profile():
+    """Fable F4-1: `config` defaults to `{}`; `status` alone replaces nothing."""
+    batch = await M.parse(_https({"autopid_data": {}, "status": {"device_id": "aabbccddeeff"}}))
+    assert batch.wire_profile is False
+    assert batch.declared_wire_units == {}
+
+
+@pytest.mark.parametrize("bad", ["NaN", "Infinity"])
+@pytest.mark.asyncio
+async def test_a_non_finite_status_battery_is_left_unsaid(bad: str):
+    import json
+
+    from app.schemas.livelink_ingest import WiCANPayload
+    from app.services.livelink_sources.base import WicanHttpsEnvelope
+
+    raw = (
+        '{"autopid_data": {}, "status": {"device_id": "aabbccddeeff", "battery_voltage": '
+        + bad
+        + "}}"
+    )
+    payload = WiCANPayload.model_validate(json.loads(raw))
+    batch = await M.parse(WicanHttpsEnvelope(device_id="aabbccddeeff", payload=payload))
+    assert batch.battery_voltage is None
+
+
+@pytest.mark.asyncio
+async def test_a_telemetry_only_payload_infers_the_session_like_can_rx():
+    batch = await M.parse(
+        _https({"autopid_data": {"SPEED": 50, "X": "junk"}, "config": {"SPEED": {"unit": "mph"}}})
+    )
+
+    assert batch.device_key == "aabbccddeeff"
+    assert batch.session == InferSession()
+    assert (batch.device_status, batch.ecu_status) == ("online", "online")
+    assert batch.clear_pending_offline is True
+    assert batch.requires_link is True
+    assert batch.alert_on_thresholds is True
+    # Only a status payload may create a device.
+    assert batch.allow_discovery is False
+    assert batch.discovery is None
+    assert batch.wire_profile is False
+    assert [(r.param_key, r.value, r.unit, r.param_class) for r in batch.readings] == [
+        ("SPEED", 50.0, "mph", "speed")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_telemetry_only_payload_with_nothing_in_it_says_nothing_about_the_ecu():
+    """A-7's rule for HTTPS: no value is no proof the ECU is on."""
+    batch = await M.parse(_https({"autopid_data": {"DIAGNOSTIC_TROUBLE_CODES": "P0420"}}))
+
+    assert batch.dtcs == ["P0420"]
+    assert batch.readings == []
+    assert batch.device_status == "online"
+    assert (batch.ecu_status, batch.session, batch.clear_pending_offline) == (None, None, False)

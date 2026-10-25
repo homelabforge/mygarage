@@ -99,7 +99,7 @@ async def test_a_wican_can_rx_nan_stores_the_rest_of_the_frame(
 async def test_an_https_payload_nan_stores_the_rest_of_the_payload(
     db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle
 ):
-    """The route calls store_telemetry itself until T3 moves it onto ingest.
+    """The route goes through `ingest` now, so its finite filter covers HTTPS.
 
     Raw content, not `json=`: httpx refuses to encode NaN, a WiCAN does not.
     """

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, ClassVar
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.livelink import DeviceStatusType, ECUStatusType
+from app.schemas.livelink_ingest import WiCANPayload
 
 if TYPE_CHECKING:
     from app.models.livelink_device import LiveLinkDevice
@@ -64,7 +65,37 @@ class HttpEnvelope:
     params: Mapping[str, str]
 
 
-Envelope = MqttEnvelope | HttpEnvelope
+@dataclass(frozen=True)
+class WicanHttpsEnvelope:
+    """One WiCAN HTTPS POST, already validated.
+
+    The route keeps the token check, and for a telemetry-only POST the token
+    is the only thing naming the device, so it hands the id over resolved.
+    """
+
+    device_id: str
+    payload: WiCANPayload
+
+
+Envelope = MqttEnvelope | HttpEnvelope | WicanHttpsEnvelope
+
+
+@dataclass(frozen=True)
+class WireUnit:
+    """A unit and class a device declared for one key (R12)."""
+
+    unit: str | None
+    param_class: str | None = None
+
+
+@dataclass(frozen=True)
+class DiscoveryInfo:
+    """What a device says about itself, for discovery and the device card."""
+
+    hw_version: str | None = None
+    fw_version: str | None = None
+    git_version: str | None = None
+    sta_ip: str | None = None
 
 
 @dataclass(frozen=True)
@@ -170,6 +201,22 @@ class IngestBatch:
     timestamp: datetime | None = None
     #: Written to livelink_devices.battery_voltage, not just stored as telemetry.
     battery_voltage: float | None = None
+    #: Written to the device row too. None leaves the stored value alone.
+    rssi: int | None = None
+    sta_ip: str | None = None
+    #: Versions for a discovered device, or to refresh an existing one.
+    discovery: DiscoveryInfo | None = None
+    #: Whether an unknown device may be created from this batch (the module
+    #: must also declare AUTO_DISCOVER). Only a WiCAN HTTPS telemetry-only
+    #: POST says no: it names its device by token, so it can't be a new one.
+    allow_discovery: bool = True
+    #: Units the device declared on the wire, by canonical key. Persisted per
+    #: device (R12), before the enabled and link checks.
+    declared_wire_units: dict[str, WireUnit] = field(default_factory=dict)
+    #: True when `declared_wire_units` is the device's WHOLE profile (a WiCAN
+    #: boot config), so its stored `wire` keys not in it are dropped. Never
+    #: set from a status block alone: the schema defaults `config` to `{}`.
+    wire_profile: bool = False
     #: Whether this batch means "the WiFi came back". True only for message
     #: types that do it today: WiCAN `can/rx`, not WiCAN `battery`. Verified:
     #: `_handle_battery` (mqtt_subscriber.py:366-401) contains zero calls to
@@ -214,23 +261,37 @@ class BaseSourceModule(ABC):
         """
         return []
 
-    async def resolve_device(self, db: AsyncSession, device_key: str) -> LiveLinkDevice | None:
-        """Find the device a batch belongs to.
+    async def resolve_device(
+        self, db: AsyncSession, batch: IngestBatch
+    ) -> tuple[LiveLinkDevice | None, bool]:
+        """Find the device a batch belongs to: `(device, discovered)`.
 
         The one deliberately impure hook: device resolution is inherently
         database work, so it lives here rather than contaminating `parse`.
 
         Default is lookup by `device_id`, auto-discovering only when the module
-        declares AUTO_DISCOVER. Torque overrides it because its `device_key` is
-        a path token, not a device id.
+        declares AUTO_DISCOVER and the batch allows it. A known device gets its
+        versions refreshed from `batch.discovery`, enabled or not. Torque
+        overrides it because its `device_key` is a path token, not a device id.
         """
         from app.services.livelink_service import LiveLinkService
 
         svc = LiveLinkService(db)
-        device = await svc.get_device_by_id(device_key)
-        if device is None and Capability.AUTO_DISCOVER in self.capabilities:
-            device, _ = await svc.auto_discover_device(device_key)
-        return device
+        device = await svc.get_device_by_id(batch.device_key)
+        if device is None and not (
+            Capability.AUTO_DISCOVER in self.capabilities and batch.allow_discovery
+        ):
+            return None, False
+        if device is not None and batch.discovery is None:
+            return device, False
+        info = batch.discovery or DiscoveryInfo()
+        return await svc.auto_discover_device(
+            batch.device_key,
+            hw_version=info.hw_version,
+            fw_version=info.fw_version,
+            git_version=info.git_version,
+            sta_ip=info.sta_ip,
+        )
 
     @abstractmethod
     async def parse(self, env: Envelope) -> IngestBatch | None:

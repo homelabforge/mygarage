@@ -31929,7 +31929,7 @@
         "type": "object"
       },
       "WiCANPayload": {
-        "description": "Schema for complete WiCAN HTTPS POST payload.\n\nWiCAN devices send two types of payloads:\n1. Status payloads (include device info) - sent periodically\n2. Telemetry-only payloads (just autopid_data) - sent every cycle\n\nExample with status:\n    {\n        \"autopid_data\": {\"ENGINE_RPM\": 2150, \"SPEED\": 65},\n        \"status\": {\"device_id\": \"aabbccddeeff\", \"ecu_status\": \"online\"}\n    }\n\nExample telemetry-only:\n    {\n        \"autopid_data\": {\"0C-EngineRPM\": 750, \"0D-VehicleSpeed\": 0}\n    }",
+        "description": "Schema for complete WiCAN HTTPS POST payload.\n\nWiCAN devices send two types of payloads:\n1. Status payloads (include device info), with `config` on the first POST\n   after a cold boot (upstream v1.2 sends `status` + `config` once per boot)\n2. Telemetry-only payloads (just autopid_data) - sent every cycle\n\nExample with status:\n    {\n        \"autopid_data\": {\"ENGINE_RPM\": 2150, \"SPEED\": 65},\n        \"status\": {\"device_id\": \"aabbccddeeff\", \"ecu_status\": \"online\"}\n    }\n\nExample telemetry-only:\n    {\n        \"autopid_data\": {\"0C-EngineRPM\": 750, \"0D-VehicleSpeed\": 0}\n    }",
         "properties": {
           "autopid_data": {
             "additionalProperties": {
@@ -31969,7 +31969,7 @@
                 "type": "null"
               }
             ],
-            "description": "Device status (optional, sent periodically)"
+            "description": "Device status (optional; sent with config once per cold boot)"
           },
           "timestamp": {
             "anyOf": [
@@ -40380,7 +40380,7 @@
     },
     "/api/livelink/presets/{name}/apply": {
       "post": {
-        "description": "Add one sensor: its own device, and a topic map per reading given.\n\nWhich readings a preset has, and which it requires, is the preset's, so\n`topics` is checked against it here rather than on the schema.\n\nEach reading's parameter gets the preset's `storage_interval_seconds`.\nREQUIRED, not tuning: retained messages replay on every resubscribe and\nthe storage path stamps server time, so without it each reconnect writes a\nfresh row.",
+        "description": "Add one sensor: its own device, and a topic map per reading given.\n\nWhich readings a preset has, and which it requires, is the preset's, so\n`topics` is checked against it here rather than on the schema.\n\nEach reading's parameter gets the preset's `storage_interval_seconds`.\nREQUIRED, not tuning: the gateway republishes every few seconds and the\nstorage path stamps server time, so without it a sensor writes a row per\nmessage.",
         "operationId": "apply_preset_api_livelink_presets__name__apply_post",
         "parameters": [
           {
@@ -43323,7 +43323,7 @@
     },
     "/api/v1/livelink/ingest": {
       "post": {
-        "description": "Receive telemetry data from WiCAN OBD2 devices.\n\nThis endpoint is called by WiCAN PRO devices configured for HTTPS POST.\nAuthentication is via Bearer token (global or per-device).\n\nWiCAN sends two types of payloads:\n- Status payloads (with device_id) - used for discovery and status updates\n- Telemetry-only payloads (just autopid_data) - for high-frequency data\n\n**Headers:**\n- **Authorization**: Bearer token (required)\n\n**Request Body:**\nWiCAN payload containing:\n- **autopid_data**: Dictionary of parameter names to values (decoded OBD2 data)\n- **config**: Dictionary of parameter metadata (units, classes) - optional\n- **status**: Device status information - optional (sent periodically)\n\n**Returns:**\n- 202 Accepted: Payload queued for processing\n- 401 Unauthorized: Invalid or missing token\n- 422 Unprocessable Entity: Invalid payload format",
+        "description": "Receive telemetry data from WiCAN OBD2 devices.\n\nThis endpoint is called by WiCAN PRO devices configured for HTTPS POST.\nAuthentication is via Bearer token (global or per-device). The payload is\nprocessed before the response is sent, through the same pipeline as MQTT.\n\nWiCAN sends two types of payloads:\n- Status payloads (with device_id): sent with `config` on the first POST after\n  a cold boot, and used for discovery and status updates\n- Telemetry-only payloads (just autopid_data): every cycle; the device is\n  found by its token\n\n**Headers:**\n- **Authorization**: Bearer token (required)\n\n**Request Body:**\nWiCAN payload containing:\n- **autopid_data**: Dictionary of parameter names to values (decoded OBD2 data)\n- **config**: Dictionary of parameter metadata (units, classes); kept per device\n- **status**: Device status information - optional\n\n**Returns:**\n- 202 Accepted: Payload processed (a `processing_error` key says it failed)\n- 401 Unauthorized: Invalid or missing token\n- 422 Unprocessable Entity: Invalid payload format",
         "operationId": "ingest_wican_payload_api_v1_livelink_ingest_post",
         "parameters": [
           {

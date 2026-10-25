@@ -71,11 +71,13 @@ class TorqueModule(BaseSourceModule):
         observe_movement=False,
     )
 
-    async def resolve_device(self, db: AsyncSession, device_key: str) -> LiveLinkDevice | None:
-        """Torque's device_key is a path token, not a device id."""
+    async def resolve_device(
+        self, db: AsyncSession, batch: IngestBatch
+    ) -> tuple[LiveLinkDevice | None, bool]:
+        """Torque's device_key is a path token, not a device id. Never discovers."""
         from app.services.torque_service import TorqueService
 
-        return await TorqueService(db).resolve_by_token(device_key)
+        return await TorqueService(db).resolve_by_token(batch.device_key), False
 
     async def parse(self, env) -> IngestBatch | None:
         if not isinstance(env, HttpEnvelope):

@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas.livelink_ingest import WiCANPayload
-from app.services.dtc_service import DTCService
+from app.services.livelink_ingest import ingest
 from app.services.livelink_service import LiveLinkService
-from app.services.session_service import SessionService
-from app.services.telemetry_service import TelemetryService
+from app.services.livelink_sources.base import WicanHttpsEnvelope
+from app.services.livelink_sources.wican import WicanModule
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -75,11 +75,14 @@ async def ingest_wican_payload(
     Receive telemetry data from WiCAN OBD2 devices.
 
     This endpoint is called by WiCAN PRO devices configured for HTTPS POST.
-    Authentication is via Bearer token (global or per-device).
+    Authentication is via Bearer token (global or per-device). The payload is
+    processed before the response is sent, through the same pipeline as MQTT.
 
     WiCAN sends two types of payloads:
-    - Status payloads (with device_id) - used for discovery and status updates
-    - Telemetry-only payloads (just autopid_data) - for high-frequency data
+    - Status payloads (with device_id): sent with `config` on the first POST after
+      a cold boot, and used for discovery and status updates
+    - Telemetry-only payloads (just autopid_data): every cycle; the device is
+      found by its token
 
     **Headers:**
     - **Authorization**: Bearer token (required)
@@ -87,11 +90,11 @@ async def ingest_wican_payload(
     **Request Body:**
     WiCAN payload containing:
     - **autopid_data**: Dictionary of parameter names to values (decoded OBD2 data)
-    - **config**: Dictionary of parameter metadata (units, classes) - optional
-    - **status**: Device status information - optional (sent periodically)
+    - **config**: Dictionary of parameter metadata (units, classes); kept per device
+    - **status**: Device status information - optional
 
     **Returns:**
-    - 202 Accepted: Payload queued for processing
+    - 202 Accepted: Payload processed (a `processing_error` key says it failed)
     - 401 Unauthorized: Invalid or missing token
     - 422 Unprocessable Entity: Invalid payload format
     """
@@ -131,112 +134,33 @@ async def ingest_wican_payload(
     }
 
     try:
-        # Handle status block if present (device discovery/status update)
+        outcome = await ingest(
+            WicanModule(), WicanHttpsEnvelope(device_id=device_id, payload=payload), db
+        )
+        device = outcome.device
+        if device is None:
+            return {
+                "status": "rejected",
+                "message": f"Unknown device {device_id}. Send a status payload first.",
+            }
+        if outcome.reason == "device_disabled":
+            # Its declared units and versions were still recorded.
+            await db.commit()
+            return {
+                "status": "disabled",
+                "timestamp": results["timestamp"],
+                "device_id": device_id,
+                "message": "This device is disabled",
+            }
+
         if payload.status:
-            # Auto-discover or update device with version info
-            device, is_new = await livelink_service.auto_discover_device(
-                device_id=device_id,
-                hw_version=payload.status.hw_version,
-                fw_version=payload.status.fw_version,
-                git_version=payload.status.git_version,
-                sta_ip=payload.status.sta_ip,
-            )
-            results["device_new"] = is_new
+            results["device_new"] = outcome.discovered
             results["device_linked"] = device.vin is not None
-
-            # Handle ECU status transitions with grace period for WiFi drop resilience.
-            # Skip transitions for unknown status — only explicit online/offline matters.
-            ecu_status = payload.status.ecu_status  # Already normalized by schema
-            if device.vin and ecu_status != "unknown":
-                grace_seconds = await livelink_service.get_session_grace_period_seconds()
-                if ecu_status == "online":
-                    # ECU came online — if pending offline, WiFi recovered (clear pending)
-                    if device.pending_offline_at:
-                        await livelink_service.clear_pending_offline(device_id)
-                        logger.debug("Cleared pending offline for %s (WiFi recovered)", device_id)
-                    else:
-                        # Not pending — genuine ECU online, start session
-                        session_service = SessionService(db)
-                        await session_service.handle_ecu_online(device.vin, device_id)
-                else:
-                    # ECU offline — start grace period instead of immediate session end
-                    if grace_seconds > 0:
-                        await livelink_service.set_pending_offline(device_id)
-                        logger.debug(
-                            "Set pending offline for %s (grace period: %ds)",
-                            device_id,
-                            grace_seconds,
-                        )
-                    else:
-                        # Grace period disabled — immediate session end
-                        session_service = SessionService(db)
-                        await session_service.handle_ecu_offline(device.vin, device_id)
-
-            # Update device status (after session detection has read old state)
-            await livelink_service.update_device_status(
-                device_id=device_id,
-                sta_ip=payload.status.sta_ip,
-                rssi=payload.status.rssi,
-                battery_voltage=payload.status.battery_voltage,
-                ecu_status=ecu_status,
-                device_status="online",
-            )
-        else:
-            # Telemetry-only payload - just get the existing device
-            device = await livelink_service.get_device_by_id(device_id)
-            if not device:
-                return {
-                    "status": "rejected",
-                    "message": f"Unknown device {device_id}. Send a status payload first.",
-                }
-            # Update last_seen timestamp to indicate device is still active
-            await livelink_service.update_device_status(
-                device_id=device_id,
-                device_status="online",
-            )
-
-        # Process telemetry if device is linked to a vehicle
         if device.vin and payload.autopid_data:
-            telemetry_service = TelemetryService(db)
+            results["parameters_stored"] = outcome.stored_count
+        if outcome.dtc_count:
+            results["dtcs_recorded"] = outcome.dtc_count
 
-            # Store telemetry using the bulk method (includes validation)
-            store_result = await telemetry_service.store_telemetry(
-                vin=device.vin,
-                device_id=device_id,
-                autopid_data=payload.autopid_data,
-                config={
-                    k: {"unit": v.unit, "class": v.param_class} for k, v in payload.config.items()
-                },
-                timestamp=payload.timestamp,
-            )
-            results["parameters_stored"] = store_result.stored_count
-
-            # Check thresholds for validated data only (not rejected garbage)
-            for param_key, value in store_result.validated_data.items():
-                if value is not None and isinstance(value, (int, float)):
-                    await telemetry_service.check_thresholds(
-                        vin=device.vin,
-                        param_key=param_key,
-                        value=float(value),
-                    )
-
-            # Process DTCs if present in autopid_data (special key)
-            dtc_key = "DIAGNOSTIC_TROUBLE_CODES"
-            if dtc_key in payload.autopid_data:
-                dtc_service = DTCService(db)
-                dtc_value = payload.autopid_data.get(dtc_key)
-                if dtc_value and isinstance(dtc_value, str):
-                    # DTCs can be comma-separated string
-                    dtc_codes = [c.strip() for c in dtc_value.split(",") if c.strip()]
-                    for code in dtc_codes:
-                        await dtc_service.record_dtc(
-                            vin=device.vin,
-                            device_id=device_id,
-                            code=code,
-                        )
-                    results["dtcs_recorded"] = len(dtc_codes)
-
-        # Commit all changes
         await db.commit()
 
     except Exception as e:

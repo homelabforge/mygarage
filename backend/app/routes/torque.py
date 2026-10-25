@@ -23,6 +23,7 @@ from app.database import get_db
 from app.services.livelink_ingest import ingest
 from app.services.livelink_sources.base import HttpEnvelope
 from app.services.livelink_sources.torque import TorqueModule
+from app.services.torque_service import TorqueService
 
 router = APIRouter(prefix="/api/v1/torque", tags=["torque"])
 _OK = Response(content="OK!", media_type="text/plain")
@@ -70,11 +71,10 @@ async def _ingest(token: str, params: Mapping[str, str], db: AsyncSession) -> Re
     403 and again inside the pipeline: two indexed lookups in one transaction,
     and it keeps the 403-versus-OK decision where the HTTP contract lives.
     """
-    module = TorqueModule()
-    if await module.resolve_device(db, token) is None:
+    if await TorqueService(db).resolve_by_token(token) is None:
         return Response(content="Invalid token", media_type="text/plain", status_code=403)
 
-    await ingest(module, HttpEnvelope(token=token, params=params), db)
+    await ingest(TorqueModule(), HttpEnvelope(token=token, params=params), db)
     await db.commit()
     return _OK
 

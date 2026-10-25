@@ -20,6 +20,7 @@ from app.models.insurance import (
     InsurancePolicyVehicle,
 )
 from app.models.livelink_device import LiveLinkDevice
+from app.models.livelink_device_unit import LiveLinkDeviceUnit
 from app.models.livelink_firmware_cache import LiveLinkFirmwareCache
 from app.models.livelink_parameter import LiveLinkParameter
 from app.models.livelink_topic_map import LiveLinkTopicMap
@@ -91,6 +92,7 @@ __all__ = [
     "BrakeReminderMark",
     # LiveLink (Telemetry)
     "LiveLinkDevice",
+    "LiveLinkDeviceUnit",
     "LiveLinkParameter",
     "LiveLinkTopicMap",
     "LiveLinkFirmwareCache",

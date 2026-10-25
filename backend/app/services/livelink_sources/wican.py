@@ -1,7 +1,9 @@
-"""WiCAN OBD2 dongle, over MQTT.
+"""WiCAN OBD2 dongle, over MQTT and HTTPS.
 
-Parsing only; extracted verbatim in behavior from
-`mqtt_subscriber._process_message` and its three handlers.
+Parsing only. The MQTT branch was extracted verbatim in behavior from
+`mqtt_subscriber._process_message` and its three handlers; the HTTPS branch
+takes the route's validated payload (`WicanHttpsEnvelope`). One module for
+both, since the registry holds one per kind.
 
 WiCAN is the one module that still needs a wildcard subscription: its topics
 carry a device id that is discovered at runtime, so the exact-topics rule that
@@ -14,21 +16,32 @@ import json
 import logging
 import math
 import re
+from collections.abc import Mapping
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.schemas.livelink_ingest import WiCANConfigEntry
 from app.services.livelink_sources.base import (
     BaseSourceModule,
     Capability,
+    DiscoveryInfo,
     InferSession,
     IngestBatch,
     MqttEnvelope,
     Reading,
     StatusTransition,
     StoragePolicy,
+    WicanHttpsEnvelope,
+    WireUnit,
 )
-from app.utils.autopid_normalizer import DTC_KEY, canonical_param_key, normalize_autopid_data
+from app.utils.autopid_normalizer import (
+    DTC_KEY,
+    canonical_param_key,
+    is_telemetry_param,
+    normalize_autopid_data,
+)
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.wire_units import class_for_unit
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +50,10 @@ logger = logging.getLogger(__name__)
 #: It also keeps a token over `VehicleDTC.code`'s 10 chars from failing the
 #: flush on PG.
 _DTC_SHAPE = re.compile(r"[PCBU][0-9A-F]{4}")
+
+#: Column widths in `livelink_device_units` (and `livelink_parameters`). A
+#: longer value is junk, and on PG it would fail the whole request's flush.
+_KEY_MAX, _UNIT_MAX, _CLASS_MAX = 100, 20, 50
 
 
 def dtc_codes_from_wire(value: object) -> list[str]:
@@ -59,6 +76,121 @@ def dtc_codes_from_wire(value: object) -> list[str]:
             continue
         codes.append(code)
     return list(dict.fromkeys(codes))
+
+
+def _text(value: str | None) -> str | None:
+    """Stripped, or None when blank."""
+    if value is None:
+        return None
+    return value.strip() or None
+
+
+def wire_units_from_config(config: Mapping[str, WiCANConfigEntry]) -> dict[str, WireUnit]:
+    """An HTTPS `config` block as canonical key -> declared unit and class.
+
+    Keys go through `canonical_param_key` (N-2: a mixed-case PID key used to
+    lose its unit), and a unit that names a class beats the declared class
+    (R5). An entry that says nothing, or won't fit the columns, is dropped.
+    """
+    out: dict[str, WireUnit] = {}
+    for key, entry in config.items():
+        ck = canonical_param_key(key.strip())
+        if not ck or not is_telemetry_param(ck) or ck == DTC_KEY:
+            continue
+        unit = _text(entry.unit)
+        param_class = class_for_unit(unit) or _text(entry.param_class)
+        if unit is None and param_class is None:
+            continue
+        if len(ck) > _KEY_MAX or len(unit or "") > _UNIT_MAX or len(param_class or "") > _CLASS_MAX:
+            logger.debug("Dropping an oversized config entry: %s", sanitize_for_log(ck[:120]))
+            continue
+        out[ck] = WireUnit(unit, param_class)
+    return out
+
+
+def _parse_https(env: WicanHttpsEnvelope) -> IngestBatch:
+    """A WiCAN HTTPS POST: a status payload (once per boot, plus whenever the
+    firmware sends one) or a telemetry-only one."""
+    payload = env.payload
+    declared = wire_units_from_config(payload.config)
+
+    values: dict[str, float] = {}
+    for key, value in payload.autopid_data.items():
+        ck = canonical_param_key(key)
+        if not is_telemetry_param(ck):
+            continue
+        if isinstance(value, (int, float)) and math.isfinite(value):
+            values[ck] = float(value)
+    readings = [
+        Reading(
+            key,
+            value,
+            unit=declared[key].unit if key in declared else None,
+            param_class=declared[key].param_class if key in declared else None,
+        )
+        for key, value in values.items()
+    ]
+    dtcs = dtc_codes_from_wire(payload.autopid_data.get(DTC_KEY))
+
+    status = payload.status
+    if status is not None:
+        battery = status.battery_voltage
+        if battery is not None and not math.isfinite(battery):
+            battery = None  # a NaN is not a voltage
+        return IngestBatch(
+            device_key=env.device_id,
+            readings=readings,
+            dtcs=dtcs,
+            device_status="online",
+            ecu_status=status.ecu_status,
+            session=StatusTransition(ecu_status=status.ecu_status),
+            rssi=status.rssi,
+            sta_ip=status.sta_ip,
+            battery_voltage=battery,
+            discovery=DiscoveryInfo(
+                hw_version=status.hw_version,
+                fw_version=status.fw_version,
+                git_version=status.git_version,
+                sta_ip=status.sta_ip,
+            ),
+            declared_wire_units=declared,
+            # A boot config IS the profile; `status` alone, with the schema's
+            # default `{}`, is not (Fable F4-1).
+            wire_profile=bool(declared),
+            # A status payload updates an unlinked device's status, as the
+            # route always did.
+            requires_link=False,
+            alert_on_thresholds=True,
+            timestamp=payload.timestamp,
+        )
+
+    if not readings:
+        # Nothing to read, or codes only: the device is up, and that's all it
+        # proves (A-7, the same shape as a codes-only can/rx).
+        return IngestBatch(
+            device_key=env.device_id,
+            dtcs=dtcs,
+            device_status="online",
+            declared_wire_units=declared,
+            allow_discovery=False,
+            timestamp=payload.timestamp,
+        )
+    return IngestBatch(
+        device_key=env.device_id,
+        readings=readings,
+        dtcs=dtcs,
+        device_status="online",
+        # As can/rx: data arriving means the ECU is on. Persisted through the
+        # status update, since the session signal doesn't write it.
+        ecu_status="online",
+        session=InferSession(),
+        clear_pending_offline=True,
+        requires_link=True,
+        alert_on_thresholds=True,
+        allow_discovery=False,
+        declared_wire_units=declared,
+        timestamp=payload.timestamp,
+    )
 
 
 class WicanModule(BaseSourceModule):
@@ -93,6 +225,8 @@ class WicanModule(BaseSourceModule):
         return [f"{prefix}/+/#"] if prefix else []
 
     async def parse(self, env) -> IngestBatch | None:
+        if isinstance(env, WicanHttpsEnvelope):
+            return _parse_https(env)
         if not isinstance(env, MqttEnvelope):
             return None
         parts = env.topic.split("/")
