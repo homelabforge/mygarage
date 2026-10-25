@@ -23,8 +23,13 @@ def canonical_param_key(key: str) -> str:
     return key.upper().replace(" ", "_")
 
 
+#: MyGarage's own key for a code list (fd614a86). Stock WiCAN firmware never
+#: sends it; a custom profile or build has to. The WiCAN parser reads this same
+#: name, so renaming it here can't quietly drop codes.
+DTC_KEY = "DIAGNOSTIC_TROUBLE_CODES"
+
 # Keys whose string values should be preserved (not dropped as non-numeric)
-STRING_VALUE_KEYS = frozenset({"DIAGNOSTIC_TROUBLE_CODES"})
+STRING_VALUE_KEYS = frozenset({DTC_KEY})
 
 # WiCAN emits these as autopid "params" but they are per-frame metadata, not
 # vehicle telemetry: TS is a rolling 0–59999 millisecond counter and TIMESTAMP

@@ -86,7 +86,13 @@ async def test_a_dtc_only_frame_records_codes_and_leaves_the_ecu_alone(
 async def test_a_code_listed_twice_in_one_frame_is_one_row(
     db_session: AsyncSession, make_livelink_vehicle
 ):
-    """Sessions run autoflush=False, so process_dtcs can't see its own pending row."""
+    """Regression guard on `process_dtcs` (unchanged): a repeat in one call reuses the row.
+
+    `_create_vehicle_dtc` flushes, so the second lookup finds the first row.
+    The parser dedupes too (`test_the_dtc_string_rule`), so this guards
+    the service's own behaviour if that ever goes. Red on main only because
+    main never reached `process_dtcs` from MQTT.
+    """
     vin, device = await make_livelink_vehicle("dtcp", "3")
     await db_session.commit()
 

@@ -56,6 +56,13 @@ class TestFlatFormat:
         assert result["DIAGNOSTIC_TROUBLE_CODES"] == "P0300,P0420"
         assert result["RPM"] == 750
 
+    def test_the_dtc_key_is_one_constant(self):
+        """The allowlist is built from the constant the WiCAN parser imports."""
+        from app.utils import autopid_normalizer
+
+        assert autopid_normalizer.DTC_KEY == "DIAGNOSTIC_TROUBLE_CODES"
+        assert autopid_normalizer.DTC_KEY in autopid_normalizer.STRING_VALUE_KEYS
+
     def test_empty_dict(self):
         """Empty dict should return empty dict."""
         assert normalize_autopid_data({}) == {}

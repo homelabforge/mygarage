@@ -189,10 +189,17 @@ async def test_a_blank_dtc_string_with_nothing_else_is_still_no_batch():
         ("", []),
         (None, []),
         (301, []),
+        # Not DTC-shaped: VehicleDTC.code is String(10), and on PG an
+        # over-long token raised at flush and took the frame's readings down.
+        ("P0301,P0301-00-EXTENDED,NO DATA,P03,X0301,P0420", ["P0301", "P0420"]),
+        ("p2a0f,U0100", ["P2A0F", "U0100"]),
     ],
 )
 def test_the_dtc_string_rule(value, expected):
-    """One rule for both WiCAN transports: split, strip, uppercase, no blanks, no repeats."""
+    """One rule for both WiCAN transports.
+
+    Split, strip, uppercase, no blanks, no repeats, DTC-shaped only.
+    """
     from app.services.livelink_sources.wican import dtc_codes_from_wire
 
     assert dtc_codes_from_wire(value) == expected

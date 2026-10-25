@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,27 +27,38 @@ from app.services.livelink_sources.base import (
     StatusTransition,
     StoragePolicy,
 )
-from app.utils.autopid_normalizer import canonical_param_key, normalize_autopid_data
+from app.utils.autopid_normalizer import DTC_KEY, canonical_param_key, normalize_autopid_data
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
-#: MyGarage's own key for a code list (fd614a86). Stock WiCAN firmware never
-#: sends it; a custom profile or build has to.
-DTC_KEY = "DIAGNOSTIC_TROUBLE_CODES"
+#: A system letter and four hex digits (P0301, U0100, P2A0F). Every one of the
+#: 9341 seeded definitions has this shape, so nothing else would ever match one.
+#: It also keeps a token over `VehicleDTC.code`'s 10 chars from failing the
+#: flush on PG.
+_DTC_SHAPE = re.compile(r"[PCBU][0-9A-F]{4}")
 
 
 def dtc_codes_from_wire(value: object) -> list[str]:
     """Split a comma-separated DTC string into clean codes.
 
     Stripped, uppercased, blanks and repeats dropped, order kept. Anything but
-    a string is no codes. Repeats matter: sessions run autoflush=False, so
-    `process_dtcs` can't see a row it added earlier in the same list.
+    a string is no codes. A token that isn't DTC-shaped is dropped with a debug
+    line, so one junk token can't take the frame's readings down with it.
+    Repeats are dropped to save `process_dtcs` a lookup each.
     """
     if not isinstance(value, str):
         return []
-    codes = (part.strip().upper() for part in value.split(","))
-    return list(dict.fromkeys(code for code in codes if code))
+    codes: list[str] = []
+    for part in value.split(","):
+        code = part.strip().upper()
+        if not code:
+            continue
+        if not _DTC_SHAPE.fullmatch(code):
+            logger.debug("Dropping a token that isn't a DTC: %s", sanitize_for_log(code))
+            continue
+        codes.append(code)
+    return list(dict.fromkeys(codes))
 
 
 class WicanModule(BaseSourceModule):
