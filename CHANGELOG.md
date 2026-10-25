@@ -23,6 +23,19 @@ The encryption protects the secret settings in every copy that leaves without th
 
 The scheduled recall check now follows the Recall Check Interval in Settings > Integrations instead of running every Sunday. Upload size limits are set with `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments) and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents), not in Settings; the Files tab shows the limits in force.
 
+Back up before you upgrade. Migration 133 is FATAL: if it fails, MyGarage refuses to start. Make a full backup from Settings > Backup > Create Full Backup, or as an admin call `POST /api/backup/create-full`. Migration 133 records the legacy miles reading for each WiCAN with no odometer unit set that already sent a bare `ODOMETER`, so its odometer reads as it did before.
+
+Run `tools/normalize_telemetry_odometer_units.py` and `tools/backfill_livelink_odometer.py` after the first start on this version, not before.
+
+Rerunning `tools/recompute_session_aggregates.py` changes the figures on a drive that starts exactly where the device's previous drive ended, since the reading they share now counts toward the earlier one only.
+
+A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit) is stored as km/h from now on. Earlier history from those devices stays in raw mph. A parameter labelled mph is relabelled km/h, and its alert lines are rescaled to km/h.
+
+### Added
+- LiveLink offline alerts cover sensors with no status topic, such as a Mopeka gateway: a live reading marks the sensor online, and it alerts once when it goes quiet
+- LiveLink device responses carry `online`, and the device list's status reads it
+- WiCAN `ODOMETER_MI` is read as an odometer in miles
+
 ### Changed
 - The NHTSA recalls switch in Settings > Integrations is honoured. Off, the scheduled recall check skips, Check NHTSA on the Recalls tab is disabled with a line saying where to switch it on, and the API answers 409
 - The Recall Check Interval is honoured. The scheduled check runs daily at 2 AM UTC and checks your vehicles once the interval has passed since the last check. If NHTSA fails to answer for any vehicle (no connection, an error status, or a response that can't be read), the last check time stays put and the next day's run tries again
@@ -31,10 +44,47 @@ The scheduled recall check now follows the Recall Check Interval in Settings > I
 - Every on/off setting is read the same way by the backend and the UI: true, 1, yes and on, in any case, are on, so they no longer disagree about a switch stored as "1" or "yes". A switch saved through the settings API or a settings restore as true/false, 1/0, yes/no or on/off is stored as "true" or "false"
 - Settings > Files shows the upload limits in force, read-only: the size cap and file types for photos, attachments and documents, the two environment variables that set the sizes, and the storage directories. Admins can read the same from `GET /api/settings/upload-limits`
 - The NHTSA, CarComplaints and window sticker switches are readable from `/api/settings/public`, so non-admins see the CarComplaints link on the Recalls tab, and the UI follows the switches for them too
+- WiCAN odometers follow upstream: `ODOMETER` is km and `ODOMETER_MI` is mi, and a unit the device declares in its HTTPS config wins. Existing devices keep their reading (migration 133)
+- LiveLink threshold alerts show the value and the line in your units. Alert lines are stored in metric, and a reading with no known quantity prints as stored
+- A sensor's offline alert says to check the device instead of the vehicle battery, and offline alerts name the vehicle by its nickname first
+- SD settings and the manual SD pull answer 422, and device commands are refused, for a device kind that doesn't have them (a sensor or Torque)
+- Saving the Mosquitto settings applies them at once: switching MQTT off stops the subscriber, switching it on starts it, and a broker change restarts it
+- Topic discovery answers 409 when MQTT is off or has no broker, and 502 with the broker's reason when it refuses, instead of an empty list or an error
+- Retained MQTT messages are ignored, so a reconnect no longer restamps a dead device's last values as new. A retained LWT `offline` still counts
+- The units a WiCAN declares at boot are kept per device, so they survive a MyGarage restart
+- Deleting a preset sensor is admin-only
+- Device and broker statuses, preset descriptions and reading labels are translated, and refused device and SD actions show the server's reason
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
 - The `MYGARAGE_RECALL_CHECK_INTERVAL_DAYS` environment variable, which nothing read. The interval is the Recall Check Interval setting
+
+### Fixed
+- DTCs from a WiCAN are recorded over MQTT as well as HTTPS, and only codes shaped like a DTC are kept
+- The new-device notification is sent when a WiCAN is discovered
+- Replayed and SD-backfilled readings no longer replace a newer latest value, pull a drive's end back, or reopen drives wrongly, and they are rate-checked against their own time
+- A device clock set in the future no longer freezes a latest value
+- An SD-card drive that overlaps an open drive is kept, and no closed drive is written inside an open one
+- A drive that starts where the previous one ended no longer counts their shared reading twice
+- A drive starts from the newest odometer reading
+- A held drive is no longer ended again at the current time when the ECU goes offline
+- A threshold alert no notification service accepts retries once per cooldown instead of on every reading, so a notification outage no longer stalls MQTT ingest
+- A `nan` or `inf` MQTT reading is dropped instead of failing every publish (SQLite) or being stored (PostgreSQL)
+- A WiCAN frame with no usable value or only codes no longer marks the ECU online
+- A disabled WiCAN's HTTPS uploads are no longer stored, and an HTTPS telemetry upload clears a pending offline and marks the ECU on
+- An unlinked HTTPS WiCAN stays online between boots, so onboarding no longer sends a false offline alert
+- Units a WiCAN declares over HTTPS apply to mixed-case keys, and a unit that names a class (rpm, km/h) wins over the class declared with it
+- A vehicle with a WiCAN and a sensor takes its drive status from the WiCAN, and is online when any of its devices is
+- Changing a device's vehicle ends its open drive at the last movement, and the old vehicle's movement state doesn't carry over
+- An offline alert for a vehicle with no year, make or model no longer reads "None None None"
+- One device of an unknown kind no longer stops the offline check for every device
+- A topic the broker refuses on connect no longer drops the MQTT connection
+- Two preset applies at once answer 409 instead of 500
+- A session CSV export keeps a zero instead of leaving the cell blank
+- Device labels and topic-map parameter keys are trimmed, so a key of only spaces no longer registers a parameter named `_`
+- The odometer unit and parameter selects go back to the device's value when the change is refused
+- A sensor's block no longer says "No recent readings" while it loads or when loading fails
+- The nightly telemetry prune logs the rows it actually deleted, once
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)
