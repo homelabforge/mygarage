@@ -2329,6 +2329,8 @@ export interface paths {
          *
          *     **Security:**
          *     - Owner of the device's linked vehicle (admin for unlinked devices).
+         *     - A preset sensor is admin-only: deleting it drops its topic maps and its
+         *       readings on every vehicle it ever reported to, not just this one.
          */
         delete: operations["delete_device_api_livelink_devices__device_id__delete"];
         options?: never;
@@ -2752,9 +2754,12 @@ export interface paths {
         get: operations["get_mqtt_settings_api_livelink_mqtt_settings_get"];
         /**
          * Update Mqtt Settings
-         * @description Update MQTT subscriber settings.
+         * @description Update MQTT subscriber settings, and apply them.
          *
-         *     After updating settings, restart the MQTT subscriber for changes to take effect.
+         *     Switching `enabled` off stops the subscriber and switching it on starts
+         *     it. Changing any other field restarts a running subscriber, as the Restart
+         *     button does; a stopped one stays stopped. Sending a field's stored value
+         *     isn't a change.
          *
          *     **Security:**
          *     - Requires authentication
@@ -3003,6 +3008,10 @@ export interface paths {
         /**
          * Discover Topics
          * @description Listen briefly and report what the broker is publishing.
+         *
+         *     409 when a run is already going or MQTT can't connect as configured (off,
+         *     no broker host), 502 with the broker's message when it refuses or can't be
+         *     reached.
          */
         post: operations["discover_topics_api_livelink_topic_discovery_post"];
         delete?: never;
@@ -12471,7 +12480,7 @@ export interface components {
             devices: components["schemas"]["LiveLinkDeviceResponse"][];
             /**
              * Online Count
-             * @description Number of devices currently online
+             * @description Number of devices currently online, by each device's `online`
              * @default 0
              */
             online_count: number;
@@ -12497,7 +12506,10 @@ export interface components {
             device_id: string;
             /** Kind */
             kind: string;
-            /** Label */
+            /**
+             * Label
+             * @description User-friendly device name, stored stripped. Blank is no name.
+             */
             label?: string | null;
             /** Vin */
             vin?: string | null;
@@ -12591,6 +12603,12 @@ export interface components {
              * @description Declared odometer units ('km'/'mi'); None means inferred from the key
              */
             odometer_unit?: string | null;
+            /**
+             * Online
+             * @description Whether the device is reporting now, by the integrations card's rule: a device whose device_status is 'online' counts as online until the offline sweep flips it, one that never reports a status (Torque) keeps 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online. Read this, not device_status.
+             * @default false
+             */
+            online: boolean;
             /**
              * Preset Key
              * @description The preset that created this device, if any. A preset device's tab is named by its preset, and its mappings are the preset's, not hand-made.

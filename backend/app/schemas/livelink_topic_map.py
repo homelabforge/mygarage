@@ -43,8 +43,15 @@ class TopicMapBase(BaseModel):
     @field_validator("param_key")
     @classmethod
     def canonicalize(cls, v: str | None) -> str | None:
-        """Match the uppercase canonicalization every ingest path applies."""
-        return v.upper().replace(" ", "_") if v else v
+        """Match the uppercase canonicalization every ingest path applies.
+
+        Stripped first and blank is None, so a telemetry row still has to name
+        a key: " " used to become "_" and register a parameter called that.
+        """
+        if v is None:
+            return None
+        v = v.strip()
+        return v.upper().replace(" ", "_") if v else None
 
 
 class TopicMapCreate(TopicMapBase):

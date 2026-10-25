@@ -56,6 +56,7 @@ from app.services.dtc_service import DTCService
 from app.services.livelink_alerts import alert_band
 from app.services.livelink_integrations import device_is_online
 from app.services.livelink_service import LiveLinkService
+from app.services.livelink_sources.base import Capability
 from app.services.livelink_sources.presets.sensors import live_sensors
 from app.services.livelink_sources.registry import default_registry
 from app.services.location_service import LocationService
@@ -127,6 +128,19 @@ def _union_capabilities(devices: Sequence[LiveLinkDevice]) -> list[str]:
     return sorted(caps)
 
 
+def _drive_source(devices: Sequence[LiveLinkDevice]) -> LiveLinkDevice | None:
+    """The device a vehicle's status describes.
+
+    The most recently seen one that can drive a session (`devices` comes
+    newest first), else the most recently seen of any kind.
+    """
+    registry = default_registry()
+    for device in devices:
+        if Capability.DRIVE_SESSION in registry.capabilities_for(device.kind):
+            return device
+    return devices[0] if devices else None
+
+
 # =============================================================================
 # Status Endpoint (for live dashboard polling)
 # =============================================================================
@@ -166,14 +180,19 @@ async def get_vehicle_livelink_status(
     # Every linked device, not just the most recent one: `capabilities` is a
     # union and a vehicle may carry more than one source.
     devices = await livelink_service.list_devices_by_vin(vin)
-    device = devices[0] if devices else None
+    # The ECU, signal, battery and drive chip come from the vehicle's drive
+    # source, the most recently seen DRIVE_SESSION device (R7). Taking them
+    # from whichever device reported last let a propane sensor that publishes
+    # every few seconds blank them between WiCAN frames.
+    device = _drive_source(devices)
     capabilities = _union_capabilities(devices)
     # The integrations card's rule, not `device_status == 'online'`: Torque
     # never leaves 'unknown', and a disabled device freezes at its last status.
-    # No device, nothing to be online and no setting worth reading.
+    # Any linked device reporting means the vehicle is reachable. No device,
+    # nothing to be online and no setting worth reading.
     timeout = await livelink_service.get_device_offline_timeout_minutes() if devices else 0
     now = utc_now()
-    online = device_is_online(device, timeout, now) if device else False
+    online = any(device_is_online(d, timeout, now) for d in devices)
     sensors = await live_sensors(db, devices, timeout, now)
 
     # Get latest telemetry values
@@ -224,10 +243,12 @@ async def get_vehicle_livelink_status(
         device_id=device.device_id if device else None,
         kind=device.kind if device else None,
         capabilities=capabilities,
-        device_status=device.device_status if device else "offline",
+        # Follows `online`, so the two can't disagree on a multi-device vehicle.
+        device_status="online" if online else "offline",
         online=online,
         ecu_status=device.ecu_status if device else "unknown",
-        last_seen=device.last_seen if device else None,
+        # The vehicle's last contact, from whichever device that was.
+        last_seen=devices[0].last_seen if devices else None,
         battery_voltage=device.battery_voltage if device else None,
         rssi=device.rssi if device else None,
         current_session_id=current_session_id,
@@ -823,18 +844,22 @@ async def export_sessions(
     )
 
     for s in sessions:
+        # Blank only for None: a parked session's 0 s and 0.0 km are values (G4-05).
+        measured = [
+            s.duration_seconds,
+            s.distance_km,
+            s.avg_speed,
+            s.max_speed,
+            s.avg_rpm,
+            s.max_rpm,
+        ]
         writer.writerow(
             sanitize_csv_row(
                 [
                     s.id,
                     s.started_at.isoformat() if s.started_at else "",
                     s.ended_at.isoformat() if s.ended_at else "",
-                    s.duration_seconds or "",
-                    s.distance_km or "",
-                    s.avg_speed or "",
-                    s.max_speed or "",
-                    s.avg_rpm or "",
-                    s.max_rpm or "",
+                    *("" if v is None else v for v in measured),
                 ]
             )
         )

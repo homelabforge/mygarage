@@ -681,3 +681,109 @@ async def test_other_keys_stay_shareable(client, auth_headers, db_session, no_re
             headers=auth_headers,
         )
         assert resp.status_code == 201
+
+
+# ---------------------------------------------------------------------------
+# Who may delete a sensor (R6), and a racing apply (B-13)
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture
+async def owned_by_non_admin(db_session, non_admin_user):
+    """A vehicle the non-admin user owns, so their delete passes the owner check."""
+    vin = "SENSOROWNERNA0001"
+    db_session.add(
+        Vehicle(
+            vin=vin,
+            user_id=non_admin_user["id"],
+            nickname="Their trailer",
+            vehicle_type="Car",
+            year=2015,
+            make="Test",
+            model="Trailer",
+        )
+    )
+    await db_session.commit()
+    yield vin
+    await db_session.rollback()
+    await db_session.execute(delete(LiveLinkDevice).where(LiveLinkDevice.vin == vin))
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_an_owner_who_is_not_an_admin_cannot_delete_a_preset_sensor(
+    client, auth_headers, non_admin_headers, db_session, owned_by_non_admin, no_reload
+):
+    """Deleting a sensor drops its global topic maps and its readings on every
+    vehicle it ever reported to, so it's global LiveLink infra: admin only."""
+    added = await _add(client, auth_headers, vin=owned_by_non_admin)
+    assert added.status_code == 201, added.text
+    device_id = added.json()["device_id"]
+
+    resp = await client.delete(f"/api/livelink/devices/{device_id}", headers=non_admin_headers)
+
+    assert resp.status_code == 403, resp.text
+    db_session.expire_all()
+    assert await db_session.get(LiveLinkDevice, added.json()["id"]) is not None
+    maps = await db_session.execute(
+        select(LiveLinkTopicMap.id).where(LiveLinkTopicMap.device_id == device_id)
+    )
+    assert len(maps.all()) == 1
+
+
+@pytest.mark.asyncio
+async def test_an_owner_can_still_delete_a_handmade_device(
+    client, non_admin_headers, db_session, owned_by_non_admin, no_reload
+):
+    """Regression guard: a device no preset made keeps owner delete."""
+    db_session.add(
+        LiveLinkDevice(device_id="handmade-owned", kind="generic_mqtt", vin=owned_by_non_admin)
+    )
+    await db_session.commit()
+
+    resp = await client.delete("/api/livelink/devices/handmade-owned", headers=non_admin_headers)
+
+    assert resp.status_code == 204, resp.text
+
+
+@pytest.mark.asyncio
+async def test_an_apply_that_loses_a_race_is_409_and_creates_nothing(
+    client, auth_headers, db_session, test_sessionmaker, no_reload
+):
+    """Two applies read the same free index; the second insert hits the unique
+    device id. The rival commits from its own connection between this request's
+    index read and its insert, which is exactly the window a concurrent request has."""
+    from app.services.livelink_sources.presets import sensors
+
+    real_next = sensors.next_sensor_index
+
+    async def _rival_wins(db, preset):
+        index = await real_next(db, preset)
+        async with test_sessionmaker() as rival:
+            rival.add(
+                LiveLinkDevice(
+                    device_id=preset.device_id(index),
+                    kind=preset.kind,
+                    label="Rival",
+                    preset_key=preset.name,
+                    enabled=True,
+                )
+            )
+            await rival.commit()
+        return index
+
+    with patch.object(sensors, "next_sensor_index", new=_rival_wins):
+        resp = await _add(client, auth_headers, label="Loser", topics=_topics("race", "LEVEL_PCT"))
+
+    assert resp.status_code == 409, resp.text
+    db_session.expire_all()
+    labels = await db_session.execute(
+        select(LiveLinkDevice.label).where(LiveLinkDevice.preset_key == "mopeka")
+    )
+    assert list(labels.scalars()) == ["Rival"]
+    maps = await db_session.execute(
+        select(LiveLinkTopicMap.id).where(LiveLinkTopicMap.topic == "test/race/level_pct")
+    )
+    assert maps.all() == []
+    no_reload.assert_not_awaited()

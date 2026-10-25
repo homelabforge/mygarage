@@ -345,3 +345,48 @@ class TestVehicleExport:
             headers=auth_headers,
         )
         assert response.status_code == 404
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_the_session_csv_keeps_zeros(
+    client: AsyncClient, auth_headers, db_session, test_user
+):
+    """G4-05: `x or ""` wrote a parked session's 0 s, 0.0 km and 0.0 km/h as
+    blanks, which read as "not recorded". Only None is blank."""
+    import csv
+    import io
+
+    from app.models.drive_session import DriveSession
+
+    vin = f"CS{uuid.uuid4().hex[:15].upper()}"
+    db_session.add(Vehicle(vin=vin, user_id=test_user["id"], nickname="Csv", vehicle_type="Car"))
+    started = utc_now() - timedelta(hours=1)
+    db_session.add(
+        DriveSession(
+            vin=vin,
+            device_id="csvzeros01",
+            started_at=started,
+            ended_at=started,
+            duration_seconds=0,
+            distance_km=0.0,
+            avg_speed=0.0,
+            max_speed=0.0,
+            avg_rpm=None,
+            max_rpm=0.0,
+        )
+    )
+    await db_session.commit()
+
+    resp = await client.get(f"/api/vehicles/{vin}/livelink/export/sessions", headers=auth_headers)
+
+    assert resp.status_code == 200, resp.text
+    rows = list(csv.DictReader(io.StringIO(resp.text)))
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["duration_seconds"] == "0"
+    assert row["distance_km"] == "0.0"
+    assert row["avg_speed"] == "0.0"
+    assert row["max_speed"] == "0.0"
+    assert row["max_rpm"] == "0.0"
+    assert row["avg_rpm"] == ""

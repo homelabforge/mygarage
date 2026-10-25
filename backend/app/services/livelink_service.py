@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_topic_map import LiveLinkTopicMap
 from app.models.odometer import OdometerRecord
@@ -21,8 +22,9 @@ from app.schemas.livelink import DeviceStatusType, ECUStatusType
 from app.services.livelink_sources.base import Capability
 from app.services.livelink_sources.presets.sensors import delete_sensor_readings
 from app.services.livelink_sources.registry import default_registry
+from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService, parse_bool
-from app.utils.datetime_utils import utc_now
+from app.utils.datetime_utils import to_naive_utc, utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.movement_keys import is_parked_heartbeat_key, is_speed_param_key
 from app.utils.odometer_units import is_odometer_param_key
@@ -486,29 +488,6 @@ class LiveLinkService:
         )
         return True
 
-    async def unlink_device(self, device_id: str) -> bool:
-        """Unlink a device from its vehicle (ready for re-linking).
-
-        Historical data stays with the vehicle.
-        Returns True if successful, False if device not found.
-        """
-        device = await self.get_device_by_id(device_id)
-        if not device:
-            return False
-
-        old_vin = device.vin
-        device.vin = None
-        device.current_session_id = None  # Clear any active session
-        device.updated_at = utc_now()
-        await self.db.commit()
-
-        logger.info(
-            "Unlinked device %s from vehicle %s",
-            sanitize_for_log(device_id),
-            sanitize_for_log(old_vin),
-        )
-        return True
-
     async def update_device(self, device_id: str, changes: dict[str, Any]) -> LiveLinkDevice | None:
         """Update device settings.
 
@@ -517,7 +496,8 @@ class LiveLinkService:
         separate parameters defaulting to None couldn't tell that from omitted,
         so a cleared label said saved and stayed. A name is stored stripped.
 
-        ``vin``: ``""`` unlinks, None leaves the link alone.
+        ``vin``: ``""`` unlinks, None leaves the link alone. Changing it ends
+        a drive in progress on the old vehicle (`_end_drive_for_relink`).
 
         ``odometer_unit`` accepts 'km', 'mi', or 'auto' to clear the override
         back to key-shape inference. None leaves the current value untouched.
@@ -540,7 +520,10 @@ class LiveLinkService:
         vin = changes.get("vin")
         if vin is not None:
             # "" is the unlink sentinel (schemas.livelink.LiveLinkDeviceUpdate.vin).
-            device.vin = vin or None
+            new_vin = vin or None
+            if new_vin != device.vin:
+                await self._end_drive_for_relink(device)
+            device.vin = new_vin
         if "enabled" in changes:
             device.enabled = changes["enabled"]
         odometer_unit = changes.get("odometer_unit")
@@ -584,6 +567,26 @@ class LiveLinkService:
         await self.db.commit()
 
         return device
+
+    async def _end_drive_for_relink(self, device: LiveLinkDevice) -> None:
+        """Let go of the session pointer before the device changes vehicle (R8).
+
+        An open session is ended at its last movement, or the last contact when
+        it has none, the way the timeout clocks would have closed it. Left open,
+        it never closed, and the device's next movement on the new vehicle
+        reopened a drive belonging to the old one. A pointer held on a closed
+        session (awaiting a reopen) is just dropped.
+        """
+        if not device.current_session_id:
+            return
+        session = await self.db.get(DriveSession, device.current_session_id)
+        if session is not None and session.ended_at is None:
+            end_at = session.movement_ended_at or device.last_seen or utc_now()
+            # Never before it started, or the duration goes negative.
+            if session.started_at is not None:
+                end_at = max(to_naive_utc(end_at), to_naive_utc(session.started_at))
+            await SessionService(self.db).end_session(device, end_at)
+        device.current_session_id = None
 
     async def device_has_odometer_history(self, device: LiveLinkDevice) -> bool:
         """Whether odometer readings were recorded that this device could have written.

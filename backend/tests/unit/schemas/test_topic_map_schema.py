@@ -27,3 +27,22 @@ def test_create_refuses_telemetry_without_a_param_key():
     """
     with pytest.raises(ValidationError, match="param_key is required"):
         TopicMapCreate(device_id="gw01", topic="wican/gw01/level", role="telemetry")
+
+
+def test_a_blank_param_key_on_telemetry_is_refused():
+    """P2E3: " " used to canonicalise to "_" and register a parameter called `_`."""
+    with pytest.raises(ValidationError, match="param_key is required"):
+        TopicMapCreate(device_id="gw01", topic="wican/gw01/level", role="telemetry", param_key=" ")
+
+
+def test_a_blank_param_key_on_a_status_row_is_none():
+    row = TopicMapCreate(device_id="gw01", topic="wican/gw01/status", role="status", param_key="  ")
+
+    assert row.param_key is None
+
+
+def test_a_padded_param_key_is_stripped_before_it_is_canonicalised():
+    """Padding used to become underscores: " level pct " was `_LEVEL_PCT_`."""
+    row = TopicMapCreate(device_id="gw01", topic="wican/gw01/level", param_key=" level pct ")
+
+    assert row.param_key == "LEVEL_PCT"

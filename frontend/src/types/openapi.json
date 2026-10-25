@@ -11191,7 +11191,7 @@
           },
           "online_count": {
             "default": 0,
-            "description": "Number of devices currently online",
+            "description": "Number of devices currently online, by each device's `online`",
             "title": "Online Count",
             "type": "integer"
           },
@@ -11231,6 +11231,7 @@
                 "type": "null"
               }
             ],
+            "description": "User-friendly device name, stored stripped. Blank is no name.",
             "title": "Label"
           },
           "vin": {
@@ -11432,6 +11433,12 @@
             ],
             "description": "Declared odometer units ('km'/'mi'); None means inferred from the key",
             "title": "Odometer Unit"
+          },
+          "online": {
+            "default": false,
+            "description": "Whether the device is reporting now, by the integrations card's rule: a device whose device_status is 'online' counts as online until the offline sweep flips it, one that never reports a status (Torque) keeps 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online. Read this, not device_status.",
+            "title": "Online",
+            "type": "boolean"
           },
           "preset_key": {
             "anyOf": [
@@ -39155,7 +39162,7 @@
     },
     "/api/livelink/devices/{device_id}": {
       "delete": {
-        "description": "Delete a device.\n\nHistorical telemetry and sessions are retained (keyed on vehicle), except a\npreset sensor's readings, which are deleted with it.\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).",
+        "description": "Delete a device.\n\nHistorical telemetry and sessions are retained (keyed on vehicle), except a\npreset sensor's readings, which are deleted with it.\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).\n- A preset sensor is admin-only: deleting it drops its topic maps and its\n  readings on every vehicle it ever reported to, not just this one.",
         "operationId": "delete_device_api_livelink_devices__device_id__delete",
         "parameters": [
           {
@@ -40117,7 +40124,7 @@
         ]
       },
       "put": {
-        "description": "Update MQTT subscriber settings.\n\nAfter updating settings, restart the MQTT subscriber for changes to take effect.\n\n**Security:**\n- Requires authentication",
+        "description": "Update MQTT subscriber settings, and apply them.\n\nSwitching `enabled` off stops the subscriber and switching it on starts\nit. Changing any other field restarts a running subscriber, as the Restart\nbutton does; a stopped one stays stopped. Sending a field's stored value\nisn't a change.\n\n**Security:**\n- Requires authentication",
         "operationId": "update_mqtt_settings_api_livelink_mqtt_settings_put",
         "requestBody": {
           "content": {
@@ -40569,7 +40576,7 @@
     },
     "/api/livelink/topic-discovery": {
       "post": {
-        "description": "Listen briefly and report what the broker is publishing.",
+        "description": "Listen briefly and report what the broker is publishing.\n\n409 when a run is already going or MQTT can't connect as configured (off,\nno broker host), 502 with the broker's message when it refuses or can't be\nreached.",
         "operationId": "discover_topics_api_livelink_topic_discovery_post",
         "requestBody": {
           "content": {

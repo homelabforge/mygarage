@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from tests.integration._secret_helpers import seed_rows
+
 URL = "/api/livelink/topic-discovery"
 
 
@@ -74,3 +76,81 @@ def test_collector_keeps_one_sample_per_topic():
     c.observe("a", b"second")
     assert len(c.results()) == 1
     assert c.results()[0]["sample"] == "first"
+
+
+# ---------------------------------------------------------------------------
+# B-4: a run that can't happen says why
+# ---------------------------------------------------------------------------
+
+_MQTT = {
+    "livelink_mqtt_enabled": "true",
+    "livelink_mqtt_broker_host": "mqtt.example.com",
+    "livelink_mqtt_broker_port": "1883",
+    "livelink_mqtt_username": "",
+    "livelink_mqtt_password": "",
+}
+
+
+@pytest.fixture
+def subscriber_db(test_sessionmaker):
+    """`_get_config` opens its own session; point it at the test database."""
+    with (
+        patch("app.services.mqtt_subscriber.AsyncSessionLocal", test_sessionmaker),
+        patch("app.services.mqtt_subscriber.load_household_zone", new=AsyncMock()),
+    ):
+        yield
+
+
+@pytest.mark.asyncio
+async def test_discovery_with_mqtt_off_is_409_saying_so(
+    client, auth_headers, db_session, keep_rows, subscriber_db
+):
+    """It used to answer 200 with no topics, which reads as "nothing is publishing"."""
+    await seed_rows(db_session, keep_rows, {**_MQTT, "livelink_mqtt_enabled": "false"})
+
+    resp = await client.post(URL, json={"prefix": "a/#", "seconds": 1}, headers=auth_headers)
+
+    assert resp.status_code == 409, resp.text
+    assert "MQTT is off" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_discovery_with_no_broker_host_is_409_saying_so(
+    client, auth_headers, db_session, keep_rows, subscriber_db
+):
+    await seed_rows(db_session, keep_rows, {**_MQTT, "livelink_mqtt_broker_host": ""})
+
+    resp = await client.post(URL, json={"prefix": "a/#", "seconds": 1}, headers=auth_headers)
+
+    assert resp.status_code == 409, resp.text
+    assert "broker host" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_a_broker_that_refuses_is_502_with_its_message(
+    client, auth_headers, db_session, keep_rows, subscriber_db
+):
+    """aiomqtt's error isn't a RuntimeError, so it used to escape the route as a 500."""
+    import aiomqtt
+
+    await seed_rows(db_session, keep_rows, _MQTT)
+
+    class _Refused:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            raise aiomqtt.MqttError("[code:5] Connection refused: not authorised")
+
+        async def __aexit__(self, *_exc) -> bool:
+            return False
+
+    with patch("aiomqtt.Client", _Refused):
+        resp = await client.post(URL, json={"prefix": "a/#", "seconds": 1}, headers=auth_headers)
+
+    assert resp.status_code == 502, resp.text
+    assert "Connection refused: not authorised" in resp.json()["detail"]
+    # The guard is released, so the next run isn't refused as "in progress".
+    from app.services.mqtt_subscriber import mqtt_subscriber
+
+    assert mqtt_subscriber._discovering is False  # pyright: ignore[reportPrivateUsage]

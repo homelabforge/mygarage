@@ -388,36 +388,6 @@ class TestDeviceManagement:
             assert result is False
             mock_db.commit.assert_not_called()
 
-    async def test_unlink_device_success(self):
-        """Test unlinking a device from vehicle."""
-        mock_db = AsyncMock()
-        mock_device = MagicMock()
-        mock_device.vin = "1HGCM82633A123456"
-        mock_device.current_session_id = 123
-
-        with patch.object(LiveLinkService, "get_device_by_id", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = mock_device
-
-            service = LiveLinkService(mock_db)
-            result = await service.unlink_device("device_123")
-
-            assert result is True
-            assert mock_device.vin is None
-            assert mock_device.current_session_id is None
-            mock_db.commit.assert_called_once()
-
-    async def test_unlink_device_not_found(self):
-        """Test unlinking nonexistent device."""
-        mock_db = AsyncMock()
-
-        with patch.object(LiveLinkService, "get_device_by_id", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = None
-
-            service = LiveLinkService(mock_db)
-            result = await service.unlink_device("nonexistent")
-
-            assert result is False
-
     async def test_update_device_all_fields(self):
         """Test updating all device fields."""
         mock_db = AsyncMock()

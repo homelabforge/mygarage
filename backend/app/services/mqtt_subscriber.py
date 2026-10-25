@@ -17,7 +17,7 @@ from app.database import AsyncSessionLocal
 from app.services.livelink_ingest import ingest
 from app.services.livelink_sources.base import BaseSourceModule, MqttEnvelope
 from app.services.livelink_sources.registry import default_registry
-from app.services.settings_service import SecretUnreadableError, SettingsService
+from app.services.settings_service import SecretUnreadableError, SettingsService, reenter_message
 from app.utils.datetime_utils import utc_now
 from app.utils.household_time import load_household_zone
 from app.utils.logging_utils import sanitize_for_log
@@ -28,6 +28,10 @@ logger = logging.getLogger(__name__)
 MAX_DISCOVERY_SECONDS = 60
 MAX_DISCOVERY_TOPICS = 500
 MAX_DISCOVERY_SAMPLE = 256
+
+
+class MqttNotConfiguredError(Exception):
+    """MQTT is off, or on with nothing it can connect with. The message says which."""
 
 
 class _DiscoveryCollector:
@@ -171,16 +175,28 @@ class MQTTSubscriber:
         logger.info("Sent command to device %s: %s", sanitize_for_log(device_id), command)
 
     async def _get_config(self) -> dict[str, Any] | None:
-        """Get MQTT configuration from settings."""
+        """Get MQTT configuration from settings, or None when it can't connect."""
+        try:
+            return await self._load_config()
+        except MqttNotConfiguredError:
+            return None
+
+    async def _load_config(self) -> dict[str, Any]:
+        """MQTT configuration from settings.
+
+        Raises MqttNotConfiguredError saying why when there's nothing to
+        connect with, so topic discovery can tell the operator instead of
+        reporting an empty broker (B-4).
+        """
         async with AsyncSessionLocal() as db:
             await load_household_zone(db)
             if not await SettingsService.get_bool(db, "livelink_mqtt_enabled", default=False):
-                return None
+                raise MqttNotConfiguredError("MQTT is off; turn it on in the Mosquitto settings")
 
             broker_host = await SettingsService.get(db, "livelink_mqtt_broker_host")
             if not broker_host or not broker_host.value:
                 logger.error("MQTT enabled but no broker host configured")
-                return None
+                raise MqttNotConfiguredError("MQTT is on but no broker host is configured")
 
             broker_port = await SettingsService.get(db, "livelink_mqtt_broker_port")
             username = await SettingsService.get(db, "livelink_mqtt_username")
@@ -193,7 +209,7 @@ class MQTTSubscriber:
                     "MQTT enabled but the stored %s can't be decrypted; re-enter it in Settings",
                     e.key,
                 )
-                return None
+                raise MqttNotConfiguredError(reenter_message("MQTT password")) from e
             topic_prefix = await SettingsService.get(db, "livelink_mqtt_topic_prefix")
             use_tls = await SettingsService.get_bool(db, "livelink_mqtt_use_tls", default=False)
 
@@ -299,7 +315,9 @@ class MQTTSubscriber:
 
         Opens its OWN client so the live subscription set is untouched. Bounded
         on every axis: duration, distinct topics and sample size. Raises
-        RuntimeError if a run is already in progress.
+        RuntimeError if a run is already in progress, MqttNotConfiguredError
+        when MQTT can't connect as configured, and lets aiomqtt's MqttError out
+        when the broker refuses or can't be reached.
         """
         import aiomqtt
 
@@ -310,9 +328,7 @@ class MQTTSubscriber:
             raise RuntimeError("A discovery run is already in progress")
         self._discovering = True
         try:
-            config = await self._get_config()
-            if not config:
-                return []
+            config = await self._load_config()
 
             seconds = max(1, min(seconds, MAX_DISCOVERY_SECONDS))
             collector = _DiscoveryCollector(MAX_DISCOVERY_TOPICS, MAX_DISCOVERY_SAMPLE)
@@ -385,15 +401,27 @@ class MQTTSubscriber:
                     reconnect_delay = self._reconnect_delay  # Reset on successful connect
                     self._connection_status = "connected"
 
-                    # A fresh client holds no subscriptions, so forget what the
-                    # previous connection had ACKed or reload() would skip
-                    # everything after a reconnect.
-                    self._reset_subscription_state()
-                    self._subscribed = await self._desired_subscriptions()
-                    for topic in self._subscribed:
-                        await client.subscribe(topic)
-                        self._confirmed.add(topic)
-                        logger.info("Subscribed to MQTT topic: %s", sanitize_for_log(topic))
+                    # Under the reload lock, so a topic-map save landing mid-connect
+                    # can't interleave with this (A-14). A fresh client holds no
+                    # subscriptions, so forget what the previous connection had
+                    # ACKed or reload() would skip everything after a reconnect.
+                    async with self._reload_lock:
+                        self._reset_subscription_state()
+                        self._subscribed = await self._desired_subscriptions()
+                        for topic in sorted(self._subscribed):
+                            # Per topic, like reload(): one refused topic used to drop
+                            # the whole connection and reconnect into the same refusal.
+                            try:
+                                await client.subscribe(topic)
+                            except Exception as exc:
+                                logger.error(
+                                    "SUBSCRIBE failed for %s: %s (will retry on next reload)",
+                                    sanitize_for_log(topic),
+                                    exc,
+                                )
+                                continue  # left out of _confirmed, so reload() retries it
+                            self._confirmed.add(topic)
+                            logger.info("Subscribed to MQTT topic: %s", sanitize_for_log(topic))
 
                     # Process messages
                     async for message in client.messages:
