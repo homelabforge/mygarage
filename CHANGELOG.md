@@ -47,7 +47,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - WiCAN odometers follow upstream: `ODOMETER` is km and `ODOMETER_MI` is mi, and a unit the device declares in its HTTPS config wins. Existing devices keep their reading of every odometer key (migration 133)
 - `ODOMETER_MI` is read as miles and stored as km from every source, not just a WiCAN, so a topic mapped to it shows what was sent. Readings stored raw before are moved to km (migration 133); a vehicle where another device may also have sent it keeps its latest value and daily summaries as they were
 - An odometer's parameter is labelled km, the unit it's stored in, and one labelled miles by an earlier version is relabelled
-- Odometer keys a WiCAN records, like `ODOMETER_KM`, count for the unit-change guard, session odometers and the repair tools too, and LiveLink shows an odometer as a distance when its parameter says km, which MyGarage now labels for every odometer it converts
+- Odometer keys a WiCAN records, like `ODOMETER_KM`, count for the unit-change guard, session odometers and the repair tools too, and LiveLink shows an odometer as a distance when its parameter says km, which MyGarage now labels for the odometers it converts, unless another device sends the same key unconverted
 - An SD card odometer is stored like a live one: in whole km, and dropped past 1.6 million km or more than 16,000 km above the vehicle's records
 - LiveLink threshold alerts show the value and the line in your units. Alert lines are stored in metric, and a reading with no known quantity prints as stored
 - A sensor's offline alert says to check the device instead of the vehicle battery, and offline alerts name the vehicle by its nickname first
@@ -89,6 +89,11 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - The odometer unit and parameter selects go back to the device's value when the change is refused
 - A sensor's block no longer says "No recent readings" while it loads or when loading fails
 - The nightly telemetry prune logs the rows it actually deleted, once
+- A threshold alert is sent in the background once its reading is stored, so a slow notification service no longer slows LiveLink ingest
+- Two devices on one vehicle no longer rate-check each other's readings: each reading is compared with its own device's last one
+- A drive's details list every parameter it recorded, and count only its own device's readings inside its own window
+- A vehicle's LiveLink status no longer comes from a device that's switched off while an enabled one is linked
+- The manual SD pull answers 404 for a device that doesn't exist, instead of an empty result
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)
@@ -102,6 +107,8 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - Validation error logs no longer include the rejected input, and a 422 body leaves it out for fields named like a password, secret, token or key
 - POI provider key masks show `********` instead of the key's first 8 characters
 - A secret setting's default value is logged as `<secret>` when it is seeded
+- LiveLink ingest only takes a device of its own kind: a WiCAN upload or topic naming a sensor or a Torque phone, or a Torque token sent to the WiCAN endpoint, is refused
+- An SD pull checks the device address is still private when it connects, not only when it was saved, and skips it if not
 
 ## [3.9.0] - 2026-10-18
 
