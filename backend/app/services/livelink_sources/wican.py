@@ -257,8 +257,8 @@ class WicanModule(BaseSourceModule):
                 ecu_status=ecu,
                 device_status="online",
                 session=StatusTransition(ecu_status=ecu),
-                # _handle_status updates status OUTSIDE its `if device.vin`
-                # block, so an unlinked device still shows online.
+                # The old `_handle_status` updated status outside its
+                # `if device.vin` block, so an unlinked device still shows online.
                 requires_link=False,
             )
 
@@ -273,10 +273,10 @@ class WicanModule(BaseSourceModule):
                 readings=[
                     Reading("BATTERY_VOLTAGE", float(voltage), unit="V", param_class="voltage")
                 ],
-                # _handle_battery updates status BEFORE its `if device.vin`.
+                # The old `_handle_battery` updated status before its
+                # `if device.vin`.
                 requires_link=False,
-                # It does NOT clear pending offline and does NOT alert. Both
-                # verified as zero occurrences in mqtt_subscriber.py:366-401.
+                # And it never cleared a pending offline or alerted.
                 clear_pending_offline=False,
                 alert_on_thresholds=False,
             )
@@ -311,8 +311,8 @@ class WicanModule(BaseSourceModule):
                 device_status="online",
                 ecu_status="online",
                 session=InferSession(),
-                # can/rx returns at `if not device.vin` before any status
-                # update (mqtt_subscriber.py:419-423).
+                # The old can/rx handler returned at `if not device.vin`
+                # before any status update.
                 requires_link=True,
                 # It DOES clear pending offline and DOES alert today.
                 clear_pending_offline=True,

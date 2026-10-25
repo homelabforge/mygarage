@@ -11,6 +11,11 @@ API, since no screen wrote it) had that event silenced. Where the new key is
 not set, this copies the "off" across so the event stays silent. A new key
 already set is the switch someone actually used, and wins.
 
+An old key counts as on for true, 1 or yes in any case, the dispatcher's words
+when this shipped. #243's `parse_bool` also takes 'on' and strips spaces, but
+prod has already run this, so it stays as written: an old key hand-set to 'on'
+was carried across as off.
+
 FATAL = False: skipped, an event switched off only through the old key starts
 notifying again. Nothing fails, and the switch in Settings turns it back off.
 """
@@ -42,7 +47,7 @@ def _get_fallback_engine():
 
 
 def _is_off(value: str | None) -> bool:
-    """Off as the dispatcher reads a switch: anything but true/1/yes, when set."""
+    """Off as the dispatcher read a switch when this shipped: set, and not true/1/yes."""
     return bool(value) and (value or "").lower() not in ("true", "1", "yes")
 
 

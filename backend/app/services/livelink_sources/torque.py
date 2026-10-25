@@ -127,13 +127,12 @@ class TorqueModule(BaseSourceModule):
             # `_ingest` returns OK! and does nothing at all for an unlinked
             # device, so Torque never touched status for one.
             requires_link=True,
-            # Torque has no pending-offline concept and has NEVER sent
-            # threshold alerts (zero check_thresholds calls in routes/torque.py).
+            # Torque has no pending-offline concept and never sent threshold
+            # alerts (the route had no check_thresholds call before the pipeline).
             clear_pending_offline=False,
             alert_on_thresholds=False,
-            # An actively-uploading device is online. resolve_torque_session may
-            # have just ended a stale prior trip and set ecu_status offline, so
-            # re-assert it whenever real data arrives.
+            # Data arriving means the engine's on. Ending a stale trip doesn't
+            # touch ecu_status any more, so this just records it.
             ecu_status="online" if (reading.obd or reading.gps) else None,
             # None: LEAVE device_status as it is (the route never wrote it, so a
             # Torque source stays 'unknown'). "online" here would enrol every

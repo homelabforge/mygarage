@@ -284,8 +284,7 @@ class SessionService:
         # whose ECU is awake as offline -- and that is not cosmetic:
         # `device_command_service.py` refuses any `requires_ecu` command when
         # `ecu_status != "online"`, so the whole remote-command surface would go
-        # dead after every drive. `routes/torque.py` already carries a
-        # workaround comment for exactly this coupling.
+        # dead after every drive.
         device.current_session_id = session.id
 
         logger.info(

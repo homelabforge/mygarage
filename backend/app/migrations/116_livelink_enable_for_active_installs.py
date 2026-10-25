@@ -21,6 +21,12 @@ the switch on also starts the periodic jobs (offline checks, daily summaries,
 retention pruning, firmware checks) for those installs; that is what "LiveLink
 on" has always meant.
 
+Both switches count as on only when stored as exactly 'true'. That was how the
+app read them when this shipped; #243's `parse_bool` later took true, 1, yes
+and on in any case. Prod has already run this, so it stays as written: a
+`livelink_mqtt_enabled` hand-set to 'on' counted as off here and didn't turn
+LiveLink on.
+
 FATAL = True: skipped, a working install's data stops with no error anywhere.
 """
 
@@ -59,8 +65,8 @@ def upgrade(engine=None) -> None:
         return
 
     with engine.begin() as conn:
-        # Exactly 'true', as LiveLinkService.is_enabled reads it: a hand-edited
-        # 'True' is OFF to the app, so it must not count as on here.
+        # Exactly 'true', as is_enabled read it when this shipped (it uses
+        # parse_bool since #243). See the docstring.
         if _setting(conn, "livelink_enabled") == "true":
             print("✓ LiveLink already enabled")
             return

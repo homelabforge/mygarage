@@ -218,31 +218,30 @@ class IngestBatch:
     #: boot config), so its stored `wire` keys not in it are dropped. Never
     #: set from a status block alone: the schema defaults `config` to `{}`.
     wire_profile: bool = False
-    #: Whether this batch means "the WiFi came back". True only for message
-    #: types that do it today: WiCAN `can/rx`, not WiCAN `battery`. Verified:
-    #: `_handle_battery` (mqtt_subscriber.py:366-401) contains zero calls to
-    #: `clear_pending_offline`, so a battery frame must NOT cancel a pending
-    #: offline or a brief WiFi drop stops splitting drives the way it does now.
+    #: Whether this batch means "the WiFi came back". WiCAN `can/rx` and HTTPS
+    #: telemetry say yes, WiCAN `battery` says no: the old `_handle_battery`
+    #: never cleared a pending offline, so a battery frame mustn't either, or a
+    #: brief WiFi drop stops splitting drives.
     clear_pending_offline: bool = False
-    #: Whether stored values are checked against warning thresholds. Verified
-    #: against today's behavior: WiCAN `can/rx` DOES (mqtt_subscriber.py:470),
-    #: WiCAN `battery` does NOT, Torque does NOT (zero calls in routes/torque.py).
-    #: Defaulting this True would start sending notifications that have never
-    #: fired. generic_mqtt sets it True deliberately: low-tank alerting is a
-    #: feature of this project, not a regression.
+    #: Whether stored values are checked against warning thresholds. WiCAN
+    #: `can/rx` and HTTPS do; WiCAN `battery` and Torque don't, since neither
+    #: old handler called `check_thresholds`. Defaulting this True would start
+    #: sending alerts that never fired. generic_mqtt sets it on purpose:
+    #: low-tank alerts are the point.
     alert_on_thresholds: bool = False
     #: Whether an UNLINKED device (vin IS NULL) should be ignored entirely.
-    #: The three WiCAN handlers genuinely differ here and the difference is
-    #: user-visible, so it cannot be a blanket rule:
-    #:   can/rx  returns at `if not device.vin` BEFORE any status update
-    #:           (mqtt_subscriber.py:419-423)        -> requires_link=True
-    #:   status  calls update_device_status OUTSIDE its `if device.vin` block
-    #:           (mqtt_subscriber.py:357)            -> requires_link=False
-    #:   battery calls update_device_status BEFORE its `if device.vin`
-    #:           (mqtt_subscriber.py:385)            -> requires_link=False
-    #: Getting this wrong breaks the discover-then-link flow: a freshly
-    #: auto-discovered device would never appear online in the admin UI.
-    #: Defaults True so a NEW module is inert until deliberately linked.
+    #: The old WiCAN MQTT handlers (in mqtt_subscriber.py until e84a798e)
+    #: differed here, and it shows in the UI, so it's per batch:
+    #:   can/rx  returned at `if not device.vin` before any status update
+    #:                                               -> requires_link=True
+    #:   status  updated status outside its `if device.vin` block
+    #:                                               -> requires_link=False
+    #:   battery updated status before its `if device.vin`
+    #:                                               -> requires_link=False
+    #: Every WiCAN HTTPS batch is False too, so an unlinked one's `last_seen`
+    #: stays fresh. Getting this wrong breaks discover-then-link: a freshly
+    #: discovered device never shows online in the admin UI. Defaults True so
+    #: a NEW module is inert until it's linked.
     requires_link: bool = True
 
 
