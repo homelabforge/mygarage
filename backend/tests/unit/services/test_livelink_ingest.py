@@ -162,6 +162,65 @@ async def test_thresholds_are_checked_for_each_validated_param(db_session, linke
         assert tel.return_value.check_thresholds.await_args.kwargs["odometer_normalised"] is False
 
 
+class _OdometerSource(_Fake):
+    """Torque-shaped: ODOMETER, on the simple storage path. That path only
+    normalises the device's declared odometer key."""
+
+    kind = "odometersource"
+    capabilities = frozenset({Capability.TELEMETRY, Capability.ODOMETER})
+    storage_policy = StoragePolicy()
+
+    async def parse(self, env):
+        return IngestBatch(
+            device_key=self.device_id,
+            readings=[Reading("ODOMETER", 1000.0)],
+            requires_link=True,
+            alert_on_thresholds=True,
+        )
+
+
+class _DelegatingSource(_OdometerSource):
+    """WiCAN-shaped: its policy sends storage through `store_telemetry`,
+    which normalises every odometer key, declared or not."""
+
+    kind = "delegatingsource"
+    storage_policy = StoragePolicy(sync_odometer=True, observe_movement=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("module_cls", "declared", "expected"),
+    [
+        # The case the capability check got wrong: Torque's path converts
+        # nothing without a declared key.
+        (_OdometerSource, None, False),
+        (_OdometerSource, "ODOMETER", True),
+        (_DelegatingSource, None, True),
+        (_DelegatingSource, "ODOMETER", True),
+    ],
+)
+async def test_thresholds_learn_whether_the_store_normalised_the_odometer(
+    db_session, linked_device, module_cls, declared, expected
+):
+    """The alert renders an odometer in the owner's units only if storage
+    really converted it to km, so the flag must follow the storage path."""
+    linked_device.kind = module_cls.kind
+    linked_device.odometer_param_key = declared
+    await db_session.commit()
+    with patch("app.services.livelink_ingest.TelemetryService") as tel:
+        tel.return_value.store_readings = AsyncMock(
+            return_value=type(
+                "R", (), {"validated_data": {"ODOMETER": 1000.0}, "stored_count": 1}
+            )()
+        )
+        tel.return_value.check_thresholds = AsyncMock()
+        await ingest(module_cls(linked_device.device_id), ENV, db_session)
+
+    kwargs = tel.return_value.check_thresholds.await_args.kwargs
+    assert kwargs["odometer_normalised"] is expected
+    assert kwargs["declared_odometer_key"] == declared
+
+
 @pytest.mark.asyncio
 async def test_a_preset_sensors_readings_alert_once_per_crossing(db_session, linked_device):
     """A tank sits below its line for days: the cooldown would repeat it."""

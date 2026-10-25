@@ -120,6 +120,24 @@ logger = logging.getLogger(__name__)
 _DECLARED_ODOMETER_WARNED: dict[str, date] = {}
 
 
+def _delegates_to_store_telemetry(policy: StoragePolicy) -> bool:
+    """Whether `store_readings` hands this policy's batch to `store_telemetry`."""
+    return policy.sync_odometer or policy.observe_movement
+
+
+def normalises_odometer(policy: StoragePolicy, device: LiveLinkDevice | None) -> bool:
+    """Whether `store_readings` converts a batch's odometer to km.
+
+    `device` is what the caller passes `store_readings` (None without the
+    ODOMETER capability). `store_telemetry` converts every odometer key; the
+    simple path only a declared one. Torque has ODOMETER and still converts
+    nothing without a declared key, so the capability alone doesn't say.
+    """
+    if _delegates_to_store_telemetry(policy):
+        return True
+    return device is not None and bool(device.odometer_param_key)
+
+
 class TelemetryService:
     """Service for telemetry data ingestion and storage."""
 
@@ -1497,7 +1515,7 @@ class TelemetryService:
         # step runs before any row is written. Task 17 adds that step; leave the
         # parameter unused for now rather than changing the signature twice.
 
-        if policy.sync_odometer or policy.observe_movement:
+        if _delegates_to_store_telemetry(policy):
             autopid: dict[str, float | int | str | None] = {r.param_key: r.value for r in readings}
             config: dict[str, dict[str, str | None]] = {
                 r.param_key: {"unit": r.unit, "class": r.param_class}
@@ -1598,11 +1616,12 @@ class TelemetryService:
         as a preset sensor's readings do. Otherwise every breaching reading
         notifies again, held back by the alert cooldown.
 
-        `odometer_normalised`: the source runs odometer normalisation (it has
-        `Capability.ODOMETER`), so an odometer key, by the same match
+        `odometer_normalised`: storage normalised this batch's odometer
+        (`normalises_odometer`), so an odometer key, by the same match
         normalisation used (`declared_odometer_key` is the device's
         `odometer_param_key`), holds km. The alert then reads in the owner's
-        distance unit whatever the parameter row's unit says.
+        distance unit whatever the parameter row's unit says. An odometer key
+        that wasn't normalised prints raw unless its row says km.
         """
         from app.services.livelink_alerts import alert_band, alert_quantity, band_line, crossing
 
@@ -1666,11 +1685,12 @@ class TelemetryService:
         # says psi holds psi, and prints as it is (D2a).
         from app.utils.render_context import render_context_for_vehicle
 
+        odometer_key = self._is_odometer_param(param_key, declared_odometer_key)
         quantity = alert_quantity(
             param.param_class,
             param.unit,
-            odometer_normalised=odometer_normalised
-            and self._is_odometer_param(param_key, declared_odometer_key),
+            odometer_key=odometer_key,
+            odometer_normalised=odometer_normalised and odometer_key,
         )
 
         # Send notification

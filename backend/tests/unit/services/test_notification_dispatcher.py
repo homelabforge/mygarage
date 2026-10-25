@@ -391,12 +391,13 @@ class TestConvenienceMethods:
         )
 
         message = dispatcher.dispatch.call_args.kwargs["message"]
-        assert f"Tank 1 level {direction} (8.0 % vs threshold 10.0 %)" in message
+        assert f"Tank 1 level {direction}: 8.0 % vs threshold 10.0 %." in message
 
     @pytest.mark.asyncio
     async def test_notify_livelink_threshold_alert_converts_with_a_quantity(self, dispatcher):
         """With a quantity both numbers are canonical and read in the context's
-        unit, show-both counterpart included; the stored unit is ignored."""
+        unit, show-both counterpart included; the stored unit is ignored. The
+        counterpart's parentheses are the only ones: no nesting."""
         await dispatcher.notify_livelink_threshold_alert(
             "My Truck",
             "Vehicle speed",
@@ -409,7 +410,9 @@ class TestConvenienceMethods:
         )
 
         message = dispatcher.dispatch.call_args.kwargs["message"]
-        assert "(81 mph (130 km/h) vs threshold 75 mph (120 km/h))" in message
+        assert message.endswith(
+            "exceeded maximum: 81 mph (130 km/h) vs threshold 75 mph (120 km/h)."
+        )
 
     @pytest.mark.asyncio
     async def test_notify_livelink_firmware_update(self, dispatcher):

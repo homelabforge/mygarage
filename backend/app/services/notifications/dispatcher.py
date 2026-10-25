@@ -498,7 +498,8 @@ class NotificationDispatcher:
         return await self.dispatch(
             event_type="livelink_threshold_alert",
             title=f"Threshold Alert: {vehicle_name}",
-            message=f"{parameter_name} {direction} ({shown} vs threshold {line}).",
+            # No outer parentheses: show-both puts its counterpart in its own.
+            message=f"{parameter_name} {direction}: {shown} vs threshold {line}.",
             url=url,
         )
 

@@ -40,7 +40,7 @@ from app.services.livelink_sources.base import (
 from app.services.location_service import LocationService
 from app.services.notifications.dispatcher import NotificationDispatcher
 from app.services.session_service import SessionService
-from app.services.telemetry_service import TelemetryService
+from app.services.telemetry_service import TelemetryService, normalises_odometer
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 
@@ -249,23 +249,24 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> I
         # The device's stored declarations fill what's still missing, and mph
         # becomes km/h here, once, whichever way the unit arrived (R4, R12).
         readings = await DeviceUnitService(db).resolve_readings(device.device_id, readings)
+        # Task 17 reads `device.odometer_param_key` from this to decide
+        # whether to normalise and record an odometer reading.
+        #
+        # GATED on the capability, deliberately. Passing it unconditionally
+        # would let ANY source with a declared key write odometer records,
+        # which falsifies the central claim in `Capability`'s docstring that
+        # a module without a capability has no reachable path to its
+        # machinery. A `generic_mqtt` device whose owner picks an odometer
+        # parameter in Settings must still record nothing until that module
+        # is deliberately granted ODOMETER.
+        odometer_device = device if Capability.ODOMETER in module.capabilities else None
         result = await telemetry.store_readings(
             vin=device.vin,
             device_id=device.device_id,
             readings=readings,
             timestamp=timestamp,
             policy=module.storage_policy,
-            # Task 17 reads `device.odometer_param_key` from this to decide
-            # whether to normalise and record an odometer reading.
-            #
-            # GATED on the capability, deliberately. Passing it unconditionally
-            # would let ANY source with a declared key write odometer records,
-            # which falsifies the central claim in `Capability`'s docstring that
-            # a module without a capability has no reachable path to its
-            # machinery. A `generic_mqtt` device whose owner picks an odometer
-            # parameter in Settings must still record nothing until that module
-            # is deliberately granted ODOMETER.
-            device=device if Capability.ODOMETER in module.capabilities else None,
+            device=odometer_device,
         )
         outcome.stored_count = result.stored_count
         # Gated: WiCAN can/rx alerts today, WiCAN battery and Torque do NOT.
@@ -275,9 +276,10 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> I
             # A preset sensor (a propane tank) sits past its line for days, so
             # its readings notify once per crossing rather than every cooldown.
             once = device.preset_key is not None
-            # Gated like the odometer step it stands for: only a module with
-            # ODOMETER normalises one, so a generic_mqtt ODOMETER is raw (D2a).
-            odometer_normalised = Capability.ODOMETER in module.capabilities
+            # Asks the store what it did, not the capability: Torque has
+            # ODOMETER and converts nothing without a declared key, and a
+            # generic_mqtt ODOMETER is raw (D2a).
+            odometer_normalised = normalises_odometer(module.storage_policy, odometer_device)
             for param_key, value in result.validated_data.items():
                 if isinstance(value, (int, float)):
                     await telemetry.check_thresholds(

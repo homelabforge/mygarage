@@ -104,22 +104,29 @@ _CANONICAL_SYMBOLS: dict[str, frozenset[str]] = {
 
 
 def alert_quantity(
-    param_class: str | None, unit: str | None, *, odometer_normalised: bool
+    param_class: str | None,
+    unit: str | None,
+    *,
+    odometer_key: bool = False,
+    odometer_normalised: bool = False,
 ) -> str | None:
     """The `UnitSet` quantity to render an alert's value and line in, or None.
 
     None means print them raw with the parameter's own unit. A class is only
     rendered when the stored value is known to be canonical: the parameter
-    names no unit, or names that class's canonical one. `odometer_normalised`
-    says the reading is an odometer key that went through odometer
-    normalisation, which stores km whatever the parameter's free-text unit
-    says (an HTTPS `config` can register `mi` for a value ingest converted).
+    names no unit, or names that class's canonical one.
+
+    An odometer key is the exception both ways. Normalised (storage converted
+    it), it's km whatever the parameter's free-text unit says: an HTTPS
+    `config` can register `mi` for a value ingest converted. Not normalised,
+    only an explicit `km` counts, since a bare odometer is as likely miles.
     """
     symbols = _CANONICAL_SYMBOLS.get(param_class) if param_class else None
     if symbols is None:
         return None
-    if odometer_normalised and param_class == "distance":
-        return param_class
-    if unit is None or not unit.strip() or unit.strip().lower() in symbols:
+    declared = unit.strip().lower() if unit else ""
+    if odometer_key and param_class == "distance":
+        return param_class if odometer_normalised or declared in symbols else None
+    if not declared or declared in symbols:
         return param_class
     return None

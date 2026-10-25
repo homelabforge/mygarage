@@ -105,9 +105,10 @@ class TestAlertQuantity:
     def test_a_canonical_reading_gets_its_quantity(
         self, param_class: str, unit: str | None, expected: str
     ) -> None:
+        """A distance key that isn't an odometer keeps None-means-canonical."""
         from app.services.livelink_alerts import alert_quantity
 
-        assert alert_quantity(param_class, unit, odometer_normalised=False) == expected
+        assert alert_quantity(param_class, unit) == expected
 
     @pytest.mark.parametrize(
         ("param_class", "unit"),
@@ -128,19 +129,37 @@ class TestAlertQuantity:
     def test_anything_else_prints_raw(self, param_class: str | None, unit: str | None) -> None:
         from app.services.livelink_alerts import alert_quantity
 
-        assert alert_quantity(param_class, unit, odometer_normalised=False) is None
+        assert alert_quantity(param_class, unit) is None
 
-    def test_a_normalised_odometer_is_km_whatever_its_unit_says(self) -> None:
+    @pytest.mark.parametrize("unit", ["mi", None, "km"])
+    def test_a_normalised_odometer_is_km_whatever_its_unit_says(self, unit: str | None) -> None:
         from app.services.livelink_alerts import alert_quantity
 
-        assert alert_quantity("distance", "mi", odometer_normalised=True) == "distance"
+        assert (
+            alert_quantity("distance", unit, odometer_key=True, odometer_normalised=True)
+            == "distance"
+        )
+
+    @pytest.mark.parametrize(("unit", "expected"), [("km", "distance"), (" KM ", "distance")])
+    def test_a_raw_odometer_that_says_km_is_km(self, unit: str, expected: str) -> None:
+        from app.services.livelink_alerts import alert_quantity
+
+        assert alert_quantity("distance", unit, odometer_key=True) == expected
+
+    @pytest.mark.parametrize("unit", [None, "", "  ", "mi"])
+    def test_a_raw_odometer_without_a_km_unit_prints_raw(self, unit: str | None) -> None:
+        """Nothing converted it, and a bare odometer is as likely miles as km
+        (a generic topic publishes whatever the car shows)."""
+        from app.services.livelink_alerts import alert_quantity
+
+        assert alert_quantity("distance", unit, odometer_key=True) is None
 
     def test_normalisation_vouches_only_for_distance(self) -> None:
         """Odometer normalisation converts to km, so it says nothing about a
         reading of any other class."""
         from app.services.livelink_alerts import alert_quantity
 
-        assert alert_quantity("speed", "mph", odometer_normalised=True) is None
+        assert alert_quantity("speed", "mph", odometer_key=True, odometer_normalised=True) is None
 
 
 @pytest.mark.unit
@@ -159,7 +178,7 @@ class TestCheckThresholdsRendersInTheReadersUnits:
         await TelemetryService(db_session).check_thresholds(vin, COOLANT, 106.0)
 
         message = _alert_message(mock)
-        assert "222.8 F vs threshold 221.0 F" in message
+        assert "exceeded maximum: 222.8 F vs threshold 221.0 F." in message
         assert "°C" not in message
 
     async def test_a_raw_unit_custom_key_prints_its_own_unit(
@@ -174,7 +193,7 @@ class TestCheckThresholdsRendersInTheReadersUnits:
 
         await TelemetryService(db_session).check_thresholds(vin, BOOST, 40.0)
 
-        assert "(40.0 psi vs threshold 35.0 psi)" in _alert_message(mock)
+        assert ": 40.0 psi vs threshold 35.0 psi." in _alert_message(mock)
 
 
 @pytest.mark.unit
@@ -183,17 +202,18 @@ class TestCheckThresholdsRendersInTheReadersUnits:
 class TestOdometerLinesThroughIngest:
     """An odometer key is canonical km only when the source normalised it.
 
-    Only a module with `Capability.ODOMETER` runs odometer normalisation, so a
-    WiCAN's odometer is km whatever the parameter row's free-text unit says,
-    and a generic_mqtt topic's is whatever was published (Codex R1-M1).
+    A WiCAN's storage path runs odometer normalisation, so its odometer is km
+    whatever the parameter row's free-text unit says; a generic_mqtt topic's is
+    whatever was published (Codex R1-M1).
     """
 
     async def test_a_wican_odometer_line_reads_in_the_owners_distance_unit(
         self, db_session: AsyncSession, make_livelink_vehicle, monkeypatch
     ) -> None:
-        """The row says mi (an HTTPS `config` once declared it), but the device
-        reports km and ingest stored km: 100,500 km over a 100,000 km line."""
-        _vin, device = await make_livelink_vehicle("t6odow", "1", odometer_unit="km")
+        """The row says mi (an HTTPS `config` once declared it), and the device
+        does send miles, but ingest stored km: 62,500 mi is 100,584 km, over a
+        100,000 km line. Read raw, 62,500 is under the line and nothing fires."""
+        _vin, device = await make_livelink_vehicle("t6odow", "1", odometer_unit="mi")
         await db_session.commit()
         db_session.add(_param(ODO, unit="mi", param_class="distance", warning_max=100000.0))
         await db_session.flush()
@@ -201,11 +221,11 @@ class TestOdometerLinesThroughIngest:
 
         await ingest(
             WicanModule(),
-            MqttEnvelope(f"wican/{device.device_id}/can/rx", f'{{"{ODO}": 100500}}'.encode()),
+            MqttEnvelope(f"wican/{device.device_id}/can/rx", f'{{"{ODO}": 62500}}'.encode()),
             db_session,
         )
 
-        assert "(62,448 mi vs threshold 62,137 mi)" in _alert_message(mock)
+        assert ": 62,500 mi vs threshold 62,137 mi." in _alert_message(mock)
 
     async def test_a_wican_key_its_device_does_not_declare_prints_raw(
         self, db_session: AsyncSession, make_livelink_vehicle, monkeypatch
@@ -227,14 +247,32 @@ class TestOdometerLinesThroughIngest:
             db_session,
         )
 
-        assert "(62000.0 mi vs threshold 60000.0 mi)" in _alert_message(mock)
+        assert ": 62000.0 mi vs threshold 60000.0 mi." in _alert_message(mock)
 
+    @pytest.mark.parametrize(
+        ("unit", "shown"),
+        [
+            # Regression guard: printed raw with its unit since before T6.
+            ("mi", "62000.0 mi vs threshold 60000.0 mi"),
+            # Fix round 1: no unit is not proof of km on an odometer nothing
+            # normalised, so this one prints raw too, unlabelled.
+            (None, "62000.0 vs threshold 60000.0"),
+        ],
+    )
     async def test_a_generic_mqtt_odometer_prints_raw(
-        self, db_session: AsyncSession, make_livelink_vehicle, monkeypatch
+        self,
+        db_session: AsyncSession,
+        make_livelink_vehicle,
+        monkeypatch,
+        unit: str | None,
+        shown: str,
     ) -> None:
-        """Regression guard: generic_mqtt has no ODOMETER capability, so the
-        same key from a topic is stored as published and printed as is."""
-        _vin, device = await make_livelink_vehicle("t6odog", "1", kind="generic_mqtt")
+        """generic_mqtt never normalises an odometer, so the key from a topic
+        is stored as published and printed as is, whatever its row says. The
+        `mi` case is a regression guard; the unitless one was converted as if
+        it were km before fix round 1."""
+        suffix = "1" if unit else "2"
+        _vin, device = await make_livelink_vehicle("t6odog", suffix, kind="generic_mqtt")
         device_id = device.device_id
         await db_session.execute(
             delete(LiveLinkTopicMap).where(LiveLinkTopicMap.topic == ODO_TOPIC)
@@ -244,13 +282,13 @@ class TestOdometerLinesThroughIngest:
         module = GenericMqttModule()
         await module.refresh(db_session)
         try:
-            db_session.add(_param(ODO, unit="mi", param_class="distance", warning_max=60000.0))
+            db_session.add(_param(ODO, unit=unit, param_class="distance", warning_max=60000.0))
             await db_session.flush()
             mock = _capture(monkeypatch)
 
             await ingest(module, MqttEnvelope(ODO_TOPIC, b"62000"), db_session)
 
-            assert "(62000.0 mi vs threshold 60000.0 mi)" in _alert_message(mock)
+            assert f"exceeded maximum: {shown}." in _alert_message(mock)
         finally:
             await db_session.rollback()
             await db_session.execute(
