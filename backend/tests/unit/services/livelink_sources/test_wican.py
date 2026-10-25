@@ -142,3 +142,57 @@ async def test_wican_never_claims_its_status_came_from_the_wire():
     ]:
         batch = await M.parse(MqttEnvelope(topic, payload))
         assert batch is not None and batch.status_from_wire is False
+
+
+@pytest.mark.asyncio
+async def test_a_can_rx_dtc_string_lands_in_dtcs_next_to_the_readings():
+    batch = await M.parse(
+        MqttEnvelope(
+            "wican/abc/can/rx", b'{"DIAGNOSTIC_TROUBLE_CODES": "P0301, p0420", "ENGINE_RPM": 800}'
+        )
+    )
+    assert batch.dtcs == ["P0301", "P0420"]
+    assert [r.param_key for r in batch.readings] == ["ENGINE_RPM"]
+    assert batch.ecu_status == "online"
+    assert batch.session == InferSession()
+
+
+@pytest.mark.asyncio
+async def test_a_dtc_only_frame_is_a_batch_with_no_ecu_or_session_signal():
+    """A code list alone is no proof the ECU is on (A-7's rule), so codes only."""
+    batch = await M.parse(
+        MqttEnvelope("wican/abc/can/rx", b'{"DIAGNOSTIC_TROUBLE_CODES": "P0301"}')
+    )
+    assert batch is not None
+    assert batch.dtcs == ["P0301"]
+    assert batch.readings == []
+    assert batch.device_status == "online"
+    assert batch.ecu_status is None
+    assert batch.session is None
+    assert batch.requires_link is True
+
+
+@pytest.mark.asyncio
+async def test_a_blank_dtc_string_with_nothing_else_is_still_no_batch():
+    assert (
+        await M.parse(MqttEnvelope("wican/abc/can/rx", b'{"DIAGNOSTIC_TROUBLE_CODES": " , "}'))
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("P0301, p0420", ["P0301", "P0420"]),
+        (" p0301 ,,  ,U0100 ", ["P0301", "U0100"]),
+        ("P0301,p0301", ["P0301"]),
+        ("", []),
+        (None, []),
+        (301, []),
+    ],
+)
+def test_the_dtc_string_rule(value, expected):
+    """One rule for both WiCAN transports: split, strip, uppercase, no blanks, no repeats."""
+    from app.services.livelink_sources.wican import dtc_codes_from_wire
+
+    assert dtc_codes_from_wire(value) == expected

@@ -23,6 +23,7 @@ from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.vehicle import Vehicle
 from app.services import declared_units
+from app.services.dtc_service import DTCService
 from app.services.livelink_service import LiveLinkService
 from app.services.livelink_sources.base import (
     BaseSourceModule,
@@ -222,6 +223,11 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> N
             for param_key, value in result.validated_data.items():
                 if isinstance(value, (int, float)):
                     await telemetry.check_thresholds(device.vin, param_key, float(value), once=once)
+
+    # Gated like every other side effect: only a module that declares DTC can
+    # write codes, whatever its batch carries.
+    if Capability.DTC in module.capabilities and batch.dtcs and device.vin:
+        await DTCService(db).process_dtcs(device.vin, device.device_id, batch.dtcs)
 
     if Capability.LOCATION in module.capabilities and batch.location is not None:
         vehicle = (

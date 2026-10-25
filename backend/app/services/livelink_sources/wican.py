@@ -31,6 +31,23 @@ from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
+#: MyGarage's own key for a code list (fd614a86). Stock WiCAN firmware never
+#: sends it; a custom profile or build has to.
+DTC_KEY = "DIAGNOSTIC_TROUBLE_CODES"
+
+
+def dtc_codes_from_wire(value: object) -> list[str]:
+    """Split a comma-separated DTC string into clean codes.
+
+    Stripped, uppercased, blanks and repeats dropped, order kept. Anything but
+    a string is no codes. Repeats matter: sessions run autoflush=False, so
+    `process_dtcs` can't see a row it added earlier in the same list.
+    """
+    if not isinstance(value, str):
+        return []
+    codes = (part.strip().upper() for part in value.split(","))
+    return list(dict.fromkeys(code for code in codes if code))
+
 
 class WicanModule(BaseSourceModule):
     """The WiCAN dongle."""
@@ -114,8 +131,8 @@ class WicanModule(BaseSourceModule):
 
         if subtopic == "can/rx":
             autopid = normalize_autopid_data(data)
-            if not autopid:
-                return None
+            # Lifted before the numeric filter below, which would drop it.
+            dtcs = dtc_codes_from_wire(autopid.get(DTC_KEY))
             # Canonicalise HERE. `normalize_autopid_data` does not uppercase;
             # historically `store_telemetry` did it downstream, which left
             # WiCAN the only source emitting non-canonical keys and made
@@ -129,11 +146,16 @@ class WicanModule(BaseSourceModule):
             ]
             # Nothing usable in the frame (`{"X": null}`): not proof the ECU
             # is on, so no batch, or it would mark the ECU online (A-7).
-            if not readings:
+            if not readings and not dtcs:
                 return None
+            if not readings:
+                # Codes only. Same A-7 logic: a code list doesn't prove the ECU
+                # is on, so no ecu_status, no session and no pending clear.
+                return IngestBatch(device_key=device_key, dtcs=dtcs, device_status="online")
             return IngestBatch(
                 device_key=device_key,
                 readings=readings,
+                dtcs=dtcs,
                 device_status="online",
                 ecu_status="online",
                 session=InferSession(),
