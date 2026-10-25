@@ -162,7 +162,7 @@ class StoragePolicy:
     live one.
 
     `apply_storage_interval`: WiCAN honours `storage_interval_seconds`;
-    `store_torque_telemetry` never checked it. Torque therefore passes False to
+    the old Torque writer never checked it. Torque therefore passes False to
     preserve today's behavior. That Torque ignores storage intervals is a
     pre-existing bug, deliberately NOT fixed here (see Follow-ups).
     """

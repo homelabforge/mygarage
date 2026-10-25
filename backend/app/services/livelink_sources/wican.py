@@ -172,6 +172,8 @@ def _parse_https(env: WicanHttpsEnvelope) -> IngestBatch:
             dtcs=dtcs,
             device_status="online",
             declared_wire_units=declared,
+            # As below: an unlinked device still shows it's alive.
+            requires_link=False,
             allow_discovery=False,
             timestamp=payload.timestamp,
         )
@@ -185,7 +187,11 @@ def _parse_https(env: WicanHttpsEnvelope) -> IngestBatch:
         ecu_status="online",
         session=InferSession(),
         clear_pending_offline=True,
-        requires_link=True,
+        # Unlike can/rx. An HTTPS WiCAN's status POST comes once per boot, so
+        # these are the only thing keeping an unlinked one's last_seen fresh;
+        # without it the offline sweep alerts during onboarding. `ingest`
+        # still stops at `not device.vin` before any telemetry.
+        requires_link=False,
         alert_on_thresholds=True,
         allow_discovery=False,
         declared_wire_units=declared,

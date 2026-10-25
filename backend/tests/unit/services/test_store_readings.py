@@ -142,7 +142,7 @@ async def test_storage_interval_thins_history_when_applied(db_session, make_live
 
 @pytest.mark.asyncio
 async def test_storage_interval_ignored_when_policy_says_so(db_session, make_livelink_vehicle):
-    """Preserves store_torque_telemetry, which never consulted the interval."""
+    """Preserves the old Torque writer's rule: it never consulted the interval."""
     vin, device = await make_livelink_vehicle(P, "05")
     svc = TelemetryService(db_session)
     await svc.auto_register_parameter("STORERD_Y")

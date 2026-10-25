@@ -352,7 +352,8 @@ class LiveLinkService:
         """Resolve device ID from a telemetry-only payload (no status.device_id).
 
         Resolution order:
-        1. If a per-device token matches, return that device (authoritative).
+        1. If a per-device token matches, return that device, enabled or not
+           (authoritative).
         2. If using global token and exactly one enabled device exists, return it.
         3. Otherwise return None (ambiguous — caller should reject).
 
@@ -369,14 +370,13 @@ class LiveLinkService:
             if len(parts) == 2 and parts[0].lower() == "bearer":
                 token = parts[1]
 
-        # Step 1: Try per-device token match (authoritative)
+        # Step 1: Try per-device token match (authoritative). A disabled
+        # device's own token still names it, so the pipeline can answer
+        # "disabled" and keep the units it declares (A-4).
         if token:
             token_hash = self.hash_token(token)
             result = await self.db.execute(
-                select(LiveLinkDevice).where(
-                    LiveLinkDevice.enabled.is_(True),
-                    LiveLinkDevice.device_token_hash == token_hash,
-                )
+                select(LiveLinkDevice).where(LiveLinkDevice.device_token_hash == token_hash)
             )
             device = result.scalar_one_or_none()
             if device:

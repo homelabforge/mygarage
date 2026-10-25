@@ -300,7 +300,9 @@ async def test_a_telemetry_only_payload_infers_the_session_like_can_rx():
     assert batch.session == InferSession()
     assert (batch.device_status, batch.ecu_status) == ("online", "online")
     assert batch.clear_pending_offline is True
-    assert batch.requires_link is True
+    # Unlike can/rx: the only thing keeping an unlinked HTTPS device's
+    # last_seen fresh between boots (fix round 1).
+    assert batch.requires_link is False
     assert batch.alert_on_thresholds is True
     # Only a status payload may create a device.
     assert batch.allow_discovery is False
@@ -319,4 +321,42 @@ async def test_a_telemetry_only_payload_with_nothing_in_it_says_nothing_about_th
     assert batch.dtcs == ["P0420"]
     assert batch.readings == []
     assert batch.device_status == "online"
+    assert batch.requires_link is False
     assert (batch.ecu_status, batch.session, batch.clear_pending_offline) == (None, None, False)
+
+
+def test_config_entries_that_wont_fit_the_columns_are_dropped():
+    """Guards new code: a value past the column width would fail the request's
+    flush on PG. Mutation-checked (drop the width test and this fails)."""
+    from app.schemas.livelink_ingest import WiCANConfigEntry
+    from app.services.livelink_sources.wican import wire_units_from_config
+
+    out = wire_units_from_config(
+        {
+            "K" * 101: WiCANConfigEntry(unit="V"),
+            "LONG_UNIT": WiCANConfigEntry(unit="u" * 21),
+            "LONG_CLASS": WiCANConfigEntry(param_class="c" * 51),
+            "K" * 100: WiCANConfigEntry(unit="u" * 20, param_class="c" * 50),
+        }
+    )
+    assert list(out) == ["K" * 100]
+
+
+def test_config_drops_frame_metadata_the_dtc_key_and_empty_entries():
+    """Guards new code: TS/TIMESTAMP aren't telemetry, the code list isn't a
+    reading, and an entry with no unit or class says nothing. Mutation-checked."""
+    from app.schemas.livelink_ingest import WiCANConfigEntry
+    from app.services.livelink_sources.wican import wire_units_from_config
+
+    out = wire_units_from_config(
+        {
+            "ts": WiCANConfigEntry(unit="ms"),
+            "TIMESTAMP": WiCANConfigEntry(unit="s"),
+            "DIAGNOSTIC_TROUBLE_CODES": WiCANConfigEntry(param_class="dtc"),
+            "BLANK": WiCANConfigEntry(unit="  ", param_class=""),
+            " coolant temp ": WiCANConfigEntry(unit="°C"),
+        }
+    )
+    assert {k: (v.unit, v.param_class) for k, v in out.items()} == {
+        "COOLANT_TEMP": ("°C", "temperature")
+    }

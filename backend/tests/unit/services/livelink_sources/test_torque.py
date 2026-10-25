@@ -35,7 +35,7 @@ def test_declares_odometer_as_a_capability_but_not_as_a_storage_policy():
     assert M.storage_policy.sync_odometer is False
 
 
-def test_storage_policy_matches_store_torque_telemetry():
+def test_storage_policy_is_newer_only_with_no_interval_odometer_or_movement():
     assert M.storage_policy.latest == "if_newer"
     assert M.storage_policy.apply_storage_interval is False
     assert M.storage_policy.sync_odometer is False

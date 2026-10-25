@@ -137,6 +137,7 @@ async def fresh_params(db_session: AsyncSession) -> AsyncGenerator[Callable[...,
     attrs = [a.key for a in LiveLinkParameter.__mapper__.column_attrs if a.key != "id"]
 
     async def take(*keys: str) -> None:
+        loaded: list[LiveLinkParameter] = []
         for key in keys:
             row = (
                 await db_session.execute(
@@ -144,9 +145,15 @@ async def fresh_params(db_session: AsyncSession) -> AsyncGenerator[Callable[...,
                 )
             ).scalar_one_or_none()
             saved.setdefault(key, None if row is None else {a: getattr(row, a) for a in attrs})
+            if row is not None:
+                loaded.append(row)
         await db_session.execute(
             delete(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(list(keys)))
         )
+        # The Core delete leaves the old objects in the identity map, and SQLite
+        # can hand a new row the same id: SQLAlchemy then warns it replaced one.
+        for row in loaded:
+            db_session.expunge(row)
         await db_session.commit()
 
     yield take
@@ -155,6 +162,7 @@ async def fresh_params(db_session: AsyncSession) -> AsyncGenerator[Callable[...,
     await db_session.execute(
         delete(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(list(saved)))
     )
+    db_session.expunge_all()  # same reason as in `take`
     for snapshot in saved.values():
         if snapshot is not None:
             db_session.add(LiveLinkParameter(**snapshot))
@@ -623,3 +631,92 @@ async def test_the_response_keys_are_unchanged(
     assert body["device_id"] == device.device_id
     assert (body["device_new"], body["device_linked"]) == (False, True)
     assert (body["parameters_stored"], body["dtcs_recorded"]) == (1, 2)
+
+
+# --- fix round 1: unlinked and disabled devices on telemetry-only POSTs ------------
+
+
+async def test_an_unlinked_devices_telemetry_only_post_keeps_it_online(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle
+):
+    """Onboarding: a discovered device posts every cycle, but its status POST
+    comes once per boot. Without the bump the offline sweep marks it offline
+    and sends an offline alert right after the new-device notice."""
+    seen = utc_now() - timedelta(hours=1)
+    _vin, device, token = await _linked(
+        db_session, make_livelink_vehicle, "t3unl", device_status="offline", last_seen=seen
+    )
+    device.vin = None
+    device_id = device.device_id
+    await db_session.commit()
+
+    await _post(client, {"autopid_data": {"ENGINE_RPM": 800}}, token)
+
+    after = await _device(db_session, device_id)
+    assert after.device_status == "online"
+    assert after.last_seen is not None and after.last_seen > seen
+
+
+async def test_an_unlinked_device_stores_nothing_from_a_telemetry_only_post(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+):
+    """Regression guard for the link rule: the status update runs, and the
+    `not device.vin` return after it still keeps telemetry, codes, sessions
+    and threshold alerts out. Contact mode, so a session would open if the
+    ECU signal reached the session service."""
+    await keep_rows("livelink_session_boundary_mode")
+    await SettingsService.set(db_session, "livelink_session_boundary_mode", "contact")
+    _vin, device, token = await _linked(
+        db_session, make_livelink_vehicle, "t3unl", ecu_status="offline"
+    )
+    device.vin = None
+    device_id = device.device_id
+    await db_session.commit()
+
+    with patch(
+        "app.services.telemetry_service.TelemetryService.check_thresholds", new_callable=AsyncMock
+    ) as thresholds:
+        response = await _post(
+            client,
+            {"autopid_data": {"SPEED": 60, "DIAGNOSTIC_TROUBLE_CODES": "P0301"}},
+            token,
+        )
+
+    assert "processing_error" not in response.json()
+    assert "parameters_stored" not in response.json()
+    assert await _values(db_session, device_id, "SPEED") == []
+    dtcs = await db_session.execute(select(VehicleDTC).where(VehicleDTC.device_id == device_id))
+    assert dtcs.scalars().all() == []
+    sessions = await db_session.execute(
+        select(DriveSession).where(DriveSession.device_id == device_id)
+    )
+    assert sessions.scalars().all() == []
+    thresholds.assert_not_awaited()
+
+
+async def test_a_disabled_devices_telemetry_only_post_is_answered_disabled(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, fresh_params
+):
+    """A-4 on the telemetry-only path: its own token still names it, so it is
+    told it's disabled, stores nothing, writes no status, and still records a
+    `config` it sends."""
+    await fresh_params("SPEED")
+    seen = utc_now() - timedelta(hours=1)
+    _vin, device, token = await _linked(
+        db_session, make_livelink_vehicle, "t3dto", device_status="offline", last_seen=seen
+    )
+    device.enabled = False
+    device_id = device.device_id
+    await db_session.commit()
+
+    response = await _post(
+        client,
+        {"autopid_data": {"SPEED": 50}, "config": {"SPEED": {"unit": "mph"}}},
+        token,
+    )
+
+    assert response.json()["status"] == "disabled"
+    assert await _values(db_session, device_id, "SPEED") == []
+    after = await _device(db_session, device_id)
+    assert (after.device_status, after.last_seen) == ("offline", seen)
+    assert await _units(db_session, device_id) == {"SPEED": ("mph", "speed", "wire")}

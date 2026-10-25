@@ -3,7 +3,7 @@
 Extracted verbatim in behavior from `routes/torque.py:_ingest`.
 
 Declares ODOMETER as a CAPABILITY but leaves `sync_odometer` False. Torque
-historically recorded no odometer at all: `store_torque_telemetry` never called
+historically recorded no odometer at all: the old Torque writer never called
 `_sync_odometer_from_telemetry`, and nothing Torque sends matches
 `ODOMETER_PID_PATTERNS`. Flipping the storage policy would have started syncing
 for every Torque user AND replaced the newer-only latest write. Instead the
@@ -61,9 +61,9 @@ class TorqueModule(BaseSourceModule):
             Capability.ODOMETER,
         }
     )
-    #: Exactly store_torque_telemetry's behavior: newer-only latest updates so a
+    #: Exactly what the old Torque writer did: newer-only latest updates so a
     #: backfilled row never clobbers a fresher live one, and no storage-interval
-    #: check because that method never performed one.
+    #: check because it never performed one.
     storage_policy = StoragePolicy(
         latest="if_newer",
         apply_storage_interval=False,
