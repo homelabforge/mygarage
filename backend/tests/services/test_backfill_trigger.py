@@ -25,6 +25,7 @@ async def make_trigger_device(db_session: AsyncSession):
         device_address: str | None = None,
         sd_backfill_enabled: bool = False,
         device_status: str = "offline",
+        kind: str | None = None,
     ) -> tuple[str, str]:
         n = next(_TRIGGER_SEQ)
 
@@ -57,6 +58,8 @@ async def make_trigger_device(db_session: AsyncSession):
             sd_backfill_enabled=sd_backfill_enabled,
             device_status=device_status,
         )
+        if kind is not None:
+            device.kind = kind
         session.add(device)
         await session.flush()
 
@@ -133,6 +136,30 @@ async def test_no_enqueue_when_already_online(db_session, make_trigger_device, m
         device_address="10.10.20.244",
         sd_backfill_enabled=True,
         device_status="online",
+    )
+    calls = []
+    monkeypatch.setattr(
+        "app.services.livelink_service.enqueue_sd_backfill",
+        lambda did: calls.append(did),
+    )
+    await LiveLinkService(db_session).update_device_status(
+        device_id=device_id, device_status="online"
+    )
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_no_enqueue_for_a_source_without_sd_backfill(
+    db_session, make_trigger_device, monkeypatch
+):
+    """Fable F4-3: a generic device has no SD card, so a stray address and
+    switch on it queue nothing. Main never checked the kind."""
+    vin, device_id = await make_trigger_device(
+        db_session,
+        device_address="10.10.20.244",
+        sd_backfill_enabled=True,
+        device_status="offline",
+        kind="generic_mqtt",
     )
     calls = []
     monkeypatch.setattr(

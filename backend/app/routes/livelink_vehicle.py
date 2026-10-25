@@ -168,9 +168,8 @@ async def get_vehicle_livelink_status(
     devices = await livelink_service.list_devices_by_vin(vin)
     device = devices[0] if devices else None
     capabilities = _union_capabilities(devices)
-    # The integrations card's rule, not `device_status == 'online'`: a sensor
-    # with no status topic never leaves 'unknown', and read raw it showed the
-    # RV offline while its readings arrived every few seconds.
+    # The integrations card's rule, not `device_status == 'online'`: Torque
+    # never leaves 'unknown', and a disabled device freezes at its last status.
     # No device, nothing to be online and no setting worth reading.
     timeout = await livelink_service.get_device_offline_timeout_minutes() if devices else 0
     now = utc_now()

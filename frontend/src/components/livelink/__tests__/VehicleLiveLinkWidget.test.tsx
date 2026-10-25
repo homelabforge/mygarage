@@ -100,9 +100,9 @@ describe('VehicleLiveLinkWidget keyboard activation (I12 a11y fix)', () => {
     expect(screen.getByText('3,200')).toBeInTheDocument()
   })
 
-  it('shows a sensor with no status topic as connected while the server says it reports', async () => {
-    // The RV: a Mopeka sensor's device_status stays 'unknown'. Read raw, the
-    // widget said Offline while Settings said online.
+  it('shows a source with no status as connected while the server says it reports', async () => {
+    // A sensor that hasn't sent a reading since the upgrade still says
+    // 'unknown'. Read raw, the widget said Offline while Settings said online.
     getVehicleStatus.mockResolvedValue({
       ...STATUS,
       capabilities: ['telemetry'],

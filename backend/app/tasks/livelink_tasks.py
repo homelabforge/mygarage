@@ -7,6 +7,8 @@ from app.database import AsyncSessionLocal
 from app.schemas.livelink import TELEMETRY_RETENTION_MIN_DAYS
 from app.services.firmware_service import FirmwareService
 from app.services.livelink_service import LiveLinkService
+from app.services.livelink_sources.base import Capability
+from app.services.livelink_sources.registry import default_registry
 from app.services.location_service import LocationService
 from app.services.notifications.dispatcher import NotificationDispatcher
 from app.services.sd_backfill_service import SdBackfillService
@@ -124,17 +126,28 @@ async def check_device_offline_status():
                 from app.models.vehicle import Vehicle
 
                 result = await db.execute(
-                    select(Vehicle.vin, Vehicle.year, Vehicle.make, Vehicle.model).where(
-                        Vehicle.vin.in_(device_vins)
-                    )
+                    select(
+                        Vehicle.vin, Vehicle.nickname, Vehicle.year, Vehicle.make, Vehicle.model
+                    ).where(Vehicle.vin.in_(device_vins))
                 )
-                vehicle_name_map = {row[0]: f"{row[1]} {row[2]} {row[3]}" for row in result.all()}
+                # Nickname first, like the other alerts. Joining the three raw
+                # columns named a vehicle with none of them "None None None".
+                for vin, nickname, *parts in result.all():
+                    name = nickname or " ".join(str(p) for p in parts if p)
+                    if name:
+                        vehicle_name_map[vin] = name
 
+            registry = default_registry()
             for device in devices:
                 if device.device_status == "online" and device.last_seen:
                     if device.last_seen < cutoff:
-                        # Mark device as offline
-                        await livelink_service.set_device_offline(device.device_id)
+                        # A sensor has no ECU to clear and no vehicle battery to
+                        # blame. A kind with no module counts as one, rather
+                        # than raising and losing the sweep for every device.
+                        drives = Capability.DRIVE_SESSION in registry.capabilities_for(device.kind)
+                        await livelink_service.set_device_offline(
+                            device.device_id, clear_ecu=drives
+                        )
                         logger.info("Marked device %s as offline", device.device_id)
 
                         # Send notification if enabled
@@ -149,6 +162,7 @@ async def check_device_offline_status():
                                 device_id=device.device_id,
                                 vehicle_name=vehicle_name,
                                 offline_minutes=offline_minutes,
+                                drive_session=drives,
                             )
 
             await db.commit()

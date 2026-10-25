@@ -76,6 +76,16 @@ class SourceRegistry:
         """The module for a device kind, or None if unknown."""
         return self._modules.get(kind)
 
+    def capabilities_for(self, kind: str) -> frozenset[Capability]:
+        """What a device kind can do. A kind with no module can do nothing.
+
+        Never raises, on purpose: a module removed in a later release leaves
+        its rows behind, and the offline sweep runs every device under one
+        `try`, so one orphan must not stop the rest (Fable F5-3).
+        """
+        module = self._modules.get(kind)
+        return module.capabilities if module is not None else frozenset()
+
     def all_modules(self) -> list[BaseSourceModule]:
         """Every registered module."""
         return list(self._modules.values())

@@ -506,7 +506,7 @@ async def send_device_command(
 
     **Security:**
     - Owner of the device's linked vehicle (admin for unlinked devices).
-    - Device must be online
+    - Device must take commands (a WiCAN) and be online
     - MQTT subscriber must be connected
     """
     await _get_device_for_owner_or_404(db, device_id, current_user)
@@ -1073,6 +1073,8 @@ async def set_sd_config(
 ):
     """Configure the SD-pull address and enable flag for a device.
 
+    404 for no such device, 422 for a kind with no SD card (only WiCAN has one).
+
     **Security:**
     - Requires admin authentication
     - device_address must be a private/LAN address (SSRF guard)
@@ -1083,7 +1085,14 @@ async def set_sd_config(
             status_code=422,
             detail="device_address must be a private/LAN address (public IPs are rejected)",
         )
-    await svc.update_device_address(device_id, body.device_address, body.sd_backfill_enabled)
+    try:
+        await svc.update_device_address(device_id, body.device_address, body.sd_backfill_enabled)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        # Only a WiCAN has an SD card; a stray address on anything else would
+        # just sit there waiting to be pulled.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SdConfigResponse()
 
 

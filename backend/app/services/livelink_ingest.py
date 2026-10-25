@@ -205,9 +205,8 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> I
         session = await apply_session_signal(db, device, batch.session, timestamp)
 
     # AFTER the session signal: the detector above reads the old ecu_status.
-    # None means LEAVE UNCHANGED and still bumps last_seen
-    # (`device_status or LiveLinkDevice.device_status`). Never default this to
-    # "online": a telemetry topic says nothing about the gateway's status.
+    # None means LEAVE UNCHANGED and still bumps last_seen (Torque). No retained
+    # batch gets here (R1, above), so a source can say 'online' for a reading.
     battery = batch.battery_voltage
     await livelink.update_device_status(
         device_id=device.device_id,

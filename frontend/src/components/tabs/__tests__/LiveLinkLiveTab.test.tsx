@@ -172,9 +172,9 @@ describe('LiveLinkLiveTab — status mapping + gauge warning (SDQ-C)', () => {
     expect(offline.container.querySelector('.rounded-full')).toHaveClass('bg-danger')
   })
 
-  it("reads the server's online flag, not device_status, which a sensor with no status topic never sets", async () => {
-    // A Mopeka sensor: device_status 'unknown' for ever, readings arriving.
-    // Reading device_status showed the RV offline while Settings said online.
+  it("reads the server's online flag, not device_status, which a source with no status leaves 'unknown'", async () => {
+    // device_status 'unknown' with readings arriving (a sensor before its
+    // first reading since the upgrade). Read raw, it showed the RV offline.
     getVehicleStatus.mockResolvedValue(
       okStatus({ capabilities: ['telemetry'], device_status: 'unknown', online: true, ecu_status: 'unknown' }),
     )

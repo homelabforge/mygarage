@@ -451,14 +451,26 @@ class NotificationDispatcher:
         vehicle_name: str | None = None,
         offline_minutes: int | None = None,
         url: str | None = None,
+        *,
+        drive_session: bool = True,
     ) -> dict[str, bool]:
-        """Send notification when LiveLink device goes offline."""
+        """Send notification when LiveLink device goes offline.
+
+        `drive_session=False` is for a source without DRIVE_SESSION (a tank
+        sensor): there's no vehicle battery to blame, so the hint is about
+        the device itself.
+        """
         vehicle_info = f" for {vehicle_name}" if vehicle_name else ""
         duration_info = f" for {offline_minutes} minutes" if offline_minutes else ""
+        hint = (
+            "Check vehicle battery and WiFi connectivity."
+            if drive_session
+            else "Check the device and its network connection."
+        )
         return await self.dispatch(
             event_type="livelink_device_offline",
             title=f"LiveLink Device Offline{vehicle_info}",
-            message=f"Device {device_id}{vehicle_info} has been offline{duration_info}. Check vehicle battery and WiFi connectivity.",
+            message=f"Device {device_id}{vehicle_info} has been offline{duration_info}. {hint}",
             url=url,
         )
 

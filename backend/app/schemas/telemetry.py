@@ -96,9 +96,10 @@ class VehicleLiveLinkStatus(BaseModel):
         False,
         description=(
             "Whether the reporting device is reporting now, by the integrations "
-            "card's rule: a source with no status topic (a Mopeka sensor) keeps "
+            "card's rule: a source that never reports a status (Torque) keeps "
             "device_status 'unknown' and counts as online while it has reported "
-            "within the offline timeout. Read this, not device_status."
+            "within the offline timeout, and a disabled device is never online. "
+            "Read this, not device_status."
         ),
     )
     ecu_status: LenientECUStatus = Field("unknown", description="ECU: online/offline/unknown")

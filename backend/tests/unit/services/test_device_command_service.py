@@ -9,10 +9,12 @@ def _mock_device(
     device_id: str = "aabbccddeeff",
     device_status: str = "online",
     ecu_status: str = "online",
+    kind: str = "wican",
 ):
     """Create a mock LiveLinkDevice."""
     device = MagicMock()
     device.device_id = device_id
+    device.kind = kind
     device.device_status = device_status
     device.ecu_status = ecu_status
     return device
@@ -160,6 +162,33 @@ class TestSendCommand:
             pytest.raises(RuntimeError, match="not connected"),
         ):
             await send_command(db, "aabbccddeeff", "get_vbatt")
+
+    @pytest.mark.asyncio
+    async def test_a_source_without_commands_is_refused(self):
+        """Fable F5-2: main had no kind check, so a Torque phone (or any generic
+        device) online at the moment got a `cmd` publish on its topic."""
+        from app.services.device_command_service import send_command
+
+        db = AsyncMock()
+        device = _mock_device(kind="torque")
+
+        mock_livelink = AsyncMock()
+        mock_livelink.get_device_by_id = AsyncMock(return_value=device)
+
+        mock_subscriber = MagicMock()
+        mock_subscriber.is_connected = True
+        mock_subscriber.send_device_command = AsyncMock()
+
+        with (
+            patch(
+                "app.services.device_command_service.LiveLinkService", return_value=mock_livelink
+            ),
+            patch("app.services.mqtt_subscriber.mqtt_subscriber", mock_subscriber),
+            pytest.raises(ValueError, match="does not take commands"),
+        ):
+            await send_command(db, "aabbccddeeff", "get_vbatt")
+
+        mock_subscriber.send_device_command.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_reboot_command(self):

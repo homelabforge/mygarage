@@ -18,7 +18,9 @@ from app.models.livelink_topic_map import LiveLinkTopicMap
 from app.models.odometer import OdometerRecord
 from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
 from app.schemas.livelink import DeviceStatusType, ECUStatusType
+from app.services.livelink_sources.base import Capability
 from app.services.livelink_sources.presets.sensors import delete_sensor_readings
+from app.services.livelink_sources.registry import default_registry
 from app.services.settings_service import SettingsService, parse_bool
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -341,7 +343,21 @@ class LiveLinkService:
     async def update_device_address(
         self, device_id: str, address: str | None, enabled: bool
     ) -> None:
-        """Set device_address and sd_backfill_enabled on a LiveLinkDevice."""
+        """Set device_address and sd_backfill_enabled on a LiveLinkDevice.
+
+        Raises LookupError for no such device and ValueError for a kind with
+        no SD card to pull (Fable F5-1). Checked here rather than in the route
+        so the route's tests can keep patching this class whole.
+        """
+        kind = (
+            await self.db.execute(
+                select(LiveLinkDevice.kind).where(LiveLinkDevice.device_id == device_id)
+            )
+        ).scalar_one_or_none()
+        if kind is None:
+            raise LookupError(f"Device {device_id} not found")
+        if Capability.SD_BACKFILL not in default_registry().capabilities_for(kind):
+            raise ValueError(f"A {kind} device has no SD card to pull")
         await self.db.execute(
             update(LiveLinkDevice)
             .where(LiveLinkDevice.device_id == device_id)
@@ -678,17 +694,21 @@ class LiveLinkService:
         if device_status == "online":
             row = await self.db.execute(
                 select(
+                    LiveLinkDevice.kind,
                     LiveLinkDevice.device_status,
                     LiveLinkDevice.device_address,
                     LiveLinkDevice.sd_backfill_enabled,
                 ).where(LiveLinkDevice.device_id == device_id)
             )
             prior_row = row.one_or_none()
+            # The kind check matters now that a generic reading says 'online':
+            # a stray address on a sensor would queue a pull it can't answer.
             if (
                 prior_row is not None
                 and prior_row.device_status != "online"
                 and prior_row.device_address
                 and prior_row.sd_backfill_enabled
+                and Capability.SD_BACKFILL in default_registry().capabilities_for(prior_row.kind)
             ):
                 should_backfill = True
 
@@ -712,16 +732,17 @@ class LiveLinkService:
         if should_backfill:
             enqueue_sd_backfill(device_id)
 
-    async def set_device_offline(self, device_id: str) -> None:
-        """Mark a device and its ECU as offline."""
+    async def set_device_offline(self, device_id: str, clear_ecu: bool = True) -> None:
+        """Mark a device offline, and its ECU too unless `clear_ecu` is False.
+
+        The sweep passes False for a kind without DRIVE_SESSION: a sensor has
+        no ECU, and none of its batches would ever reset one.
+        """
+        values: dict[str, Any] = {"device_status": "offline", "updated_at": utc_now()}
+        if clear_ecu:
+            values["ecu_status"] = "offline"
         await self.db.execute(
-            update(LiveLinkDevice)
-            .where(LiveLinkDevice.device_id == device_id)
-            .values(
-                device_status="offline",
-                ecu_status="offline",
-                updated_at=utc_now(),
-            )
+            update(LiveLinkDevice).where(LiveLinkDevice.device_id == device_id).values(**values)
         )
 
     # =========================================================================

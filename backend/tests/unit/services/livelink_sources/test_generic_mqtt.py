@@ -151,12 +151,24 @@ async def test_a_status_role_sets_device_status_not_a_reading(db_session):
 
 
 @pytest.mark.asyncio
-async def test_a_telemetry_batch_leaves_device_status_alone(mapped):
-    """R1-H5: a retained replay must not resurrect a gateway the LWT killed."""
+async def test_a_live_telemetry_batch_says_the_device_is_online(mapped):
+    """D5a: a live reading means it's talking, like WiCAN's `can/rx`. This used
+    to be None so a retained replay couldn't revive a dead gateway (R1-H5);
+    `ingest` drops retained telemetry before the device now, and the batch
+    still doesn't claim the status came off the wire."""
     batch = await mapped.parse(MqttEnvelope(T, b"71"))
-    assert batch.device_status is None
+    assert batch.device_status == "online"
+    assert batch.status_from_wire is False
     assert batch.requires_link is True
     assert batch.alert_on_thresholds is True
+
+
+@pytest.mark.asyncio
+async def test_a_retained_telemetry_batch_leaves_device_status_alone(mapped):
+    """Regression guard (None on main too), belt and braces under R1: the
+    reading flip skips a retained reading even if `ingest` ever stops dropping it."""
+    batch = await mapped.parse(MqttEnvelope(T, b"71", retain=True))
+    assert batch.device_status is None
 
 
 @pytest.mark.asyncio

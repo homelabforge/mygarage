@@ -2385,7 +2385,7 @@ export interface paths {
          *
          *     **Security:**
          *     - Owner of the device's linked vehicle (admin for unlinked devices).
-         *     - Device must be online
+         *     - Device must take commands (a WiCAN) and be online
          *     - MQTT subscriber must be connected
          */
         post: operations["send_device_command_api_livelink_devices__device_id__command_post"];
@@ -2508,6 +2508,8 @@ export interface paths {
         /**
          * Set Sd Config
          * @description Configure the SD-pull address and enable flag for a device.
+         *
+         *     404 for no such device, 422 for a kind with no SD card (only WiCAN has one).
          *
          *     **Security:**
          *     - Requires admin authentication
@@ -19316,7 +19318,7 @@ export interface components {
             latest_values?: components["schemas"]["TelemetryLatestValue"][];
             /**
              * Online
-             * @description Whether the reporting device is reporting now, by the integrations card's rule: a source with no status topic (a Mopeka sensor) keeps device_status 'unknown' and counts as online while it has reported within the offline timeout. Read this, not device_status.
+             * @description Whether the reporting device is reporting now, by the integrations card's rule: a source that never reports a status (Torque) keeps device_status 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online. Read this, not device_status.
              * @default false
              */
             online: boolean;

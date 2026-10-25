@@ -100,9 +100,8 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
   // whether the source is reachable.
   const tracksDriving = status?.capabilities?.includes('drive_session') ?? false
 
-  // `online` is the server's reachability rule, not `device_status`: a sensor
-  // with no status topic (Mopeka) never leaves 'unknown' and read raw showed
-  // the RV offline while its readings arrived.
+  // `online` is the server's reachability rule, not `device_status`: Torque
+  // never leaves 'unknown', and a disabled device freezes at its last status.
   const getStatusColor = (online: boolean, ecuStatus: string) => {
     if (!online) return 'danger'
     if (!tracksDriving) return 'success'

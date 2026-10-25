@@ -28426,7 +28426,7 @@
           },
           "online": {
             "default": false,
-            "description": "Whether the reporting device is reporting now, by the integrations card's rule: a source with no status topic (a Mopeka sensor) keeps device_status 'unknown' and counts as online while it has reported within the offline timeout. Read this, not device_status.",
+            "description": "Whether the reporting device is reporting now, by the integrations card's rule: a source that never reports a status (Torque) keeps device_status 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online. Read this, not device_status.",
             "title": "Online",
             "type": "boolean"
           },
@@ -39346,7 +39346,7 @@
     },
     "/api/livelink/devices/{device_id}/command": {
       "post": {
-        "description": "Send a command to a WiCAN device via MQTT.\n\nSupported commands:\n- **get_vbatt**: Request battery voltage\n- **get_autopid_data**: Trigger one-shot AutoPID data poll (requires ECU online)\n- **reboot**: Reboot the WiCAN device\n\nCommands are fire-and-forget. Responses arrive via normal MQTT telemetry topics.\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).\n- Device must be online\n- MQTT subscriber must be connected",
+        "description": "Send a command to a WiCAN device via MQTT.\n\nSupported commands:\n- **get_vbatt**: Request battery voltage\n- **get_autopid_data**: Trigger one-shot AutoPID data poll (requires ECU online)\n- **reboot**: Reboot the WiCAN device\n\nCommands are fire-and-forget. Responses arrive via normal MQTT telemetry topics.\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).\n- Device must take commands (a WiCAN) and be online\n- MQTT subscriber must be connected",
         "operationId": "send_device_command_api_livelink_devices__device_id__command_post",
         "parameters": [
           {
@@ -39608,7 +39608,7 @@
     },
     "/api/livelink/devices/{device_id}/sd-config": {
       "put": {
-        "description": "Configure the SD-pull address and enable flag for a device.\n\n**Security:**\n- Requires admin authentication\n- device_address must be a private/LAN address (SSRF guard)",
+        "description": "Configure the SD-pull address and enable flag for a device.\n\n404 for no such device, 422 for a kind with no SD card (only WiCAN has one).\n\n**Security:**\n- Requires admin authentication\n- device_address must be a private/LAN address (SSRF guard)",
         "operationId": "set_sd_config_api_livelink_devices__device_id__sd_config_put",
         "parameters": [
           {

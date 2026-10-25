@@ -183,16 +183,16 @@ class IngestBatch:
     #: Units a source declares ahead of any value, by param_key. Torque sends
     #: them once per session, in a request with no values.
     declared_units: dict[str, str] = field(default_factory=dict)
-    #: 'online' | 'offline' | None. None means LEAVE UNCHANGED, and is the
-    #: default for a reason: `update_device_status` treats None as "keep the
-    #: current value" while still refreshing `last_seen`. A telemetry topic
-    #: says nothing about the gateway's own status, so only an explicit
-    #: status signal sets this.
+    #: 'online' | 'offline' | None. None means LEAVE UNCHANGED and still bumps
+    #: `last_seen`; Torque sends it so a phone that only uploads while driving
+    #: never enters the offline sweep. It used to keep a retained replay from
+    #: reviving a dead gateway too, but R1 drops retained telemetry before
+    #: `resolve_device` now, so a live generic_mqtt reading sets 'online'.
     device_status: DeviceStatusType | None = None
     #: True only when `device_status` is a status topic's own value (generic
-    #: `role='status'`). WiCAN synthesizes `online` from a message arriving,
-    #: so it never sets this. A retained batch is applied only when this is
-    #: set and the status is `offline`.
+    #: `role='status'`). WiCAN and a generic reading synthesize `online` from
+    #: a message arriving, so they never set it. A retained batch is applied
+    #: only when this is set and the status is `offline`.
     status_from_wire: bool = False
     ecu_status: ECUStatusType | None = None
     session: SessionSignal | None = None

@@ -57,10 +57,10 @@ def device_is_online(device: LiveLinkDevice, offline_timeout_minutes: int, now: 
 
     Not simply `device_status == 'online'`, for two reasons:
 
-    - A handmade `generic_mqtt` device with no `role='status'` mapping never
-      sets `device_status`, so it stays 'unknown' forever while `last_seen` is
-      bumped on every batch. Reading the status alone leaves its tab
-      permanently yellow while readings flow.
+    - Torque never sets `device_status`, so it stays 'unknown' while
+      `last_seen` moves on every upload; 'unknown' falls back to `last_seen`.
+      A generic sensor with no status topic used to sit there too, until a
+      live reading started marking it online (D5a).
     - A disabled device freezes at its last status, because `ingest` returns
       before the status update and the offline sweep ignores `enabled`. Hence
       the `enabled` conjunct rather than trusting the stored value.

@@ -15,6 +15,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.livelink_service import LiveLinkService
+from app.services.livelink_sources.base import Capability
+from app.services.livelink_sources.registry import default_registry
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,11 @@ async def send_command(
     device = await livelink_service.get_device_by_id(device_id)
     if not device:
         raise ValueError(f"Device {device_id} not found")
+
+    # Main never checked, so a Torque phone or a generic sensor that happened
+    # to be online got a `cmd` publish meant for a WiCAN (Fable F5-2).
+    if Capability.COMMANDS not in default_registry().capabilities_for(device.kind):
+        raise ValueError(f"Device {device_id} ({device.kind}) does not take commands")
 
     if device.device_status != "online":
         raise ValueError(

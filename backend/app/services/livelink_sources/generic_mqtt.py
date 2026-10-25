@@ -193,15 +193,22 @@ class GenericMqttModule(BaseSourceModule):
 
         if not readings and device_status is None:
             return None
+        # The status came off a status topic, so a retained `offline` here is
+        # the LWT and still counts (R1).
+        status_from_wire = device_status is not None
+        # A live reading means it's talking, same as WiCAN's `can/rx`. That's
+        # what gets a sensor with no status topic into the offline sweep (D5a),
+        # and it brings back a device whose retained `online` birth R1 dropped.
+        # Not over a status the same message gave: `{"available": false,
+        # "level": 42}` is offline (Fable F3-4). Retained telemetry never gets
+        # this far anyway, R1 drops it in `ingest` before the device is touched.
+        if readings and not status_from_wire and not env.retain:
+            device_status = "online"
         return IngestBatch(
             device_key=device_id,
             readings=readings,
-            # NOT `or "online"`: a telemetry topic says nothing about the
-            # gateway's status. None leaves it alone and still bumps last_seen.
             device_status=device_status,
-            # The status came off a status topic, so a retained `offline` here
-            # is the LWT and still counts (R1).
-            status_from_wire=device_status is not None,
+            status_from_wire=status_from_wire,
             # No AUTO_DISCOVER: a generic device is created explicitly, so an
             # unmapped or unlinked one stores nothing.
             requires_link=True,
