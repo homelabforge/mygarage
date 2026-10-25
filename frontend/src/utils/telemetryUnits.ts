@@ -18,16 +18,16 @@
  * adapter for anything the unit system covers, and from this same classifier
  * for anything outside it (RPM, voltage, percentages).
  *
- * ★ Odometers. The backend stores an odometer in kilometres: any key its
- * odometer scan takes (`ODOMETER_NAME_PATTERNS` in
- * `backend/app/utils/odometer_units.py`: `A6-ODOMETER`, `ODOMETER_KM`, `ODO`,
- * ...), or the key a device names as its odometer, converted on ingest from
- * the device's odometer unit, its declared wire units or the key's own rule.
- * The first renders as a distance here, as does a standard PID that names one.
- * Any other bare key (a custom autopid called `DISTANCE`, say) renders as a
- * plain number with whatever unit came with it: this classifier can't see a
- * device's named odometer key, and a key nobody named is stored as sent. A
- * plain number says nothing rather than something wrong.
+ * ★ Odometers. The backend stores an odometer it normalises in kilometres
+ * and labels its parameter row `km` (FB-5, and migration 133 for rows from
+ * before), so a row that says km renders as a distance, whatever the key is
+ * called. Which keys get normalised depends on the device's kind (a WiCAN's
+ * name scan, any other kind's declared key), which this classifier can't see,
+ * so it trusts the label rather than the name (FW-A-r3). A standard PID that
+ * names a distance is km by SAE J1979 and renders as one too. Anything else
+ * (a custom `TOTAL_ODO` a generic topic sent in miles, a `DISTANCE` autopid)
+ * renders as a plain number with whatever unit came with it, which says
+ * nothing rather than something wrong.
  *
  * Native OBD2 units, all of which are the canonical metric ones the adapters
  * take: speed km/h, temperature °C, distance km, pressure kPa or bar. RPM,
@@ -105,35 +105,6 @@ export type TelemetryClass =
 /** A two-hex-digit OBD2 PID prefix, e.g. the `A6-` of `A6-ODOMETER`. */
 const OBD2_PID_PREFIX = /^[0-9A-Fa-f]{2}-/
 
-/**
- * The substring scan the backend converts and records an odometer by.
- *
- * Mirrors `ODOMETER_NAME_PATTERNS` in `backend/app/utils/odometer_units.py`
- * exactly (`odometerKeyParity.test.ts` reads it). A key that takes none of
- * these reaches the browser in whatever unit the device reported, so it can't
- * be labelled. The trip counters (`21-DISTANCEMILON`,
- * `31-DISTANCESINCECODECLEAR`) take none.
- */
-export const ODOMETER_NAME_PATTERNS = [
-  'A6-',
-  'ODOMETER',
-  'ODO',
-  'MILEAGE',
-  'DISTANCE_TOTAL',
-  'TOTAL_DISTANCE',
-] as const
-
-/**
- * Whether ingest stored this key as an odometer, in kilometres.
- *
- * @param paramKey The parameter key, any case.
- * @returns True when the backend's scan takes it.
- */
-export function isConvertedOdometerKey(paramKey: string): boolean {
-  const upper = paramKey.toUpperCase()
-  return ODOMETER_NAME_PATTERNS.some((pattern) => upper.includes(pattern))
-}
-
 export function classifyTelemetryParam(paramKey: string, unit: string | null): TelemetryClass {
   const key = paramKey.toLowerCase()
   const unitLower = (unit ?? '').toLowerCase()
@@ -164,19 +135,17 @@ export function classifyTelemetryParam(paramKey: string, unit: string | null): T
     return { kind: 'quantity', quantity: 'temperature' }
   }
 
-  // Canonical kilometres, but only for the keys that actually are: one the
-  // backend converts on ingest (its odometer scan, mirrored above), or one
-  // carrying a two-hex-digit OBD2 prefix (a standard SAE J1979 PID, which
-  // reports kilometres by specification) that names a distance.
+  // Canonical kilometres, but only where that's known. A custom odometer is
+  // km when its row says so, which the declared-unit lookup above already
+  // took: the backend labels every odometer it normalises km. Whether it did
+  // depends on the device's kind (a WiCAN scans names, anything else records
+  // only its declared key), and the browser can't see that, so no name rule
+  // here guesses it (FW-A-r3). The one key rule left is a two-hex-digit OBD2
+  // prefix naming a distance: a standard SAE J1979 PID, km by specification.
   //
-  // Matching every key containing "distance" claimed more than that: a custom
-  // autopid named `DISTANCE` takes no odometer pattern, so it is stored in
-  // whatever unit the device sent, and calling it kilometres made imperial
-  // formatting divide a mileage figure by 1.609. Such a key falls through to a
-  // plain number instead, which states nothing rather than something wrong.
-  if (isConvertedOdometerKey(paramKey)) {
-    return { kind: 'quantity', quantity: 'distance' }
-  }
+  // Anything else falls through to a plain number with whatever unit it
+  // carries, which states nothing rather than something wrong: a generic
+  // topic's `TOTAL_ODO` in miles used to read 0.62x as km.
   if (OBD2_PID_PREFIX.test(paramKey)) {
     if (key.includes('odo') || key.includes('distance') || key.includes('mileage')) {
       return { kind: 'quantity', quantity: 'distance' }

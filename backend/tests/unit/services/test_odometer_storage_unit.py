@@ -172,15 +172,24 @@ async def test_a_legacy_miles_odometer_registers_its_parameter_in_km(
     assert await _param_unit(db_session, LEGACY_KEY) == "km"
 
 
-@pytest.mark.parametrize("label", ["mi", "Miles"])
+@pytest.mark.parametrize(
+    "label",
+    [
+        "mi",
+        "Miles",
+        # FW-A-r3 (N2): a row registered before FB-5 says nothing. The browser
+        # trusts this label now, so it gets km too. Red on 4e32c6eb.
+        None,
+    ],
+)
 async def test_an_odometer_row_labelled_miles_is_relabelled_km(
-    db_session: AsyncSession, make_livelink_vehicle, label: str
+    db_session: AsyncSession, make_livelink_vehicle, label: str | None
 ):
-    """A row an earlier version labelled miles over km values, the way R4
+    """A row an earlier version labelled miles (or nothing) over km values, the way R4
     relabels an mph row. Its lines were always compared with km values, so they
     stay. Red on ed8fbef9 (the label stayed)."""
     _vin, device = await make_livelink_vehicle(
-        "fb5row", "1" if label == "mi" else "2", odometer_unit="mi"
+        "fb5row", {"mi": "1", "Miles": "2"}.get(label or "", "3"), odometer_unit="mi"
     )
     db_session.add(
         LiveLinkParameter(

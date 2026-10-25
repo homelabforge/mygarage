@@ -70,6 +70,8 @@ UPSTREAM_MI_ODOMETER_KEY = "ODOMETER_MI"
 #: same on main as on 3.10. Wider than `_ODOMETER_BARE_KEYS` (it takes
 #: `ODOMETER_KM`, `TOTAL_ODO`), and that width is what decides which keys were
 #: converted and recorded, so it's what the old-reading guard follows.
+#: Migration 133 reads this too, so widening it changes what 133 does on a
+#: database that hasn't upgraded yet: that needs a new migration, not an edit.
 ODOMETER_NAME_PATTERNS = ("A6-", "ODOMETER", "ODO", "MILEAGE", "DISTANCE_TOTAL", "TOTAL_DISTANCE")
 
 
@@ -85,6 +87,19 @@ def is_converted_odometer_key(param_key: str, declared: str | None = None) -> bo
         return param_key.upper() == declared.upper()
     upper = param_key.upper()
     return any(pattern in upper for pattern in ODOMETER_NAME_PATTERNS)
+
+
+def is_recorded_odometer_key(param_key: str, kind: str | None, declared: str | None = None) -> bool:
+    """True for a key a device of ``kind`` converts and records as its odometer.
+
+    The kind-aware form of `is_converted_odometer_key` (FW-A-r3). Only a
+    WiCAN's store path takes the substring scan; Torque, generic MQTT and the
+    presets record just the key they declare, so for them an odometer-named
+    key that isn't declared is a plain reading.
+    """
+    if kind == WICAN_DEVICE_KIND:
+        return is_converted_odometer_key(param_key, declared)
+    return bool(declared) and param_key.upper() == declared.upper()
 
 
 def mains_odometer_unit(param_key: str) -> str:

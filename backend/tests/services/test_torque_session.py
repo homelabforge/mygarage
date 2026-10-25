@@ -270,6 +270,9 @@ async def test_end_session_odometer_distance_is_not_overridden_by_gps(
     before it opened.
     """
     device = await _make_torque_device(db_session)
+    # The WiCAN path, so a WiCAN: only a WiCAN reads an undeclared `ODOMETER`
+    # as its odometer (FW-A-r3).
+    device.kind = "wican"
     t0 = datetime(2026, 1, 1, 10, 0, 0)
 
     # Seed the "start" odometer reading before the session opens.

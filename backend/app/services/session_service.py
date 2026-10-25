@@ -32,7 +32,11 @@ from app.utils.movement_keys import (
     rpm_param_key_candidates,
     speed_param_key_candidates,
 )
-from app.utils.odometer_units import is_converted_odometer_key, is_odometer_param_key
+from app.utils.odometer_units import (
+    WICAN_DEVICE_KIND,
+    is_odometer_param_key,
+    is_recorded_odometer_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -265,7 +269,9 @@ class SessionService:
             await self.end_session(device, timestamp)
 
         # Get start odometer if available
-        start_odometer = await self._get_current_odometer(device.vin, device.odometer_param_key)
+        start_odometer = await self._get_current_odometer(
+            device.vin, device.odometer_param_key, device.kind
+        )
 
         # Create new session
         session = DriveSession(
@@ -785,7 +791,9 @@ class SessionService:
             started_at=started_at,
             movement_started_at=movement_started_at,
             movement_ended_at=movement_ended_at,
-            start_odometer=await self._get_current_odometer(device.vin, device.odometer_param_key),
+            start_odometer=await self._get_current_odometer(
+                device.vin, device.odometer_param_key, device.kind
+            ),
             boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
             effective_gap_minutes=gap,
         )
@@ -1063,7 +1071,9 @@ class SessionService:
         device.current_session_id = session.id
         return session
 
-    async def _get_current_odometer(self, vin: str, declared_key: str | None) -> float | None:
+    async def _get_current_odometer(
+        self, vin: str, declared_key: str | None, kind: str | None = WICAN_DEVICE_KIND
+    ) -> float | None:
         """Get the current odometer reading from latest telemetry, in kilometres.
 
         Matching is by key *shape*, not an exact name list: the standard SAE
@@ -1084,7 +1094,7 @@ class SessionService:
         from app.models.vehicle_telemetry import VehicleTelemetryLatest
 
         # Newest first; the key match stays in Python so it's the same
-        # `is_converted_odometer_key` odometer records are written by. The latest
+        # `is_recorded_odometer_key` odometer records are written by. The latest
         # table holds one row per key, so this reads a handful of rows.
         result = await self.db.execute(
             select(VehicleTelemetryLatest.param_key, VehicleTelemetryLatest.value)
@@ -1098,7 +1108,7 @@ class SessionService:
             )
         )
         for param_key, value in result.all():
-            if value is not None and is_converted_odometer_key(param_key, declared_key):
+            if value is not None and is_recorded_odometer_key(param_key, kind, declared_key):
                 return float(value)
         return None
 
@@ -1221,22 +1231,24 @@ class SessionService:
         )
         # A device that NAMES its odometer parameter must have that name honoured
         # here too. Without it a Torque session never gets start_odometer /
-        # end_odometer stamped, because nothing Torque sends matches the
-        # patterns and the predicate answers False forever.
-        declared = (
+        # end_odometer stamped: Torque records only its declared key, so for an
+        # undeclared one the predicate answers False forever.
+        owner = (
             await self.db.execute(
-                select(LiveLinkDevice.odometer_param_key).where(
+                select(LiveLinkDevice.kind, LiveLinkDevice.odometer_param_key).where(
                     LiveLinkDevice.device_id == session.device_id
                 )
             )
-        ).scalar_one_or_none()
+        ).first()
+        kind, declared = owner if owner is not None else (None, None)
 
         keys = [key for (key,) in result.all()]
-        # The odometer columns follow the scan odometer records are written by
-        # (FW-A-r2), so `ODOMETER_KM` stamps them. Which source supplies
-        # `distance_km` is ranked over the same keys as before, so a key newly
-        # called an odometer doesn't move a session's distance.
-        odometer_keys = {key for key in keys if is_converted_odometer_key(key, declared)}
+        # The odometer columns follow what the device records odometers by
+        # (FW-A-r2, kind-aware per FW-A-r3): a WiCAN's scan, so `ODOMETER_KM`
+        # stamps them, and any other kind's declared key. Which source
+        # supplies `distance_km` is ranked over the same keys as before, so a
+        # key newly called an odometer doesn't move a session's distance.
+        odometer_keys = {key for key in keys if is_recorded_odometer_key(key, kind, declared)}
         distance_keys = {
             key
             for key in keys

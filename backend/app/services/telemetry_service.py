@@ -399,10 +399,12 @@ class TelemetryService:
     def _label_odometer_km(param: LiveLinkParameter | None) -> None:
         """A normalised odometer's row says km, whatever an older version wrote (FB-5).
 
-        R4 relabels an mph row the same way. The lines stay: they were always
-        compared with the stored values, which were km.
+        R4 relabels an mph row the same way. An empty unit gets km too: the
+        browser reads an odometer's unit from this row, not its name
+        (FW-A-r3). The lines stay: they were always compared with the stored
+        values, which were km.
         """
-        if param is not None and is_miles_unit(param.unit):
+        if param is not None and (not (param.unit or "").strip() or is_miles_unit(param.unit)):
             relabel_parameter(param, ODOMETER_UNIT_KM)
 
     async def _odometer_record_max(self, vin: str) -> float:

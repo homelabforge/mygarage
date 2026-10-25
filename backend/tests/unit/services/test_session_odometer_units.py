@@ -114,8 +114,11 @@ class TestSessionOdometerUnits:
 
         Torque Pro also publishes a bare `ODOMETER` and does not report miles,
         so applying the heuristic to it would inflate every reading by 1.609x.
+        Declared, since a Torque device has no odometer until it names one
+        (FW-A-r3).
         """
         device = await make_session_device("3", "ODOMETER", 1000.0, kind="torque")
+        device.odometer_param_key = "ODOMETER"
 
         session = await SessionService(db_session).start_session(device, utc_now())
 

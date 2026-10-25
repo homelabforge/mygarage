@@ -406,3 +406,52 @@ def test_backfill_lists_an_odometer_km_key(tmp_path, monkeypatch, capsys):
     assert _run("tools.backfill_livelink_odometer", path, monkeypatch) == 0
 
     assert "1,609 km → 1,611 km  (from ODOMETER_KM)" in capsys.readouterr().out
+
+
+def _seed_non_wican(path: str, kind: str, key: str) -> None:
+    """An undeclared non-WiCAN device that sent an odometer-named key, with a
+    km fuel record that dwarfs it, after the first boot."""
+    conn = sqlite3.connect(path)
+    conn.executescript(_SCHEMA + _UNITS)
+    conn.executescript(
+        "CREATE TABLE schema_migrations (id INTEGER PRIMARY KEY, migration_name TEXT);"
+        "INSERT INTO schema_migrations (migration_name) "
+        "VALUES ('133_record_wican_legacy_odometer_unit');"
+    )
+    conn.execute(
+        "INSERT INTO livelink_devices VALUES "
+        f"('devother', 'VINOTHER', 'mi', '{kind}', NULL, '2026-08-01 00:00:00')"
+    )
+    conn.executemany(
+        f"INSERT INTO vehicle_telemetry VALUES ('VINOTHER', 'devother', '{key}', ?, ?)",
+        [(1000.0, "2026-09-01 10:00:00"), (1001.0, "2026-09-02 10:00:00")],
+    )
+    conn.execute("INSERT INTO odometer_records VALUES ('VINOTHER', '2026-08-01', 1600.0, 'fuel')")
+    conn.commit()
+    conn.close()
+
+
+def test_backfill_never_records_from_an_undeclared_torque_key(tmp_path, monkeypatch, capsys):
+    """FW-A-r3: Torque records only its declared key, so its `TORQUE_ODOMETER`
+    rows aren't an odometer to rebuild records from. Red on 4e32c6eb (N1)."""
+    path = str(tmp_path / "mygarage.db")
+    _seed_non_wican(path, "torque", "TORQUE_ODOMETER")
+
+    assert _run("tools.backfill_livelink_odometer", path, monkeypatch) == 0
+
+    assert "VINOTHER" not in capsys.readouterr().out
+
+
+def test_normalize_leaves_an_undeclared_generic_key_alone(tmp_path, monkeypatch, capsys):
+    """Generic MQTT converts only a declared key, so an undeclared `TOTAL_ODO`
+    was never stored converted and isn't the tool's to convert. Red on
+    4e32c6eb (N1)."""
+    path = str(tmp_path / "mygarage.db")
+    _seed_non_wican(path, "generic_mqtt", "TOTAL_ODO")
+
+    assert _run("tools.normalize_telemetry_odometer_units", path, monkeypatch, "--apply") == 0
+
+    conn = sqlite3.connect(path)
+    values = [v for (v,) in conn.execute("SELECT value FROM vehicle_telemetry ORDER BY timestamp")]
+    conn.close()
+    assert values == [1000.0, 1001.0]

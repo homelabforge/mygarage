@@ -1,8 +1,8 @@
 """A device declares which parameter is its odometer; both predicates honour it.
 
-Name matching does not generalise: ODOMETER_NAME_PATTERNS matches WiCAN's
-`A6-ODOMETER` and nothing Torque sends, so a Torque-only user got zero odometer
-records. A declaration REPLACES the matching rather than widening it.
+Name matching does not generalise, and only a WiCAN records by it: a
+Torque-only user got zero odometer records until a key was declared. A
+declaration REPLACES the matching rather than widening it.
 
 Every test seeds its own vehicle and device via `make_livelink_vehicle` and
 filters every query by that VIN: the suite shares one database with no per-test

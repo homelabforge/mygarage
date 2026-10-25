@@ -27,7 +27,7 @@ from app.services.settings_service import SettingsService, parse_bool
 from app.utils.datetime_utils import to_naive_utc, utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.movement_keys import is_parked_heartbeat_key, is_speed_param_key
-from app.utils.odometer_units import is_converted_odometer_key, is_odometer_param_key
+from app.utils.odometer_units import is_odometer_param_key, is_recorded_odometer_key
 
 logger = logging.getLogger(__name__)
 
@@ -610,16 +610,19 @@ class LiveLinkService:
         still blocks it; accepted.
 
         Odometer keys match by the device's `odometer_param_key` when it has
-        one, by name otherwise: `is_converted_odometer_key`, the scan odometer
-        records are written by, so `ODOMETER_KM` history counts (FW-A-r2).
+        one, by name otherwise, the way the device's kind records odometers
+        (`is_recorded_odometer_key`): a WiCAN by the scan, so `ODOMETER_KM`
+        history counts (FW-A-r2), any other kind only its declared key, so a
+        Torque phone's undeclared `TORQUE_ODOMETER` doesn't (FW-A-r3).
         """
         declared = device.odometer_param_key
+        kind = device.kind
         raw = await self.db.execute(
             select(VehicleTelemetry.param_key)
             .where(VehicleTelemetry.device_id == device.device_id)
             .distinct()
         )
-        if any(is_converted_odometer_key(key, declared) for (key,) in raw.all()):
+        if any(is_recorded_odometer_key(key, kind, declared) for (key,) in raw.all()):
             return True
         if not device.vin:
             return False
@@ -631,7 +634,8 @@ class LiveLinkService:
         if since is not None:
             latest = latest.where(VehicleTelemetryLatest.timestamp >= since)
         if any(
-            is_converted_odometer_key(key, declared) for (key,) in (await self.db.execute(latest))
+            is_recorded_odometer_key(key, kind, declared)
+            for (key,) in (await self.db.execute(latest))
         ):
             return True
 

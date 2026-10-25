@@ -47,7 +47,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - WiCAN odometers follow upstream: `ODOMETER` is km and `ODOMETER_MI` is mi, and a unit the device declares in its HTTPS config wins. Existing devices keep their reading of every odometer key (migration 133)
 - `ODOMETER_MI` is read as miles and stored as km from every source, not just a WiCAN, so a topic mapped to it shows what was sent. Readings stored raw before are moved to km (migration 133); a vehicle where another device may also have sent it keeps its latest value and daily summaries as they were
 - An odometer's parameter is labelled km, the unit it's stored in, and one labelled miles by an earlier version is relabelled
-- Odometer keys like `ODOMETER_KM` count everywhere, not only for odometer records: the unit-change guard, session odometers, the repair tools and the LiveLink display
+- Odometer keys a WiCAN records, like `ODOMETER_KM`, count for the unit-change guard, session odometers and the repair tools too, and LiveLink shows an odometer as a distance when its parameter says km, which MyGarage now labels for every odometer it converts
 - An SD card odometer is stored like a live one: in whole km, and dropped past 1.6 million km or more than 16,000 km above the vehicle's records
 - LiveLink threshold alerts show the value and the line in your units. Alert lines are stored in metric, and a reading with no known quantity prints as stored
 - A sensor's offline alert says to check the device instead of the vehicle battery, and offline alerts name the vehicle by its nickname first

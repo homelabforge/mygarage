@@ -113,9 +113,8 @@ def _seed(
     with Session(engine) as s:
         _vehicle(s, vin)
         device.setdefault("kind", "wican")
-        s.add(
-            LiveLinkDevice(device_id=device_id, vin=vin, enabled=True, created_at=CREATED, **device)
-        )
+        device.setdefault("created_at", CREATED)
+        s.add(LiveLinkDevice(device_id=device_id, vin=vin, enabled=True, **device))
         s.flush()
         for i, value in enumerate(values):
             at = T0 + timedelta(minutes=i)
@@ -655,6 +654,100 @@ def test_it_refuses_a_key_that_is_not_an_odometer(engine):
 
     with pytest.raises(RepairRefusedError, match="isn't this device's odometer"):
         _plan(engine, "coolant", "mi", key="COOLANT")
+
+
+# --- Fix round 3 (N3) -------------------------------------------------------------
+
+
+def test_the_window_starts_when_the_device_reached_this_vehicle(engine):
+    """A device relinked from another car didn't record on this one before it
+    left that one. So the window starts at its last reading elsewhere, not at
+    its device-wide `created_at`, and an earlier dongle's record in between
+    stays. Red on 4e32c6eb, which rescaled it."""
+    _seed(
+        engine,
+        "relinked",
+        "REPAIRVINARRIVED1",
+        INFLATED,
+        legacy="mi",
+        created_at=datetime(2026, 1, 1),
+    )
+    with Session(engine) as s:
+        _vehicle(s, "REPAIRVINFORMER01")
+        s.add(
+            VehicleTelemetry(
+                vin="REPAIRVINFORMER01",
+                device_id="relinked",
+                param_key="COOLANT",
+                value=90.0,
+                timestamp=datetime(2026, 7, 1),
+                received_at=datetime(2026, 7, 1),
+            )
+        )
+        s.add(
+            OdometerRecord(
+                vin="REPAIRVINARRIVED1",
+                date=date(2026, 5, 1),
+                odometer_km=40000,
+                source="livelink",
+                notes="Auto-recorded from LiveLink (ODOMETER)",
+                created_at=datetime(2026, 5, 1),
+            )
+        )
+        s.commit()
+
+    _apply(engine, "relinked", "km")
+
+    records = _snapshot(engine, "relinked", "REPAIRVINARRIVED1")["records"]
+    assert ("livelink", 40000.0) in records
+    assert ("livelink", 50000.0) in records
+
+
+def test_it_refuses_over_a_deleted_devices_odometer_sessions(engine):
+    """A deleted dongle's drive sessions outlive it (no FK), and an odometer on
+    one says it may have recorded the key here. Red on 4e32c6eb, which looked
+    only at devices still on file."""
+    from tools.repair_wican_odometer_unit import RepairRefusedError
+
+    _seed(engine, "survivor", "REPAIRVINGHOST001", INFLATED, legacy="mi")
+    with Session(engine) as s:
+        s.add(
+            DriveSession(
+                vin="REPAIRVINGHOST001",
+                device_id="ghostdev",
+                started_at=T0 + timedelta(days=1),
+                ended_at=T0 + timedelta(days=1, hours=1),
+                start_odometer=80600.0,
+                end_odometer=80650.0,
+            )
+        )
+        s.commit()
+
+    with pytest.raises(RepairRefusedError, match="ghostdev"):
+        _plan(engine, "survivor", "km")
+
+
+def test_it_refuses_over_a_generic_device_that_declares_the_key(engine):
+    """The simple path records a declared key on any kind, so a generic sensor
+    on the car that declares ODOMETER may have written its records. Red on
+    4e32c6eb, whose `_could_record` said no for any kind but WiCAN and Torque."""
+    from tools.repair_wican_odometer_unit import RepairRefusedError
+
+    _seed(engine, "carwican", "REPAIRVINGENERIC1", INFLATED, legacy="mi")
+    with Session(engine) as s:
+        s.add(
+            LiveLinkDevice(
+                device_id="gendecl",
+                vin="REPAIRVINGENERIC1",
+                kind="generic_mqtt",
+                enabled=True,
+                odometer_param_key="ODOMETER",
+            )
+        )
+        s.commit()
+
+    with pytest.raises(RepairRefusedError, match="gendecl"):
+        _plan(engine, "carwican", "km")
 
 
 # --- The command line (SQLite) ---------------------------------------------------

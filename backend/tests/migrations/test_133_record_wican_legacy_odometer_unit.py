@@ -35,6 +35,7 @@ import app.models  # noqa: F401  (registers every table on Base.metadata)
 from app.database import Base, is_sqlite
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_device_unit import LiveLinkDeviceUnit
+from app.models.livelink_parameter import LiveLinkParameter
 from app.models.odometer import OdometerRecord
 from app.models.settings import Setting
 from app.models.user import User
@@ -605,6 +606,60 @@ def test_133_leaves_odometer_mi_a_wican_declares_in_km(db):
         "raw": [80467.0],
         "latest": 80467.0,
         "summary": (80467.0, 80477.0, 80472.0),
+    }
+
+
+def _param_row(s: Session, key: str, unit: str | None) -> None:
+    s.add(
+        LiveLinkParameter(
+            param_key=key,
+            display_name=key,
+            unit=unit,
+            param_class="distance",
+            category="engine",
+            show_on_dashboard=True,
+            archive_only=False,
+            storage_interval_seconds=0,
+        )
+    )
+
+
+def _param_units(engine: Engine) -> dict[str, str | None]:
+    with engine.connect() as conn:
+        rows = conn.execute(text("SELECT param_key, unit FROM livelink_parameters")).all()
+    return {key: unit for key, unit in rows}
+
+
+def test_133_labels_a_wican_odometer_parameter_km(db):
+    """FW-A-r3 (N2): the browser reads an odometer's unit from its parameter
+    row now, not from its name. A WiCAN stores every odometer key it records
+    in km, but a row registered before FB-5 says nothing (or mi), and a parked
+    car sends no reading to relabel it. A key a generic device also sends raw
+    keeps its row: the row is shared, and that device's values aren't km.
+    Red on 4e32c6eb."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINLABEL00001")
+        _device(s, "labelwic", "M133VINLABEL00001", odometer_unit="mi")
+        _raw(s, "labelwic", "M133VINLABEL00001", "ODOMETER", 80467)
+        _raw(s, "labelwic", "M133VINLABEL00001", "MILEAGE", 80467)
+        _raw(s, "labelwic", "M133VINLABEL00001", "TOTAL_ODO", 80467)
+        _vehicle(s, "M133VINLABELGEN01")
+        _device(s, "labelgen", "M133VINLABELGEN01", kind="generic_mqtt")
+        _raw(s, "labelgen", "M133VINLABELGEN01", "TOTAL_ODO", 50000)
+        _param_row(s, "ODOMETER", None)
+        _param_row(s, "MILEAGE", "mi")
+        _param_row(s, "TOTAL_ODO", None)
+        _param_row(s, "COOLANT", None)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _param_units(engine) == {
+        "ODOMETER": "km",
+        "MILEAGE": "km",
+        "TOTAL_ODO": None,
+        "COOLANT": None,
     }
 
 

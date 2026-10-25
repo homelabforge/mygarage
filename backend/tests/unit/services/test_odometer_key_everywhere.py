@@ -111,3 +111,76 @@ async def test_trip_counters_are_still_not_odometers(
     assert await LiveLinkService(db_session).device_has_odometer_history(device) is False
     started = await SessionService(db_session).start_session(device, now)
     assert started.start_odometer is None
+
+
+# --- Fix round 3 (ruling FW-A-r3): the question is kind-aware -------------------
+
+
+@pytest.mark.parametrize(
+    ("kind", "key"), [("torque", "TORQUE_ODOMETER"), ("generic_mqtt", "TOTAL_ODO")]
+)
+async def test_an_undeclared_non_wican_key_is_not_odometer_history(
+    db_session: AsyncSession, make_livelink_vehicle, kind: str, key: str
+):
+    """Only a WiCAN records by the scan; Torque and generic MQTT record just
+    their declared key, so an undeclared one has no odometer history and can
+    still choose its unit and key. Red on 4e32c6eb (N1)."""
+    vin, device = await make_livelink_vehicle(P, f"5{kind[0]}", kind=kind)
+    db_session.add(_raw(vin, device.device_id, key, 80000.0, utc_now()))
+    await db_session.flush()
+
+    assert await LiveLinkService(db_session).device_has_odometer_history(device) is False
+
+
+async def test_a_declared_non_wican_key_is_odometer_history(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """Regression guard: once declared, that key is the device's odometer.
+    Kills a kind-aware rule that ignores the declaration."""
+    vin, device = await make_livelink_vehicle(
+        P, "6", kind="torque", odometer_param_key="TORQUE_ODOMETER"
+    )
+    db_session.add(_raw(vin, device.device_id, "TORQUE_ODOMETER", 80000.0, utc_now()))
+    await db_session.flush()
+
+    assert await LiveLinkService(db_session).device_has_odometer_history(device) is True
+
+
+async def test_an_undeclared_torque_session_gets_no_odometer(
+    db_session: AsyncSession, make_livelink_vehicle, make_closed_drive_session
+):
+    """`resolve_torque_session` leaves a Torque trip's odometer unset, and
+    nothing Torque sends is its odometer until it's declared. Red on
+    4e32c6eb, which stamped both from `TORQUE_ODOMETER` (N1)."""
+    from sqlalchemy import select
+
+    from app.models.livelink_device import LiveLinkDevice
+
+    vin, device_id, session = await make_closed_drive_session(P, "7", distance_km=None)
+    device = (
+        await db_session.execute(
+            select(LiveLinkDevice).where(LiveLinkDevice.device_id == device_id)
+        )
+    ).scalar_one()
+    device.kind = "torque"
+    inside = session.started_at + timedelta(minutes=2)
+    db_session.add_all(
+        [
+            _raw(vin, device_id, "TORQUE_ODOMETER", 80000.0, inside),
+            _raw(vin, device_id, "TORQUE_ODOMETER", 80012.0, inside + timedelta(minutes=5)),
+            VehicleTelemetryLatest(
+                vin=vin,
+                param_key="TORQUE_ODOMETER",
+                value=80012.0,
+                timestamp=inside,
+                received_at=inside,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    await SessionService(db_session).refresh_aggregates(session)
+    assert (session.start_odometer, session.end_odometer) == (None, None)
+
+    started = await SessionService(db_session).start_session(device, utc_now())
+    assert started.start_odometer is None

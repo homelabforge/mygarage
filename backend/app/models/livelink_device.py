@@ -71,11 +71,12 @@ class LiveLinkDevice(Base):
     #: NULL means "declares nothing", the correct default and the reason
     #: existing installs are unaffected: odometer recording stays as it is.
     #:
-    #: Exists because name matching does not generalise. ODOMETER_NAME_PATTERNS
-    #: matches WiCAN's `A6-ODOMETER` and nothing Torque sends, so a Torque-only
-    #: user gets no odometer records at all. Rather than grow a vendor pattern
-    #: list forever, a device declares its own, and that declaration REPLACES
-    #: the matching rather than filtering it (see `is_odometer_param_key`).
+    #: Exists because name matching does not generalise. Only a WiCAN records
+    #: odometers by the ODOMETER_NAME_PATTERNS scan; every other kind records
+    #: nothing until it declares a key, so a Torque-only user gets no odometer
+    #: records at all without one. Rather than grow a vendor pattern list
+    #: forever, a device declares its own, and that declaration REPLACES the
+    #: matching rather than filtering it (see `is_recorded_odometer_key`).
     #:
     #: Pairs with `odometer_unit`: there is no unit inference outside WiCAN, so
     #: a device setting this MUST also set `odometer_unit` or its value is read

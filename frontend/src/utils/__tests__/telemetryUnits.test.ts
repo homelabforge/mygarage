@@ -44,19 +44,26 @@ describe('classifyTelemetryParam', () => {
     })
   })
 
-  it('routes a custom odometer to distance, because ingest now normalises it', () => {
-    // The unverified marker existed because nothing recorded which unit a
-    // custom-PID odometer held. Devices now declare an `odometer_unit`
-    // (migration 096) and TelemetryService converts on the way in.
-    //
-    // Only for the keys ingest actually converts, though: this list is
-    // `ODOMETER_NAME_PATTERNS` in backend/app/utils/odometer_units.py. A bare
-    // `DISTANCE` is NOT in it and is asserted the other way below.
+  it('routes a custom odometer to distance when its row says km', () => {
+    // The backend labels a normalised odometer's parameter row km (FB-5, and
+    // migration 133 for rows from before). Whether a key was normalised
+    // depends on the device's kind, which the browser can't see, so the label
+    // is what it trusts (FW-A-r3).
     for (const key of ['ODOMETER', 'odometer', 'ODOMETER_MI', 'ODO', 'MILEAGE', 'TOTAL_DISTANCE']) {
-      expect(classifyTelemetryParam(key, null)).toStrictEqual({
+      expect(classifyTelemetryParam(key, 'km')).toStrictEqual({
         kind: 'quantity',
         quantity: 'distance',
       })
+    }
+  })
+
+  it('does not guess km for an odometer-named key with no km label', () => {
+    // Red on 4e32c6eb: an undeclared generic topic's `TOTAL_ODO` is stored as
+    // sent, so reading its miles as km showed 0.62x to an imperial viewer.
+    for (const unit of [null, 'mi']) {
+      for (const key of ['TOTAL_ODO', 'ODOMETER', 'MILEAGE']) {
+        expect(classifyTelemetryParam(key, unit).kind).not.toBe('quantity')
+      }
     }
   })
 
@@ -205,10 +212,10 @@ describe('convertTelemetryValue', () => {
     })
   })
 
-  it('renders a custom odometer in the reader\'s unit, now that ingest normalises it', () => {
-    // Was '1,000 (unknown unit)'. The marker is retired because the stored
-    // value is canonical km whatever key it arrived under: 1000 km -> 621 mi.
-    expect(convertTelemetryValue(1000, 'ODOMETER', null, IMPERIAL)).toStrictEqual({
+  it('renders a custom odometer in the reader\'s unit when its row says km', () => {
+    // Was '1,000 (unknown unit)'. The backend labels a normalised odometer km,
+    // so 1000 km reads 621 mi.
+    expect(convertTelemetryValue(1000, 'ODOMETER', 'km', IMPERIAL)).toStrictEqual({
       text: '621',
       unit: 'mi',
     })
@@ -216,21 +223,29 @@ describe('convertTelemetryValue', () => {
 
   it('shows a generic MQTT ODOMETER_MI as the miles it was sent in', () => {
     // Regression guard (Codex R1-M1): the backend stores ODOMETER_MI as km for
-    // every device kind now, so 50,000 mi lands as 80,467.2 km. Read back as
-    // canonical km it's the same 50,000 mi, whichever unit the row names.
-    for (const unit of [null, 'km']) {
-      expect(convertTelemetryValue(80467.2, 'ODOMETER_MI', unit, IMPERIAL)).toStrictEqual({
-        text: '50,000',
-        unit: 'mi',
-      })
-    }
+    // every device kind now, so 50,000 mi lands as 80,467.2 km, and labels its
+    // row km (FB-5). Read back as km it's the same 50,000 mi.
+    expect(convertTelemetryValue(80467.2, 'ODOMETER_MI', 'km', IMPERIAL)).toStrictEqual({
+      text: '50,000',
+      unit: 'mi',
+    })
   })
 
-  it('renders any key ingest records as an odometer as a distance', () => {
-    // Ruling FW-A-r2: ingest converts `ODOMETER_KM` to km by its substring
-    // scan, so it's a distance here too. Was a plain '80,467.2' number.
-    expect(convertTelemetryValue(80467.2, 'ODOMETER_KM', null, IMPERIAL)).toStrictEqual({
+  it('renders a WiCAN odometer labelled km as a distance, whatever its name', () => {
+    // Regression guard: `ODOMETER_KM` on a WiCAN is normalised and labelled
+    // km, and the label is enough. Kills a classifier that drops a declared km.
+    expect(convertTelemetryValue(80467.2, 'ODOMETER_KM', 'km', IMPERIAL)).toStrictEqual({
       text: '50,000',
+      unit: 'mi',
+    })
+  })
+
+  it('shows an undeclared generic TOTAL_ODO in miles as the number it is', () => {
+    // FW-A-r3 (N2): ingest left it raw, so 50,000 stays 50,000 with whatever
+    // label came with it. Red on 4e32c6eb, which showed it as 31,069 mi.
+    expect(convertTelemetryValue(50000, 'TOTAL_ODO', null, IMPERIAL).text).toBe('50,000.0')
+    expect(convertTelemetryValue(50000, 'TOTAL_ODO', 'mi', IMPERIAL)).toStrictEqual({
+      text: '50,000.0',
       unit: 'mi',
     })
   })
@@ -279,9 +294,9 @@ describe('getParamDisplayName', () => {
 })
 
 describe('classifyTelemetryParam distance keys', () => {
-  // The backend converts only the keys its `ODOMETER_NAME_PATTERNS` scan takes
-  // (backend/app/utils/odometer_units.py) plus anything carrying a standard
-  // OBD2 PID prefix, which is kilometres by SAE J1979. Claiming kilometres for
+  // A distance is km here when its row says km (the backend labels every
+  // odometer it normalises), or when it carries a standard OBD2 PID prefix,
+  // which is kilometres by SAE J1979. Claiming kilometres for
   // any key containing "distance" over-reached: a custom `DISTANCE` autopid is
   // stored exactly as the device sent it, so an imperial reader saw a mileage
   // figure divided by 1.609.
@@ -292,8 +307,8 @@ describe('classifyTelemetryParam distance keys', () => {
     })
   })
 
-  it('treats a bare ODOMETER autopid as canonical distance (the backend normalises it)', () => {
-    expect(classifyTelemetryParam('ODOMETER', null)).toEqual({
+  it('treats a bare ODOMETER autopid as canonical distance when its row says km', () => {
+    expect(classifyTelemetryParam('ODOMETER', 'km')).toEqual({
       kind: 'quantity',
       quantity: 'distance',
     })

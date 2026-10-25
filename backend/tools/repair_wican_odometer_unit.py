@@ -64,7 +64,7 @@ from app.utils.odometer_units import (  # noqa: E402
     ODOMETER_UNIT_MI,
     WICAN_DEVICE_KIND,
     infer_odometer_unit,
-    is_converted_odometer_key,
+    is_recorded_odometer_key,
     resolve_odometer_unit,
 )
 from app.utils.units import UnitConverter  # noqa: E402
@@ -142,13 +142,16 @@ def _as_datetime(value: object) -> datetime | None:
 def _window_start(
     conn: Connection, device_id: str, vin: str, key: str, created_at: object
 ) -> datetime | None:
-    """When this device started reporting on this vehicle, by what survives pruning.
+    """When this device reached this vehicle, by what survives pruning.
 
-    Its `created_at`, or earlier when its own raw rows or drive sessions on the
-    VIN say so (a device deleted and re-discovered keeps its MAC id).
+    A device has no link history, so its own rows say where it was: if it
+    reported on another car (raw rows, or a drive session, which never prune),
+    it reached this one after the last of those, not at its device-wide
+    `created_at` (N3). Otherwise its `created_at`, or earlier when its rows or
+    sessions on this VIN say so (a device deleted and re-discovered keeps its
+    MAC id). A device that went back and forth can't be scoped, so it's refused.
     """
-    found = [_as_datetime(created_at)]
-    found.append(
+    here = [
         _as_datetime(
             conn.execute(
                 text(
@@ -157,9 +160,7 @@ def _window_start(
                 ),
                 {"d": device_id, "v": vin, "k": key},
             ).scalar()
-        )
-    )
-    found.append(
+        ),
         _as_datetime(
             conn.execute(
                 text(
@@ -167,17 +168,37 @@ def _window_start(
                 ),
                 {"d": device_id, "v": vin},
             ).scalar()
-        )
-    )
-    known = [at for at in found if at is not None]
+        ),
+    ]
+    elsewhere = [
+        _as_datetime(
+            conn.execute(
+                text(
+                    "SELECT MAX(timestamp) FROM vehicle_telemetry WHERE device_id = :d AND vin <> :v"
+                ),
+                {"d": device_id, "v": vin},
+            ).scalar()
+        ),
+        _as_datetime(
+            conn.execute(
+                text(
+                    "SELECT MAX(started_at) FROM drive_sessions WHERE device_id = :d AND vin <> :v"
+                ),
+                {"d": device_id, "v": vin},
+            ).scalar()
+        ),
+    ]
+    first_here = min((at for at in here if at is not None), default=None)
+    last_elsewhere = max((at for at in elsewhere if at is not None), default=None)
+    if last_elsewhere is not None:
+        if first_here is not None and last_elsewhere > first_here:
+            raise RepairRefusedError(
+                f"{device_id} reported on another vehicle after it started on this one, so "
+                "which of this vehicle's records it wrote can't be told."
+            )
+        return last_elsewhere
+    known = [at for at in (_as_datetime(created_at), first_here) if at is not None]
     return min(known) if known else None
-
-
-def _could_record(kind: str | None, declared: str | None, key: str) -> bool:
-    """Whether a device of this kind records ``key`` as its odometer."""
-    if kind == WICAN_DEVICE_KIND:
-        return is_converted_odometer_key(key, declared)
-    return kind == "torque" and bool(declared) and declared.upper() == key
 
 
 def _refuse_unless_scoped(
@@ -222,11 +243,18 @@ def _refuse_unless_scoped(
             {"v": vin, "d": device_id, "s": bound},
         )
     }
+    on_file: set[str] = set()
     for row in conn.execute(
         text("SELECT device_id, kind, odometer_param_key FROM livelink_devices"),
     ):
-        if row.device_id in nearby and _could_record(row.kind, row.odometer_param_key, key):
+        on_file.add(row.device_id)
+        if row.device_id in nearby and is_recorded_odometer_key(
+            key, row.kind, row.odometer_param_key
+        ):
             others.add(row.device_id)
+    # A deleted device's odometer sessions outlive it (no FK), and with no
+    # kind on file it may have recorded anything (N3).
+    others |= nearby - on_file
     if others:
         raise RepairRefusedError(
             f"{', '.join(sorted(others))} may also have recorded {key} on this vehicle while "
@@ -249,7 +277,9 @@ def _refuse_unless_scoped(
             text("SELECT param_key FROM vehicle_telemetry_latest WHERE vin = :v"), {"v": vin}
         )
     }
-    second = sorted(k for k in keys if k != key and is_converted_odometer_key(k, declared))
+    second = sorted(
+        k for k in keys if k != key and is_recorded_odometer_key(k, WICAN_DEVICE_KIND, declared)
+    )
     if second:
         raise RepairRefusedError(
             f"this device also has odometer history under {', '.join(second)}, and a session's "
@@ -301,7 +331,7 @@ def plan_repair(conn: Connection, device_id: str, key: str, to: str) -> RepairPl
         )
     key = key.upper()
     declared = device.odometer_param_key
-    if not is_converted_odometer_key(key, declared):
+    if not is_recorded_odometer_key(key, device.kind, declared):
         raise RepairRefusedError(f"{key} isn't this device's odometer")
 
     stored = conn.execute(

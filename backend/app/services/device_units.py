@@ -24,7 +24,7 @@ from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLates
 from app.services.livelink_sources.base import Reading, WireUnit
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.odometer_units import is_converted_odometer_key
+from app.utils.odometer_units import is_recorded_odometer_key
 from app.utils.units import UnitConverter
 from app.utils.wire_units import CANONICAL_SPEED_UNIT, is_mph, mph_to_kmh
 
@@ -98,8 +98,8 @@ class DeviceUnitService:
         values: list[dict[str, object]] = []
         dropped = 0
         for key, wire in declared.items():
-            if held.get(key) == SOURCE_LEGACY and is_converted_odometer_key(
-                key, device.odometer_param_key
+            if held.get(key) == SOURCE_LEGACY and is_recorded_odometer_key(
+                key, device.kind, device.odometer_param_key
             ):
                 if await self._keeps_legacy(device, key):
                     self._warn_legacy_kept(device_id, key, wire.unit)

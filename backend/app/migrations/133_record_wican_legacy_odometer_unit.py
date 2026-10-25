@@ -59,6 +59,13 @@ so no odometer record or session odometer came from it. A `legacy` `mi` row
 for the key is written in the same transaction, so a re-run after a commit
 the runner didn't stamp converts nothing twice.
 
+The browser reads an odometer's unit from its parameter row, not its name
+(FW-A-r3), and a row registered before FB-5 says nothing or mi over the km a
+WiCAN stores. So each odometer key a WiCAN records gets `km` on its row when
+the row says nothing or miles, unless a device of another kind has sent the
+key raw: the row is shared, and that device's values aren't km. Live ingest
+does the same on the next reading; this covers a car that's parked.
+
 FATAL: a failure must not boot with the km default under these devices. Data
 only, idempotent (skips a key the device already has a row for), both
 dialects. `livelink_device_units` comes from `create_all` (or migration 132)
@@ -73,7 +80,11 @@ from pathlib import Path
 
 from sqlalchemy import Connection, Engine, create_engine, inspect, text
 
-from app.utils.odometer_units import is_converted_odometer_key, mains_odometer_unit
+from app.utils.odometer_units import (
+    is_converted_odometer_key,
+    is_recorded_odometer_key,
+    mains_odometer_unit,
+)
 
 FATAL = True
 
@@ -327,6 +338,46 @@ def _convert_odometer_mi(conn: Connection) -> int:
     return len(done)
 
 
+_ALL_DEVICES = "SELECT device_id, vin, kind, {declared} AS declared FROM livelink_devices"
+_LABEL_KM = text(
+    "UPDATE livelink_parameters SET unit = 'km' WHERE param_key = :k "
+    "AND (unit IS NULL OR TRIM(unit) = '' OR LOWER(TRIM(unit)) IN ('mi', 'mile', 'miles'))"
+)
+
+
+def _label_odometer_params(conn: Connection) -> int:
+    """Label km on the parameter rows of keys WiCANs store as km. Returns rows changed."""
+    inspector = inspect(conn)
+    if not inspector.has_table("livelink_parameters") or missing_device_columns(conn):
+        return 0
+    columns = {col["name"] for col in inspector.get_columns("livelink_devices")}
+    declared_expr = "odometer_param_key" if "odometer_param_key" in columns else "NULL"
+    has_latest = inspector.has_table("vehicle_telemetry_latest")
+
+    wanted: set[str] = set()
+    raw_elsewhere: set[str] = set()
+    for device_id, vin, kind, declared in conn.execute(
+        text(_ALL_DEVICES.format(declared=declared_expr))
+    ):
+        keys = _device_keys(conn, device_id)
+        if kind == "wican":
+            if vin and has_latest:
+                keys |= {key for (key,) in conn.execute(_VIN_KEYS, {"v": vin})}
+            wanted |= {key for key in keys if is_recorded_odometer_key(key, kind, declared)}
+        else:
+            # What this kind stores raw: anything it doesn't record as its
+            # odometer, except ODOMETER_MI, which every kind stores as km.
+            raw_elsewhere |= {
+                key
+                for key in keys
+                if key != _MI_KEY and not is_recorded_odometer_key(key, kind, declared)
+            }
+    changed = 0
+    for key in sorted(wanted - raw_elsewhere):
+        changed += conn.execute(_LABEL_KM, {"k": key}).rowcount or 0
+    return changed
+
+
 def upgrade(engine: Engine | None = None) -> None:
     """Keep main's reading of each WiCAN odometer key, and move raw ODOMETER_MI to km."""
     if engine is None:
@@ -342,6 +393,7 @@ def upgrade(engine: Engine | None = None) -> None:
         found = legacy_odometer_rows(conn)
         for device_id, key, unit in found:
             conn.execute(_INSERT, {"d": device_id, "k": key, "u": unit})
+        labelled = _label_odometer_params(conn)
 
     if found:
         devices = len({device_id for device_id, _key, _unit in found})
@@ -350,6 +402,8 @@ def upgrade(engine: Engine | None = None) -> None:
         print("  → no unit-less WiCAN has odometer history; nothing to record")
     if converted:
         print(f"  ✓ Moved ODOMETER_MI from miles to km on {converted} device(s)")
+    if labelled:
+        print(f"  ✓ Labelled {labelled} odometer parameter(s) km")
 
 
 def downgrade() -> None:  # pragma: no cover

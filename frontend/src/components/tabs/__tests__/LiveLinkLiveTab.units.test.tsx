@@ -94,13 +94,13 @@ describe('LiveLinkLiveTab gauges', () => {
     expect(screen.getByText('mi')).toBeInTheDocument()
   })
 
-  it('labels a custom odometer in the reader\'s unit, now that ingest normalises it', async () => {
+  it('labels a custom odometer in the reader\'s unit when its row says km', async () => {
     getVehicleStatus.mockResolvedValue(
       status([
         {
           param_key: 'ODOMETER',
           value: 1000,
-          unit: null,
+          unit: 'km',
           display_name: 'Odometer',
           in_warning: false,
           show_on_dashboard: true,
@@ -109,8 +109,8 @@ describe('LiveLinkLiveTab gauges', () => {
       ]),
     )
     render(<LiveLinkLiveTab vin="V1" />)
-    // Was '1,000 (unknown unit)'. The stored value is canonical km whatever key
-    // it arrived under, so it converts like any other distance: 1000 km -> 621 mi.
+    // Was '1,000 (unknown unit)'. The backend labels an odometer it normalised
+    // km (FB-5), and the tab trusts the label (FW-A-r3): 1000 km -> 621 mi.
     expect(await screen.findByText('621')).toBeInTheDocument()
     expect(screen.getByText('mi')).toBeInTheDocument()
     expect(screen.queryByText('(unknown unit)')).not.toBeInTheDocument()

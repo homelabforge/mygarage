@@ -37,7 +37,8 @@ sys.path.insert(0, ".")
 
 from app.utils.odometer_units import (  # noqa: E402
     ODOMETER_UNIT_KM,
-    is_converted_odometer_key,
+    WICAN_DEVICE_KIND,
+    is_recorded_odometer_key,
     odometer_value_to_km,
     resolve_odometer_unit,
 )
@@ -133,7 +134,7 @@ def main() -> int:
                 {"d": device_id, "v": scope_vin},
             ):
                 param_key = key_row.param_key
-                if not is_converted_odometer_key(param_key, declared.get(device_id)):
+                if not is_recorded_odometer_key(param_key, kind, declared.get(device_id)):
                     continue
                 if param_key == "ODOMETER_MI" and device_id in skip_odometer_mi:
                     continue
@@ -177,7 +178,10 @@ def main() -> int:
                 "FROM vehicle_telemetry WHERE value IS NOT NULL"
             )
         ):
-            if not is_converted_odometer_key(row.param_key, declared.get(row.device_id)):
+            # A deleted device's rows have no kind on file; the conversion below
+            # reads them by WiCAN's rules, so the key match does too.
+            row_kind = devices[row.device_id][2] if row.device_id in devices else WICAN_DEVICE_KIND
+            if not is_recorded_odometer_key(row.param_key, row_kind, declared.get(row.device_id)):
                 continue
             if row.param_key == "ODOMETER_MI" and row.device_id in skip_odometer_mi:
                 continue
