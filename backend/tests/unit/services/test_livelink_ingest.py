@@ -141,6 +141,24 @@ async def test_a_source_without_the_drive_session_capability_never_opens_one(
             delete(LiveLinkTopicMap).where(LiveLinkTopicMap.device_id == device_id)
         )
         await db_session.commit()
+        # The registry is a process-wide singleton: don't leave our topic in its cache.
+        await module.refresh(db_session)
+
+
+@pytest.mark.asyncio
+async def test_the_pipeline_ignores_a_session_signal_without_the_capability(
+    db_session, linked_device
+):
+    """The ingest-level gate: a module without DRIVE_SESSION that still emits
+    `InferSession` never reaches `handle_ecu_online`.
+
+    Regression guard: main's test, kept beside the real-module one, which can't
+    see this gate because generic batches carry no session signal.
+    """
+    with patch("app.services.livelink_ingest.SessionService") as svc:
+        svc.return_value.handle_ecu_online = AsyncMock()
+        await ingest(_Sessionless(linked_device.device_id), ENV, db_session)
+        svc.return_value.handle_ecu_online.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -70,6 +70,8 @@ async def test_the_service_clamps_defensively_for_non_http_callers(asked: int, l
 
     config = {"host": "broker", "port": 1883, "username": None, "password": None, "use_tls": False}
     sub = mod.MQTTSubscriber()
+    # `mod.asyncio` is the real asyncio module, so this patch is process-wide.
+    # Safe only because nothing else awaits wait_for while this block runs.
     with (
         patch.object(sub, "_load_config", new=AsyncMock(return_value=config)),
         patch("aiomqtt.Client", _FakeClient),
