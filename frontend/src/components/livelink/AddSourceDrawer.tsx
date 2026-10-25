@@ -10,6 +10,7 @@ import vehicleService from '@/services/vehicleService'
 import type { PresetInfo } from '@/types/livelinkTopicMap'
 import type { Vehicle } from '@/types/vehicle'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
+import { presetDescription } from './presetText'
 import SensorForm from './settings/SensorForm'
 
 /**
@@ -132,7 +133,7 @@ export default function AddSourceDrawer({ open, onClose, onCreated }: Props): Re
                   <p id={titleId} className="text-sm text-text">
                     {preset.title}
                   </p>
-                  <p className="text-xs text-text-mute">{preset.description}</p>
+                  <p className="text-xs text-text-mute">{presetDescription(preset, t)}</p>
                 </div>
                 {adding === preset.name ? (
                   <SensorForm

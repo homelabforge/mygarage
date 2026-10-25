@@ -93,7 +93,7 @@ describe('MosquittoSettingsDrawer', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'modal.livelink.restart' }))
 
-    expect(await screen.findByText('connecting')).toBeInTheDocument()
+    expect(await screen.findByText('settings:integrations.brokerStatus.connecting')).toBeInTheDocument()
     expect(onChanged).toHaveBeenCalled()
   })
 
@@ -115,5 +115,22 @@ describe('MosquittoSettingsDrawer', () => {
     // By value, so it holds whatever the field would be labelled: the saved
     // prefix is 'wican', and no field here shows it.
     expect(screen.queryByDisplayValue('wican')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['connected', 'settings:integrations.brokerStatus.connected'],
+    ['connecting', 'settings:integrations.brokerStatus.connecting'],
+    ['disabled', 'settings:integrations.brokerStatus.disabled'],
+    ['error', 'settings:integrations.brokerStatus.error'],
+    ['disconnected', 'settings:integrations.brokerStatus.disconnected'],
+    ['stopped', 'settings:integrations.brokerStatus.stopped'],
+    // A state this table doesn't know yet still reads as words, not a raw value.
+    ['reticulating', 'settings:integrations.brokerStatus.unknown'],
+  ])('says %s in words', async (connection, key) => {
+    getMQTTStatus.mockResolvedValue({ ...STATUS, connection_status: connection })
+    renderDrawer()
+
+    expect(await screen.findByText(key)).toBeInTheDocument()
+    expect(screen.queryByText(connection)).not.toBeInTheDocument()
   })
 })

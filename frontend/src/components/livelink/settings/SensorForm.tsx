@@ -9,6 +9,7 @@ import type { LiveLinkDevice } from '@/types/livelink'
 import type { PresetInfo } from '@/types/livelinkTopicMap'
 import type { Vehicle } from '@/types/vehicle'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
+import { presetReadingLabel } from '../presetText'
 import { discoveryFilter, suggestTopics } from './suggestTopics'
 
 /**
@@ -38,10 +39,6 @@ interface Props {
 const LISTEN_SECONDS = 5
 
 const hasWildcard = (topic: string): boolean => topic.includes('+') || topic.includes('#')
-
-/** Reading names arrive lowercase ("temperature") so they read naturally after
- *  a sensor's name ("Front tank temperature"). Alone, as a label, capitalise. */
-export const readingLabel = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1)
 
 export default function SensorForm({ preset, vehicles, onCreated, onCancel }: Props): ReactElement {
   const { t } = useTranslation('settings')
@@ -194,7 +191,7 @@ export default function SensorForm({ preset, vehicles, onCreated, onCancel }: Pr
               <Field
                 key={reading.suffix}
                 id={id(reading.suffix)}
-                label={readingLabel(reading.name)}
+                label={presetReadingLabel(preset.name, reading, t)}
                 error={hasWildcard(value) ? t('integrations.mqttErrorsTopicMustBeExact') : undefined}
               >
                 <Input

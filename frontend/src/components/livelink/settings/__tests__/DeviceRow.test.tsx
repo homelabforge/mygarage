@@ -7,7 +7,7 @@
  * declared capabilities, plus three WiCAN wire features by kind.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import type { DeviceFirmwareStatus, LiveLinkDevice } from '@/types/livelink'
 import type { SourceInfo } from '@/types/livelinkTopicMap'
@@ -27,6 +27,8 @@ const device = {
   vin: null,
   enabled: true,
   device_status: 'online',
+  online: true,
+  last_seen: '2026-10-24T10:00:00Z',
   ecu_status: 'offline',
   hw_version: 'WiCAN-OBD-PRO',
   fw_version: '4.45',
@@ -147,7 +149,7 @@ describe('DeviceRow controls by source', () => {
 
   it('shows a Torque source none of the WiCAN wire controls', () => {
     renderRow(undefined, {
-      device: { ...device, kind: 'torque', device_status: 'online' },
+      device: { ...device, kind: 'torque', device_status: 'unknown' },
       source: TORQUE,
       mqttConnected: true,
       showFirmware: false,
@@ -191,5 +193,96 @@ describe('DeviceRow label', () => {
     fireEvent.change(input, { target: { value: '' } })
     fireEvent.click(input.nextElementSibling as HTMLElement)
     expect(onUpdate).toHaveBeenCalledWith(device.device_id, { label: null })
+  })
+})
+
+describe('DeviceRow status line', () => {
+  // The vitest mock hands keys back as written, so a key here is a label the
+  // row looked up rather than a raw status it printed.
+  const statusLine = (): HTMLElement =>
+    screen.getByText(/^forms:modal\.livelink\.deviceStatus\./).closest('span') as HTMLElement
+
+  it('reads an uploading Torque phone as online, though it never reports a status', () => {
+    renderRow(undefined, {
+      device: { ...device, kind: 'torque', device_status: 'unknown', online: true },
+      source: TORQUE,
+      showFirmware: false,
+    })
+    expect(statusLine()).toHaveTextContent('forms:modal.livelink.deviceStatus.online')
+    expect(statusLine()).toHaveClass('text-green-500')
+    expect(screen.queryByText('unknown')).not.toBeInTheDocument()
+  })
+
+  it('reads a disabled device as offline, whatever status it froze at', () => {
+    renderRow(undefined, { device: { ...device, device_status: 'online', online: false } })
+    expect(statusLine()).toHaveTextContent('forms:modal.livelink.deviceStatus.offline')
+    expect(statusLine()).toHaveClass('text-red-500')
+  })
+
+  it('says a device that has never reported has no status yet, not that it is offline', () => {
+    renderRow(undefined, {
+      device: { ...device, device_status: 'unknown', online: false, last_seen: null },
+    })
+    expect(statusLine()).toHaveTextContent('forms:modal.livelink.deviceStatus.unknown')
+    expect(statusLine()).toHaveClass('text-gray-500')
+  })
+
+  it('translates the ECU line', () => {
+    renderRow()
+    expect(screen.getByText(/modal\.livelink\.ecuLabel/)).toHaveTextContent(
+      'modal.livelink.ecuLabel forms:modal.livelink.ecuStatus.offline',
+    )
+  })
+
+  it('offers no battery check to a device that is not online, whatever status it froze at', () => {
+    renderRow(undefined, { mqttConnected: true, device: { ...device, device_status: 'online', online: false } })
+    expect(screen.queryByTitle('modal.livelink.checkBatteryVoltage')).not.toBeInTheDocument()
+  })
+})
+
+describe('DeviceRow refused settings', () => {
+  // DeviceTable resolves false when the PUT fails (a 409 when readings depend
+  // on the unit). The select must go back to what the device really has.
+  it('puts the odometer unit back when the update is refused', async () => {
+    const onUpdate = vi.fn().mockResolvedValue(false)
+    renderRow(undefined, { device: { ...device, odometer_unit: 'km' }, onUpdate })
+    fireEvent.click(screen.getByTitle('modal.livelink.deviceSettings'))
+    const unit = screen.getByDisplayValue('modal.livelink.odometerUnitKm')
+
+    fireEvent.change(unit, { target: { value: 'mi' } })
+
+    expect(onUpdate).toHaveBeenCalledWith(device.device_id, { odometer_unit: 'mi' })
+    await waitFor(() => expect(unit).toHaveValue('km'))
+  })
+
+  it('keeps the odometer unit when the update goes through', async () => {
+    // Regression guard: the revert above must not undo a change that saved.
+    const onUpdate = vi.fn().mockResolvedValue(true)
+    renderRow(undefined, { device: { ...device, odometer_unit: 'km' }, onUpdate })
+    fireEvent.click(screen.getByTitle('modal.livelink.deviceSettings'))
+    const unit = screen.getByDisplayValue('modal.livelink.odometerUnitKm')
+
+    fireEvent.change(unit, { target: { value: 'mi' } })
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled())
+    expect(unit).toHaveValue('mi')
+  })
+
+  it('puts the odometer parameter back when the update is refused', async () => {
+    getDeviceParamKeys.mockResolvedValue(['ODO', 'DISTANCE'])
+    const onUpdate = vi.fn().mockResolvedValue(false)
+    renderRow(undefined, {
+      device: { ...device, kind: 'torque', odometer_param_key: 'ODO' },
+      source: TORQUE,
+      showFirmware: false,
+      onUpdate,
+    })
+    fireEvent.click(screen.getByTitle('modal.livelink.deviceSettings'))
+    const param = await screen.findByDisplayValue('ODO')
+
+    fireEvent.change(param, { target: { value: 'DISTANCE' } })
+
+    expect(onUpdate).toHaveBeenCalledWith(device.device_id, { odometer_param_key: 'DISTANCE' })
+    await waitFor(() => expect(param).toHaveValue('ODO'))
   })
 })

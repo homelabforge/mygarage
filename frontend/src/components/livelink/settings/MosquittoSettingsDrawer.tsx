@@ -10,6 +10,7 @@ import { getActiveLocale } from '@/constants/i18n'
 import { livelinkService } from '@/services/livelinkService'
 import type { IntegrationTab, MQTTSettings, MQTTSettingsUpdate, MQTTStatus } from '@/types/livelink'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
+import { BROKER_STATUS_FALLBACK, BROKER_STATUS_LABEL } from '../integrationStatus'
 import TopicDiscovery from './TopicDiscovery'
 
 /**
@@ -198,7 +199,9 @@ export default function MosquittoSettingsDrawer({ open, tab, onClose, onChanged 
         <div className="space-y-6">
           {status ? (
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <Chip tone={STATUS_TONE[status.connection_status] ?? 'muted'}>{status.connection_status}</Chip>
+              <Chip tone={STATUS_TONE[status.connection_status] ?? 'muted'}>
+                {t((BROKER_STATUS_LABEL[status.connection_status] ?? BROKER_STATUS_FALLBACK).labelKey)}
+              </Chip>
               <span className="text-text">
                 {status.running ? t('modal.livelink.running') : t('modal.livelink.stopped')}
               </span>

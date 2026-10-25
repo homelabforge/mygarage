@@ -400,7 +400,32 @@
     "alertCriticalBelowLow": "Critical must be below Low.",
     "saveAlerts": "Save alerts",
     "alertsSaved": "Alerts saved",
-    "saveAlertsAction": "save the alerts"
+    "saveAlertsAction": "save the alerts",
+    "brokerStatus": {
+      "connected": "Connected",
+      "connecting": "Connecting",
+      "disabled": "Disabled",
+      "disconnected": "Not connected",
+      "error": "Error",
+      "stopped": "Stopped",
+      "unknown": "Unknown"
+    },
+    "presets": {
+      "mopeka": {
+        "description": "Mopeka Pro Check propane tank sensors.",
+        "readings": {
+          "LEVEL_PCT": "Level",
+          "TEMP_C": "Temperature",
+          "SENSOR_BATT_PCT": "Battery",
+          "QUALITY": "Reading quality",
+          "DEPTH_MM": "Depth",
+          "REJECTED": "Rejected readings",
+          "AVAILABLE": "Sensor heard"
+        }
+      }
+    },
+    "sensorStatusLoading": "Checking...",
+    "sensorStatusFailed": "Status unavailable"
   },
   "notifications": {
     "loading": "Loading notification settings...",

@@ -9,6 +9,7 @@ import { vehicleService } from '@/services/vehicleService'
 import type { IntegrationTab, LiveLinkDevice } from '@/types/livelink'
 import type { PresetInfo } from '@/types/livelinkTopicMap'
 import type { Vehicle } from '@/types/vehicle'
+import { presetDescription } from '../presetText'
 import SensorBlock from './SensorBlock'
 import SensorForm from './SensorForm'
 
@@ -94,7 +95,7 @@ export default function PresetDrawer({ open, tab, onClose, onChanged }: Props): 
         </div>
       ) : (
         <div className="space-y-4">
-          <p className="text-sm text-text">{preset.description}</p>
+          <p className="text-sm text-text">{presetDescription(preset, t)}</p>
 
           {sensors.length === 0 ? (
             <p className="text-sm text-text-mute">{t('integrations.noSensors')}</p>

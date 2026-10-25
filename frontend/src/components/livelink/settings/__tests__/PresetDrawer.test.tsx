@@ -43,7 +43,8 @@ describe('PresetDrawer', () => {
     expect(await screen.findByText('block Front tank')).toBeInTheDocument()
     expect(screen.getByText('block Rear tank')).toBeInTheDocument()
     expect(screen.queryByText('block Shed sensors')).not.toBeInTheDocument()
-    expect(screen.getByText(PRESET.description)).toBeInTheDocument()
+    expect(screen.getByText('settings:integrations.presets.mopeka.description')).toBeInTheDocument()
+    expect(screen.queryByText(PRESET.description)).not.toBeInTheDocument()
   })
 
   it('adds a sensor from inside the drawer and refreshes the card', async () => {
@@ -83,5 +84,15 @@ describe('PresetDrawer', () => {
     render(<PresetDrawer open tab={TAB} onClose={vi.fn()} onChanged={vi.fn()} />)
 
     expect(await screen.findByText('integrations.noSensors')).toBeInTheDocument()
+  })
+
+  it("falls back to the server's description for a preset it has no words for", async () => {
+    // Regression guard: every preset read this way before the table existed.
+    svc.listPresets.mockResolvedValue([{ ...PRESET, name: 'victron', description: 'Victron shunts.' }])
+    svc.getDevices.mockResolvedValue({ total: 0, online_count: 0, devices: [] })
+    const tab = { ...TAB, id: 'preset:victron', label: 'Victron' } as unknown as IntegrationTab
+    render(<PresetDrawer open tab={tab} onClose={vi.fn()} onChanged={vi.fn()} />)
+
+    expect(await screen.findByText('Victron shunts.')).toBeInTheDocument()
   })
 })

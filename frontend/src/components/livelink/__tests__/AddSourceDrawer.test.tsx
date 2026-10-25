@@ -75,11 +75,20 @@ beforeEach(() => {
 })
 
 describe('AddSourceDrawer', () => {
-  it('lists the preset catalog', async () => {
+  it('lists the preset catalog, its description in the reader\'s language', async () => {
     renderDrawer()
 
     expect(await screen.findByText('Mopeka')).toBeInTheDocument()
-    expect(screen.getByText(PRESET.description)).toBeInTheDocument()
+    expect(screen.getByText('settings:integrations.presets.mopeka.description')).toBeInTheDocument()
+    expect(screen.queryByText(PRESET.description)).not.toBeInTheDocument()
+  })
+
+  it("falls back to the server's description for a preset it has no words for", async () => {
+    // Regression guard: every preset read this way before the table existed.
+    listPresets.mockResolvedValue([{ ...PRESET, name: 'victron', title: 'Victron', description: 'Victron shunts.' }])
+    renderDrawer()
+
+    expect(await screen.findByText('Victron shunts.')).toBeInTheDocument()
   })
 
   it("opens a preset's sensor form with the vehicles, and takes no device id for it", async () => {

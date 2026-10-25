@@ -590,7 +590,17 @@
       "odometerParam": "Odometer parameter",
       "odometerParamNone": "None (no odometer recorded)",
       "odometerParamHelp": "Which reported parameter carries this device's odometer. Leave it unset and nothing is recorded. Torque's own total is accumulated by the app, not read from the vehicle, so it drifts when the phone misses trips. Set the unit above to match, or the value is read as kilometres.",
-      "deviceSettings": "Device settings"
+      "deviceSettings": "Device settings",
+      "deviceStatus": {
+        "online": "Online",
+        "offline": "Offline",
+        "unknown": "No status yet"
+      },
+      "ecuStatus": {
+        "online": "On",
+        "offline": "Off",
+        "unknown": "Unknown"
+      }
     },
     "transfer": {
       "progressLabel": "Vehicle transfer progress",

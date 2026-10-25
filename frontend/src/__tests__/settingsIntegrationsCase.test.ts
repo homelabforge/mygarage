@@ -20,7 +20,13 @@
 import { describe, it, expect } from 'vitest'
 import en from '../locales/en/settings.json'
 
-const integrations = (en as { integrations: Record<string, string> }).integrations
+// Mostly flat strings, plus a few nested lookup tables (broker status, presets)
+// this test doesn't read. A key that isn't a string reads as missing.
+const integrations: Record<string, unknown> = en.integrations
+const text = (key: string): string => {
+  const value = integrations[key]
+  return typeof value === 'string' ? value : ''
+}
 
 /** Every word capitalised, allowing lowercase joining words after the first. */
 const MINOR_WORDS = new Set(['a', 'an', 'and', 'the', 'or', 'for', 'to', 'of', 'in', 'on'])
@@ -66,7 +72,7 @@ describe('Integrations settings casing', () => {
     ]
 
     it.each(NAME_KEYS)('%s', (key) => {
-      const value = integrations[key]
+      const value = text(key)
       expect(value, `integrations.${key} is missing`).toBeTruthy()
       expect(isTitleCase(value), `integrations.${key} = ${value}`).toBe(true)
     })
@@ -85,7 +91,7 @@ describe('Integrations settings casing', () => {
     ]
 
     it.each(STATEMENT_KEYS)('%s', (key) => {
-      const value = integrations[key]
+      const value = text(key)
       expect(value, `integrations.${key} is missing`).toBeTruthy()
       expect(isSentenceCase(value, PROPER_NOUNS), `integrations.${key} = ${value}`).toBe(true)
     })
@@ -95,7 +101,7 @@ describe('Integrations settings casing', () => {
     // The column rendered a bare Check / X lucide icon with no accessible name,
     // so a screen reader announced an empty cell. Naming both states is what
     // lets the icons be replaced with a labelled chip.
-    expect(integrations['statusActive']).toBeTruthy()
-    expect(integrations['statusInactive']).toBeTruthy()
+    expect(text('statusActive')).toBeTruthy()
+    expect(text('statusInactive')).toBeTruthy()
   })
 })

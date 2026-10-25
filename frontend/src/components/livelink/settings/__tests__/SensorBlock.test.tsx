@@ -99,6 +99,24 @@ describe('SensorBlock', () => {
     expect(found.filter((el) => el.tagName !== 'OPTION')).toHaveLength(1)
   })
 
+  it('reads neutral while its readings load, not "no recent readings"', () => {
+    svc.getDeviceReadings.mockReturnValue(new Promise(() => {}))
+    renderBlock()
+
+    expect(screen.queryByText('integrations.sensorNoData')).not.toBeInTheDocument()
+    expect(screen.getByText('integrations.sensorStatusLoading')).toHaveClass('text-text-mute')
+  })
+
+  it('says the readings failed to load, not that the sensor is quiet', async () => {
+    svc.getDeviceReadings.mockRejectedValue(new Error('boom'))
+    renderBlock()
+
+    // The body's own error line shows once the load has failed.
+    await screen.findByText('integrations.readingsLoadError')
+    expect(screen.queryByText('integrations.sensorNoData')).not.toBeInTheDocument()
+    expect(screen.getByText('integrations.sensorStatusFailed')).toBeInTheDocument()
+  })
+
   it('hands its readings to the alert lines, and reloads them after a save', async () => {
     const readings = [{ param_key: 'PROPANE_T1_LEVEL_PCT' }, { param_key: 'PROPANE_T1_TEMP_C' }]
     svc.getDeviceReadings.mockResolvedValue({ device_id: 'mopeka-t1', vin: VEHICLE.vin, online: true, readings })

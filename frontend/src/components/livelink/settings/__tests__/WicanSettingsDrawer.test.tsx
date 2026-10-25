@@ -105,8 +105,9 @@ describe('WicanSettingsDrawer', () => {
     expect(screen.queryByText('rvgw')).not.toBeInTheDocument()
   })
 
-  it('saving the topic prefix restarts a running subscriber', async () => {
-    // Without the restart a changed prefix silently does nothing.
+  it('saving the topic prefix leaves the restart to the server', async () => {
+    // The settings PUT restarts a running subscriber itself when the prefix
+    // changes. A second restart from here would just bounce the connection.
     const { onChanged } = renderDrawer()
     const field = await screen.findByLabelText('settings:integrations.wicanTopicPrefix')
 
@@ -114,8 +115,8 @@ describe('WicanSettingsDrawer', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'modal.livelink.save' })[0])
 
     await waitFor(() => expect(svc.updateMQTTSettings).toHaveBeenCalledWith({ topic_prefix: 'garage' }))
-    await waitFor(() => expect(svc.restartMQTTSubscriber).toHaveBeenCalledTimes(1))
-    expect(onChanged).toHaveBeenCalled()
+    await waitFor(() => expect(onChanged).toHaveBeenCalled())
+    expect(svc.restartMQTTSubscriber).not.toHaveBeenCalled()
   })
 
   it('does not start a stopped subscriber just to save the prefix', async () => {

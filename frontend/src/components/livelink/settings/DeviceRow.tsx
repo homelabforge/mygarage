@@ -29,6 +29,13 @@ import type {
 } from '@/types/livelink'
 import type { SourceInfo } from '@/types/livelinkTopicMap'
 import type { Vehicle } from '@/types/vehicle'
+import {
+  DEVICE_STATUS_LABEL,
+  ECU_STATUS_LABEL,
+  deviceStatusWord,
+  ecuStatusWord,
+} from '../integrationStatus'
+import type { DeviceStatusWord } from '../integrationStatus'
 
 /**
  * One device in a settings drawer's device table.
@@ -40,6 +47,12 @@ import type { Vehicle } from '@/types/vehicle'
  * wire features by kind (see `wicanWire`).
  */
 
+const STATUS_COLOR: Readonly<Record<DeviceStatusWord, string>> = {
+  online: 'text-green-500',
+  offline: 'text-red-500',
+  unknown: 'text-gray-500',
+}
+
 interface Props {
   device: LiveLinkDevice
   vehicles: Vehicle[]
@@ -49,7 +62,9 @@ interface Props {
   showFirmware: boolean
   deviceFirmware?: DeviceFirmwareStatus
   mqttConnected?: boolean
-  onUpdate: (deviceId: string, update: LiveLinkDeviceUpdate) => void
+  /** Resolves false when the server refused the change, so a control that
+   *  shows its own copy of the value can put the device's back. */
+  onUpdate: (deviceId: string, update: LiveLinkDeviceUpdate) => Promise<boolean>
   onDelete: (deviceId: string) => void
   onGenerateToken: (deviceId: string) => void
   onRevokeToken: (deviceId: string) => void
@@ -83,9 +98,8 @@ export default function DeviceRow({
   const [showSdConfig, setShowSdConfig] = useState(false)
   const [sdAddress, setSdAddress] = useState(device.device_address ?? '')
   const [sdEnabled, setSdEnabled] = useState(device.sd_backfill_enabled ?? false)
-  const [odometerUnit, setOdometerUnit] = useState<'km' | 'mi' | 'auto'>(
-    (device.odometer_unit as 'km' | 'mi' | null) ?? 'auto'
-  )
+  const savedOdometerUnit = (device.odometer_unit as 'km' | 'mi' | null) ?? 'auto'
+  const [odometerUnit, setOdometerUnit] = useState<'km' | 'mi' | 'auto'>(savedOdometerUnit)
   const [odometerParamKey, setOdometerParamKey] = useState<string>(
     device.odometer_param_key ?? '',
   )
@@ -119,8 +133,23 @@ export default function DeviceRow({
 
   const handleSaveLabel = (): void => {
     // null clears; undefined would be dropped from the JSON and keep the old label.
-    onUpdate(device.device_id, { label: label || null })
+    void onUpdate(device.device_id, { label: label || null })
     setEditing(false)
+  }
+
+  // The select moves first so it feels instant. A refusal (409 once readings
+  // depend on the unit) puts the device's own value back rather than leaving
+  // the refused one on screen.
+  const changeOdometerUnit = async (next: 'km' | 'mi' | 'auto'): Promise<void> => {
+    setOdometerUnit(next)
+    if (!(await onUpdate(device.device_id, { odometer_unit: next }))) setOdometerUnit(savedOdometerUnit)
+  }
+
+  const changeOdometerParamKey = async (next: string): Promise<void> => {
+    setOdometerParamKey(next)
+    if (!(await onUpdate(device.device_id, { odometer_param_key: next }))) {
+      setOdometerParamKey(device.odometer_param_key ?? '')
+    }
   }
 
   const handleSaveSdConfig = async (): Promise<void> => {
@@ -142,16 +171,10 @@ export default function DeviceRow({
     deviceFirmware?.skipped_version != null &&
     deviceFirmware.skipped_version === deviceFirmware.latest_version
 
-  const getStatusColor = (status: string): string => {
-    switch (status) {
-      case 'online':
-        return 'text-green-500'
-      case 'offline':
-        return 'text-red-500'
-      default:
-        return 'text-gray-500'
-    }
-  }
+  // `online` is the server's rule, not `device_status`: a Torque phone never
+  // reports a status, and a disabled device freezes at its last one.
+  const status = deviceStatusWord(device)
+  const ecu = ecuStatusWord(device.ecu_status)
 
   return (
     <>
@@ -181,14 +204,14 @@ export default function DeviceRow({
       </td>
       <td className="py-2 px-3">
         <div className="flex flex-col gap-0.5">
-          <span className={`flex items-center gap-1 text-xs ${getStatusColor(device.device_status)}`}>
-            {device.device_status === 'online' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            {device.device_status}
+          <span className={`flex items-center gap-1 text-xs ${STATUS_COLOR[status]}`}>
+            {status === 'online' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+            {t(DEVICE_STATUS_LABEL[status].labelKey)}
           </span>
           {wicanWire && (
-            <span className={`flex items-center gap-1 text-xs ${getStatusColor(device.ecu_status)}`}>
-              {device.ecu_status === 'online' ? <Link2 className="w-3 h-3" /> : <Link2Off className="w-3 h-3" />}
-              {t('modal.livelink.ecuLabel')} {device.ecu_status}
+            <span className={`flex items-center gap-1 text-xs ${STATUS_COLOR[ecu]}`}>
+              {ecu === 'online' ? <Link2 className="w-3 h-3" /> : <Link2Off className="w-3 h-3" />}
+              {t('modal.livelink.ecuLabel')} {t(ECU_STATUS_LABEL[ecu].labelKey)}
             </span>
           )}
         </div>
@@ -199,7 +222,7 @@ export default function DeviceRow({
         <Select
           aria-label={t('modal.vehicle')}
           value={device.vin ?? ''}
-          onChange={(e) => onUpdate(device.device_id, { vin: e.target.value })}
+          onChange={(e) => void onUpdate(device.device_id, { vin: e.target.value })}
           placeholder={t('modal.livelink.unlinked')}
           options={vehicles.map((v) => ({
             value: v.vin,
@@ -247,7 +270,7 @@ export default function DeviceRow({
       )}
       <td className="py-2 px-3 text-right">
         <div className="flex items-center justify-end gap-1">
-          {capabilities.has('commands') && mqttConnected && device.device_status === 'online' && (
+          {capabilities.has('commands') && mqttConnected && device.online && (
             <button
               onClick={() => onSendCommand(device.device_id, 'get_vbatt')}
               className="p-1 text-garage-text-muted hover:text-green-500"
@@ -340,11 +363,7 @@ export default function DeviceRow({
                 </label>
                 <Select
                   value={odometerUnit}
-                  onChange={(e) => {
-                    const next = e.target.value as 'km' | 'mi' | 'auto'
-                    setOdometerUnit(next)
-                    onUpdate(device.device_id, { odometer_unit: next })
-                  }}
+                  onChange={(e) => void changeOdometerUnit(e.target.value as 'km' | 'mi' | 'auto')}
                   options={[
                     { value: 'auto', label: t('modal.livelink.odometerUnitAuto') },
                     { value: 'km', label: t('modal.livelink.odometerUnitKm') },
@@ -363,11 +382,7 @@ export default function DeviceRow({
                 </label>
                 <Select
                   value={odometerParamKey}
-                  onChange={(e) => {
-                    const next = e.target.value
-                    setOdometerParamKey(next)
-                    onUpdate(device.device_id, { odometer_param_key: next })
-                  }}
+                  onChange={(e) => void changeOdometerParamKey(e.target.value)}
                   options={[
                     { value: '', label: t('modal.livelink.odometerParamNone') },
                     ...paramKeys.map((k) => ({ value: k, label: k })),

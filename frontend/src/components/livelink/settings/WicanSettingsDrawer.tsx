@@ -157,12 +157,19 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
   const savePrefix = async (): Promise<void> => {
     const next = prefix.trim()
     if (!next || !mqttSettings) return
+    const restarts = mqttStatus?.running === true && next !== mqttSettings.topic_prefix
     setSavingPrefix(true)
     try {
+      // The PUT restarts a running subscriber itself when the prefix changes,
+      // so there's nothing to restart from here; just re-read where it got to.
       setMqttSettings(await livelinkService.updateMQTTSettings({ topic_prefix: next }))
-      if (mqttStatus?.running) {
-        setMqttStatus(await livelinkService.restartMQTTSubscriber())
+      if (restarts) {
         toast.success(t('modal.mqttRestarted'))
+        // The save already worked, so a failed re-read just keeps the old status.
+        void livelinkService
+          .getMQTTStatus()
+          .then(setMqttStatus)
+          .catch(() => undefined)
       } else {
         toast.success(t('modal.mqttSettingsSaved'))
       }

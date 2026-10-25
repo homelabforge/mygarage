@@ -7,14 +7,21 @@ import { Button, Field, Input } from '@/components/ui'
 import { livelinkService } from '@/services/livelinkService'
 import type { DiscoveredTopic } from '@/types/livelinkTopicMap'
 import { isMappableSample } from '@/types/livelinkTopicMap'
+import { parseApiError } from '@/utils/httpErrorHandler'
+
+/** The route says what's wrong in its detail: a 409 for MQTT off, no broker
+ *  host or a password it can't read, and a 502 for the broker refusing.
+ *  `getErrorMessage` swaps a 502's detail for a generic "server unavailable",
+ *  which is exactly wrong here, so read the detail directly. */
+const DETAIL_STATUSES = new Set([409, 502])
 
 /**
  * Listen to the broker briefly and list what it is publishing.
  *
  * Moved from MqttSourcesCard into the Mosquitto drawer: it is a question about
- * the broker, asked before any device exists. A failed listen now says so;
- * the card's version had no catch, so the rejection went unhandled and the
- * button simply re-enabled.
+ * the broker, asked before any device exists. A failed listen now says so,
+ * in the server's words when it has some; the card's version had no catch, so
+ * the rejection went unhandled and the button simply re-enabled.
  */
 export default function TopicDiscovery(): ReactElement {
   const { t } = useTranslation('settings')
@@ -29,8 +36,9 @@ export default function TopicDiscovery(): ReactElement {
     setBusy(true)
     try {
       setDiscovered(await livelinkService.discoverTopics(prefix || '#'))
-    } catch {
-      setError(t('integrations.discoverFailed'))
+    } catch (err) {
+      const { status, detail } = parseApiError(err)
+      setError(DETAIL_STATUSES.has(status) && detail ? detail : t('integrations.discoverFailed'))
     } finally {
       setBusy(false)
     }

@@ -35,6 +35,9 @@ const PRESET: PresetInfo = {
 }
 const VEHICLE = { vin: '4EZFD3821P6080615', nickname: 'Durango', year: 2023, make: 'KZ', model: 'Durango' }
 const LEVEL = 'mygarage/rv/propane/tank1/level_percent'
+// Mopeka's reading labels are looked up by suffix; the mock hands keys back.
+const TEMPERATURE = 'settings:integrations.presets.mopeka.readings.TEMP_C'
+const BATTERY = 'settings:integrations.presets.mopeka.readings.SENSOR_BATT_PCT'
 
 /** What axios rejects with, as far as getActionErrorMessage reads it. */
 const httpError = (status: number, detail: string): Error =>
@@ -62,6 +65,22 @@ beforeEach(() => {
 })
 
 describe('SensorForm', () => {
+  it("labels Mopeka's readings in the reader's language, not the server's English", () => {
+    renderForm()
+
+    expect(screen.queryByLabelText('Temperature')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(TEMPERATURE)).toBeInTheDocument()
+    expect(screen.getByLabelText(BATTERY)).toBeInTheDocument()
+  })
+
+  it("falls back to the server's reading name for a preset it has no words for", () => {
+    // Regression guard: every preset read this way before the table existed.
+    render(<SensorForm preset={{ ...PRESET, name: 'victron' }} vehicles={[]} onCreated={vi.fn()} />)
+
+    expect(screen.getByLabelText('Temperature')).toBeInTheDocument()
+    expect(screen.getByLabelText('Battery')).toBeInTheDocument()
+  })
+
   it('needs a name and a level topic before it can add', async () => {
     renderForm()
     const add = screen.getByRole('button', { name: 'integrations.addSensor' })
@@ -86,7 +105,7 @@ describe('SensorForm', () => {
     await waitFor(() => expect(discoverTopics).toHaveBeenCalledWith('mygarage/rv/propane/tank1/#', 5))
     expect(await screen.findByDisplayValue('mygarage/rv/propane/tank1/temperature_c')).toBeInTheDocument()
     // Battery was not heard, so it is left empty rather than guessed.
-    expect(screen.getByLabelText('Battery')).toHaveValue('')
+    expect(screen.getByLabelText(BATTERY)).toHaveValue('')
   })
 
   it('falls back to the reference names when discovery fails', async () => {
@@ -105,11 +124,11 @@ describe('SensorForm', () => {
 
     enterLevel()
     // Typed DURING the listen, which a captured copy of the edits would miss.
-    fireEvent.change(screen.getByLabelText('Temperature'), { target: { value: 'my/own/temp' } })
+    fireEvent.change(screen.getByLabelText(TEMPERATURE), { target: { value: 'my/own/temp' } })
     finish([{ topic: 'mygarage/rv/propane/tank1/temperature_c', sample: '36' }])
 
     await waitFor(() => expect(discoverTopics).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getByLabelText('Temperature')).toHaveValue('my/own/temp'))
+    await waitFor(() => expect(screen.getByLabelText(TEMPERATURE)).toHaveValue('my/own/temp'))
   })
 
   it('sends only the readings that have a topic, with the vehicle', async () => {
@@ -197,7 +216,7 @@ describe('SensorForm', () => {
 
     await waitFor(() => expect(discoverTopics).toHaveBeenCalledTimes(2))
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(screen.getByLabelText('Temperature')).toHaveValue('mygarage/rv/propane/tank2/temperature_c')
+    expect(screen.getByLabelText(TEMPERATURE)).toHaveValue('mygarage/rv/propane/tank2/temperature_c')
   })
 
   it('refuses one topic for two readings', async () => {
@@ -206,8 +225,8 @@ describe('SensorForm', () => {
     enterLevel()
     await waitFor(() => expect(discoverTopics).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByLabelText('Temperature'), { target: { value: 'my/topic' } })
-    fireEvent.change(screen.getByLabelText('Battery'), { target: { value: 'my/topic' } })
+    fireEvent.change(screen.getByLabelText(TEMPERATURE), { target: { value: 'my/topic' } })
+    fireEvent.change(screen.getByLabelText(BATTERY), { target: { value: 'my/topic' } })
 
     expect(await screen.findByText('integrations.readingTopicsRepeat')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'integrations.addSensor' })).toBeDisabled()
