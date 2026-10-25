@@ -117,3 +117,28 @@ async def test_no_subscriptions_when_mqtt_is_disabled(db_session):
     await db_session.commit()
 
     assert await M.subscriptions(db_session) == []
+
+
+@pytest.mark.asyncio
+async def test_a_can_rx_frame_with_no_numeric_value_is_not_a_batch():
+    """A-7: `{"X": null}` used to mark the ECU online with nothing to store."""
+    assert await M.parse(MqttEnvelope("wican/abc/can/rx", b'{"X": null}')) is None
+
+
+@pytest.mark.asyncio
+async def test_a_can_rx_nan_is_not_a_reading():
+    batch = await M.parse(MqttEnvelope("wican/abc/can/rx", b'{"SPEED": NaN, "ENGINE_RPM": 800}'))
+    assert [r.param_key for r in batch.readings] == ["ENGINE_RPM"]
+
+
+@pytest.mark.asyncio
+async def test_wican_never_claims_its_status_came_from_the_wire():
+    """R1: WiCAN's `online` is synthesized from a message arriving, so a
+    retained frame must never qualify for the retained-offline path."""
+    for topic, payload in [
+        ("wican/abc/can/status", b'{"status": "offline"}'),
+        ("wican/abc/battery", b'{"battery_voltage": 14.5}'),
+        ("wican/abc/can/rx", b'{"ENGINE_RPM": 800}'),
+    ]:
+        batch = await M.parse(MqttEnvelope(topic, payload))
+        assert batch is not None and batch.status_from_wire is False

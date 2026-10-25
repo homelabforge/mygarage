@@ -50,6 +50,10 @@ class MqttEnvelope:
 
     topic: str
     payload: bytes
+    #: The broker's retain flag: a replay of the last value it holds, of
+    #: unknown age, not something the device just said. `ingest` drops it
+    #: unless it is a status topic's own `offline` (an LWT).
+    retain: bool = False
 
 
 @dataclass(frozen=True)
@@ -149,11 +153,15 @@ class IngestBatch:
     declared_units: dict[str, str] = field(default_factory=dict)
     #: 'online' | 'offline' | None. None means LEAVE UNCHANGED, and is the
     #: default for a reason: `update_device_status` treats None as "keep the
-    #: current value" while still refreshing `last_seen`
-    #: (`livelink_service.py:575`). Defaulting a telemetry batch to "online"
-    #: would let a RETAINED message replayed after a gateway's LWT offline mark
-    #: the dead gateway alive again. Only an explicit status signal sets this.
+    #: current value" while still refreshing `last_seen`. A telemetry topic
+    #: says nothing about the gateway's own status, so only an explicit
+    #: status signal sets this.
     device_status: DeviceStatusType | None = None
+    #: True only when `device_status` is a status topic's own value (generic
+    #: `role='status'`). WiCAN synthesizes `online` from a message arriving,
+    #: so it never sets this. A retained batch is applied only when this is
+    #: set and the status is `offline`.
+    status_from_wire: bool = False
     ecu_status: ECUStatusType | None = None
     session: SessionSignal | None = None
     dtcs: list[str] = field(default_factory=list)

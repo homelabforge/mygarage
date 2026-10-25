@@ -636,8 +636,13 @@ class LiveLinkService:
         rssi: int | None = None,
         battery_voltage: float | None = None,
         sta_ip: str | None = None,
+        touch_last_seen: bool = True,
     ) -> None:
-        """Update device status fields from payload."""
+        """Update device status fields from payload.
+
+        `touch_last_seen=False` is for a retained LWT `offline`: the broker
+        replaying it is not the device talking, so `last_seen` stays put.
+        """
         # Read prior state only when transitioning to "online" — keeps the extra
         # SELECT off every non-online status update.  Capture scalar values
         # before the bulk UPDATE runs so the SQLAlchemy identity-map expiry
@@ -660,6 +665,7 @@ class LiveLinkService:
             ):
                 should_backfill = True
 
+        now = utc_now()
         await self.db.execute(
             update(LiveLinkDevice)
             .where(LiveLinkDevice.device_id == device_id)
@@ -671,8 +677,8 @@ class LiveLinkService:
                 if battery_voltage is not None
                 else LiveLinkDevice.battery_voltage,
                 sta_ip=sta_ip or LiveLinkDevice.sta_ip,
-                last_seen=utc_now(),
-                updated_at=utc_now(),
+                last_seen=now if touch_last_seen else LiveLinkDevice.last_seen,
+                updated_at=now,
             )
         )
 

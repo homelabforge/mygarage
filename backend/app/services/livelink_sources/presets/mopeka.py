@@ -25,9 +25,9 @@ from __future__ import annotations
 
 from app.services.livelink_sources.presets.model import PresetReading
 
-#: Seconds between persisted samples. REQUIRED, not tuning: retained messages
-#: replay on every resubscribe and the storage path stamps server time, so
-#: without this each reconnect writes a fresh row.
+#: Seconds between persisted samples. REQUIRED, not tuning: the gateway
+#: republishes every reading every few seconds and the storage path stamps
+#: server time, so without this a tank writes a row per message.
 STORAGE_INTERVAL_SECONDS = 300
 
 #: In the order a sensor's readings are shown. Keywords are lowercase

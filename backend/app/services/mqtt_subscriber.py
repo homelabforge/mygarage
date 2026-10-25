@@ -254,11 +254,11 @@ class MQTTSubscriber:
             desired = await self._desired_subscriptions()
 
             # Install the new dispatch map BEFORE subscribing. The broker can
-            # deliver a retained message the instant SUBSCRIBE lands, and if
-            # the map were still the old one `resolve_topic` would return None
-            # and that reading would be dropped with only a debug line. Every
-            # mapped topic is retained, so this is the common case, not a race
-            # you would hit occasionally.
+            # deliver a retained message the instant SUBSCRIBE lands, and with
+            # the old map `resolve_topic` would return None and drop it. That
+            # still matters for a retained LWT `offline`, which ingest applies;
+            # retained telemetry and a retained `online` are ignored there by
+            # design (R1).
             #
             # Publishing the union first is safe in the other direction: a
             # topic that is in the map but not yet subscribed simply never
@@ -400,7 +400,9 @@ class MQTTSubscriber:
                         if not self._running:
                             break
                         try:
-                            await self._process_message(str(message.topic), message.payload)
+                            await self._process_message(
+                                str(message.topic), message.payload, retain=bool(message.retain)
+                            )
                         except Exception as e:
                             logger.error("Error processing MQTT message: %s", e)
 
@@ -417,8 +419,12 @@ class MQTTSubscriber:
                 await asyncio.sleep(reconnect_delay)
                 reconnect_delay = min(reconnect_delay * 2, self._max_reconnect_delay)
 
-    async def _process_message(self, topic: str, payload: bytes) -> None:
-        """Dispatch one message to its module and run the pipeline."""
+    async def _process_message(self, topic: str, payload: bytes, retain: bool = False) -> None:
+        """Dispatch one message to its module and run the pipeline.
+
+        `retain` is the broker's flag, passed through so ingest can tell a
+        replay from something the device just said.
+        """
         module = default_registry().resolve_topic(topic, self._subscribed)
         if module is None:
             logger.debug("No module owns topic: %s", sanitize_for_log(topic))
@@ -427,7 +433,7 @@ class MQTTSubscriber:
         async with AsyncSessionLocal() as db:
             await load_household_zone(db)
             try:
-                await ingest(module, MqttEnvelope(topic=topic, payload=payload), db)
+                await ingest(module, MqttEnvelope(topic=topic, payload=payload, retain=retain), db)
                 await db.commit()
                 self._messages_processed += 1
                 self._last_message_at = utc_now()

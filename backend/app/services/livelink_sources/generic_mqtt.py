@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -54,11 +55,18 @@ class _Entry:
 
 
 def _coerce(raw: str) -> float | None:
-    """A payload to a float, or None when it is not a value at all."""
+    """A payload to a float, or None when it is not a value at all.
+
+    NaN and infinity are not values: float() takes "nan", "inf" and "1e400",
+    and a NaN hits the latest table's NOT NULL on SQLite. Same rule as
+    Torque's `_to_float`.
+    """
     try:
-        return float(raw)
+        value = float(raw)
     except ValueError:
         pass
+    else:
+        return value if math.isfinite(value) else None
     lowered = raw.strip().lower()
     if lowered in _TRUTHY:
         return 1.0
@@ -188,10 +196,12 @@ class GenericMqttModule(BaseSourceModule):
         return IngestBatch(
             device_key=device_id,
             readings=readings,
-            # NOT `or "online"`. A retained telemetry message replayed after
-            # the gateway's LWT offline would otherwise resurrect a dead
-            # gateway. None leaves the status alone and still bumps last_seen.
+            # NOT `or "online"`: a telemetry topic says nothing about the
+            # gateway's status. None leaves it alone and still bumps last_seen.
             device_status=device_status,
+            # The status came off a status topic, so a retained `offline` here
+            # is the LWT and still counts (R1).
+            status_from_wire=device_status is not None,
             # No AUTO_DISCOVER: a generic device is created explicitly, so an
             # unmapped or unlinked one stores nothing.
             requires_link=True,

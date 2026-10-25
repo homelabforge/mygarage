@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
@@ -478,10 +479,12 @@ class TelemetryService:
         # Canonicalize all keys to UPPERCASE with spaces→underscores so every ingest
         # path (MQTT, HTTPS, SD backfill) stores under the same param_key form, and
         # drop WiCAN frame-metadata params (TS, TIMESTAMP) that are not telemetry.
+        # NaN and infinity go too: the HTTPS payload's JSON takes the literals,
+        # and a NaN binds as NULL into the latest table's NOT NULL on SQLite.
         autopid_data = {
             ck: v
             for ck, v in ((canonical_param_key(k), v) for k, v in autopid_data.items())
-            if is_telemetry_param(ck)
+            if is_telemetry_param(ck) and (not isinstance(v, float) or math.isfinite(v))
         }
 
         # Normalise the odometer to canonical km ONCE, here, so every downstream
@@ -1498,6 +1501,10 @@ class TelemetryService:
         validation, odometer unit normalization and sanitization, movement
         observation and closed-session refresh. Reimplementing it here is how
         the port would silently lose behavior, so it does not.
+
+        Only that delegating path runs `TelemetryValidator`. The simple path
+        below stores every reading it is handed, so its `validated_data` is
+        what was accepted, not what passed validation.
         """
         _refuse_if_in_maintenance("store_readings")
         if not readings:
@@ -1540,7 +1547,7 @@ class TelemetryService:
             ]
 
         stored = 0
-        validated: dict[str, float | int | str | None] = {}
+        accepted: dict[str, float | int | str | None] = {}
 
         for reading in readings:
             await self.auto_register_parameter(
@@ -1549,7 +1556,7 @@ class TelemetryService:
                 param_class=reading.param_class,
                 display_name=reading.display_name,
             )
-            validated[reading.param_key] = reading.value
+            accepted[reading.param_key] = reading.value
 
             if policy.latest == "if_newer":
                 await self._update_latest_if_newer(vin, reading.param_key, reading.value, ts)
@@ -1589,9 +1596,9 @@ class TelemetryService:
         # inside store_telemetry. WiCAN returns above via the delegating branch,
         # so it cannot double-record.
         if declared:
-            await self._sync_odometer_from_telemetry(vin, validated, ts, declared)
+            await self._sync_odometer_from_telemetry(vin, accepted, ts, declared)
 
-        return StoreResult(stored_count=stored, validated_data=validated)
+        return StoreResult(stored_count=stored, validated_data=accepted)
 
     async def check_thresholds(
         self,

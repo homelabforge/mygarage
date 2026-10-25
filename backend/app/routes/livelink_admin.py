@@ -1667,9 +1667,9 @@ async def apply_preset(
     `topics` is checked against it here rather than on the schema.
 
     Each reading's parameter gets the preset's `storage_interval_seconds`.
-    REQUIRED, not tuning: retained messages replay on every resubscribe and
-    the storage path stamps server time, so without it each reconnect writes a
-    fresh row.
+    REQUIRED, not tuning: the gateway republishes every few seconds and the
+    storage path stamps server time, so without it a sensor writes a row per
+    message.
     """
     preset = PRESETS.get(name)
     if preset is None:

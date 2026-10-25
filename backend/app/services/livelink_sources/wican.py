@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -120,11 +121,16 @@ class WicanModule(BaseSourceModule):
             # WiCAN the only source emitting non-canonical keys and made
             # `Reading`'s "already canonical" contract a lie. Idempotent, so
             # the delegating path still produces identical stored keys.
+            # `json.loads` takes NaN and Infinity literals, so finite only.
             readings = [
                 Reading(canonical_param_key(key), float(value))
                 for key, value in autopid.items()
-                if isinstance(value, (int, float))
+                if isinstance(value, (int, float)) and math.isfinite(value)
             ]
+            # Nothing usable in the frame (`{"X": null}`): not proof the ECU
+            # is on, so no batch, or it would mark the ECU online (A-7).
+            if not readings:
+                return None
             return IngestBatch(
                 device_key=device_key,
                 readings=readings,

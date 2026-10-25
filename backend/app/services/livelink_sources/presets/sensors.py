@@ -216,9 +216,9 @@ async def create_sensor(
             key, unit=reading.unit, param_class=reading.param_class
         )
         if param is not None:
-            # REQUIRED, not tuning: retained messages replay on every
-            # resubscribe and the storage path stamps server time, so without
-            # an interval each reconnect writes a fresh row.
+            # REQUIRED, not tuning: the gateway republishes every few seconds
+            # and the storage path stamps server time, so without an interval
+            # a sensor writes a row per message.
             param.storage_interval_seconds = preset.storage_interval_seconds
             param.display_name = reading_display_name(label, reading)
             param.warning_min = reading.low

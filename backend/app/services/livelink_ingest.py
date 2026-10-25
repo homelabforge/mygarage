@@ -12,6 +12,7 @@ declare DRIVE_SESSION has no reachable path to SessionService at all.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import replace
 from datetime import datetime
 
@@ -28,6 +29,8 @@ from app.services.livelink_sources.base import (
     Capability,
     Envelope,
     InferSession,
+    IngestBatch,
+    MqttEnvelope,
     SessionSignal,
     StatusTransition,
 )
@@ -90,6 +93,25 @@ async def apply_session_signal(
     return await sessions.resolve_torque_session(device, signal.external_id, timestamp or utc_now())
 
 
+async def _apply_retained_offline(batch: IngestBatch, db: AsyncSession) -> None:
+    """A retained LWT `offline`: set the status on a known device, nothing else.
+
+    No discovery (a replay is no reason to create a device), no `last_seen`
+    bump, and no more than the same message would do live: a disabled device
+    freezes at its last status, and an unlinked one is skipped when the batch
+    requires a link.
+    """
+    livelink = LiveLinkService(db)
+    device = await livelink.get_device_by_id(batch.device_key)
+    if device is None or not device.enabled:
+        return
+    if batch.requires_link and not device.vin:
+        return
+    await livelink.update_device_status(
+        device_id=device.device_id, device_status="offline", touch_last_seen=False
+    )
+
+
 async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> None:
     """Parse one message or request and apply it. Does NOT commit."""
     # The master switch ("Enable LiveLink"). Every MQTT message and every Torque
@@ -103,6 +125,15 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> N
 
     batch = await module.parse(env)
     if batch is None:
+        return
+
+    # A retained message is the broker's last copy, of unknown age, and both
+    # live sources republish within seconds anyway. Only a status topic's own
+    # `offline` (an LWT) is worth applying; a retained `online` is dropped too,
+    # since a gateway that died without an LWT leaves exactly that behind (R1).
+    if isinstance(env, MqttEnvelope) and env.retain:
+        if batch.status_from_wire and batch.device_status == "offline":
+            await _apply_retained_offline(batch, db)
         return
 
     device = await module.resolve_device(db, batch.device_key)
@@ -126,14 +157,15 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> N
 
     # AFTER the session signal: the detector above reads the old ecu_status.
     # None means LEAVE UNCHANGED and still bumps last_seen
-    # (`livelink_service.py:575`: `device_status or LiveLinkDevice.device_status`).
-    # Never default this to "online", or a retained message replayed after a
-    # gateway's LWT offline resurrects the dead gateway.
+    # (`device_status or LiveLinkDevice.device_status`). Never default this to
+    # "online": a telemetry topic says nothing about the gateway's status.
+    battery = batch.battery_voltage
     await livelink.update_device_status(
         device_id=device.device_id,
         device_status=batch.device_status,
         ecu_status=batch.ecu_status,
-        battery_voltage=batch.battery_voltage,
+        # Same rule as the readings below: a NaN is not a voltage.
+        battery_voltage=battery if battery is not None and math.isfinite(battery) else None,
     )
 
     if not device.vin:
@@ -145,11 +177,22 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> N
         declared_units.remember(device.device_id, batch.declared_units)
         await TelemetryService(db).fill_declared_units(batch.declared_units)
 
-    if batch.readings:
+    # NaN and infinity never reach storage, whatever the source's parser let
+    # through: a NaN binds as NULL and the latest table is NOT NULL on SQLite.
+    finite = [r for r in batch.readings if math.isfinite(r.value)]
+    if len(finite) < len(batch.readings):
+        logger.debug(
+            "Dropped %d non-finite readings from %s device %s",
+            len(batch.readings) - len(finite),
+            sanitize_for_log(module.kind),
+            sanitize_for_log(device.device_id),
+        )
+
+    if finite:
         telemetry = TelemetryService(db)
         readings = [
             r if r.unit else replace(r, unit=declared_units.unit_for(device.device_id, r.param_key))
-            for r in batch.readings
+            for r in finite
         ]
         result = await telemetry.store_readings(
             vin=device.vin,
