@@ -64,8 +64,8 @@ async def test_a_legacy_odometer_row_reads_miles(db_session: AsyncSession, make_
         vin, device.device_id, [_row("ODOMETER", 1000.0)]
     )
 
-    # `UnitConverter.miles_to_km` rounds to the hundredth, as live ingest does.
-    assert await _stored(db_session, device.device_id, "ODOMETER") == [1609.34]
+    # Whole km, as live ingest stores an odometer (B6-11).
+    assert await _stored(db_session, device.device_id, "ODOMETER") == [1609.0]
 
 
 async def test_a_bare_odometer_with_no_unit_is_km(db_session: AsyncSession, make_livelink_vehicle):

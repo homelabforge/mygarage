@@ -65,16 +65,26 @@ def test_a_key_unit_that_is_not_a_distance_falls_back_to_the_key_rule() -> None:
     assert resolve_odometer_unit("ODOMETER", None, "wican", key_unit="") == "km"
 
 
-def test_non_wican_is_unchanged() -> None:
-    """Regression guard: any other device kind gets the metric default whatever
-    the key, and its own unit when one is set."""
+def test_non_wican_gets_the_metric_default() -> None:
+    """Regression guard: any other device kind reads a bare key as km, and its
+    own unit when one is set."""
     assert resolve_odometer_unit("ODOMETER", None, "torque") == "km"
-    assert resolve_odometer_unit("ODOMETER_MI", None, "torque") == "km"
+    assert resolve_odometer_unit("MILEAGE", None, "generic_mqtt") == "km"
     assert resolve_odometer_unit("MILEAGE", "mi", "torque") == "mi"
 
 
+def test_odometer_mi_is_miles_on_every_kind() -> None:
+    """Codex R1-M1: a key named _MI says miles whoever sends it, and the
+    browser reads it as canonical km, so storage must convert it. A device
+    unit still wins. Red on ed8fbef9 (km for non-WiCAN)."""
+    for kind in ("torque", "generic_mqtt", "wican"):
+        assert resolve_odometer_unit("ODOMETER_MI", None, kind) == "mi", kind
+        assert odometer_value_to_km(50000.0, "ODOMETER_MI", None, kind) == 80467.2, kind
+    assert resolve_odometer_unit("ODOMETER_MI", "km", "generic_mqtt") == "km"
+
+
 def test_a_declared_key_unit_is_wican_only() -> None:
-    """Torque's units come from TORQUE_DEFAULT_UNITS, and whether the phone
-    sends display units is B6-8's question, so a declared unit changes nothing
-    for it."""
+    """Torque uploads each PID in its default unit whatever the phone shows
+    (B6-8, verified), and its units come from TORQUE_DEFAULT_UNITS, so a
+    declared unit changes nothing for it."""
     assert resolve_odometer_unit("MILEAGE", None, "torque", key_unit="mi") == "km"

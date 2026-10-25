@@ -214,6 +214,18 @@ describe('convertTelemetryValue', () => {
     })
   })
 
+  it('shows a generic MQTT ODOMETER_MI as the miles it was sent in', () => {
+    // Regression guard (Codex R1-M1): the backend stores ODOMETER_MI as km for
+    // every device kind now, so 50,000 mi lands as 80,467.2 km. Read back as
+    // canonical km it's the same 50,000 mi, whichever unit the row names.
+    for (const unit of [null, 'km']) {
+      expect(convertTelemetryValue(80467.2, 'ODOMETER_MI', unit, IMPERIAL)).toStrictEqual({
+        text: '50,000',
+        unit: 'mi',
+      })
+    }
+  })
+
   it('does NOT convert a custom DISTANCE, which ingest leaves in the device\'s unit', () => {
     // `_is_odometer_param` on the backend matches A6-/ODOMETER/ODO/MILEAGE/
     // DISTANCE_TOTAL/TOTAL_DISTANCE, so a bare `DISTANCE` autopid is stored

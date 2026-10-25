@@ -2,7 +2,7 @@
 
 import logging
 import math
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any, cast
@@ -30,7 +30,7 @@ from app.models.vehicle_telemetry import (
     VehicleTelemetry,
     VehicleTelemetryLatest,
 )
-from app.services.device_units import DeviceUnitService
+from app.services.device_units import DeviceUnitService, relabel_parameter
 from app.services.telemetry_validator import TelemetryValidator
 from app.utils.autopid_normalizer import (
     canonical_param_key,
@@ -39,7 +39,12 @@ from app.utils.autopid_normalizer import (
 )
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.odometer_units import odometer_value_to_km
+from app.utils.odometer_units import (
+    ODOMETER_UNIT_KM,
+    is_miles_odometer_key,
+    is_miles_unit,
+    odometer_value_to_km,
+)
 
 
 class MaintenanceModeError(RuntimeError):
@@ -130,9 +135,11 @@ def normalises_odometer(policy: StoragePolicy, device: LiveLinkDevice | None) ->
     """Whether `store_readings` converts a batch's odometer to km.
 
     `device` is what the caller passes `store_readings` (None without the
-    ODOMETER capability). `store_telemetry` converts every odometer key; the
-    simple path only a declared one. Torque has ODOMETER and still converts
-    nothing without a declared key, so the capability alone doesn't say.
+    ODOMETER capability). `store_telemetry` converts every odometer key by the
+    device's match (its declared key, else name matching); the simple path
+    only a declared one. Torque has ODOMETER and still converts nothing
+    without a declared key, so the capability alone doesn't say. `ODOMETER_MI`
+    is converted on every path, and `check_thresholds` knows that per key.
     """
     if _delegates_to_store_telemetry(policy):
         return True
@@ -347,14 +354,31 @@ class TelemetryService:
         ).first()
         return row if row else (None, None)
 
+    def _normalised_odometer_keys(
+        self, keys: Iterable[str], declared: str | None, *, by_name: bool
+    ) -> set[str]:
+        """The keys a storage path converts to km.
+
+        `by_name`: `store_telemetry` converts every odometer key by the
+        device's match (`declared` replaces the name scan); the simple path
+        only a declared one. `ODOMETER_MI` is miles for every kind, so it's
+        converted on both (Codex R1-M1).
+        """
+        return {
+            k
+            for k in keys
+            if is_miles_odometer_key(k)
+            or ((by_name or declared) and self._is_odometer_param(k, declared))
+        }
+
     async def _normalize_odometer_units(
         self,
         device_id: str,
         autopid_data: dict[str, float | int | str | None],
-        declared: str | None = None,
+        keys: set[str],
         key_units: Mapping[str, str | None] | None = None,
     ) -> dict[str, float | int | str | None]:
-        """Return ``autopid_data`` with any odometer value converted to km.
+        """Return ``autopid_data`` with each odometer in ``keys`` converted to km.
 
         ``key_units`` is each key's unit as it arrived (this request's
         `config`). It goes through R12's resolution with the device's stored
@@ -363,11 +387,7 @@ class TelemetryService:
         the key shape (WiCAN only).
         """
         # Values narrowed here, so the loop below needs no None check.
-        odometers = {
-            k: v
-            for k, v in autopid_data.items()
-            if v is not None and self._is_odometer_param(k, declared)
-        }
+        odometers = {k: v for k, v in autopid_data.items() if v is not None and k in keys}
         if not odometers:
             return autopid_data
 
@@ -389,13 +409,35 @@ class TelemetryService:
                 normalized[param_key] = converted
         return normalized
 
-    async def _sanitize_odometer_value(self, vin: str, value: float) -> float | None:
+    @staticmethod
+    def _label_odometer_km(param: LiveLinkParameter | None) -> None:
+        """A normalised odometer's row says km, whatever an older version wrote (FB-5).
+
+        R4 relabels an mph row the same way. The lines stay: they were always
+        compared with the stored values, which were km.
+        """
+        if param is not None and is_miles_unit(param.unit):
+            relabel_parameter(param, ODOMETER_UNIT_KM)
+
+    async def _odometer_record_max(self, vin: str) -> float:
+        """The vehicle's highest odometer record in km, or 0 with none."""
+        found = await self.db.execute(
+            select(func.max(OdometerRecord.odometer_km)).where(OdometerRecord.vin == vin)
+        )
+        return float(found.scalar() or 0)
+
+    async def _sanitize_odometer_value(
+        self, vin: str, value: float, *, record_max: float | None = None
+    ) -> float | None:
         """Sanitize an odometer value (km), returning None if invalid.
 
         Applies the same sanity checks as _sync_odometer_from_telemetry:
         - Absolute cap at ~1.6 million km (1M mi equivalent)
         - Reject unreasonable jumps (>16,000 km from existing max)
         - Reject negative/zero values
+
+        ``record_max`` is the vehicle's highest record when the caller already
+        has it (an SD pull checks thousands of rows against one).
 
         Returns:
             Sanitized value if valid, None if should be rejected
@@ -415,11 +457,10 @@ class TelemetryService:
             )
             return None
 
-        # Query max existing odometer_km to check for unreasonable jumps
-        max_result = await self.db.execute(
-            select(func.max(OdometerRecord.odometer_km)).where(OdometerRecord.vin == vin)
+        # Max existing odometer_km, to check for unreasonable jumps
+        max_odometer_km = (
+            record_max if record_max is not None else await self._odometer_record_max(vin)
         )
-        max_odometer_km = max_result.scalar() or 0
 
         # Reject values that are unreasonably higher than existing max
         # (prevents overflow values like 0xFFFFFF from being displayed)
@@ -479,10 +520,11 @@ class TelemetryService:
         # the session stamp) reads the same units. Doing it per-consumer is what
         # let the record path and the storage path disagree for four months.
         declared_key = await self._declared_odometer_key(device_id)
+        normalised = self._normalised_odometer_keys(autopid_data, declared_key, by_name=True)
         autopid_data = await self._normalize_odometer_units(
             device_id,
             autopid_data,
-            declared_key,
+            normalised,
             {canonical_param_key(k): (c or {}).get("unit") for k, c in config.items()},
         )
 
@@ -497,8 +539,13 @@ class TelemetryService:
                 param_config = config.get(param_key, {})
                 unit = param_config.get("unit") if param_config else None
                 param_class = param_config.get("class") if param_config else None
+                # Converted above, so its row names km, not the unit it came in (FB-5).
+                if param_key in normalised:
+                    unit = ODOMETER_UNIT_KM
                 param = await self.auto_register_parameter(param_key, unit, param_class)
                 parameters[param_key] = param
+        for param_key in normalised & autopid_data.keys():
+            self._label_odometer_km(parameters.get(param_key))
 
         # Validate telemetry values before storage
         validator = TelemetryValidator(self.db)
@@ -934,6 +981,11 @@ class TelemetryService:
         )
         device_unit, device_kind = await self._odometer_units_for(device_id)
         declared = await self._declared_odometer_key(device_id)
+        normalised = self._normalised_odometer_keys(
+            {r.param_key for r in rows}, declared, by_name=True
+        )
+        # Records don't move during a pull, so the jump check's ceiling is read once.
+        record_max: float | None = None
 
         for i, (r, reading) in enumerate(zip(rows, resolved, strict=True), start=1):
             # Normalise to naive UTC once so the (device_id, param_key, timestamp)
@@ -942,12 +994,21 @@ class TelemetryService:
             ts = r.timestamp.replace(tzinfo=None) if r.timestamp.tzinfo is not None else r.timestamp
 
             value = reading.value
-            if self._is_odometer_param(r.param_key, declared):
+            if r.param_key in normalised:
                 converted = odometer_value_to_km(
                     value, r.param_key, device_unit, device_kind, reading.unit
                 )
                 if converted is not None:
                     value = converted
+            # Same rounding, cap and jump checks as live ingest, on the same
+            # keys (B6-11). A dropped one is skipped whole, as live drops it.
+            if self._is_odometer_param(r.param_key):
+                if record_max is None:
+                    record_max = await self._odometer_record_max(vin)
+                sanitized = await self._sanitize_odometer_value(vin, value, record_max=record_max)
+                if sanitized is None:
+                    continue
+                value = sanitized
             # Kept for the session reconstruction below, in CANONICAL km. The
             # predicate compares odometer readings against each other, so a
             # batch mixing raw miles with converted kilometres would see
@@ -1541,10 +1602,9 @@ class TelemetryService:
         if not readings:
             return StoreResult()
 
-        # `device` is optional here and REQUIRED by Task 17: it carries
-        # `odometer_param_key`, which decides whether an odometer normalisation
-        # step runs before any row is written. Task 17 adds that step; leave the
-        # parameter unused for now rather than changing the signature twice.
+        # `device` carries `odometer_param_key`, which decides which odometer
+        # the simple path below converts and records. None without the
+        # ODOMETER capability.
 
         if _delegates_to_store_telemetry(policy):
             autopid: dict[str, float | int | str | None] = {r.param_key: r.value for r in readings}
@@ -1563,19 +1623,22 @@ class TelemetryService:
         # odometer record) must read the same units; converting per-consumer is
         # what let the record path and the storage path disagree for four
         # months. `device` is None when the module lacks the ODOMETER
-        # capability, so this is dead for a source that has no business
-        # recording one.
+        # capability, so only `ODOMETER_MI` converts for a source with no
+        # business recording an odometer: it's miles whoever sends it (R1-M1).
         declared = device.odometer_param_key if device else None
-        if declared:
-            normalised = await self._normalize_odometer_units(
+        normalised = self._normalised_odometer_keys(
+            (r.param_key for r in readings), declared, by_name=False
+        )
+        if normalised:
+            converted = await self._normalize_odometer_units(
                 device_id,
                 {r.param_key: r.value for r in readings},
-                declared,
+                normalised,
                 {r.param_key: r.unit for r in readings},
             )
             readings = [
-                replace(r, value=float(normalised[r.param_key]))
-                if normalised.get(r.param_key) is not None
+                replace(r, value=float(converted[r.param_key]))
+                if r.param_key in normalised and converted.get(r.param_key) is not None
                 else r
                 for r in readings
             ]
@@ -1584,12 +1647,16 @@ class TelemetryService:
         accepted: dict[str, float | int | str | None] = {}
 
         for reading in readings:
-            await self.auto_register_parameter(
+            odometer = reading.param_key in normalised
+            param = await self.auto_register_parameter(
                 reading.param_key,
-                unit=reading.unit,
+                # Stored in km now, whatever unit it came in (FB-5).
+                unit=ODOMETER_UNIT_KM if odometer else reading.unit,
                 param_class=reading.param_class,
                 display_name=reading.display_name,
             )
+            if odometer:
+                self._label_odometer_km(param)
             accepted[reading.param_key] = reading.value
 
             if policy.latest == "if_newer":
@@ -1653,9 +1720,10 @@ class TelemetryService:
         `odometer_normalised`: storage normalised this batch's odometer
         (`normalises_odometer`), so an odometer key, by the same match
         normalisation used (`declared_odometer_key` is the device's
-        `odometer_param_key`), holds km. The alert then reads in the owner's
-        distance unit whatever the parameter row's unit says. An odometer key
-        that wasn't normalised prints raw unless its row says km.
+        `odometer_param_key`), holds km. So does `ODOMETER_MI`, on every path.
+        The alert then reads in the owner's distance unit whatever the
+        parameter row's unit says. An odometer-named key that wasn't
+        normalised prints raw unless its row says km.
         """
         from app.services.livelink_alerts import alert_band, alert_quantity, band_line, crossing
 
@@ -1719,12 +1787,21 @@ class TelemetryService:
         # says psi holds psi, and prints as it is (D2a).
         from app.utils.render_context import render_context_for_vehicle
 
-        odometer_key = self._is_odometer_param(param_key, declared_odometer_key)
+        # Odometer-named counts too: on a device that declares another key it
+        # wasn't normalised, and a unitless row isn't proof of km (carry 15).
+        # Normalised is the declared match, or ODOMETER_MI, which every path
+        # converts (R1-M1).
+        odometer_key = self._is_odometer_param(
+            param_key, declared_odometer_key
+        ) or self._is_odometer_param(param_key)
+        normalised = (
+            odometer_normalised and self._is_odometer_param(param_key, declared_odometer_key)
+        ) or is_miles_odometer_key(param_key)
         quantity = alert_quantity(
             param.param_class,
             param.unit,
             odometer_key=odometer_key,
-            odometer_normalised=odometer_normalised and odometer_key,
+            odometer_normalised=normalised,
         )
 
         # Send notification

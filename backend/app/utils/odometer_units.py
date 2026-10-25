@@ -14,7 +14,9 @@ in order:
     ODOMETER_MI   upstream WiCAN's name for a miles one     -> mi
     ODO, MILEAGE  any other bare key: a user autopid        -> mi (a guess)
 
-Any other device kind reads km unless its ``odometer_unit`` says otherwise.
+Any other device kind reads km unless its ``odometer_unit`` says otherwise,
+except ``ODOMETER_MI``, which is miles whoever sends it (Codex R1-M1): the
+name says so, and the browser reads the key as canonical km.
 
 History: `6f04e53` ("Fix/v2.26.2 currency and metric canonical") collapsed the
 key shapes into `int(round(value))`, which silently killed odometer
@@ -22,9 +24,11 @@ auto-recording for every bare-autopid device — a miles value read as kilometre
 lands *below* the vehicle's real odometer and the monotonic guard in
 ``TelemetryService._sync_odometer_from_telemetry`` drops it with no log line.
 The fix guessed miles for EVERY bare key, bare ``ODOMETER`` included, which
-upstream defines as km (N-1). A WiCAN that reported one before 3.10 keeps that
-miles reading through a ``legacy`` R12 row (migration 133), because its
-odometer records were written in it.
+upstream defines as km (N-1). A WiCAN that reported an odometer key before
+3.10 keeps main's reading of it (km for a PID key, miles for a bare one)
+through a ``legacy`` R12 row (migration 133), because its odometer records
+were written in it. ``tools/repair_wican_odometer_unit.py`` fixes a key read
+in the wrong unit, either way.
 """
 
 from __future__ import annotations
@@ -103,6 +107,20 @@ def infer_odometer_unit(param_key: str) -> str:
     return ODOMETER_UNIT_MI
 
 
+def is_miles_odometer_key(param_key: str) -> bool:
+    """True for ``ODOMETER_MI``, the one key that says miles for every device kind."""
+    return param_key.upper() == UPSTREAM_MI_ODOMETER_KEY
+
+
+#: Unit labels that mean miles, lower-cased.
+_MILES_LABELS = frozenset({"mi", "mile", "miles"})
+
+
+def is_miles_unit(unit: str | None) -> bool:
+    """True when a free-text unit label says miles."""
+    return bool(unit) and unit.strip().lower() in _MILES_LABELS
+
+
 def _distance_unit(unit: str | None) -> str | None:
     """``unit`` as 'km' or 'mi', or None when it names neither."""
     if not unit:
@@ -122,15 +140,16 @@ def resolve_odometer_unit(
     An explicit, recognised ``device_unit`` always wins. Then ``key_unit``,
     the unit the device declared for this key (resolved through
     ``DeviceUnitService``), then the key-shape rules. Both of those are WiCAN
-    only: Torque Pro publishes a bare ``ODOMETER`` too and does not report
-    miles, and whether it sends the phone's display units is unverified
-    (B6-8), so any other device kind gets the metric default.
+    only. Any other kind gets the metric default: Torque Pro uploads each PID
+    in its default (metric) unit whatever the phone shows (B6-8, checked
+    against a capture with the phone on mph and °F). ``ODOMETER_MI`` is the
+    exception, miles for every kind.
     """
     unit = _distance_unit(device_unit)
     if unit:
         return unit
     if device_kind is not None and device_kind != WICAN_DEVICE_KIND:
-        return ODOMETER_UNIT_KM
+        return ODOMETER_UNIT_MI if is_miles_odometer_key(param_key) else ODOMETER_UNIT_KM
     return _distance_unit(key_unit) or infer_odometer_unit(param_key)
 
 

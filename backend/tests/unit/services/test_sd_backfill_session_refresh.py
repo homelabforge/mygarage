@@ -171,7 +171,8 @@ class TestSdBackfillOdometerUnits:
             )
         ).scalar_one()
 
-        assert stored == pytest.approx(1609.34), "SD odometer was stored in miles"
+        # Whole km, as live ingest stores it (B6-11).
+        assert stored == 1609.0, "SD odometer was stored in miles"
 
     async def test_sd_odometer_on_a_metric_device_is_left_alone(
         self, db_session, make_closed_session

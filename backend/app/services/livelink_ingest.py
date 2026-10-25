@@ -248,8 +248,8 @@ async def ingest(module: BaseSourceModule, env: Envelope, db: AsyncSession) -> I
         # The device's stored declarations fill what's still missing, and mph
         # becomes km/h here, once, whichever way the unit arrived (R4, R12).
         readings = await DeviceUnitService(db).resolve_readings(device.device_id, readings)
-        # Task 17 reads `device.odometer_param_key` from this to decide
-        # whether to normalise and record an odometer reading.
+        # The store reads `device.odometer_param_key` from this to decide
+        # which odometer to normalise and record.
         #
         # GATED on the capability, deliberately. Passing it unconditionally
         # would let ANY source with a declared key write odometer records,

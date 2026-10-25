@@ -227,17 +227,32 @@ class TestOdometerLinesThroughIngest:
 
         assert ": 62,500 mi vs threshold 62,137 mi." in _alert_message(mock)
 
+    @pytest.mark.parametrize(
+        ("unit", "shown"),
+        [
+            # Regression guard: printed raw with its unit since T6.
+            ("mi", "62000.0 mi vs threshold 60000.0 mi"),
+            # Carry 15: with no unit on its row, the undeclared key read as an
+            # ordinary distance (km) and was converted. Red on ed8fbef9.
+            (None, "62000.0 vs threshold 60000.0"),
+        ],
+    )
     async def test_a_wican_key_its_device_does_not_declare_prints_raw(
-        self, db_session: AsyncSession, make_livelink_vehicle, monkeypatch
+        self,
+        db_session: AsyncSession,
+        make_livelink_vehicle,
+        monkeypatch,
+        unit: str | None,
+        shown: str,
     ) -> None:
-        """Regression guard: a device's declared odometer key replaces the
-        name match, so only that key is normalised. Another odometer-named key
-        on the same WiCAN is stored as sent, and printed as it is."""
+        """A device's declared odometer key replaces the name match, so only
+        that key is normalised. Another odometer-named key on the same WiCAN
+        is stored as sent, and printed as it is."""
         _vin, device = await make_livelink_vehicle(
-            "t6odod", "1", odometer_unit="km", odometer_param_key="A6-ODOMETER"
+            "t6odod", "1" if unit else "2", odometer_unit="km", odometer_param_key="A6-ODOMETER"
         )
         await db_session.commit()
-        db_session.add(_param(ODO, unit="mi", param_class="distance", warning_max=60000.0))
+        db_session.add(_param(ODO, unit=unit, param_class="distance", warning_max=60000.0))
         await db_session.flush()
         mock = _capture(monkeypatch)
 
@@ -247,7 +262,7 @@ class TestOdometerLinesThroughIngest:
             db_session,
         )
 
-        assert ": 62000.0 mi vs threshold 60000.0 mi." in _alert_message(mock)
+        assert f"exceeded maximum: {shown}." in _alert_message(mock)
 
     @pytest.mark.parametrize(
         ("unit", "shown"),

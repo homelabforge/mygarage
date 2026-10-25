@@ -20,7 +20,7 @@ from app.database import is_sqlite
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_device_unit import SOURCE_LEGACY, SOURCE_WIRE, LiveLinkDeviceUnit
 from app.models.livelink_parameter import LiveLinkParameter
-from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
+from app.models.vehicle_telemetry import VehicleTelemetryLatest
 from app.services.livelink_sources.base import Reading, WireUnit
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -147,12 +147,13 @@ class DeviceUnitService:
         """Whether a legacy row for ``key`` still guards readings it was written for.
 
         The bounded history predicate (the same one `update_device`'s 409
-        uses), or migration 133's fallback for a device with no raw rows at
-        all: a re-discovered one whose VIN's last bare reading predates it
-        (Fable F5-5). 133 gave it the row on that evidence, so a km boot
-        config mustn't take it back while the evidence stands. 133's
-        `odometer_param_key` clause isn't here: with nothing recorded under the
-        old reading there's no floor to protect.
+        uses), or migration 133's own fallback: a latest row for this key on
+        the device's VIN, whenever it was written. That's the re-discovered
+        device whose VIN's last reading predates it (Fable F5-5). Raw rows of
+        other keys don't count against it: a re-discovered WiCAN sends COOLANT
+        before it sends an odometer (Fable FB-2). 133's `odometer_param_key`
+        clause isn't here: with nothing recorded under the old reading there's
+        no floor to protect.
         """
         # Lazy: livelink_service is a much bigger import, and nothing else here needs it.
         from app.services.livelink_service import LiveLinkService
@@ -160,13 +161,6 @@ class DeviceUnitService:
         if await LiveLinkService(self.db).device_has_odometer_history(device):
             return True
         if not device.vin:
-            return False
-        raw = await self.db.execute(
-            select(VehicleTelemetry.id)
-            .where(VehicleTelemetry.device_id == device.device_id)
-            .limit(1)
-        )
-        if raw.first() is not None:
             return False
         latest = await self.db.execute(
             select(VehicleTelemetryLatest.id)
@@ -276,14 +270,33 @@ class DeviceUnitService:
             select(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(sorted(keys)))
         )
         for param in rows.scalars():
-            if not is_mph(param.unit):
-                continue
-            param.unit = CANONICAL_SPEED_UNIT
-            for field in _LINE_FIELDS:
-                line = getattr(param, field)
-                if line is not None:
-                    setattr(param, field, float(Decimal(str(line)) * UnitConverter.MILES_TO_KM))
-            logger.info(
-                "Parameter %s moved from mph to km/h with its alert lines",
-                sanitize_for_log(param.param_key),
-            )
+            if is_mph(param.unit):
+                relabel_parameter(
+                    param, CANONICAL_SPEED_UNIT, line_factor=UnitConverter.MILES_TO_KM
+                )
+
+
+def relabel_parameter(
+    param: LiveLinkParameter, unit: str, *, line_factor: Decimal | None = None
+) -> None:
+    """Point a parameter row at the unit its values are stored in.
+
+    `auto_register_parameter` only fills an empty unit, so a row an older
+    version labelled otherwise keeps the old label over converted values.
+    `line_factor` moves the alert lines too, for a row whose lines were
+    written in the old unit (mph); an odometer row's never were.
+    """
+    old = param.unit
+    param.unit = unit
+    if line_factor is not None:
+        for field in _LINE_FIELDS:
+            line = getattr(param, field)
+            if line is not None:
+                setattr(param, field, float(Decimal(str(line)) * line_factor))
+    logger.info(
+        "Parameter %s relabelled from %s to %s%s",
+        sanitize_for_log(param.param_key),
+        sanitize_for_log(old),
+        unit,
+        " with its alert lines" if line_factor is not None else "",
+    )
