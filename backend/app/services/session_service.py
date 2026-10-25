@@ -410,17 +410,33 @@ class SessionService:
         device.movement_candidate_at = None
         device.movement_baseline_km = None
 
-    @classmethod
-    def _is_replay_built(cls, device: LiveLinkDevice, session: DriveSession) -> bool:
+    async def _is_replay_built(self, device: LiveLinkDevice, session: DriveSession) -> bool:
         """True when no live sample ever touched this session (R9).
 
         `last_movement_at` is written by live samples only, so when it's NULL
         or older than the session's start it belongs to an earlier drive, and
         everything this session knows came from a replay.
+
+        Equal to the start is two different things. A replay clamped to the
+        close of the live drive that moved last starts right there, since the
+        gap clock closes a live drive at its last movement. A live drive can
+        start on its own confirming sample too. The earlier drive's close is
+        what tells them apart: only the first starts where another of the
+        device's drives ended (re-review 2). One query, and only on a tie.
         """
         if device.last_movement_at is None:
             return True
-        return cls._naive(device.last_movement_at) < cls._naive(session.started_at)
+        last = self._naive(device.last_movement_at)
+        start = self._naive(session.started_at)
+        if last != start:
+            return last < start
+        previous_end = await self.db.scalar(
+            select(func.max(DriveSession.ended_at))
+            .where(DriveSession.device_id == session.device_id)
+            .where(DriveSession.id != session.id)
+            .where(DriveSession.ended_at <= start)
+        )
+        return previous_end is not None and self._naive(previous_end) == start
 
     async def observe_telemetry(
         self,
@@ -466,11 +482,16 @@ class SessionService:
         # its last movement, as the gap clock would have. Only a replay-built
         # movement session: a live one is the gap clock's on the tick (one bad
         # future frame mustn't split it), and a contact-mode one has no
-        # movement fields to measure from (FW-B-r2).
+        # movement fields to measure from (FW-B-r2). And a live sample only
+        # when it's moving: a parked, awake car's frames land between replay
+        # batches, and one of them split the replay's drive (FW-B-r3). The
+        # pointer stays, as the gap clock's replay close keeps it, so a late
+        # batch within the gap reopens the drive through `_reopen_awaiting`.
         if (
             session is not None
             and session.boundary_algorithm_version >= BOUNDARY_ALGORITHM_MOVEMENT
-            and self._is_replay_built(device, session)
+            and (not live or signals.is_above_floor)
+            and await self._is_replay_built(device, session)
         ):
             anchor = self._naive(session.movement_ended_at or session.started_at)
             if sample_at - anchor > window:
@@ -483,15 +504,21 @@ class SessionService:
                     gap,
                     anchor,
                 )
-                await self.end_session(device, anchor)
+                await self.end_session(device, anchor, retain_pointer=True)
                 session = None
 
         # Expire a stale evidence window BEFORE evaluating this batch. Without a
         # bound, an engine-on at 08:00 and a movement sample at 17:00 are still
         # "consecutive", and the session backdates nine hours of parked
         # telemetry into a drive. Two samples separated by a disconnect are not
-        # consecutive in any sense that matters.
-        if session is None:
+        # consecutive in any sense that matters. Not on a live frame that says
+        # nothing about movement (no speed over the floor, no odometer): a
+        # parked car's frame between replay batches isn't the next sample of
+        # that drive, and dropping the replay's lone candidate meant a replay
+        # interleaved with live frames never confirmed (FW-B-r3). The wall-clock
+        # sweep (`expire_stale_movement_state`) still clears stale pending state.
+        says_nothing = live and not signals.is_above_floor and signals.odometer_km is None
+        if session is None and not says_nothing:
             if device.pending_since is not None and (
                 sample_at - self._naive(device.pending_since) > window
             ):
@@ -1036,7 +1063,7 @@ class SessionService:
             )
         ).all()
         for device, session in awaiting:
-            if self._is_replay_built(device, session):
+            if await self._is_replay_built(device, session):
                 if device.last_seen is not None and now - self._naive(device.last_seen) <= window:
                     continue
             else:
@@ -1655,7 +1682,7 @@ class SessionService:
             # `last_movement_at` only counts when it's from this session. A
             # replay-built one (R9) never set it, so it still names an earlier
             # drive, and closing there ends the session before it started.
-            replay_built = self._is_replay_built(device, session)
+            replay_built = await self._is_replay_built(device, session)
             moved_at = self._naive(
                 (None if replay_built else device.last_movement_at)
                 or session.movement_ended_at
