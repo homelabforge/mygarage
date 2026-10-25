@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any, cast
 
-from sqlalchemy import and_, delete, func, not_, or_, select
+from sqlalchemy import and_, delete, exists, func, not_, or_, select
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +45,7 @@ from app.utils.odometer_units import (
     is_miles_odometer_key,
     is_miles_unit,
     odometer_value_to_km,
+    stores_odometer_key_raw,
 )
 
 
@@ -395,17 +396,45 @@ class TelemetryService:
                 normalized[param_key] = converted
         return normalized
 
-    @staticmethod
-    def _label_odometer_km(param: LiveLinkParameter | None) -> None:
+    async def _label_odometer_km(self, param: LiveLinkParameter | None) -> None:
         """A normalised odometer's row says km, whatever an older version wrote (FB-5).
 
         R4 relabels an mph row the same way. An empty unit gets km too: the
         browser reads an odometer's unit from this row, not its name
         (FW-A-r3). The lines stay: they were always compared with the stored
         values, which were km.
+
+        Rows are global by key, so a key another device stores raw (another
+        kind that doesn't declare it, or a WiCAN that declares a different
+        key) keeps its label, as migration 133 leaves it (FW-A-r4b). That
+        check is a query, so it only runs while the row still needs relabelling.
         """
-        if param is not None and (not (param.unit or "").strip() or is_miles_unit(param.unit)):
-            relabel_parameter(param, ODOMETER_UNIT_KM)
+        if param is None:
+            return
+        unlabelled = not (param.unit or "").strip()
+        if not (unlabelled or is_miles_unit(param.unit)):
+            return
+        if await self._another_device_stores_raw(param.param_key):
+            return
+        relabel_parameter(param, ODOMETER_UNIT_KM)
+
+    async def _another_device_stores_raw(self, param_key: str) -> bool:
+        """Whether a device that doesn't convert ``param_key`` has raw rows under it.
+
+        Migration 133's guard for its km stamp, asked live: every device with
+        rows under the key, judged by `stores_odometer_key_raw`.
+        """
+        rows = await self.db.execute(
+            select(LiveLinkDevice.kind, LiveLinkDevice.odometer_param_key).where(
+                exists().where(
+                    VehicleTelemetry.device_id == LiveLinkDevice.device_id,
+                    VehicleTelemetry.param_key == param_key,
+                )
+            )
+        )
+        return any(
+            stores_odometer_key_raw(param_key, kind, declared) for kind, declared in rows.all()
+        )
 
     async def _odometer_record_max(self, vin: str) -> float:
         """The vehicle's highest odometer record in km, or 0 with none."""
@@ -533,7 +562,7 @@ class TelemetryService:
                 param = await self.auto_register_parameter(param_key, unit, param_class)
                 parameters[param_key] = param
         for param_key in normalised & autopid_data.keys():
-            self._label_odometer_km(parameters.get(param_key))
+            await self._label_odometer_km(parameters.get(param_key))
 
         # Validate telemetry values before storage
         validator = TelemetryValidator(self.db)
@@ -1644,7 +1673,7 @@ class TelemetryService:
                 display_name=reading.display_name,
             )
             if odometer:
-                self._label_odometer_km(param)
+                await self._label_odometer_km(param)
             accepted[reading.param_key] = reading.value
 
             if policy.latest == "if_newer":

@@ -17,10 +17,12 @@ from datetime import timedelta
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.livelink_device import LiveLinkDevice
 from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
 from app.services.livelink_service import LiveLinkService
 from app.services.session_service import SessionService
 from app.utils.datetime_utils import utc_now
+from app.utils.odometer_units import is_recorded_odometer_key
 
 pytestmark = pytest.mark.asyncio
 
@@ -184,3 +186,92 @@ async def test_an_undeclared_torque_session_gets_no_odometer(
 
     started = await SessionService(db_session).start_session(device, utc_now())
     assert started.start_odometer is None
+
+
+# --- Fix round 4 (ruling FW-A-r4a): a WiCAN never takes another source's key ----
+
+TORQUE_KEY = "TORQUE_ODOMETER"
+#: Well before any row below, so the history guard's `created_at` bound sees them.
+ADDED = (utc_now() - timedelta(days=10)).replace(microsecond=0)
+
+
+async def _torque_phone(db: AsyncSession, vin: str, suffix: str, at) -> LiveLinkDevice:
+    """A Torque phone on the same car, declaring its own total, with history under it."""
+    phone = LiveLinkDevice(
+        device_id=f"{P}phone{suffix:0>4}",
+        vin=vin,
+        enabled=True,
+        kind="torque",
+        odometer_param_key=TORQUE_KEY,
+        created_at=ADDED,
+    )
+    db.add(phone)
+    db.add(_raw(vin, phone.device_id, TORQUE_KEY, 80123.0, at))
+    db.add(
+        VehicleTelemetryLatest(
+            vin=vin, param_key=TORQUE_KEY, value=80123.0, timestamp=at, received_at=at
+        )
+    )
+    await db.flush()
+    return phone
+
+
+def test_the_wican_scan_skips_another_sources_own_keys():
+    """The scan takes `TORQUE_ODOMETER` (it holds `ODOMETER`), but the key is
+    Torque's own, from its pid map, so a WiCAN never recorded it. Declared, it
+    still counts: the declaration wins everywhere. Red on 63640d97 for the
+    first line; the rest are regression guards."""
+    assert is_recorded_odometer_key(TORQUE_KEY, "wican") is False
+    assert is_recorded_odometer_key(TORQUE_KEY, "wican", TORQUE_KEY) is True
+    assert is_recorded_odometer_key(TORQUE_KEY, "torque", TORQUE_KEY) is True
+    assert is_recorded_odometer_key("ODOMETER_KM", "wican") is True
+
+
+async def test_a_wican_session_does_not_start_on_the_torque_phones_total(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """The latest table is per vehicle, so on a car with both, the WiCAN's
+    start odometer came from the phone's drifting total. Red on 63640d97
+    (80123.0)."""
+    vin, wican = await make_livelink_vehicle(P, "8", created_at=ADDED)
+    now = utc_now()
+    await _torque_phone(db_session, vin, "8", now)
+
+    session = await SessionService(db_session).start_session(wican, now)
+
+    assert session.start_odometer is None
+
+
+async def test_a_wicans_unit_guard_does_not_see_the_torque_phones_history(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """The phone's `TORQUE_ODOMETER` rows are its history, not the WiCAN's, so
+    the WiCAN can still choose its unit. Red on 63640d97 (409)."""
+    vin, wican = await make_livelink_vehicle(P, "9", created_at=ADDED)
+    phone = await _torque_phone(db_session, vin, "9", utc_now())
+
+    service = LiveLinkService(db_session)
+    assert await service.device_has_odometer_history(wican) is False
+    assert await service.device_has_odometer_history(phone) is True
+    await service.update_device(wican.device_id, {"odometer_unit": "mi"})
+    assert wican.odometer_unit == "mi"
+
+
+async def test_a_wicans_own_odometer_km_still_counts_beside_a_torque_phone(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """Regression guard: only the other source's own keys are skipped. Kills
+    an exclusion that reads the vocabulary the wrong way round."""
+    vin, wican = await make_livelink_vehicle(P, "10", created_at=ADDED)
+    now = utc_now()
+    await _torque_phone(db_session, vin, "10", now - timedelta(minutes=1))
+    db_session.add(
+        VehicleTelemetryLatest(
+            vin=vin, param_key="ODOMETER_KM", value=80456.0, timestamp=now, received_at=now
+        )
+    )
+    await db_session.flush()
+
+    assert await LiveLinkService(db_session).device_has_odometer_history(wican) is True
+    session = await SessionService(db_session).start_session(wican, now)
+    assert session.start_odometer == 80456.0

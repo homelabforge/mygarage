@@ -251,6 +251,13 @@ class BaseSourceModule(ABC):
     kind: ClassVar[str]
     capabilities: ClassVar[frozenset[Capability]]
     storage_policy: ClassVar[StoragePolicy] = StoragePolicy()
+    #: The canonical keys only this source names, from a fixed PID map of its
+    #: own (Torque's `TORQUE_ODOMETER` and `KFF...` PIDs). Empty for a source
+    #: whose keys the device or its owner names (WiCAN autopids, generic MQTT
+    #: topic maps), and never a shared OBD alias like `SPEED`: another kind
+    #: sends those too. The registry hands a kind every other module's set, so
+    #: a WiCAN's odometer scan can skip a key that was never its (FW-A-r4a).
+    own_param_keys: ClassVar[frozenset[str]] = frozenset()
 
     async def subscriptions(self, db: AsyncSession) -> list[str]:
         """Exact MQTT topics this module wants. HTTP-only sources return [].

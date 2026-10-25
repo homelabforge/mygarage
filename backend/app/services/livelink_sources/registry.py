@@ -94,6 +94,20 @@ class SourceRegistry:
         """Every valid `livelink_devices.kind` value."""
         return frozenset(self._modules)
 
+    def foreign_param_keys(self, kind: str) -> frozenset[str]:
+        """The keys every OTHER module names for itself (`own_param_keys`).
+
+        A device of ``kind`` never sent one, so a per-vehicle read (the latest
+        table has no device id) can tell another source's key from its own: a
+        WiCAN's odometer scan skips them (FW-A-r4a). A new source joins by
+        declaring its vocabulary; nothing here names a kind.
+        """
+        keys: frozenset[str] = frozenset()
+        for module in self._modules.values():
+            if module.kind != kind:
+                keys |= module.own_param_keys
+        return keys
+
     async def mqtt_subscriptions(self, db: AsyncSession | None) -> dict[str, BaseSourceModule]:
         """Exact topic to owning module, across all registered modules.
 

@@ -13,6 +13,7 @@ from app.services.livelink_sources.base import (
 class _Alpha(BaseSourceModule):
     kind = "alpha"
     capabilities = frozenset({Capability.TELEMETRY})
+    own_param_keys = frozenset({"ALPHA_TOTAL"})
 
     async def subscriptions(self, db):
         return ["a/one", "a/two"]
@@ -87,6 +88,22 @@ def test_the_default_registry_has_the_shipped_modules():
     assert registry.default_registry().valid_kinds() == frozenset(
         {"wican", "torque", "generic_mqtt"}
     )
+
+
+def test_foreign_param_keys_are_what_the_other_modules_name_for_themselves(reg):
+    """A WiCAN's odometer scan skips these (FW-A-r4a). A module with no fixed
+    vocabulary contributes nothing, and no module sees its own keys as foreign.
+    Red on 63640d97 (no such method)."""
+    assert reg.foreign_param_keys("beta") == frozenset({"ALPHA_TOTAL"})
+    assert reg.foreign_param_keys("alpha") == frozenset()
+
+
+def test_the_default_registry_knows_torques_own_keys():
+    """Torque's total is Torque's; the standard PID aliases are everyone's."""
+    foreign = registry.default_registry().foreign_param_keys("wican")
+    assert "TORQUE_ODOMETER" in foreign
+    assert "SPEED" not in foreign
+    assert registry.default_registry().foreign_param_keys("torque") == frozenset()
 
 
 def test_a_policy_that_reaches_sessions_without_the_capability_is_refused():

@@ -663,6 +663,53 @@ def test_133_labels_a_wican_odometer_parameter_km(db):
     }
 
 
+def test_133_does_not_label_the_torque_phones_key_through_the_wican(db):
+    """A WiCAN beside a Torque phone sees the phone's `TORQUE_ODOMETER` in the
+    vehicle's latest rows, but the key is Torque's own (FW-A-r4a), so it isn't
+    the WiCAN's to label; the phone's next reading labels its own row. Red on
+    63640d97 (km)."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINLABELTQ001")
+        _device(s, "labelwt", "M133VINLABELTQ001", odometer_unit="mi")
+        _raw(s, "labelwt", "M133VINLABELTQ001", "ODOMETER", 80467)
+        _device(
+            s, "labeltq", "M133VINLABELTQ001", kind="torque", odometer_param_key="TORQUE_ODOMETER"
+        )
+        _raw(s, "labeltq", "M133VINLABELTQ001", "TORQUE_ODOMETER", 80467)
+        _latest(s, "M133VINLABELTQ001", "TORQUE_ODOMETER", 80467, AFTER)
+        _param_row(s, "ODOMETER", None)
+        _param_row(s, "TORQUE_ODOMETER", None)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _param_units(engine) == {"ODOMETER": "km", "TORQUE_ODOMETER": None}
+
+
+def test_133_leaves_a_key_a_wican_declaring_another_key_stored_raw(db):
+    """A WiCAN that declares `MY_ODO` converts only that key, so its `ODOMETER`
+    rows are raw, like a generic device's. The row is shared with a WiCAN that
+    does record `ODOMETER`, and the live relabel holds it the same way
+    (FW-A-r4b). Red on 63640d97 (km)."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINLABELWD001")
+        _device(s, "labelwd", "M133VINLABELWD001", odometer_unit="mi", odometer_param_key="MY_ODO")
+        _raw(s, "labelwd", "M133VINLABELWD001", "MY_ODO", 80467)
+        _raw(s, "labelwd", "M133VINLABELWD001", "ODOMETER", 50000)
+        _vehicle(s, "M133VINLABELWB001")
+        _device(s, "labelwb", "M133VINLABELWB001", odometer_unit="mi")
+        _raw(s, "labelwb", "M133VINLABELWB001", "ODOMETER", 80467)
+        _param_row(s, "MY_ODO", None)
+        _param_row(s, "ODOMETER", None)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _param_units(engine) == {"MY_ODO": "km", "ODOMETER": None}
+
+
 def test_133_skips_an_install_with_no_devices_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _load().upgrade(engine)

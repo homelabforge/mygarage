@@ -35,6 +35,13 @@ def test_declares_odometer_as_a_capability_but_not_as_a_storage_policy():
     assert M.storage_policy.sync_odometer is False
 
 
+def test_names_its_own_pids_as_its_vocabulary():
+    """Its extended PIDs are Torque's alone; the standard ones map onto aliases
+    a WiCAN sends too, so they're nobody's (FW-A-r4a). Red on 63640d97."""
+    assert {"TORQUE_ODOMETER", "KFF1204"} <= M.own_param_keys
+    assert not {"SPEED", "COOLANT_TMP"} & M.own_param_keys
+
+
 def test_storage_policy_is_newer_only_with_no_interval_odometer_or_movement():
     assert M.storage_policy.latest == "if_newer"
     assert M.storage_policy.apply_storage_interval is False

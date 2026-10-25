@@ -613,7 +613,9 @@ class LiveLinkService:
         one, by name otherwise, the way the device's kind records odometers
         (`is_recorded_odometer_key`): a WiCAN by the scan, so `ODOMETER_KM`
         history counts (FW-A-r2), any other kind only its declared key, so a
-        Torque phone's undeclared `TORQUE_ODOMETER` doesn't (FW-A-r3).
+        Torque phone's undeclared `TORQUE_ODOMETER` doesn't (FW-A-r3). Nor
+        does the phone's declared one count for a WiCAN on the same car: the
+        scan skips another source's own keys (FW-A-r4a).
         """
         declared = device.odometer_param_key
         kind = device.kind

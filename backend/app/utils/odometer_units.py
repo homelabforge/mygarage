@@ -34,6 +34,7 @@ in the wrong unit, either way.
 from __future__ import annotations
 
 import re
+from functools import cache
 
 from app.utils.units import UnitConverter
 
@@ -89,6 +90,19 @@ def is_converted_odometer_key(param_key: str, declared: str | None = None) -> bo
     return any(pattern in upper for pattern in ODOMETER_NAME_PATTERNS)
 
 
+@cache
+def _foreign_param_keys(kind: str) -> frozenset[str]:
+    """The keys other sources name for themselves, from the registry.
+
+    Imported inside, not at the top: the registry's modules import this
+    module's neighbours (the schema layer does the same lazy import). Cached
+    because the shipped registry is fixed for the process.
+    """
+    from app.services.livelink_sources.registry import default_registry
+
+    return default_registry().foreign_param_keys(kind)
+
+
 def is_recorded_odometer_key(param_key: str, kind: str | None, declared: str | None = None) -> bool:
     """True for a key a device of ``kind`` converts and records as its odometer.
 
@@ -96,10 +110,34 @@ def is_recorded_odometer_key(param_key: str, kind: str | None, declared: str | N
     WiCAN's store path takes the substring scan; Torque, generic MQTT and the
     presets record just the key they declare, so for them an odometer-named
     key that isn't declared is a plain reading.
+
+    The scan also skips a key another source names for itself, such as
+    Torque's `TORQUE_ODOMETER` (FW-A-r4a): the latest table is per vehicle, so
+    on a car with a WiCAN and a Torque phone the WiCAN would otherwise read
+    the phone's total as its own. A WiCAN that declares such a key still gets
+    it: a declaration wins everywhere.
     """
     if kind == WICAN_DEVICE_KIND:
+        if not declared and param_key.upper() in _foreign_param_keys(kind):
+            return False
         return is_converted_odometer_key(param_key, declared)
     return bool(declared) and param_key.upper() == declared.upper()
+
+
+def stores_odometer_key_raw(param_key: str, kind: str | None, declared: str | None = None) -> bool:
+    """True when a device of ``kind`` writes ``param_key`` as it came, not in km.
+
+    Every path converts `ODOMETER_MI` (miles for everyone) and the keys the
+    device records as its odometer: a WiCAN's scan, or the declared key on any
+    kind, which replaces the scan on a WiCAN too. Anything else sent under an
+    odometer name is a plain reading in whatever unit the device uses.
+    Parameter rows are global by key, so a km label on such a key would lie
+    about that device's values: migration 133's km stamp and the live relabel
+    both skip it (FW-A-r4b).
+    """
+    return not is_miles_odometer_key(param_key) and not is_recorded_odometer_key(
+        param_key, kind, declared
+    )
 
 
 def mains_odometer_unit(param_key: str) -> str:

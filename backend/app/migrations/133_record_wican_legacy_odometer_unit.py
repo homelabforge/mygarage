@@ -62,9 +62,11 @@ the runner didn't stamp converts nothing twice.
 The browser reads an odometer's unit from its parameter row, not its name
 (FW-A-r3), and a row registered before FB-5 says nothing or mi over the km a
 WiCAN stores. So each odometer key a WiCAN records gets `km` on its row when
-the row says nothing or miles, unless a device of another kind has sent the
-key raw: the row is shared, and that device's values aren't km. Live ingest
-does the same on the next reading; this covers a car that's parked.
+the row says nothing or miles, unless a device has sent the key raw (another
+kind that doesn't declare it, or a WiCAN that declares a different key): the
+row is shared, and that device's values aren't km. Live ingest asks the same
+question (`stores_odometer_key_raw`) on the next reading; this covers a car
+that's parked.
 
 FATAL: a failure must not boot with the km default under these devices. Data
 only, idempotent (skips a key the device already has a row for), both
@@ -84,6 +86,7 @@ from app.utils.odometer_units import (
     is_converted_odometer_key,
     is_recorded_odometer_key,
     mains_odometer_unit,
+    stores_odometer_key_raw,
 )
 
 FATAL = True
@@ -360,18 +363,13 @@ def _label_odometer_params(conn: Connection) -> int:
         text(_ALL_DEVICES.format(declared=declared_expr))
     ):
         keys = _device_keys(conn, device_id)
+        # What this device stores raw, whatever its kind. The live relabel asks
+        # the same question, so the two can't drift (FW-A-r4b).
+        raw_elsewhere |= {key for key in keys if stores_odometer_key_raw(key, kind, declared)}
         if kind == "wican":
             if vin and has_latest:
                 keys |= {key for (key,) in conn.execute(_VIN_KEYS, {"v": vin})}
             wanted |= {key for key in keys if is_recorded_odometer_key(key, kind, declared)}
-        else:
-            # What this kind stores raw: anything it doesn't record as its
-            # odometer, except ODOMETER_MI, which every kind stores as km.
-            raw_elsewhere |= {
-                key
-                for key in keys
-                if key != _MI_KEY and not is_recorded_odometer_key(key, kind, declared)
-            }
     changed = 0
     for key in sorted(wanted - raw_elsewhere):
         changed += conn.execute(_LABEL_KM, {"k": key}).rowcount or 0

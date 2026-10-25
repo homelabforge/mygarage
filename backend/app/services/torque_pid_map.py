@@ -73,6 +73,14 @@ TORQUE_PID_NAMES: dict[str, str] = {
     "KFF1271": "Trip fuel used",
 }
 
+#: The keys only Torque names: its own extended PIDs (`kff...`), mapped to a
+#: readable key or stored as `KFF...`. The standard PIDs map onto aliases a
+#: WiCAN sends too (SPEED, COOLANT_TMP), so those are nobody's alone. A WiCAN's
+#: odometer scan skips these on a car with both (FW-A-r4a).
+TORQUE_OWN_KEYS: frozenset[str] = frozenset(
+    key for pid, key in TORQUE_OBD_PID_MAP.items() if pid.startswith("kff")
+) | frozenset(TORQUE_PID_NAMES)
+
 # The unit each value arrives in. Torque sends a PID's default unit whatever
 # the phone is set to show (#223), and the standard PIDs default to metric,
 # so nothing here is converted.

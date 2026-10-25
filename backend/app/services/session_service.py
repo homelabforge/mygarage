@@ -1080,6 +1080,9 @@ class SessionService:
         J1979 key is `A6-ODOMETER`, and an exact-match list that omitted it left
         every session on a standard-PID device with no odometer and no distance.
         A device's declared ``odometer_param_key`` replaces the shape match.
+        The table is per vehicle, so a Torque phone's `TORQUE_ODOMETER` sits
+        beside the WiCAN's keys; the scan skips another source's own keys, so
+        a WiCAN drive never starts on the phone's total (FW-A-r4a).
 
         The NEWEST matching row wins. A vehicle can carry two odometer keys (a
         stale `A6-ODOMETER` beside a live `ODOMETER`), and taking whichever the

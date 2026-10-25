@@ -6,11 +6,13 @@ Declares ODOMETER as a CAPABILITY but leaves `sync_odometer` False. Torque
 historically recorded no odometer at all: the old Torque writer never called
 `_sync_odometer_from_telemetry`, and a Torque device records no key by name:
 its `TORQUE_ODOMETER` would match WiCAN's `ODOMETER_NAME_PATTERNS` scan, but
-that scan is WiCAN's alone (`is_recorded_odometer_key`). Flipping the storage
-policy would have started syncing
-for every Torque user AND replaced the newer-only latest write. Instead the
-capability opens the door and each DEVICE decides by naming its own
-`odometer_param_key`; a device that names nothing behaves exactly as before.
+that scan is WiCAN's alone (`is_recorded_odometer_key`), and it skips
+Torque's own keys (`own_param_keys`, FW-A-r4a), so on a car with both the
+WiCAN never reads the phone's total as its own. Flipping the storage policy
+would have started syncing for every Torque user AND replaced the newer-only
+latest write. Instead the capability opens the door and each DEVICE decides
+by naming its own `odometer_param_key`; a device that names nothing behaves
+exactly as before.
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ from app.services.livelink_sources.base import (
 )
 from app.services.torque_pid_map import (
     TORQUE_DEFAULT_UNITS,
+    TORQUE_OWN_KEYS,
     TORQUE_PID_NAMES,
     parse_torque_query,
 )
@@ -72,6 +75,8 @@ class TorqueModule(BaseSourceModule):
         sync_odometer=False,
         observe_movement=False,
     )
+    #: Its extended PIDs are Torque's alone; the standard ones are shared aliases.
+    own_param_keys = TORQUE_OWN_KEYS
 
     async def resolve_device(
         self, db: AsyncSession, batch: IngestBatch

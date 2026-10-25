@@ -27,6 +27,7 @@ from app.services.livelink_ingest import ingest
 from app.services.livelink_sources.base import MqttEnvelope
 from app.services.livelink_sources.generic_mqtt import GenericMqttModule
 from app.services.livelink_sources.wican import WicanModule
+from app.utils.datetime_utils import utc_now
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("livelink_enabled", "drop_params")]
 
@@ -35,12 +36,16 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("livelink_enabled", "
 MI_KEY = "ODOMETER_MI"
 LEGACY_KEY = "FB5_ODOMETER_LEGACY"
 MILES_ROW_KEY = "FB5_ODOMETER_MILESROW"
+#: Plus the case's suffix: the other device's raw rows are committed, and the
+#: file DB keeps them for the next case, which would then see them too.
+SHARED_ROW_KEY = "FB5_ODOMETER_SHARED"
+SHARED_ROW_CASES = ("1", "2", "3", "4")
 TOPIC = "r1m1/test/odometer_mi"
 
 
 @pytest_asyncio.fixture
 async def drop_params(db_session: AsyncSession) -> AsyncGenerator[None]:
-    keys = [MI_KEY, LEGACY_KEY, MILES_ROW_KEY]
+    keys = [MI_KEY, LEGACY_KEY, MILES_ROW_KEY, *(SHARED_ROW_KEY + s for s in SHARED_ROW_CASES)]
     await db_session.execute(delete(LiveLinkParameter).where(LiveLinkParameter.param_key.in_(keys)))
     await db_session.commit()
     yield
@@ -218,3 +223,73 @@ async def test_an_odometer_row_labelled_miles_is_relabelled_km(
     )
     assert row is not None
     assert (row.unit, row.warning_max) == ("km", 200000.0)
+
+
+@pytest.mark.parametrize(
+    ("suffix", "other_kind", "other_declares", "expected"),
+    [
+        # A generic device stores an undeclared odometer-named key raw, so the
+        # shared row can't say km. Red on 63640d97 (km).
+        ("1", "generic_mqtt", None, None),
+        # Regression guards: a device that records the key stores it in km,
+        # whatever its kind, so the label goes on.
+        ("2", "generic_mqtt", "same", "km"),
+        ("3", "wican", None, "km"),
+        # A WiCAN that declares a different key converts only that one, so its
+        # rows under this key are raw too. Red on 63640d97 (km).
+        ("4", "wican", "other", None),
+    ],
+)
+async def test_a_wican_km_label_waits_on_a_key_another_device_stores_raw(
+    db_session: AsyncSession,
+    make_livelink_vehicle,
+    suffix: str,
+    other_kind: str,
+    other_declares: str | None,
+    expected: str | None,
+):
+    """Parameter rows are global by key. Migration 133 skips a key another
+    device sends raw, and the live relabel asks the same question (FW-A-r4b).
+    The WiCAN's own value is stored in km either way."""
+    key = SHARED_ROW_KEY + suffix
+    _vin, wican = await make_livelink_vehicle("fb5shr", suffix, odometer_unit="mi")
+    other_vin, other = await make_livelink_vehicle(
+        "fb5oth",
+        suffix,
+        kind=other_kind,
+        odometer_param_key={None: None, "same": key, "other": "MY_ODO"}[other_declares],
+    )
+    now = utc_now()
+    db_session.add(
+        VehicleTelemetry(
+            vin=other_vin,
+            device_id=other.device_id,
+            param_key=key,
+            value=50000.0,
+            timestamp=now,
+            received_at=now,
+        )
+    )
+    db_session.add(
+        LiveLinkParameter(
+            param_key=key,
+            display_name=key,
+            unit=None,
+            param_class="distance",
+            category="engine",
+            show_on_dashboard=True,
+            archive_only=False,
+            storage_interval_seconds=0,
+        )
+    )
+    await db_session.commit()
+
+    await ingest(
+        WicanModule(),
+        MqttEnvelope(f"wican/{wican.device_id}/can/rx", f'{{"{key}": 50000}}'.encode()),
+        db_session,
+    )
+    await db_session.commit()
+
+    assert await _param_unit(db_session, key) == expected
+    assert await _raw(db_session, wican.device_id, key) == [80467.0]
