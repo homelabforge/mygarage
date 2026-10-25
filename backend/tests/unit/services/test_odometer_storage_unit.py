@@ -19,6 +19,7 @@ import pytest_asyncio
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_device_unit import LiveLinkDeviceUnit
 from app.models.livelink_parameter import LiveLinkParameter
 from app.models.livelink_topic_map import LiveLinkTopicMap
@@ -39,7 +40,7 @@ MILES_ROW_KEY = "FB5_ODOMETER_MILESROW"
 #: Plus the case's suffix: the other device's raw rows are committed, and the
 #: file DB keeps them for the next case, which would then see them too.
 SHARED_ROW_KEY = "FB5_ODOMETER_SHARED"
-SHARED_ROW_CASES = ("1", "2", "3", "4", "5", "6", "7", "8")
+SHARED_ROW_CASES = ("1", "2", "3", "4", "5", "6", "7", "8", "9")
 TOPIC = "r1m1/test/odometer_mi"
 
 
@@ -396,3 +397,53 @@ async def test_a_wican_km_label_waits_on_evidence_that_outlives_the_raw_rows(
             delete(LiveLinkTopicMap).where(LiveLinkTopicMap.topic == EVIDENCE_TOPIC)
         )
         await db_session.commit()
+
+
+async def test_a_shared_vehicles_latest_row_is_not_blamed_on_a_declaring_wican(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """Wave B review M-4: two WiCANs on one car, one recording `ODOMETER` and
+    one declaring `A6-ODOMETER`. The car's latest `ODOMETER` row is the first
+    one's, but it counted against the declaring one, so the label was held for
+    good (the latest table never prunes). A vehicle's latest rows only count
+    for a device that's the only one that has reported on it. Red on f3a8b81c
+    (None)."""
+    key = SHARED_ROW_KEY + "9"
+    vin, wican = await make_livelink_vehicle("fwbm4", "1", odometer_unit="mi")
+    db_session.add(
+        LiveLinkDevice(
+            device_id="fwbm4decl0001",
+            vin=vin,
+            enabled=True,
+            kind="wican",
+            odometer_param_key="A6-ODOMETER",
+        )
+    )
+    now = utc_now()
+    db_session.add(
+        VehicleTelemetryLatest(
+            vin=vin, param_key=key, value=80000.0, timestamp=now, received_at=now
+        )
+    )
+    db_session.add(
+        LiveLinkParameter(
+            param_key=key,
+            display_name=key,
+            unit=None,
+            param_class="distance",
+            category="engine",
+            show_on_dashboard=True,
+            archive_only=False,
+            storage_interval_seconds=0,
+        )
+    )
+    await db_session.commit()
+
+    await ingest(
+        WicanModule(),
+        MqttEnvelope(f"wican/{wican.device_id}/can/rx", f'{{"{key}": 50000}}'.encode()),
+        db_session,
+    )
+    await db_session.commit()
+
+    assert await _param_unit(db_session, key) == "km"

@@ -11,6 +11,7 @@ from typing import Any, cast
 from sqlalchemy import and_, delete, exists, func, not_, or_, select
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.database import is_sqlite
 from app.services.livelink_sources.base import Reading, StoragePolicy
@@ -440,15 +441,19 @@ class TelemetryService:
         - a device on file with raw rows under the key;
         - a device on file with a topic map that sends it the key (generic
           MQTT: that's where its keys come from, and it doesn't prune);
-        - a WiCAN on file whose vehicle has a latest row for the key (a WiCAN
-          names its own autopids, so its vehicle's latest rows are the record
-          that outlives the raw ones);
+        - a WiCAN on file whose vehicle has a latest row for the key, when it's
+          the only device that has reported on that vehicle: linked, or with a
+          drive there (a WiCAN names its own autopids, so its vehicle's latest
+          rows are the record that outlives the raw ones, but they're the
+          vehicle's, not the device's, so with company they prove nothing,
+          wave B review M-4);
         - raw rows under the key from a device that's gone. Its kind is
           unknown, so they count as raw, until they prune.
 
         Torque needs none of these: its keys come from its own fixed map, and
         none of them is an odometer a WiCAN records.
         """
+        other = aliased(LiveLinkDevice)
         sent_it = or_(
             exists().where(
                 VehicleTelemetry.device_id == LiveLinkDevice.device_id,
@@ -463,6 +468,13 @@ class TelemetryService:
                 exists().where(
                     VehicleTelemetryLatest.vin == LiveLinkDevice.vin,
                     VehicleTelemetryLatest.param_key == param_key,
+                ),
+                ~exists().where(
+                    other.vin == LiveLinkDevice.vin, other.device_id != LiveLinkDevice.device_id
+                ),
+                ~exists().where(
+                    DriveSession.vin == LiveLinkDevice.vin,
+                    DriveSession.device_id != LiveLinkDevice.device_id,
                 ),
             ),
         )

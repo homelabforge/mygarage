@@ -741,6 +741,27 @@ def test_133_leaves_a_key_whose_raw_sender_left_no_raw_rows(db, evidence: str):
     assert _param_units(engine) == {"TOTAL_ODO": None}
 
 
+def test_133_does_not_blame_a_shared_vehicles_latest_row_on_a_declaring_wican(db):
+    """Wave B review M-4: a vehicle's latest rows count against a device only
+    when it's the only device that has reported on that vehicle. Here a WiCAN
+    recording `TOTAL_ODO` shares the car with one declaring `MY_ODO`, so the
+    latest `TOTAL_ODO` row is the first one's. Red on f3a8b81c (None)."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINSHAREDM401")
+        _device(s, "sharedrec", "M133VINSHAREDM401", odometer_unit="mi")
+        _raw(s, "sharedrec", "M133VINSHAREDM401", "TOTAL_ODO", 80467)
+        _device(s, "shareddecl", "M133VINSHAREDM401", odometer_param_key="MY_ODO")
+        _raw(s, "shareddecl", "M133VINSHAREDM401", "MY_ODO", 80467)
+        _latest(s, "M133VINSHAREDM401", "TOTAL_ODO", 80467, AFTER)
+        _param_row(s, "TOTAL_ODO", None)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _param_units(engine)["TOTAL_ODO"] == "km"
+
+
 def test_133_skips_an_install_with_no_devices_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _load().upgrade(engine)

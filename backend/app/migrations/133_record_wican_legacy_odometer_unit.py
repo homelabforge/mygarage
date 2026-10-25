@@ -353,6 +353,20 @@ _MAP_KEYS = text(
     "WHERE device_id = :d AND param_key IS NOT NULL"
 )
 _NEXT_DEVICE = text("SELECT MIN(device_id) FROM vehicle_telemetry WHERE device_id > :p")
+_OTHER_LINKED = text("SELECT 1 FROM livelink_devices WHERE vin = :v AND device_id <> :d LIMIT 1")
+_OTHER_DROVE = text("SELECT 1 FROM drive_sessions WHERE vin = :v AND device_id <> :d LIMIT 1")
+
+
+def _sole_reporter(conn: Connection, device_id: str, vin: str, has_sessions: bool) -> bool:
+    """Whether no other device is linked to ``vin`` or has a drive on it.
+
+    Only then are the vehicle's latest rows the device's own (wave B review M-4).
+    """
+    if conn.execute(_OTHER_LINKED, {"v": vin, "d": device_id}).first() is not None:
+        return False
+    return (
+        not has_sessions or conn.execute(_OTHER_DROVE, {"v": vin, "d": device_id}).first() is None
+    )
 
 
 def _telemetry_device_ids(conn: Connection) -> set[str]:
@@ -373,8 +387,10 @@ def _label_odometer_params(conn: Connection) -> int:
     stay behind under an id that isn't on file (wave A re-review T2). So a
     device's keys here are its raw ones, its topic maps' (generic MQTT), and,
     for a WiCAN, its vehicle's latest rows; and a gone device's raw keys count
-    as raw. The live relabel (`TelemetryService._another_device_stores_raw`)
-    asks the same.
+    as raw. The vehicle's latest rows count against a WiCAN only when it's the
+    only device that has reported on that vehicle (wave B review M-4): with
+    company, they're as likely another device's. The live relabel
+    (`TelemetryService._another_device_stores_raw`) asks the same.
     """
     inspector = inspect(conn)
     if not inspector.has_table("livelink_parameters") or missing_device_columns(conn):
@@ -383,6 +399,7 @@ def _label_odometer_params(conn: Connection) -> int:
     declared_expr = "odometer_param_key" if "odometer_param_key" in columns else "NULL"
     has_latest = inspector.has_table("vehicle_telemetry_latest")
     has_maps = inspector.has_table("livelink_topic_maps")
+    has_sessions = inspector.has_table("drive_sessions")
 
     wanted: set[str] = set()
     raw_elsewhere: set[str] = set()
@@ -394,13 +411,19 @@ def _label_odometer_params(conn: Connection) -> int:
         keys = _device_keys(conn, device_id)
         if has_maps:
             keys |= {key for (key,) in conn.execute(_MAP_KEYS, {"d": device_id})}
+        vin_keys: set[str] = set()
         if kind == "wican" and vin and has_latest:
-            keys |= {key for (key,) in conn.execute(_VIN_KEYS, {"v": vin})}
+            vin_keys = {key for (key,) in conn.execute(_VIN_KEYS, {"v": vin})}
         # What this device stores raw, whatever its kind. The live relabel asks
         # the same question, so the two can't drift (FW-A-r4b).
-        raw_elsewhere |= {key for key in keys if stores_odometer_key_raw(key, kind, declared)}
+        sent = (
+            keys | vin_keys if vin and _sole_reporter(conn, device_id, vin, has_sessions) else keys
+        )
+        raw_elsewhere |= {key for key in sent if stores_odometer_key_raw(key, kind, declared)}
         if kind == "wican":
-            wanted |= {key for key in keys if is_recorded_odometer_key(key, kind, declared)}
+            wanted |= {
+                key for key in keys | vin_keys if is_recorded_odometer_key(key, kind, declared)
+            }
     for device_id in _telemetry_device_ids(conn) - on_file:
         raw_elsewhere |= {
             key for key in _device_keys(conn, device_id) if stores_odometer_key_raw(key, None)
