@@ -83,7 +83,7 @@ _NO_MOVEMENT_WARNED: set[str] = set()
 
 
 @dataclass(frozen=True)
-class _SessionWindow:
+class SessionWindow:
     """The telemetry span a session's numbers come from (R11).
 
     Inclusive at both ends, except a session that starts exactly where the
@@ -639,14 +639,20 @@ class SessionService:
         gap: int,
         *,
         live: bool,
-    ) -> DriveSession:
-        """Movement is confirmed: open, reopen or extend a session."""
+    ) -> DriveSession | None:
+        """Movement is confirmed: open, reopen or extend a session.
+
+        None when the movement all belongs to a drive that's already closed
+        (`_open_session_for_movement` declines).
+        """
         session = await self._live_session(device)
 
         if session is None:
             session = await self._reopen_awaiting(device, sample_at, gap)
         if session is None:
             session = await self._open_session_for_movement(device, sample_at, gap)
+        if session is None:
+            return None
 
         if session.movement_started_at is None:
             session.movement_started_at = sample_at
@@ -702,8 +708,13 @@ class SessionService:
 
     async def _open_session_for_movement(
         self, device: LiveLinkDevice, sample_at: datetime, gap: int
-    ) -> DriveSession:
+    ) -> DriveSession | None:
         """Open a session whose window keeps the whole opening burst.
+
+        Or none, when the sample and the candidate it confirms are both at or
+        before the device's last close (T4-c): that's a replay of a drive
+        already closed, and the clamp below would open an empty session at
+        the close. The evidence is that drive's, so it's dropped.
 
         ``started_at`` backdates to the earliest evidence of this drive -- the
         engine-on that opened the pending state, or the first above-floor sample
@@ -728,6 +739,22 @@ class SessionService:
         aggregate is a window scan and two overlapping sessions both claim the
         same samples and both report the same distance.
         """
+        previous_end = await self._previous_close(device.device_id)
+        if previous_end is not None and all(
+            self._naive(moment) <= previous_end
+            for moment in (sample_at, device.movement_candidate_at)
+            if moment is not None
+        ):
+            logger.debug(
+                "Not opening a session for device %s: its movement at %s is all before "
+                "the last close at %s",
+                sanitize_for_log(device.device_id),
+                sanitize_for_log(sample_at),
+                previous_end,
+            )
+            self.clear_movement_state(device)
+            return None
+
         candidates = [
             self._naive(value)
             for value in (device.pending_since, device.movement_candidate_at)
@@ -855,6 +882,17 @@ class SessionService:
         started_at = self._naive(started_at)
         movement_started_at = self._naive(movement_started_at)
         movement_ended_at = self._naive(movement_ended_at)
+        previous_end = await self._previous_close(device_id)
+        if previous_end is None:
+            return started_at, movement_started_at, movement_ended_at
+        started_at = max(started_at, previous_end)
+        movement_started_at = max(movement_started_at, started_at)
+        # The clamp can push the start past the whole replayed span.
+        movement_ended_at = max(movement_ended_at, movement_started_at)
+        return started_at, movement_started_at, movement_ended_at
+
+    async def _previous_close(self, device_id: str) -> datetime | None:
+        """The device's latest session close, naive, or None if it never closed one."""
         previous_end = (
             await self.db.execute(
                 select(func.max(DriveSession.ended_at))
@@ -862,13 +900,7 @@ class SessionService:
                 .where(DriveSession.ended_at.is_not(None))
             )
         ).scalar()
-        if previous_end is None:
-            return started_at, movement_started_at, movement_ended_at
-        started_at = max(started_at, self._naive(previous_end))
-        movement_started_at = max(movement_started_at, started_at)
-        # The clamp can push the start past the whole replayed span.
-        movement_ended_at = max(movement_ended_at, movement_started_at)
-        return started_at, movement_started_at, movement_ended_at
+        return self._naive(previous_end) if previous_end is not None else None
 
     async def _open_session_for_device(self, device_id: str) -> DriveSession | None:
         """The device's open session, read from the DATABASE not the pointer.
@@ -1146,15 +1178,18 @@ class SessionService:
         if clear_first:
             for column in _DERIVED_SESSION_COLUMNS:
                 setattr(session, column, None)
-        window = await self._telemetry_window(session)
+        window = await self.telemetry_window(session)
         if window is None:
             return
         await self._calculate_session_distance(session, window)
         await self._calculate_session_aggregates(session, window)
         await self._calculate_driving_insights(session, window)
 
-    async def _telemetry_window(self, session: DriveSession) -> _SessionWindow | None:
-        """Decide the session's window once, for every read in `refresh_aggregates`.
+    async def telemetry_window(self, session: DriveSession) -> SessionWindow | None:
+        """Decide the session's window once, for every read of its telemetry.
+
+        `refresh_aggregates` and the session-detail route both read through it,
+        so the detail page counts what the drive's figures came from (T5-a).
 
         One query: the latest close among the device's other sessions that
         ended at or before this one started. Only an exact match makes the
@@ -1163,24 +1198,46 @@ class SessionService:
         """
         if not session.started_at or not session.ended_at:
             return None
+        # Naive, like the column: an aware start won't bind against it on PG.
+        start = self._naive(session.started_at)
         previous_end = (
             await self.db.execute(
                 select(func.max(DriveSession.ended_at))
                 .where(DriveSession.device_id == session.device_id)
                 # Not itself: a zero-length session ends where it starts.
                 .where(DriveSession.id != session.id)
-                .where(DriveSession.ended_at <= session.started_at)
+                .where(DriveSession.ended_at <= start)
             )
         ).scalar()
-        start = self._naive(session.started_at)
-        return _SessionWindow(
+        return SessionWindow(
             start=start,
             end=self._naive(session.ended_at),
             start_exclusive=previous_end is not None and self._naive(previous_end) == start,
         )
 
+    async def recorded_telemetry(self, session: DriveSession) -> tuple[list[str], int]:
+        """The keys a closed session recorded, sorted, and how many rows it has.
+
+        The device's own rows inside its window, so another device on the car
+        and a touching drive's shared sample stay out (T5-a). Nothing while it's
+        open.
+        """
+        window = await self.telemetry_window(session)
+        if window is None:
+            return [], 0
+        rows = await self.db.execute(
+            select(VehicleTelemetry.param_key, func.count())
+            .where(VehicleTelemetry.vin == session.vin)
+            .where(VehicleTelemetry.device_id == session.device_id)
+            .where(window.covers(VehicleTelemetry.timestamp))
+            .group_by(VehicleTelemetry.param_key)
+            .order_by(VehicleTelemetry.param_key)
+        )
+        counts = rows.all()
+        return [key for key, _n in counts], sum(n for _key, n in counts)
+
     async def _calculate_session_distance(
-        self, session: DriveSession, window: _SessionWindow
+        self, session: DriveSession, window: SessionWindow
     ) -> None:
         """Set the odometer span and distance from samples inside the window.
 
@@ -1292,7 +1349,7 @@ class SessionService:
             session.distance_km = float(LocationService.haversine_km(coords))
 
     async def _distance_by_source(
-        self, session: DriveSession, window: _SessionWindow, source_keys: Sequence[str]
+        self, session: DriveSession, window: SessionWindow, source_keys: Sequence[str]
     ) -> dict[str, TravelledSpan]:
         """Measure how far each distance source moved inside the session window.
 
@@ -1329,7 +1386,7 @@ class SessionService:
         return {key: measure_travelled(values) for key, values in series.items()}
 
     async def _calculate_session_aggregates(
-        self, session: DriveSession, window: _SessionWindow
+        self, session: DriveSession, window: SessionWindow
     ) -> None:
         """Calculate aggregate statistics for a session from telemetry data."""
         # Define which parameters to aggregate.
@@ -1367,7 +1424,7 @@ class SessionService:
                     setattr(session, max_attr, stats["max"])
 
     async def _calculate_driving_insights(
-        self, session: DriveSession, window: _SessionWindow
+        self, session: DriveSession, window: SessionWindow
     ) -> None:
         """Derive idle time and harsh accel/brake counts from SPEED samples.
 
@@ -1432,7 +1489,7 @@ class SessionService:
         vin: str,
         device_id: str | None,
         param_keys: list[str],
-        window: _SessionWindow,
+        window: SessionWindow,
     ) -> dict[str, float | None]:
         """Get stats for a parameter during a time range, for one device.
 
@@ -1579,9 +1636,16 @@ class SessionService:
             )
 
             if moved_at < gap_cutoff:
-                # A replay-built session is always past the wall-clock gap, so
-                # it keeps the pointer: the replay's next readings reopen it
-                # instead of opening one session per tick.
+                # A replay-built session is always past the wall-clock gap. It
+                # stays open while its replay is still arriving (B6-9): closed
+                # on every tick, its last sample after one was only a candidate
+                # and fell outside it. Once the replay stops it closes at its
+                # last movement and keeps the pointer, so a late batch reopens
+                # it instead of opening a session of its own.
+                if replay_built and await self._replay_still_arriving(
+                    session, gap_cutoff, contact_cutoff
+                ):
+                    continue
                 reason, retain = "drive gap", replay_built
             elif last_seen < contact_cutoff:
                 reason, retain = "contact loss", True
@@ -1604,6 +1668,27 @@ class SessionService:
             await self.db.commit()
 
         return closed_sessions
+
+    async def _replay_still_arriving(
+        self, session: DriveSession, gap_cutoff: datetime, arrival_cutoff: datetime
+    ) -> bool:
+        """Whether the session's device is still delivering replayed samples.
+
+        A replayed sample is one dated past the gap but received since
+        ``arrival_cutoff`` (the contact timeout), from this session on. Judged
+        on when it was received, not its sample time, which is always old.
+        Live frames don't count: a car parked and awake keeps sending them,
+        and they mustn't stop the gap clock cutting the stop (Fable F2-6).
+        """
+        found = await self.db.execute(
+            select(VehicleTelemetry.id)
+            .where(VehicleTelemetry.device_id == session.device_id)
+            .where(VehicleTelemetry.timestamp >= self._naive(session.started_at))
+            .where(VehicleTelemetry.timestamp < gap_cutoff)
+            .where(VehicleTelemetry.received_at >= arrival_cutoff)
+            .limit(1)
+        )
+        return found.first() is not None
 
     # =========================================================================
     # Query Methods

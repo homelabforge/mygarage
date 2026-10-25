@@ -5,6 +5,7 @@ import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
+from functools import partial
 from typing import Any, cast
 
 from sqlalchemy import and_, delete, exists, func, not_, or_, select
@@ -25,12 +26,15 @@ from app.models import OdometerRecord
 from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_parameter import DISPLAY_NAME_MAX_LENGTH, LiveLinkParameter
+from app.models.livelink_topic_map import LiveLinkTopicMap
 from app.models.vehicle_telemetry import (
     TelemetryDailySummary,
     VehicleTelemetry,
     VehicleTelemetryLatest,
 )
 from app.services.device_units import DeviceUnitService, relabel_parameter
+from app.services.livelink_alerts import ThresholdAlert, deliver_threshold_alert
+from app.services.post_commit import after_commit
 from app.services.telemetry_validator import TelemetryValidator
 from app.utils.autopid_normalizer import (
     canonical_param_key,
@@ -41,6 +45,7 @@ from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.odometer_units import (
     ODOMETER_UNIT_KM,
+    WICAN_DEVICE_KIND,
     is_converted_odometer_key,
     is_miles_odometer_key,
     is_miles_unit,
@@ -75,6 +80,11 @@ class MaintenanceModeError(RuntimeError):
 #: replay -- still real driving, still allowed to open and extend a session, but
 #: not allowed to move the anchor every live timeout measures from.
 LIVE_SAMPLE_TOLERANCE_SECONDS = 300
+
+
+#: How far ahead of now a stored latest timestamp can be before it's a bad
+#: clock to heal rather than a dongle a little fast (T4-e).
+FUTURE_LATEST_SKEW = timedelta(minutes=5)
 
 
 def _refuse_if_in_maintenance(operation: str) -> None:
@@ -419,22 +429,81 @@ class TelemetryService:
         relabel_parameter(param, ODOMETER_UNIT_KM)
 
     async def _another_device_stores_raw(self, param_key: str) -> bool:
-        """Whether a device that doesn't convert ``param_key`` has raw rows under it.
+        """Whether a device that doesn't convert ``param_key`` may have sent it.
 
-        Migration 133's guard for its km stamp, asked live: every device with
-        rows under the key, judged by `stores_odometer_key_raw`.
+        Migration 133's guard for its km stamp, asked live. Every device that
+        may have sent the key, judged by `stores_odometer_key_raw`. Raw rows
+        alone aren't enough (wave A re-review T2): they prune at 90 days, and a
+        deleted device's stay behind under an id that's no longer on file. So
+        the evidence is, as in 133:
+
+        - a device on file with raw rows under the key;
+        - a device on file with a topic map that sends it the key (generic
+          MQTT: that's where its keys come from, and it doesn't prune);
+        - a WiCAN on file whose vehicle has a latest row for the key (a WiCAN
+          names its own autopids, so its vehicle's latest rows are the record
+          that outlives the raw ones);
+        - raw rows under the key from a device that's gone. Its kind is
+          unknown, so they count as raw, until they prune.
+
+        Torque needs none of these: its keys come from its own fixed map, and
+        none of them is an odometer a WiCAN records.
         """
-        rows = await self.db.execute(
-            select(LiveLinkDevice.kind, LiveLinkDevice.odometer_param_key).where(
+        sent_it = or_(
+            exists().where(
+                VehicleTelemetry.device_id == LiveLinkDevice.device_id,
+                VehicleTelemetry.param_key == param_key,
+            ),
+            exists().where(
+                LiveLinkTopicMap.device_id == LiveLinkDevice.device_id,
+                LiveLinkTopicMap.param_key == param_key,
+            ),
+            and_(
+                LiveLinkDevice.kind == WICAN_DEVICE_KIND,
                 exists().where(
-                    VehicleTelemetry.device_id == LiveLinkDevice.device_id,
-                    VehicleTelemetry.param_key == param_key,
+                    VehicleTelemetryLatest.vin == LiveLinkDevice.vin,
+                    VehicleTelemetryLatest.param_key == param_key,
+                ),
+            ),
+        )
+        rows = await self.db.execute(
+            select(LiveLinkDevice.kind, LiveLinkDevice.odometer_param_key).where(sent_it)
+        )
+        if any(stores_odometer_key_raw(param_key, kind, declared) for kind, declared in rows.all()):
+            return True
+        if not stores_odometer_key_raw(param_key, None):
+            return False  # every kind converts it (ODOMETER_MI)
+        return await self._a_gone_device_sent(param_key)
+
+    async def _a_gone_device_sent(self, param_key: str) -> bool:
+        """Whether a device no longer on file has raw rows under ``param_key``.
+
+        Walks the distinct device ids in the raw table one index seek at a time
+        (a handful of devices, ever), the way migration 133 walks a device's keys.
+        """
+        on_file = set((await self.db.execute(select(LiveLinkDevice.device_id))).scalars().all())
+        previous = ""
+        while True:
+            device_id = await self.db.scalar(
+                select(func.min(VehicleTelemetry.device_id)).where(
+                    VehicleTelemetry.device_id > previous
                 )
             )
-        )
-        return any(
-            stores_odometer_key_raw(param_key, kind, declared) for kind, declared in rows.all()
-        )
+            if device_id is None:
+                return False
+            previous = device_id
+            if device_id in on_file:
+                continue
+            found = await self.db.scalar(
+                select(VehicleTelemetry.id)
+                .where(
+                    VehicleTelemetry.device_id == device_id,
+                    VehicleTelemetry.param_key == param_key,
+                )
+                .limit(1)
+            )
+            if found is not None:
+                return True
 
     async def _odometer_record_max(self, vin: str) -> float:
         """The vehicle's highest odometer record in km, or 0 with none."""
@@ -567,7 +636,7 @@ class TelemetryService:
         # Validate telemetry values before storage
         validator = TelemetryValidator(self.db)
         valid_data, _rejected = await validator.validate_batch(
-            vin, autopid_data, parameters, sample_at=timestamp
+            vin, autopid_data, parameters, device_id=device_id, sample_at=timestamp
         )
 
         stored_count = 0
@@ -887,14 +956,17 @@ class TelemetryService:
         """Upsert a value into the latest values cache table, unless it's older.
 
         A replayed reading lands after newer live ones, and overwriting would
-        roll the dashboard back to it. An equal timestamp still writes, so a
-        re-sent reading refreshes `received_at`. `_update_latest_if_newer` is
-        the strict twin, for backfill.
+        roll the dashboard back to it. An equal timestamp writes when the value
+        differs (the later arrival wins the tie), but an exact duplicate leaves
+        the row and its `received_at` alone (B6-7): a re-sent old reading isn't
+        fresh. `_update_latest_if_newer` is the strict twin, for backfill.
 
-        A stored row dated after now is always overwritten. The device
-        timestamp isn't checked against the clock, so one reading from a dongle
-        with a bad clock would otherwise freeze this value until real time
-        caught up (T4-a).
+        A stored row dated more than `FUTURE_LATEST_SKEW` after now is always
+        overwritten. The device timestamp isn't checked against the clock, so
+        one reading from a dongle with a bad clock would otherwise freeze this
+        value until real time caught up (T4-a). A clock a minute or two fast
+        isn't bad, and healing it let a replayed old reading displace the live
+        value (T4-e).
         """
         stmt = dialect_insert(VehicleTelemetryLatest).values(
             vin=vin,
@@ -911,8 +983,12 @@ class TelemetryService:
                 "received_at": stmt.excluded.received_at,
             },
             where=or_(
-                VehicleTelemetryLatest.timestamp <= stmt.excluded.timestamp,
-                VehicleTelemetryLatest.timestamp > utc_now(),
+                VehicleTelemetryLatest.timestamp < stmt.excluded.timestamp,
+                and_(
+                    VehicleTelemetryLatest.timestamp == stmt.excluded.timestamp,
+                    VehicleTelemetryLatest.value != stmt.excluded.value,
+                ),
+                VehicleTelemetryLatest.timestamp > utc_now() + FUTURE_LATEST_SKEW,
             ),
         )
         await self.db.execute(stmt)
@@ -1377,8 +1453,9 @@ class TelemetryService:
         forever. The conditional upsert also cannot race live ingest, and it
         holds no ORM object across `bulk_backfill`'s per-chunk commits.
 
-        A stored row dated after now loses to anything, same as
-        `_upsert_latest_value`, so a bad device clock can't freeze it.
+        A stored row dated more than `FUTURE_LATEST_SKEW` after now loses to
+        anything, same as `_upsert_latest_value`, so a bad device clock can't
+        freeze it.
         """
         stmt = dialect_insert(VehicleTelemetryLatest).values(
             vin=vin,
@@ -1396,7 +1473,7 @@ class TelemetryService:
             },
             where=or_(
                 VehicleTelemetryLatest.timestamp < stmt.excluded.timestamp,
-                VehicleTelemetryLatest.timestamp > utc_now(),
+                VehicleTelemetryLatest.timestamp > utc_now() + FUTURE_LATEST_SKEW,
             ),
         )
         await self.db.execute(stmt)
@@ -1821,34 +1898,37 @@ class TelemetryService:
             odometer_normalised=normalised,
         )
 
-        # Send notification
-        from app.services.notifications.dispatcher import NotificationDispatcher
-
-        dispatcher = NotificationDispatcher(self.db)
-        dispatch_results = await dispatcher.notify_livelink_threshold_alert(
-            vehicle_name=vehicle_name,
-            parameter_name=param.display_name or param_key,
-            value=value,
-            band=band,
-            threshold_value=band_line(band, param),
-            unit=param.unit,
-            ctx=await render_context_for_vehicle(self.db, vin),
-            quantity=quantity,
+        # Held from here, as a send nothing took would be: the frames that land
+        # while this one is out wait like the rest. A delivered send clears it
+        # and stamps the cooldown instead (`deliver_threshold_alert`).
+        cooldown_minutes = await livelink.get_alert_cooldown_minutes()
+        param.alert_retry_at = now + timedelta(minutes=cooldown_minutes)
+        await self._send_alert(
+            ThresholdAlert(
+                param_id=param.id,
+                param_key=param_key,
+                band=band,
+                once=once,
+                at=now,
+                vehicle_name=vehicle_name,
+                parameter_name=param.display_name or param_key,
+                value=value,
+                threshold_value=band_line(band, param),
+                unit=param.unit,
+                ctx=await render_context_for_vehicle(self.db, vin),
+                quantity=quantity,
+            )
         )
 
-        # Stamp the cooldown, and a notify-once reading's band, only when at
-        # least one service actually accepted the notification. The
-        # dispatcher records False for attempted-but-failed sends, so an
-        # all-failed dict (e.g. transient outage) must not start the cooldown
-        # clock and silence real alerts; nor must an empty dict (event
-        # disabled / no services enabled). Either way a send nothing took
-        # waits one cooldown before it's tried again. The caller commits the
-        # surrounding transaction, so no explicit commit here.
-        if any(dispatch_results.values()):
-            param.warning_last_notified_at = now
-            param.alert_retry_at = None
-            if once:
-                param.alert_state = band
-        else:
-            cooldown_minutes = await livelink.get_alert_cooldown_minutes()
-            param.alert_retry_at = now + timedelta(minutes=cooldown_minutes)
+    async def _send_alert(self, alert: ThresholdAlert) -> None:
+        """Send it once the caller's transaction commits, in the background.
+
+        Not inline (B6-1): a slow notification service held up the MQTT frame,
+        and every frame queued behind it, once per cooldown. A rollback drops
+        it, so a frame that failed to store alerts nobody.
+        """
+        after_commit(
+            self.db,
+            partial(deliver_threshold_alert, alert=alert),
+            label=f"threshold alert for {alert.param_key}",
+        )

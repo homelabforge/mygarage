@@ -21,7 +21,7 @@ def _mock_param(param_class: str | None = None):
 
 
 def _mock_latest(value: float, timestamp: datetime):
-    """Create a mock VehicleTelemetryLatest row."""
+    """Create a mock of the device's newest VehicleTelemetry row."""
     latest = MagicMock()
     latest.value = value
     latest.timestamp = timestamp
@@ -146,6 +146,7 @@ class TestValidateRateOfChange:
             "0D-VehicleSpeed",
             "speed",
             70.0,
+            device_id="DEV1",
             sample_at=datetime.now(UTC),
         )
         assert is_valid is True
@@ -168,6 +169,7 @@ class TestValidateRateOfChange:
             "0D-VehicleSpeed",
             "speed",
             200.0,
+            device_id="DEV1",
             sample_at=datetime.now(UTC),
         )
         assert is_valid is False
@@ -191,6 +193,7 @@ class TestValidateRateOfChange:
             "0D-VehicleSpeed",
             "speed",
             350.0,
+            device_id="DEV1",
             sample_at=datetime.now(UTC),
         )
         assert is_valid is True
@@ -207,6 +210,7 @@ class TestValidateRateOfChange:
             "0C-EngineRPM",
             "frequency",
             5000.0,
+            device_id="DEV1",
             sample_at=datetime.now(UTC),
         )
         assert is_valid is True
@@ -219,6 +223,7 @@ class TestValidateRateOfChange:
             "CUSTOM_SENSOR",
             "custom_sensor",
             99999.0,
+            device_id="DEV1",
             sample_at=datetime.now(UTC),
         )
         assert is_valid is True
@@ -232,6 +237,7 @@ class TestValidateRateOfChange:
             "UNKNOWN_PID",
             None,
             99999.0,
+            device_id="DEV1",
             sample_at=datetime.now(UTC),
         )
         assert is_valid is True
@@ -254,6 +260,7 @@ class TestValidateRateOfChange:
             "05-EngineCoolantTemp",
             "temperature",
             200.0,
+            device_id="DEV1",
             sample_at=datetime.now(UTC),
         )
         assert is_valid is False
@@ -275,6 +282,7 @@ class TestValidateRateOfChange:
             "0D-VehicleSpeed",
             "speed",
             65.0,
+            device_id="DEV1",
             sample_at=datetime.now(UTC),
         )
         assert is_valid is True
@@ -304,6 +312,7 @@ class TestRateOfChangeOnSampleTime:
             "0D-VehicleSpeed",
             "speed",
             200.0,
+            device_id="DEV1",
             sample_at=latest_at + timedelta(seconds=1),
         )
         assert is_valid is False
@@ -324,6 +333,7 @@ class TestRateOfChangeOnSampleTime:
             "0D-VehicleSpeed",
             "speed",
             130.0,
+            device_id="DEV1",
             sample_at=latest_at - timedelta(hours=1),
         )
         assert is_valid is True
@@ -344,6 +354,7 @@ class TestRateOfChangeOnSampleTime:
             "0D-VehicleSpeed",
             "speed",
             130.0,
+            device_id="DEV1",
             sample_at=latest_at,
         )
         assert is_valid is True
@@ -372,7 +383,7 @@ class TestValidateBatch:
         validator.db.execute = AsyncMock(return_value=mock_result)
 
         valid, rejected = await validator.validate_batch(
-            "VIN123", data, params, sample_at=datetime.now(UTC)
+            "VIN123", data, params, device_id="DEV1", sample_at=datetime.now(UTC)
         )
         assert len(valid) == 2
         assert len(rejected) == 0
@@ -399,7 +410,7 @@ class TestValidateBatch:
         validator.db.execute = AsyncMock(return_value=mock_result)
 
         valid, rejected = await validator.validate_batch(
-            "VIN123", data, params, sample_at=datetime.now(UTC)
+            "VIN123", data, params, device_id="DEV1", sample_at=datetime.now(UTC)
         )
         assert len(valid) == 2
         assert len(rejected) == 1
@@ -414,7 +425,7 @@ class TestValidateBatch:
         data = {"0D-VehicleSpeed": None}
 
         valid, rejected = await validator.validate_batch(
-            "VIN123", data, params, sample_at=datetime.now(UTC)
+            "VIN123", data, params, device_id="DEV1", sample_at=datetime.now(UTC)
         )
         assert valid == {"0D-VehicleSpeed": None}
         assert len(rejected) == 0
@@ -436,7 +447,7 @@ class TestValidateBatch:
         validator.db.execute = AsyncMock(return_value=mock_result)
 
         valid, rejected = await validator.validate_batch(
-            "VIN123", data, params, sample_at=datetime.now(UTC)
+            "VIN123", data, params, device_id="DEV1", sample_at=datetime.now(UTC)
         )
         assert valid["DIAGNOSTIC_TROUBLE_CODES"] == "P0300,P0420"
         assert valid["0C-EngineRPM"] == 750
@@ -449,7 +460,7 @@ class TestValidateBatch:
         data = {"CUSTOM_SENSOR": 99999}
 
         valid, rejected = await validator.validate_batch(
-            "VIN123", data, params, sample_at=datetime.now(UTC)
+            "VIN123", data, params, device_id="DEV1", sample_at=datetime.now(UTC)
         )
         assert valid["CUSTOM_SENSOR"] == 99999
         assert len(rejected) == 0
@@ -461,7 +472,7 @@ class TestValidateBatch:
         data = {"MYSTERY_PID": 42}
 
         valid, rejected = await validator.validate_batch(
-            "VIN123", data, params, sample_at=datetime.now(UTC)
+            "VIN123", data, params, device_id="DEV1", sample_at=datetime.now(UTC)
         )
         assert valid["MYSTERY_PID"] == 42
         assert len(rejected) == 0
@@ -470,7 +481,7 @@ class TestValidateBatch:
     async def test_empty_batch(self, validator):
         """Empty batch should return empty results."""
         valid, rejected = await validator.validate_batch(
-            "VIN123", {}, {}, sample_at=datetime.now(UTC)
+            "VIN123", {}, {}, device_id="DEV1", sample_at=datetime.now(UTC)
         )
         assert valid == {}
         assert rejected == []
@@ -492,7 +503,7 @@ class TestValidateBatch:
         validator.db.execute = AsyncMock(return_value=mock_result)
 
         valid, rejected = await validator.validate_batch(
-            "VIN123", data, params, sample_at=datetime.now(UTC)
+            "VIN123", data, params, device_id="DEV1", sample_at=datetime.now(UTC)
         )
         assert len(valid) == 0
         assert len(rejected) == 2

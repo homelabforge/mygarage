@@ -19,7 +19,14 @@ value is canonical (`alert_quantity`).
 
 from __future__ import annotations
 
-from typing import Literal, Protocol
+from dataclasses import dataclass
+from datetime import datetime
+from typing import TYPE_CHECKING, Literal, Protocol
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.utils.render_context import RenderContext
 
 AlertBand = Literal["low", "critical", "high"]
 
@@ -130,3 +137,60 @@ def alert_quantity(
     if not declared or declared in symbols:
         return param_class
     return None
+
+
+@dataclass(frozen=True)
+class ThresholdAlert:
+    """One alert `check_thresholds` decided to send, for after the commit (B6-1).
+
+    Everything the message needs is read at the decision, in the ingest
+    session, so the send only has to deliver it and stamp the outcome.
+    """
+
+    param_id: int
+    param_key: str
+    band: AlertBand
+    #: Notify-once (a preset sensor): a delivered send keeps `band` as the state.
+    once: bool
+    #: When it was decided: the cooldown stamp, if a service takes it.
+    at: datetime
+    vehicle_name: str
+    parameter_name: str
+    value: float
+    threshold_value: float
+    unit: str | None
+    ctx: RenderContext
+    quantity: str | None
+
+
+async def deliver_threshold_alert(db: AsyncSession, alert: ThresholdAlert) -> None:
+    """Send the alert and record how it went on its parameter.
+
+    Stamps the cooldown, and a notify-once reading's band, only when at least
+    one service accepted it: the dispatcher records False for a send that was
+    tried and failed, and returns nothing at all with the event or every
+    service switched off. Otherwise the hold `check_thresholds` set stays, so
+    the next try waits one cooldown (R2).
+    """
+    from app.models.livelink_parameter import LiveLinkParameter
+    from app.services.notifications.dispatcher import NotificationDispatcher
+
+    results = await NotificationDispatcher(db).notify_livelink_threshold_alert(
+        vehicle_name=alert.vehicle_name,
+        parameter_name=alert.parameter_name,
+        value=alert.value,
+        band=alert.band,
+        threshold_value=alert.threshold_value,
+        unit=alert.unit,
+        ctx=alert.ctx,
+        quantity=alert.quantity,
+    )
+    if not any(results.values()):
+        return
+    param = await db.get(LiveLinkParameter, alert.param_id)
+    if param is None:
+        return  # deleted while the send was out
+    param.warning_last_notified_at = alert.at
+    param.alert_retry_at = None
+    if alert.once:
+        param.alert_state = alert.band

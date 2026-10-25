@@ -71,3 +71,29 @@ async def test_a_code_back_after_a_clear_gets_a_new_row(db_session: AsyncSession
     assert cleared.cleared_at is not None
     assert active.is_active is True
     assert active.cleared_at is None
+
+
+@pytest.mark.asyncio
+async def test_a_code_listed_twice_is_one_row(db_session: AsyncSession):
+    """Regression guard (carry 2): the second copy finds the row the first one
+    made, because `_create_vehicle_dtc` flushes (the session doesn't autoflush).
+    The parser drops repeats too, so only a direct call shows this. Kills
+    dropping that flush."""
+    vin = await _make_vehicle(db_session)
+
+    first, second = await DTCService(db_session).process_dtcs(
+        vin, "dtc-svc-dev", ["P0301", "P0301"]
+    )
+    await db_session.flush()
+
+    rows = (
+        (
+            await db_session.execute(
+                select(VehicleDTC).where(VehicleDTC.vin == vin, VehicleDTC.code == "P0301")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert first is second

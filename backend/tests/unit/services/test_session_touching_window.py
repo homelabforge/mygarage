@@ -10,7 +10,7 @@ boundary. One case per window read, so reverting any one of them fails here.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -170,3 +170,20 @@ class TestEveryOtherWindowStaysInclusive:
         await SessionService(db_session).refresh_aggregates(point)
 
         assert point.max_speed == pytest.approx(40.0)
+
+
+@pytest.mark.asyncio
+async def test_an_aware_start_still_finds_the_touching_drive(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """Carry 13: the predecessor query bound the raw `started_at`. A start that's
+    still aware in memory (a caller's datetime, before any reload) doesn't bind
+    against PostgreSQL's naive column. Red under the PG sidecar on 4954e3a3.
+    SQLite stores the wall time either way, so it passes there by design."""
+    vin, device_id, _, second = await _pair(db_session, make_livelink_vehicle, "aware")
+    await _seed(db_session, vin, device_id, (0, "SPEED", 40.0), (600, "SPEED", 20.0))
+    second.started_at = T0.replace(tzinfo=UTC)  # in memory only: never flushed
+
+    await SessionService(db_session).refresh_aggregates(second)
+
+    assert second.max_speed == 20.0

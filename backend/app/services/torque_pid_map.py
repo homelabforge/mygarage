@@ -76,7 +76,9 @@ TORQUE_PID_NAMES: dict[str, str] = {
 #: The keys only Torque names: its own extended PIDs (`kff...`), mapped to a
 #: readable key or stored as `KFF...`. The standard PIDs map onto aliases a
 #: WiCAN sends too (SPEED, COOLANT_TMP), so those are nobody's alone. A WiCAN's
-#: odometer scan skips these on a car with both (FW-A-r4a).
+#: odometer scan skips these on a car with both (FW-A-r4a). Migration 133 reads
+#: this through the registry, so adding a key here changes what it labels on a
+#: database that hasn't upgraded yet: give that its own migration.
 TORQUE_OWN_KEYS: frozenset[str] = frozenset(
     key for pid, key in TORQUE_OBD_PID_MAP.items() if pid.startswith("kff")
 ) | frozenset(TORQUE_PID_NAMES)

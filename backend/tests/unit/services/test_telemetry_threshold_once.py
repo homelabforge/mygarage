@@ -22,6 +22,10 @@ from app.services.livelink_alerts import REARM_MARGIN
 from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
 
+#: The send is queued for after the commit in production (B6-1); these flush
+#: without committing, so it's delivered inline (see the fixture).
+pytestmark = pytest.mark.usefixtures("alerts_inline")
+
 VIN = "THRESHONCE0000001"
 #: An index no real sensor in the suite reaches.
 LEVEL = "PROPANE_T9701_LEVEL_PCT"

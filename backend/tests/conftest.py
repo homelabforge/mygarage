@@ -113,6 +113,19 @@ async def init_test_db(test_engine):
         await conn.run_sync(Base.metadata.drop_all)
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def _finish_post_commit_jobs() -> AsyncGenerator[None]:
+    """Let the background jobs a test's commits queued finish before the next test.
+
+    They run on the test loop, so one still running would send its
+    notification into the next test's recorder (`app.services.post_commit`).
+    """
+    yield
+    from app.services.post_commit import drain
+
+    await drain()
+
+
 @pytest_asyncio.fixture
 async def db_session(test_sessionmaker, init_test_db) -> AsyncGenerator[AsyncSession]:
     """Provide a database session for tests. Depends on init_test_db to ensure tables exist."""

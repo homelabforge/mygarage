@@ -34,6 +34,10 @@ from app.models.vehicle import Vehicle
 from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
 
+#: The send is queued for after the commit in production (B6-1); these flush
+#: without committing, so it's delivered inline (see the fixture).
+pytestmark = pytest.mark.usefixtures("alerts_inline")
+
 
 @pytest_asyncio.fixture
 async def make_vehicle(db_session: AsyncSession):

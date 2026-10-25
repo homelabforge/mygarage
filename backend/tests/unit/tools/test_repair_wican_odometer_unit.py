@@ -595,6 +595,32 @@ def test_it_leaves_an_earlier_dongles_records_and_another_vins_rows_alone(engine
     assert sorted(after["raw"]) == [12345.0, 50000.0, 50020.0]
 
 
+def test_it_refuses_a_device_that_went_back_and_forth_between_vehicles(engine):
+    """Regression guard (wave A re-review T1): it reported on this vehicle,
+    then on another one after that, so its window here has a hole in it and
+    which records it wrote can't be told. Kills dropping the check (the
+    reviewer's `if False and ...` mutant left this file green)."""
+    from tools.repair_wican_odometer_unit import RepairRefusedError
+
+    _seed(engine, "bandf", "REPAIRVINBANDF001", INFLATED, legacy="mi")
+    with Session(engine) as s:
+        _vehicle(s, "REPAIRVINFORMER02")
+        s.add(
+            VehicleTelemetry(
+                vin="REPAIRVINFORMER02",
+                device_id="bandf",
+                param_key="COOLANT",
+                value=90.0,
+                timestamp=T0 + timedelta(days=3),
+                received_at=T0 + timedelta(days=3),
+            )
+        )
+        s.commit()
+
+    with pytest.raises(RepairRefusedError, match="another vehicle after"):
+        _plan(engine, "bandf", "km")
+
+
 def test_it_refuses_when_another_device_on_the_vehicle_recorded_in_its_window(engine):
     """M1: raw rows prune at 90 days, so a second WiCAN on the car is found by
     what doesn't: its link and its sessions with odometers. Red on 5a013d2e,

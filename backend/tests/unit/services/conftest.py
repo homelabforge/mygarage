@@ -7,8 +7,11 @@ prefix scheme, and they had already drifted (naive vs aware timestamps). One
 factory, parameterised by prefix.
 """
 
+from collections.abc import Iterator
 from datetime import timedelta
+from unittest.mock import patch
 
+import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,3 +86,22 @@ async def make_closed_drive_session(db_session: AsyncSession, make_livelink_vehi
         return vin, device.device_id, session
 
     return _factory
+
+
+@pytest.fixture
+def alerts_inline() -> Iterator[None]:
+    """Deliver a threshold alert on the spot, in the caller's session.
+
+    Production sends it after the commit, in a session of its own (B6-1,
+    `test_threshold_alert_off_ingest.py` pins that). The tests of WHAT gets
+    sent and stamped flush without committing, so they deliver it inline:
+    the same `deliver_threshold_alert`, minus the wait for a commit.
+    """
+    from app.services.livelink_alerts import ThresholdAlert, deliver_threshold_alert
+    from app.services.telemetry_service import TelemetryService
+
+    async def _inline(self: TelemetryService, alert: ThresholdAlert) -> None:
+        await deliver_threshold_alert(self.db, alert)
+
+    with patch.object(TelemetryService, "_send_alert", _inline):
+        yield

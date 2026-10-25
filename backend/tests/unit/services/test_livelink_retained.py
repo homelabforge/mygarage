@@ -274,6 +274,24 @@ class TestGenericMqtt:
 
         assert device.device_status == "online"
 
+    async def test_a_retained_lwt_offline_skips_an_unlinked_device(
+        self, db_session: AsyncSession, generic
+    ):
+        """Regression guard (carry 1): a generic batch requires a link, so live,
+        an unlinked sensor's status isn't touched. The retained path looks the
+        device up on its own and must skip it too. Kills dropping its
+        `requires_link and not device.vin` check."""
+        vin, device, module = generic
+        device.device_status = "online"
+        device.vin = None
+        await db_session.commit()
+
+        await ingest(module, _retained(GEN_S, b"offline"), db_session)
+        await db_session.flush()
+        await db_session.refresh(device)
+
+        assert device.device_status == "online"
+
     async def test_a_live_online_still_marks_it_online(self, db_session: AsyncSession, generic):
         """Regression guard, the positive control: without it every test above
         passes against a pipeline that stopped applying status at all."""

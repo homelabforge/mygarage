@@ -164,7 +164,7 @@ class TestAlertQuantity:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("drop_params")
+@pytest.mark.usefixtures("drop_params", "alerts_inline")
 class TestCheckThresholdsRendersInTheReadersUnits:
     async def test_coolant_over_its_line_reads_in_fahrenheit(
         self, db_session: AsyncSession, make_livelink_vehicle, monkeypatch
@@ -198,7 +198,7 @@ class TestCheckThresholdsRendersInTheReadersUnits:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("livelink_enabled", "drop_params")
+@pytest.mark.usefixtures("livelink_enabled", "drop_params", "alerts_inline")
 class TestOdometerLinesThroughIngest:
     """An odometer key is canonical km only when the source normalised it.
 

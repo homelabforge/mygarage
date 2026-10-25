@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.vehicle_telemetry import VehicleTelemetryLatest
+from app.models.vehicle_telemetry import VehicleTelemetry
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,7 @@ class TelemetryValidator:
         param_class: str | None,
         value: float,
         *,
+        device_id: str,
         sample_at: datetime,
     ) -> tuple[bool, str | None]:
         """Check if a value's rate of change from the previous value is reasonable.
@@ -94,11 +95,16 @@ class TelemetryValidator:
         eight seconds ago. A sample at or before the latest one isn't the next
         reading, so it isn't rate-checked at all.
 
+        The previous value is this device's own newest stored reading, not the
+        vehicle's latest: two devices on one car would rate-check each other
+        (B6-6), and the latest table has no device column.
+
         Args:
             vin: Vehicle VIN
             param_key: Parameter key
             param_class: Parameter class
             value: New value
+            device_id: The device the reading came from
             sample_at: The reading's own timestamp
 
         Returns:
@@ -107,12 +113,16 @@ class TelemetryValidator:
         if not param_class or param_class not in RATE_OF_CHANGE_LIMITS:
             return True, None
 
-        # Get the most recent value for this parameter
+        # A seek on the dedup index, newest first.
         result = await self.db.execute(
-            select(VehicleTelemetryLatest).where(
-                VehicleTelemetryLatest.vin == vin,
-                VehicleTelemetryLatest.param_key == param_key,
+            select(VehicleTelemetry)
+            .where(
+                VehicleTelemetry.device_id == device_id,
+                VehicleTelemetry.param_key == param_key,
+                VehicleTelemetry.vin == vin,
             )
+            .order_by(VehicleTelemetry.timestamp.desc())
+            .limit(1)
         )
         latest = result.scalar_one_or_none()
         if not latest:
@@ -146,6 +156,7 @@ class TelemetryValidator:
         autopid_data: dict[str, float | int | str | None],
         parameters_cache: dict[str, object],
         *,
+        device_id: str,
         sample_at: datetime,
     ) -> tuple[dict[str, float | int | str | None], list[dict[str, object]]]:
         """Validate a batch of telemetry values.
@@ -154,6 +165,7 @@ class TelemetryValidator:
             vin: Vehicle VIN
             autopid_data: Raw parameter values
             parameters_cache: Cached parameter definitions (from get_all_parameters)
+            device_id: The device the batch came from, for the rate check
             sample_at: The batch's own timestamp, for the rate check
 
         Returns:
@@ -191,6 +203,7 @@ class TelemetryValidator:
                 param_key,
                 param_class,
                 float(value),
+                device_id=device_id,
                 sample_at=sample_at,
             )
             if not is_valid:

@@ -39,7 +39,7 @@ MILES_ROW_KEY = "FB5_ODOMETER_MILESROW"
 #: Plus the case's suffix: the other device's raw rows are committed, and the
 #: file DB keeps them for the next case, which would then see them too.
 SHARED_ROW_KEY = "FB5_ODOMETER_SHARED"
-SHARED_ROW_CASES = ("1", "2", "3", "4")
+SHARED_ROW_CASES = ("1", "2", "3", "4", "5", "6", "7", "8")
 TOPIC = "r1m1/test/odometer_mi"
 
 
@@ -103,6 +103,7 @@ async def test_a_generic_mqtt_odometer_mi_is_stored_as_km(
         await module.refresh(db_session)
 
 
+@pytest.mark.usefixtures("alerts_inline")
 async def test_a_generic_mqtt_odometer_mi_alert_reads_in_the_owners_unit(
     db_session: AsyncSession, make_livelink_vehicle, monkeypatch
 ):
@@ -293,3 +294,105 @@ async def test_a_wican_km_label_waits_on_a_key_another_device_stores_raw(
 
     assert await _param_unit(db_session, key) == expected
     assert await _raw(db_session, wican.device_id, key) == [80467.0]
+
+
+#: For T2's topic-map cases. Its own, and cleared by the test.
+EVIDENCE_TOPIC = "fwbt2/test/odometer"
+
+
+@pytest.mark.parametrize(
+    ("suffix", "evidence", "expected"),
+    [
+        # A generic device whose raw rows pruned (or never landed) still has
+        # the topic map that sends it the key. Red on 4954e3a3 (km).
+        ("5", "topic_map", None),
+        # A WiCAN declaring another key, whose raw rows pruned: its VIN's
+        # latest row says it sent this one, raw. Red on 4954e3a3 (km).
+        ("6", "vin_latest", None),
+        # A deleted device's raw rows, kind unknown, so taken as raw. Red on
+        # 4954e3a3 (km).
+        ("7", "deleted_device", None),
+        # Regression guard: a topic map for a key its device declares is a
+        # device recording it in km, so the label still goes on. Kills
+        # counting a topic map without asking the predicate.
+        ("8", "declared_topic_map", "km"),
+    ],
+)
+async def test_a_wican_km_label_waits_on_evidence_that_outlives_the_raw_rows(
+    db_session: AsyncSession,
+    make_livelink_vehicle,
+    suffix: str,
+    evidence: str,
+    expected: str | None,
+):
+    """Wave A re-review T2: FW-A-r4b's guard read raw rows only, and they
+    prune at 90 days and stay behind under a deleted device's id. So it asks
+    what doesn't prune too: a generic device's topic maps, a declaring WiCAN's
+    VIN-latest rows, and raw rows from a device no longer on file."""
+    key = SHARED_ROW_KEY + suffix
+    _vin, wican = await make_livelink_vehicle("fwbt2w", suffix, odometer_unit="mi")
+    now = utc_now()
+    if evidence in {"topic_map", "declared_topic_map"}:
+        _other_vin, other = await make_livelink_vehicle(
+            "fwbt2g",
+            suffix,
+            kind="generic_mqtt",
+            odometer_param_key=key if evidence == "declared_topic_map" else None,
+        )
+        await db_session.execute(
+            delete(LiveLinkTopicMap).where(LiveLinkTopicMap.topic == EVIDENCE_TOPIC)
+        )
+        db_session.add(
+            LiveLinkTopicMap(device_id=other.device_id, topic=EVIDENCE_TOPIC, param_key=key)
+        )
+    elif evidence == "vin_latest":
+        other_vin, _other = await make_livelink_vehicle(
+            "fwbt2d", suffix, odometer_param_key="MY_ODO"
+        )
+        db_session.add(
+            VehicleTelemetryLatest(
+                vin=other_vin, param_key=key, value=50000.0, timestamp=now, received_at=now
+            )
+        )
+    else:
+        gone_vin, _gone = await make_livelink_vehicle("fwbt2x", suffix)
+        db_session.add(
+            VehicleTelemetry(
+                vin=gone_vin,
+                device_id=f"fwbt2gone{suffix}",
+                param_key=key,
+                value=50000.0,
+                timestamp=now,
+                received_at=now,
+            )
+        )
+    db_session.add(
+        LiveLinkParameter(
+            param_key=key,
+            display_name=key,
+            unit=None,
+            param_class="distance",
+            category="engine",
+            show_on_dashboard=True,
+            archive_only=False,
+            storage_interval_seconds=0,
+        )
+    )
+    await db_session.commit()
+
+    try:
+        await ingest(
+            WicanModule(),
+            MqttEnvelope(f"wican/{wican.device_id}/can/rx", f'{{"{key}": 50000}}'.encode()),
+            db_session,
+        )
+        await db_session.commit()
+
+        assert await _param_unit(db_session, key) == expected
+        assert await _raw(db_session, wican.device_id, key) == [80467.0]
+    finally:
+        await db_session.rollback()
+        await db_session.execute(
+            delete(LiveLinkTopicMap).where(LiveLinkTopicMap.topic == EVIDENCE_TOPIC)
+        )
+        await db_session.commit()

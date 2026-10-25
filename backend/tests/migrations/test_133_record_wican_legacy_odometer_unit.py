@@ -36,6 +36,7 @@ from app.database import Base, is_sqlite
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_device_unit import LiveLinkDeviceUnit
 from app.models.livelink_parameter import LiveLinkParameter
+from app.models.livelink_topic_map import LiveLinkTopicMap
 from app.models.odometer import OdometerRecord
 from app.models.settings import Setting
 from app.models.user import User
@@ -708,6 +709,36 @@ def test_133_leaves_a_key_a_wican_declaring_another_key_stored_raw(db):
     _load().upgrade(engine)
 
     assert _param_units(engine) == {"MY_ODO": "km", "ODOMETER": None}
+
+
+@pytest.mark.parametrize("evidence", ["topic_map", "vin_latest", "deleted_device"])
+def test_133_leaves_a_key_whose_raw_sender_left_no_raw_rows(db, evidence: str):
+    """Wave A re-review T2: raw rows prune at 90 days and a deleted device's
+    stay behind under an id no longer on file. So 133 also counts a generic
+    device's topic map, a declaring WiCAN's VIN-latest rows, and raw rows from
+    a device that's gone. Each red on 4954e3a3 (km)."""
+    _dialect, engine, _url = db
+    with Session(engine) as s:
+        _vehicle(s, "M133VINEVIDWIC001")
+        _device(s, "evidwic", "M133VINEVIDWIC001", odometer_unit="mi")
+        _raw(s, "evidwic", "M133VINEVIDWIC001", "TOTAL_ODO", 80467)
+        _vehicle(s, "M133VINEVIDOTH001")
+        if evidence == "topic_map":
+            _device(s, "evidgen", "M133VINEVIDOTH001", kind="generic_mqtt")
+            s.add(
+                LiveLinkTopicMap(device_id="evidgen", topic="m133/evid/odo", param_key="TOTAL_ODO")
+            )
+        elif evidence == "vin_latest":
+            _device(s, "evidwd", "M133VINEVIDOTH001", odometer_param_key="MY_ODO")
+            _latest(s, "M133VINEVIDOTH001", "TOTAL_ODO", 50000, AFTER)
+        else:
+            _raw(s, "evidgone", "M133VINEVIDOTH001", "TOTAL_ODO", 50000)
+        _param_row(s, "TOTAL_ODO", None)
+        s.commit()
+
+    _load().upgrade(engine)
+
+    assert _param_units(engine) == {"TOTAL_ODO": None}
 
 
 def test_133_skips_an_install_with_no_devices_table(engine_for_migration):
