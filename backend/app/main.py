@@ -144,6 +144,11 @@ def log_secret_key_status() -> None:
         )
 
 
+#: How long shutdown waits for post-commit jobs (alerts, the new-device notice).
+#: Well inside Docker's default 10 s stop grace.
+POST_COMMIT_SHUTDOWN_SECONDS = 5.0
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
@@ -259,6 +264,11 @@ async def lifespan(app: FastAPI):
     # Stop MQTT subscriber on shutdown
     await stop_mqtt_subscriber()
     stop_scheduler()
+    # After ingest stops, so nothing queues behind it: a notification still
+    # being sent gets a few seconds to finish instead of dying with the loop.
+    from app.services import post_commit
+
+    await post_commit.shutdown(timeout=POST_COMMIT_SHUTDOWN_SECONDS)
     logger.info("Shutting down MyGarage application...")
 
 
