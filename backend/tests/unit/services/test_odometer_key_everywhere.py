@@ -1,0 +1,113 @@
+"""One answer to "is this key an odometer", everywhere it's asked (ruling FW-A-r2).
+
+Live ingest has always converted and recorded odometers by a substring scan
+(`is_converted_odometer_key`), so an autopid named `ODOMETER_KM` writes
+odometer records. The 409 unit guard and the session odometers asked the
+exact six-name set instead, and didn't see it. Now they ask the same thing.
+
+The exact set was there to keep trip counters out (`21-DISTANCEMILON`,
+`31-DISTANCESINCECODECLEAR`), and the scan doesn't take them either, which the
+guard at the bottom pins.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
+from app.services.livelink_service import LiveLinkService
+from app.services.session_service import SessionService
+from app.utils.datetime_utils import utc_now
+
+pytestmark = pytest.mark.asyncio
+
+P = "fwar2"
+TRIP_COUNTERS = ("21-DISTANCEMILON", "31-DISTANCESINCECODECLEAR")
+
+
+def _raw(vin: str, device_id: str, key: str, value: float, at) -> VehicleTelemetry:
+    return VehicleTelemetry(
+        vin=vin, device_id=device_id, param_key=key, value=value, timestamp=at, received_at=at
+    )
+
+
+async def test_the_unit_guard_sees_an_odometer_km_history(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """Its records were written from `ODOMETER_KM`, so changing the unit now
+    would split them. Red on 7210744c: no 409."""
+    vin, device = await make_livelink_vehicle(P, "1")
+    db_session.add(_raw(vin, device.device_id, "ODOMETER_KM", 80000.0, utc_now()))
+    await db_session.flush()
+
+    assert await LiveLinkService(db_session).device_has_odometer_history(device) is True
+    with pytest.raises(ValueError, match="already been recorded"):
+        await LiveLinkService(db_session).update_device(device.device_id, {"odometer_unit": "mi"})
+
+
+async def test_a_session_starts_on_an_odometer_km_reading(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """Red on 7210744c: no start odometer."""
+    vin, device = await make_livelink_vehicle(P, "2")
+    now = utc_now()
+    db_session.add(
+        VehicleTelemetryLatest(
+            vin=vin, param_key="ODOMETER_KM", value=80123.0, timestamp=now, received_at=now
+        )
+    )
+    await db_session.flush()
+
+    session = await SessionService(db_session).start_session(device, now)
+
+    assert session.start_odometer == 80123.0
+
+
+async def test_a_session_takes_its_odometer_span_from_odometer_km(
+    db_session: AsyncSession, make_closed_drive_session
+):
+    """The recompute reads the window's odometer keys by the same scan. The
+    distance still comes from the sources it always did (none here), so a key
+    newly called an odometer doesn't move `distance_km`. Red on 7210744c."""
+    vin, device_id, session = await make_closed_drive_session(P, "3", distance_km=None)
+    inside = session.started_at + timedelta(minutes=2)
+    db_session.add_all(
+        [
+            _raw(vin, device_id, "ODOMETER_KM", 80000.0, inside),
+            _raw(vin, device_id, "ODOMETER_KM", 80012.0, inside + timedelta(minutes=5)),
+        ]
+    )
+    await db_session.flush()
+
+    await SessionService(db_session).refresh_aggregates(session)
+
+    assert (session.start_odometer, session.end_odometer) == (80000.0, 80012.0)
+    assert session.distance_km is None
+
+
+async def test_trip_counters_are_still_not_odometers(
+    db_session: AsyncSession, make_livelink_vehicle, make_closed_drive_session
+):
+    """Regression guard: the exact set kept these out, and the scan does too.
+    Kills a scan that takes `DISTANCE`."""
+    from app.utils.odometer_units import is_converted_odometer_key
+
+    assert not any(is_converted_odometer_key(key) for key in TRIP_COUNTERS)
+
+    vin, device = await make_livelink_vehicle(P, "4")
+    now = utc_now()
+    for key in TRIP_COUNTERS:
+        db_session.add(_raw(vin, device.device_id, key, 5000.0, now))
+        db_session.add(
+            VehicleTelemetryLatest(
+                vin=vin, param_key=key, value=5000.0, timestamp=now, received_at=now
+            )
+        )
+    await db_session.flush()
+
+    assert await LiveLinkService(db_session).device_has_odometer_history(device) is False
+    started = await SessionService(db_session).start_session(device, now)
+    assert started.start_odometer is None

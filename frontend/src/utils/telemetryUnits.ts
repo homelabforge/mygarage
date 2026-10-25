@@ -18,11 +18,12 @@
  * adapter for anything the unit system covers, and from this same classifier
  * for anything outside it (RPM, voltage, percentages).
  *
- * ★ Odometers. The backend stores an odometer in kilometres: a standard `A6-`
- * PID (km by SAE J1979), one of the bare keys in `_ODOMETER_BARE_KEYS`
- * (`backend/app/utils/odometer_units.py`), or the key a device names as its
- * odometer, converted on ingest from the device's odometer unit, its declared
- * wire units or the key's own rule. The first two render as a distance here.
+ * ★ Odometers. The backend stores an odometer in kilometres: any key its
+ * odometer scan takes (`ODOMETER_NAME_PATTERNS` in
+ * `backend/app/utils/odometer_units.py`: `A6-ODOMETER`, `ODOMETER_KM`, `ODO`,
+ * ...), or the key a device names as its odometer, converted on ingest from
+ * the device's odometer unit, its declared wire units or the key's own rule.
+ * The first renders as a distance here, as does a standard PID that names one.
  * Any other bare key (a custom autopid called `DISTANCE`, say) renders as a
  * plain number with whatever unit came with it: this classifier can't see a
  * device's named odometer key, and a key nobody named is stored as sent. A
@@ -105,20 +106,33 @@ export type TelemetryClass =
 const OBD2_PID_PREFIX = /^[0-9A-Fa-f]{2}-/
 
 /**
- * Bare distance keys the backend converts to kilometres on ingest.
+ * The substring scan the backend converts and records an odometer by.
  *
- * Mirrors `_ODOMETER_BARE_KEYS` in `backend/app/utils/odometer_units.py`,
- * lowercased. A bare key outside this set reaches the browser in whatever unit
- * the device reported, so it cannot be labelled.
+ * Mirrors `ODOMETER_NAME_PATTERNS` in `backend/app/utils/odometer_units.py`
+ * exactly (`odometerKeyParity.test.ts` reads it). A key that takes none of
+ * these reaches the browser in whatever unit the device reported, so it can't
+ * be labelled. The trip counters (`21-DISTANCEMILON`,
+ * `31-DISTANCESINCECODECLEAR`) take none.
  */
-const NORMALISED_DISTANCE_KEYS = new Set([
-  'odometer',
-  'odometer_mi',
-  'odo',
-  'mileage',
-  'total_distance',
-  'distance_total',
-])
+export const ODOMETER_NAME_PATTERNS = [
+  'A6-',
+  'ODOMETER',
+  'ODO',
+  'MILEAGE',
+  'DISTANCE_TOTAL',
+  'TOTAL_DISTANCE',
+] as const
+
+/**
+ * Whether ingest stored this key as an odometer, in kilometres.
+ *
+ * @param paramKey The parameter key, any case.
+ * @returns True when the backend's scan takes it.
+ */
+export function isConvertedOdometerKey(paramKey: string): boolean {
+  const upper = paramKey.toUpperCase()
+  return ODOMETER_NAME_PATTERNS.some((pattern) => upper.includes(pattern))
+}
 
 export function classifyTelemetryParam(paramKey: string, unit: string | null): TelemetryClass {
   const key = paramKey.toLowerCase()
@@ -150,18 +164,20 @@ export function classifyTelemetryParam(paramKey: string, unit: string | null): T
     return { kind: 'quantity', quantity: 'temperature' }
   }
 
-  // Canonical kilometres, but only for the keys that actually are. A key is
-  // canonical when it carries a two-hex-digit OBD2 prefix (a standard SAE
-  // J1979 PID, which reports kilometres by specification) or when the backend
-  // normalises it on ingest. That second set is `_ODOMETER_BARE_KEYS` in
-  // `backend/app/utils/odometer_units.py` and must be kept level with it.
+  // Canonical kilometres, but only for the keys that actually are: one the
+  // backend converts on ingest (its odometer scan, mirrored above), or one
+  // carrying a two-hex-digit OBD2 prefix (a standard SAE J1979 PID, which
+  // reports kilometres by specification) that names a distance.
   //
   // Matching every key containing "distance" claimed more than that: a custom
-  // autopid named `DISTANCE` is not in the backend's set, so it is stored in
+  // autopid named `DISTANCE` takes no odometer pattern, so it is stored in
   // whatever unit the device sent, and calling it kilometres made imperial
   // formatting divide a mileage figure by 1.609. Such a key falls through to a
   // plain number instead, which states nothing rather than something wrong.
-  if (OBD2_PID_PREFIX.test(paramKey) || NORMALISED_DISTANCE_KEYS.has(key)) {
+  if (isConvertedOdometerKey(paramKey)) {
+    return { kind: 'quantity', quantity: 'distance' }
+  }
+  if (OBD2_PID_PREFIX.test(paramKey)) {
     if (key.includes('odo') || key.includes('distance') || key.includes('mileage')) {
       return { kind: 'quantity', quantity: 'distance' }
     }

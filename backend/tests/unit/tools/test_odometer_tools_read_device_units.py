@@ -358,3 +358,51 @@ def test_normalize_runs_on_a_database_older_than_migration_112(tmp_path, monkeyp
     values = [v for (v,) in conn.execute("SELECT value FROM vehicle_telemetry ORDER BY timestamp")]
     conn.close()
     assert values == [pytest.approx(1609.344), pytest.approx(1001 * 1.609344)]
+
+
+def _seed_odometer_km(path: str) -> None:
+    """A WiCAN declaring miles whose `ODOMETER_KM` rows are still raw miles,
+    with a km fuel record that dwarfs them, after the first boot."""
+    conn = sqlite3.connect(path)
+    conn.executescript(_SCHEMA + _UNITS)
+    conn.executescript(
+        "CREATE TABLE schema_migrations (id INTEGER PRIMARY KEY, migration_name TEXT);"
+        "INSERT INTO schema_migrations (migration_name) "
+        "VALUES ('133_record_wican_legacy_odometer_unit');"
+    )
+    conn.execute(
+        "INSERT INTO livelink_devices VALUES "
+        "('devodokm', 'VINODOKM', 'mi', 'wican', NULL, '2026-08-01 00:00:00')"
+    )
+    conn.executemany(
+        "INSERT INTO vehicle_telemetry VALUES ('VINODOKM', 'devodokm', 'ODOMETER_KM', ?, ?)",
+        [(1000.0, "2026-09-01 10:00:00"), (1001.0, "2026-09-02 10:00:00")],
+    )
+    conn.execute("INSERT INTO odometer_records VALUES ('VINODOKM', '2026-08-01', 1600.0, 'fuel')")
+    conn.commit()
+    conn.close()
+
+
+def test_normalize_lists_an_odometer_km_key(tmp_path, monkeypatch, capsys):
+    """Ruling FW-A-r2: the tools list odometer keys by the scan live ingest
+    records them by. Red on 7210744c, whose exact set skipped `ODOMETER_KM`."""
+    path = str(tmp_path / "mygarage.db")
+    _seed_odometer_km(path)
+
+    assert _run("tools.normalize_telemetry_odometer_units", path, monkeypatch, "--apply") == 0
+
+    conn = sqlite3.connect(path)
+    values = [v for (v,) in conn.execute("SELECT value FROM vehicle_telemetry ORDER BY timestamp")]
+    conn.close()
+    assert values == [pytest.approx(1609.344), pytest.approx(1001 * 1.609344)]
+    assert "devodokm / ODOMETER_KM" in capsys.readouterr().out
+
+
+def test_backfill_lists_an_odometer_km_key(tmp_path, monkeypatch, capsys):
+    """As above, for the record reconstruction. Red on 7210744c."""
+    path = str(tmp_path / "mygarage.db")
+    _seed_odometer_km(path)
+
+    assert _run("tools.backfill_livelink_odometer", path, monkeypatch) == 0
+
+    assert "1,609 km → 1,611 km  (from ODOMETER_KM)" in capsys.readouterr().out

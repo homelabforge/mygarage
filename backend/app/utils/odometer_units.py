@@ -104,7 +104,12 @@ def bare_param_key(param_key: str) -> str:
 
 
 def is_odometer_param_key(param_key: str, declared: str | None = None) -> bool:
-    """True if ``param_key`` names an odometer, prefixed or bare.
+    """True if ``param_key`` is one of the exact odometer names, prefixed or bare.
+
+    Narrower than `is_converted_odometer_key`, which is what decides whether a
+    key is an odometer. This one stays only where widening would change
+    behaviour nobody ruled on: movement detection (when a drive opens) and
+    which source supplies a session's distance (FW-A-r2).
 
     ``declared`` is a device's ``odometer_param_key``. When set it REPLACES the
     name matching for that one key: the point of a declaration is that the

@@ -27,7 +27,7 @@ from app.services.settings_service import SettingsService, parse_bool
 from app.utils.datetime_utils import to_naive_utc, utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.movement_keys import is_parked_heartbeat_key, is_speed_param_key
-from app.utils.odometer_units import is_odometer_param_key
+from app.utils.odometer_units import is_converted_odometer_key, is_odometer_param_key
 
 logger = logging.getLogger(__name__)
 
@@ -610,7 +610,8 @@ class LiveLinkService:
         still blocks it; accepted.
 
         Odometer keys match by the device's `odometer_param_key` when it has
-        one, by name otherwise (`is_odometer_param_key`).
+        one, by name otherwise: `is_converted_odometer_key`, the scan odometer
+        records are written by, so `ODOMETER_KM` history counts (FW-A-r2).
         """
         declared = device.odometer_param_key
         raw = await self.db.execute(
@@ -618,7 +619,7 @@ class LiveLinkService:
             .where(VehicleTelemetry.device_id == device.device_id)
             .distinct()
         )
-        if any(is_odometer_param_key(key, declared) for (key,) in raw.all()):
+        if any(is_converted_odometer_key(key, declared) for (key,) in raw.all()):
             return True
         if not device.vin:
             return False
@@ -629,7 +630,9 @@ class LiveLinkService:
         )
         if since is not None:
             latest = latest.where(VehicleTelemetryLatest.timestamp >= since)
-        if any(is_odometer_param_key(key, declared) for (key,) in (await self.db.execute(latest))):
+        if any(
+            is_converted_odometer_key(key, declared) for (key,) in (await self.db.execute(latest))
+        ):
             return True
 
         record = select(OdometerRecord.id).where(

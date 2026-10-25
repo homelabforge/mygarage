@@ -50,7 +50,7 @@ describe('classifyTelemetryParam', () => {
     // (migration 096) and TelemetryService converts on the way in.
     //
     // Only for the keys ingest actually converts, though: this list is
-    // `_ODOMETER_BARE_KEYS` in backend/app/utils/odometer_units.py. A bare
+    // `ODOMETER_NAME_PATTERNS` in backend/app/utils/odometer_units.py. A bare
     // `DISTANCE` is NOT in it and is asserted the other way below.
     for (const key of ['ODOMETER', 'odometer', 'ODOMETER_MI', 'ODO', 'MILEAGE', 'TOTAL_DISTANCE']) {
       expect(classifyTelemetryParam(key, null)).toStrictEqual({
@@ -226,6 +226,15 @@ describe('convertTelemetryValue', () => {
     }
   })
 
+  it('renders any key ingest records as an odometer as a distance', () => {
+    // Ruling FW-A-r2: ingest converts `ODOMETER_KM` to km by its substring
+    // scan, so it's a distance here too. Was a plain '80,467.2' number.
+    expect(convertTelemetryValue(80467.2, 'ODOMETER_KM', null, IMPERIAL)).toStrictEqual({
+      text: '50,000',
+      unit: 'mi',
+    })
+  })
+
   it('does NOT convert a custom DISTANCE, which ingest leaves in the device\'s unit', () => {
     // `_is_odometer_param` on the backend matches A6-/ODOMETER/ODO/MILEAGE/
     // DISTANCE_TOTAL/TOTAL_DISTANCE, so a bare `DISTANCE` autopid is stored
@@ -270,7 +279,7 @@ describe('getParamDisplayName', () => {
 })
 
 describe('classifyTelemetryParam distance keys', () => {
-  // The backend converts only the keys in `_ODOMETER_BARE_KEYS`
+  // The backend converts only the keys its `ODOMETER_NAME_PATTERNS` scan takes
   // (backend/app/utils/odometer_units.py) plus anything carrying a standard
   // OBD2 PID prefix, which is kilometres by SAE J1979. Claiming kilometres for
   // any key containing "distance" over-reached: a custom `DISTANCE` autopid is

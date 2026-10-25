@@ -42,11 +42,12 @@ sys.path.insert(0, ".")
 
 from app.utils.odometer_units import (  # noqa: E402
     ODOMETER_UNIT_KM,
-    is_odometer_param_key,
+    is_converted_odometer_key,
     resolve_odometer_unit,
 )
 from app.utils.units import UnitConverter  # noqa: E402
 from tools._tool_db import (  # noqa: E402
+    declared_odometer_keys,
     device_key_units,
     migrated_odometer_mi_devices,
     mixed_units_step,
@@ -99,6 +100,8 @@ def main() -> int:
         key_units = device_key_units(conn)
         # Migration 133 moves these to km itself.
         left_to_133 = migrated_odometer_mi_devices(conn)
+        # The keys ingest converted: the scan, or the device's declared key.
+        declared = declared_odometer_keys(conn)
 
         total_hist = 0
         total_latest = 0
@@ -112,7 +115,7 @@ def main() -> int:
                     text("SELECT DISTINCT param_key FROM vehicle_telemetry WHERE device_id = :d"),
                     {"d": device_id},
                 )
-                if is_odometer_param_key(row.param_key)
+                if is_converted_odometer_key(row.param_key, declared.get(device_id))
                 and not (device_id in left_to_133 and row.param_key == "ODOMETER_MI")
             ]
             for param_key in keys:

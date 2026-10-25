@@ -193,6 +193,19 @@ def device_key_units(conn: Connection) -> dict[tuple[str, str], str | None]:
     return units
 
 
+def declared_odometer_keys(conn: Connection) -> dict[str, str | None]:
+    """Each device's ``odometer_param_key``, or None for all of them before migration 112.
+
+    A declared key replaces the name scan, as it does on the live path, so a
+    tool lists the keys ingest actually converted and recorded.
+    """
+    columns = {col["name"] for col in inspect(conn).get_columns("livelink_devices")}
+    if "odometer_param_key" not in columns:
+        return {}
+    rows = conn.execute(text("SELECT device_id, odometer_param_key FROM livelink_devices"))
+    return {row.device_id: row.odometer_param_key for row in rows}
+
+
 def migrated_odometer_mi_devices(conn: Connection) -> set[str]:
     """Devices whose raw `ODOMETER_MI` migration 133 moves to km (FW-A1).
 

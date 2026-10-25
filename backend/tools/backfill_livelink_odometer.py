@@ -37,12 +37,13 @@ sys.path.insert(0, ".")
 
 from app.utils.odometer_units import (  # noqa: E402
     ODOMETER_UNIT_KM,
-    is_odometer_param_key,
+    is_converted_odometer_key,
     odometer_value_to_km,
     resolve_odometer_unit,
 )
 from tools._tool_db import (  # noqa: E402
     as_date,
+    declared_odometer_keys,
     device_key_units,
     migrated_odometer_mi_devices,
     print_unreadable_note,
@@ -95,6 +96,8 @@ def main() -> int:
         key_units = device_key_units(conn)
         # Raw miles main never recorded from, and km once migration 133 has run.
         skip_odometer_mi = migrated_odometer_mi_devices(conn)
+        # The keys live ingest records from: the scan, or the device's declared key.
+        declared = declared_odometer_keys(conn)
 
         # Refuse if the telemetry has already been converted. This reads
         # `value` as the device reported it and applies the device's declared
@@ -130,7 +133,7 @@ def main() -> int:
                 {"d": device_id, "v": scope_vin},
             ):
                 param_key = key_row.param_key
-                if not is_odometer_param_key(param_key):
+                if not is_converted_odometer_key(param_key, declared.get(device_id)):
                     continue
                 if param_key == "ODOMETER_MI" and device_id in skip_odometer_mi:
                     continue
@@ -174,7 +177,7 @@ def main() -> int:
                 "FROM vehicle_telemetry WHERE value IS NOT NULL"
             )
         ):
-            if not is_odometer_param_key(row.param_key):
+            if not is_converted_odometer_key(row.param_key, declared.get(row.device_id)):
                 continue
             if row.param_key == "ODOMETER_MI" and row.device_id in skip_odometer_mi:
                 continue

@@ -32,7 +32,7 @@ from app.utils.movement_keys import (
     rpm_param_key_candidates,
     speed_param_key_candidates,
 )
-from app.utils.odometer_units import is_odometer_param_key
+from app.utils.odometer_units import is_converted_odometer_key, is_odometer_param_key
 
 logger = logging.getLogger(__name__)
 
@@ -1084,7 +1084,7 @@ class SessionService:
         from app.models.vehicle_telemetry import VehicleTelemetryLatest
 
         # Newest first; the key match stays in Python so it's the same
-        # `is_odometer_param_key` every other odometer path uses. The latest
+        # `is_converted_odometer_key` odometer records are written by. The latest
         # table holds one row per key, so this reads a handful of rows.
         result = await self.db.execute(
             select(VehicleTelemetryLatest.param_key, VehicleTelemetryLatest.value)
@@ -1098,7 +1098,7 @@ class SessionService:
             )
         )
         for param_key, value in result.all():
-            if value is not None and is_odometer_param_key(param_key, declared_key):
+            if value is not None and is_converted_odometer_key(param_key, declared_key):
                 return float(value)
         return None
 
@@ -1231,12 +1231,18 @@ class SessionService:
             )
         ).scalar_one_or_none()
 
-        source_keys = [
+        keys = [key for (key,) in result.all()]
+        # The odometer columns follow the scan odometer records are written by
+        # (FW-A-r2), so `ODOMETER_KM` stamps them. Which source supplies
+        # `distance_km` is ranked over the same keys as before, so a key newly
+        # called an odometer doesn't move a session's distance.
+        odometer_keys = {key for key in keys if is_converted_odometer_key(key, declared)}
+        distance_keys = {
             key
-            for (key,) in result.all()
+            for key in keys
             if is_distance_source_param_key(key) or is_odometer_param_key(key, declared)
-        ]
-        odometer_keys = {key for key in source_keys if is_odometer_param_key(key, declared)}
+        }
+        source_keys = sorted(distance_keys | odometer_keys)
 
         if source_keys:
             travelled = await self._distance_by_source(session, window, source_keys)
@@ -1249,7 +1255,10 @@ class SessionService:
                 session.start_odometer = min(span.low for span in odometer_spans)
                 session.end_odometer = max(span.high for span in odometer_spans)
 
-            best = select_distance_source(travelled, odometer_keys)
+            ranked = {key: span for key, span in travelled.items() if key in distance_keys}
+            best = select_distance_source(
+                ranked, {key for key in distance_keys if is_odometer_param_key(key, declared)}
+            )
             if best is not None:
                 session.distance_km = travelled[best].distance_km
                 return
