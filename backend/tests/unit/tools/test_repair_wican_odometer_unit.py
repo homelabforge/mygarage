@@ -31,6 +31,7 @@ from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_device_unit import LiveLinkDeviceUnit
 from app.models.odometer import OdometerRecord
+from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
@@ -104,6 +105,7 @@ def _seed(
     values: list[float],
     *,
     legacy: str | None,
+    key: str = "ODOMETER",
     **device: object,
 ) -> None:
     """One linked WiCAN with raw ODOMETER rows, its latest row, two livelink
@@ -121,7 +123,7 @@ def _seed(
                 VehicleTelemetry(
                     vin=vin,
                     device_id=device_id,
-                    param_key="ODOMETER",
+                    param_key=key,
                     value=value,
                     timestamp=at,
                     received_at=at,
@@ -130,7 +132,7 @@ def _seed(
         s.add(
             VehicleTelemetryLatest(
                 vin=vin,
-                param_key="ODOMETER",
+                param_key=key,
                 value=values[-1],
                 timestamp=T0 + timedelta(minutes=len(values) - 1),
                 received_at=T0,
@@ -143,7 +145,7 @@ def _seed(
                     date=date(2026, 9, 1),
                     odometer_km=values[0],
                     source="livelink",
-                    notes="Auto-recorded from LiveLink (ODOMETER)",
+                    notes=f"Auto-recorded from LiveLink ({key})",
                     created_at=T0,
                 ),
                 OdometerRecord(
@@ -151,7 +153,7 @@ def _seed(
                     date=date(2026, 9, 2),
                     odometer_km=values[-1],
                     source="livelink",
-                    notes="Auto-updated from LiveLink (ODOMETER)",
+                    notes=f"Auto-updated from LiveLink ({key})",
                     created_at=T0,
                 ),
                 # A human's number is never touched.
@@ -192,7 +194,7 @@ def _seed(
             s.add(
                 LiveLinkDeviceUnit(
                     device_id=device_id,
-                    param_key="ODOMETER",
+                    param_key=key,
                     unit=legacy,
                     param_class="distance",
                     source="legacy",
@@ -235,18 +237,18 @@ def _snapshot(engine: Engine, device_id: str, vin: str) -> dict[str, object]:
     }
 
 
-def _plan(engine: Engine, device_id: str, to: str):
+def _plan(engine: Engine, device_id: str, to: str, key: str = "ODOMETER"):
     from tools.repair_wican_odometer_unit import plan_repair
 
     with engine.connect() as conn:
-        return plan_repair(conn, device_id, "ODOMETER", to)
+        return plan_repair(conn, device_id, key, to)
 
 
-def _apply(engine: Engine, device_id: str, to: str) -> None:
+def _apply(engine: Engine, device_id: str, to: str, key: str = "ODOMETER") -> None:
     from tools.repair_wican_odometer_unit import apply_repair, plan_repair
 
     with engine.begin() as conn:
-        apply_repair(conn, plan_repair(conn, device_id, "ODOMETER", to))
+        apply_repair(conn, plan_repair(conn, device_id, key, to))
 
 
 # --- --to km: really km, read as miles (B6-10) ---------------------------------
@@ -450,6 +452,209 @@ def test_it_refuses_before_migration_133_has_run(engine):
 
     with pytest.raises(RepairRefusedError, match="133"):
         _plan(engine, "early", "mi")
+
+
+# --- Fix round 1 -----------------------------------------------------------------
+
+
+def test_it_repairs_a_key_main_matched_by_substring(engine):
+    """I1: `ODOMETER_KM` was converted and recorded as an odometer on main and
+    still is, so it's one the tool repairs. Its key rule reads miles, so km is
+    held as a legacy row. Red on 5a013d2e ("isn't this device's odometer")."""
+    _seed(engine, "odokm", "REPAIRVINODOKM001", INFLATED, legacy="mi", key="ODOMETER_KM")
+
+    _apply(engine, "odokm", "km", key="ODOMETER_KM")
+
+    after = _snapshot(engine, "odokm", "REPAIRVINODOKM001")
+    assert after["raw"] == [50000.0, 50020.0]
+    assert after["units"] == [("ODOMETER_KM", "km", "legacy")]
+
+
+def test_to_km_holds_a_mileage_key_in_km(engine):
+    """Regression guard (M4): a bare key whose rule is miles can't just lose
+    its row, so km is held. Kills a plan that always drops."""
+    _seed(engine, "mileage", "REPAIRVINMILEAGE1", INFLATED, legacy="mi", key="MILEAGE")
+
+    plan = _plan(engine, "mileage", "km", key="MILEAGE")
+
+    assert plan.unit_action == ("hold", "km")
+    _apply(engine, "mileage", "km", key="MILEAGE")
+    assert _snapshot(engine, "mileage", "REPAIRVINMILEAGE1")["units"] == [
+        ("MILEAGE", "km", "legacy")
+    ]
+
+
+def test_to_km_over_a_wire_declaration_survives_the_next_boot(engine):
+    """I2: the device's own config says mi but it really sends km. Dropping
+    the `wire` row let the next boot put it back, so new readings landed 1.609x
+    above the repaired history. A legacy km row is held against the boot's
+    re-declaration instead. Red on 5a013d2e."""
+    import asyncio
+
+    from app.database import is_sqlite
+
+    if is_sqlite != (engine.dialect.name == "sqlite"):
+        pytest.skip("ingest runs on the dialect the app was imported for")
+    _seed(engine, "wiredmi", "REPAIRVINWIREDMI1", INFLATED, legacy=None)
+    with Session(engine) as s:
+        s.add(
+            LiveLinkDeviceUnit(
+                device_id="wiredmi",
+                param_key="ODOMETER",
+                unit="mi",
+                param_class="distance",
+                source="wire",
+            )
+        )
+        s.add(Setting(key="livelink_enabled", value="true"))
+        s.commit()
+
+    _apply(engine, "wiredmi", "km")
+    asyncio.run(_boot(engine, "wiredmi", {"ODOMETER": {"class": "distance", "unit": "mi"}}, 50030))
+
+    after = _snapshot(engine, "wiredmi", "REPAIRVINWIREDMI1")
+    assert after["units"] == [("ODOMETER", "km", "legacy")]
+    assert after["raw"][-1] == 50030.0
+
+
+async def _boot(engine: Engine, device_id: str, config: dict, odometer: float) -> None:
+    """A WiCAN boot POST through real ingest, on the test's own database."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.database import configure_sqlite_engine
+    from app.schemas.livelink_ingest import WiCANPayload
+    from app.services.livelink_ingest import ingest
+    from app.services.livelink_sources.base import WicanHttpsEnvelope
+    from app.services.livelink_sources.wican import WicanModule
+
+    url = engine.url.render_as_string(hide_password=False)
+    if engine.dialect.name == "sqlite":
+        async_engine = create_async_engine(url.replace("sqlite://", "sqlite+aiosqlite://", 1))
+        configure_sqlite_engine(async_engine)
+    else:
+        # The fixture's own schema, which the sync engine reaches by search_path.
+        with engine.connect() as conn:
+            schema = conn.execute(text("SELECT current_schema()")).scalar_one()
+        async_engine = create_async_engine(
+            url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1),
+            connect_args={"server_settings": {"search_path": schema}},
+        )
+    payload = WiCANPayload.model_validate(
+        {
+            "autopid_data": {"ODOMETER": odometer},
+            "config": config,
+            "status": {"device_id": device_id, "ecu_status": "online"},
+        }
+    )
+    try:
+        async with async_sessionmaker(async_engine, expire_on_commit=False)() as db:
+            await ingest(WicanModule(), WicanHttpsEnvelope(device_id, payload), db)
+            await db.commit()
+    finally:
+        await async_engine.dispose()
+
+
+def test_it_leaves_an_earlier_dongles_records_and_another_vins_rows_alone(engine):
+    """M1: records are the vehicle's, so only those dated in this device's
+    window on it are rescaled; an earlier dongle's true km stay. Raw rows on
+    a car this device was linked to before belong to that car's history. Red
+    on 5a013d2e, which rescaled both."""
+    _seed(engine, "newdongle", "REPAIRVINWINDOW01", INFLATED, legacy="mi")
+    with Session(engine) as s:
+        s.add(
+            OdometerRecord(
+                vin="REPAIRVINWINDOW01",
+                date=date(2026, 3, 1),
+                odometer_km=40000,
+                source="livelink",
+                notes="Auto-recorded from LiveLink (ODOMETER)",
+                created_at=datetime(2026, 3, 1),
+            )
+        )
+        _vehicle(s, "REPAIRVINOLDCAR01")
+        s.add(
+            VehicleTelemetry(
+                vin="REPAIRVINOLDCAR01",
+                device_id="newdongle",
+                param_key="ODOMETER",
+                value=12345.0,
+                timestamp=datetime(2026, 7, 1),
+                received_at=datetime(2026, 7, 1),
+            )
+        )
+        s.commit()
+
+    _apply(engine, "newdongle", "km")
+
+    after = _snapshot(engine, "newdongle", "REPAIRVINWINDOW01")
+    assert after["records"] == [
+        ("livelink", 40000.0),
+        ("manual", 12345.0),
+        ("livelink", 50000.0),
+        ("livelink", 50020.0),
+    ]
+    assert sorted(after["raw"]) == [12345.0, 50000.0, 50020.0]
+
+
+def test_it_refuses_when_another_device_on_the_vehicle_recorded_in_its_window(engine):
+    """M1: raw rows prune at 90 days, so a second WiCAN on the car is found by
+    what doesn't: its link and its sessions with odometers. Red on 5a013d2e,
+    which looked at raw rows only."""
+    from tools.repair_wican_odometer_unit import RepairRefusedError
+
+    _seed(engine, "firstdev", "REPAIRVINTWINS001", INFLATED, legacy="mi")
+    with Session(engine) as s:
+        s.add(
+            LiveLinkDevice(device_id="twindev", vin="REPAIRVINTWINS001", kind="wican", enabled=True)
+        )
+        s.add(
+            DriveSession(
+                vin="REPAIRVINTWINS001",
+                device_id="twindev",
+                started_at=T0 + timedelta(days=1),
+                ended_at=T0 + timedelta(days=1, hours=1),
+                start_odometer=80600.0,
+                end_odometer=80650.0,
+            )
+        )
+        s.commit()
+
+    with pytest.raises(RepairRefusedError, match="twindev"):
+        _plan(engine, "firstdev", "km")
+
+
+def test_it_refuses_a_device_that_is_not_a_wican(engine):
+    """Regression guard (M4): a per-key row changes nothing for another kind.
+    Kills dropping the kind check."""
+    from tools.repair_wican_odometer_unit import RepairRefusedError
+
+    _seed(engine, "torquedev", "REPAIRVINTORQUE01", INFLATED, legacy=None, kind="torque")
+
+    with pytest.raises(RepairRefusedError, match="WiCANs only"):
+        _plan(engine, "torquedev", "mi")
+
+
+def test_it_refuses_an_unlinked_device(engine):
+    """Regression guard (M4): records and the latest value are a vehicle's.
+    Kills dropping the link check."""
+    from tools.repair_wican_odometer_unit import RepairRefusedError
+
+    with Session(engine) as s:
+        s.add(LiveLinkDevice(device_id="loosedev", vin=None, kind="wican", enabled=True))
+        s.commit()
+
+    with pytest.raises(RepairRefusedError, match="isn't linked"):
+        _plan(engine, "loosedev", "mi")
+
+
+def test_it_refuses_a_key_that_is_not_an_odometer(engine):
+    """Regression guard (M4): kills dropping the odometer-key check."""
+    from tools.repair_wican_odometer_unit import RepairRefusedError
+
+    _seed(engine, "coolant", "REPAIRVINCOOLANT1", [90.0, 91.0], legacy=None, key="COOLANT")
+
+    with pytest.raises(RepairRefusedError, match="isn't this device's odometer"):
+        _plan(engine, "coolant", "mi", key="COOLANT")
 
 
 # --- The command line (SQLite) ---------------------------------------------------

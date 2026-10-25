@@ -15,20 +15,25 @@ it wrong:
 For one device and key it:
 
 - points the key at the right unit in the per-device unit store. When the key
-  rule already gives that unit, the key's row is dropped; otherwise a
-  ``legacy`` row holds it, and a boot config that says otherwise can't flip it
-  back while there's history. The device-wide ``odometer_unit`` stays unset: it
-  wins for every key, so it would read an ``A6-`` key 1.609x off;
-- rescales the device's raw rows for the key, the vehicle's latest value for
-  it, the ``livelink`` odometer records written from it (their notes name the
-  key), and the device's session odometers. A session's distance moves too,
-  but only when it was the odometer's delta, not a finer counter's. Odometer
-  readings come out in whole km, as live ingest writes them.
+  rule already gives that unit and the row isn't the device's own config, the
+  key's legacy row is dropped; otherwise a ``legacy`` row holds the unit, and
+  a boot config that says otherwise (the same ``wire`` declaration coming
+  back, say) can't flip it while there's history. The device-wide
+  ``odometer_unit`` stays unset: it wins for every key, so it would read an
+  ``A6-`` key 1.609x off;
+- rescales what this device wrote on its current vehicle: its raw rows for
+  the key there, the vehicle's latest value for it, the ``livelink`` odometer
+  records written from it (their notes name the key) dated since the device
+  started on the vehicle, and its sessions there. A session's distance moves
+  too, but only when it was the odometer's delta, not a finer counter's.
+  Odometer readings come out in whole km, as live ingest writes them.
 
 It refuses, changing nothing, when there's nothing to repair (the key already
 reads that unit, so a second run is a no-op) or when the repair can't be
-scoped to one key: another device reports the key on the same vehicle, the
-device has a second odometer key, or the key's history already mixes units.
+scoped to one key: another device may have recorded the key on the vehicle
+in that time (raw rows, or a link or a session with odometers, which don't
+prune), the device has a second odometer key, or the key's history already
+mixes units.
 It also refuses before migration 133 has run, which would write its row after
 this one and undo it, so run it on this version, after its first start.
 
@@ -47,6 +52,7 @@ from __future__ import annotations
 import argparse
 import sys
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import Connection, create_engine, inspect, text
@@ -58,11 +64,12 @@ from app.utils.odometer_units import (  # noqa: E402
     ODOMETER_UNIT_MI,
     WICAN_DEVICE_KIND,
     infer_odometer_unit,
-    is_odometer_param_key,
+    is_converted_odometer_key,
     resolve_odometer_unit,
 )
 from app.utils.units import UnitConverter  # noqa: E402
 from tools._tool_db import (  # noqa: E402
+    as_date,
     legacy_migration_applied,
     mixed_units_step,
     resolve_sync_url,
@@ -123,31 +130,117 @@ def _reading(value: float, to: str) -> float:
     return float(_scale(value, to).quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
+def _as_datetime(value: object) -> datetime | None:
+    """A DateTime column as the driver gave it back (SQLite text, PG datetime)."""
+    if value is None or isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
+    return datetime.fromisoformat(str(value))
+
+
+def _window_start(
+    conn: Connection, device_id: str, vin: str, key: str, created_at: object
+) -> datetime | None:
+    """When this device started reporting on this vehicle, by what survives pruning.
+
+    Its `created_at`, or earlier when its own raw rows or drive sessions on the
+    VIN say so (a device deleted and re-discovered keeps its MAC id).
+    """
+    found = [_as_datetime(created_at)]
+    found.append(
+        _as_datetime(
+            conn.execute(
+                text(
+                    "SELECT MIN(timestamp) FROM vehicle_telemetry "
+                    "WHERE device_id = :d AND vin = :v AND param_key = :k"
+                ),
+                {"d": device_id, "v": vin, "k": key},
+            ).scalar()
+        )
+    )
+    found.append(
+        _as_datetime(
+            conn.execute(
+                text(
+                    "SELECT MIN(started_at) FROM drive_sessions WHERE device_id = :d AND vin = :v"
+                ),
+                {"d": device_id, "v": vin},
+            ).scalar()
+        )
+    )
+    known = [at for at in found if at is not None]
+    return min(known) if known else None
+
+
+def _could_record(kind: str | None, declared: str | None, key: str) -> bool:
+    """Whether a device of this kind records ``key`` as its odometer."""
+    if kind == WICAN_DEVICE_KIND:
+        return is_converted_odometer_key(key, declared)
+    return kind == "torque" and bool(declared) and declared.upper() == key
+
+
 def _refuse_unless_scoped(
-    conn: Connection, device_id: str, vin: str, key: str, declared: str | None
+    conn: Connection,
+    device_id: str,
+    vin: str,
+    key: str,
+    declared: str | None,
+    since: datetime | None,
 ) -> None:
-    """Refuse a repair that would rescale rows another key or device wrote."""
-    others = [
+    """Refuse a repair that would rescale rows another key or device wrote.
+
+    Another device is found by what doesn't prune as well as by raw rows: one
+    linked to the vehicle, or with a drive session with odometers on it since
+    this device started, that could record this key.
+    """
+    # SQLite holds these as text and its default datetime adapter is
+    # deprecated, so bind the text form there.
+    bound: object = since
+    if since is not None and conn.dialect.name == "sqlite":
+        bound = since.isoformat(sep=" ")
+    since_sql = " AND timestamp >= :s" if since is not None else ""
+    others = {
         row.device_id
         for row in conn.execute(
             text(
                 "SELECT DISTINCT device_id FROM vehicle_telemetry "
-                "WHERE vin = :v AND param_key = :k AND device_id <> :d"
+                "WHERE vin = :v AND param_key = :k AND device_id <> :d" + since_sql
             ),
-            {"v": vin, "k": key, "d": device_id},
+            {"v": vin, "k": key, "d": device_id, "s": bound},
         )
-    ]
+    }
+    session_sql = " AND started_at >= :s" if since is not None else ""
+    nearby = {
+        row.device_id
+        for row in conn.execute(
+            text(
+                "SELECT device_id FROM livelink_devices WHERE vin = :v AND device_id <> :d "
+                "UNION SELECT device_id FROM drive_sessions WHERE vin = :v AND device_id <> :d "
+                "AND (start_odometer IS NOT NULL OR end_odometer IS NOT NULL)" + session_sql
+            ),
+            {"v": vin, "d": device_id, "s": bound},
+        )
+    }
+    for row in conn.execute(
+        text("SELECT device_id, kind, odometer_param_key FROM livelink_devices"),
+    ):
+        if row.device_id in nearby and _could_record(row.kind, row.odometer_param_key, key):
+            others.add(row.device_id)
     if others:
         raise RepairRefusedError(
-            f"{', '.join(sorted(others))} also reports {key} on this vehicle. Its records and "
-            "latest value are the vehicle's, so they can't be split between devices."
+            f"{', '.join(sorted(others))} may also have recorded {key} on this vehicle while "
+            "this device did. Its records and latest value are the vehicle's, so they can't "
+            "be split between devices."
         )
 
     keys = {
         row.param_key
         for row in conn.execute(
-            text("SELECT DISTINCT param_key FROM vehicle_telemetry WHERE device_id = :d"),
-            {"d": device_id},
+            text(
+                "SELECT DISTINCT param_key FROM vehicle_telemetry WHERE device_id = :d AND vin = :v"
+            ),
+            {"d": device_id, "v": vin},
         )
     }
     keys |= {
@@ -156,7 +249,7 @@ def _refuse_unless_scoped(
             text("SELECT param_key FROM vehicle_telemetry_latest WHERE vin = :v"), {"v": vin}
         )
     }
-    second = sorted(k for k in keys if k != key and is_odometer_param_key(k, declared))
+    second = sorted(k for k in keys if k != key and is_converted_odometer_key(k, declared))
     if second:
         raise RepairRefusedError(
             f"this device also has odometer history under {', '.join(second)}, and a session's "
@@ -183,7 +276,7 @@ def plan_repair(conn: Connection, device_id: str, key: str, to: str) -> RepairPl
         raise RepairRefusedError(f"--to must be km or mi, not {to!r}")
     device = conn.execute(
         text(
-            "SELECT device_id, vin, kind, odometer_unit, odometer_param_key "
+            "SELECT device_id, vin, kind, odometer_unit, odometer_param_key, created_at "
             "FROM livelink_devices WHERE device_id = :d"
         ),
         {"d": device_id},
@@ -208,32 +301,41 @@ def plan_repair(conn: Connection, device_id: str, key: str, to: str) -> RepairPl
         )
     key = key.upper()
     declared = device.odometer_param_key
-    if not is_odometer_param_key(key, declared):
+    if not is_converted_odometer_key(key, declared):
         raise RepairRefusedError(f"{key} isn't this device's odometer")
 
     stored = conn.execute(
-        text("SELECT unit FROM livelink_device_units WHERE device_id = :d AND param_key = :k"),
+        text(
+            "SELECT unit, source FROM livelink_device_units WHERE device_id = :d AND param_key = :k"
+        ),
         {"d": device_id, "k": key},
     ).first()
     current = resolve_odometer_unit(key, None, WICAN_DEVICE_KIND, stored.unit if stored else None)
     if current == to:
         raise RepairRefusedError(f"nothing to repair: {device_id} / {key} already reads {to}")
 
-    _refuse_unless_scoped(conn, device_id, device.vin, key, declared)
+    since = _window_start(conn, device_id, device.vin, key, device.created_at)
+    _refuse_unless_scoped(conn, device_id, device.vin, key, declared, since)
 
+    # A `wire` row is the device's own config, and its next boot declares it
+    # again, so dropping it undoes the repair: hold the right unit instead,
+    # which the legacy guard keeps against that declaration (I2).
+    from_config = stored is not None and stored.source != "legacy"
+    drop = infer_odometer_unit(key) == to and not from_config
     plan = RepairPlan(
         device_id=device_id,
         vin=device.vin,
         key=key,
         to=to,
-        unit_action=("drop", None) if infer_odometer_unit(key) == to else ("hold", to),
+        unit_action=("drop", None) if drop else ("hold", to),
     )
+    # This vehicle's rows only: a car the device was on before keeps its own history.
     for row in conn.execute(
         text(
-            "SELECT id, value FROM vehicle_telemetry WHERE device_id = :d AND param_key = :k "
-            "ORDER BY timestamp, id"
+            "SELECT id, value FROM vehicle_telemetry "
+            "WHERE device_id = :d AND vin = :v AND param_key = :k ORDER BY timestamp, id"
         ),
-        {"d": device_id, "k": key},
+        {"d": device_id, "v": device.vin, "k": key},
     ):
         plan.raw.append((float(row.value), _reading(row.value, to)))
         plan.raw_ids.append(row.id)
@@ -245,14 +347,18 @@ def plan_repair(conn: Connection, device_id: str, key: str, to: str) -> RepairPl
     if latest is not None:
         plan.latest = (float(latest.value), _reading(latest.value, to))
 
-    # Live ingest notes the key it recorded from, "... from LiveLink (KEY)".
+    # Live ingest notes the key it recorded from, "... from LiveLink (KEY)". A
+    # record names no device, so only those dated since this device started on
+    # the vehicle are its: an earlier dongle's stay as they are (M1).
     for row in conn.execute(
         text(
-            "SELECT id, odometer_km, notes FROM odometer_records "
+            "SELECT id, odometer_km, notes, date FROM odometer_records "
             "WHERE vin = :v AND source = 'livelink' ORDER BY date, id"
         ),
         {"v": device.vin},
     ):
+        if since is not None and as_date(row.date) < since.date():
+            continue
         if (row.notes or "").endswith(f"({key})"):
             old = float(row.odometer_km)
             plan.records.append((row.id, old, _reading(old, to)))
@@ -260,9 +366,9 @@ def plan_repair(conn: Connection, device_id: str, key: str, to: str) -> RepairPl
     for row in conn.execute(
         text(
             "SELECT id, start_odometer, end_odometer, distance_km FROM drive_sessions "
-            "WHERE device_id = :d ORDER BY started_at, id"
+            "WHERE device_id = :d AND vin = :v ORDER BY started_at, id"
         ),
-        {"d": device_id},
+        {"d": device_id, "v": device.vin},
     ):
         start, end, distance = row.start_odometer, row.end_odometer, row.distance_km
         if start is None and end is None:

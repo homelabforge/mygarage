@@ -141,6 +141,31 @@ def legacy_migration_applied(conn: Connection) -> bool:
     return _migration_applied(conn, _LEGACY_ODOMETER_MIGRATION)
 
 
+def _missing_device_columns(conn: Connection) -> list[str]:
+    """The `livelink_devices` columns the tools and migration 133 need but this database lacks."""
+    return list(_load_legacy_migration().missing_device_columns(conn))
+
+
+def print_unreadable_note(conn: Connection) -> bool:
+    """Say why this database is too old to read, on stderr. True when it is.
+
+    The odometer tools call it before their first device query, which names
+    these columns, so an old database gets the reason, not an OperationalError
+    (carry 17).
+    """
+    missing = _missing_device_columns(conn)
+    if not missing:
+        return False
+    columns = ", ".join(f"livelink_devices.{col}" for col in missing)
+    print(
+        f"Note: this database has no {columns}, so it predates the migrations these "
+        "tools read. To read it the way this version will, start this version once "
+        "(with MYGARAGE_MAINTENANCE_MODE=1, so no reading lands) and run the tools then.",
+        file=sys.stderr,
+    )
+    return True
+
+
 def device_key_units(conn: Connection) -> dict[tuple[str, str], str | None]:
     """Each device's R12 unit, by ``(device_id, param_key)``, as live ingest will see it.
 
@@ -160,16 +185,8 @@ def device_key_units(conn: Connection) -> dict[tuple[str, str], str | None]:
         units = {(row.device_id, row.param_key): row.unit for row in rows}
     if not legacy_migration_applied(conn):
         migration = _load_legacy_migration()
-        missing = migration.missing_device_columns(conn)
-        if missing:
-            columns = ", ".join(f"livelink_devices.{col}" for col in missing)
-            print(
-                f"Note: this database has no {columns}, so it predates the migrations "
-                "these tools read. Odometer keys are read by the key rule alone. To read "
-                "them the way this version will, start this version once (with "
-                "MYGARAGE_MAINTENANCE_MODE=1, so no reading lands) and run the tools then.",
-                file=sys.stderr,
-            )
+        if migration.missing_device_columns(conn):
+            print_unreadable_note(conn)
             return units
         for device_id, key, unit in migration.legacy_odometer_rows(conn):
             units.setdefault((device_id, key), unit)

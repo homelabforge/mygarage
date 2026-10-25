@@ -303,3 +303,58 @@ def test_backfill_never_records_from_a_raw_odometer_mi(tmp_path, monkeypatch, ca
     assert _run("tools.backfill_livelink_odometer", path, monkeypatch) == 0
 
     assert "VINGENERIC" not in capsys.readouterr().out
+
+
+def _seed_without_kind(path: str) -> None:
+    conn = sqlite3.connect(path)
+    conn.executescript(_SCHEMA.replace(" kind TEXT,", ""))
+    conn.execute(
+        "INSERT INTO livelink_devices VALUES ('devold', 'VINOLD', NULL, NULL, '2026-08-01 00:00:00')"
+    )
+    conn.commit()
+    conn.close()
+
+
+@pytest.mark.parametrize(
+    "tool", ["tools.normalize_telemetry_odometer_units", "tools.backfill_livelink_odometer"]
+)
+def test_a_tool_on_a_database_it_cannot_read_says_so_and_stops(
+    tmp_path, monkeypatch, capsys, tool: str
+):
+    """Carry 17, fix round 1 (M3): each tool's own device query needs `kind`,
+    so the check runs before it. Without the column it can't tell a WiCAN
+    from anything else, so it stops (exit 2) with the reason, rather than
+    crash or guess. Red on 5a013d2e: OperationalError."""
+    path = str(tmp_path / "mygarage.db")
+    _seed_without_kind(path)
+
+    assert _run(tool, path, monkeypatch) == 2
+
+    err = capsys.readouterr().err
+    assert "livelink_devices.kind" in err and "start this version once" in err
+
+
+def test_normalize_runs_on_a_database_older_than_migration_112(tmp_path, monkeypatch, capsys):
+    """Regression guard (M3): pre-112 is the real carry-17 crash. No
+    `odometer_param_key` reads as nothing declared, end to end through the
+    tool. Kills a 133 that always names the column."""
+    path = str(tmp_path / "mygarage.db")
+    conn = sqlite3.connect(path)
+    conn.executescript(_SCHEMA.replace("odometer_param_key TEXT, ", ""))
+    conn.execute(
+        "INSERT INTO livelink_devices VALUES ('devold', 'VINOLD', NULL, 'wican', '2026-08-01 00:00:00')"
+    )
+    conn.executemany(
+        "INSERT INTO vehicle_telemetry VALUES ('VINOLD', 'devold', 'ODOMETER', ?, ?)",
+        [(1000.0, "2026-09-01 10:00:00"), (1001.0, "2026-09-02 10:00:00")],
+    )
+    conn.execute("INSERT INTO odometer_records VALUES ('VINOLD', '2026-08-01', 1600.0, 'fuel')")
+    conn.commit()
+    conn.close()
+
+    assert _run("tools.normalize_telemetry_odometer_units", path, monkeypatch, "--apply") == 0
+
+    conn = sqlite3.connect(path)
+    values = [v for (v,) in conn.execute("SELECT value FROM vehicle_telemetry ORDER BY timestamp")]
+    conn.close()
+    assert values == [pytest.approx(1609.344), pytest.approx(1001 * 1.609344)]

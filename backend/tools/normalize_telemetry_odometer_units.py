@@ -50,6 +50,7 @@ from tools._tool_db import (  # noqa: E402
     device_key_units,
     migrated_odometer_mi_devices,
     mixed_units_step,
+    print_unreadable_note,
     resolve_sync_url,
 )
 
@@ -81,6 +82,10 @@ def main() -> int:
     factor = float(UnitConverter.MILES_TO_KM)
 
     with engine.begin() as conn:
+        # Its device query needs these columns; without them it can't tell a
+        # WiCAN from anything else, so it stops rather than guess.
+        if print_unreadable_note(conn):
+            return 2
         devices = [
             (row.device_id, row.vin, row.odometer_unit, row.kind)
             for row in conn.execute(
