@@ -1,5 +1,7 @@
 """Discovery is bounded. Every limit is enforced server-side."""
 
+from collections.abc import AsyncIterator, Coroutine
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -28,16 +30,55 @@ async def test_an_out_of_range_duration_is_rejected_by_the_schema(client, auth_h
     assert resp.status_code == 422
 
 
-@pytest.mark.asyncio
-async def test_the_service_clamps_defensively_for_non_http_callers():
-    """Belt and braces: the service is also callable from a task or shell."""
-    from app.services.mqtt_subscriber import MAX_DISCOVERY_SECONDS, MQTTSubscriber
+class _FakeClient:
+    """Stands in for aiomqtt.Client: connects, subscribes, never delivers."""
 
-    sub = MQTTSubscriber()
-    sub._discovering = True  # forces the guard before any network work
-    with pytest.raises(RuntimeError):
-        await sub.discover_topics(prefix="a/#", seconds=9999)
-    assert MAX_DISCOVERY_SECONDS == 60
+    def __init__(self, **_: object) -> None:
+        self.subscribe = AsyncMock()
+        self.messages = self._nothing()
+
+    @staticmethod
+    async def _nothing() -> AsyncIterator[object]:
+        return
+        yield
+
+    async def __aenter__(self) -> _FakeClient:
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        return None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("asked", "listened"), [(9999, 60), (0, 1), (15, 15)])
+async def test_the_service_clamps_defensively_for_non_http_callers(asked: int, listened: int):
+    """Belt and braces: the service is also callable from a task or shell.
+
+    Regression guard (B-12): the clamp is main's. The old version returned at
+    the concurrency guard before it got here. This one runs the real
+    `discover_topics` against a fake client and checks the timeout it listens
+    for.
+    """
+    from app.services import mqtt_subscriber as mod
+
+    timeouts: list[float] = []
+
+    async def _wait_for(coro: Coroutine[Any, Any, Any], timeout: float) -> None:
+        timeouts.append(timeout)
+        coro.close()
+        raise TimeoutError
+
+    config = {"host": "broker", "port": 1883, "username": None, "password": None, "use_tls": False}
+    sub = mod.MQTTSubscriber()
+    with (
+        patch.object(sub, "_load_config", new=AsyncMock(return_value=config)),
+        patch("aiomqtt.Client", _FakeClient),
+        patch.object(mod.asyncio, "wait_for", _wait_for),
+    ):
+        assert await sub.discover_topics(prefix="a/#", seconds=asked) == []
+    assert timeouts == [listened]
+    assert mod.MAX_DISCOVERY_SECONDS == 60
+    assert sub._discovering is False
 
 
 @pytest.mark.asyncio

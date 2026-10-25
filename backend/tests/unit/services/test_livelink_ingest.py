@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import delete, func, select
 
+from app.models.drive_session import DriveSession
+from app.models.livelink_topic_map import LiveLinkTopicMap
+from app.models.vehicle_telemetry import VehicleTelemetryLatest
 from app.services.livelink_ingest import ingest
 from app.services.livelink_sources.base import (
     BaseSourceModule,
@@ -15,6 +19,8 @@ from app.services.livelink_sources.base import (
     Reading,
     StoragePolicy,
 )
+from app.services.livelink_sources.generic_mqtt import GenericMqttModule
+from app.services.livelink_sources.registry import default_registry
 
 # LiveLink's master switch gates the ingest pipeline and SD backfill, and it is
 # off by default. Explicit, not inherited from whatever an earlier test left in
@@ -89,16 +95,52 @@ ENV = MqttEnvelope(topic="t", payload=b"1")
 
 @pytest.mark.asyncio
 async def test_a_source_without_the_drive_session_capability_never_opens_one(
-    db_session, linked_device
+    db_session, make_livelink_vehicle, request
 ):
     """THE regression guard: propane must not manufacture drives on a parked trailer.
 
-    If this test ever fails, a source gained DRIVE_SESSION by accident.
+    Regression guard (A-12): passes on main by design. The real generic module
+    from the real registry through real `ingest`, nothing mocked, so the store's
+    `_observe_movement` back door is covered too. These speed samples open a
+    drive once generic_mqtt has DRIVE_SESSION and movement observation, so a
+    failure here means it gained them by accident.
     """
-    with patch("app.services.livelink_ingest.SessionService") as svc:
-        svc.return_value.handle_ecu_online = AsyncMock()
-        await ingest(_Sessionless(linked_device.device_id), ENV, db_session)
-        svc.return_value.handle_ecu_online.assert_not_called()
+    suffix = f"{abs(hash(request.node.name)) % 10**6:06d}"
+    vin, device = await make_livelink_vehicle("nods", suffix, kind="generic_mqtt")
+    device_id = device.device_id
+    topic = f"ingest/test/{suffix}/speed"
+    await db_session.execute(delete(LiveLinkTopicMap).where(LiveLinkTopicMap.topic == topic))
+    db_session.add(
+        LiveLinkTopicMap(device_id=device_id, topic=topic, param_key="SPEED", unit="km/h")
+    )
+    await db_session.commit()
+    module = default_registry().get_module("generic_mqtt")
+    assert isinstance(module, GenericMqttModule)
+    await module.refresh(db_session)
+    try:
+        # Steady speed: a jump in a few milliseconds fails the rate check and
+        # never reaches the session code at all.
+        for value in (b"60", b"60", b"60"):
+            await ingest(module, MqttEnvelope(topic, value), db_session)
+            await db_session.commit()
+
+        sessions = await db_session.scalar(
+            select(func.count()).select_from(DriveSession).where(DriveSession.vin == vin)
+        )
+        assert sessions == 0
+        # The readings did land, so the zero above isn't a dropped frame.
+        latest = await db_session.scalar(
+            select(VehicleTelemetryLatest.value).where(
+                VehicleTelemetryLatest.vin == vin, VehicleTelemetryLatest.param_key == "SPEED"
+            )
+        )
+        assert latest == 60.0
+    finally:
+        await db_session.rollback()
+        await db_session.execute(
+            delete(LiveLinkTopicMap).where(LiveLinkTopicMap.device_id == device_id)
+        )
+        await db_session.commit()
 
 
 @pytest.mark.asyncio
