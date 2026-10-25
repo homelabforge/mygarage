@@ -112,10 +112,11 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
   //
   // Sessions recorded before that fix were converted in place by
   // `backend/tools/fix_session_odometer_units.py`. Raw telemetry in
-  // `vehicle_telemetry_latest` is NOT converted and is still device-native, so
-  // `classifyTelemetryParam` keeps marking a bare-PID odometer unverified on
-  // the Live tab. That difference is deliberate: it is a claim about a stored
-  // column, not about every odometer-shaped number in the product.
+  // `vehicle_telemetry_latest` is only km where storage converted it, so on
+  // the Live tab `classifyTelemetryParam` goes by the parameter row's unit
+  // instead: a distance when it says km, a plain number when it doesn't. That
+  // difference is deliberate: this is a claim about a stored column, not
+  // about every odometer-shaped number in the product.
   const formatDistance = (value: number | null | undefined): string =>
     value == null ? '--' : u.distance.format(value)
 

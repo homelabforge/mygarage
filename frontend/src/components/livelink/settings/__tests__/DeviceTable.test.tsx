@@ -140,4 +140,27 @@ describe('DeviceTable', () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('A torque device has no SD card to pull'))
   })
+
+  // Regression guard (carry 6): a 409 shows its detail too, not a generic line.
+  it('says LiveLink is switched off when an SD pull is refused for that', async () => {
+    triggerSdBackfill.mockRejectedValue(httpError(409, 'LiveLink is switched off'))
+    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />)
+    fireEvent.click(await screen.findByTitle('modal.livelink.deviceSettings'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'modal.livelink.pullSdLogsNow' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('LiveLink is switched off'))
+  })
+
+  // FB-9: a device that's gone answers 404 now, not an all-zero summary.
+  it('names the missing device when an SD pull finds none', async () => {
+    triggerSdBackfill.mockRejectedValue(httpError(404, 'Device d1 not found'))
+    render(<DeviceTable devices={[make('d1')]} vehicles={[]} onChanged={vi.fn()} />)
+    fireEvent.click(await screen.findByTitle('modal.livelink.deviceSettings'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'modal.livelink.pullSdLogsNow' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Device d1 not found'))
+    expect(toast.success).not.toHaveBeenCalled()
+  })
 })
