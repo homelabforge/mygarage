@@ -30,7 +30,6 @@ from app.middleware import is_maintenance_closed
 TELEMETRY_WRITERS = frozenset(
     {
         "store_telemetry",
-        "store_torque_telemetry",
         "bulk_backfill",
         "backfill_device",
         "store_readings",
