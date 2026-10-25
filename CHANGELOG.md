@@ -23,9 +23,9 @@ The encryption protects the secret settings in every copy that leaves without th
 
 The scheduled recall check now follows the Recall Check Interval in Settings > Integrations instead of running every Sunday. Upload size limits are set with `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments) and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents), not in Settings; the Files tab shows the limits in force.
 
-Back up before you upgrade. Migration 133 is FATAL: if it fails, MyGarage refuses to start. Make a full backup from Settings > Backup > Create Full Backup, or as an admin call `POST /api/backup/create-full`. Migration 133 records the legacy miles reading for each WiCAN with no odometer unit set that already sent a bare `ODOMETER`, so its odometer reads as it did before.
+Back up before you upgrade. Migration 133 is FATAL: if it fails, MyGarage refuses to start. Make a full backup from Settings > Backup > Create Full Backup, or as an admin call `POST /api/backup/create-full`. Migration 133 records how each odometer key was read before (km for a standard PID key like `A6-ODOMETER`, miles for a named one like `ODOMETER` or `MILEAGE`) on each WiCAN with no odometer unit set that already sent it, so its odometer reads as it did before, whatever its config declares now.
 
-If you still have the 3.3.0 odometer repair to run, run it on this version after its first start, in maintenance mode and in the 3.3.0 order (backfill, normalize, fix sessions, recompute), not before.
+If you still have the 3.3.0 odometer repair to run, make this version's first start a maintenance-mode one (`MYGARAGE_MAINTENANCE_MODE=1`: it runs the migrations and takes no readings), run the repair then in the 3.3.0 order (backfill, normalize, fix sessions, recompute), and restart without the variable.
 
 Rerunning `tools/recompute_session_aggregates.py` changes the figures on a drive that starts exactly where the device's previous drive ended, since the reading they share now counts toward the earlier one only.
 
@@ -34,6 +34,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 ### Added
 - LiveLink offline alerts cover sensors with no status topic, such as a Mopeka gateway: a live reading marks the sensor online, and it alerts once when it goes quiet
 - LiveLink device responses carry `online`, and the device list's status reads it
+- `tools/repair_wican_odometer_unit.py` repairs a WiCAN odometer read in the wrong unit, either way (`--to km` or `--to mi`), and the 409 on a unit change names it
 
 ### Changed
 - The NHTSA recalls switch in Settings > Integrations is honoured. Off, the scheduled recall check skips, Check NHTSA on the Recalls tab is disabled with a line saying where to switch it on, and the API answers 409
@@ -43,7 +44,10 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - Every on/off setting is read the same way by the backend and the UI: true, 1, yes and on, in any case, are on, so they no longer disagree about a switch stored as "1" or "yes". A switch saved through the settings API or a settings restore as true/false, 1/0, yes/no or on/off is stored as "true" or "false"
 - Settings > Files shows the upload limits in force, read-only: the size cap and file types for photos, attachments and documents, the two environment variables that set the sizes, and the storage directories. Admins can read the same from `GET /api/settings/upload-limits`
 - The NHTSA, CarComplaints and window sticker switches are readable from `/api/settings/public`, so non-admins see the CarComplaints link on the Recalls tab, and the UI follows the switches for them too
-- WiCAN odometers follow upstream: `ODOMETER` is km and `ODOMETER_MI` is mi, and a unit the device declares in its HTTPS config wins. Existing devices keep their reading (migration 133)
+- WiCAN odometers follow upstream: `ODOMETER` is km and `ODOMETER_MI` is mi, and a unit the device declares in its HTTPS config wins. Existing devices keep their reading of every odometer key (migration 133)
+- `ODOMETER_MI` is read as miles and stored as km from every source, not just a WiCAN, so a topic mapped to it shows what was sent
+- An odometer's parameter is labelled km, the unit it's stored in, and one labelled miles by an earlier version is relabelled
+- An SD card odometer is stored like a live one: in whole km, and dropped past 1.6 million km or more than 16,000 km above the vehicle's records
 - LiveLink threshold alerts show the value and the line in your units. Alert lines are stored in metric, and a reading with no known quantity prints as stored
 - A sensor's offline alert says to check the device instead of the vehicle battery, and offline alerts name the vehicle by its nickname first
 - SD settings refuse an address, and the manual SD pull answers 422, for devices without an SD card, and device commands are refused for devices that don't take them
