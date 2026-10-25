@@ -474,25 +474,34 @@ class SessionService:
 
         session = await self._live_session(device)
 
-        # More than the gap after the open session's last movement, by sample
-        # time, is another drive: the same rule `_reopen_awaiting` applies to a
-        # closed one (R9). A session held open for its replay (B6-9) sees the
-        # whole upload, so without this a morning and an evening drive sent
-        # together became one eight-hour drive (wave B review I-1). Closed at
-        # its last movement, as the gap clock would have. Only a replay-built
-        # movement session: a live one is the gap clock's on the tick (one bad
-        # future frame mustn't split it), and a contact-mode one has no
-        # movement fields to measure from (FW-B-r2). And a live sample only
-        # when it's moving: a parked, awake car's frames land between replay
-        # batches, and one of them split the replay's drive (FW-B-r3). The
-        # pointer stays, as the gap clock's replay close keeps it, so a late
-        # batch within the gap reopens the drive through `_reopen_awaiting`.
+        # A session held open for its replay (B6-9) sees the whole upload, so
+        # the replay owns it. Only a replay-built movement session: a live one
+        # is the gap clock's on the tick (one bad future frame mustn't split
+        # it), and a contact-mode one has no movement fields to measure from
+        # (FW-B-r2).
         if (
             session is not None
             and session.boundary_algorithm_version >= BOUNDARY_ALGORITHM_MOVEMENT
-            and (not live or signals.is_above_floor)
             and await self._is_replay_built(device, session)
         ):
+            # A live frame that isn't moving has nothing to say about a replay's
+            # drive. A parked, awake car's frames land between replay batches:
+            # one split the drive (FW-B-r3), and one carrying the odometer, which
+            # is the car's reading NOW and past anything the replay has shown,
+            # beat the replay's baseline and read as movement, so the drive
+            # stretched to the present and turned live (FW-B-r4). Not even
+            # `_confirm_movement` gets to see it.
+            if live and not signals.is_above_floor:
+                return session
+
+            # More than the gap after the open session's last movement, by
+            # sample time, is another drive: the same rule `_reopen_awaiting`
+            # applies to a closed one (R9). Without this a morning and an
+            # evening drive sent together became one eight-hour drive (wave B
+            # review I-1). Closed at its last movement, as the gap clock would
+            # have. The pointer stays, as the gap clock's replay close keeps it,
+            # so a late batch within the gap reopens the drive through
+            # `_reopen_awaiting`.
             anchor = self._naive(session.movement_ended_at or session.started_at)
             if sample_at - anchor > window:
                 logger.info(
@@ -505,6 +514,11 @@ class SessionService:
                     anchor,
                 )
                 await self.end_session(device, anchor, retain_pointer=True)
+                # The baseline was that drive's, hours behind the car. Left on
+                # the device, the next live odometer beat it and one parked
+                # frame opened a drive at now (FW-B-r4). Same as the gap
+                # clock's replay close.
+                device.movement_baseline_km = None
                 session = None
 
         # Expire a stale evidence window BEFORE evaluating this batch. Without a
@@ -1709,6 +1723,11 @@ class SessionService:
 
             ended = await self.end_session(device, moved_at, retain_pointer=retain)
             if ended:
+                if replay_built:
+                    # The baseline is the replay's, hours behind the car, and a
+                    # live frame's odometer beat it: one parked frame opened a
+                    # drive at now (FW-B-r4). The ingest split clears it too.
+                    device.movement_baseline_km = None
                 closed_sessions.append(ended)
                 logger.info(
                     "Closed session %d for device %s on %s at %s (last contact %s)",
