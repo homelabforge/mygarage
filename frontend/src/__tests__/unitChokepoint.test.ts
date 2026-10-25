@@ -6,8 +6,10 @@
  * that labels everything else in the vehicle's. This list is the whole set of
  * files allowed to touch the raw sources; adding one is a design decision.
  *
- * LiveLink charts and threshold alerts print a parameter's raw device unit and
- * never convert at all; they are out of #172's scope and never match here.
+ * LiveLink readings go through `telemetryUnits.ts`, which takes its
+ * formatters from `useUnitFormat`, so they never match here either. Threshold
+ * alerts are rendered in the user's units by the backend; the one thing that
+ * prints raw is an odometer key the backend didn't normalise.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'

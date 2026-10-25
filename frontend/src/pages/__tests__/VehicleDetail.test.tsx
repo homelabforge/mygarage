@@ -201,7 +201,11 @@ const status = (device_id: string | null, capabilities: string[]): VehicleLiveLi
 })
 const noDevice = status(null, [])
 const linked = (capabilities: string[]) => status('dev01', capabilities)
-const WICAN_CAPS = ['telemetry', 'drive_session', 'location', 'dtc', 'odometer']
+// Every sub-tab's capability, which no single source declares today.
+const FULL_CAPS = ['telemetry', 'drive_session', 'location', 'dtc', 'odometer']
+// WiCAN's real set, from `WicanModule.capabilities` in wican.py. No
+// `location`: WiCAN has no GPS, so it has never produced a trip.
+const WICAN_CAPS = ['telemetry', 'drive_session', 'dtc', 'odometer', 'commands', 'sd_backfill', 'auto_discover']
 
 describe('VehicleDetail', () => {
   beforeEach(() => {
@@ -555,13 +559,25 @@ describe('VehicleDetail', () => {
   })
 
   it('shows every LiveLink sub-tab for a source that declares the full set', async () => {
-    mockedLivelinkService.getVehicleStatus.mockResolvedValue(linked(WICAN_CAPS))
+    mockedLivelinkService.getVehicleStatus.mockResolvedValue(linked(FULL_CAPS))
 
     renderVehicleDetail('/vehicles/TEST12345678901234?tab=live')
 
     expect(await screen.findByText('DTCs')).toBeInTheDocument()
     expect(screen.getByText('detail.misc.sessions')).toBeInTheDocument()
     expect(screen.getByText('detail.misc.trips')).toBeInTheDocument()
+  })
+
+  it('shows a WiCAN-only vehicle Sessions and DTCs, and no Trips', async () => {
+    // Regression guard: WiCAN never declared `location`, so the Trips tab was
+    // only ever an empty state for it. The old fixture claimed otherwise.
+    mockedLivelinkService.getVehicleStatus.mockResolvedValue(linked(WICAN_CAPS))
+
+    renderVehicleDetail('/vehicles/TEST12345678901234?tab=live')
+
+    expect(await screen.findByText('DTCs')).toBeInTheDocument()
+    expect(screen.getByText('detail.misc.sessions')).toBeInTheDocument()
+    expect(screen.queryByText('detail.misc.trips')).not.toBeInTheDocument()
   })
 
   it('does not render a capability-gated sub-tab reached by deep link', async () => {
