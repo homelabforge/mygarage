@@ -497,7 +497,8 @@ class LiveLinkService:
         so a cleared label said saved and stayed. A name is stored stripped.
 
         ``vin``: ``""`` unlinks, None leaves the link alone. Changing it ends
-        a drive in progress on the old vehicle (`_end_drive_for_relink`).
+        a drive in progress on the old vehicle and drops a warm-up
+        (`_end_drive_for_relink`).
 
         ``odometer_unit`` accepts 'km', 'mi', or 'auto' to clear the override
         back to key-shape inference. None leaves the current value untouched.
@@ -569,22 +570,28 @@ class LiveLinkService:
         return device
 
     async def _end_drive_for_relink(self, device: LiveLinkDevice) -> None:
-        """Let go of the session pointer before the device changes vehicle (R8).
+        """Let go of the old vehicle's drive state before the device moves (R8).
 
         An open session is ended at its last movement, or the last contact when
         it has none, the way the timeout clocks would have closed it. Left open,
         it never closed, and the device's next movement on the new vehicle
         reopened a drive belonging to the old one. A pointer held on a closed
         session (awaiting a reopen) is just dropped.
+
+        A warm-up in progress is dropped too, session or not: its baseline is
+        the old car's odometer, so the new car's first reading would be judged
+        against it. `pending_offline_at` stays. It's the ECU going quiet, a fact
+        about the device, and its finalizer still has to mark the device offline;
+        with the pointer gone it has no session to close.
         """
+        SessionService.clear_movement_state(device)
         if not device.current_session_id:
             return
         session = await self.db.get(DriveSession, device.current_session_id)
         if session is not None and session.ended_at is None:
             end_at = session.movement_ended_at or device.last_seen or utc_now()
             # Never before it started, or the duration goes negative.
-            if session.started_at is not None:
-                end_at = max(to_naive_utc(end_at), to_naive_utc(session.started_at))
+            end_at = max(to_naive_utc(end_at), to_naive_utc(session.started_at))
             await SessionService(self.db).end_session(device, end_at)
         device.current_session_id = None
 

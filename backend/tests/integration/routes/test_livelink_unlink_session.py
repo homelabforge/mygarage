@@ -7,12 +7,14 @@ never closed, and the device's next movement on the new vehicle extended it.
 
 import uuid
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 
 from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.vehicle import Vehicle
+from app.services.session_boundaries import PENDING_SOURCE_RPM
 from app.utils.datetime_utils import utc_now
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -56,6 +58,23 @@ async def _reload(db_session, device: LiveLinkDevice, session: DriveSession):
     return (
         await db_session.get(LiveLinkDevice, device_pk),
         await db_session.get(DriveSession, session_pk),
+    )
+
+
+def _warming_up(device: LiveLinkDevice) -> None:
+    """A warm-up in progress: the pending envelope, with the old car's odometer as baseline."""
+    device.pending_since = utc_now() - timedelta(seconds=40)
+    device.pending_source = PENDING_SOURCE_RPM
+    device.movement_candidate_at = utc_now() - timedelta(seconds=10)
+    device.movement_baseline_km = Decimal("48211.40")
+
+
+def _pending(device: LiveLinkDevice) -> tuple[bool, bool, bool, bool]:
+    return (
+        device.pending_since is not None,
+        device.pending_source is not None,
+        device.movement_candidate_at is not None,
+        device.movement_baseline_km is not None,
     )
 
 
@@ -131,9 +150,12 @@ async def test_unlinking_with_a_closed_pointer_just_clears_it(
 async def test_an_update_that_keeps_the_vehicle_leaves_the_drive_alone(
     client, auth_headers, db_session, test_user
 ):
-    """Regression guard: a rename, or resending the same VIN, isn't a relink."""
+    """Regression guard: a rename, or resending the same VIN, isn't a relink,
+    so the drive and a warm-up in progress both survive it."""
     vin = await _vehicle(db_session, test_user)
     device, session = await _driving(db_session, vin, movement_ended_at=utc_now())
+    _warming_up(device)
+    await db_session.commit()
 
     resp = await client.put(
         f"/api/livelink/devices/{device.device_id}",
@@ -145,3 +167,34 @@ async def test_an_update_that_keeps_the_vehicle_leaves_the_drive_alone(
     device, session = await _reload(db_session, device, session)
     assert device.current_session_id == session.id
     assert session.ended_at is None
+    assert _pending(device) == (True, True, True, True)
+
+
+async def test_relinking_mid_warm_up_drops_the_warm_up(client, auth_headers, db_session, test_user):
+    """No session yet, so nothing to end, but the warm-up's baseline is the old
+    car's odometer: kept, the new car's first reading was judged against it."""
+    old_vin = await _vehicle(db_session, test_user)
+    new_vin = await _vehicle(db_session, test_user)
+    device = LiveLinkDevice(
+        device_id=f"ul{uuid.uuid4().hex[:10]}",
+        vin=old_vin,
+        enabled=True,
+        kind="wican",
+        device_status="online",
+        last_seen=utc_now(),
+    )
+    _warming_up(device)
+    db_session.add(device)
+    await db_session.commit()
+    device_pk = device.id
+
+    resp = await client.put(
+        f"/api/livelink/devices/{device.device_id}", json={"vin": new_vin}, headers=auth_headers
+    )
+
+    assert resp.status_code == 200, resp.text
+    db_session.expire_all()
+    device = await db_session.get(LiveLinkDevice, device_pk)
+    assert device.vin == new_vin
+    assert device.current_session_id is None
+    assert _pending(device) == (False, False, False, False)

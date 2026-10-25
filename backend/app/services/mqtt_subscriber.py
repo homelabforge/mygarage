@@ -322,7 +322,7 @@ class MQTTSubscriber:
         import aiomqtt
 
         # Claim the guard BEFORE the first await. Checking here and setting it
-        # after `_get_config()` leaves a window in which two concurrent
+        # after `_load_config()` leaves a window in which two concurrent
         # requests both pass.
         if self._discovering:
             raise RuntimeError("A discovery run is already in progress")

@@ -655,6 +655,10 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.tire_service.TireService._to_response",
         "the primary axis's kind, one of two constants",
     ),
+    ("VehicleLiveLinkStatus", "device_status"): (
+        "app.routes.livelink_vehicle.get_vehicle_livelink_status",
+        "follows `online` (R7): a ternary of two constants, never the stored column",
+    ),
     **{
         ("UnitSet", quantity): (
             "app.utils.unit_resolution.resolve_units",

@@ -76,12 +76,23 @@ async def test_a_disabled_device_is_offline_whatever_it_last_said(
 
 async def test_the_list_counts_online_by_the_same_rule(client, auth_headers, db_session, made):
     """online_count counted raw `device_status`, so a list with one uploading
-    Torque phone said 0 online next to a phone the row now calls online."""
+    Torque phone said 0 online next to a phone the row now calls online.
+
+    Two steps, so a decoy can't cancel the phone out: the phone alone moves the
+    count by one, then devices that aren't online (a disabled WiCAN frozen at
+    'online', a Torque phone quiet for days) move it by nothing.
+    """
     before = await _list(client, auth_headers)
     device_id = await _device(
         db_session, made, kind="torque", device_status="unknown", last_seen=utc_now()
     )
-    # Neither of these is online, so neither may move the count.
+
+    with_phone = await _list(client, auth_headers)
+
+    row = next(d for d in with_phone["devices"] if d["device_id"] == device_id)
+    assert row["online"] is True
+    assert with_phone["online_count"] - before["online_count"] == 1
+
     await _device(
         db_session, made, kind="wican", device_status="online", last_seen=utc_now(), enabled=False
     )
@@ -93,12 +104,10 @@ async def test_the_list_counts_online_by_the_same_rule(client, auth_headers, db_
         last_seen=utc_now() - timedelta(days=2),
     )
 
-    after = await _list(client, auth_headers)
+    with_decoys = await _list(client, auth_headers)
 
-    row = next(d for d in after["devices"] if d["device_id"] == device_id)
-    assert row["online"] is True
-    assert after["online_count"] - before["online_count"] == 1
-    assert after["online_count"] == sum(d["online"] for d in after["devices"])
+    assert with_decoys["online_count"] == with_phone["online_count"]
+    assert with_decoys["online_count"] == sum(d["online"] for d in with_decoys["devices"])
 
 
 async def test_an_update_answers_online(client, auth_headers, db_session, made):
@@ -112,22 +121,30 @@ async def test_an_update_answers_online(client, auth_headers, db_session, made):
     assert resp.json()["online"] is True
 
 
+#: A brand new device is never online, which is also the schema default, so a
+#: route returning the bare ORM row would pass. Forcing the rule's answer to
+#: True tells "computed" from "defaulted".
+_ALWAYS_ONLINE = "app.routes.livelink_admin.device_is_online"
+
+
 async def test_a_created_device_answers_online(client, auth_headers, made):
-    """Never seen, so not online; but the field is answered, not left to a default."""
     device_id = f"on{uuid.uuid4().hex[:10]}"
     made.append(device_id)
 
-    resp = await client.post(
-        DEVICES, json={"device_id": device_id, "kind": "generic_mqtt"}, headers=auth_headers
-    )
+    with patch(_ALWAYS_ONLINE, return_value=True):
+        resp = await client.post(
+            DEVICES, json={"device_id": device_id, "kind": "generic_mqtt"}, headers=auth_headers
+        )
 
     assert resp.status_code == 201, resp.text
-    assert resp.json()["online"] is False
-    assert resp.json()["movement_unreadable"] is False
+    assert resp.json()["online"] is True
 
 
 async def test_an_applied_preset_answers_online(client, auth_headers, db_session, made):
-    with patch("app.routes.livelink_admin.mqtt_subscriber.reload", new=AsyncMock()):
+    with (
+        patch("app.routes.livelink_admin.mqtt_subscriber.reload", new=AsyncMock()),
+        patch(_ALWAYS_ONLINE, return_value=True),
+    ):
         resp = await client.post(
             "/api/livelink/presets/mopeka/apply",
             json={"label": "Online test tank", "topics": {"LEVEL_PCT": "test/online/level"}},
@@ -138,7 +155,7 @@ async def test_an_applied_preset_answers_online(client, auth_headers, db_session
     device_id = resp.json()["device_id"]
     made.append(device_id)
     try:
-        assert resp.json()["online"] is False
+        assert resp.json()["online"] is True
     finally:
         # Its parameters hold the sensor index; the preset tests read the next
         # free one, so leave none behind.

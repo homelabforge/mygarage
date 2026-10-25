@@ -19308,7 +19308,7 @@ export interface components {
             device_id?: string | null;
             /**
              * Device Status
-             * @description Device: online/offline
+             * @description 'online' when `online` is true, else 'offline'
              * @default offline
              * @enum {string}
              */
@@ -19322,7 +19322,7 @@ export interface components {
             ecu_status: "online" | "offline" | "unknown";
             /**
              * Kind
-             * @description Source kind of the reporting device
+             * @description Source kind of the device this status describes: the most recently seen one that drives sessions, else the most recently seen of any kind. device_id, ecu_status, rssi, battery_voltage and the session fields come from the same device.
              */
             kind?: string | null;
             /**
@@ -19337,7 +19337,7 @@ export interface components {
             latest_values?: components["schemas"]["TelemetryLatestValue"][];
             /**
              * Online
-             * @description Whether the reporting device is reporting now, by the integrations card's rule: a device whose device_status is 'online' counts as online until the offline sweep flips it, one that never reports a status (Torque) keeps 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online. Read this, not device_status.
+             * @description Whether any device linked to this vehicle is reporting now, each by the integrations card's rule: a device whose device_status is 'online' counts as online until the offline sweep flips it, one that never reports a status (Torque) keeps 'unknown' and counts as online while it has reported within the offline timeout, and a disabled device is never online.
              * @default false
              */
             online: boolean;

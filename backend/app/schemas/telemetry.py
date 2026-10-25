@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.livelink import LenientDeviceStatus, LenientECUStatus
+from app.schemas.livelink import DeviceStatusType, LenientECUStatus
 
 # =============================================================================
 # Latest Value Schemas (for live dashboard)
@@ -82,7 +82,15 @@ class VehicleLiveLinkStatus(BaseModel):
 
     vin: str
     device_id: str | None = Field(None, description="Linked device ID")
-    kind: str | None = Field(None, description="Source kind of the reporting device")
+    kind: str | None = Field(
+        None,
+        description=(
+            "Source kind of the device this status describes: the most recently "
+            "seen one that drives sessions, else the most recently seen of any "
+            "kind. device_id, ecu_status, rssi, battery_voltage and the session "
+            "fields come from the same device."
+        ),
+    )
     capabilities: list[str] = Field(
         default_factory=list,
         description=(
@@ -91,16 +99,20 @@ class VehicleLiveLinkStatus(BaseModel):
             "alone and must not be offered DTCs, sessions or trips."
         ),
     )
-    device_status: LenientDeviceStatus = Field("offline", description="Device: online/offline")
+    #: Strict on purpose: it's computed from `online`, never read from the
+    #: stored column, so nothing outside the vocabulary can reach it.
+    device_status: DeviceStatusType = Field(
+        "offline", description="'online' when `online` is true, else 'offline'"
+    )
     online: bool = Field(
         False,
         description=(
-            "Whether the reporting device is reporting now, by the integrations "
-            "card's rule: a device whose device_status is 'online' counts as "
-            "online until the offline sweep flips it, one that never reports a "
-            "status (Torque) keeps 'unknown' and counts as online while it has "
-            "reported within the offline timeout, and a disabled device is never "
-            "online. Read this, not device_status."
+            "Whether any device linked to this vehicle is reporting now, each by "
+            "the integrations card's rule: a device whose device_status is "
+            "'online' counts as online until the offline sweep flips it, one that "
+            "never reports a status (Torque) keeps 'unknown' and counts as online "
+            "while it has reported within the offline timeout, and a disabled "
+            "device is never online."
         ),
     )
     ecu_status: LenientECUStatus = Field("unknown", description="ECU: online/offline/unknown")

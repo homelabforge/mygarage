@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from tests.integration._secret_helpers import seed_rows
+from app.services.settings_service import reenter_message
+from tests.integration._secret_helpers import seed_rows, unreadable_ciphertext
 
 URL = "/api/livelink/topic-discovery"
 
@@ -124,6 +125,28 @@ async def test_discovery_with_no_broker_host_is_409_saying_so(
 
     assert resp.status_code == 409, resp.text
     assert "broker host" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_discovery_with_an_unreadable_password_is_409_saying_so(
+    client, auth_headers, db_session, keep_rows, subscriber_db
+):
+    """Optional credential, so None would mean "connect anonymously". It stops
+    with the re-enter advice instead, and never opens a connection.
+
+    Regression guard for T9's B-4 change (green on 9e7b0e8e, red before it)."""
+    await seed_rows(
+        db_session,
+        keep_rows,
+        {**_MQTT, "livelink_mqtt_password": unreadable_ciphertext("livelink_mqtt_password")},
+    )
+
+    with patch("aiomqtt.Client") as mqtt_client:
+        resp = await client.post(URL, json={"prefix": "a/#", "seconds": 1}, headers=auth_headers)
+
+    assert resp.status_code == 409, resp.text
+    assert reenter_message("MQTT password") in resp.json()["detail"]
+    mqtt_client.assert_not_called()
 
 
 @pytest.mark.asyncio

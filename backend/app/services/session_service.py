@@ -392,7 +392,7 @@ class SessionService:
         return value.replace(tzinfo=None) if value.tzinfo is not None else value
 
     @staticmethod
-    def _clear_movement_state(device: LiveLinkDevice) -> None:
+    def clear_movement_state(device: LiveLinkDevice) -> None:
         """Reset all four pending fields together.
 
         They are one envelope, not four independent flags: `pending_since` says
@@ -462,7 +462,7 @@ class SessionService:
             if device.pending_since is not None and (
                 sample_at - self._naive(device.pending_since) > window
             ):
-                self._clear_movement_state(device)
+                self.clear_movement_state(device)
             elif device.movement_candidate_at is not None and (
                 sample_at - self._naive(device.movement_candidate_at) > window
             ):
@@ -915,7 +915,7 @@ class SessionService:
             )
             closed = await self.end_session(device, min(end_at, now))
         device.pending_offline_at = None
-        self._clear_movement_state(device)
+        self.clear_movement_state(device)
         return closed
 
     async def expire_stale_movement_state(
@@ -958,7 +958,7 @@ class SessionService:
             .all()
         )
         for device in stale_pending:
-            self._clear_movement_state(device)
+            self.clear_movement_state(device)
             changed += 1
 
         awaiting = (
