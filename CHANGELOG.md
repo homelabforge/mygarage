@@ -37,6 +37,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - `tools/repair_wican_odometer_unit.py` repairs a WiCAN odometer read in the wrong unit, either way (`--to km` or `--to mi`), and the 409 on a unit change names it
 
 ### Changed
+- An engine-off stop shorter than the drive gap no longer splits a drive
 - The NHTSA recalls switch in Settings > Integrations is honoured. Off, the scheduled recall check skips, Check NHTSA on the Recalls tab is disabled with a line saying where to switch it on, and the API answers 409
 - The Recall Check Interval is honoured. The scheduled check runs daily at 2 AM UTC and checks your vehicles once the interval has passed since the last check. If NHTSA fails to answer for any vehicle (no connection, an error status, or a response that can't be read), the last check time stays put and the next day's run tries again
 - The window sticker upload switch in Settings > Files is honoured. Off, uploading or replacing a sticker and the OCR test answer 409, and the vehicle's edit drawer hides upload and replace. The sticker already saved can still be viewed and downloaded
@@ -71,7 +72,8 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - An SD-card drive that overlaps an open drive is kept, and no closed drive is written inside an open one
 - A drive that starts where the previous one ended no longer counts their shared reading twice
 - A drive starts from the newest odometer reading
-- A held drive is no longer ended again at the current time when the ECU goes offline
+- A drive waiting to be reopened is no longer ended again at the current time when the ECU goes offline
+- A drive a WiCAN uploads from its buffer is recorded as a drive of its own, from its readings, instead of joining or holding open the drive in progress
 - A threshold alert no notification service accepts retries once per cooldown instead of on every reading, so a notification outage no longer stalls MQTT ingest
 - A `nan` or `inf` MQTT reading is dropped instead of failing every publish (SQLite) or being stored (PostgreSQL)
 - A WiCAN frame with no usable value or only codes no longer marks the ECU online
