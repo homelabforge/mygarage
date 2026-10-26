@@ -14,6 +14,7 @@ from sqlalchemy import and_, delete, exists, func, or_, select
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.database import is_sqlite
 from app.services.livelink_sources.base import Reading, StoragePolicy
@@ -212,6 +213,13 @@ async def _refresh_session_now(db: AsyncSession, session_id: int) -> None:
     if session is None or session.ended_at is None:
         return  # merged away, or reopened: nothing to recompute
     await SessionService(db).refresh_aggregates(session)
+    try:
+        await db.flush()
+    except StaleDataError:
+        # A merge deleted the row while this was recomputing it. Nothing to
+        # write, and not an error worth a traceback (M5).
+        await db.rollback()
+        logger.debug("Session %d went away mid-refresh; skipped", session_id)
 
 
 class TelemetryService:

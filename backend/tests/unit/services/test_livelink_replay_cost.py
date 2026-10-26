@@ -19,8 +19,8 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import event, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, event, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from app.models.drive_session import DriveSession
 from app.models.vehicle_telemetry import VehicleTelemetry
@@ -28,7 +28,7 @@ from app.services import post_commit
 from app.services import telemetry_service as telemetry_module
 from app.services.session_boundaries import BOUNDARY_ALGORITHM_MOVEMENT
 from app.services.session_service import SessionService
-from app.services.telemetry_service import TelemetryService
+from app.services.telemetry_service import TelemetryService, queue_session_refresh
 from app.utils.datetime_utils import utc_now
 
 pytestmark = pytest.mark.asyncio
@@ -274,6 +274,47 @@ async def test_a_rolled_back_refresh_leaves_nothing_behind(
 
     await db_session.refresh(session)
     assert session.max_speed == 90.0
+
+
+async def test_a_refresh_whose_session_was_merged_away_logs_no_error(
+    db_session: AsyncSession,
+    make_closed_drive_session,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """M5: a merge can delete a builder row while its queued refresh is mid-way
+    through recomputing it. Nothing's lost, so it isn't an ERROR. Red on
+    3c744c37 (the job's commit raised `StaleDataError` and logged a traceback)."""
+    now = _now()
+    _vin, _device_id, session = await make_closed_drive_session(
+        "t4cost",
+        "6",
+        started_at=now - timedelta(minutes=10),
+        ended_at=now - timedelta(minutes=5),
+        duration_seconds=300,
+    )
+    await db_session.commit()
+    session_id = session.id
+    original_refresh = SessionService.refresh_aggregates
+
+    async def refresh_then_lose_the_row(
+        self: SessionService, target: DriveSession, **kwargs: Any
+    ) -> None:
+        await original_refresh(self, target, **kwargs)
+        target.max_speed = 123.0  # something to write
+        bind = self.db.bind
+        assert isinstance(bind, AsyncEngine)
+        async with AsyncSession(bind) as merge:
+            await merge.execute(delete(DriveSession).where(DriveSession.id == target.id))
+            await merge.commit()
+
+    monkeypatch.setattr(SessionService, "refresh_aggregates", refresh_then_lose_the_row)
+    with caplog.at_level(logging.ERROR, logger="app.services.post_commit"):
+        queue_session_refresh(db_session, session_id)
+        await db_session.commit()
+        await post_commit.drain()
+
+    assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == []
 
 
 async def test_a_shutdown_mid_debounce_still_refreshes_once(
