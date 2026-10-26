@@ -206,15 +206,24 @@ def group_drives(
     #: Movement timestamps, and which of them were proven by the odometer.
     movement: list[datetime] = []
     odometer_proven: set[datetime] = set()
+    #: Stamps that report a speed under the floor with the odometer up. A
+    #: stopped car proves nothing and never counts toward the debounce, but it
+    #: may extend a drive that's already proven, as live's open branch does
+    #: (1h, ruling B6-12-E5).
+    extending: set[datetime] = set()
     highest_odometer: float | None = None
 
     for at in stamps:
         signals = extract_signals(by_time[at])
+        reports_stopped = signals.speed_kmh is not None and not signals.is_above_floor
         moved = signals.is_above_floor
         if signals.odometer_km is not None:
             if highest_odometer is not None and signals.odometer_km > highest_odometer:
-                moved = True
-                odometer_proven.add(at)
+                if reports_stopped:
+                    extending.add(at)
+                else:
+                    moved = True
+                    odometer_proven.add(at)
             # Track the highest seen, not the latest: SD rows can arrive out of
             # order, and a lower reading is a replay artefact rather than a
             # vehicle driving backwards.
@@ -223,22 +232,36 @@ def group_drives(
                 if highest_odometer is None
                 else max(highest_odometer, signals.odometer_km)
             )
-        if moved:
+        if moved or at in extending:
             movement.append(at)
 
     if not movement:
         return []
 
-    groups: list[list[datetime]] = [[movement[0]]]
-    for at in movement[1:]:
-        if at - groups[-1][-1] <= window:
+    # A group is established by two proving stamps or one odometer-proven one.
+    # An extending stamp joins an established group (and the gap is then
+    # measured from it, as live measures from an extended movement end); it
+    # never starts one and never bridges for one that isn't.
+    groups: list[list[datetime]] = []
+    proving: list[int] = []
+    by_odometer: list[bool] = []
+    for at in movement:
+        extends = at in extending
+        if groups and at - groups[-1][-1] <= window:
+            if extends and not (proving[-1] >= 2 or by_odometer[-1]):
+                continue
             groups[-1].append(at)
-        else:
+            if not extends:
+                proving[-1] += 1
+                by_odometer[-1] = by_odometer[-1] or at in odometer_proven
+        elif not extends:
             groups.append([at])
+            proving.append(1)
+            by_odometer.append(at in odometer_proven)
 
     drives: list[DriveWindow] = []
-    for group in groups:
-        if len(group) < 2 and not any(at in odometer_proven for at in group):
+    for group, count, proven in zip(groups, proving, by_odometer, strict=True):
+        if count < 2 and not proven:
             continue
 
         first_movement = group[0]

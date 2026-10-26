@@ -1137,3 +1137,70 @@ class TestTouchingSessionsShareNoSample:
         assert second.harsh_brake_count == 0, (
             "40 to 0 in two seconds straddles the boundary; drive 2 started parked"
         )
+
+
+class TestAStoppedFrameNeverProvesADrive:
+    """B6-12 (ruling B6-12-E5): a stamp that reports a speed under the floor is a
+    stopped car. Its odometer rise never proves a drive and never counts toward
+    the two-stamp debounce, on this path as on the live one. Once a drive is
+    established it may extend it, the way live's open branch extends on
+    `{SPEED 0, odometer rise}`.
+    """
+
+    T = datetime(2026, 9, 1, 10, 0, 0)
+
+    def test_a_creep_under_the_floor_is_not_a_drive(self):
+        """A driveway shuffle at 2 and 3 km/h with the odometer ticking. Red on
+        177e04d9 (two odometer-proven stamps made a drive)."""
+        t = self.T
+        samples = [
+            (t, "SPEED", 2.0),
+            (t, "ODOMETER", 1000.1),
+            (t + timedelta(seconds=30), "SPEED", 3.0),
+            (t + timedelta(seconds=30), "ODOMETER", 1000.3),
+        ]
+        assert group_drives(samples, 15) == []
+
+    def test_a_stopped_frame_does_not_count_toward_the_debounce(self):
+        """One moving stamp and one stopped stamp with the odometer up is one
+        proving stamp, not two. Red on 177e04d9."""
+        t = self.T
+        samples = [
+            (t, "SPEED", 40.0),
+            (t, "ODOMETER", 1000.0),
+            (t + timedelta(seconds=30), "SPEED", 0.0),
+            (t + timedelta(seconds=30), "ODOMETER", 1000.3),
+        ]
+        assert group_drives(samples, 15) == []
+
+    def test_a_stopped_frame_with_the_odometer_up_extends_an_established_drive(self):
+        """Regression guard: the extension half, which matches live's open branch.
+        Kills dropping stopped stamps altogether."""
+        t = self.T
+        samples = [
+            (t, "SPEED", 40.0),
+            (t, "ODOMETER", 1000.0),
+            (t + timedelta(seconds=30), "SPEED", 45.0),
+            (t + timedelta(seconds=30), "ODOMETER", 1000.2),
+            (t + timedelta(seconds=60), "SPEED", 0.0),
+            (t + timedelta(seconds=60), "ODOMETER", 1000.5),
+        ]
+        [drive] = group_drives(samples, 15)
+        assert (drive.started_at, drive.movement_ended_at) == (t, t + timedelta(seconds=60))
+
+    def test_a_later_moving_stamp_within_the_gap_of_an_extension_joins_the_drive(self):
+        """Regression guard: the gap is measured from the extension, as live
+        measures from an extended `movement_ended_at`. Kills measuring from the
+        last proving stamp."""
+        t = self.T
+        samples = [
+            (t, "SPEED", 40.0),
+            (t, "ODOMETER", 1000.0),
+            (t + timedelta(seconds=30), "SPEED", 45.0),
+            (t + timedelta(seconds=30), "ODOMETER", 1000.2),
+            (t + timedelta(minutes=10), "SPEED", 0.0),
+            (t + timedelta(minutes=10), "ODOMETER", 1003.0),
+            (t + timedelta(minutes=20), "SPEED", 50.0),
+        ]
+        [drive] = group_drives(samples, 15)
+        assert (drive.started_at, drive.movement_ended_at) == (t, t + timedelta(minutes=20))
