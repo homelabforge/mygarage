@@ -1893,6 +1893,114 @@ async def test_a_fast_clock_frame_does_not_extend_a_closed_drive_into_the_future
     ]
 
 
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_the_drained_head_of_a_live_drive_backdates_it_with_a_clock_a_minute_fast(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """NB-1, the re-review's probe: the same head-drain as D-3's head variant, from
+    a device whose clock runs a minute fast. Its live rows are a minute ahead of
+    the server, so the drive the builder cuts ends a minute in the future. That's
+    a clock the router still calls live, and the head still backdates the open
+    drive. Red on f2fe0f85 (the future drive was skipped, head in no session)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4fst1")
+    device_id = device.device_id
+    skew = timedelta(seconds=60)
+    now = _now()
+    await _post(client, token, now - timedelta(seconds=10) + skew, SPEED=40.0)
+    await _post(client, token, now + skew, SPEED=45.0)
+    [c] = await _sessions(db_session, device_id)
+    c_id = c.id
+
+    head = [now - timedelta(minutes=10 - i) + skew for i in range(4)]
+    for at in head:
+        await _post(client, token, at, SPEED=50.0)
+
+    assert [(s.id, s.started_at, s.ended_at) for s in await _sessions(db_session, device_id)] == [
+        (c_id, head[0], None)
+    ]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_drained_head_backdates_a_live_drive_whose_end_is_far_ahead(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """NB-1, where the skip sits: one future-dated frame in an open live drive puts
+    the drive the builder cuts six minutes ahead, past the live slack. The open
+    drive's end is never the builder's to write, only its start, so the head
+    still backdates it. Red on f2fe0f85 (skipped before the open match)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4fst2")
+    device_id = device.device_id
+    now = _now()
+    await _post(client, token, now - timedelta(seconds=10), SPEED=40.0)
+    await _post(client, token, now, SPEED=45.0)
+    [c] = await _sessions(db_session, device_id)
+    c_id = c.id
+    await _post(client, token, now + timedelta(minutes=6), SPEED=50.0)
+
+    await _post(client, token, now - timedelta(minutes=8), SPEED=50.0)
+
+    assert [(s.id, s.started_at, s.ended_at) for s in await _sessions(db_session, device_id)] == [
+        (c_id, now - timedelta(minutes=8), None)
+    ]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_drained_drive_meeting_a_live_frame_a_minute_fast_is_built(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """NB-1, the slack: one live moving frame from a clock a minute fast (a
+    candidate, no drive yet), then the drive before it drains. The builder's
+    drive runs to that frame, a minute past now, which is inside the slack the
+    router gives a live sample, so it's built. Red on f2fe0f85 (skipped)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4fst3")
+    device_id = device.device_id
+    now = _now()
+    ahead = now + timedelta(seconds=60)
+    await _post(client, token, ahead, SPEED=50.0)
+    for i in range(3):
+        await _post(
+            client, token, now - timedelta(minutes=10) + timedelta(seconds=30 * i), SPEED=50.0
+        )
+
+    assert _spans(await _sessions(db_session, device_id)) == [(now - timedelta(minutes=10), ahead)]
+    assert (await _device(db_session, device_id)).current_session_id is None
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_clock_in_the_future_is_warned_once_per_device(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """NB-2: readings stamped past the live slack are dropped from drive history,
+    so the device gets one WARNING per process, not one per frame. A second
+    device gets its own, and a clock a minute fast gets none. Red on f2fe0f85."""
+    from app.services import telemetry_service as telemetry_module
+
+    monkeypatch.setattr(telemetry_module, "_FUTURE_CLOCK_WARNED", set(), raising=False)
+    await _pin_session_settings(db_session, keep_rows)
+    _vin_a, device_a, token_a = await _linked(db_session, make_livelink_vehicle, "t4fwa")
+    _vin_b, device_b, token_b = await _linked(db_session, make_livelink_vehicle, "t4fwb")
+    _vin_c, device_c, token_c = await _linked(db_session, make_livelink_vehicle, "t4fwc")
+    ids = {"a": device_a.device_id, "b": device_b.device_id, "c": device_c.device_id}
+    now = _now()
+
+    with caplog.at_level(logging.WARNING, logger="app.services.telemetry_service"):
+        await _post(client, token_a, now + timedelta(minutes=17), SPEED=50.0)
+        await _post(client, token_a, now + timedelta(minutes=17, seconds=30), SPEED=55.0)
+        await _post(client, token_b, now + timedelta(minutes=20), SPEED=50.0)
+        await _post(client, token_c, now + timedelta(seconds=60), SPEED=50.0)
+
+    future = [r.getMessage() for r in caplog.records if "in the future" in r.getMessage()]
+    assert [sum(ids[k] in m for m in future) for k in ("a", "b", "c")] == [1, 1, 0]
+
+
 # --- B6-12: a replay never confirms against live evidence (concern 1) -------------
 
 

@@ -83,6 +83,10 @@ class MaintenanceModeError(RuntimeError):
 #: closed sessions by sample time, and it never opens or holds the pointer.
 LIVE_SAMPLE_TOLERANCE_SECONDS = 300
 
+#: Devices already warned about a clock in the future, this process. A restart
+#: warning again is a feature, same as `session_service._NO_MOVEMENT_WARNED`.
+_FUTURE_CLOCK_WARNED: set[str] = set()
+
 
 #: How far ahead of now a stored latest timestamp can be before it's a bad
 #: clock to heal rather than a dongle a little fast (T4-e).
@@ -851,6 +855,17 @@ class TelemetryService:
         sample = sample_at.replace(tzinfo=None) if sample_at.tzinfo else sample_at
         arrival = received_at.replace(tzinfo=None) if received_at.tzinfo else received_at
         live = abs((arrival - sample).total_seconds()) <= LIVE_SAMPLE_TOLERANCE_SECONDS
+        ahead = (sample - arrival).total_seconds()
+        if ahead > LIVE_SAMPLE_TOLERANCE_SECONDS and device.device_id not in _FUTURE_CLOCK_WARNED:
+            # Once per device per process: every frame from that clock is in
+            # the future, and the builder quietly drops what ends there (NB-2).
+            _FUTURE_CLOCK_WARNED.add(device.device_id)
+            logger.warning(
+                "Device %s is stamping readings %d s in the future; its drives won't be "
+                "recorded until the clock is fixed",
+                sanitize_for_log(device.device_id),
+                int(ahead),
+            )
 
         await SessionService(self.db).observe_telemetry(device, samples, sample, live=live)
 

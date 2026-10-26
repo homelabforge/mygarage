@@ -1506,18 +1506,16 @@ class SessionService:
         if not drives:
             return 0
 
-        now = self._naive(utc_now())
+        from app.services.telemetry_service import (  # local: avoids a cycle
+            LIVE_SAMPLE_TOLERANCE_SECONDS,
+        )
+
+        # A closed drive ending past this would turn every live drive away
+        # until then (M4). The same slack the router gives a live sample, so a
+        # clock a minute fast still builds (NB-1).
+        horizon = self._naive(utc_now()) + timedelta(seconds=LIVE_SAMPLE_TOLERANCE_SECONDS)
         changed = 0
         for index, drive in enumerate(drives):
-            if drive.movement_ended_at > now:
-                # Rows from a clock that's fast. A closed drive ending in the
-                # future would turn every live drive away until then (M4).
-                logger.info(
-                    "Not building a drive for device %s that ends in the future, at %s",
-                    sanitize_for_log(device_id),
-                    sanitize_for_log(drive.movement_ended_at),
-                )
-                continue
             # Inclusive at both bounds by default: a session matches this drive
             # when each one's start is at or before the other's end, and an
             # open session has no end yet, so it reaches past any drive. A
@@ -1592,6 +1590,19 @@ class SessionService:
                     drive.movement_ended_at,
                     sanitize_for_log(device_id),
                     len(overlapping),
+                )
+                continue
+
+            if drive.movement_ended_at > horizon and not (
+                overlapping and overlapping[0].ended_at is None
+            ):
+                # Only where a closed session would be made or stretched. An
+                # open match only gets its start moved, and that's the drained
+                # head of a live drive, which a fast clock mustn't cost us.
+                logger.debug(
+                    "Not building a drive for device %s that ends in the future, at %s",
+                    sanitize_for_log(device_id),
+                    sanitize_for_log(drive.movement_ended_at),
                 )
                 continue
 
