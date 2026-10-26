@@ -2001,6 +2001,46 @@ async def test_a_clock_in_the_future_is_warned_once_per_device(
     assert [sum(ids[k] in m for m in future) for k in ("a", "b", "c")] == [1, 1, 0]
 
 
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_declared_odometer_key_past_the_cap_is_not_stored_or_observed(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OOS-2: a device that names its own odometer key gets that key sanitized like
+    any pattern-named one. A reading past the 1.6M km cap is neither stored nor
+    handed to the session observer. Red on f2fe0f85 (stored raw, and observed)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token = await _linked(
+        db_session,
+        make_livelink_vehicle,
+        "t4decl",
+        odometer_param_key="VEH_KM_TOTAL",
+        odometer_unit="km",
+    )
+    device_id = device.device_id
+    observed: list[set[str]] = []
+    original = TelemetryService._observe_movement  # noqa: SLF001 - the hand-off under test
+
+    async def spy(self: TelemetryService, vin, dev, samples, *args: Any, **kwargs: Any) -> None:
+        observed.append(set(samples))
+        await original(self, vin, dev, samples, *args, **kwargs)
+
+    monkeypatch.setattr(TelemetryService, "_observe_movement", spy)
+    await _post(client, token, _now(), VEH_KM_TOTAL=1_700_000.0, SPEED=0.0)
+
+    rows = await db_session.execute(
+        select(VehicleTelemetry.value).where(
+            VehicleTelemetry.device_id == device_id,
+            VehicleTelemetry.param_key == "VEH_KM_TOTAL",
+        )
+    )
+    assert rows.scalars().all() == []
+    assert observed == [{"SPEED"}]
+
+
 # --- B6-12: a replay never confirms against live evidence (concern 1) -------------
 
 

@@ -753,7 +753,11 @@ class TelemetryService:
                 parameters[param_key] = param
 
             # Check if this is an odometer parameter and apply sanity checks
-            is_odometer = self._is_odometer_param(param_key)
+            # The declared key too: a custom odometer no pattern names gets the
+            # same rounding and screening as the rest (OOS-2).
+            is_odometer = self._is_odometer_param(param_key) or self._is_odometer_param(
+                param_key, declared_key
+            )
             if is_odometer:
                 sanitized_value = await self._sanitize_odometer_value(vin, float(value))
                 if sanitized_value is None:
