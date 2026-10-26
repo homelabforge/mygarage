@@ -26,6 +26,7 @@ from app.models.livelink_parameter import LiveLinkParameter
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
+from app.services import post_commit
 from app.services.session_service import SessionService
 from app.services.telemetry_service import TelemetryService
 from app.utils.datetime_utils import utc_now
@@ -83,7 +84,9 @@ class TestLateTelemetrySessionRefresh:
             config={},
             timestamp=inside,
         )
-        await db_session.flush()
+        # The refresh runs behind the commit, debounced (B6-12, D-7).
+        await db_session.commit()
+        await post_commit.drain()
         await db_session.refresh(session)
 
         assert session.max_speed == 85.0, "late reading never reached the closed session"
@@ -107,7 +110,9 @@ class TestLateTelemetrySessionRefresh:
             config={},
             timestamp=after,
         )
-        await db_session.flush()
+        # The refresh runs behind the commit, debounced (B6-12, D-7).
+        await db_session.commit()
+        await post_commit.drain()
         await db_session.refresh(session)
 
         # 20.0 means untouched. A wrongly-matched session would recompute from
@@ -130,7 +135,9 @@ class TestLateTelemetrySessionRefresh:
             config={},
             timestamp=inside_a,
         )
-        await db_session.flush()
+        # The refresh runs behind the commit, debounced (B6-12, D-7).
+        await db_session.commit()
+        await post_commit.drain()
         await db_session.refresh(session_a)
 
         # 20.0 means untouched; a VIN-blind match would recompute A from its own
@@ -344,7 +351,8 @@ class TestLateTelemetrySessionRefreshWithoutAutoflush:
                 config={},
                 timestamp=inside,
             )
-            await db.flush()
+            await db.commit()
+            await post_commit.drain()
             await db.refresh(session)
 
             assert session.max_speed == 85.0, "late reading never reached the closed session"
@@ -359,9 +367,9 @@ class TestLateTelemetrySessionRefreshWithoutAutoflush:
         interval makes `_should_store_historical` skip the second insert
         outright and would hide the duplicate-key case this test is for.
 
-        The second replay confirms movement (two above-floor samples at the
-        same timestamp) and opens a new DriveSession, so this cleans up
-        everything it created in a `finally` -- see `_cleanup_no_autoflush`.
+        Everything it created is cleaned up in a `finally` (see
+        `_cleanup_no_autoflush`), and the refresh is drained before that, so
+        it can't land on a row the cleanup already deleted.
         """
         vin: str | None = None
         parameter_created = False
@@ -419,6 +427,7 @@ class TestLateTelemetrySessionRefreshWithoutAutoflush:
                 )
                 assert len(rows) == 1, "the duplicate replay must not create a second row"
 
+                await post_commit.drain()
                 await db.refresh(session)
                 assert session.max_speed == 85.0, "the closed session must still see the reading"
         finally:
@@ -437,7 +446,7 @@ class TestLateTelemetrySessionRefreshWithoutAutoflush:
         sets `ended_at` as a plain ORM attribute, no flush, and then
         `store_telemetry` runs in the same unit of work with readings
         timestamped inside that session's window. Without the flush in
-        `_refresh_closed_session`, `_refresh_sessions_in_span`'s
+        `_refresh_closed_session`, `_closed_sessions_in_span`'s
         `ended_at IS NOT NULL` selection cannot see the close this same call
         just made, so the payload's own readings are excluded from the very
         session it just closed.
@@ -466,6 +475,7 @@ class TestLateTelemetrySessionRefreshWithoutAutoflush:
                     timestamp=started_at + timedelta(minutes=9),
                 )
                 await db.commit()
+            await post_commit.drain()
 
             async with no_autoflush_sessionmaker() as db:
                 row = (

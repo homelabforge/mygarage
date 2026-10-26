@@ -1,7 +1,9 @@
 """Telemetry service for LiveLink data ingestion and storage."""
 
+import asyncio
 import logging
 import math
+import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
@@ -146,6 +148,70 @@ def normalises_odometer(policy: StoragePolicy, device: LiveLinkDevice | None) ->
     if _delegates_to_store_telemetry(policy):
         return True
     return device is not None and bool(device.odometer_param_key)
+
+
+#: A closed session a replay keeps landing in isn't recomputed per frame. The
+#: refresh runs behind the commit, this long after the last frame that asked
+#: for it, and no later than this long after the first (B6-12, D-7). The test
+#: suite sets both to 0.
+SESSION_REFRESH_DEBOUNCE_SECONDS = 2.0
+SESSION_REFRESH_MAX_DELAY_SECONDS = 30.0
+
+
+@dataclass
+class _RefreshDue:
+    first: float
+    deadline: float
+
+
+#: Session id -> the refresh job already waiting on it. Written by the JOB when
+#: it starts, never when it's queued, so a transaction that rolls back after
+#: queueing leaves nothing behind to suppress the next one (E-3).
+_REFRESH_DUE: dict[int, _RefreshDue] = {}
+
+
+def queue_session_refresh(db: AsyncSession, session_id: int) -> None:
+    """Recompute a closed session's aggregates once ``db`` commits, debounced per session."""
+    after_commit(
+        db, partial(_refresh_session_debounced, session_id), label=f"refresh-session:{session_id}"
+    )
+
+
+async def _refresh_session_debounced(session_id: int, db: AsyncSession) -> None:
+    """The queued job: the first one for a session waits out the debounce, the rest push it."""
+    now = time.monotonic()
+    due = _REFRESH_DUE.get(session_id)
+    if due is not None:
+        # Another job is already waiting: push its deadline and go.
+        due.deadline = min(
+            now + SESSION_REFRESH_DEBOUNCE_SECONDS, due.first + SESSION_REFRESH_MAX_DELAY_SECONDS
+        )
+        return
+    due = _RefreshDue(first=now, deadline=now + SESSION_REFRESH_DEBOUNCE_SECONDS)
+    _REFRESH_DUE[session_id] = due
+    try:
+        while (remaining := due.deadline - time.monotonic()) > 0:
+            await asyncio.sleep(remaining)
+    except asyncio.CancelledError:
+        # Shutdown mid-sleep (`post_commit.shutdown`): refresh once now rather
+        # than lose the drain's last seconds to a restart (E-12). The runner
+        # won't commit after a cancellation, so commit here.
+        _REFRESH_DUE.pop(session_id, None)
+        await _refresh_session_now(db, session_id)
+        await db.commit()
+        raise
+    _REFRESH_DUE.pop(session_id, None)
+    await _refresh_session_now(db, session_id)
+
+
+async def _refresh_session_now(db: AsyncSession, session_id: int) -> None:
+    """Recompute one closed session, if it's still there and still closed."""
+    from app.services.session_service import SessionService  # local import avoids cycle
+
+    session = await db.get(DriveSession, session_id)
+    if session is None or session.ended_at is None:
+        return  # merged away, or reopened: nothing to recompute
+    await SessionService(db).refresh_aggregates(session)
 
 
 class TelemetryService:
@@ -792,8 +858,13 @@ class TelemetryService:
         drive the vehicle did not make.
 
         Open sessions are excluded — `end_session` computes those on close.
+
+        Queued behind the commit and debounced per session, not run here
+        (B6-12, D-7): a replayed drive is closed from its second frame, so every
+        later frame of the drain lands in its window, and recomputing it inline
+        cost O(n) per frame.
         """
-        # `_refresh_sessions_in_span` below selects on `ended_at IS NOT NULL`.
+        # `_closed_sessions_in_span` below selects on `ended_at IS NOT NULL`.
         # `end_session` sets `ended_at` as a plain ORM attribute, no flush, so
         # a session this same unit of work already closed -- the HTTPS route
         # calling `handle_ecu_offline` (grace period 0) ahead of this same
@@ -808,7 +879,8 @@ class TelemetryService:
         await self.db.flush()
 
         reading_at = timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
-        await self._refresh_sessions_in_span(vin, device_id, reading_at, reading_at)
+        for session in await self._closed_sessions_in_span(vin, device_id, reading_at, reading_at):
+            queue_session_refresh(self.db, session.id)
 
     async def _sync_odometer_from_telemetry(
         self,
@@ -1203,30 +1275,19 @@ class TelemetryService:
     async def _refresh_sessions_in_span(
         self, vin: str, device_id: str, start: datetime, end: datetime
     ) -> None:
-        """Recompute every closed session of `vin` overlapping [start, end].
+        """Recompute every closed session of `vin` overlapping [start, end], now.
 
         Overlap only selects the candidates; each session then recomputes from
         its own window, so a session the pull merely straddles without landing
         any rows inside keeps the values it already had.
 
-        The single point a closed session is refreshed from ingest: a live
-        reading is the degenerate span `[ts, ts]`. Does not commit: callers
-        own the transaction, and `store_telemetry` deliberately does not.
+        SD backfill's refresh, once per batch. A single reading's goes through
+        the debounced queue instead (`_refresh_closed_session`). Does not
+        commit: callers own the transaction.
         """
         from app.services.session_service import SessionService  # local import avoids cycle
 
-        result = await self.db.execute(
-            select(DriveSession)
-            .where(DriveSession.vin == vin)
-            # The reporting device, not just its VIN: two devices on one
-            # vehicle have overlapping sessions, and each one's aggregates are
-            # computed from its own telemetry.
-            .where(DriveSession.device_id == device_id)
-            .where(DriveSession.ended_at.is_not(None))
-            .where(DriveSession.started_at <= end)
-            .where(DriveSession.ended_at >= start)
-        )
-        sessions = list(result.scalars().all())
+        sessions = await self._closed_sessions_in_span(vin, device_id, start, end)
         if not sessions:
             return
 
@@ -1241,6 +1302,23 @@ class TelemetryService:
             sanitize_for_log(start),
             sanitize_for_log(end),
         )
+
+    async def _closed_sessions_in_span(
+        self, vin: str, device_id: str, start: datetime, end: datetime
+    ) -> list[DriveSession]:
+        """The closed sessions of this device and VIN overlapping [start, end]."""
+        result = await self.db.execute(
+            select(DriveSession)
+            .where(DriveSession.vin == vin)
+            # The reporting device, not just its VIN: two devices on one
+            # vehicle have overlapping sessions, and each one's aggregates are
+            # computed from its own telemetry.
+            .where(DriveSession.device_id == device_id)
+            .where(DriveSession.ended_at.is_not(None))
+            .where(DriveSession.started_at <= end)
+            .where(DriveSession.ended_at >= start)
+        )
+        return list(result.scalars().all())
 
     async def _update_latest_if_newer(
         self, vin: str, param_key: str, value: float, ts: datetime
