@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -102,3 +105,44 @@ async def test_shutdown_cancels_a_job_that_outlives_its_budget(
         for task in list(post_commit._tasks):
             task.cancel()
         await asyncio.gather(*list(post_commit._tasks), return_exceptions=True)
+
+
+#: A job that has finished but whose done callback hasn't run yet is still in
+#: the set. Run in a child process, because the bug spins without yielding and
+#: nothing in-process can time it out.
+_DRAIN_PROBE = """
+import asyncio
+from app.services import post_commit
+
+async def main():
+    async def job():
+        return None
+    task = asyncio.get_running_loop().create_task(job())
+    post_commit._tasks.add(task)
+    task.add_done_callback(post_commit._tasks.discard)
+    await asyncio.sleep(0)
+    assert task.done() and task in post_commit._tasks, "probe setup"
+    await post_commit.drain()
+    print("drained")
+
+asyncio.run(main())
+"""
+
+
+async def test_drain_returns_when_a_finished_job_is_still_in_the_set() -> None:
+    """A gather of finished tasks doesn't yield to the loop, so their done
+    callbacks never got to take them out of the set and drain spun forever.
+    The PG sidecar hung on it about one run in four. Red on f2fe0f85 (timed out)."""
+    backend = Path(__file__).resolve().parents[3]
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", _DRAIN_PROBE],
+            cwd=backend,
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail("drain() never returned with a finished job still in the set")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "drained"

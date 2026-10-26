@@ -67,6 +67,10 @@ async def drain() -> None:
     """Wait for every queued job to finish. For tests."""
     while _tasks:
         await asyncio.gather(*list(_tasks), return_exceptions=True)
+        # A finished job leaves the set from its done callback, which needs a
+        # turn of the loop. A gather of finished tasks doesn't give it one, so
+        # without this the loop spun forever on a job that had just finished.
+        await asyncio.sleep(0)
 
 
 async def shutdown(timeout: float) -> None:
