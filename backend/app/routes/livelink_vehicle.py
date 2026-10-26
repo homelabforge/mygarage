@@ -234,8 +234,8 @@ async def get_vehicle_livelink_status(
 
     if device and device.current_session_id:
         current_session = await session_service.get_session(device.current_session_id)
-        # The pointer can hold a closed session (awaiting a reopen, or a held
-        # replay). That's not a drive in progress, so it isn't reported as one.
+        # The pointer can hold a closed session (one awaiting a reopen). That's
+        # not a drive in progress, so it isn't reported as one.
         if current_session and current_session.ended_at is None:
             current_session_id = current_session.id
             session_started_at = current_session.started_at

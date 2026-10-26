@@ -172,3 +172,56 @@ class TestAMeasuredDay:
             "connection-loss detector being used to end drives"
         )
         assert sessions[0].ended_at is None
+
+
+@pytest.mark.asyncio
+async def test_the_same_day_replayed_two_hours_late_records_the_same_drive(
+    db_session: AsyncSession, make_livelink_vehicle, monkeypatch
+) -> None:
+    """B6-12 (D-2): the measured day's drive, buffered off WiFi and replayed two
+    hours late, every frame a replay. The builder gets every stored row of the
+    device, so `group_drives` walks the start back through the ignition burst to
+    the opening odometer, and the drive reads 10.0 km, closed at its last
+    movement, exactly as it does live. Red on 177e04d9 (the replayed session
+    stayed open and pointed, so it had no distance)."""
+    from app.services import post_commit
+
+    vin, device = await make_livelink_vehicle("scenario", "2")
+    telemetry = TelemetryService(db_session)
+    late = timedelta(hours=2)
+
+    async def feed(at: datetime, samples: dict) -> None:
+        # The clock sits two hours after every sample, so each one is a replay.
+        monkeypatch.setattr(telemetry_module, "utc_now", lambda: at + late)
+        device.last_seen = at + late
+        await telemetry.store_telemetry(
+            vin=vin,
+            device_id=device.device_id,
+            autopid_data=dict(samples),
+            config={},
+            timestamp=at,
+        )
+        await db_session.commit()
+
+    drive_start = DAY + timedelta(hours=14)
+    await feed(drive_start, {"ENGINE_RPM": 700, "SPEED": 0, "A6-ODOMETER": 40_000.0})
+    await feed(drive_start + timedelta(minutes=1), {"ENGINE_RPM": 900, "SPEED": 0})
+    await feed(drive_start + timedelta(minutes=2), {"SPEED": 35, "ENGINE_RPM": 1800})
+    await feed(drive_start + timedelta(minutes=3), {"SPEED": 52, "ENGINE_RPM": 2200})
+    await feed(drive_start + timedelta(minutes=5), {"SPEED": 0, "ENGINE_RPM": 800})
+    await feed(drive_start + timedelta(minutes=6), {"SPEED": 48, "ENGINE_RPM": 2000})
+    await feed(
+        drive_start + timedelta(minutes=12),
+        {"SPEED": 30, "ENGINE_RPM": 1500, "A6-ODOMETER": 40_010.0},
+    )
+    await feed(drive_start + timedelta(minutes=12 + HEARTBEAT_MINUTES), {"BATTERY_VOLTAGE": 12.4})
+    await post_commit.drain()
+
+    sessions = await _sessions(db_session, device.device_id)
+    assert len(sessions) == 1, f"the replayed day recorded {len(sessions)} drives"
+    drive = sessions[0]
+    assert drive.started_at == drive_start
+    assert drive.ended_at == drive_start + timedelta(minutes=12)
+    assert drive.distance_km == pytest.approx(10.0)
+    assert drive.max_speed == pytest.approx(52.0)
+    assert device.current_session_id is None

@@ -33,7 +33,7 @@ from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLates
 from app.services.livelink_service import LiveLinkService
 from app.services.livelink_sources.base import Reading, StoragePolicy
 from app.services.location_service import LocationService
-from app.services.session_boundaries import BOUNDARY_ALGORITHM_MOVEMENT
+from app.services.session_boundaries import BOUNDARY_ALGORITHM_MOVEMENT, extract_signals
 from app.services.session_service import SessionService
 from app.services.telemetry_service import TelemetryService
 from app.utils.datetime_utils import utc_now
@@ -237,38 +237,69 @@ async def test_the_same_speed_sample_delivered_twice_opens_no_session(
 async def test_an_odometer_rise_at_the_candidate_instant_opens_no_session(
     db_session: AsyncSession, make_livelink_vehicle, keep_rows
 ) -> None:
-    """The odometer branch needs a second instant too, not just a bigger number."""
-    await _pin_session_settings(db_session, keep_rows)
-    _vin, device = await make_livelink_vehicle("t4odi", "1")
-    device_id = device.device_id
-    at = datetime(2026, 9, 2, 7, 0, 0)
+    """The odometer branch needs a second instant too, not just a bigger number.
 
-    service = SessionService(db_session)
-    await service.observe_telemetry(device, {"ODOMETER": 1000.0}, at, live=False)
-    assert device.movement_candidate_at == at, "fixture must leave a candidate"
-    opened = await service.observe_telemetry(device, {"ODOMETER": 1000.5}, at, live=False)
+    Regression guard, through `store_telemetry` since B6-12: a replay is built
+    from its stored rows, and two readings at one instant are one row (the
+    dedup index) and one stamp for `group_drives`. A whole km apart, since
+    storage keeps the odometer in whole km and a half km would be no rise."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device = await make_livelink_vehicle("t4odi", "1")
+    device_id = device.device_id
+    at = _now() - timedelta(hours=2)
+
+    telemetry = TelemetryService(db_session)
+    await telemetry.store_telemetry(vin, device_id, {"ODOMETER": 1000.0}, {}, timestamp=at)
+    await telemetry.store_telemetry(vin, device_id, {"ODOMETER": 1001.0}, {}, timestamp=at)
     await db_session.flush()
 
-    assert opened is None
     assert await _sessions(db_session, device_id) == []
 
 
-async def test_an_older_sample_confirming_a_newer_candidate_does_not_invert_the_movement_span(
+async def test_an_older_live_sample_confirming_a_newer_candidate_does_not_invert_the_span(
     db_session: AsyncSession, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Replays arrive out of order: the span runs from the earlier reading to the later one."""
+    """Regression guard (G4-64): two live frames can land out of order, and the
+    span runs from the earlier reading to the later one. Kills dropping the
+    min/max in `_open_session_for_movement`."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device = await make_livelink_vehicle("t4inv", "1")
-    later = datetime(2026, 9, 2, 9, 1, 0)
+    later = _now() - timedelta(seconds=10)
     earlier = later - timedelta(seconds=40)
 
     service = SessionService(db_session)
-    await service.observe_telemetry(device, {"SPEED": 40.0}, later, live=False)
-    session = await service.observe_telemetry(device, {"SPEED": 45.0}, earlier, live=False)
+    await service.observe_telemetry(device, {"SPEED": 40.0}, later, live=True)
+    session = await service.observe_telemetry(device, {"SPEED": 45.0}, earlier, live=True)
     await db_session.flush()
 
     assert session is not None
     assert (session.movement_started_at, session.movement_ended_at) == (earlier, later)
+
+
+async def test_an_out_of_order_replay_is_built_with_its_span_the_right_way_round(
+    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+) -> None:
+    """The same pair as a replay: the builder sorts stored rows by stamp, so the
+    order they arrived in can't invert anything, and the drive is closed at its
+    later reading. Red on 177e04d9 (an open pointed session)."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device = await make_livelink_vehicle("t4inv2", "1")
+    device_id = device.device_id
+    later = _now() - timedelta(hours=2)
+    earlier = later - timedelta(seconds=40)
+
+    telemetry = TelemetryService(db_session)
+    await telemetry.store_telemetry(vin, device_id, {"SPEED": 40.0}, {}, timestamp=later)
+    await telemetry.store_telemetry(vin, device_id, {"SPEED": 45.0}, {}, timestamp=earlier)
+    await db_session.flush()
+
+    [session] = await _sessions(db_session, device_id)
+    assert (
+        session.started_at,
+        session.movement_started_at,
+        session.movement_ended_at,
+        session.ended_at,
+    ) == (earlier, earlier, later, later)
 
 
 # --- G4-65: an older replayed sample inside an open session ----------------------
@@ -277,22 +308,30 @@ async def test_an_older_sample_confirming_a_newer_candidate_does_not_invert_the_
 async def test_an_older_replayed_sample_leaves_movement_ended_at_where_it_was(
     db_session: AsyncSession, make_livelink_vehicle, keep_rows
 ) -> None:
-    """The open session's movement end only ever moves forward."""
+    """The open session's movement end only ever moves forward, and a replayed
+    in-drive reading can't lower the odometer baseline either (D-10): the
+    baseline is the live machine's. The baseline half is red on 177e04d9."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device = await make_livelink_vehicle("t4end", "1")
     t0 = datetime(2026, 9, 3, 8, 0, 0)
 
     service = SessionService(db_session)
-    for at in (t0, t0 + timedelta(seconds=10), t0 + timedelta(seconds=20)):
-        session = await service.observe_telemetry(device, {"SPEED": 50.0}, at, live=True)
+    for i, at in enumerate((t0, t0 + timedelta(seconds=10), t0 + timedelta(seconds=20))):
+        session = await service.observe_telemetry(
+            device, {"SPEED": 50.0, "ODOMETER": 1000.0 + 0.1 * i}, at, live=True
+        )
     assert session is not None
     assert session.movement_ended_at == t0 + timedelta(seconds=20), "fixture must open a session"
 
-    await service.observe_telemetry(device, {"SPEED": 50.0}, t0 + timedelta(seconds=5), live=False)
+    await service.observe_telemetry(
+        device, {"SPEED": 50.0, "ODOMETER": 999.9}, t0 + timedelta(seconds=5), live=False
+    )
     await db_session.flush()
 
     assert session.ended_at is None
     assert session.movement_ended_at == t0 + timedelta(seconds=20)
+    assert device.movement_baseline_km is not None
+    assert float(device.movement_baseline_km) == pytest.approx(1000.2)
 
 
 async def _closed_drive_around(
@@ -335,15 +374,16 @@ async def test_a_replay_wholly_inside_the_previous_drive_opens_no_session(
     assert [s.id for s in await _sessions(db_session, device.device_id)] == [earlier_id]
 
 
-async def test_a_replay_that_runs_past_the_previous_close_is_clamped_to_it(
+async def test_a_replay_that_runs_past_the_previous_close_extends_that_drive(
     db_session: AsyncSession, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Regression guard: one sample after the close is enough to open, with the
-    start clamped to the close and the movement span running forwards. Kills
-    declining on the candidate alone."""
+    """A replayed sample one minute past the previous drive's close is inside
+    the gap of its end, so it extends that drive by a minute, which is what a
+    live reopen within the gap does. Red on 177e04d9 (a new session clamped to
+    the close)."""
     await _pin_session_settings(db_session, keep_rows)
     t0 = datetime(2026, 9, 6, 9, 0, 0)
-    device, _earlier_id = await _closed_drive_around(db_session, make_livelink_vehicle, "t4cls", t0)
+    device, earlier_id = await _closed_drive_around(db_session, make_livelink_vehicle, "t4cls", t0)
     close = t0 + timedelta(hours=1)
     after = close + timedelta(minutes=1)
 
@@ -354,15 +394,15 @@ async def test_a_replay_that_runs_past_the_previous_close_is_clamped_to_it(
     session = await service.observe_telemetry(device, {"SPEED": 45.0}, after, live=False)
     await db_session.flush()
 
-    assert session is not None
-    assert session.started_at == close
-    assert (session.movement_started_at, session.movement_ended_at) == (close, after)
+    assert session is None
+    [earlier] = await _sessions(db_session, device.device_id)
+    assert (earlier.id, earlier.ended_at, earlier.movement_ended_at) == (earlier_id, after, after)
 
 
 async def test_ecu_offline_leaves_a_held_closed_session_alone(
     db_session: AsyncSession, make_livelink_vehicle, keep_rows
 ) -> None:
-    """T4-b: the pointer can name a CLOSED session (awaiting, or a held replay).
+    """T4-b: the pointer can name a CLOSED session, one awaiting a reopen.
 
     An ECU offline with no grace period used to re-end it at wall-clock now,
     stretching an hours-old drive over the parked tail.
@@ -400,7 +440,7 @@ async def test_ecu_offline_leaves_a_held_closed_session_alone(
     assert (await _device(db_session, device_id)).current_session_id == held_id
 
 
-# --- R9: replay-built sessions under the scheduled job ---------------------------
+# --- B6-12: replays never hold the pointer ---------------------------------------
 
 
 async def _device_with_an_earlier_drive(
@@ -441,7 +481,11 @@ async def _quiet(db: AsyncSession, device_id: str, *, minutes: int) -> None:
 
 
 async def _replay(
-    client: AsyncClient, token: str, start: datetime, *, odometer_from: float | None = None
+    client: AsyncClient,
+    token: str,
+    start: datetime,
+    *,
+    odometer_from: float | None = None,
 ) -> list[datetime]:
     """Five buffered SPEED readings, 30 s apart, posted in order.
 
@@ -458,32 +502,84 @@ async def _replay(
     return stamps
 
 
+async def _closed_session(
+    db: AsyncSession,
+    vin: str,
+    device_id: str,
+    start: datetime,
+    end: datetime,
+    *,
+    movement_end: datetime | None = None,
+) -> DriveSession:
+    """A closed movement-mode drive on record, with its movement span filled in."""
+    session = DriveSession(
+        vin=vin,
+        device_id=device_id,
+        started_at=start,
+        ended_at=end,
+        duration_seconds=int((end - start).total_seconds()),
+        movement_started_at=start,
+        movement_ended_at=movement_end or end,
+        boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
+    )
+    db.add(session)
+    await db.flush()
+    return session
+
+
+async def _awaiting(
+    db: AsyncSession,
+    make_livelink_vehicle,
+    prefix: str,
+    *,
+    start: datetime,
+    end: datetime,
+    movement_end: datetime | None = None,
+) -> tuple[str, str, str, int]:
+    """A live drive the contact clock closed at `end`, pointer kept, device awake now."""
+    vin, device, token = await _linked(db, make_livelink_vehicle, prefix)
+    session = await _closed_session(
+        db, vin, device.device_id, start, end, movement_end=movement_end
+    )
+    device.last_movement_at = end
+    device.current_session_id = session.id
+    device.last_seen = _now()
+    device_id, session_id = device.device_id, session.id
+    await db.commit()
+    return vin, device_id, token, session_id
+
+
+def _spans(sessions: list[DriveSession]) -> list[tuple[datetime, datetime | None]]:
+    return [(s.started_at, s.ended_at) for s in sessions]
+
+
 @pytest.mark.usefixtures("livelink_enabled")
-async def test_a_replay_only_session_closes_after_it_started(
+async def test_a_replayed_drive_is_closed_from_its_second_sample_and_never_pointed(
     db_session: AsyncSession,
     client: AsyncClient,
     make_livelink_vehicle,
     keep_rows,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """`last_movement_at` from an earlier drive must not be where a replayed drive ends."""
+    """B6-12: a replay is built into a CLOSED session by sample time, without the
+    device pointer. There's nothing for the gap clock to close or hold, so a
+    tick changes nothing. Red on 177e04d9 (open until the tick, and pointed)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4rpo"
     )
     device_id = device.device_id  # a commit expires the object
     stamps = await _replay(client, token, _now() - timedelta(hours=2))
-    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(stamps[0], stamps[-1])]
+    assert (await _device(db_session, device_id)).current_session_id is None
 
     await _tick(db_session, caplog)
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert len(replayed) == 1
-    session = replayed[0]
-    assert session.started_at == stamps[0]
-    assert session.ended_at is not None
-    assert session.ended_at >= session.started_at
-    assert session.ended_at == stamps[-1]
+    assert _spans(replayed) == [(stamps[0], stamps[-1])]
+    assert (await _device(db_session, device_id)).current_session_id is None
 
 
 @pytest.mark.usefixtures("livelink_enabled")
@@ -496,55 +592,40 @@ async def test_a_replay_spanning_three_ticks_is_one_session(
 ) -> None:
     """Three batches with a scheduler tick after each still make one drive.
 
-    The replay-built session is held open while its samples keep arriving
-    (B6-9), so no tick closes it mid-replay. It closes once they stop, and the
-    pointer goes once the device has been quiet for the gap.
+    Each batch extends the closed session by sample time; the ticks have
+    nothing to do with it. Red on 177e04d9 (open and pointed between batches).
     """
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4rp3"
     )
-    device_id = device.device_id  # a commit expires the object
+    device_id = device.device_id
     start = _now() - timedelta(hours=2)
     stamps: list[datetime] = []
     for batch in range(3):
         stamps += await _replay(client, token, start + timedelta(minutes=3 * batch))
         await _tick(db_session, caplog)
+        replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+        assert _spans(replayed) == [(stamps[0], stamps[-1])]
+        assert (await _device(db_session, device_id)).current_session_id is None
 
-    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(stamps[0], None)]
-    session_id = replayed[0].id
-    assert (await _device(db_session, device_id)).current_session_id == session_id
-
-    # The replay has stopped arriving: the next tick closes it at its last
-    # sample and keeps the pointer, the way any replay-built close does.
-    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
-    await _tick(db_session, caplog)
-    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(stamps[0], stamps[-1])]
-    assert (await _device(db_session, device_id)).current_session_id == session_id
-
-    # Once the device goes quiet past the gap, the next tick lets go.
     await _quiet(db_session, device_id, minutes=GAP + 1)
     await _tick(db_session, caplog)
-
-    assert (await _device(db_session, device_id)).current_session_id is None
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(stamps[0], stamps[-1])]
+    assert _spans(replayed) == [(stamps[0], stamps[-1])]
 
 
 @pytest.mark.usefixtures("livelink_enabled")
-async def test_a_replays_last_sample_lands_in_its_session_after_a_tick(
+async def test_a_replays_last_sample_extends_its_closed_session(
     db_session: AsyncSession,
     client: AsyncClient,
     make_livelink_vehicle,
     keep_rows,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """B6-9: a tick mid-replay closed the replay-built session, and one sample
-    after it was only a candidate, so the drive ended before its last reading.
-    Held open while the replay arrives, the tail extends it, and the close
-    once the replay stops takes it in. Red on 4954e3a3 (ended at stamps[-1])."""
+    """B6-9's tail, under B6-12: one more sample within the gap of the closed
+    session's end moves that end. No hold, no reopen. Red on 177e04d9 (the
+    session was open until a quiet tick)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4tail"
@@ -555,11 +636,8 @@ async def test_a_replays_last_sample_lands_in_its_session_after_a_tick(
     tail = stamps[-1] + timedelta(seconds=30)
     await _post(client, token, tail, SPEED=35.0)
 
-    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
-    await _tick(db_session, caplog)
-
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(stamps[0], tail)]
+    assert _spans(replayed) == [(stamps[0], tail)]
 
 
 @pytest.mark.usefixtures("livelink_enabled")
@@ -571,10 +649,9 @@ async def test_two_replayed_drives_in_one_upload_stay_two(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Wave B review I-1: a dongle off WiFi all day uploads a morning and an
-    evening drive together. Held open for the replay, the morning session took
-    the evening's movement too: one 8-hour drive. Movement more than the gap
-    after the held session's last is a new drive, by sample time, the same
-    rule `_reopen_awaiting` uses (R9). Red on f3a8b81c (one session)."""
+    evening drive together. `group_drives` cuts them on the gap by sample time,
+    and both are closed before any tick runs. Red on 177e04d9 (the evening one
+    was open)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4two"
@@ -583,15 +660,15 @@ async def test_two_replayed_drives_in_one_upload_stay_two(
     morning = await _replay(client, token, _now() - timedelta(hours=10))
     await _tick(db_session, caplog)
     evening = await _replay(client, token, _now() - timedelta(hours=2))
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(morning[0], morning[-1]), (evening[0], evening[-1])]
+
     await _tick(db_session, caplog)
     await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
     await _tick(db_session, caplog)
-
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [
-        (morning[0], morning[-1]),
-        (evening[0], evening[-1]),
-    ]
+    assert _spans(replayed) == [(morning[0], morning[-1]), (evening[0], evening[-1])]
 
 
 @pytest.mark.usefixtures("livelink_enabled")
@@ -599,9 +676,9 @@ async def test_a_contact_mode_drive_survives_a_switch_to_movement_mode(
     db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
 ) -> None:
     """Re-review (FW-B-r2): a drive opened in contact mode has no movement
-    fields, so the ingest gap check measured from its start and closed it there,
+    fields, so an ingest gap check measured from its start and closed it there,
     zero minutes long, on the first sample after the switch. The gap clock
-    leaves a pre-movement session to the contact rule, and so does this now.
+    leaves a pre-movement session to the contact rule, and so does ingest.
     Red on ca2e0603."""
     await _pin_session_settings(db_session, keep_rows)
     vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4ctm")
@@ -625,9 +702,11 @@ async def test_a_contact_mode_drive_survives_a_switch_to_movement_mode(
 async def test_one_future_dated_frame_does_not_split_a_live_drive(
     db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Re-review (FW-B-r2): a bad device clock stamped one frame an hour ahead,
-    and the ingest gap check closed the live drive 10 s in. A live session is
-    the gap clock's to close, on the tick. Red on ca2e0603 (two sessions)."""
+    """Re-review (FW-B-r2): a bad device clock stamped one frame an hour ahead.
+    A live session is the gap clock's to close, on the tick, and the tick
+    anchors on the live movement, not on the future `movement_ended_at` that
+    frame left behind (B6-12, D-8's `<= now`). Red on ca2e0603 (two sessions);
+    the tick half is a regression guard that kills dropping `<= now`."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4fut2")
     device_id = device.device_id
@@ -641,45 +720,42 @@ async def test_one_future_dated_frame_does_not_split_a_live_drive(
     sessions = await _sessions(db_session, device_id)
     assert [s.ended_at for s in sessions] == [None]
 
+    await SessionService(db_session).check_session_timeouts(
+        TIMEOUT, GAP, now=t + timedelta(minutes=GAP + 1)
+    )
+
+    assert _spans(await _sessions(db_session, device_id)) == [
+        (t - timedelta(seconds=20), t + timedelta(seconds=5))
+    ]
+
 
 @pytest.mark.usefixtures("livelink_enabled")
 async def test_a_stop_inside_the_gap_is_still_one_replayed_drive(
-    db_session: AsyncSession,
-    client: AsyncClient,
-    make_livelink_vehicle,
-    keep_rows,
-    caplog: pytest.LogCaptureFixture,
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Regression guard: a ten-minute stop is under the 15-minute gap, so the
-    split leaves it one drive. Kills splitting at any distance in sample time."""
+    """A ten-minute stop is under the 15-minute gap, so the second batch
+    extends the first drive's closed session instead of building another.
+    Kills extending at any distance in sample time. Red on 177e04d9 (open)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4stop"
     )
     device_id = device.device_id
     first = await _replay(client, token, _now() - timedelta(hours=3))
-    await _tick(db_session, caplog)
     second = await _replay(client, token, first[-1] + timedelta(minutes=10))
-    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
-    await _tick(db_session, caplog)
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(first[0], second[-1])]
+    assert _spans(replayed) == [(first[0], second[-1])]
 
 
 @pytest.mark.usefixtures("livelink_enabled")
 async def test_a_parked_live_frame_between_replay_batches_keeps_one_drive(
-    db_session: AsyncSession,
-    client: AsyncClient,
-    make_livelink_vehicle,
-    keep_rows,
-    caplog: pytest.LogCaptureFixture,
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Re-review 2 (FW-B-r3): an awake, parked car's live frame landed between
-    two batches of a replay, was past the gap after the replay's movement, and
-    closed the held session and let its pointer go, so the next batch opened a
-    second drive. Only a live frame that shows movement can split it now. Red
-    on ff5c8a3f (two sessions)."""
+    """An awake, parked car's live frame lands between two batches of a replay.
+    The replay's drive is a closed session the live machine never sees, and a
+    parked frame with no pointed session opens nothing, so the second batch
+    extends the drive. Red on 177e04d9 (open until a tick)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4pkb"
@@ -687,27 +763,24 @@ async def test_a_parked_live_frame_between_replay_batches_keeps_one_drive(
     device_id = device.device_id
     first = await _replay(client, token, _now() - timedelta(hours=2))
     await _post(client, token, _now(), ENGINE_RPM=800.0, SPEED=0.0)
-    # Not even closed and reopened: the parked frame leaves the drive alone.
-    held = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [s.ended_at for s in held] == [None]
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(first[0], first[-1])]
     second = await _replay(client, token, first[-1] + timedelta(seconds=30))
-    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
-    await _tick(db_session, caplog)
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(first[0], second[-1])]
+    assert _spans(replayed) == [(first[0], second[-1])]
 
 
 @pytest.mark.usefixtures("livelink_enabled")
-async def test_a_live_moving_frame_hours_after_a_replay_still_splits_it(
+async def test_a_live_moving_frame_hours_after_a_replay_opens_its_own_drive(
     db_session: AsyncSession,
     client: AsyncClient,
     make_livelink_vehicle,
     keep_rows,
 ) -> None:
     """Regression guard: the device is back and driving now, hours after the
-    replay's last movement, so the replay's drive ends where its movement did
-    and the live one is its own. Kills splitting on replayed samples only."""
+    replay's last movement, so the replay's closed drive is out of the reopen
+    window and the live one is its own. Kills reopening at any distance."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4lmv"
@@ -719,24 +792,20 @@ async def test_a_live_moving_frame_hours_after_a_replay_still_splits_it(
     await _post(client, token, now, SPEED=55.0)
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [
+    assert _spans(replayed) == [
         (replay[0], replay[-1]),
         (now - timedelta(seconds=10), None),
     ]
 
 
 @pytest.mark.usefixtures("livelink_enabled")
-async def test_a_replay_batch_after_a_live_split_rejoins_its_drive(
-    db_session: AsyncSession,
-    client: AsyncClient,
-    make_livelink_vehicle,
-    keep_rows,
-    caplog: pytest.LogCaptureFixture,
+async def test_a_replay_batch_after_a_live_frame_extends_its_drive(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Re-review 2 (FW-B-r3): a split keeps the pointer, as the gap clock's
-    replay close does, so the replay's next batch, still within the gap of its
-    drive, reopens that drive instead of opening one from the replay to now.
-    Red on ff5c8a3f (a second session)."""
+    """One live moving frame between two replay batches is one live candidate
+    and nothing more; the second batch extends the replay's closed drive by
+    sample time, and the pointer stays empty. Red on 177e04d9 (the live frame
+    split the held drive and left the pointer on it)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4rjn"
@@ -745,44 +814,45 @@ async def test_a_replay_batch_after_a_live_split_rejoins_its_drive(
     first = await _replay(client, token, _now() - timedelta(hours=2))
     await _post(client, token, _now(), SPEED=50.0)
     second = await _replay(client, token, first[-1] + timedelta(seconds=30))
-    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
-    await _tick(db_session, caplog)
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(first[0], second[-1])]
+    assert _spans(replayed) == [(first[0], second[-1])]
+    assert (await _device(db_session, device_id)).current_session_id is None
 
 
-async def test_a_parked_live_frame_keeps_a_replays_one_sample_candidate(
-    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_parked_live_frame_between_a_replays_first_two_samples_does_not_lose_it(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Re-review 2 (FW-B-r3): a live frame with no movement is hours past a
-    replay's lone candidate, and the stale-evidence check dropped it, so a
-    replay interleaved one-for-one with live frames never confirmed. A frame
-    that shows nothing about movement leaves the evidence alone. Red on
-    ff5c8a3f (dropped)."""
+    """The replay's evidence is its stored rows, not a slot on the device, so a
+    live frame in between can't expire it. Red on 177e04d9 (an open session)."""
     await _pin_session_settings(db_session, keep_rows)
-    _vin, device = await make_livelink_vehicle("t4cand", "1")
-    replayed_at = _now() - timedelta(hours=2)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4cand"
+    )
+    device_id = device.device_id
+    s1 = _now() - timedelta(hours=2)
+    await _post(client, token, s1, SPEED=40.0)
+    await _post(client, token, _now(), ENGINE_RPM=800.0, SPEED=0.0)
+    s2 = s1 + timedelta(seconds=30)
+    await _post(client, token, s2, SPEED=45.0)
 
-    service = SessionService(db_session)
-    await service.observe_telemetry(device, {"SPEED": 40.0}, replayed_at, live=False)
-    await service.observe_telemetry(device, {"ENGINE_RPM": 800.0, "SPEED": 0.0}, _now(), live=True)
-
-    assert device.movement_candidate_at == replayed_at
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(s1, s2)]
 
 
 async def test_a_moving_live_frame_still_expires_a_stale_candidate(
     db_session: AsyncSession, make_livelink_vehicle, keep_rows
 ) -> None:
     """Regression guard: a live frame that shows movement is evidence, so an
-    hours-old candidate isn't consecutive with it and goes. Kills skipping the
-    stale check for every live frame."""
+    hours-old live candidate isn't consecutive with it and goes. Kills skipping
+    the stale check."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device = await make_livelink_vehicle("t4cexp", "1")
     now = _now()
 
     service = SessionService(db_session)
-    await service.observe_telemetry(device, {"SPEED": 40.0}, now - timedelta(hours=2), live=False)
+    await service.observe_telemetry(device, {"SPEED": 40.0}, now - timedelta(hours=2), live=True)
     session = await service.observe_telemetry(device, {"SPEED": 50.0}, now, live=True)
 
     assert session is None
@@ -791,37 +861,30 @@ async def test_a_moving_live_frame_still_expires_a_stale_candidate(
 
 @pytest.mark.usefixtures("livelink_enabled")
 async def test_a_parked_live_frame_with_an_odometer_between_replay_batches_keeps_one_drive(
-    db_session: AsyncSession,
-    client: AsyncClient,
-    make_livelink_vehicle,
-    keep_rows,
-    caplog: pytest.LogCaptureFixture,
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Re-review 3 (FW-B-r4): a WiCAN with the odometer PID logs it on every
-    frame, so the parked car's live frame carries the odometer as it is NOW,
-    past anything the replay has shown. Measured against the replay's baseline
-    that read as movement: the held drive stretched to the present and became
-    live, so the next batch skipped the split and the gap clock padded it with
-    parked time. A live frame that isn't moving leaves a replay's drive alone.
-    Red on dd0b39e8 (the drive ended at the parked frame)."""
+    """Re-review 3 (FW-B-r4), under B6-12: the parked car's live odometer is
+    never measured against the replay's, because the replay never writes the
+    device's baseline and its drive is a closed session the live machine
+    doesn't see. Red on 177e04d9 (open until a tick)."""
     await _pin_session_settings(db_session, keep_rows)
-    _vin, device, token, earlier_id, last_drive_end = await _device_with_an_earlier_drive(
-        db_session, make_livelink_vehicle, "t4pko"
-    )
+    (
+        _vin,
+        device,
+        token,
+        earlier_id,
+        last_drive_end,
+    ) = await _device_with_an_earlier_drive(db_session, make_livelink_vehicle, "t4pko")
     device_id = device.device_id
     first = await _replay(client, token, _now() - timedelta(hours=2), odometer_from=1000.0)
-    # The rest of the drive already happened, so the odometer now is well past
-    # the replay's last reading.
     await _post(client, token, _now(), ENGINE_RPM=800.0, SPEED=0.0, ODOMETER=1050.0)
-    held = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.ended_at, s.movement_ended_at) for s in held] == [(None, first[-1])]
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(first[0], first[-1])]
     assert (await _device(db_session, device_id)).last_movement_at == last_drive_end
     second = await _replay(client, token, first[-1] + timedelta(seconds=30), odometer_from=1002.5)
-    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
-    await _tick(db_session, caplog)
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(first[0], second[-1])]
+    assert _spans(replayed) == [(first[0], second[-1])]
 
 
 @pytest.mark.usefixtures("livelink_enabled")
@@ -832,10 +895,8 @@ async def test_two_replayed_drives_with_a_parked_odometer_frame_between_stay_two
     keep_rows,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Re-review 3 (FW-B-r4): the I-1 upload again, but the parked car's live
-    frame between the two drives carries an odometer. It confirmed movement in
-    the morning's held drive and made it live, so the evening's batch skipped
-    the split and merged into it. Red on dd0b39e8 (one session)."""
+    """The I-1 upload with a parked odometer frame between the two drives. Both
+    are closed sessions before any tick. Red on 177e04d9 (the evening one open)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4twoo"
@@ -845,59 +906,48 @@ async def test_two_replayed_drives_with_a_parked_odometer_frame_between_stay_two
     await _tick(db_session, caplog)
     await _post(client, token, _now(), ENGINE_RPM=800.0, SPEED=0.0, ODOMETER=1080.0)
     evening = await _replay(client, token, _now() - timedelta(hours=2), odometer_from=1040.0)
-    await _tick(db_session, caplog)
-    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
-    await _tick(db_session, caplog)
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [
-        (morning[0], morning[-1]),
-        (evening[0], evening[-1]),
-    ]
+    assert _spans(replayed) == [(morning[0], morning[-1]), (evening[0], evening[-1])]
+
+    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
+    await _tick(db_session, caplog)
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(morning[0], morning[-1]), (evening[0], evening[-1])]
 
 
 @pytest.mark.usefixtures("livelink_enabled")
-async def test_a_parked_live_frame_with_an_odometer_after_a_replays_close_opens_no_drive(
-    db_session: AsyncSession,
-    client: AsyncClient,
-    make_livelink_vehicle,
-    keep_rows,
-    caplog: pytest.LogCaptureFixture,
+async def test_a_parked_live_frame_with_an_odometer_after_a_replay_opens_no_drive(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Re-review 3 (FW-B-r4): once the gap clock had closed the replay's drive,
-    its baseline stayed on the device, and the parked car's first live odometer
-    beat it: one sample confirmed movement and opened a drive at now, on a car
-    that said it was stopped. A replay-built close takes its baseline with it.
-    Red on dd0b39e8 (a one-frame drive at now)."""
+    """The replay's drive is closed the moment it has two samples, and the
+    parked car's odometer meets no baseline (replays never write one) and
+    reports a speed under the floor (1h), so it opens nothing. Red on 177e04d9
+    (the replay's session was still open)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4pkc"
     )
     device_id = device.device_id
     stamps = await _replay(client, token, _now() - timedelta(hours=2), odometer_from=1000.0)
-    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
-    await _tick(db_session, caplog)
     closed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in closed] == [(stamps[0], stamps[-1])]
-    closed_id = closed[0].id
+    assert _spans(closed) == [(stamps[0], stamps[-1])]
 
     await _post(client, token, _now(), ENGINE_RPM=800.0, SPEED=0.0, ODOMETER=1050.0)
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(stamps[0], stamps[-1])]
-    # The replay's pointer is untouched too, so a late batch can still rejoin.
-    assert (await _device(db_session, device_id)).current_session_id == closed_id
+    assert _spans(replayed) == [(stamps[0], stamps[-1])]
+    assert (await _device(db_session, device_id)).current_session_id is None
 
 
 @pytest.mark.usefixtures("livelink_enabled")
-async def test_a_parked_live_frame_with_an_odometer_after_a_live_split_opens_no_drive(
+async def test_a_parked_live_frame_with_an_odometer_after_a_live_moving_frame_opens_no_drive(
     db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Re-review 3 (FW-B-r4): the same stale baseline after a live moving frame
-    split the replay's drive. The car stopped at a light five seconds later,
-    and that parked frame's odometer confirmed against the replay's baseline
-    and opened a drive. The split clears the baseline, so the live drive has
-    to earn its own second sample. Red on dd0b39e8 (a second session)."""
+    """One live moving frame is a candidate; the parked frame five seconds later
+    reports a speed under the floor, so its odometer proves nothing (1h). The
+    replay's drive is untouched by either. Red on 177e04d9 (the live frame
+    split the held drive and left the pointer on it)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4pks"
@@ -907,11 +957,17 @@ async def test_a_parked_live_frame_with_an_odometer_after_a_live_split_opens_no_
     now = _now()
     await _post(client, token, now, SPEED=50.0)
     await _post(
-        client, token, now + timedelta(seconds=5), ENGINE_RPM=800.0, SPEED=0.0, ODOMETER=1050.0
+        client,
+        token,
+        now + timedelta(seconds=5),
+        ENGINE_RPM=800.0,
+        SPEED=0.0,
+        ODOMETER=1050.0,
     )
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(replay[0], replay[-1])]
+    assert _spans(replayed) == [(replay[0], replay[-1])]
+    assert (await _device(db_session, device_id)).current_session_id is None
 
 
 async def test_a_live_drive_closed_on_contact_loss_reopens_on_one_odometer_reading(
@@ -920,8 +976,7 @@ async def test_a_live_drive_closed_on_contact_loss_reopens_on_one_odometer_readi
     """Regression guard: a device whose speed nothing recognises moves by its
     odometer alone, and the baseline from its last movement survives a LIVE
     close, so the first reading past it after a six-minute WiFi dropout reopens
-    the drive. Only a replay's close takes its baseline with it. Kills clearing
-    the baseline on every close the gap clock makes."""
+    the drive. Kills clearing the baseline when the gap clock closes a drive."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device = await make_livelink_vehicle("t4odol", "1")
     service = SessionService(db_session)
@@ -944,60 +999,1026 @@ async def test_a_live_drive_closed_on_contact_loss_reopens_on_one_odometer_readi
     assert (reopened.id, reopened.ended_at) == (session.id, None)
 
 
-# --- R9: which sessions are replay-built ------------------------------------------
+# --- B6-12: the live tail of a drained drive (D-1) --------------------------------
 
 
-async def test_a_replay_clamped_to_the_last_live_close_is_replay_built(
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_the_live_tail_of_a_drained_drive_reopens_its_closed_session(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Regression guard (D-1): coming home, the WiCAN drains its buffer. Frames
+    older than five minutes at receipt are a replay and build a closed drive;
+    the last minutes arrive live, with no pointed session. Within the gap of
+    that closed drive they reopen it instead of opening a second one. Kills
+    dropping the reopen of the latest closed drive."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4home"
+    )
+    device_id = device.device_id
+    stamps = await _replay(client, token, _now() - timedelta(minutes=8))
+    now = _now()
+    tail_end = now - timedelta(minutes=3, seconds=50)
+    await _post(client, token, now - timedelta(minutes=4), SPEED=50.0)
+    await _post(client, token, tail_end, SPEED=55.0)
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(stamps[0], None)]
+    reopened_id = replayed[0].id
+    assert (await _device(db_session, device_id)).current_session_id == reopened_id
+
+    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
+    await _tick(db_session, caplog)
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(stamps[0], tail_end)]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_an_odometer_only_device_drains_and_then_drives_on_live(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """1g, under B6-12: a device whose speed nothing recognises. Its replay is
+    built from the odometer rise (E-6 lets the first rising reading in), and
+    its live tail reopens the closed drive through the odometer debounce. Red
+    on 177e04d9 (the live odometer frames were held off at the round-4 return
+    and the drive closed at the replay's last sample)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4odot"
+    )
+    device_id = device.device_id
+    base = _now() - timedelta(minutes=8)
+    stamps = [base + timedelta(seconds=30 * i) for i in range(5)]
+    for i, at in enumerate(stamps):
+        await _post(client, token, at, ODOMETER=1000.0 + 0.5 * i)
+    now = _now()
+    tail_end = now - timedelta(minutes=3, seconds=50)
+    await _post(client, token, now - timedelta(minutes=4), ODOMETER=1003.0)
+    await _post(client, token, tail_end, ODOMETER=1003.5)
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(stamps[0], None)]
+    reopened_id = replayed[0].id
+    assert (await _device(db_session, device_id)).current_session_id == reopened_id
+
+    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
+    await _tick(db_session, caplog)
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(stamps[0], tail_end)]
+
+
+# --- B6-12: a replayed drive next to a pointed one --------------------------------
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_replayed_drive_during_a_live_one_gets_its_own_session(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """Item 3 (1a): drive B, buffered two hours ago, drains while live drive C is
+    open. B becomes its own closed session; C keeps its end, its live anchor
+    and its odometer baseline. Red on 177e04d9 (B was absorbed into C and C's
+    baseline fell to B's odometer)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4bdc"
+    )
+    device_id = device.device_id
+    now = _now()
+    await _post(client, token, now - timedelta(seconds=20), SPEED=40.0, ODOMETER=2000.0)
+    await _post(client, token, now - timedelta(seconds=10), SPEED=45.0, ODOMETER=2000.1)
+    b = await _replay(client, token, now - timedelta(hours=2), odometer_from=1000.0)
+
+    sessions = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(sessions) == [(b[0], b[-1]), (now - timedelta(seconds=20), None)]
+    assert sessions[1].movement_ended_at == now - timedelta(seconds=10)
+    device = await _device(db_session, device_id)
+    assert device.last_movement_at == now - timedelta(seconds=10)
+    assert device.movement_baseline_km is not None
+    assert float(device.movement_baseline_km) == pytest.approx(2000.1)
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_replayed_drive_during_an_awaiting_one_gets_its_own_session(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """Item 3 (1b): the same drain while C is closed and awaiting a reopen. B's
+    samples are older than C's start, so they build B and never reach
+    `_reopen_awaiting`. Red on 177e04d9 (a negative delta reopened C)."""
+    await _pin_session_settings(db_session, keep_rows)
+    now = _now()
+    _vin, device_id, token, p_id = await _awaiting(
+        db_session,
+        make_livelink_vehicle,
+        "t4bdca",
+        start=now - timedelta(minutes=30),
+        end=now - timedelta(minutes=20),
+    )
+    b = await _replay(client, token, now - timedelta(hours=2))
+
+    sessions = await _sessions(db_session, device_id)
+    assert _spans(sessions) == [
+        (b[0], b[-1]),
+        (now - timedelta(minutes=30), now - timedelta(minutes=20)),
+    ]
+    assert (await _device(db_session, device_id)).current_session_id == p_id
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_drained_drive_ending_within_the_gap_of_a_live_one_merges_into_it(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """D-3: B ran from forty to ten minutes ago and C opened live a minute ago,
+    so by the gap rule they are one drive. B drains in order: the builder makes
+    B's closed session far from C, the fast path extends it frame by frame,
+    and the frame that brings its end within the gap of C's start backdates C
+    to B's start (R10) and removes B's row. Red on 177e04d9 (B was absorbed and
+    C kept its start)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4mrg"
+    )
+    device_id = device.device_id
+    now = _now()
+    await _post(client, token, now - timedelta(seconds=70), SPEED=40.0)
+    await _post(client, token, now - timedelta(seconds=60), SPEED=45.0)
+    c = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(c) == [(now - timedelta(seconds=70), None)]
+    c_id = c[0].id
+
+    b = [now - timedelta(minutes=40) + timedelta(minutes=2 * i) for i in range(16)]
+    for at in b:
+        await _post(client, token, at, SPEED=50.0)
+
+    sessions = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert [(s.id, s.started_at, s.ended_at) for s in sessions] == [(c_id, b[0], None)]
+    assert (await _device(db_session, device_id)).current_session_id == c_id
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_the_drained_head_of_a_live_drive_backdates_it(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """D-3, the head variant: the car came into WiFi range mid-drive, so C opened
+    live a minute ago, and the half hour before that drains afterwards. The
+    head builds a closed drive, and once its end is within the gap of C's start
+    it merges into C, so C starts where the drive did. Red on 177e04d9 (the
+    head was absorbed and C kept its start)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4mrgh"
+    )
+    device_id = device.device_id
+    now = _now()
+    await _post(client, token, now - timedelta(seconds=70), SPEED=40.0)
+    await _post(client, token, now - timedelta(seconds=60), SPEED=45.0)
+    [c] = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    c_id = c.id
+
+    head = [now - timedelta(minutes=32) + timedelta(minutes=2 * i) for i in range(15)]
+    for at in head:
+        await _post(client, token, at, SPEED=50.0)
+
+    sessions = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert [(s.id, s.started_at, s.ended_at) for s in sessions] == [(c_id, head[0], None)]
+    assert (await _device(db_session, device_id)).current_session_id == c_id
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_drained_drive_ending_within_the_gap_of_an_awaiting_one_merges_into_it(
+    db_session: AsyncClient,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """D-3 and E-4: the same merge into a drive the contact clock has closed.
+    The closed drive's start moves, its duration follows, and its aggregates
+    are recomputed over the new span once the debounced refresh runs. Red on
+    177e04d9 (B's samples reopened C on a negative delta)."""
+    from app.services import post_commit
+
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4mrga"
+    )
+    device_id = device.device_id
+    now = _now()
+    await _post(client, token, now - timedelta(seconds=70), SPEED=40.0)
+    await _post(client, token, now - timedelta(seconds=60), SPEED=45.0)
+    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
+    await _tick(db_session, caplog)
+    c = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(c) == [(now - timedelta(seconds=70), now - timedelta(seconds=60))]
+    c_id = c[0].id
+
+    b = [now - timedelta(minutes=40) + timedelta(minutes=2 * i) for i in range(16)]
+    for at in b:
+        await _post(client, token, at, SPEED=50.0)
+    await post_commit.drain()
+
+    sessions = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert [(s.id, s.started_at, s.ended_at) for s in sessions] == [
+        (c_id, b[0], now - timedelta(seconds=60))
+    ]
+    merged = sessions[0]
+    assert merged.duration_seconds == int((now - timedelta(seconds=60) - b[0]).total_seconds())
+    assert merged.max_speed == 50.0
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_in_window_replays_leave_an_awaiting_drive_alone_and_its_tail_reopens_it(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """D-4: a replayed sample inside an awaiting drive's own window is that
+    drive's late reading. It never reaches the state machine, so it writes no
+    candidate and can't reopen the drive on a negative delta. A sample inside
+    the gap after the drive's end is its tail, and that one does reopen it.
+    Red on 177e04d9 (the in-window pair reopened the drive)."""
+    await _pin_session_settings(db_session, keep_rows)
+    now = _now()
+    _vin, device_id, token, p_id = await _awaiting(
+        db_session,
+        make_livelink_vehicle,
+        "t4awin",
+        start=now - timedelta(minutes=30),
+        end=now - timedelta(minutes=20),
+    )
+    await _post(client, token, now - timedelta(minutes=25), SPEED=60.0)
+    await _post(client, token, now - timedelta(minutes=24), SPEED=65.0)
+
+    [p] = await _sessions(db_session, device_id)
+    assert (p.id, p.started_at, p.ended_at) == (
+        p_id,
+        now - timedelta(minutes=30),
+        now - timedelta(minutes=20),
+    )
+    device = await _device(db_session, device_id)
+    assert device.current_session_id == p_id
+    assert device.movement_candidate_at is None
+    assert device.movement_baseline_km is None
+
+    await _post(client, token, now - timedelta(minutes=19), SPEED=50.0)
+    await _post(client, token, now - timedelta(minutes=18), SPEED=55.0)
+
+    [p] = await _sessions(db_session, device_id)
+    assert (p.id, p.ended_at, p.movement_ended_at) == (
+        p_id,
+        None,
+        now - timedelta(minutes=18),
+    )
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_replayed_sample_within_reach_of_two_drives_touches_neither(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Regression guard (D-6): a late sample ten minutes after one drive and
+    twelve before the next is within the gap of both. Which one to extend is a
+    guess, and SQLite and PostgreSQL would guess differently by row order, so
+    neither moves and the sample is logged. Kills extending the first in
+    reach."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4brdg")
+    device_id = device.device_id
+    now = _now()
+    await _closed_session(
+        db_session,
+        vin,
+        device_id,
+        now - timedelta(minutes=80),
+        now - timedelta(minutes=60),
+    )
+    await _closed_session(
+        db_session,
+        vin,
+        device_id,
+        now - timedelta(minutes=38),
+        now - timedelta(minutes=20),
+    )
+    await db_session.commit()
+
+    with caplog.at_level(logging.INFO, logger="app.services.session_service"):
+        await _post(client, token, now - timedelta(minutes=50), SPEED=40.0)
+
+    assert _spans(await _sessions(db_session, device_id)) == [
+        (now - timedelta(minutes=80), now - timedelta(minutes=60)),
+        (now - timedelta(minutes=38), now - timedelta(minutes=20)),
+    ]
+    assert any("within reach of 2 closed drives" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_replayed_tail_moves_the_gap_close_to_its_end(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """1i, folded by D-8: WiFi dropped at the drive's last live movement, the
+    car drove on for eight minutes and parked, and the tail replayed when WiFi
+    came back. The tail reopens the drive and advances its movement end; the
+    tick anchors on that end, not on the last LIVE movement. Red on 177e04d9
+    (closed at the drop, tail in no window)."""
+    await _pin_session_settings(db_session, keep_rows)
+    now = _now()
+    _vin, device_id, token, _p_id = await _awaiting(
+        db_session,
+        make_livelink_vehicle,
+        "t4tail8",
+        start=now - timedelta(minutes=30),
+        end=now - timedelta(minutes=16),
+    )
+    for minutes in (15, 14, 13, 12, 11, 10, 9, 8):
+        await _post(client, token, now - timedelta(minutes=minutes), SPEED=50.0)
+    [p] = await _sessions(db_session, device_id)
+    assert (p.ended_at, p.movement_ended_at) == (None, now - timedelta(minutes=8))
+
+    await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
+    await _tick(db_session, caplog)
+
+    [p] = await _sessions(db_session, device_id)
+    assert (p.started_at, p.ended_at) == (
+        now - timedelta(minutes=30),
+        now - timedelta(minutes=8),
+    )
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_future_anchor_does_not_swallow_an_awaiting_drives_tail(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """E-10: one future-dated frame left `movement_ended_at` an hour ahead of
+    the close. The awaiting anchor is the earlier of the two, so the tail
+    inside the gap of the real close still reopens the drive, and the sweep
+    lets the pointer go once the gap has passed. Red on 177e04d9 (the sweep
+    kept the pointer against a future anchor)."""
+    await _pin_session_settings(db_session, keep_rows)
+    now = _now()
+    _vin, device_id, token, p_id = await _awaiting(
+        db_session,
+        make_livelink_vehicle,
+        "t4fanc",
+        start=now - timedelta(minutes=30),
+        end=now - timedelta(minutes=20),
+        movement_end=now + timedelta(hours=1),
+    )
+    await _post(client, token, now - timedelta(minutes=19), SPEED=50.0)
+    await _post(client, token, now - timedelta(minutes=18), SPEED=55.0)
+    [p] = await _sessions(db_session, device_id)
+    assert (p.id, p.ended_at) == (p_id, None)
+
+    # Closed again with the future movement end still on it, awake and parked:
+    # the sweep measures from the close, not from the hour ahead.
+    p.ended_at = now - timedelta(minutes=20)
+    p.movement_ended_at = now + timedelta(hours=1)
+    await db_session.commit()
+    await SessionService(db_session).expire_stale_movement_state(GAP)
+    await db_session.commit()
+
+    assert (await _device(db_session, device_id)).current_session_id is None
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_frames_from_a_clock_minutes_fast_open_no_pointed_session(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """D-9: an awaiting drive, and two moving frames stamped seventeen minutes
+    ahead (so neither live nor inside the reopen window). They can build a
+    closed drive of their own, as an SD pull would, but nothing is pointed, the
+    awaiting drive is untouched and no live evidence is left behind. Red on
+    177e04d9 (a pointed session opened at +17 min, which the tick then closed
+    before it started)."""
+    await _pin_session_settings(db_session, keep_rows)
+    now = _now()
+    _vin, device_id, token, p_id = await _awaiting(
+        db_session,
+        make_livelink_vehicle,
+        "t4skw9",
+        start=now - timedelta(minutes=30),
+        end=now - timedelta(minutes=10),
+    )
+    await _post(client, token, now + timedelta(minutes=17), SPEED=50.0)
+    await _post(client, token, now + timedelta(minutes=17, seconds=30), SPEED=55.0)
+
+    sessions = await _sessions(db_session, device_id)
+    assert [s.ended_at is None for s in sessions] == [False] * len(sessions)
+    assert (sessions[0].id, sessions[0].ended_at) == (p_id, now - timedelta(minutes=10))
+    device = await _device(db_session, device_id)
+    assert device.current_session_id == p_id
+    assert device.movement_candidate_at is None
+
+
+# --- B6-12: the live machine's own guards -----------------------------------------
+
+
+async def test_a_parked_frame_reporting_speed_cannot_open_a_drive_on_its_odometer(
     db_session: AsyncSession, make_livelink_vehicle, keep_rows
 ) -> None:
-    """Re-review 2 (minor): a replay session clamped to exactly the previous
-    live drive's close starts at the device's last live movement, and the
-    strict `<` read it as live, so the gap clock closed it at its own start.
-    That last movement belongs to the closed drive. Red on ff5c8a3f (zero
-    length)."""
+    """1h: a live drive closed on the gap keeps its baseline. The car then drove
+    off WiFi and came home; its first frame says SPEED 0 with the odometer up.
+    A frame that reports a speed under the floor is a stopped car and proves
+    nothing by odometer: it records the odometer and opens nothing. The next
+    two moving frames open from the first of them. Red on 177e04d9 (the parked
+    frame opened a drive at now)."""
     await _pin_session_settings(db_session, keep_rows)
-    vin, device = await make_livelink_vehicle("t4clmp", "1")
-    close = _now() - timedelta(hours=1)
-    db_session.add(
-        DriveSession(
-            vin=vin,
-            device_id=device.device_id,
-            started_at=close - timedelta(minutes=20),
-            ended_at=close,
-            duration_seconds=1200,
-            movement_started_at=close - timedelta(minutes=20),
-            movement_ended_at=close,
-            boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
-        )
+    _vin, device = await make_livelink_vehicle("t4onehb", "1")
+    service = SessionService(db_session)
+    t0 = _now() - timedelta(minutes=20)
+    await service.observe_telemetry(device, {"SPEED": 40.0, "ODOMETER": 1000.0}, t0, live=True)
+    first = await service.observe_telemetry(
+        device,
+        {"SPEED": 45.0, "ODOMETER": 1000.2},
+        t0 + timedelta(seconds=30),
+        live=True,
     )
-    replayed = DriveSession(
+    assert first is not None
+    device.last_seen = t0 + timedelta(seconds=30)
+    await db_session.flush()
+    closed = await service.check_session_timeouts(TIMEOUT, GAP)
+    # The tick is global and the suite shares one database, so only this device's.
+    assert [s.id for s in closed if s.device_id == device.device_id] == [first.id]
+    assert device.current_session_id is None
+    assert device.movement_baseline_km is not None
+
+    now = _now()
+    opened = await service.observe_telemetry(
+        device, {"SPEED": 0.0, "ENGINE_RPM": 800.0, "ODOMETER": 1003.0}, now, live=True
+    )
+
+    assert opened is None
+    assert float(device.movement_baseline_km) == pytest.approx(1003.0)
+    assert [s.id for s in await _sessions(db_session, device.device_id)] == [first.id]
+    await db_session.refresh(device)  # `_sessions` expired it
+
+    await service.observe_telemetry(
+        device,
+        {"SPEED": 40.0, "ODOMETER": 1003.0},
+        now + timedelta(seconds=5),
+        live=True,
+    )
+    second = await service.observe_telemetry(
+        device,
+        {"SPEED": 45.0, "ODOMETER": 1003.1},
+        now + timedelta(seconds=10),
+        live=True,
+    )
+    assert second is not None
+    assert (second.id != first.id, second.started_at) == (
+        True,
+        now + timedelta(seconds=5),
+    )
+
+
+async def test_a_stopped_frame_between_two_moving_ones_leaves_the_candidate_alone(
+    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+) -> None:
+    """Regression guard (1h): a stopped frame with the odometer up between two
+    moving frames proves nothing, but it doesn't throw away the first moving
+    frame's candidate either, so the second one opens the drive from the first.
+    Kills clearing the candidate in the stopped-frame branch."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device = await make_livelink_vehicle("t4onec", "1")
+    service = SessionService(db_session)
+    t = _now() - timedelta(seconds=30)
+    await service.observe_telemetry(device, {"SPEED": 40.0, "ODOMETER": 1000.0}, t, live=True)
+    await service.observe_telemetry(
+        device,
+        {"SPEED": 0.0, "ODOMETER": 1001.0},
+        t + timedelta(seconds=5),
+        live=True,
+    )
+    opened = await service.observe_telemetry(
+        device, {"SPEED": 45.0, "ODOMETER": 1001.0}, t + timedelta(seconds=10), live=True
+    )
+
+    assert opened is not None
+    assert opened.movement_started_at == t
+
+
+async def test_a_replay_never_opens_a_pointed_session_even_if_it_reaches_the_promote(
+    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+) -> None:
+    """D-9 and E-9: the promote with `live=False` and nothing to reopen opens
+    nothing and drops the evidence it was handed, since it was a replay's. Red
+    on 177e04d9 (it opened a pointed session)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device = await make_livelink_vehicle("t4prm9", "1")
+    service = SessionService(db_session)
+    now = _now()
+    device.movement_candidate_at = now - timedelta(seconds=30)
+    device.movement_baseline_km = Decimal("1000.00")
+    await db_session.flush()
+
+    result = await service._promote_to_driving(  # noqa: SLF001 - the guard under test
+        device, extract_signals({"SPEED": 50.0}), now, GAP, live=False
+    )
+
+    assert result is None
+    assert (device.movement_candidate_at, device.movement_baseline_km) == (None, None)
+    assert await _sessions(db_session, device.device_id) == []
+
+
+async def test_a_live_sample_at_or_before_a_future_close_opens_nothing(
+    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+) -> None:
+    """Regression guard (D-12): a relink can close a drive at a future-dated
+    `movement_ended_at`, so the device's last close is ahead of now. Two live
+    moving frames before that close are that drive's, not a new one clamped to
+    a future start. Kills dropping the T4-c decline."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device = await make_livelink_vehicle("t4dcl", "1")
+    now = _now()
+    future_close = await _closed_session(
+        db_session,
+        vin,
+        device.device_id,
+        now - timedelta(minutes=30),
+        now + timedelta(hours=1),
+    )
+    await db_session.commit()
+    service = SessionService(db_session)
+
+    await service.observe_telemetry(device, {"SPEED": 40.0}, now, live=True)
+    opened = await service.observe_telemetry(
+        device, {"SPEED": 45.0}, now + timedelta(seconds=10), live=True
+    )
+
+    assert opened is None
+    assert device.movement_candidate_at is None
+    assert [s.id for s in await _sessions(db_session, device.device_id)] == [future_close.id]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_in_contact_mode_a_replay_is_not_built(
+    db_session: AsyncSession,
+    client: AsyncClient,
+    make_livelink_vehicle,
+    keep_rows,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression guard (D-11): the builder sits behind the observer's contact
+    mode return, so a contact-mode instance keeps the contact rule and nothing
+    else. Through ingest and through the observer itself, which a caller can
+    reach without ingest's own mode gate. Kills routing before the mode check."""
+    await _pin_session_settings(db_session, keep_rows)
+    row = await db_session.get(Setting, "livelink_session_boundary_mode")
+    assert row is not None
+    row.value = "contact"
+    await db_session.commit()
+    _vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4cmode")
+    built: list[datetime] = []
+
+    async def record(
+        self: SessionService, device, pointed, samples, signals, sample_at, gap
+    ) -> None:
+        built.append(sample_at)
+
+    monkeypatch.setattr(SessionService, "_reconcile_replayed_sample", record)
+    await _replay(client, token, _now() - timedelta(hours=2))
+    # Ingest's contact rule has opened a contact session by now, which the
+    # verdict would route to the live machine anyway; a device with no session
+    # is the one that shows where the mode check sits.
+    _vin2, idle = await make_livelink_vehicle("t4cmode2", "1")
+    await SessionService(db_session).observe_telemetry(
+        idle, {"SPEED": 50.0}, _now() - timedelta(hours=2), live=False
+    )
+
+    assert built == []
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_the_verdict_table(
+    db_session: AsyncSession,
+    make_livelink_vehicle,
+    keep_rows,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Section 1 of the B6-12 spec, row by row: which of the live machine, the
+    builder or neither a sample reaches. Red on 177e04d9 (no builder exists)."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device = await make_livelink_vehicle("t4vrdt", "1")
+    service = SessionService(db_session)
+    seen: list[str] = []
+
+    async def build(
+        self: SessionService, device, pointed, samples, signals, sample_at, gap
+    ) -> None:
+        seen.append("build")
+
+    def confirm(self: SessionService, device, signals, sample_at, open_, *, window) -> bool:
+        seen.append("live")
+        return False
+
+    monkeypatch.setattr(SessionService, "_reconcile_replayed_sample", build)
+    monkeypatch.setattr(SessionService, "_confirm_movement", confirm)
+    now = _now()
+
+    async def verdict(at: datetime, *, live: bool) -> str:
+        seen.clear()
+        await service.observe_telemetry(device, {"SPEED": 50.0}, at, live=live)
+        return seen[0] if seen else "none"
+
+    # No pointed session.
+    assert await verdict(now, live=True) == "live"
+    assert await verdict(now - timedelta(hours=2), live=False) == "build"
+
+    # An open live session P.
+    p = DriveSession(
         vin=vin,
         device_id=device.device_id,
-        started_at=close,
-        movement_started_at=close,
-        movement_ended_at=close + timedelta(minutes=5),
+        started_at=now - timedelta(minutes=10),
+        movement_started_at=now - timedelta(minutes=10),
+        movement_ended_at=now - timedelta(minutes=1),
         boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
     )
-    db_session.add(replayed)
+    db_session.add(p)
     await db_session.flush()
-    device.last_movement_at = close
-    device.current_session_id = replayed.id
-    device.last_seen = _now() - timedelta(minutes=TIMEOUT + 1)
+    device.current_session_id = p.id
+    device.last_movement_at = now - timedelta(minutes=1)
+    assert await verdict(now, live=True) == "live"
+    assert await verdict(now - timedelta(minutes=11), live=False) == "build"
+    # Exactly at its start is P's own first sample.
+    assert await verdict(now - timedelta(minutes=10), live=False) == "live"
+    assert await verdict(now - timedelta(minutes=5), live=False) == "live"
+    assert await verdict(now + timedelta(hours=1), live=False) == "live"
+
+    # Awaiting: closed at its last movement, pointer kept.
+    p.ended_at = now - timedelta(minutes=1)
+    await db_session.flush()
+    assert await verdict(now, live=True) == "live"
+    assert await verdict(now - timedelta(minutes=11), live=False) == "build"
+    assert await verdict(now - timedelta(minutes=5), live=False) == "none"
+    assert await verdict(now - timedelta(minutes=1), live=False) == "none"
+    assert await verdict(now - timedelta(seconds=30), live=False) == "live"
+    assert await verdict(now + timedelta(minutes=GAP) - timedelta(minutes=1), live=False) == "live"
+    assert await verdict(now + timedelta(minutes=GAP), live=False) == "build"
+
+    # A pre-movement (contact-mode) open session keeps the old rule whole.
+    p.ended_at = None
+    p.boundary_algorithm_version = 0
+    await db_session.flush()
+    assert await verdict(now - timedelta(minutes=11), live=False) == "live"
+
+
+# --- B6-12: what the builder is fed ------------------------------------------------
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_creep_under_the_floor_is_not_a_replayed_drive_but_extends_one(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """E-5: two replayed frames under the floor with the odometer a km apart are
+    a creep, not a drive, the same answer live gives. (Storage keeps whole km,
+    so a creep only shows a rise across minutes.) A stopped frame with the
+    odometer up after an established drive extends it, the same as live's open
+    branch. Red on 177e04d9 (the live machine opened on the rise)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4crp"
+    )
+    device_id = device.device_id
+    creep = _now() - timedelta(hours=2)
+    await _post(client, token, creep, SPEED=2.0, ODOMETER=1000.0)
+    await _post(client, token, creep + timedelta(minutes=13), SPEED=4.0, ODOMETER=1001.0)
+    assert [s for s in await _sessions(db_session, device_id) if s.id != earlier_id] == []
+
+    # More than a gap after the creep, so the drive's start can't walk back into it.
+    drive = await _replay(client, token, creep + timedelta(minutes=30), odometer_from=1001.0)
+    stopped = drive[-1] + timedelta(seconds=30)
+    await _post(client, token, stopped, SPEED=0.0, ODOMETER=1004.0)
+    # Parked after that: 1004.4 is stored as 1004, no higher than the drive's top
+    # reading, so it's no rise and the drive stays where it stopped.
+    await _post(client, token, stopped + timedelta(seconds=30), SPEED=0.0, ODOMETER=1004.4)
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(drive[0], stopped)]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_replayed_odometer_under_a_pid_prefix_extends_its_drive(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """E-11: `A6-ODOMETER` is an odometer to `extract_signals`, so the fast
+    path's window maximum has to find it under its prefix too, not in a list of
+    bare names. Whole km, because storage keeps the odometer in whole km and a
+    half-km step would be flat on every other frame. Red on 177e04d9 (an open
+    pointed session)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4pfx"
+    )
+    device_id = device.device_id
+    base = _now() - timedelta(hours=2)
+    stamps = [base + timedelta(seconds=30 * i) for i in range(5)]
+    for i, at in enumerate(stamps):
+        await _post(client, token, at, **{"A6-ODOMETER": 1000.0 + i})
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(stamps[0], stamps[-1])]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_thinned_replay_is_built_from_what_was_stored(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """D-16: the builder reads stored rows plus the frame in hand. With SPEED
+    stored once per 30 s, a drive that starts inside an interval has its first
+    frames thinned, so the session appears a frame later than live would open
+    it, and its start is the stored burst. Its end is exact. Red on 177e04d9
+    (the live machine opened on the second frame regardless)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4thn2"
+    )
+    device_id = device.device_id
+    speed = await TelemetryService(db_session).auto_register_parameter("SPEED", None, None)
+    speed.storage_interval_seconds = 30
+    await db_session.commit()
+    try:
+        base = _now() - timedelta(hours=2)
+        parked = base - timedelta(seconds=10)
+        await _post(client, token, parked, SPEED=0.0)
+        stamps = [base + timedelta(seconds=3 * i) for i in range(40)]
+        await _post(client, token, stamps[0], SPEED=50.0)
+        await _post(client, token, stamps[1], SPEED=52.0)
+        assert [s for s in await _sessions(db_session, device_id) if s.id != earlier_id] == []
+        for at in stamps[2:]:
+            await _post(client, token, at, SPEED=50.0)
+
+        replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+        assert _spans(replayed) == [(parked, stamps[-1])]
+    finally:
+        speed = await TelemetryService(db_session).auto_register_parameter("SPEED", None, None)
+        speed.storage_interval_seconds = 0
+        await db_session.commit()
+
+
+# --- B6-12: a replay never confirms against live evidence (concern 1) -------------
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_live_odometer_frame_then_an_older_replay_keeps_the_replays_bounds(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """Re-review 4's probe 1: a replayed drive, a live odometer frame at now,
+    then a replay of a drive an hour old. The replay is built from its rows
+    and never meets the live candidate. Red on 177e04d9 ((B[0], now))."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4prb1"
+    )
+    device_id = device.device_id
+    first = await _replay(client, token, _now() - timedelta(hours=3), odometer_from=1000.0)
+    await _post(client, token, _now(), ODOMETER=1050.0)
+    b = await _replay(client, token, _now() - timedelta(hours=1), odometer_from=1020.0)
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(first[0], first[-1]), (b[0], b[-1])]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_one_live_moving_frame_then_an_older_replay_keeps_the_replays_bounds(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """Re-review 4's probe 2: one live above-floor frame (a spike, or rolling
+    into WiFi range), then a replay an hour old. Red on 177e04d9 ((B[0], now))."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
+        db_session, make_livelink_vehicle, "t4prb2"
+    )
+    device_id = device.device_id
+    await _post(client, token, _now(), SPEED=50.0)
+    b = await _replay(client, token, _now() - timedelta(hours=1))
+
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(b[0], b[-1])]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_future_dated_frame_leaves_no_candidate_for_live_frames_to_confirm(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """A frame an hour ahead with no pointed session is a replay to the builder,
+    which finds nothing near it and builds nothing; it never touches the live
+    evidence. The live frames that follow open from themselves. Red on
+    177e04d9 (`movement_ended_at` an hour ahead)."""
+    await _pin_session_settings(db_session, keep_rows)
+    _vin, device, token = await _linked(db_session, make_livelink_vehicle, "t4futc")
+    device_id = device.device_id
+    t = _now()
+    await _post(client, token, t + timedelta(hours=1), SPEED=50.0)
+    await _post(client, token, t, SPEED=50.0)
+    await _post(client, token, t + timedelta(seconds=5), SPEED=52.0)
+
+    sessions = await _sessions(db_session, device_id)
+    assert [(s.started_at, s.movement_ended_at, s.ended_at) for s in sessions] == [
+        (t, t + timedelta(seconds=5), None)
+    ]
+
+
+# --- B6-12: a reopen or an extension never crosses a VIN (E-1) ---------------------
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_relinked_devices_first_drive_does_not_reopen_the_old_cars(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """Regression guard (E-1, R8): the dongle moves from car A to car B within
+    the gap of A's last drive. B's first movement opens a new drive on B's VIN;
+    A's closed drive is not reopened by time. Kills dropping the VIN from the
+    reopen of the latest closed drive."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin_a, device, token = await _linked(db_session, make_livelink_vehicle, "t4rlka")
+    device_id = device.device_id
+    vin_b, _device_b = await make_livelink_vehicle("t4rlkb", "1")
+    now = _now()
+    await _post(client, token, now - timedelta(seconds=40), SPEED=40.0)
+    await _post(client, token, now - timedelta(seconds=30), SPEED=45.0)
+    assert [(s.vin, s.ended_at) for s in await _sessions(db_session, device_id)] == [(vin_a, None)]
+
+    assert await LiveLinkService(db_session).link_device_to_vehicle(device_id, vin_b)
+    await _post(client, token, now - timedelta(seconds=10), SPEED=40.0)
+    await _post(client, token, now, SPEED=45.0)
+
+    assert [(s.vin, s.started_at, s.ended_at) for s in await _sessions(db_session, device_id)] == [
+        (vin_a, now - timedelta(seconds=40), now - timedelta(seconds=30)),
+        (vin_b, now - timedelta(seconds=10), None),
+    ]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_relinked_devices_replay_does_not_extend_the_old_cars_drive(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """E-1 on the fast path: car A's closed drive ended five minutes before car
+    B's replayed drive begins, on the same dongle. The replay builds B's own
+    session on B's VIN. Red on 177e04d9 (an open pointed session)."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin_a, device, token = await _linked(db_session, make_livelink_vehicle, "t4rlkc")
+    device_id = device.device_id
+    vin_b, _device_b = await make_livelink_vehicle("t4rlkd", "1")
+    now = _now()
+    await _closed_session(
+        db_session,
+        vin_a,
+        device_id,
+        now - timedelta(minutes=130),
+        now - timedelta(minutes=125),
+    )
+    await db_session.commit()
+    assert await LiveLinkService(db_session).link_device_to_vehicle(device_id, vin_b)
+
+    b = await _replay(client, token, now - timedelta(minutes=120))
+
+    assert [(s.vin, s.started_at, s.ended_at) for s in await _sessions(db_session, device_id)] == [
+        (vin_a, now - timedelta(minutes=130), now - timedelta(minutes=125)),
+        (vin_b, b[0], b[-1]),
+    ]
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_the_builder_never_extends_another_vins_drive(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """E-1, the builder's half: the dongle's last drive on car A ended at the
+    very instant car B's drive starts. The two windows touch, which the builder
+    read as one drive when it matched on the device alone, and car A's drive
+    took car B's movement. B gets a drive of its own. Through the name SD
+    backfill calls. Red on 177e04d9 (A's drive was extended)."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin_a, device, token = await _linked(db_session, make_livelink_vehicle, "t4rlke")
+    device_id = device.device_id
+    vin_b, _device_b = await make_livelink_vehicle("t4rlkf", "1")
+    t = _now() - timedelta(hours=2)
+    await _closed_session(db_session, vin_a, device_id, t - timedelta(minutes=20), t)
+    await db_session.commit()
+    assert await LiveLinkService(db_session).link_device_to_vehicle(device_id, vin_b)
+
+    built = await TelemetryService(db_session)._reconstruct_sessions_from_batch(  # noqa: SLF001
+        vin_b,
+        device_id,
+        [(t, "SPEED", 40.0), (t + timedelta(seconds=30), "SPEED", 45.0)],
+    )
     await db_session.flush()
 
-    await SessionService(db_session).check_session_timeouts(TIMEOUT, GAP)
+    assert built == 1
+    assert [(s.vin, s.started_at, s.ended_at) for s in await _sessions(db_session, device_id)] == [
+        (vin_a, t - timedelta(minutes=20), t),
+        (vin_b, t, t + timedelta(seconds=30)),
+    ]
 
-    assert replayed.ended_at == close + timedelta(minutes=5)
-    assert device.current_session_id == replayed.id
+
+async def test_a_pointed_drive_with_only_a_future_end_closes_at_its_own_start(
+    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+) -> None:
+    """D-9's tick half: the device's last live movement is an earlier drive's,
+    and the open drive's only movement end is a future-dated frame's. The tick
+    has nothing to anchor on but the drive's own start, and must never close it
+    before that. Red on 177e04d9 (the future end held it open)."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device = await make_livelink_vehicle("t4fut3", "1")
+    now = _now()
+    start = now - timedelta(hours=1)
+    drive = DriveSession(
+        vin=vin,
+        device_id=device.device_id,
+        started_at=start,
+        movement_started_at=start,
+        movement_ended_at=now + timedelta(hours=1),
+        boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
+    )
+    db_session.add(drive)
+    await db_session.flush()
+    device.current_session_id = drive.id
+    device.last_movement_at = now - timedelta(days=3)
+    device.last_seen = now
+    await db_session.flush()
+
+    closed = await SessionService(db_session).check_session_timeouts(TIMEOUT, GAP)
+
+    assert drive.id in [s.id for s in closed]
+    assert drive.ended_at == start
+
+
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_a_tail_sample_older_than_a_live_candidate_by_a_gap_does_not_reopen_its_drive(
+    db_session: AsyncSession, client: AsyncClient, make_livelink_vehicle, keep_rows
+) -> None:
+    """3.5's guard on the one path a replay still meets live evidence: a drive
+    the contact clock closed twenty minutes ago, a live moving frame now (a
+    candidate), then a replayed sample from just after that close. The sample
+    is the drive's tail, but the candidate is more than a gap newer, so it
+    isn't the sample that comes next, and one tail sample doesn't reopen the
+    drive on it. Red on 177e04d9 (reopened)."""
+    await _pin_session_settings(db_session, keep_rows)
+    now = _now()
+    _vin, device_id, token, p_id = await _awaiting(
+        db_session,
+        make_livelink_vehicle,
+        "t4gclr",
+        start=now - timedelta(minutes=40),
+        end=now - timedelta(minutes=20),
+    )
+    await _post(client, token, now, SPEED=50.0)
+    await _post(client, token, now - timedelta(minutes=19), SPEED=50.0)
+
+    [p] = await _sessions(db_session, device_id)
+    assert (p.id, p.ended_at) == (p_id, now - timedelta(minutes=20))
+
+
+async def test_live_frames_inside_an_awaiting_drives_window_do_not_reopen_it(
+    db_session: AsyncSession, make_livelink_vehicle, keep_rows
+) -> None:
+    """D-4's live half: two live frames stamped inside the window of a drive
+    that closed a minute ago are that drive's late readings, not its return.
+    Nothing reopens and nothing opens. Red on 177e04d9 (a negative delta
+    reopened it)."""
+    await _pin_session_settings(db_session, keep_rows)
+    vin, device = await make_livelink_vehicle("t4awlv", "1")
+    now = _now()
+    p = await _closed_session(
+        db_session, vin, device.device_id, now - timedelta(minutes=20), now - timedelta(minutes=1)
+    )
+    device.current_session_id = p.id
+    device.last_movement_at = now - timedelta(minutes=1)
+    await db_session.flush()
+    service = SessionService(db_session)
+
+    await service.observe_telemetry(
+        device, {"SPEED": 40.0}, now - timedelta(minutes=2, seconds=10), live=True
+    )
+    opened = await service.observe_telemetry(
+        device, {"SPEED": 45.0}, now - timedelta(minutes=2), live=True
+    )
+
+    assert opened is None
+    assert p.ended_at == now - timedelta(minutes=1)
+    assert [s.id for s in await _sessions(db_session, device.device_id)] == [p.id]
+
+
+# --- R9: which sessions the gap clock and the sweep let go -------------------------
 
 
 async def test_a_live_drive_that_started_on_its_last_movement_is_live(
     db_session: AsyncSession, make_livelink_vehicle, keep_rows
 ) -> None:
     """Regression guard: a live session can start on its confirming sample (a
-    future candidate made it the start), so `started_at == last_movement_at`
-    there too, with no earlier drive ending at that instant. It's live, and its
-    gap close lets the pointer go. Kills a plain `<=`."""
+    future candidate made it the start), so `started_at == last_movement_at`.
+    The gap clock closes it there and lets the pointer go. Kills keeping the
+    pointer on a gap close (B6-12: a gap close always releases it)."""
     await _pin_session_settings(db_session, keep_rows)
     vin, device = await make_livelink_vehicle("t4lvst", "1")
     moved = _now() - timedelta(hours=1)
@@ -1036,9 +2057,8 @@ async def test_a_zero_length_live_drive_awaiting_a_reopen_is_let_go_on_the_gap(
 ) -> None:
     """Regression guard: a live drive that started on its last movement and was
     closed there by the contact clock is zero-length and closed at its own
-    start. On the tie it must not count as the "earlier drive ending at that
-    instant", or an awake, parked car keeps its pointer for good. Kills dropping
-    the `id != session.id` filter from the tie-break."""
+    start. Once the gap has passed the sweep lets the pointer go, even with the
+    car awake. Kills dropping the sweep's gap compare."""
     await _pin_session_settings(db_session, keep_rows)
     vin, device = await make_livelink_vehicle("t4zero", "1")
     moved = _now() - timedelta(minutes=GAP + 1)
@@ -1065,29 +2085,32 @@ async def test_a_zero_length_live_drive_awaiting_a_reopen_is_let_go_on_the_gap(
 
 
 @pytest.mark.usefixtures("livelink_enabled")
-async def test_live_frames_from_a_parked_car_do_not_hold_a_replay_built_session(
+async def test_live_frames_from_a_parked_car_do_not_extend_a_replayed_drive(
     db_session: AsyncSession,
     client: AsyncClient,
     make_livelink_vehicle,
     keep_rows,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Regression guard (F2-6): only replayed samples hold it. A car awake and
-    parked keeps sending live frames, and those mustn't stop the drive-gap
-    clock. Kills holding on any recent row."""
+    """F2-6, under B6-12: a car awake and parked keeps sending live frames. The
+    replay's drive is a closed session they never see, and a tick changes
+    nothing. Red on 177e04d9 (the session was open until the tick)."""
     await _pin_session_settings(db_session, keep_rows)
     _vin, device, token, earlier_id, _end = await _device_with_an_earlier_drive(
         db_session, make_livelink_vehicle, "t4park"
     )
     device_id = device.device_id
     stamps = await _replay(client, token, _now() - timedelta(hours=2))
+    replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
+    assert _spans(replayed) == [(stamps[0], stamps[-1])]
+    await _post(client, token, _now(), ENGINE_RPM=800.0, SPEED=0.0)
     await _quiet(db_session, device_id, minutes=TIMEOUT + 1)
     await _post(client, token, _now(), ENGINE_RPM=800.0, SPEED=0.0)
 
     await _tick(db_session, caplog)
 
     replayed = [s for s in await _sessions(db_session, device_id) if s.id != earlier_id]
-    assert [(s.started_at, s.ended_at) for s in replayed] == [(stamps[0], stamps[-1])]
+    assert _spans(replayed) == [(stamps[0], stamps[-1])]
 
 
 # --- G4-07: rate check on sample time --------------------------------------------

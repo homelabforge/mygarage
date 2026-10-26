@@ -114,7 +114,7 @@ async def test_no_device_is_offline(client, auth_headers, db_session, test_user)
 async def test_a_held_closed_session_is_not_reported_as_current(
     client, auth_headers, db_session, test_user
 ):
-    """T4-b: the pointer can hold a CLOSED session (awaiting, or a held replay).
+    """T4-b: the pointer can hold a CLOSED session, one awaiting a reopen.
 
     The status used to call it current and count its duration up from hours ago.
     """

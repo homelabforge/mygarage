@@ -819,12 +819,11 @@ class TelemetryService:
         an optional device timestamp that a buffering dongle sets hours in the
         past -- or, with a bad clock plugin, in the future.
 
-        A sample far from receipt time may still open and extend a session (it
-        is real driving that happened), but must not anchor
-        ``last_movement_at``, which every live timeout measures from. Anchoring
-        a live session on a replayed timestamp drags it hours away from where it
-        belongs and makes the contact-loss clock fire against a moment the
-        device never spoke.
+        A sample far from receipt time is a replay. Since B6-12 it never opens
+        or holds the pointed session and never anchors ``last_movement_at``,
+        which every live timeout measures from; it is built into closed
+        sessions from the rows already stored, unless it is the pointed
+        session's own late sample.
         """
         from app.services.session_service import SessionService  # local import avoids cycle
 

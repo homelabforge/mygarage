@@ -837,6 +837,67 @@ class TestExplicitOffline:
         assert device.pending_since is None
         assert await _all_sessions(db_session, device.device_id) == []
 
+    async def test_movement_inside_the_gap_after_a_finalize_reopens_the_drive(
+        self, db_session: AsyncSession, make_livelink_vehicle
+    ):
+        """B6-12 (ruling B6-12-E2): an engine-off stop shorter than the gap no
+        longer splits a drive. The finalizer closes at the last movement and
+        lets the pointer go; movement inside the gap reopens that same drive by
+        time, the way a connected stop never split it. Red on 177e04d9 (a
+        second session)."""
+        vin, device = await make_livelink_vehicle("smoff", "5")
+        service = SessionService(db_session)
+        await _drive(
+            service, db_session, vin, device, [(T0, MOVING), (T0 + timedelta(minutes=1), MOVING)]
+        )
+        closed = await service.finalize_offline(device, now=T0 + timedelta(minutes=2))
+        assert closed is not None
+        assert device.current_session_id is None
+
+        reopened = await _drive(
+            service,
+            db_session,
+            vin,
+            device,
+            [
+                (T0 + timedelta(minutes=10), MOVING),
+                (T0 + timedelta(minutes=10, seconds=10), MOVING),
+            ],
+        )
+
+        assert reopened is not None
+        assert (reopened.id, reopened.ended_at) == (closed.id, None)
+        assert len(await _all_sessions(db_session, device.device_id)) == 1
+
+    async def test_movement_past_the_gap_after_a_finalize_opens_a_new_drive(
+        self, db_session: AsyncSession, make_livelink_vehicle
+    ):
+        """Regression guard for the other side of B6-12-E2: twenty minutes with
+        the engine off is two trips. Kills reopening at any distance."""
+        vin, device = await make_livelink_vehicle("smoff", "6")
+        service = SessionService(db_session)
+        await _drive(
+            service, db_session, vin, device, [(T0, MOVING), (T0 + timedelta(minutes=1), MOVING)]
+        )
+        closed = await service.finalize_offline(device, now=T0 + timedelta(minutes=2))
+        assert closed is not None
+
+        opened = await _drive(
+            service,
+            db_session,
+            vin,
+            device,
+            [
+                (T0 + timedelta(minutes=20), MOVING),
+                (T0 + timedelta(minutes=20, seconds=10), MOVING),
+            ],
+        )
+
+        assert opened is not None
+        assert opened.id != closed.id
+        assert closed.ended_at == T0 + timedelta(minutes=1)
+        assert len(await _all_sessions(db_session, device.device_id)) == 2
+
 
 # ---------------------------------------------------------------------------
 # Scope and provenance
