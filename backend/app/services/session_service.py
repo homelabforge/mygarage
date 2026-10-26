@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import ColumnElement, SQLColumnExpression, and_, func, or_, select
+from sqlalchemy import ColumnElement, SQLColumnExpression, and_, func, not_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,8 +16,10 @@ from app.models.vehicle_telemetry import VehicleTelemetry
 from app.services.session_boundaries import (
     BOUNDARY_ALGORITHM_MOVEMENT,
     PENDING_SOURCE_RPM,
+    DriveWindow,
     MovementSignals,
     extract_signals,
+    group_drives,
 )
 from app.utils.datetime_utils import utc_now
 from app.utils.distance_counters import (
@@ -984,6 +986,227 @@ class SessionService:
                 .where(DriveSession.ended_at.is_(None))
             )
         ).scalar_one_or_none()
+
+    # =========================================================================
+    # Sessions built from stored rows (SD backfill, and replays since B6-12)
+    # =========================================================================
+
+    async def reconstruct_sessions_from_rows(
+        self,
+        vin: str,
+        device_id: str,
+        observed: list[tuple[datetime, str, float]],
+    ) -> int:
+        """Create or extend the drive sessions a replayed batch describes.
+
+        Returns the number of sessions created or extended.
+
+        The grouping is `session_boundaries.group_drives`, which applies the
+        same movement predicate and the same gap as the live path -- so a drive
+        is cut the same way whether it arrived over MQTT or off an SD card.
+
+        Three rules keep this from making things worse than the bug it fixes:
+
+        - **Torque sessions are never touched.** The phone supplies an
+          authoritative session id; re-bounding it on a gap threshold replaces
+          good evidence with inference. Excluded by `external_session_id`, not
+          by heuristic.
+        - **No overlaps are written.** Nothing in the schema forbids them, and
+          every aggregate is a window scan, so two overlapping sessions both
+          claim the same samples and both report the same distance.
+        - **An ambiguous window is left alone.** A drive overlapping more than
+          one existing session is a history-repair problem, not a backfill one;
+          merging them here would be a destructive guess made during an ingest.
+        - **An open session keeps its end** (R10). It's still running, so it
+          matches any drive that ends after it started. A drive that started
+          earlier backdates its start (clamped past the device's last close);
+          the end stays the live path's.
+        """
+        device = (
+            await self.db.execute(
+                select(LiveLinkDevice).where(LiveLinkDevice.device_id == device_id)
+            )
+        ).scalar_one_or_none()
+        if device is None or not device.vin:
+            return 0
+
+        from app.services.livelink_service import LiveLinkService  # local: avoids a cycle
+
+        gap = await LiveLinkService(self.db).get_session_gap_minutes()
+        drives = group_drives(observed, gap)
+        if not drives:
+            return 0
+
+        changed = 0
+        for index, drive in enumerate(drives):
+            # Inclusive at both bounds by default: a session matches this drive
+            # when each one's start is at or before the other's end, and an
+            # open session has no end yet, so it reaches past any drive. A
+            # single-instant touch with a session from the live path or from
+            # another SD file is most plausibly the same physical drive seen by
+            # two sources (a device reconnecting mid-drive, or one reading both
+            # logged to SD and sent over HTTPS), so it matches.
+            #
+            # The two exclusions below apply only at an instant this drive
+            # shares with the adjacent drive of this same `group_drives` call,
+            # which gives that instant to the earlier drive. The ownership is a
+            # property of one call, where both drives were cut from the same
+            # evidence; it says nothing about a session from anywhere else.
+            # Neither exclusion can remove a genuine overlap (a positive shared
+            # duration), because both require the two windows to meet at
+            # exactly one point.
+            conditions = [
+                DriveSession.device_id == device_id,
+                DriveSession.external_session_id.is_(None),
+                DriveSession.started_at <= drive.movement_ended_at,
+                or_(DriveSession.ended_at.is_(None), DriveSession.ended_at >= drive.started_at),
+            ]
+
+            if index + 1 < len(drives) and drives[index + 1].started_at == drive.movement_ended_at:
+                # Right: the next drive in this batch starts exactly at this
+                # drive's movement_ended_at, which is always this drive's own
+                # movement sample. A session that starts there and runs on past
+                # it is the next drive's. An open session starting there counts
+                # as running on past it, since it is still going. A closed
+                # session that starts and ends at that instant keeps matching
+                # this drive.
+                conditions.append(
+                    not_(
+                        and_(
+                            DriveSession.started_at == drive.movement_ended_at,
+                            or_(
+                                DriveSession.ended_at.is_(None),
+                                DriveSession.ended_at > drive.movement_ended_at,
+                            ),
+                        )
+                    )
+                )
+
+            if index > 0 and drives[index - 1].movement_ended_at == drive.started_at:
+                # Left: the previous drive in this batch ends exactly at this
+                # drive's started_at, so a closed session ending there is the
+                # previous drive's. Closed sessions only: an open session is
+                # still running past this instant, so it keeps matching and the
+                # open-session branch below handles it. The IS NOT NULL is what
+                # keeps it: NOT (NULL = x) is NULL, which drops the row.
+                conditions.append(
+                    not_(
+                        and_(
+                            DriveSession.ended_at.is_not(None),
+                            DriveSession.ended_at == drive.started_at,
+                        )
+                    )
+                )
+
+            overlapping = list(
+                (await self.db.execute(select(DriveSession).where(*conditions))).scalars().all()
+            )
+
+            if len(overlapping) > 1:
+                logger.info(
+                    "SD reconstruction: drive %s..%s for %s spans %d existing sessions; "
+                    "left unchanged (history repair, not ingest)",
+                    drive.started_at,
+                    drive.movement_ended_at,
+                    sanitize_for_log(device_id),
+                    len(overlapping),
+                )
+                continue
+
+            if overlapping:
+                session = overlapping[0]
+                if session.ended_at is None:
+                    # An OPEN session is the live path's business: it is still
+                    # deciding where this drive ends, and closing it here would
+                    # race the timeout clocks. Its start is fair game, though:
+                    # WiFi came back mid-drive and the card holds the head.
+                    if await self._backdate_open_session(session, drive):
+                        changed += 1
+                    continue
+                session.started_at = min(self._naive_opt(session.started_at), drive.started_at)
+                session.ended_at = max(self._naive_opt(session.ended_at), drive.movement_ended_at)
+                session.movement_started_at = min(
+                    self._naive_opt(session.movement_started_at) or drive.movement_started_at,
+                    drive.movement_started_at,
+                )
+                session.movement_ended_at = max(
+                    self._naive_opt(session.movement_ended_at) or drive.movement_ended_at,
+                    drive.movement_ended_at,
+                )
+            else:
+                session = DriveSession(
+                    vin=device.vin,
+                    device_id=device_id,
+                    started_at=drive.started_at,
+                    ended_at=drive.movement_ended_at,
+                    movement_started_at=drive.movement_started_at,
+                    movement_ended_at=drive.movement_ended_at,
+                    boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
+                    effective_gap_minutes=gap,
+                )
+                self.db.add(session)
+                # Flushed (not just added), not committed: production sessions
+                # are autoflush=False, so without this the next drive's own
+                # overlap query -- issued in the same loop, same transaction --
+                # cannot see a session this loop just created. A commit stays
+                # the caller's: bulk_backfill commits once after every drive
+                # in the batch is done.
+                await self.db.flush()
+                logger.info(
+                    "SD reconstruction: created session for %s over %s..%s",
+                    sanitize_for_log(device_id),
+                    drive.started_at,
+                    drive.movement_ended_at,
+                )
+
+            # Read back into locals and narrow. Both were assigned non-None a
+            # few lines up, in either branch, but they are nullable columns and
+            # a later edit to one branch could stop being true without anything
+            # here noticing.
+            window_start = self._naive_opt(session.started_at)
+            window_end = self._naive_opt(session.ended_at)
+            if window_start is not None and window_end is not None:
+                session.duration_seconds = max(0, int((window_end - window_start).total_seconds()))
+            changed += 1
+
+        await self.db.flush()
+        return changed
+
+    async def _backdate_open_session(self, session: DriveSession, drive: DriveWindow) -> bool:
+        """Pull an open session's start back to an SD drive that began first (R10).
+
+        Clamped past the device's last close the same way a live open is, and
+        only ever earlier. A session the drive started inside of is left be.
+        Returns True when the start moved.
+        """
+        current_start = self._naive_opt(session.started_at)
+        if current_start is None or drive.started_at >= current_start:
+            return False
+        started_at, movement_started_at, _ = await self.clamp_past_previous_close(
+            session.device_id,
+            drive.started_at,
+            drive.movement_started_at,
+            drive.movement_ended_at,
+        )
+        if started_at >= current_start:
+            return False
+        session.started_at = started_at
+        # A contact-mode session has no movement record; don't invent one.
+        current_movement = self._naive_opt(session.movement_started_at)
+        if current_movement is not None:
+            session.movement_started_at = min(current_movement, movement_started_at)
+        logger.info(
+            "SD reconstruction: backdated open session %d for %s from %s to %s",
+            session.id,
+            sanitize_for_log(session.device_id),
+            current_start,
+            started_at,
+        )
+        return True
+
+    @staticmethod
+    def _naive_opt(value: datetime | None) -> datetime | None:
+        return value.replace(tzinfo=None) if value is not None and value.tzinfo else value
 
     async def begin_provisional_offline(
         self, device: LiveLinkDevice, now: datetime | None = None
