@@ -135,7 +135,9 @@ async def test_drain_returns_when_a_finished_job_is_still_in_the_set() -> None:
     The PG sidecar hung on it about one run in four. Red on f2fe0f85 (timed out)."""
     backend = Path(__file__).resolve().parents[3]
     try:
-        result = subprocess.run(
+        # Off the loop, so a red run doesn't freeze the test's own loop for 20 s.
+        result = await asyncio.to_thread(
+            subprocess.run,
             [sys.executable, "-c", _DRAIN_PROBE],
             cwd=backend,
             capture_output=True,
