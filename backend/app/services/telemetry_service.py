@@ -79,9 +79,8 @@ class MaintenanceModeError(RuntimeError):
 #:
 #: Matches the default contact-loss timeout, deliberately: a sample that is
 #: further from now than the timeout that would have closed the session cannot
-#: be describing the session that is open. Beyond this the reading is treated as
-#: replay -- still real driving, still allowed to open and extend a session, but
-#: not allowed to move the anchor every live timeout measures from.
+#: be describing the session that is open. Beyond this it's a replay, built into
+#: closed sessions by sample time, and it never opens or holds the pointer.
 LIVE_SAMPLE_TOLERANCE_SECONDS = 300
 
 

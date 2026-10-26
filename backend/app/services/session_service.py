@@ -713,7 +713,9 @@ class SessionService:
                 # car's reading now, so it becomes the baseline, but it proves
                 # nothing and opens no window: a drive that happened while we
                 # weren't looking isn't a drive starting now. Odometer-only
-                # frames (no speed key at all) keep the rule below.
+                # frames (no speed key at all) keep the rule below. The cost: a
+                # speed PID stuck at 0 loses odometer detection, and an
+                # MQTT-only dropout that ends parked leaves its distance out.
                 if device.movement_baseline_km is None or signals.odometer_km > float(
                     device.movement_baseline_km
                 ):
@@ -1156,7 +1158,9 @@ class SessionService:
         backfill uses, which applies the live debounce, floor and gap (the slow
         path, once per new drive). Two drives in reach is a guess either way,
         so neither moves. Never the pointed session, which the verdict already
-        ruled on. A frame that REPORTS a speed under the floor is a stopped car:
+        ruled on. Two transactions of one device on the slow path at once could
+        both build the drive; one WiCAN posts serially, so that's left to the
+        repair tool. A frame that REPORTS a speed under the floor is a stopped car:
         it may extend a drive on its odometer, as live's open branch does, but
         it never proves one (1h, ruling B6-12-E5).
         """

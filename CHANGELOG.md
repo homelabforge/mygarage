@@ -74,6 +74,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - A drive starts from the newest odometer reading
 - A drive waiting to be reopened is no longer ended again at the current time when the ECU goes offline
 - A drive a WiCAN uploads from its buffer is recorded as a drive of its own, from its readings, instead of joining or holding open the drive in progress
+- A car creeping under 5 km/h, or a parked car whose odometer reading has moved on, no longer opens a drive
 - A threshold alert no notification service accepts retries once per cooldown instead of on every reading, so a notification outage no longer stalls MQTT ingest
 - A `nan` or `inf` MQTT reading is dropped instead of failing every publish (SQLite) or being stored (PostgreSQL)
 - A WiCAN frame with no usable value or only codes no longer marks the ECU online
