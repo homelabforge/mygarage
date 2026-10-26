@@ -1074,6 +1074,7 @@ class SessionService:
         movement_ended_at: datetime,
         *,
         exclude_id: int | None = None,
+        before: datetime | None = None,
     ) -> tuple[datetime, datetime, datetime]:
         """Keep a new or backdated window from reaching into a closed session.
 
@@ -1086,7 +1087,7 @@ class SessionService:
         started_at = self._naive(started_at)
         movement_started_at = self._naive(movement_started_at)
         movement_ended_at = self._naive(movement_ended_at)
-        previous_end = await self._previous_close(device_id, exclude_id=exclude_id)
+        previous_end = await self._previous_close(device_id, exclude_id=exclude_id, before=before)
         if previous_end is None:
             return started_at, movement_started_at, movement_ended_at
         started_at = max(started_at, previous_end)
@@ -1096,12 +1097,14 @@ class SessionService:
         return started_at, movement_started_at, movement_ended_at
 
     async def _previous_close(
-        self, device_id: str, *, exclude_id: int | None = None
+        self, device_id: str, *, exclude_id: int | None = None, before: datetime | None = None
     ) -> datetime | None:
         """The device's latest session close, naive, or None if it never closed one.
 
         ``exclude_id`` leaves one closed session out: the one whose own start is
         being moved, which would otherwise clamp itself to its own end.
+        ``before`` only counts closes at or before it: a drive's head only has
+        to stay clear of the drive before it, not of every later one (M3).
         """
         stmt = (
             select(func.max(DriveSession.ended_at))
@@ -1110,6 +1113,8 @@ class SessionService:
         )
         if exclude_id is not None:
             stmt = stmt.where(DriveSession.id != exclude_id)
+        if before is not None:
+            stmt = stmt.where(DriveSession.ended_at <= before)
         previous_end = (await self.db.execute(stmt)).scalar()
         return self._naive(previous_end) if previous_end is not None else None
 
@@ -1259,6 +1264,10 @@ class SessionService:
         if start <= sample_at <= end:
             return  # its own late reading; the closed-session refresh covers it
         if sample_at > end:
+            if sample_at > self._naive(utc_now()):
+                # A clock that's fast. A drive ending in the future would sit
+                # ahead of every live sample and turn the next real drive away (M4).
+                return
             moving = above_floor
             if not moving and odometer is not None:
                 # Against the window's own highest reading, not `end_odometer`:
@@ -1290,6 +1299,7 @@ class SessionService:
             sample_at,
             self._naive_opt(target.movement_ended_at) or end,
             exclude_id=target.id,
+            before=start,
         )
         if started_at >= start:
             return
@@ -1425,12 +1435,21 @@ class SessionService:
     def _frame_rows(
         samples: Mapping[str, object], sample_at: datetime
     ) -> list[tuple[datetime, str, float]]:
-        """The frame in hand as builder rows, in case the interval thinned its own (D-16)."""
+        """The frame in hand as builder rows, in case the interval thinned its own (D-16).
+
+        Odometers on the stored scale, so the frame can't beat its own stored
+        reading (1001.4 against a stored 1001 made one spike a drive, I1). Only
+        this frame, though: earlier thinned frames are gone, so a thinned SPEED
+        opens the drive up to one interval late.
+        """
         rows: list[tuple[datetime, str, float]] = []
         for key, value in samples.items():
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 continue
-            rows.append((sample_at, key, float(value)))
+            number = float(value)
+            if is_odometer_param_key(key):
+                number = _as_stored_odometer(number)
+            rows.append((sample_at, key, number))
         return rows
 
     # =========================================================================
@@ -1483,8 +1502,18 @@ class SessionService:
         if not drives:
             return 0
 
+        now = self._naive(utc_now())
         changed = 0
         for index, drive in enumerate(drives):
+            if drive.movement_ended_at > now:
+                # Rows from a clock that's fast. A closed drive ending in the
+                # future would turn every live drive away until then (M4).
+                logger.info(
+                    "Not building a drive for device %s that ends in the future, at %s",
+                    sanitize_for_log(device_id),
+                    sanitize_for_log(drive.movement_ended_at),
+                )
+                continue
             # Inclusive at both bounds by default: a session matches this drive
             # when each one's start is at or before the other's end, and an
             # open session has no end yet, so it reaches past any drive. A

@@ -717,6 +717,9 @@ class TelemetryService:
         )
 
         stored_count = 0
+        #: Odometer readings the sanitizer threw out. They never reach a row, so
+        #: they don't get to prove movement either (B6-12, I1).
+        rejected_odometer: set[str] = set()
 
         for param_key, value in valid_data.items():
             if value is None:
@@ -744,6 +747,7 @@ class TelemetryService:
                 sanitized_value = await self._sanitize_odometer_value(vin, float(value))
                 if sanitized_value is None:
                     # Invalid odometer value - skip storing to latest but may still log to historical
+                    rejected_odometer.add(param_key)
                     continue
                 value = sanitized_value
 
@@ -792,8 +796,10 @@ class TelemetryService:
         #
         # Reads `valid_data`, not the raw batch: the validator has already
         # dropped out-of-range garbage, and a spurious 400 km/h reading must not
-        # be what opens a drive.
-        await self._observe_movement(vin, device_id, valid_data, timestamp, received_at)
+        # be what opens a drive. Nor an odometer the sanitizer refused (an
+        # overflow, a 16,000 km jump): it was never stored.
+        observed = {k: v for k, v in valid_data.items() if k not in rejected_odometer}
+        await self._observe_movement(vin, device_id, observed, timestamp, received_at)
 
         # Check for odometer reading and sync
         await self._sync_odometer_from_telemetry(vin, autopid_data, timestamp, declared_key)
