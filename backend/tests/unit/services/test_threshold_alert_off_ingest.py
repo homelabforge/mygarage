@@ -23,10 +23,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_parameter import LiveLinkParameter
+from app.services import livelink_alerts
 from app.services.livelink_ingest import ingest
 from app.services.livelink_sources.base import MqttEnvelope
 from app.services.livelink_sources.wican import WicanModule
 from app.services.post_commit import drain
+from app.services.telemetry_service import TelemetryService
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.usefixtures("livelink_enabled")]
 
@@ -184,3 +186,93 @@ async def test_a_rolled_back_ingest_sends_nothing(
 
     send.assert_not_awaited()
     assert (await _param(db_session)).alert_retry_at is None
+
+
+#: A preset sensor's level: notify once per crossing (`once`).
+TANK = "B61_TANK_LEVEL_PCT"
+
+
+@pytest_asyncio.fixture
+async def tank(db_session: AsyncSession) -> AsyncGenerator[None]:
+    """The tank's row, with a low line at 25%, gone again afterwards."""
+    await db_session.execute(delete(LiveLinkParameter).where(LiveLinkParameter.param_key == TANK))
+    db_session.add(
+        LiveLinkParameter(
+            param_key=TANK,
+            display_name="Tank 1 level",
+            unit="%",
+            param_class="propane",
+            warning_min=25.0,
+            show_on_dashboard=True,
+            archive_only=False,
+            storage_interval_seconds=0,
+        )
+    )
+    await db_session.commit()
+    yield
+    await drain()
+    await db_session.rollback()
+    await db_session.execute(delete(LiveLinkParameter).where(LiveLinkParameter.param_key == TANK))
+    await db_session.commit()
+
+
+async def _tank_state(db: AsyncSession) -> str | None:
+    db.expire_all()
+    return (
+        await db.execute(
+            select(LiveLinkParameter.alert_state).where(LiveLinkParameter.param_key == TANK)
+        )
+    ).scalar_one()
+
+
+async def _level(db: AsyncSession, vin: str, value: float) -> None:
+    await TelemetryService(db).check_thresholds(vin, TANK, value, once=True)
+    await db.commit()
+    await asyncio.sleep(0)  # the send starts
+
+
+@pytest.mark.usefixtures("tank")
+async def test_a_refill_while_the_send_is_out_rearms_it(
+    db_session: AsyncSession, make_livelink_vehicle, slow: _Slow
+):
+    """The delivery stored the band over the refill that landed while it was
+    out, so the next drop said nothing. Red on 1083b351 (state 'low', one send)."""
+    vin, _device = await make_livelink_vehicle("b61", str(next(_SEQ)))
+    await db_session.commit()
+
+    await _level(db_session, vin, 20.0)
+    await _level(db_session, vin, 40.0)
+    slow.release.set()
+    await drain()
+
+    assert await _tank_state(db_session) is None
+
+    await _level(db_session, vin, 20.0)
+    await drain()
+
+    assert slow.calls == 2
+    assert await _tank_state(db_session) == "low"
+    # Delivered sends aren't tracked any more.
+    tank_id = (
+        await db_session.execute(
+            select(LiveLinkParameter.id).where(LiveLinkParameter.param_key == TANK)
+        )
+    ).scalar_one()
+    assert tank_id not in livelink_alerts._in_flight
+
+
+@pytest.mark.usefixtures("tank")
+async def test_jitter_while_the_send_is_out_keeps_the_band(
+    db_session: AsyncSession, make_livelink_vehicle, slow: _Slow
+):
+    """Regression guard: only a reading clear of the margin re-arms, as when
+    the band was stored inline. Kills counting any reading above the line."""
+    vin, _device = await make_livelink_vehicle("b61", str(next(_SEQ)))
+    await db_session.commit()
+
+    await _level(db_session, vin, 20.0)
+    await _level(db_session, vin, 27.0)
+    slow.release.set()
+    await drain()
+
+    assert await _tank_state(db_session) == "low"

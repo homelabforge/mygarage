@@ -1737,7 +1737,14 @@ class TelemetryService:
         parameter row's unit says. An odometer-named key that wasn't
         normalised prints raw unless its row says km.
         """
-        from app.services.livelink_alerts import alert_band, alert_quantity, band_line, crossing
+        from app.services.livelink_alerts import (
+            alert_band,
+            alert_quantity,
+            band_line,
+            crossing,
+            note_reading,
+            send_started,
+        )
 
         param = await self.get_parameter(param_key)
         if not param:
@@ -1745,6 +1752,9 @@ class TelemetryService:
 
         now = utc_now()
         if once:
+            # A send that's still out stores its band when it's delivered,
+            # unless this reading clears it first.
+            note_reading(param.id, value, param)
             # Held, or re-armed by a value back clear of its line: the state
             # is stored as is. A band to notify leaves it unchanged.
             band, param.alert_state = crossing(param.alert_state, value, param)
@@ -1835,6 +1845,7 @@ class TelemetryService:
                 unit=param.unit,
                 ctx=await render_context_for_vehicle(self.db, vin),
                 quantity=quantity,
+                flight=send_started(param.id, band) if once else None,
             )
         )
 

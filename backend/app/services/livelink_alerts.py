@@ -139,6 +139,35 @@ def alert_quantity(
     return None
 
 
+@dataclass
+class InFlight:
+    """A notify-once send that's out, and whether a reading has re-armed its band since."""
+
+    band: AlertBand
+    rearmed: bool = False
+
+
+#: Notify-once sends still out, by parameter id. The band is stored once the
+#: send is delivered, so a refill that lands meanwhile was overwritten by it
+#: and the next drop went unnoticed. Memory is enough: the send runs in this
+#: process (one worker), and a restart drops it with the send.
+_in_flight: dict[int, InFlight] = {}
+
+
+def send_started(param_id: int, band: AlertBand) -> InFlight:
+    """Track a notify-once send of `band` until it's delivered."""
+    flight = InFlight(band)
+    _in_flight[param_id] = flight
+    return flight
+
+
+def note_reading(param_id: int, value: float, lines: AlertLines) -> None:
+    """Mark the send that's out re-armed if this reading would have re-armed its band."""
+    flight = _in_flight.get(param_id)
+    if flight is not None and crossing(flight.band, value, lines)[1] is None:
+        flight.rearmed = True
+
+
 @dataclass(frozen=True)
 class ThresholdAlert:
     """One alert `check_thresholds` decided to send, for after the commit (B6-1).
@@ -161,6 +190,8 @@ class ThresholdAlert:
     unit: str | None
     ctx: RenderContext
     quantity: str | None
+    #: A notify-once send's tracking (`send_started`), None otherwise.
+    flight: InFlight | None = None
 
 
 async def deliver_threshold_alert(db: AsyncSession, alert: ThresholdAlert) -> None:
@@ -171,20 +202,27 @@ async def deliver_threshold_alert(db: AsyncSession, alert: ThresholdAlert) -> No
     tried and failed, and returns nothing at all with the event or every
     service switched off. Otherwise the hold `check_thresholds` set stays, so
     the next try waits one cooldown (R2).
+
+    A reading that re-armed the band while the send was out wins: the band
+    isn't stored, so the next crossing notifies.
     """
     from app.models.livelink_parameter import LiveLinkParameter
     from app.services.notifications.dispatcher import NotificationDispatcher
 
-    results = await NotificationDispatcher(db).notify_livelink_threshold_alert(
-        vehicle_name=alert.vehicle_name,
-        parameter_name=alert.parameter_name,
-        value=alert.value,
-        band=alert.band,
-        threshold_value=alert.threshold_value,
-        unit=alert.unit,
-        ctx=alert.ctx,
-        quantity=alert.quantity,
-    )
+    try:
+        results = await NotificationDispatcher(db).notify_livelink_threshold_alert(
+            vehicle_name=alert.vehicle_name,
+            parameter_name=alert.parameter_name,
+            value=alert.value,
+            band=alert.band,
+            threshold_value=alert.threshold_value,
+            unit=alert.unit,
+            ctx=alert.ctx,
+            quantity=alert.quantity,
+        )
+    finally:
+        if alert.flight is not None and _in_flight.get(alert.param_id) is alert.flight:
+            del _in_flight[alert.param_id]
     if not any(results.values()):
         return
     param = await db.get(LiveLinkParameter, alert.param_id)
@@ -192,5 +230,5 @@ async def deliver_threshold_alert(db: AsyncSession, alert: ThresholdAlert) -> No
         return  # deleted while the send was out
     param.warning_last_notified_at = alert.at
     param.alert_retry_at = None
-    if alert.once:
+    if alert.once and not (alert.flight is not None and alert.flight.rearmed):
         param.alert_state = alert.band
