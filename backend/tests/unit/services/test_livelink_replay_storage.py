@@ -239,21 +239,20 @@ async def test_an_odometer_rise_at_the_candidate_instant_opens_no_session(
 ) -> None:
     """The odometer branch needs a second instant too, not just a bigger number.
 
-    Regression guard, through `store_telemetry` since B6-12: a replay is built
-    from its stored rows, and two readings at one instant are one row (the
-    dedup index) and one stamp for `group_drives`. A whole km apart, since
-    storage keeps the odometer in whole km and a half km would be no rise."""
+    Regression guard on the live machine, where the rule lives: two live
+    readings at one instant, the second a km higher, are one moment, not a
+    drive. Kills dropping `sample_at != candidate_at` from the odometer branch."""
     await _pin_session_settings(db_session, keep_rows)
-    vin, device = await make_livelink_vehicle("t4odi", "1")
-    device_id = device.device_id
-    at = _now() - timedelta(hours=2)
+    _vin, device = await make_livelink_vehicle("t4odi", "1")
+    at = _now() - timedelta(seconds=10)
 
-    telemetry = TelemetryService(db_session)
-    await telemetry.store_telemetry(vin, device_id, {"ODOMETER": 1000.0}, {}, timestamp=at)
-    await telemetry.store_telemetry(vin, device_id, {"ODOMETER": 1001.0}, {}, timestamp=at)
+    service = SessionService(db_session)
+    await service.observe_telemetry(device, {"ODOMETER": 1000.0}, at, live=True)
+    opened = await service.observe_telemetry(device, {"ODOMETER": 1001.0}, at, live=True)
     await db_session.flush()
 
-    assert await _sessions(db_session, device_id) == []
+    assert opened is None
+    assert await _sessions(db_session, device.device_id) == []
 
 
 async def test_an_older_live_sample_confirming_a_newer_candidate_does_not_invert_the_span(
@@ -1193,7 +1192,7 @@ async def test_the_drained_head_of_a_live_drive_backdates_it(
 
 @pytest.mark.usefixtures("livelink_enabled")
 async def test_a_drained_drive_ending_within_the_gap_of_an_awaiting_one_merges_into_it(
-    db_session: AsyncClient,
+    db_session: AsyncSession,
     client: AsyncClient,
     make_livelink_vehicle,
     keep_rows,

@@ -52,11 +52,20 @@ def _now() -> datetime:
 
 
 class _Counter:
+    """Counts statements on one connection: the observer's.
+
+    Engine-wide, the debounced refresh job's own statements landed in whatever
+    frame they overlapped, and a drain past 30 s would trip the budget on a
+    slow runner (review I2).
+    """
+
     def __init__(self) -> None:
         self.n = 0
+        self.connection: object | None = None
 
-    def __call__(self, *_: Any) -> None:
-        self.n += 1
+    def __call__(self, conn: object, *_: Any) -> None:
+        if conn is self.connection:
+            self.n += 1
 
 
 async def _sessions(db: AsyncSession, device_id: str) -> list[DriveSession]:
@@ -120,6 +129,7 @@ async def test_a_drain_costs_a_constant_per_frame_and_a_handful_of_refreshes(
     original_observe = SessionService.observe_telemetry
 
     async def counted_observe(self: SessionService, *args: Any, **kwargs: Any) -> Any:
+        statements.connection = (await self.db.connection()).sync_connection
         before = statements.n
         try:
             return await original_observe(self, *args, **kwargs)
