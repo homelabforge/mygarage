@@ -97,6 +97,26 @@ async def test_only_the_declared_odometer_key_is_converted(
     assert await _stored(db_session, device.device_id, "A6-ODOMETER") == [2000.0]
 
 
+async def test_a_declared_odometer_overflow_is_not_stored(
+    db_session: AsyncSession, make_livelink_vehicle
+):
+    """A custom odometer key the device declares gets the same cap and jump
+    checks on the SD path as any pattern-named one (B6-12-r2-c2). A 0xFFFFFF
+    overflow under it used to land raw. Red on 95452947."""
+    vin, device = await make_livelink_vehicle(
+        P, "6", odometer_param_key="VEH_KM_TOTAL", odometer_unit="km"
+    )
+    await db_session.commit()
+
+    await TelemetryService(db_session).bulk_backfill(
+        vin,
+        device.device_id,
+        [_row("VEH_KM_TOTAL", 1000.0), _row("VEH_KM_TOTAL", 16_777_215.0, 1)],
+    )
+
+    assert await _stored(db_session, device.device_id, "VEH_KM_TOTAL") == [1000.0]
+
+
 async def test_a_non_finite_row_is_dropped(db_session: AsyncSession, make_livelink_vehicle):
     """NaN binds as NULL into a NOT NULL column; the rest of the file still lands."""
     vin, device = await make_livelink_vehicle(P, "5")

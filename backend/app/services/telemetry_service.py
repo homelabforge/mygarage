@@ -1208,8 +1208,11 @@ class TelemetryService:
                 if converted is not None:
                     value = converted
             # Same rounding, cap and jump checks as live ingest, on the same
-            # keys (B6-11). A dropped one is skipped whole, as live drops it.
-            if self._is_odometer_param(r.param_key):
+            # keys (B6-11), the declared one included. A dropped one is skipped
+            # whole, as live drops it.
+            if self._is_odometer_param(r.param_key) or self._is_odometer_param(
+                r.param_key, declared
+            ):
                 if record_max is None:
                     record_max = await self._odometer_record_max(vin)
                 sanitized = await self._sanitize_odometer_value(vin, value, record_max=record_max)
