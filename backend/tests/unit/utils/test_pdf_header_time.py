@@ -115,3 +115,11 @@ def test_the_footer_report_id_is_the_household_time_like_the_header(
     [footer] = footer_strings(monkeypatch, "Pacific/Auckland", instant)
     assert footer.endswith("MG-20260716-113000"), footer
     assert header_strings(monkeypatch, "Pacific/Auckland", instant)[0] == "July 16, 2026"
+
+
+def test_the_footer_carries_the_running_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    """It printed a hard-coded v2.21 on every release since."""
+    from app.config import get_version
+
+    [footer] = footer_strings(monkeypatch, "UTC", datetime(2026, 7, 15, 18, 30, tzinfo=UTC))
+    assert footer.startswith(f"v{get_version()} · "), footer

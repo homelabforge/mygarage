@@ -233,7 +233,7 @@ class TestMPGCalculation:
         assert result is None
 
     def test_calculate_mpg_rounding(self):
-        """Test that L/100km is rounded to 2 decimal places."""
+        """Test that L/100km is rounded to 4 decimal places."""
         previous_record = FuelRecord(
             id="prev-1",
             vin="1HGBH41JXMN109186",

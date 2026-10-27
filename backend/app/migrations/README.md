@@ -54,7 +54,7 @@ The runner (`runner.py`) looks at `upgrade`'s signature and picks one of two pat
   for a data rewrite that must never run twice, like 134's timestamp repair.
   Do everything on `conn`: opening another connection inside it takes you out
   of the transaction. A `conn` migration can't declare `REPLACES` (the runner
-  refuses to load it), since a squash stamps several stems.
+  refuses to run it), since a squash stamps several stems.
 
 ### FATAL and startup
 

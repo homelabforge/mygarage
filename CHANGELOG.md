@@ -27,7 +27,7 @@ Back up before you upgrade. Migration 133 is FATAL: if it fails, MyGarage refuse
 
 Migrations 134 and 135 are FATAL too, so the same backup covers them. A full backup on PostgreSQL runs `pg_dump`; to back up by hand, use `sqlite3 /data/mygarage.db ".backup /path/to/copy.db"` on SQLite (never a plain copy of the live file) or `pg_dump` on PostgreSQL.
 
-On PostgreSQL, MyGarage now pins every database session to UTC. Before, a server whose timezone wasn't UTC (a `TZ` on its container is enough) stored the times the database stamps itself, like most created and updated times, in its own zone, hours off. Migration 134 converts those stored times to UTC once. A UTC server has nothing to convert. If the session zone came from MyGarage's side instead (`PGTZ`, `PGOPTIONS` or a connection option), nothing is converted, the log warns and names the zone, and the migration doesn't run again.
+On PostgreSQL, MyGarage now pins every database session to UTC. Before, a server whose timezone wasn't UTC (a `TZ` on its container is enough) stored the times the database stamps itself, like most created and updated times, in its own zone, hours off. Migration 134 converts those stored times to UTC once, apart from seven columns the app also writes itself (such as users' and vehicles' updated times): it can't tell those rows apart, so it leaves them alone. A UTC server has nothing to convert. If the session zone came from MyGarage's side instead (`PGTZ`, `PGOPTIONS` or a connection option), nothing is converted, the log warns and names the zone, and the migration doesn't run again: times stamped before the upgrade stay in that zone and new ones are UTC. To have them converted, restore the backup you took, take the zone setting out of MyGarage's environment so 134 reads the server's own zone (the one the app wrote in, since its driver ignores `PGTZ` and `PGOPTIONS`), and start this version again.
 
 On PostgreSQL, any migration that fails before 134 has run now stops startup, FATAL or not, and so does a failure to switch the migration run to UTC once 134 has run. Starting with the conversion still pending would write UTC times that it then shifts. Fix the logged error and restart.
 
@@ -113,6 +113,8 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - A setting's updated time, including the computed timezone entry, and an address book entry's last-used time are stored and served in UTC instead of the container's local time
 - The PDF header shows the household's date and time with its real zone (GMT, CDT and so on) instead of the container's clock labelled CST
 - The PDF footer's report ID and an imported insurance policy's "Auto-imported on" note use the household's date, not the container's
+- The PDF footer shows the running version instead of v2.21
+- Auto-fill from last drive on the fuel form reads the fill-up time in the household's zone, so it finds the drive that just ended instead of missing it (west of UTC) or offering one that ended after the fill-up (east of UTC)
 - Backup and database times in Settings > Backup no longer read hours off when the container has a timezone set
 - A fuel or DEF price typed per gallon comes back as typed: a UK 6.000/gal no longer reads 6.001, a US 3.999/gal no longer 3.997
 - An outside temperature typed in Fahrenheit comes back as typed (72.2 F no longer reads 72.1)

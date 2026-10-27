@@ -174,11 +174,21 @@ class Vehicle(Base):
     fuel_records: Mapped[list[FuelRecord]] = relationship(
         "FuelRecord", back_populates="vehicle", cascade="all, delete-orphan"
     )
+    # passive_deletes on these two: a vehicle delete leaves them to the `vin`
+    # ON DELETE CASCADE. Rows synced from a fuel record or service visit also
+    # cascade with their source, which the ORM deletes first, so the ORM's own
+    # DELETE for them matched nothing and warned on every such delete.
     odometer_records: Mapped[list[OdometerRecord]] = relationship(
-        "OdometerRecord", back_populates="vehicle", cascade="all, delete-orphan"
+        "OdometerRecord",
+        back_populates="vehicle",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     hours_records: Mapped[list[HoursRecord]] = relationship(
-        "HoursRecord", back_populates="vehicle", cascade="all, delete-orphan"
+        "HoursRecord",
+        back_populates="vehicle",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
     tax_records: Mapped[list[TaxRecord]] = relationship(
         "TaxRecord", back_populates="vehicle", cascade="all, delete-orphan"

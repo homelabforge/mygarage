@@ -21,6 +21,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.config import settings
 from app.utils.household_time import household_zone
 from app.utils.pdf_styles import (
     ACCENT_AMBER,
@@ -153,7 +154,7 @@ def draw_branded_footer(canvas: Any, doc: Any) -> None:  # pyright: ignore[repor
     report_id = f"MG-{now.strftime('%Y%m%d-%H%M%S')}"
     canvas.setFont(mono, 11)
     canvas.setFillColor(TEXT_MUTED)
-    canvas.drawRightString(x_right, y + 5, f"v2.21 · {report_id}")
+    canvas.drawRightString(x_right, y + 5, f"v{settings.app_version} · {report_id}")
 
     canvas.restoreState()
 

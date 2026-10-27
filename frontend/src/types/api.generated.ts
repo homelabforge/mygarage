@@ -28865,7 +28865,7 @@ export interface operations {
     obc_suggestion_api_vehicles__vin__fuel_obc_suggestion_get: {
         parameters: {
             query: {
-                /** @description Fill-up timestamp (naive local). Returns the most recent DriveSession that ended on or before this time within a 24-hour window. */
+                /** @description Fill-up timestamp, naive in the household's zone (or with an offset). Returns the most recent DriveSession that ended on or before this time within a 24-hour window. */
                 at: string;
             };
             header?: never;

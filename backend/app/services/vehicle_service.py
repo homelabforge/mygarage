@@ -333,7 +333,9 @@ class VehicleService:
             # relationship cascades, and on SQLite the DB-level ON DELETE
             # CASCADE clauses only fire because the engine now enforces FKs
             # (PRAGMA foreign_keys=ON). Both layers together cover every child
-            # table on both engines.
+            # table on both engines. Odometer and hours rows are the DB's alone
+            # (passive_deletes on Vehicle), since some of them also cascade with
+            # the fuel records and visits the ORM deletes first.
             await self.db.delete(vehicle)
             await self.db.commit()
 

@@ -38,7 +38,8 @@ async def test_the_suggestion_keeps_four_places(
 
     response = await client.get(
         f"/api/vehicles/{own_vehicle.vin}/fuel/obc-suggestion",
-        params={"at": (ended + timedelta(minutes=5)).isoformat()},
+        # With an offset, so the household zone doesn't move the window.
+        params={"at": (ended + timedelta(minutes=5)).isoformat() + "+00:00"},
         headers=auth_headers,
     )
 

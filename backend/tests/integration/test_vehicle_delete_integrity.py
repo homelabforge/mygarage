@@ -206,7 +206,9 @@ async def test_delete_vehicle_with_synced_rows_warns_nothing(
     The vehicle's ORM cascade deleted the fuel record and the service visit
     first, the database took their synced odometer and hours rows with them,
     and the ORM's own DELETE for those rows then matched nothing and warned
-    "expected to delete N row(s); 0 were matched" on every such delete.
+    "expected to delete N row(s); 0 were matched" on every such delete. Now
+    the vehicle leaves both tables to the `vin` cascade, so every row, manual
+    ones included, has to be gone afterwards.
     """
     from app.models.hours import HoursRecord
     from app.models.service_visit import ServiceVisit
@@ -228,6 +230,10 @@ async def test_delete_vehicle_with_synced_rows_warns_nothing(
             HoursRecord(
                 vin=vin, date=today, engine_hours=Decimal("11.0"), service_visit_id=visit.id
             ),
+            # Manual rows, linked to nothing but the vehicle: only the `vin`
+            # cascade can take these, so they fail here if it doesn't fire.
+            OdometerRecord(vin=vin, date=today, odometer_km=Decimal("900.00")),
+            HoursRecord(vin=vin, date=today, engine_hours=Decimal("9.0")),
         ]
     )
     await db_session.commit()

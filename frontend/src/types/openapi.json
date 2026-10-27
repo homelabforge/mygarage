@@ -45903,12 +45903,12 @@
             }
           },
           {
-            "description": "Fill-up timestamp (naive local). Returns the most recent DriveSession that ended on or before this time within a 24-hour window.",
+            "description": "Fill-up timestamp, naive in the household's zone (or with an offset). Returns the most recent DriveSession that ended on or before this time within a 24-hour window.",
             "in": "query",
             "name": "at",
             "required": true,
             "schema": {
-              "description": "Fill-up timestamp (naive local). Returns the most recent DriveSession that ended on or before this time within a 24-hour window.",
+              "description": "Fill-up timestamp, naive in the household's zone (or with an offset). Returns the most recent DriveSession that ended on or before this time within a 24-hour window.",
               "format": "date-time",
               "title": "At",
               "type": "string"

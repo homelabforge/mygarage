@@ -35,6 +35,7 @@ from app.schemas.fuel import (
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import FuelRecordService, build_fuel_response
 from app.services.receipt_parse_service import parse_receipt_draft
+from app.utils.household_time import household_wall_clock_to_utc
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +158,8 @@ async def obc_suggestion(
     at: datetime = Query(
         ...,
         description=(
-            "Fill-up timestamp (naive local). Returns the most recent "
+            "Fill-up timestamp, naive in the household's zone (or with an offset). "
+            "Returns the most recent "
             "DriveSession that ended on or before this time within a 24-hour window."
         ),
     ),
@@ -173,6 +175,8 @@ async def obc_suggestion(
     vin = vin.upper().strip()
     await get_vehicle_or_403(vin, current_user, db)
 
+    # `at` is what the user typed, household wall clock; sessions end in UTC.
+    at = household_wall_clock_to_utc(at)
     cutoff = at - OBC_SUGGESTION_WINDOW
     result = await db.execute(
         select(DriveSession)

@@ -104,6 +104,17 @@ def household_date(timestamp: datetime) -> date:
     return timestamp.astimezone(household_zone()).date()
 
 
+def household_wall_clock_to_utc(value: datetime) -> datetime:
+    """A time the user typed, as the naive UTC every stored stamp uses.
+
+    A naive value is the household's wall clock (a form's date and time); an
+    aware one already says its zone.
+    """
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=household_zone())
+    return value.astimezone(UTC).replace(tzinfo=None)
+
+
 def household_today() -> date:
     """The household's calendar date right now."""
     return datetime.now(household_zone()).date()
