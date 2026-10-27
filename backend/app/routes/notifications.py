@@ -555,17 +555,20 @@ async def notification_inbox(
                 )
             if reminder.due_hours is not None:
                 due_bits.append(_due_at(reminder.due_hours, due.current_hours, format_hours))
+            segments = [vehicle.nickname or vehicle.vin]
+            if due_bits:
+                segments.append(", ".join(due_bits))
+            # Tread gets its own segment, so its minimum doesn't read as
+            # another due item.
             tread = _tread_of(reminder)
             if tread is not None:
                 assert units is not None  # resolved above for any tread row
                 depth, minimum = tread
-                due_bits.append(
+                segments.append(
                     f"tread {format_quantity(depth, units, 'tread')}"
                     f", minimum {format_quantity(minimum, units, 'tread')}"
                 )
-            body = f"{vehicle.nickname or vehicle.vin}" + (
-                f" · {', '.join(due_bits)}" if due_bits else ""
-            )
+            body = " · ".join(segments)
             items.append(
                 InboxItem(
                     id=f"reminder-{kind}-{reminder.id}",

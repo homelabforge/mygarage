@@ -451,7 +451,7 @@ class TestNotificationInbox:
             item = _own_items(response, vin)["Tire tread low (FL)"]
             assert item["kind"] == "reminder_overdue"
             assert item["body"] == (
-                f"{vin} · due {date.today().isoformat()}, tread 2/32 in, minimum 4/32 in"
+                f"{vin} · due {date.today().isoformat()} · tread 2/32 in, minimum 4/32 in"
             )
         finally:
             await db_session.rollback()
