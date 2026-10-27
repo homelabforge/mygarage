@@ -117,7 +117,7 @@ class TestLastNotifiedAtIsWrittenNaive:
     async def test_now_is_still_aware_where_it_is_compared(self) -> None:
         """Pins the shape of the fix.
 
-        The column is naive; the comparison against `NOTIFICATION_COOLDOWN` is
+        The column is naive; the comparison in `in_cooldown` is
         aware. Both are true at once, and a fix that makes `now` naive
         everywhere would pass the first test and silently reintroduce the
         TypeError this module's read guard exists to prevent.

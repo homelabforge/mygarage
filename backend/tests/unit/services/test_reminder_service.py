@@ -1644,8 +1644,8 @@ class TestCheckDueRemindersNaiveLastNotifiedAt:
         monkeypatch,
     ):
         vin = test_vehicle["vin"]
-        # Overdue by hours target, but already notified 1 hour ago — well
-        # inside the 24h NOTIFICATION_COOLDOWN.
+        # Overdue by hours target, but already notified 1 hour ago, well
+        # inside the cooldown (`in_cooldown`).
         await _add_hours_record(db_session, vin, date.today(), Decimal("600.0"))
 
         reminder = Reminder(

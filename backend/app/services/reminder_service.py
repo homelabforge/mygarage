@@ -946,8 +946,8 @@ class _DueNotification:
 def _due_event(reminder: Reminder, status: DueStatus, now: datetime) -> DueEvent | None:
     """What the sweep sends for a reminder in ``status``, if anything (D2a).
 
-    Overdue goes daily: the next sweep after a stamp at least 23 h old (the
-    cooldown less its slack). Due soon goes once: any stamp holds it back, and
+    Overdue goes daily: the next sweep after a stamp at least 22 h old
+    (`in_cooldown`). Due soon goes once: any stamp holds it back, and
     a due-value change clears the stamp (`Reminder._rearm_heads_up`). Snoozed
     and on track send nothing and leave the stamp alone, so an overdue
     reminder whose snooze ends notifies the next morning. One that comes back
