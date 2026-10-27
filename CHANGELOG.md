@@ -50,6 +50,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - The vehicle JSON backup (schema 9) also carries financing, tax, toll tags and toll transactions, warranties, and spot rentals with their bills, and writes the whole vehicle record, exterior and interior colours included. A restore reads the new sections back; it never overwrites the vehicle record
 - Imports report warnings beside errors, for rows that came in but not whole: a fuel station or driver this instance doesn't have (kept as text), a toll whose tag didn't import, or an old reminder that kept its date but not its mileage
 - The JSON import's message lists its errors and warnings, not only counts, and the fuel and odometer CSV imports list their warnings beside their errors. Each list shows the first five and how many more
+- A JSON import that refused rows shows a warning instead of a success, and the fuel and odometer CSV messages stay up longer while they list errors or warnings
 
 ### Changed
 - An engine-off stop shorter than the drive gap no longer splits a drive
@@ -165,7 +166,8 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - A row already stored twice no longer errors on import (engine hours, warranty, tax and notes CSVs)
 - A note with no title imports, and one with no content says so
 - A blank premium frequency in a backup imports as none instead of failing the policy
-- An old reminder's due mileage that isn't a number, or is too large to store, says why instead of "could not be imported"
+- A backup figure that isn't a number (a fuel, DEF, odometer, service or hours reading, volume or price, or an old reminder's due mileage or interval) names its field, and a due mileage too large to store says why, instead of "could not be imported"
+- On PostgreSQL, an imported value longer than its column says so instead of a generic error
 - A reading or volume converted from miles or gallons is stored at the column's precision, so SQLite and PostgreSQL hold the same figure
 
 ### Security
