@@ -209,14 +209,19 @@ def _round_table(conn: Connection, table: str, scales: dict[str, int]) -> int:
     columns = list(scales)
     # Only REAL values can carry extra places: an INTEGER can't, and TEXT isn't a number.
     reals = " OR ".join(f"typeof({column}) = 'real'" for column in columns)
-    select = text(
-        f"SELECT rowid, {', '.join(columns)} FROM {table} "
-        f"WHERE (:after IS NULL OR rowid > :after) AND ({reals}) ORDER BY rowid LIMIT :batch"
-    )
+    head = f"SELECT rowid, {', '.join(columns)} FROM {table} WHERE"
+    tail = f"({reals}) ORDER BY rowid LIMIT :batch"
+    first = text(f"{head} {tail}")
+    # A bare rowid > :after, no `:after IS NULL OR`: the OR makes SQLite scan from
+    # the top every batch, which goes quadratic on a big location_points.
+    later = text(f"{head} rowid > :after AND {tail}")
     written = 0
     after: int | None = None
     while True:
-        rows = conn.execute(select, {"after": after, "batch": BATCH}).all()
+        if after is None:
+            rows = conn.execute(first, {"batch": BATCH}).all()
+        else:
+            rows = conn.execute(later, {"after": after, "batch": BATCH}).all()
         if not rows:
             return written
         for index, column in enumerate(columns, start=1):

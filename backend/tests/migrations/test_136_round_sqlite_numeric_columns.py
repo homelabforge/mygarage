@@ -266,6 +266,50 @@ def test_rows_past_one_batch_all_round(
     ]
 
 
+def test_later_batches_seek_past_the_cursor(
+    sqlite_db: tuple[Engine, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each batch after the first has to jump straight to its cursor. A scan from
+    the top rereads every row already done, which goes quadratic on a big
+    location_points table, even when nothing needs rounding."""
+    engine, _path = sqlite_db
+    with engine.begin() as conn:
+        ids = [_fuel(conn, odometer_km=1000 + n + 0.005) for n in range(7)]
+    migration = _load()
+    monkeypatch.setattr(migration, "BATCH", 3)
+    pages: list[tuple[str, Any]] = []
+
+    def record(_conn: Any, _cursor: Any, statement: str, parameters: Any, *_args: Any) -> None:
+        if statement.lstrip().upper().startswith("SELECT ROWID") and "FROM fuel_records" in (
+            statement
+        ):
+            pages.append((statement, parameters))
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        migration.upgrade(engine)
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    # 3 + 3 + 1 rows, then the empty page that ends it.
+    assert len(pages) == 4
+    with engine.connect() as conn:
+        plans = [
+            " | ".join(
+                row[-1]
+                for row in conn.exec_driver_sql(f"EXPLAIN QUERY PLAN {statement}", parameters)
+            )
+            for statement, parameters in pages
+        ]
+    for plan in plans[1:]:
+        assert "SCAN fuel_records" not in plan, plans
+        assert "SEARCH fuel_records USING INTEGER PRIMARY KEY (rowid>?)" in plan, plans
+    # Seeking mustn't cost a row: every page still rounds.
+    assert [_raw(engine, "fuel_records", "odometer_km", i) for i in ids] == [
+        Decimal(1000 + n) + Decimal("0.01") for n in range(7)
+    ]
+
+
 @pytest.mark.parametrize("engine_for_migration", ["pg"], indirect=True)
 def test_pg_is_a_no_op(engine_for_migration: tuple[str, Engine, str]) -> None:
     """Even a column 135 left alone, unbounded and holding five places, is untouched."""
