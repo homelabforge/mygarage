@@ -46,6 +46,7 @@ from app.utils.household_time import (
     load_household_zone,
 )
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.notification_cooldown import in_cooldown
 from app.utils.render_context import render_context_for_vehicle, render_context_for_vehicle_row
 from app.utils.unit_adapters import adapter_for
 from app.utils.usage_tracking import tracks_distance
@@ -53,11 +54,6 @@ from app.utils.usage_tracking import tracks_distance
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
-
-# Notification dedup cooldown (24 hours)
-NOTIFICATION_COOLDOWN = timedelta(hours=24)
-# The checks run once a day, so yesterday's stamp can read a little under 24 h.
-NOTIFICATION_COOLDOWN_SLACK = timedelta(hours=1)
 
 
 async def _get_setting(db: AsyncSession, key: str, default: str = "") -> str:
@@ -99,8 +95,8 @@ async def reset_monthly_limits() -> None:
 async def check_expiring_documents() -> None:
     """Check for expiring insurance and warranties and send notifications.
 
-    Runs daily at 9 AM UTC. Reads notify_insurance_days and notify_warranty_days
-    settings. A 24-hour cooldown, less an hour of slack, keeps it to one
+    Runs daily at 9 AM container time (not UTC). Reads notify_insurance_days
+    and notify_warranty_days settings. `in_cooldown` keeps it to one
     notification a day.
     """
     async with AsyncSessionLocal() as db:
@@ -146,11 +142,7 @@ async def check_expiring_documents() -> None:
             for policy in insurance_result.scalars().unique().all():
                 if policy.id in renewed:
                     continue
-                if (
-                    policy.last_notified_at
-                    and (now - policy.last_notified_at)
-                    < NOTIFICATION_COOLDOWN - NOTIFICATION_COOLDOWN_SLACK
-                ):
+                if in_cooldown(policy.last_notified_at, now):
                     continue
 
                 covered = [vehicles_dict.get(link.vin) for link in policy.vehicle_links]
@@ -186,11 +178,7 @@ async def check_expiring_documents() -> None:
             )
             for warranty in warranty_result.scalars().all():
                 # Dedup check
-                if (
-                    warranty.last_notified_at
-                    and (now - warranty.last_notified_at)
-                    < NOTIFICATION_COOLDOWN - NOTIFICATION_COOLDOWN_SLACK
-                ):
+                if in_cooldown(warranty.last_notified_at, now):
                     continue
 
                 if not warranty.end_date:

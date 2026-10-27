@@ -146,6 +146,15 @@ async def test_a_policy_whose_renewal_is_already_entered_stops_asking(db_session
     assert sent == [], "entering the next term early is how the user says it is handled"
 
 
+# The check crons on local time, so a spring-forward day is only 23 h long.
+_STAMP_AGES = [
+    pytest.param(timedelta(hours=23, minutes=59), 1, id="yesterday"),
+    pytest.param(timedelta(hours=22, minutes=59, seconds=59), 1, id="spring-forward"),
+    pytest.param(timedelta(hours=21), 0, id="same-day"),
+    pytest.param(timedelta(hours=2), 0, id="this-morning"),
+]
+
+
 @pytest_asyncio.fixture
 async def warranty_sent(db_session: AsyncSession, sent, monkeypatch: pytest.MonkeyPatch):
     """The stub dispatcher from `sent`, recording warranty calls too."""
@@ -165,9 +174,7 @@ async def warranty_sent(db_session: AsyncSession, sent, monkeypatch: pytest.Monk
     await db_session.commit()
 
 
-@pytest.mark.parametrize(
-    ("ago", "nags"), [(timedelta(hours=23, minutes=59), 1), (timedelta(hours=2), 0)]
-)
+@pytest.mark.parametrize(("ago", "nags"), _STAMP_AGES)
 async def test_yesterdays_policy_stamp_does_not_hold_back_todays_nag(db_session, sent, ago, nags):
     db_session.add(_expiring(RAM, last_notified_at=utc_now() - ago))
     await db_session.commit()
@@ -177,9 +184,7 @@ async def test_yesterdays_policy_stamp_does_not_hold_back_todays_nag(db_session,
     assert len(sent) == nags
 
 
-@pytest.mark.parametrize(
-    ("ago", "nags"), [(timedelta(hours=23, minutes=59), 1), (timedelta(hours=2), 0)]
-)
+@pytest.mark.parametrize(("ago", "nags"), _STAMP_AGES)
 async def test_yesterdays_warranty_stamp_does_not_hold_back_todays_nag(
     db_session, warranty_sent, ago, nags
 ):

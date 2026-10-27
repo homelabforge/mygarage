@@ -34,15 +34,11 @@ from app.utils.hours_formatting import format_hours
 from app.utils.household_time import household_date, household_today
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.maintenance_types import classify
+from app.utils.notification_cooldown import in_cooldown
 from app.utils.render_context import RenderContext, render_context_for_vehicle
 from app.utils.unit_formatting import format_quantity
 
 logger = logging.getLogger(__name__)
-
-# Notification dedup cooldown (24 hours)
-NOTIFICATION_COOLDOWN = timedelta(hours=24)
-# The sweep runs once a day, so yesterday's stamp can read a little under 24 h.
-NOTIFICATION_COOLDOWN_SLACK = timedelta(hours=1)
 
 # A pending reminder expected within this window is "due soon" (card/hero badge, fleet strip).
 DUE_SOON_WINDOW = timedelta(days=30)
@@ -963,7 +959,7 @@ def _due_event(reminder: Reminder, status: DueStatus, now: datetime) -> DueEvent
         last = reminder.last_notified_at
         if last is not None and last.tzinfo is None:
             last = last.replace(tzinfo=UTC)
-        if last is not None and now - last < NOTIFICATION_COOLDOWN - NOTIFICATION_COOLDOWN_SLACK:
+        if in_cooldown(last, now):
             return None
         return "service_overdue"
     if status == "due_soon" and reminder.last_notified_at is None:

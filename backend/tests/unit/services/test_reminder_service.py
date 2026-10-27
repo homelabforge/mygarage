@@ -1734,7 +1734,14 @@ class TestTheOverdueCooldownAllowsSweepJitter:
         reminder = self._stamped(datetime(2026, 10, 1, 8, 0, 0, 500_000, tzinfo=UTC))
         assert _due_event(reminder, "overdue", self._SWEEP) == "service_overdue"
 
-    @pytest.mark.parametrize("age", [timedelta(hours=2), timedelta(hours=22)])
+    def test_a_spring_forward_day_does_not_hold_back_todays_nag(self) -> None:
+        """Fable F-1. The sweep crons on local time: 08:00 CST on 2027-03-13,
+        then 08:00 CDT the next morning, 23 h later less the jitter."""
+        reminder = self._stamped(datetime(2027, 3, 13, 14, 0, 0, 500_000, tzinfo=UTC))
+        sweep = datetime(2027, 3, 14, 13, 0, 0, 300_000, tzinfo=UTC)
+        assert _due_event(reminder, "overdue", sweep) == "service_overdue"
+
+    @pytest.mark.parametrize("age", [timedelta(hours=2), timedelta(hours=21)])
     def test_a_stamp_well_inside_the_day_still_holds_it_back(self, age: timedelta) -> None:
         """Control, passes before the fix too: the slack covers jitter, not a
         second nag the same day."""
