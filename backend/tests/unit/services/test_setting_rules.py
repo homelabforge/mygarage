@@ -210,7 +210,7 @@ def test_a_value_its_reader_cannot_use_is_refused(key: str, value: str | None) -
         # Lenient or unread: not checked, so a stored oddity never blocks a tab's save.
         ("email_smtp_port", "not a port"),
         ("notify_def_low_threshold_percent", "banana"),
-        ("notify_service_days", "1.5"),
+        ("auto_archive_inactive_days", "banana"),
         ("ntfy_topic", "anything"),
     ],
 )
