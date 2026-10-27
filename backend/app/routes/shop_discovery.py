@@ -1,7 +1,6 @@
 """Shop discovery API endpoints."""
 
 import logging
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, select
@@ -20,6 +19,7 @@ from app.schemas.shop_discovery import (
 )
 from app.services.auth import require_auth
 from app.services.shop_discovery import ShopDiscoveryService
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +196,7 @@ async def increment_shop_usage(
         raise HTTPException(status_code=404, detail="Shop not found")
 
     shop.usage_count += 1
-    shop.last_used = datetime.now()
+    shop.last_used = utc_now()
 
     await db.commit()
 

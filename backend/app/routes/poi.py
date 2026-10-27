@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import time
-from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -26,6 +25,7 @@ from app.schemas.poi import (
 from app.services.auth import require_auth
 from app.services.poi.base import POICategory
 from app.services.poi_discovery import POIDiscoveryService
+from app.utils.datetime_utils import utc_now
 from app.utils.gas_station import GAS_STATION_POI, gas_station_clause
 
 logger = logging.getLogger(__name__)
@@ -370,7 +370,7 @@ async def increment_poi_usage(
         raise HTTPException(status_code=404, detail="POI not found")
 
     poi.usage_count += 1
-    poi.last_used = datetime.now()
+    poi.last_used = utc_now()
 
     await db.commit()
 

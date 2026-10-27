@@ -48,6 +48,7 @@ from app.services.setting_rules import (
 )
 from app.services.settings_init import SENSITIVE_SETTING_KEYS
 from app.services.settings_service import SettingsService
+from app.utils.datetime_utils import utc_now
 from app.utils.default_unit_prefs import (
     DEFAULT_UNIT_PREFS_KEY,
     validate_default_unit_prefs_value,
@@ -796,7 +797,7 @@ async def create_setting(
         key=setting.key,
         value=value,
         description=setting.description,
-        updated_at=dt.datetime.now(),
+        updated_at=utc_now(),
     )
 
     db.add(db_setting)
@@ -846,7 +847,7 @@ async def update_setting(
     for field, value in update_data.items():
         setattr(setting, field, value)
 
-    setting.updated_at = dt.datetime.now()
+    setting.updated_at = utc_now()
 
     await db.commit()
     await db.refresh(setting)
@@ -897,12 +898,12 @@ async def batch_update_settings(
         if setting:
             # Update existing
             setting.value = resolved
-            setting.updated_at = dt.datetime.now()
+            setting.updated_at = utc_now()
         else:
             setting = Setting(
                 key=key,
                 value=resolved,
-                updated_at=dt.datetime.now(),
+                updated_at=utc_now(),
             )
             db.add(setting)
 

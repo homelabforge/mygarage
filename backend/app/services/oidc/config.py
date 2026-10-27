@@ -4,7 +4,6 @@ Functions for loading OIDC settings from the database and fetching
 provider metadata via the standard OpenID Connect discovery endpoint.
 """
 
-import datetime as dt
 import logging
 import unicodedata
 from typing import Any, cast
@@ -16,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import SSRFProtectionError
 from app.models.settings import Setting
+from app.utils.datetime_utils import utc_now
 from app.utils.url_validation import validate_oidc_url
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ async def write_oidc_config(db: AsyncSession, payload: dict[str, str]) -> None:
     Caller is responsible for enforcing the §5.4 contract (mask handling,
     issuer rstrip, etc.); this is the raw KV writer.
     """
-    now = dt.datetime.now()
+    now = utc_now()
     for clean_key, value in payload.items():
         full_key = f"oidc_{clean_key}"
         result = await db.execute(select(Setting).where(Setting.key == full_key))

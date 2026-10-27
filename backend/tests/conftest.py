@@ -3,6 +3,7 @@
 import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 
 # Enable test mode BEFORE importing app (disables CSRF validation in middleware)
@@ -20,7 +21,7 @@ os.environ.setdefault("MYGARAGE_SETTINGS_KEY", "bXlnYXJhZ2UgdGVzdCBzZXR0aW5ncyBr
 if "TEST_DATABASE_URL" in os.environ:
     os.environ["MYGARAGE_DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator, Iterator
 from typing import NoReturn
 
 import pytest
@@ -170,6 +171,22 @@ async def db_session(test_sessionmaker, init_test_db) -> AsyncGenerator[AsyncSes
     """Provide a database session for tests. Depends on init_test_db to ensure tables exist."""
     async with test_sessionmaker() as session:
         yield session
+
+
+@pytest.fixture
+def local_clock_off_utc() -> Iterator[None]:
+    """Put the process clock five hours west of UTC for one test.
+
+    A naive value fed to `astimezone` is read as LOCAL time, and a bare
+    `datetime.now()` is local too, so in a UTC container either bug looks right
+    and no test can tell. Its own MonkeyPatch, so undoing it can't undo the
+    test's other patches.
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("TZ", "EST5")
+        time.tzset()
+        yield
+    time.tzset()
 
 
 @pytest_asyncio.fixture

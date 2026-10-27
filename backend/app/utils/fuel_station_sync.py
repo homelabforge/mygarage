@@ -13,12 +13,11 @@ never sync to vendors; see routes/address_book.py::_sync_to_vendor.
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AddressBookEntry
+from app.utils.datetime_utils import utc_now
 from app.utils.gas_station import GAS_STATION_POI, gas_station_clause
 
 
@@ -63,7 +62,7 @@ async def resolve_fuel_station(
         # remembers to null the FK first.
         if not typed or typed.casefold() == (entry.business_name or "").casefold():
             entry.usage_count = (entry.usage_count or 0) + 1
-            entry.last_used = datetime.now()
+            entry.last_used = utc_now()
             await db.flush()
             return entry.id, None
 
@@ -97,7 +96,7 @@ async def resolve_fuel_station(
     existing = result.scalar_one_or_none()
     if existing is not None:
         existing.usage_count = (existing.usage_count or 0) + 1
-        existing.last_used = datetime.now()
+        existing.last_used = utc_now()
         await db.flush()
         return existing.id, None
 
@@ -106,7 +105,7 @@ async def resolve_fuel_station(
         poi_category=GAS_STATION_POI,
         source="manual",
         usage_count=1,
-        last_used=datetime.now(),
+        last_used=utc_now(),
     )
     db.add(new_entry)
     await db.flush()

@@ -11,8 +11,8 @@ It can't undo a reading changed in place after the reminder was made (a
 same-day fill-up taking over the day's row, LiveLink's daily row, the manual
 hours upsert): that row keeps its first created_at with the later figure.
 
-The creation day reads created_at as UTC, like the app does, so a PostgreSQL
-server on a non-UTC session clock shifts it the same way it shifts the app.
+The creation day reads created_at as UTC, like the app does. PostgreSQL on a
+non-UTC server is the odd one out; see `_household_day`.
 
 FATAL: the ORM maps both columns, so a silent skip would 500 every reminder
 read.
@@ -101,7 +101,13 @@ def _get_fallback_engine() -> Engine:
 
 
 def _household_day(created_at: datetime, zone: ZoneInfo) -> date:
-    """household_date's rule: a naive timestamp is UTC."""
+    """household_date's rule: a naive timestamp is UTC.
+
+    On PostgreSQL that holds from 3.10, when every session is pinned to UTC. This
+    runs before migration 134 converts older server-zone stamps, so on a non-UTC
+    server created_at is still that zone's clock here and the day can be off near
+    midnight, the same as the app read it in 3.9.
+    """
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=UTC)
     return created_at.astimezone(zone).date()
