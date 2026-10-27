@@ -190,11 +190,14 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
       { formData, format: importFormat },
       {
         onSuccess: (result) => {
-          const message = t('fuelList.importCompleted', {
+          const summary = t('fuelList.importCompleted', {
             success: result.success_count,
             skipped: result.skipped_count,
             errors: result.error_count,
           })
+          const warnings = result.warnings ?? []
+          const message =
+            warnings.length > 0 ? t('fuelList.importWarnings', { message: summary, warnings: warnings.join(', ') }) : summary
 
           if (result.errors && result.errors.length > 0) {
             toast.error(t('fuelList.importErrors', { message, errors: result.errors.join(', ') }))

@@ -97,7 +97,11 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
         if (result.error_count > 0) {
           parts.push(t('odometerRecordList.importErrored', { count: result.error_count }))
         }
-        const message = t('odometerRecordList.importCompleted', { summary: parts.join(', ') })
+        let message = t('odometerRecordList.importCompleted', { summary: parts.join(', ') })
+        if (result.warnings && result.warnings.length > 0) {
+          // Backend-supplied warning strings are appended verbatim, never routed through t().
+          message = `${message} - ${t('odometerRecordList.importWarningsLabel')}: ${result.warnings.join(', ')}`
+        }
 
         if (result.errors && result.errors.length > 0) {
           // Backend-supplied error strings are appended verbatim, never

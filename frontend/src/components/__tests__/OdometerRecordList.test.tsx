@@ -6,11 +6,12 @@ import type { OdometerRecord } from '../../types/odometer'
 
 const useOdometerRecordsMock = vi.fn()
 const deleteMutate = vi.fn()
+const importMutate = vi.fn()
 
 vi.mock('../../hooks/queries/useOdometerRecords', () => ({
   useOdometerRecords: () => useOdometerRecordsMock(),
   useDeleteOdometerRecord: () => ({ mutate: deleteMutate, isPending: false, variables: undefined }),
-  useImportOdometerCSV: () => ({ mutate: vi.fn(), isPending: false }),
+  useImportOdometerCSV: () => ({ mutate: importMutate, isPending: false }),
 }))
 vi.mock('../../services/api', () => ({ default: { get: vi.fn() } }))
 vi.mock('../../hooks/useUnitPreference', () => ({
@@ -24,6 +25,7 @@ vi.mock('../../hooks/useUnitPreference', () => ({
   }),
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+import { toast } from 'sonner'
 
 import OdometerRecordList from '../OdometerRecordList'
 
@@ -109,5 +111,26 @@ describe('OdometerRecordList — row actions + empty state', () => {
     expect(screen.getByText('odometerList.noRecords')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'odometerList.addFirstReading' }))
     expect(onAddClick).toHaveBeenCalled()
+  })
+})
+
+describe('OdometerRecordList: the CSV import toast', () => {
+  it('appends the warnings to the summary (J2)', () => {
+    importMutate.mockImplementation((_form: FormData, options: { onSuccess: (r: unknown) => void }) =>
+      options.onSuccess({
+        success_count: 1,
+        skipped_count: 0,
+        error_count: 0,
+        errors: [],
+        warnings: ['Row 2: kept as text'],
+      }),
+    )
+    const { container } = render(<OdometerRecordList {...PROPS} />)
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+    fireEvent.change(input, { target: { files: [new File(['Date\n'], 'odometer.csv')] } })
+    // main: 'odometerRecordList.importCompleted', the warning dropped
+    expect(toast.success).toHaveBeenCalledWith(
+      'odometerRecordList.importCompleted - odometerRecordList.importWarningsLabel: Row 2: kept as text',
+    )
   })
 })

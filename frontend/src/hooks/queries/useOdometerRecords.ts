@@ -64,6 +64,7 @@ interface ImportCSVResult {
   skipped_count: number
   error_count: number
   errors: string[]
+  warnings?: string[]
 }
 
 export function useImportOdometerCSV(vin: string) {

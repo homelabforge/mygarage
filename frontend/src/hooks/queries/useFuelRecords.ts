@@ -55,6 +55,7 @@ interface ImportCSVResult {
   skipped_count: number
   error_count: number
   errors: string[]
+  warnings?: string[]
 }
 
 export function useCreateFuelRecord(vin: string) {

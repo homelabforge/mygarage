@@ -67,12 +67,22 @@ vi.mock('react-i18next', () => ({
     // that dropped it would render the same key for 10.4 gal and 47.3 L.
     // `format` for the import options drawer's title, so a dropped or wrong
     // format name shows. `message` (with `errors`) for the import error toast,
-    // which wraps the summary line and the row errors in one key.
+    // which wraps the summary line and the row errors in one key. `warnings`
+    // stands in when there are no errors, for the import warnings toast.
     t: (
       key: string,
-      options?: { unit?: string; value?: string; format?: string; message?: string; errors?: string | number },
+      options?: {
+        unit?: string
+        value?: string
+        format?: string
+        message?: string
+        errors?: string | number
+        warnings?: string
+      },
     ) => {
-      if (options?.message !== undefined) return `${key} (${options.message} | ${options.errors})`
+      if (options?.message !== undefined) {
+        return `${key} (${options.message} | ${options.errors ?? options.warnings})`
+      }
       const echoed = options?.unit ?? options?.value ?? options?.format
       return echoed !== undefined ? `${key} (${echoed})` : key
     },
@@ -744,6 +754,31 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
     // And the English keeps both slots, so neither half can fall out of the bundle.
     expect(vehiclesEn.fuelList.importErrors).toContain('{{message}}')
     expect(vehiclesEn.fuelList.importErrors).toContain('{{errors}}')
+  })
+
+  it('an import with warnings toasts them through fuelList.importWarnings', async () => {
+    apiPostMock.mockResolvedValue({
+      data: {
+        success_count: 1,
+        skipped_count: 0,
+        error_count: 0,
+        errors: [],
+        warnings: ['Row 2: station not in this address book, kept as text'],
+      },
+    })
+    const user = userEvent.setup()
+    renderList()
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+    await user.upload(fileInput(), csvFile())
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled())
+    // main: 'fuelList.importCompleted', the warning dropped
+    expect(toast.success).toHaveBeenCalledWith(
+      'fuelList.importWarnings (fuelList.importCompleted | Row 2: station not in this address book, kept as text)',
+    )
+    expect(vehiclesEn.fuelList.importWarnings).toContain('{{message}}')
+    expect(vehiclesEn.fuelList.importWarnings).toContain('{{warnings}}')
   })
 
   it('MyGarage CSV still posts at once with no drawer and no unit fields (control: passes on main)', async () => {
