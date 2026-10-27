@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Note, Reminder, Vehicle
@@ -508,8 +508,10 @@ _METRIC = {"export_version": "3", "units": "metric"}
             1e26,
             "due_mileage_km must be at most 99999999.99, not 160934400000000000000000000",
         ),
+        ("5NPE24AF0FH216125", _METRIC, "abc", "due_mileage is not a number"),
+        ("5NPE24AF0FH216126", {}, "abc", "due_mileage is not a number"),
     ],
-    ids=["metric-snan", "metric-1e26", "legacy-snan", "legacy-1e26"],
+    ids=["metric-snan", "metric-1e26", "legacy-snan", "legacy-1e26", "metric-abc", "legacy-abc"],
 )
 async def test_a_due_mileage_that_cannot_be_rounded_gets_the_bounds_message(  # S3-03
     client: AsyncClient,
@@ -563,6 +565,58 @@ async def test_reimporting_a_backup_does_not_double_its_notes_or_reminders(  # N
     assert len(notes) == 1
 
 
+async def test_a_recurrence_miles_that_is_not_a_number_names_its_field(
+    client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+):
+    await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216127")
+    data = await _import(
+        client,
+        non_admin_headers,
+        "5NPE24AF0FH216127",
+        {"reminders": [{"description": "Odd", "is_recurring": True, "recurrence_miles": "abc"}]},
+    )
+    # main: "Reminder 0: could not be imported", Decimal() raised InvalidOperation
+    assert data["errors"] == ["Reminder 0: recurrence_miles is not a number"], data
+
+
+async def test_a_reimport_matches_a_due_mileage_stored_off_the_cent(
+    client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+):
+    """A legacy SQLite row can hold 16093.444 km; the file's 16093.44 is the same reminder.
+
+    The ORM rounds at bind since #245, so the figure goes in through raw SQL. On
+    PostgreSQL the column rounds it, so there the test passes either way.
+    """
+    vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216124")
+    stored = Reminder(
+        vin=vin,
+        title="Timing belt",
+        reminder_type="mileage",
+        due_mileage_km=Decimal("16093.44"),
+        status="pending",
+    )
+    db_session.add(stored)
+    await db_session.flush()
+    await db_session.execute(
+        text("UPDATE vehicle_reminders SET due_mileage_km = 16093.444 WHERE id = :id"),
+        {"id": stored.id},
+    )
+    await db_session.commit()
+    payload = {
+        **_METRIC,
+        "reminders": [
+            {"description": "Timing belt", "due_mileage": 16093.44, "is_recurring": False}
+        ],
+    }
+
+    data = await _import(client, non_admin_headers, vin, payload)
+    assert (data["reminders"]["success_count"], data["reminders"]["skipped_count"]) == (
+        0,
+        1,
+    ), data
+    assert len(await _reminders(db_session, vin)) == 1
+
+
 async def test_a_note_needs_content_but_not_a_title(  # S1d-07
     client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
 ):
@@ -587,3 +641,31 @@ async def test_a_note_needs_content_but_not_a_title(  # S1d-07
     await db_session.rollback()
     (note,) = (await db_session.execute(select(Note).where(Note.vin == vin))).scalars().all()
     assert (note.title, note.content) == (None, "No title")
+
+
+async def test_a_note_title_is_keyed_only_when_the_row_has_one_and_blank_is_null(
+    client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+):
+    """T-16: a note with no title key matches a stored note that has one; "" stores NULL (F-7)."""
+    vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216128")
+    db_session.add(Note(vin=vin, date=date(2026, 1, 9), title="Tyres", content="Rotated"))
+    await db_session.commit()
+    data = await _import(
+        client,
+        non_admin_headers,
+        vin,
+        {
+            **_METRIC,
+            "notes": [
+                {"date": "2026-01-09", "content": "Rotated"},
+                {"date": "2026-01-10", "title": "", "content": "Washed"},
+            ],
+        },
+    )
+    # c304a690: (2, 0), the absent title read as NULL; the blank one stored ""
+    assert (data["notes"]["success_count"], data["notes"]["skipped_count"]) == (1, 1), data
+    await db_session.rollback()
+    titles = (
+        await db_session.execute(select(Note.title).where(Note.vin == vin).order_by(Note.date))
+    ).all()
+    assert [title for (title,) in titles] == ["Tyres", None]

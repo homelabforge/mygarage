@@ -876,3 +876,119 @@ async def test_a_formula_quoted_cell_round_trips_as_typed(
     )
     again = await _post_csv(client, auth_headers, target, exported.text)
     assert (again["success_count"], again["skipped_count"]) == (0, 1), again
+
+
+@pytest.mark.parametrize(
+    ("suffix", "field", "value"),
+    [
+        ("001", "inspection_result", "failed"),
+        ("002", "inspection_severity", "red"),
+        ("003", "category", "Maintenance"),
+        ("004", "is_inspection", False),
+    ],
+)
+async def test_a_json_visit_whose_item_differs_beyond_description_and_cost_imports(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    suffix: str,
+    field: str,
+    value: Any,
+):
+    """A failed inspection isn't the passed one stored on the same day (R1-H1)."""
+    vin = await _vehicle(db_session, test_user["id"], f"B3RTSVCITEMKEY{suffix}")
+    visit = ServiceVisit(
+        vin=vin,
+        date=date(2026, 7, 10),
+        odometer_km=Decimal("9000.00"),
+        service_category="Inspection",
+        total_cost=Decimal("0.00"),
+    )
+    db_session.add(visit)
+    await db_session.flush()
+    db_session.add(
+        ServiceLineItem(
+            visit_id=visit.id,
+            description="Brake inspection",
+            category="Inspection",
+            cost=Decimal("0.00"),
+            is_inspection=True,
+            inspection_result="passed",
+            inspection_severity="green",
+        )
+    )
+    await db_session.commit()
+    exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    own_export = exported.json()
+    (stored_visit,) = own_export["service_visits"]
+    other = {
+        "export_version": own_export["export_version"],
+        "units": own_export["units"],
+        "service_visits": [
+            {
+                **stored_visit,
+                "line_items": [{**stored_visit["line_items"][0], field: value}],
+            }
+        ],
+    }
+
+    data = await _post_json(client, auth_headers, vin, other)
+    # main: (0, 1), matched on (description, cost) alone
+    assert (
+        data["service_records"]["success_count"],
+        data["service_records"]["skipped_count"],
+    ) == (1, 0), data
+    again = await _post_json(client, auth_headers, vin, own_export)
+    assert (
+        again["service_records"]["success_count"],
+        again["service_records"]["skipped_count"],
+    ) == (0, 1), again
+    assert len(await _visits(test_sessionmaker, vin)) == 2
+
+
+@pytest.mark.parametrize(
+    ("suffix", "drop", "cells", "expected"),
+    [
+        # Tax but no claim column: the stored claim isn't compared, so it matches.
+        ("1", "Insurance Claim", "5.00,", (0, 1)),
+        # A claim but no Tax column: another claim number is another visit.
+        ("2", "Tax", ",CLM-8", (1, 0)),
+    ],
+    ids=["tax-without-claim", "claim-without-tax"],
+)
+async def test_each_service_csv_fee_column_is_keyed_only_when_the_sheet_has_it(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    suffix: str,
+    drop: str,
+    cells: str,
+    expected: tuple[int, int],
+):
+    """One header check per fee column, as the JSON path does (F-3, T-16)."""
+    vin = await _vehicle(db_session, test_user["id"], f"B3RTSVCFEECOLS00{suffix}")
+    visit = ServiceVisit(
+        vin=vin,
+        date=date(2026, 7, 11),
+        odometer_km=Decimal("7200.00"),
+        service_category="Maintenance",
+        tax_amount=Decimal("5.00"),
+        insurance_claim_number="CLM-7",
+        total_cost=Decimal("45.00"),
+    )
+    db_session.add(visit)
+    await db_session.flush()
+    db_session.add(ServiceLineItem(visit_id=visit.id, description="Oil", cost=Decimal("40.00")))
+    await db_session.commit()
+    header = (
+        "units_version,unit_system,Visit,Date,Category,Description,Odometer (km),"
+        "Cost,Tax,Shop Supplies,Insurance Claim"
+    ).replace(f",{drop}", "")
+    body = f"{header}\n8,metric,1,2026-07-11,Maintenance,Oil,7200.00,40.00,{cells}\n"
+
+    data = await _post_csv(client, auth_headers, vin, body)
+    assert (data["success_count"], data["skipped_count"]) == expected, data

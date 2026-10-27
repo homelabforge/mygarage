@@ -781,3 +781,70 @@ class TestV6RoundTrip:
             assert row.odometer_km == Decimal("1000.00")
         finally:
             await _cleanup(db_session)
+
+    @pytest.mark.parametrize(
+        ("units_query", "caller_units"),
+        [("?units=imperial", IMPERIAL_PRESET), ("", UK_IMPERIAL)],
+        ids=["imperial", "uk"],
+    )
+    async def test_a_converted_fuel_and_def_round_trip_keeps_every_place(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        units_query: str,
+        caller_units: UnitSet,
+    ) -> None:
+        """#245 widened price to 4 places, temp to 2 and economy to 4.
+
+        The import's rounding has to follow, or 0.9138 comes back 0.9140.
+        """
+        try:
+            owner = await _make_materialised_user(db_session, _OWNER, IMPERIAL_PRESET)
+            caller = await _make_materialised_user(db_session, _UK_CALLER, caller_units)
+            await _seed(db_session, owner)
+            fuel = (
+                await db_session.execute(select(FuelRecord).where(FuelRecord.vin == _VIN))
+            ).scalar_one()
+            fuel.price_per_unit = Decimal("0.9138")
+            fuel.outside_temp_c = Decimal("21.67")
+            fuel.obc_l_per_100km = Decimal("9.4123")
+            def_row = (
+                await db_session.execute(select(DEFRecord).where(DEFRecord.vin == _VIN))
+            ).scalar_one()
+            def_row.price_per_unit = Decimal("0.9138")
+            # The DEF import wants a diesel to land on.
+            destination = await db_session.get(Vehicle, _DST_VIN)
+            assert destination is not None
+            destination.fuel_type = "Diesel"
+            await db_session.commit()
+
+            for pair in ("fuel", "def"):
+                export_resp = await client.get(
+                    f"/api/export/vehicles/{_VIN}/{pair}/csv{units_query}",
+                    headers=_headers_for(caller),
+                )
+                assert export_resp.status_code == 200, export_resp.text
+                assert "(l)" not in export_resp.text.splitlines()[0].lower()
+                import_resp = await client.post(
+                    f"/api/import/vehicles/{_DST_VIN}/{pair}/csv",
+                    headers=_headers_for(caller),
+                    files={"file": (f"{pair}.csv", io.BytesIO(export_resp.content), "text/csv")},
+                )
+                assert import_resp.status_code == 200, import_resp.text
+                assert import_resp.json()["success_count"] == 1, import_resp.text
+
+            db_session.expire_all()
+            fuel_back = (
+                await db_session.execute(select(FuelRecord).where(FuelRecord.vin == _DST_VIN))
+            ).scalar_one()
+            def_back = (
+                await db_session.execute(select(DEFRecord).where(DEFRecord.vin == _DST_VIN))
+            ).scalar_one()
+            assert (
+                fuel_back.price_per_unit,
+                fuel_back.outside_temp_c,
+                fuel_back.obc_l_per_100km,
+                def_back.price_per_unit,
+            ) == (Decimal("0.9138"), Decimal("21.67"), Decimal("9.4123"), Decimal("0.9138"))
+        finally:
+            await _cleanup(db_session)

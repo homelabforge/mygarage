@@ -704,10 +704,18 @@ async def test_premiums_that_sum_past_the_column_fail_the_row_that_tips_it(
     assert await _fresh_policies(test_sessionmaker) == [(MONEY_MAX, {RAM})]
 
 
+@pytest.mark.parametrize(
+    ("given", "stored"),
+    [("", None), (" ", None), (" Monthly ", "Monthly")],
+    ids=["empty", "space", "padded"],
+)
 async def test_a_blank_premium_frequency_imports_as_none(
-    client: AsyncClient, db_session: AsyncSession, auth_headers
+    client: AsyncClient, db_session: AsyncSession, auth_headers, given: str, stored: str | None
 ):
-    """The CHECK refuses '', so a blank used to fail the whole entry (P2E2)."""
+    """The CHECK refuses '', so a blank used to fail the whole entry (P2E2).
+
+    Trimmed the way the CSV path trims it, so a space is blank too (F-6).
+    """
     backup = {
         "export_version": "8",
         "units": "metric",
@@ -718,7 +726,7 @@ async def test_a_blank_premium_frequency_imports_as_none(
                 "policy_number": "P-BLANKFREQ",
                 "start_date": "2026-01-01",
                 "end_date": "2026-07-01",
-                "premium_frequency": "",
+                "premium_frequency": given,
                 "policy_type": "Liability",
                 "premium_share": 100.0,
                 "coverages": [],
@@ -733,7 +741,8 @@ async def test_a_blank_premium_frequency_imports_as_none(
         headers=auth_headers,
     )
     assert response.status_code == 200, response.text
-    # main: errors 1, "Insurance policy 0: could not be imported" (the CHECK refuses '')
+    # main: errors 1, "Insurance policy 0: could not be imported" (the CHECK refuses '');
+    # c304a690: the same for " " and " Monthly ", which reached the CHECK untrimmed
     assert response.json()["insurance_policies"]["success"] == 1, response.json()
     (policy,) = await _policies(db_session)
-    assert policy.premium_frequency is None
+    assert policy.premium_frequency == stored

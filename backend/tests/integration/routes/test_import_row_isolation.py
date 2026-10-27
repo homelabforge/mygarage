@@ -308,7 +308,7 @@ class TestADatabaseInvalidRowDoesNotDiscardTheUpload:
     either. No test is written for those five loops.
     """
 
-    async def test_vehicle_json_odometer_keeps_valid_rows_around_a_database_invalid_one(
+    async def test_vehicle_json_odometer_refuses_a_row_with_no_reading_and_keeps_the_rest(
         self, client: AsyncClient, auth_headers, test_vehicle, test_engine
     ):
         json_data = {

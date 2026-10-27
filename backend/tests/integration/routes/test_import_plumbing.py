@@ -1,6 +1,7 @@
 """Shared import plumbing (batch 3a task 1): dedup, sync, markers, cache, scale, warnings."""
 
 import json
+import logging
 import re
 from datetime import date
 from decimal import Decimal
@@ -10,7 +11,9 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select, text
+from sqlalchemy.exc import DataError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.models import (
     FuelRecord,
@@ -535,7 +538,7 @@ async def test_an_import_clears_the_analytics_cache(
 async def test_a_converted_odometer_is_stored_at_the_column_scale(
     client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
 ):
-    """100 mi is 160.9344 km. SQLite kept all four places; PostgreSQL rounded to two."""
+    """100 mi is 160.9344 km. Before #245 SQLite kept all four places; PostgreSQL rounded to two."""
     vin = await _vehicle(db_session, test_user["id"], "B3RTSCALEODO00001")
     body = "units_version,unit_system,Date,Reading (mi),Notes\n7,imperial,2026-06-02,100,\n"
     data = await _post_csv(client, auth_headers, vin, "odometer", body)
@@ -647,25 +650,31 @@ async def test_a_target_holding_one_of_two_identical_readings_ends_with_two(
 async def test_a_reimport_matches_readings_and_amounts_stored_past_their_scale(
     client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
 ):
-    """SQLite keeps a REAL as given; the export writes it at the column's scale.
+    """A legacy SQLite row keeps a REAL as given; the export writes it at the column's scale.
 
     120.55 hours in a NUMERIC(10,1) exports as 120.5, $45.678 in a NUMERIC(12,2)
     as 45.68. Re-importing the backup into the same vehicle must skip both (T-20).
+    The ORM rounds at bind since #245, so the figures go in through raw SQL. On
+    PostgreSQL the columns round them, so there the test passes either way.
     """
     vin = await _vehicle(db_session, test_user["id"], "B3RTSCALEREIMPRT1")
-    db_session.add_all(
-        [
-            HoursRecord(
-                vin=vin, date=date(2026, 2, 2), engine_hours=Decimal("120.55"), source="manual"
-            ),
-            FuelRecord(
-                vin=vin,
-                date=date(2026, 2, 1),
-                odometer_km=Decimal("1000.00"),
-                liters=Decimal("30.000"),
-                cost=Decimal("45.678"),
-            ),
-        ]
+    hours = HoursRecord(
+        vin=vin, date=date(2026, 2, 2), engine_hours=Decimal("120.5"), source="manual"
+    )
+    fuel = FuelRecord(
+        vin=vin,
+        date=date(2026, 2, 1),
+        odometer_km=Decimal("1000.00"),
+        liters=Decimal("30.000"),
+        cost=Decimal("45.68"),
+    )
+    db_session.add_all([hours, fuel])
+    await db_session.flush()
+    await db_session.execute(
+        text("UPDATE hours_records SET engine_hours = 120.55 WHERE id = :id"), {"id": hours.id}
+    )
+    await db_session.execute(
+        text("UPDATE fuel_records SET cost = 45.678 WHERE id = :id"), {"id": fuel.id}
     )
     await db_session.commit()
     exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
@@ -682,3 +691,79 @@ async def test_a_reimport_matches_readings_and_amounts_stored_past_their_scale(
         0,
         1,
     ), data
+
+
+# -- A value past its column on PostgreSQL says so -----------------------------
+
+_TOO_LONG_MARK = "B3 too long for PG"
+
+
+@pytest.fixture
+def _too_long_on_flush(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A flush holding a row marked `_TOO_LONG_MARK` fails as PostgreSQL's "value too long" does.
+
+    SQLite stores any length, so the DataError is raised by hand. A savepoint's
+    commit flushes through `Session.flush` too, so this catches both kinds of write.
+    """
+    real_flush = Session.flush
+
+    def flush(self: Session, objects: Any = None) -> None:
+        if any(
+            _TOO_LONG_MARK in (getattr(row, "notes", None) or getattr(row, "content", None) or "")
+            for row in self.new
+        ):
+            raise DataError(
+                "INSERT ...",
+                {},
+                Exception("value too long for type character varying(200)\nDETAIL: forged"),
+            )
+        real_flush(self, objects)
+
+    monkeypatch.setattr(Session, "flush", flush)
+
+
+@pytest.mark.usefixtures("_too_long_on_flush")
+async def test_a_json_row_too_long_for_its_column_says_so(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
+):
+    vin = await _vehicle(db_session, test_user["id"], "B3RTTOOLONGJSON01")
+    data = await _post_json(
+        client,
+        auth_headers,
+        vin,
+        {
+            "export_version": "8",
+            "units": "metric",
+            "notes": [
+                {"date": "2026-06-01", "title": "Bad", "content": _TOO_LONG_MARK},
+                {"date": "2026-06-02", "title": "Good", "content": "fine"},
+            ],
+        },
+    )
+    # c304a690: "Note 0: could not be imported"
+    assert data["errors"] == ["Note 0: a value is longer than its column allows"], data
+    assert data["notes"]["success_count"] == 1, data
+
+
+@pytest.mark.usefixtures("_too_long_on_flush")
+async def test_a_csv_row_too_long_for_its_column_says_so_and_logs_one_line(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    caplog: pytest.LogCaptureFixture,
+):
+    vin = await _vehicle(db_session, test_user["id"], "B3RTTOOLONGCSV001")
+    body = (
+        "Date,Odometer (km),Liters,Total Cost,Full Tank,Notes\n"
+        f"2026-06-01,100.00,10.000,15.00,Yes,{_TOO_LONG_MARK}\n"
+        "2026-06-02,200.00,10.000,15.00,Yes,fine\n"
+    )
+    with caplog.at_level(logging.ERROR, logger="app.routes.import_data"):
+        data = await _post_csv(client, auth_headers, vin, "fuel", body)
+    # c304a690: "Invalid fuel record data"
+    assert data["errors"] == ["Row 2: a value is longer than its column allows"], data
+    assert data["success_count"] == 1, data
+    # The exception's own newline is escaped, so the log can't be forged (item 14).
+    (record,) = [r for r in caplog.records if "Fuel import row" in r.getMessage()]
+    assert "\n" not in record.getMessage()

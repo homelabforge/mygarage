@@ -1250,6 +1250,68 @@ class TestVehicleJsonImportDates:
         ]
 
 
+_METRIC_MARKER = {"export_version": "3", "units": "metric"}
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestVehicleJsonImportNumbers:
+    """A figure the importer may convert says which field isn't a number (F-4)."""
+
+    @pytest.mark.parametrize(
+        ("marker", "section", "row", "error"),
+        [
+            (
+                _METRIC_MARKER,
+                "odometer_records",
+                {"odometer_km": True},
+                "Odometer record 0: odometer_km is not a number",
+            ),
+            (
+                {},
+                "odometer_records",
+                {"reading": "abc"},
+                "Odometer record 0: reading is not a number",
+            ),
+            (
+                _METRIC_MARKER,
+                "fuel_records",
+                {"liters": "abc"},
+                "Fuel record 0: liters is not a number",
+            ),
+            ({}, "fuel_records", {"gallons": True}, "Fuel record 0: gallons is not a number"),
+            (
+                _METRIC_MARKER,
+                "fuel_records",
+                {"price_per_unit": "abc"},
+                "Fuel record 0: price_per_unit is not a number",
+            ),
+            (
+                _METRIC_MARKER,
+                "service_records",
+                {"odometer_km": "abc"},
+                "Service record 0: odometer_km is not a number",
+            ),
+        ],
+        ids=["odometer-bool", "legacy-reading", "liters", "legacy-gallons", "price", "service"],
+    )
+    async def test_a_figure_that_is_not_a_number_names_its_field(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        own_vehicle,
+        marker: dict[str, str],
+        section: str,
+        row: dict[str, Any],
+        error: str,
+    ):
+        payload = {**marker, section: [{"date": "2026-09-01", **row}]}
+        response = await _post_backup(client, auth_headers, own_vehicle.vin, payload)
+        assert response.status_code == 200, response.text
+        # main: "... 0: could not be imported", Decimal() raised InvalidOperation
+        assert response.json()["errors"] == [error]
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestImportFuelPriceBasis:

@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -552,17 +552,25 @@ async def test_rows_sharing_the_old_keys_restore_beside_a_stored_match(
 async def test_a_reimport_matches_a_mileage_limit_stored_past_its_scale(
     client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
 ):
-    """36,000 mi is 57936.384 km in a NUMERIC(10,2); SQLite keeps it, the export writes
-    57936.38, and a re-import into the same vehicle must skip it (T-20)."""
+    """36,000 mi is 57936.384 km in a NUMERIC(10,2); a legacy SQLite row keeps it, the
+    export writes 57936.38, and a re-import into the same vehicle must skip it (T-20).
+
+    The ORM rounds at bind since #245, so the figure goes in through raw SQL. On
+    PostgreSQL the column rounds it, so there the test passes either way.
+    """
     vin = await _vehicle(db_session, test_user["id"], "B3RTSECTIONSCALE1")
-    db_session.add(
-        WarrantyRecord(
-            vin=vin,
-            warranty_type="Powertrain",
-            provider="B3 Scale Co",
-            start_date=date(2026, 1, 1),
-            mileage_limit_km=Decimal("57936.384"),
-        )
+    warranty = WarrantyRecord(
+        vin=vin,
+        warranty_type="Powertrain",
+        provider="B3 Scale Co",
+        start_date=date(2026, 1, 1),
+        mileage_limit_km=Decimal("57936.38"),
+    )
+    db_session.add(warranty)
+    await db_session.flush()
+    await db_session.execute(
+        text("UPDATE warranty_records SET mileage_limit_km = 57936.384 WHERE id = :id"),
+        {"id": warranty.id},
     )
     await db_session.commit()
     exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
@@ -659,7 +667,7 @@ async def test_a_stored_row_does_not_swallow_one_with_another_lender_tag_or_bill
     ]
 
 
-# -- R2: a value the column can't hold is a row error on every backend ---------
+# -- R2: a value the API would refuse is a row error on every backend ----------
 
 
 _ROW_ERRORS = [
@@ -876,3 +884,72 @@ async def test_a_rental_with_no_billings_key_writes_no_bills_and_keys_without_th
         ("B3 Bare Park", 0),
         ("B3 Billed Park", 1),
     ]
+
+
+@pytest.mark.parametrize(
+    ("suffix", "moved_from", "moved_to"),
+    [
+        ("1", "monthly_rate", "electric"),
+        ("2", "electric", "water"),
+        ("3", "water", "waste"),
+        ("4", "waste", "monthly_rate"),
+    ],
+)
+async def test_a_bill_with_the_same_total_and_another_breakdown_imports(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    suffix: str,
+    moved_from: str,
+    moved_to: str,
+):
+    """Same stay, same bill total, $5 moved between two lines: another rental (R1-H2)."""
+    vin = await _vehicle(db_session, test_user["id"], f"B3RTSECTIONBREAK{suffix}")
+    rental = SpotRental(
+        vin=vin,
+        location_name="B3 Breakdown Park",
+        check_in_date=date(2026, 7, 1),
+        check_out_date=date(2026, 7, 31),
+        total_cost=Decimal("480.00"),
+    )
+    db_session.add(rental)
+    await db_session.flush()
+    db_session.add(
+        SpotRentalBilling(
+            spot_rental_id=rental.id,
+            billing_date=date(2026, 7, 31),
+            monthly_rate=Decimal("400.00"),
+            electric=Decimal("50.00"),
+            water=Decimal("20.00"),
+            waste=Decimal("10.00"),
+            total=Decimal("480.00"),
+        )
+    )
+    await db_session.commit()
+    exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    own_export = exported.json()
+    (stored_rental,) = own_export["spot_rentals"]
+    (bill,) = stored_rental["billings"]
+    other_bill = {
+        **bill,
+        moved_from: float(Decimal(str(bill[moved_from])) - 5),
+        moved_to: float(Decimal(str(bill[moved_to])) + 5),
+    }
+    other = {
+        "export_version": own_export["export_version"],
+        "units": own_export["units"],
+        "spot_rentals": [{**stored_rental, "billings": [other_bill]}],
+    }
+
+    data = await _post_json(client, auth_headers, vin, other)
+    # main: (0, 1), the bill compared by date and total alone
+    rentals = data["spot_rentals"]
+    assert (rentals["success_count"], rentals["skipped_count"]) == (1, 0), data
+    again = await _post_json(client, auth_headers, vin, own_export)
+    rentals = again["spot_rentals"]
+    assert (rentals["success_count"], rentals["skipped_count"]) == (0, 1), again
+    restored = await _restored(test_sessionmaker, vin)
+    assert len(restored["rentals"]) == 2

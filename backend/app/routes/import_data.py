@@ -44,6 +44,7 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import ColumnElement, Numeric, and_, func, literal, or_, select
+from sqlalchemy.exc import DataError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute, selectinload
 from sqlalchemy.sql.base import ExecutableOption
@@ -78,6 +79,7 @@ from app.models import (
     TollTransaction,
     WarrantyRecord,
 )
+from app.models._types import ScaledNumeric
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vendor import Vendor
@@ -296,10 +298,12 @@ def _same_figure(
 ) -> ColumnElement[bool]:
     """`column` holds `value` at its scale: within half a `step`, or NULL for None.
 
-    SQLite keeps a REAL as given, so a figure stored past the scale (an API or
-    metric-JSON write is never rounded) reads back, and exports, rounded; an
-    exact `=` against that export never meets the stored row (Fable F-1, T-20).
-    `step` is the column's own: 0.01 for NUMERIC(n,2), 0.001 for (n,3), 0.1 for (n,1).
+    Every ORM write rounds at bind now (ScaledNumeric), so only a legacy SQLite
+    row holds places past the scale: one written before migration 136, or in a
+    table 136 skipped (it's not FATAL and runs per table). That row reads back,
+    and exports, rounded, and an exact `=` never meets it (Fable F-1, T-20); the
+    band covers a 136 that didn't finish. `step` is the column's own: 0.01 for
+    NUMERIC(n,2), 0.001 for (n,3), 0.1 for (n,1).
     """
     return column.is_(None) if value is None else _within(column, value, step / 2)
 
@@ -427,25 +431,34 @@ def _portable_odometer_source(source: Any) -> str:
     return source if source in _PORTABLE_ODOMETER_SOURCES else "manual"
 
 
-#: The scale of the column each converted quantity lands in: odometer and
-#: mileage limit NUMERIC(10,2), volume NUMERIC(9,3), unit price NUMERIC(12,3),
-#: temperature NUMERIC(4,1), consumption NUMERIC(5,2), speed NUMERIC(5,1).
+def _column_step(column: InstrumentedAttribute[Any]) -> Decimal:
+    """One step at `column`'s scale, read off its ScaledNumeric type."""
+    column_type = column.type
+    if not isinstance(column_type, ScaledNumeric):
+        raise TypeError(f"{column} is not a ScaledNumeric column")
+    return Decimal(1).scaleb(-column_type.scale)
+
+
+#: The step of the column each converted quantity lands in, read off the model
+#: so a widened column can't leave it behind (#245 did, F-1). The DEF, service,
+#: odometer and warranty columns share these scales; a unit test holds them to it.
 _COLUMN_SCALE: Mapping[str, Decimal] = {
-    DISTANCE: Decimal("0.01"),
-    VOLUME: Decimal("0.001"),
-    PRICE_PER_VOLUME: Decimal("0.001"),
-    TEMPERATURE: Decimal("0.1"),
-    CONSUMPTION: Decimal("0.01"),
-    SPEED: Decimal("0.1"),
+    DISTANCE: _column_step(FuelRecord.odometer_km),
+    VOLUME: _column_step(FuelRecord.liters),
+    PRICE_PER_VOLUME: _column_step(FuelRecord.price_per_unit),
+    TEMPERATURE: _column_step(FuelRecord.outside_temp_c),
+    CONSUMPTION: _column_step(FuelRecord.obc_l_per_100km),
+    SPEED: _column_step(FuelRecord.obc_avg_speed_kmh),
 }
 
 
 def _at_scale(value: Decimal | None, scale: Decimal) -> Decimal | None:
     """`value` rounded to its column's scale, half up, as PostgreSQL rounds NUMERIC.
 
-    SQLite keeps a REAL as given, so an unrounded conversion read back differently
-    there (G5a-80). A value that can't be rounded (Infinity, NaN, more digits than
-    the context holds) passes through, and the bounds check after it refuses it.
+    The bind rounds the same way (ScaledNumeric); rounding here first means the
+    bounds check and the duplicate key see the figure that gets stored (G5a-80).
+    A value that can't be rounded (Infinity, NaN, more digits than the context
+    holds) passes through, and the bounds check after it refuses it.
     """
     if value is None or not value.is_finite():
         return value
@@ -740,6 +753,16 @@ def _in_vocabulary(value: Any, field: str, vocabulary: tuple[str, ...]) -> str |
     raise _RowError(f"{field} must be one of {', '.join(vocabulary)}")
 
 
+#: A row PostgreSQL refused for a value too long for its column (a DataError;
+#: SQLite stores any length). No per-column bounds: SQLite writes are unbounded (NB-1).
+_TOO_LONG = "a value is longer than its column allows"
+
+
+def _unexpected_reason(e: Exception, generic: str = "could not be imported") -> str:
+    """What a row that failed unexpectedly says: too long for its column, or `generic`."""
+    return _TOO_LONG if isinstance(e, DataError) else generic
+
+
 def _blank_to_none(value: Any) -> Any:
     """None for a blank cell. A CHECK refuses '' where it allows NULL (P2E2)."""
     return None if _is_blank(value) else value
@@ -778,14 +801,15 @@ def _within_length(value: str | None, key: str, max_length: int | None) -> str |
     return value
 
 
-def _first_present(row: Mapping[str, Any], *keys: str) -> Any:
-    """The value under the first of `keys` that holds one: a v3+ name before its v2 alias.
+def _json_first_decimal(row: Mapping[str, Any], *keys: str) -> Decimal | None:
+    """The number under the first of `keys` that holds one: a v3+ name before its v2 alias.
 
     `row.get("odometer_km") or row.get("mileage")` read a 0 as missing (G3a-75).
+    Read as `_json_decimal` reads it, so a word names its field (F-4).
     """
     for key in keys:
         if not _is_blank(row.get(key)):
-            return row.get(key)
+            return _json_decimal(row, key)
     return None
 
 
@@ -1351,8 +1375,9 @@ def _warranty_from_json(vin: str, row: Mapping[str, Any]) -> WarrantyRecord:
 def _json_warranty_key(row: Mapping[str, Any], record: WarrantyRecord) -> list[ColumnElement[bool]]:
     """R5's warranty key, each optional part only when the row has it (T-16).
 
-    The mileage limit is NUMERIC(10,2): 36,000 mi is stored as 57936.384 on
-    SQLite and exported as 57936.38, so it matches within half a cent (T-20).
+    The mileage limit is NUMERIC(10,2): 36,000 mi is 57936.384 km, which a legacy
+    SQLite row may still hold (see `_same_figure`). It exports as 57936.38, so it
+    matches within half a cent (T-20).
     """
     key = [
         WarrantyRecord.warranty_type == record.warranty_type,
@@ -1482,12 +1507,21 @@ def _json_spot_rental_key(row: Mapping[str, Any], rental: SpotRental) -> list[Co
     return key
 
 
+#: Every amount a v9 export writes on a bill. Two bills with one total can
+#: split it differently, and that's another bill (R1-H2).
+_BILL_AMOUNTS = ("monthly_rate", "electric", "water", "waste", "total")
+
+
 def _bill_counts(
-    pairs: Iterable[tuple[date_type, Decimal | None]],
-) -> Counter[tuple[date_type, Decimal]]:
-    """A rental's bills as counts, each total at the cent, a missing one as 0."""
+    bills: Iterable[SpotRentalBilling], amounts: Sequence[str]
+) -> Counter[tuple[Any, ...]]:
+    """A rental's bills as counts of their date and `amounts`, each at the cent, a missing one as 0."""
     return Counter(
-        (billing_date, _at_scale(total, _MONEY_STEP) or Decimal(0)) for billing_date, total in pairs
+        (
+            bill.billing_date,
+            *(_at_scale(getattr(bill, name), _MONEY_STEP) or Decimal(0) for name in amounts),
+        )
+        for bill in bills
     )
 
 
@@ -1840,8 +1874,8 @@ def _canonical_cell(units: CsvUnitContext, row: Mapping[str, Any], quantity: str
     if header is None:
         return None
     value = units.to_canonical(quantity, parse_decimal(row.get(header, "")))
-    # R7: a converted figure is rounded to its column's scale before the write,
-    # so SQLite stores what PostgreSQL would; a canonical one is left as given.
+    # R7: a converted figure is rounded to its column's scale here, so the bounds
+    # check and the key see what the bind will store; a canonical one is left as given.
     return _at_scale(value, _COLUMN_SCALE[quantity]) if units.converts(quantity) else value
 
 
@@ -1971,35 +2005,55 @@ async def _vendor_id_for(db: AsyncSession, name: str | None) -> int | None:
     return vendor.id
 
 
-def _visit_fee_key(row: _ServiceCsvRow) -> tuple[ColumnElement[bool], ...]:
+def _visit_fee_key(row: _ServiceCsvRow, header: set[str]) -> list[ColumnElement[bool]]:
     """A visit's own amounts and claim number as match conditions; 0 and NULL alike.
 
     Without them two visits that differ only in tax match the same stored
-    visit, and the first spends it (Codex R2).
+    visit, and the first spends it (Codex R2). Each only when the sheet has
+    its column (T-16, F-3): a hand-made sheet can carry Tax and no claim.
     """
-    return (
-        _money_matches(ServiceVisit.tax_amount, row.tax_amount),
-        _money_matches(ServiceVisit.shop_supplies, row.shop_supplies),
-        _money_matches(ServiceVisit.misc_fees, row.misc_fees),
-        _matches(ServiceVisit.insurance_claim_number, row.insurance_claim_number),
-    )
+    return [
+        condition
+        for column, condition in (
+            ("Tax", _money_matches(ServiceVisit.tax_amount, row.tax_amount)),
+            ("Shop Supplies", _money_matches(ServiceVisit.shop_supplies, row.shop_supplies)),
+            ("Misc Fees", _money_matches(ServiceVisit.misc_fees, row.misc_fees)),
+            (
+                "Insurance Claim",
+                _matches(ServiceVisit.insurance_claim_number, row.insurance_claim_number),
+            ),
+        )
+        if column in header
+    ]
 
 
 #: What `_same_visit` reads off a stored visit.
 _VISIT_MATCH_LOADS = (selectinload(ServiceVisit.vendor), selectinload(ServiceVisit.line_items))
 
 
-def _item_counts(pairs: Iterable[tuple[str, Decimal | None]]) -> Counter[tuple[str, Decimal]]:
-    """(description, cost) pairs as counts, the cost at the cent, a missing one as 0 (v7 wrote $0 blank).
+#: What else tells two line items apart: the work's category and how an
+#: inspection came out (R1-H1). Notes are commentary, like a visit's, and
+#: maintenance_type follows the classifier, which grows between versions.
+_ITEM_KEY_FIELDS = ("category", "is_inspection", "inspection_result", "inspection_severity")
+
+
+def _item_key_value(field: str, value: Any) -> Any:
+    """One of `_ITEM_KEY_FIELDS` as the key reads it: a NULL flag is False, blank text None."""
+    return bool(value) if field == "is_inspection" else _blank_to_none(value)
+
+
+def _item_counts(keys: Iterable[tuple[Any, ...]]) -> Counter[tuple[Any, ...]]:
+    """(description, cost, *rest) keys as counts, the cost at the cent, a missing one as 0 (v7 wrote $0 blank).
 
     The cent is the column's scale; a stored row reads back at it through the ORM (T-20).
     """
     return Counter(
-        (description, _at_scale(cost, _MONEY_STEP) or Decimal(0)) for description, cost in pairs
+        (description, _at_scale(cost, _MONEY_STEP) or Decimal(0), *rest)
+        for description, cost, *rest in keys
     )
 
 
-def _row_item_counts(group: list[_ServiceCsvRow]) -> Counter[tuple[str, Decimal]]:
+def _row_item_counts(group: list[_ServiceCsvRow]) -> Counter[tuple[Any, ...]]:
     """The line items a group of rows writes, as `_write_service_csv_visit` names them."""
     return _item_counts(
         (row.description or row.category or "Service", row.cost) for row in group if row.has_item
@@ -2011,15 +2065,23 @@ def _same_visit(
     *,
     vendor_name: str | None,
     check_vendor: bool,
-    items: Counter[tuple[str, Decimal]] | None,
+    items: Counter[tuple[Any, ...]] | None,
+    item_fields: Sequence[str] = (),
 ) -> bool:
     """Whether a stored visit (vendor and items loaded) is the file's visit (R5).
 
     `items` None means the file doesn't carry them, so they aren't compared.
+    `item_fields` are the `_ITEM_KEY_FIELDS` the file's items carry, in order.
     """
     if check_vendor and (visit.vendor.name if visit.vendor else None) != vendor_name:
         return False
-    return items is None or _item_counts((i.description, i.cost) for i in visit.line_items) == items
+    if items is None:
+        return True
+    stored = _item_counts(
+        (i.description, i.cost, *(_item_key_value(f, getattr(i, f)) for f in item_fields))
+        for i in visit.line_items
+    )
+    return stored == items
 
 
 def _visit_total(item_costs: Iterable[Decimal | None], *fees: Decimal | None) -> Decimal:
@@ -2114,13 +2176,11 @@ async def import_service_csv(
     readings = _ImportReadings()
 
     import_result = ImportResult()
-    # The key compares only the columns the file has (T-16): a v8 file writes
-    # Tax, Shop Supplies, Misc Fees and Insurance Claim together, an older one
-    # none of them. Read off the first row, so an upload with none has none.
+    # The key compares only the columns the file has (T-16). Read off the
+    # first row, so an upload with none has none.
     header: set[str] = set(rows[0]) if rows else set()
     carries_vendor = "Vendor" in header or "Vendor Name" in header
     carries_description = "Description" in header
-    carries_fees = "Tax" in header
 
     # Every row first, then each visit: a v8 row names its visit by number, an
     # older one belongs with the rows sharing its date, odometer, vendor and
@@ -2135,7 +2195,7 @@ async def import_service_csv(
         except Exception as e:
             # Intentional catch-all: per-row errors should not stop the import
             logger.error("Service import row %d failed: %s", row_num, sanitize_for_log(e))
-            import_result.add_error(row_num, "Invalid service record data")
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid service record data"))
             continue
         groups.setdefault(parsed.group, []).append(parsed)
 
@@ -2157,7 +2217,7 @@ async def import_service_csv(
                         converted=odometer_converted,
                         last_id_before_import=matcher.last_id(ServiceVisit),
                     ),
-                    *(_visit_fee_key(first) if carries_fees else ()),
+                    *_visit_fee_key(first, header),
                     options=_VISIT_MATCH_LOADS,
                     same=lambda visit: _same_visit(
                         visit,
@@ -2190,7 +2250,9 @@ async def import_service_csv(
                 sanitize_for_log(e),
             )
             for row in group:
-                import_result.add_error(row.row_num, "Invalid service record data")
+                import_result.add_error(
+                    row.row_num, _unexpected_reason(e, "Invalid service record data")
+                )
             continue
         for _row in group:
             import_result.add_success()
@@ -2482,8 +2544,8 @@ async def import_fuel_csv(
         except _RowError as e:
             import_result.add_error(row_num, e.reason)
         except Exception as e:
-            logger.error("Fuel import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid fuel record data")
+            logger.error("Fuel import row %d failed: %s", row_num, sanitize_for_log(e))
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid fuel record data"))
 
     await readings.apply(db, vin, claim=False)
     await db.commit()
@@ -2620,8 +2682,8 @@ async def import_def_csv(
         except _ImportBoundError as e:
             import_result.add_error(row_num, e.reason)
         except Exception as e:
-            logger.error("DEF import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid DEF record data")
+            logger.error("DEF import row %d failed: %s", row_num, sanitize_for_log(e))
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid DEF record data"))
 
     await readings.apply(db, vin, claim=False)
     await db.commit()
@@ -2708,8 +2770,8 @@ async def import_odometer_csv(
         except _ImportBoundError as e:
             import_result.add_error(row_num, e.reason)
         except Exception as e:
-            logger.error("Import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid record data")
+            logger.error("Import row %d failed: %s", row_num, sanitize_for_log(e))
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
     await invalidate_cache_for_vehicle(vin)
@@ -2803,8 +2865,8 @@ async def import_hours_csv(
         except _ImportBoundError as e:
             import_result.add_error(row_num, e.reason)
         except Exception as e:
-            logger.error("Hours import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid hours record data")
+            logger.error("Hours import row %d failed: %s", row_num, sanitize_for_log(e))
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid hours record data"))
 
     await db.commit()
     await invalidate_cache_for_vehicle(vin)
@@ -2910,8 +2972,8 @@ async def import_warranties_csv(
         except _ImportBoundError as e:
             import_result.add_error(row_num, e.reason)
         except Exception as e:
-            logger.error("Import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid record data")
+            logger.error("Import row %d failed: %s", row_num, sanitize_for_log(e))
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
     await invalidate_cache_for_vehicle(vin)
@@ -2972,8 +3034,8 @@ async def import_insurance_csv(
         except (_InsuranceRowError, _ImportBoundError) as e:
             import_result.add_error(row_num, e.reason)
         except Exception as e:
-            logger.error("Import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid record data")
+            logger.error("Import row %d failed: %s", row_num, sanitize_for_log(e))
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
     await invalidate_cache_for_vehicle(vin)
@@ -3053,8 +3115,8 @@ async def import_tax_csv(
         except _ImportBoundError as e:
             import_result.add_error(row_num, e.reason)
         except Exception as e:
-            logger.error("Import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid record data")
+            logger.error("Import row %d failed: %s", row_num, sanitize_for_log(e))
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
     await invalidate_cache_for_vehicle(vin)
@@ -3114,8 +3176,8 @@ async def import_notes_csv(
             import_result.add_success()
 
         except Exception as e:
-            logger.error("Import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid record data")
+            logger.error("Import row %d failed: %s", row_num, sanitize_for_log(e))
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
     await invalidate_cache_for_vehicle(vin)
@@ -3187,31 +3249,24 @@ async def import_vehicle_json(
 
     # A legacy figure is converted, so it is rounded to its column's scale
     # (R7, T-10); a v3+ figure is canonical already and is left as given.
-    def _maybe_mi_to_km(val: Any) -> Decimal | None:
-        if val is None or val == "":
-            return None
-        d = Decimal(str(val))
+    # Each takes the figure read by `_json_decimal`, so a word or a true is a
+    # row error that names its field (F-4).
+    def _maybe_mi_to_km(d: Decimal | None) -> Decimal | None:
         # Infinity and NaN pass for the bounds check to name. An sNaN isn't
         # finite either, so it passes too: multiplying it below would raise.
-        if not is_legacy_v2 or not d.is_finite():
+        if d is None or not is_legacy_v2 or not d.is_finite():
             return d
-        return _at_scale(d * UnitConverter.MILES_TO_KM, Decimal("0.01"))
+        return _at_scale(d * UnitConverter.MILES_TO_KM, _COLUMN_SCALE[DISTANCE])
 
-    def _maybe_gal_to_l(val: Any) -> Decimal | None:
-        if val is None or val == "":
-            return None
-        d = Decimal(str(val))
-        if not is_legacy_v2 or not d.is_finite():
+    def _maybe_gal_to_l(d: Decimal | None) -> Decimal | None:
+        if d is None or not is_legacy_v2 or not d.is_finite():
             return d
-        return _at_scale(d * UnitConverter.US_GALLONS_TO_LITERS, Decimal("0.001"))
+        return _at_scale(d * UnitConverter.US_GALLONS_TO_LITERS, _COLUMN_SCALE[VOLUME])
 
-    def _maybe_per_gal_to_per_l(val: Any) -> Decimal | None:
-        if val is None or val == "":
-            return None
-        d = Decimal(str(val))
-        if not is_legacy_v2 or not d.is_finite():
+    def _maybe_per_gal_to_per_l(d: Decimal | None) -> Decimal | None:
+        if d is None or not is_legacy_v2 or not d.is_finite():
             return d
-        return _at_scale(d / UnitConverter.US_GALLONS_TO_LITERS, Decimal("0.001"))
+        return _at_scale(d / UnitConverter.US_GALLONS_TO_LITERS, _COLUMN_SCALE[PRICE_PER_VOLUME])
 
     await lock_vehicle_for_write(db, vin)
     # Taken before the first section writes: only a row at or below these can
@@ -3264,7 +3319,7 @@ async def import_vehicle_json(
 
             # Legacy v2 used "mileage" (miles); v3 uses "odometer_km" (km).
             imported_odometer_km = _maybe_mi_to_km(
-                _first_present(record_data, "odometer_km", "mileage")
+                _json_first_decimal(record_data, "odometer_km", "mileage")
             )
             cost = _json_decimal(record_data, "cost")
             _within_api_bounds(ServiceVisitCreate, odometer_km=imported_odometer_km)
@@ -3359,14 +3414,14 @@ async def import_vehicle_json(
         except Exception as e:
             results["service_records"]["errors"] += 1
             logger.warning("Import: service record %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Service record {idx}: could not be imported")
+            errors.append(f"Service record {idx}: {_unexpected_reason(e)}")
 
     # Import v9 service visits whole: the visit, its line items in order and
     # the inspection links between them. Counted with the v<=8 entries (T-4).
     for idx, visit_data in enumerate(sections["service_visits"]):
         try:
             date = _json_row_date(visit_data)
-            odometer_km = _maybe_mi_to_km(visit_data.get("odometer_km"))
+            odometer_km = _maybe_mi_to_km(_json_decimal(visit_data, "odometer_km"))
             engine_hours = _json_decimal(visit_data, "engine_hours")
             tax_amount = _json_decimal(visit_data, "tax_amount")
             shop_supplies = _json_decimal(visit_data, "shop_supplies")
@@ -3418,6 +3473,10 @@ async def import_vehicle_json(
                 )
                 if key in visit_data  # T-16: a v9 export writes all four
             ]
+            # The items' other fields, each only when every item has it (T-16).
+            item_fields = tuple(
+                f for f in _ITEM_KEY_FIELDS if all(f in item for item in line_items)
+            )
             if (
                 skip_duplicates
                 and await matcher.take(
@@ -3438,8 +3497,14 @@ async def import_vehicle_json(
                         vendor_name=vendor_name,
                         check_vendor=True,
                         items=_item_counts(
-                            (columns["description"], columns["cost"]) for columns, _link in items
+                            (
+                                columns["description"],
+                                columns["cost"],
+                                *(_item_key_value(f, columns[f]) for f in item_fields),
+                            )
+                            for columns, _link in items
                         ),
+                        item_fields=item_fields,
                     ),
                 )
                 is not None
@@ -3491,7 +3556,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["service_records"]["errors"] += 1
             logger.warning("Import: service visit %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Service visit {idx}: could not be imported")
+            errors.append(f"Service visit {idx}: {_unexpected_reason(e)}")
 
     # Import fuel records. Every column the export writes is read back (R2); a
     # v<=8 row lacks the newer keys, which read as None or the model default.
@@ -3505,9 +3570,13 @@ async def import_vehicle_json(
                 date,
                 record_data,
                 idx=idx,
-                odometer_km=_maybe_mi_to_km(_first_present(record_data, "odometer_km", "mileage")),
-                liters=_maybe_gal_to_l(_first_present(record_data, "liters", "gallons")),
-                price_per_unit=_maybe_per_gal_to_per_l(record_data.get("price_per_unit")),
+                odometer_km=_maybe_mi_to_km(
+                    _json_first_decimal(record_data, "odometer_km", "mileage")
+                ),
+                liters=_maybe_gal_to_l(_json_first_decimal(record_data, "liters", "gallons")),
+                price_per_unit=_maybe_per_gal_to_per_l(
+                    _json_decimal(record_data, "price_per_unit")
+                ),
             )
             # The links are checked against this instance after the duplicate
             # check; the station's name is the resolved one a v9 export writes.
@@ -3572,7 +3641,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["fuel_records"]["errors"] += 1
             logger.warning("Import: fuel record %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Fuel record {idx}: could not be imported")
+            errors.append(f"Fuel record {idx}: {_unexpected_reason(e)}")
 
     # Import DEF records
     # Deliberately NOT gated by ensure_def_capable (unlike import_def_csv and
@@ -3591,9 +3660,13 @@ async def import_vehicle_json(
                 vin,
                 date,
                 record_data,
-                odometer_km=_maybe_mi_to_km(_first_present(record_data, "odometer_km", "mileage")),
-                liters=_maybe_gal_to_l(_first_present(record_data, "liters", "gallons")),
-                price_per_unit=_maybe_per_gal_to_per_l(record_data.get("price_per_unit")),
+                odometer_km=_maybe_mi_to_km(
+                    _json_first_decimal(record_data, "odometer_km", "mileage")
+                ),
+                liters=_maybe_gal_to_l(_json_first_decimal(record_data, "liters", "gallons")),
+                price_per_unit=_maybe_per_gal_to_per_l(
+                    _json_decimal(record_data, "price_per_unit")
+                ),
             )
 
             if (
@@ -3629,7 +3702,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["def_records"]["errors"] += 1
             logger.warning("Import: DEF record %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"DEF record {idx}: could not be imported")
+            errors.append(f"DEF record {idx}: {_unexpected_reason(e)}")
 
     # Import odometer records
     for idx, record_data in enumerate(sections["odometer_records"]):
@@ -3638,7 +3711,7 @@ async def import_vehicle_json(
 
             # v2 used "reading" (miles), v3 uses "odometer_km".
             imported_odometer_km = _maybe_mi_to_km(
-                _first_present(record_data, "odometer_km", "reading")
+                _json_first_decimal(record_data, "odometer_km", "reading")
             )
             # The column is NOT NULL: refused here, not by the database (T-6).
             if imported_odometer_km is None:
@@ -3685,7 +3758,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["odometer_records"]["errors"] += 1
             logger.warning("Import: odometer record %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Odometer record {idx}: could not be imported")
+            errors.append(f"Odometer record {idx}: {_unexpected_reason(e)}")
 
     # Import engine-hours readings. Always manual rows with no FKs, like the
     # CSV importer: a file can't carry a live link to this vehicle's fuel or
@@ -3732,7 +3805,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["hours_records"]["errors"] += 1
             logger.warning("Import: hours record %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Hours record {idx}: could not be imported")
+            errors.append(f"Hours record {idx}: {_unexpected_reason(e)}")
 
     # Before the reminders, which count from the current reading (T-2).
     await readings.apply(db, vin, claim=False)
@@ -3750,7 +3823,7 @@ async def import_vehicle_json(
             if _is_blank(reminder_data.get("due_date"))
             else _json_row_date(reminder_data, "due_date")
         )
-        due_km = _maybe_mi_to_km(reminder_data.get("due_mileage"))
+        due_km = _maybe_mi_to_km(_json_decimal(reminder_data, "due_mileage"))
         if due_km is not None:
             # NaN, sNaN and Infinity get the bounds message: == 0 raises on sNaN.
             if not due_km.is_finite():
@@ -3772,10 +3845,7 @@ async def import_vehicle_json(
     def _pending_due_point(
         reminder_data: dict[str, Any],
     ) -> tuple[date_type | None, Decimal | None, bool]:
-        """A pending row's due date and odometer in km, and whether its mileage half dropped.
-
-        Its own function so `import_vehicle_json` stays simple enough for pyright to check.
-        """
+        """A pending row's due date and odometer in km, and whether its mileage half dropped."""
         mileage_dropped = False
         is_recurring = reminder_data.get("is_recurring", False)
         recurrence_days = reminder_data.get("recurrence_days", 0)
@@ -3785,14 +3855,14 @@ async def import_vehicle_json(
         has_miles = bool(is_recurring and recurrence_miles)
 
         # A negative interval would import already overdue; the bounds check stops it.
-        if has_miles:
-            _within_api_bounds(ReminderCreate, due_mileage_km=Decimal(str(recurrence_miles)))
+        miles = _json_decimal(reminder_data, "recurrence_miles") if has_miles else None
+        _within_api_bounds(ReminderCreate, due_mileage_km=miles)
 
         # The point the row was exported with, recurring or not (J3): the schedule
         # said it. A stale backup imports overdue, which is honest.
         due_date, due_km = _exported_due_point(reminder_data)
         if is_recurring and due_date is None and due_km is None:
-            interval_km = _maybe_mi_to_km(recurrence_miles) if has_miles else None
+            interval_km = _maybe_mi_to_km(miles)
             if interval_km is not None:
                 # The interval counts from the odometer after the import.
                 # With no reading, a date side carries the row on its own
@@ -3889,7 +3959,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["reminders"]["errors"] += 1
             logger.warning("Import: reminder %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Reminder {idx}: could not be imported")
+            errors.append(f"Reminder {idx}: {_unexpected_reason(e)}")
 
     # Import notes
     for idx, note_data in enumerate(sections["notes"]):
@@ -3898,7 +3968,9 @@ async def import_vehicle_json(
             content = note_data.get("content")
             if _is_blank(content):
                 raise _RowError("content is missing")
-            title = note_data.get("title")  # optional: the column is nullable
+            # Optional, and blank is NULL. No length cap: the notes CSV writes
+            # titles unbounded on SQLite (NB-1).
+            title = _json_text(note_data, "title")
 
             if (
                 skip_duplicates
@@ -3907,7 +3979,8 @@ async def import_vehicle_json(
                     Note,
                     Note.vin == vin,
                     Note.date == date,
-                    _matches(Note.title, title),
+                    # T-16: a row with no title key matches any title.
+                    *([_matches(Note.title, title)] if "title" in note_data else []),
                     Note.content == content,
                 )
                 is not None
@@ -3928,7 +4001,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["notes"]["errors"] += 1
             logger.warning("Import: note %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Note {idx}: could not be imported")
+            errors.append(f"Note {idx}: {_unexpected_reason(e)}")
 
     # Import insurance: each entry is THIS vehicle's place on a household policy.
     insurance_access = await InsuranceService(db).access_for(current_user)
@@ -3943,7 +4016,7 @@ async def import_vehicle_json(
                 "start_date": datetime.fromisoformat(entry["start_date"]).date(),
                 "end_date": datetime.fromisoformat(entry["end_date"]).date(),
                 "premium": Decimal(str(premium)) if premium is not None else None,
-                "premium_frequency": entry.get("premium_frequency") or None,
+                "premium_frequency": (entry.get("premium_frequency") or "").strip() or None,
                 "deductible": Decimal(str(deductible)) if deductible is not None else None,
                 "coverages": _coverages_from_rows(entry.get("coverages") or []),
                 "notes": entry.get("notes"),
@@ -3975,7 +4048,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["insurance_policies"]["errors"] += 1
             logger.warning("Import: insurance policy %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Insurance policy {idx}: could not be imported")
+            errors.append(f"Insurance policy {idx}: {_unexpected_reason(e)}")
 
     # Import financing. The lender travels by name and is looked up or made in
     # the row's savepoint, as a service visit's vendor is (R6).
@@ -4013,7 +4086,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["financing_records"]["errors"] += 1
             logger.warning("Import: financing record %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Financing record {idx}: could not be imported")
+            errors.append(f"Financing record {idx}: {_unexpected_reason(e)}")
 
     # Import tax records
     for idx, row in enumerate(sections["tax_records"]):
@@ -4038,7 +4111,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["tax_records"]["errors"] += 1
             logger.warning("Import: tax record %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Tax record {idx}: could not be imported")
+            errors.append(f"Tax record {idx}: {_unexpected_reason(e)}")
 
     # Import toll tags. A transaction names its tag by the tag's index in this
     # file (R6), so each tag written or matched is kept by that index, with
@@ -4080,7 +4153,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["toll_tags"]["errors"] += 1
             logger.warning("Import: toll tag %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Toll tag {idx}: could not be imported")
+            errors.append(f"Toll tag {idx}: {_unexpected_reason(e)}")
 
     # Import toll transactions. Two same-day charges at one plaza are two rows,
     # and a re-import matches each to one stored charge (R1-H1). A null
@@ -4122,7 +4195,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["toll_transactions"]["errors"] += 1
             logger.warning("Import: toll transaction %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Toll transaction {idx}: could not be imported")
+            errors.append(f"Toll transaction {idx}: {_unexpected_reason(e)}")
 
     # Import warranties
     for idx, row in enumerate(sections["warranties"]):
@@ -4147,14 +4220,18 @@ async def import_vehicle_json(
         except Exception as e:
             results["warranties"]["errors"] += 1
             logger.warning("Import: warranty %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Warranty {idx}: could not be imported")
+            errors.append(f"Warranty {idx}: {_unexpected_reason(e)}")
 
     # Import spot rentals with their bills. A rental skipped as a duplicate
     # skips its bills; one written writes them in its savepoint.
     for idx, row in enumerate(sections["spot_rentals"]):
         try:
             rental, bills = _spot_rental_from_json(vin, row)
-            bill_counts = _bill_counts((bill.billing_date, bill.total) for bill in bills)
+            # Each amount only when every bill has it (T-16); the bills are
+            # objects by now, or the parse above refused the row.
+            raw_bills = cast(list[Mapping[str, Any]], row.get("billings", []))
+            amounts = tuple(n for n in _BILL_AMOUNTS if all(n in b for b in raw_bills))
+            bill_counts = _bill_counts(bills, amounts)
             if (
                 skip_duplicates
                 and await matcher.take(
@@ -4164,12 +4241,7 @@ async def import_vehicle_json(
                     *_json_spot_rental_key(row, rental),
                     options=(selectinload(SpotRental.billings),),
                     same=(
-                        (
-                            lambda r: (
-                                _bill_counts((b.billing_date, b.total) for b in r.billings)
-                                == bill_counts
-                            )
-                        )
+                        (lambda r: _bill_counts(r.billings, amounts) == bill_counts)
                         if "billings" in row
                         else None
                     ),
@@ -4193,7 +4265,7 @@ async def import_vehicle_json(
         except Exception as e:
             results["spot_rentals"]["errors"] += 1
             logger.warning("Import: spot rental %s failed: %s", idx, sanitize_for_log(e))
-            errors.append(f"Spot rental {idx}: could not be imported")
+            errors.append(f"Spot rental {idx}: {_unexpected_reason(e)}")
 
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once.
@@ -4496,8 +4568,8 @@ async def _persist_parsed_fuel(
         except _RowError as e:
             import_result.add_error(row_num, e.reason)
         except Exception as e:
-            logger.error("External fuel import row %d failed: %s", row_num, e)
-            import_result.add_error(row_num, "Invalid fuel record data")
+            logger.error("External fuel import row %d failed: %s", row_num, sanitize_for_log(e))
+            import_result.add_error(row_num, _unexpected_reason(e, "Invalid fuel record data"))
 
     # The create path's claiming sync: a third-party export is no backup, so a
     # same-day automatic or LiveLink row is taken over as before (T-15, T-17).
