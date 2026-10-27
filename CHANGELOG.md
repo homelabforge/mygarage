@@ -47,6 +47,9 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - LiveLink offline alerts cover sensors with no status topic, such as a Mopeka gateway: a live reading marks the sensor online, and it alerts once when it goes quiet
 - LiveLink device responses carry `online`, and the device list's status reads it
 - `tools/repair_wican_odometer_unit.py` repairs a WiCAN odometer read in the wrong unit, either way (`--to km` or `--to mi`), and the 409 on a unit change names it
+- The vehicle JSON backup (schema 9) also carries financing, tax, toll tags and toll transactions, warranties, and spot rentals with their bills, and writes the whole vehicle record, exterior and interior colours included. A restore reads the new sections back; it never overwrites the vehicle record
+- Imports report warnings beside errors, for rows that came in but not whole: a fuel station or driver this instance doesn't have (kept as text), a toll whose tag didn't import, or an old reminder that kept its date but not its mileage
+- The JSON import's message lists its errors and warnings, not only counts, and the fuel and odometer CSV imports list their warnings beside their errors. Each list shows the first five and how many more
 
 ### Changed
 - An engine-off stop shorter than the drive gap no longer splits a drive
@@ -80,6 +83,12 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - Low-tread reminders show the tread and the minimum in the notification bell, on the calendar and in the PDF report's Due column
 - A reminder's calendar description, in the app and in the iCal export, is "Reminder" instead of naming its type ("Reminder (smart)")
 - The reminder list refreshes every minute while it's open, so a fill-up logged from Telegram or LiveLink moves it without a reload
+- The service CSV (schema 8) numbers each visit in a new Visit column, keeps item notes and visit notes apart, and adds Tax, Shop Supplies, Misc Fees and Insurance Claim. Rows that share a number import as one visit with its line items; rows of an older file are grouped by date, odometer, shop and category
+- The JSON backup writes service visits with every line item (category, maintenance type, cost, notes, the inspection result and the repair it led to), every fuel column (fill time, engine hours, propane, kWh and charging, station, driver, payment, trip type, outside temperature and trip computer), the DEF entry type, and where each odometer reading came from
+- Supplies a service visit used aren't in the JSON backup, so a restored visit's total is its line items plus tax and fees, without the supplies' cost
+- An import updates the odometer and engine hours from its fill-ups, service visits and DEF records the way adding them by hand does, one reading a day, and refreshes the analytics
+- A repeating reminder from an old (v2) backup keeps the due date and mileage it was exported with, instead of counting a new interval from the import
+- Imported odometer and hours readings drop their "[AUTO-SYNC ...]" note and import as manual, LiveLink or webhook readings, so a later fill-up no longer takes one over
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
@@ -150,6 +159,14 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - Low-tread reminders follow their tire: dismounting it dismisses the reminder, retiring it completes it, a rotation or set fit renames it to the new corner or closes it, and deleting the tire dismisses it. A tire in storage raises none. On the tire's next save (a reading added, edited or deleted, an edit, a restore, a retire, a mount, a rotation or a set fit), an older "(in storage)" reminder is dismissed if the tire stays off the vehicle, completed if the tire is retired or goes back on above the minimum, and becomes that corner's reminder if it goes back on still below the minimum
 - The reminder list's type chip shows a translated label instead of the stored value (such as "smart")
 - Overdue reminder, insurance and warranty expiry notifications no longer skip a day when the daily check starts a moment earlier than the day before, or on the day the clocks spring forward
+- A 0 km reading and a $0 amount export as 0 instead of blank, in every CSV and the JSON backup, and import back as 0
+- The fuel CSV import reads every column its export writes: fill time, towing, station, driver, payment method, trip type, trip duration and the charging columns
+- Importing the same JSON backup twice no longer doubles its notes and old reminders
+- A row already stored twice no longer errors on import (engine hours, warranty, tax and notes CSVs)
+- A note with no title imports, and one with no content says so
+- A blank premium frequency in a backup imports as none instead of failing the policy
+- An old reminder's due mileage that isn't a number, or is too large to store, says why instead of "could not be imported"
+- A reading or volume converted from miles or gallons is stored at the column's precision, so SQLite and PostgreSQL hold the same figure
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)
