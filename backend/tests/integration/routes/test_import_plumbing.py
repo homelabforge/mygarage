@@ -8,10 +8,15 @@ from decimal import Decimal
 from io import BytesIO
 from typing import Any
 
+import asyncpg
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select, text
-from sqlalchemy.exc import DataError
+from sqlalchemy.dialects.postgresql.asyncpg import (
+    AsyncAdapt_asyncpg_connection,
+    AsyncAdapt_asyncpg_dbapi,
+)
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -658,8 +663,9 @@ async def test_a_reimport_matches_readings_and_amounts_stored_past_their_scale(
     PostgreSQL the columns round them, so there the test passes either way.
     """
     vin = await _vehicle(db_session, test_user["id"], "B3RTSCALEREIMPRT1")
+    # 120.6 is what PostgreSQL makes of the 120.55 below, so both dialects start equal.
     hours = HoursRecord(
-        vin=vin, date=date(2026, 2, 2), engine_hours=Decimal("120.5"), source="manual"
+        vin=vin, date=date(2026, 2, 2), engine_hours=Decimal("120.6"), source="manual"
     )
     fuel = FuelRecord(
         vin=vin,
@@ -677,6 +683,8 @@ async def test_a_reimport_matches_readings_and_amounts_stored_past_their_scale(
         text("UPDATE fuel_records SET cost = 45.678 WHERE id = :id"), {"id": fuel.id}
     )
     await db_session.commit()
+    # The client shares this session, so the export would read the ORM's own copy.
+    db_session.expire_all()
     exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
     assert exported.status_code == 200, exported.text
 
@@ -698,11 +706,31 @@ async def test_a_reimport_matches_readings_and_amounts_stored_past_their_scale(
 _TOO_LONG_MARK = "B3 too long for PG"
 
 
+def _asyncpg_too_long() -> DBAPIError:
+    """A 22001 the way the asyncpg dialect hands it over, built by the dialect itself.
+
+    It's a plain DBAPIError, not a DataError: the dialect has no entry for
+    asyncpg's DataError, so only the code on `orig` says what went wrong.
+    """
+    dbapi = AsyncAdapt_asyncpg_dbapi(asyncpg)
+    raw = asyncpg.exceptions.StringDataRightTruncationError(
+        "value too long for type character varying(200)\nDETAIL: forged"
+    )
+    try:
+        AsyncAdapt_asyncpg_connection._handle_exception_no_connection(dbapi, raw)  # pyright: ignore[reportPrivateUsage]
+    except dbapi.Error as translated:
+        error = DBAPIError.instance("INSERT ...", {}, translated, dbapi.Error)
+        assert type(error) is DBAPIError
+        assert getattr(error.orig, "sqlstate", None) == "22001"
+        return error
+    raise AssertionError("the dialect didn't translate the asyncpg error")
+
+
 @pytest.fixture
 def _too_long_on_flush(monkeypatch: pytest.MonkeyPatch) -> None:
     """A flush holding a row marked `_TOO_LONG_MARK` fails as PostgreSQL's "value too long" does.
 
-    SQLite stores any length, so the DataError is raised by hand. A savepoint's
+    SQLite stores any length, so the error is raised by hand. A savepoint's
     commit flushes through `Session.flush` too, so this catches both kinds of write.
     """
     real_flush = Session.flush
@@ -712,11 +740,7 @@ def _too_long_on_flush(monkeypatch: pytest.MonkeyPatch) -> None:
             _TOO_LONG_MARK in (getattr(row, "notes", None) or getattr(row, "content", None) or "")
             for row in self.new
         ):
-            raise DataError(
-                "INSERT ...",
-                {},
-                Exception("value too long for type character varying(200)\nDETAIL: forged"),
-            )
+            raise _asyncpg_too_long()
         real_flush(self, objects)
 
     monkeypatch.setattr(Session, "flush", flush)

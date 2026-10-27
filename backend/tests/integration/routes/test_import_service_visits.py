@@ -651,6 +651,8 @@ async def test_a_json_visit_at_a_vendor_past_100_characters_restores_with_it(
 ):
     """The CSV and v8 imports make vendors with no length cap and SQLite keeps the whole
     name, so the v9 backup has to bring the visit back on that same vendor."""
+    if db_session.get_bind().dialect.name != "sqlite":
+        pytest.skip("only SQLite stores a vendor name past its column")
     source = await _vehicle(db_session, test_user["id"], "B3RTSVCLONGVSRC01")
     target = await _vehicle(db_session, test_user["id"], "B3RTSVCLONGVDST01")
     long_name = "B3 Long Shop " + "v" * 88

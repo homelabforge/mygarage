@@ -573,6 +573,8 @@ async def test_a_reimport_matches_a_mileage_limit_stored_past_its_scale(
         {"id": warranty.id},
     )
     await db_session.commit()
+    # The client shares this session, so the export would read the ORM's own copy.
+    db_session.expire_all()
     exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
     assert exported.status_code == 200, exported.text
 
@@ -795,6 +797,8 @@ async def test_a_warranty_past_its_column_but_not_the_api_restores(
 ):
     """WarrantyRecordCreate bounds neither provider nor policy number, and SQLite keeps
     a value past the String column, so a backup must restore what the API stored (R2)."""
+    if db_session.get_bind().dialect.name != "sqlite":
+        pytest.skip("only SQLite stores a string past its column; the next test is PG's")
     vin = await _vehicle(db_session, test_user["id"], "B3RTSECTIONWLONG1")
     payload = {
         "export_version": "9",
@@ -815,11 +819,39 @@ async def test_a_warranty_past_its_column_but_not_the_api_restores(
     assert [(w[1], w[6]) for w in restored["warranties"]] == [("p" * 101, "n" * 51)]
 
 
+async def test_a_warranty_past_its_column_on_postgresql_is_a_row_error_that_says_so(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """The real 22001 from asyncpg, not a stand-in: the row says why, the rest imports."""
+    if db_session.get_bind().dialect.name == "sqlite":
+        pytest.skip("SQLite stores any length; 22001 is PostgreSQL's")
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSECTIONWLONG2")
+    warranty = {"warranty_type": "Other", "start_date": "2026-01-01"}
+    payload = {
+        "export_version": "9",
+        "units": "metric",
+        "warranties": [
+            {**warranty, "provider": "p" * 101},
+            {**warranty, "provider": "B3 Short Co"},
+        ],
+    }
+    data = await _post_json(client, auth_headers, vin, payload)
+    # 90a89f8c: "Warranty 0: could not be imported", the 22001 came as a plain DBAPIError
+    assert (data["warranties"]["success_count"], data["errors"]) == (
+        1,
+        ["Warranty 0: a value is longer than its column allows"],
+    ), data
+    restored = await _restored(test_sessionmaker, vin)
+    assert [w[1] for w in restored["warranties"]] == ["B3 Short Co"]
+
+
 async def test_a_financing_lender_past_100_characters_restores_on_its_vendor(
     client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
 ):
     """The CSV and v8 imports make vendors with no length cap and SQLite keeps the whole
     name. The lender is looked up by exact name, so it has to come back whole."""
+    if db_session.get_bind().dialect.name != "sqlite":
+        pytest.skip("only SQLite stores a vendor name past its column")
     vin = await _vehicle(db_session, test_user["id"], "B3RTSECTIONLLONG1")
     long_name = "B3 Long Lender " + "v" * 86
     assert len(long_name) == 101

@@ -1292,8 +1292,22 @@ class TestVehicleJsonImportNumbers:
                 {"odometer_km": "abc"},
                 "Service record 0: odometer_km is not a number",
             ),
+            (
+                _METRIC_MARKER,
+                "hours_records",
+                {"engine_hours": "abc"},
+                "Hours record 0: engine_hours is not a number",
+            ),
         ],
-        ids=["odometer-bool", "legacy-reading", "liters", "legacy-gallons", "price", "service"],
+        ids=[
+            "odometer-bool",
+            "legacy-reading",
+            "liters",
+            "legacy-gallons",
+            "price",
+            "service",
+            "hours",
+        ],
     )
     async def test_a_figure_that_is_not_a_number_names_its_field(
         self,

@@ -669,3 +669,21 @@ async def test_a_note_title_is_keyed_only_when_the_row_has_one_and_blank_is_null
         await db_session.execute(select(Note.title).where(Note.vin == vin).order_by(Note.date))
     ).all()
     assert [title for (title,) in titles] == ["Tyres", None]
+
+
+async def test_a_note_title_that_is_not_text_is_a_row_error(
+    client: AsyncClient, non_admin_headers, non_admin_user, db_session: AsyncSession
+):
+    """R2: the file's own bad type is the row's error. PostgreSQL would refuse it anyway."""
+    vin = await _seed_vehicle(db_session, non_admin_user["id"], "5NPE24AF0FH216129")
+    data = await _import(
+        client,
+        non_admin_headers,
+        vin,
+        {**_METRIC, "notes": [{"date": "2026-01-11", "title": 42, "content": "Numbered"}]},
+    )
+    # c304a690: (1, []), SQLite stored the 42
+    assert (data["notes"]["success_count"], data["errors"]) == (
+        0,
+        ["Note 0: title must be text"],
+    ), data

@@ -44,7 +44,6 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import ColumnElement, Numeric, and_, func, literal, or_, select
-from sqlalchemy.exc import DataError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute, selectinload
 from sqlalchemy.sql.base import ExecutableOption
@@ -293,19 +292,17 @@ def _matches(column: InstrumentedAttribute[Any], value: Any) -> ColumnElement[bo
     return column.is_(None) if value is None else column == value
 
 
-def _same_figure(
-    column: InstrumentedAttribute[Any], value: Decimal | None, step: Decimal
-) -> ColumnElement[bool]:
-    """`column` holds `value` at its scale: within half a `step`, or NULL for None.
+def _same_figure(column: InstrumentedAttribute[Any], value: Decimal | None) -> ColumnElement[bool]:
+    """`column` holds `value` at its scale: within half its step, or NULL for None.
 
     Every ORM write rounds at bind now (ScaledNumeric), so only a legacy SQLite
     row holds places past the scale: one written before migration 136, or in a
     table 136 skipped (it's not FATAL and runs per table). That row reads back,
     and exports, rounded, and an exact `=` never meets it (Fable F-1, T-20); the
-    band covers a 136 that didn't finish. `step` is the column's own: 0.01 for
-    NUMERIC(n,2), 0.001 for (n,3), 0.1 for (n,1).
+    band covers a 136 that didn't finish. The step is read off the column, so a
+    widened column narrows its band with it.
     """
-    return column.is_(None) if value is None else _within(column, value, step / 2)
+    return column.is_(None) if value is None else _within(column, value, _column_step(column) / 2)
 
 
 #: Every money column is NUMERIC(12,2) (schemas/_money.py).
@@ -338,7 +335,6 @@ def _or_blank_zero(
     condition: ColumnElement[bool],
     column: InstrumentedAttribute[Any],
     value: Decimal | None,
-    step: Decimal,
     *,
     zero_was_blank: bool,
 ) -> ColumnElement[bool]:
@@ -349,7 +345,7 @@ def _or_blank_zero(
     """
     if value is not None or not zero_was_blank:
         return condition
-    return or_(condition, _within(column, Decimal(0), step / 2))
+    return or_(condition, _within(column, Decimal(0), _column_step(column) / 2))
 
 
 class _DuplicateMatcher:
@@ -753,14 +749,23 @@ def _in_vocabulary(value: Any, field: str, vocabulary: tuple[str, ...]) -> str |
     raise _RowError(f"{field} must be one of {', '.join(vocabulary)}")
 
 
-#: A row PostgreSQL refused for a value too long for its column (a DataError;
-#: SQLite stores any length). No per-column bounds: SQLite writes are unbounded (NB-1).
+#: What a row PostgreSQL refused for a value too long for its column says
+#: (SQLite stores any length). No per-column bounds: SQLite writes are unbounded (NB-1).
 _TOO_LONG = "a value is longer than its column allows"
+#: PostgreSQL's string_data_right_truncation.
+_STRING_TOO_LONG = "22001"
 
 
 def _unexpected_reason(e: Exception, generic: str = "could not be imported") -> str:
-    """What a row that failed unexpectedly says: too long for its column, or `generic`."""
-    return _TOO_LONG if isinstance(e, DataError) else generic
+    """What a row that failed unexpectedly says: too long for its column, or `generic`.
+
+    Judged on the driver's SQLSTATE, not the wrapper class: asyncpg's 22001
+    comes through as a plain DBAPIError, and a DataError can be a number too.
+    asyncpg and psycopg set `sqlstate`, psycopg2 `pgcode`.
+    """
+    orig = getattr(e, "orig", None)
+    code = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    return _TOO_LONG if code == _STRING_TOO_LONG else generic
 
 
 def _blank_to_none(value: Any) -> Any:
@@ -1043,15 +1048,14 @@ def _json_fuel_key(
                 ),
                 FuelRecord.liters,
                 record.liters,
-                LITRE_STEP,
                 zero_was_blank=zero_was_null,
             )
         )
     # NUMERIC(8,3) and (9,3).
     if "kwh" in row:
-        key.append(_same_figure(FuelRecord.kwh, record.kwh, Decimal("0.001")))
+        key.append(_same_figure(FuelRecord.kwh, record.kwh))
     if "propane_liters" in row:
-        key.append(_same_figure(FuelRecord.propane_liters, record.propane_liters, Decimal("0.001")))
+        key.append(_same_figure(FuelRecord.propane_liters, record.propane_liters))
     if "cost" in row:
         key.append(_money_matches(FuelRecord.cost, record.cost))
     return key
@@ -1131,7 +1135,6 @@ def _json_def_key(
                 ),
                 DEFRecord.liters,
                 record.liters,
-                LITRE_STEP,
                 zero_was_blank=zero_was_null,
             )
         )
@@ -1141,10 +1144,9 @@ def _json_def_key(
     if "fill_level" in row:
         key.append(
             _or_blank_zero(
-                _same_figure(DEFRecord.fill_level, record.fill_level, Decimal("0.01")),
+                _same_figure(DEFRecord.fill_level, record.fill_level),
                 DEFRecord.fill_level,
                 record.fill_level,
-                Decimal("0.01"),
                 zero_was_blank=zero_was_null,
             )
         )
@@ -1390,9 +1392,7 @@ def _json_warranty_key(row: Mapping[str, Any], record: WarrantyRecord) -> list[C
     if "policy_number" in row:
         key.append(_matches(WarrantyRecord.policy_number, record.policy_number))
     if "mileage_limit_km" in row:
-        key.append(
-            _same_figure(WarrantyRecord.mileage_limit_km, record.mileage_limit_km, Decimal("0.01"))
-        )
+        key.append(_same_figure(WarrantyRecord.mileage_limit_km, record.mileage_limit_km))
     return key
 
 
@@ -2464,7 +2464,6 @@ async def import_fuel_csv(
                             ),
                             FuelRecord.liters,
                             liters,
-                            LITRE_STEP,
                             zero_was_blank=zero_was_blank,
                         )
                     )
@@ -2637,7 +2636,6 @@ async def import_def_csv(
                             ),
                             DEFRecord.liters,
                             liters,
-                            LITRE_STEP,
                             zero_was_blank=zero_was_blank,
                         )
                     )
@@ -2647,10 +2645,9 @@ async def import_def_csv(
                     # NUMERIC(3,2).
                     key.append(
                         _or_blank_zero(
-                            _same_figure(DEFRecord.fill_level, fill_level, Decimal("0.01")),
+                            _same_figure(DEFRecord.fill_level, fill_level),
                             DEFRecord.fill_level,
                             fill_level,
-                            Decimal("0.01"),
                             zero_was_blank=zero_was_blank,
                         )
                     )
@@ -2840,7 +2837,7 @@ async def import_hours_csv(
                     HoursRecord,
                     HoursRecord.vin == vin,
                     HoursRecord.date == date,
-                    _same_figure(HoursRecord.engine_hours, engine_hours, Decimal("0.1")),
+                    _same_figure(HoursRecord.engine_hours, engine_hours),
                 )
                 is not None
             ):
@@ -3766,12 +3763,12 @@ async def import_vehicle_json(
     for idx, record_data in enumerate(sections["hours_records"]):
         try:
             date = _json_row_date(record_data)
-            raw_hours = record_data.get("engine_hours")
-            if raw_hours is None or raw_hours == "":
+            # Through _json_decimal, so a word names its field.
+            engine_hours = _json_decimal(record_data, "engine_hours")
+            if engine_hours is None:
                 results["hours_records"]["errors"] += 1
                 errors.append(f"Hours record {idx}: engine hours are required")
                 continue
-            engine_hours = Decimal(str(raw_hours))
             _within_api_bounds(HoursRecordCreate, engine_hours=engine_hours)
 
             # NUMERIC(10,1); no source in the key (T-19).
@@ -3782,7 +3779,7 @@ async def import_vehicle_json(
                     HoursRecord,
                     HoursRecord.vin == vin,
                     HoursRecord.date == date,
-                    _same_figure(HoursRecord.engine_hours, engine_hours, Decimal("0.1")),
+                    _same_figure(HoursRecord.engine_hours, engine_hours),
                 )
                 is not None
             ):
@@ -3835,7 +3832,7 @@ async def import_vehicle_json(
             # Rounded first so the message shows the figure we'd store. One too long
             # to round (1e26) is past the cap, and the bounds check says so.
             try:
-                due_km = due_km.quantize(Decimal("0.01"))
+                due_km = due_km.quantize(_column_step(Reminder.due_mileage_km))
             except InvalidOperation:
                 _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
                 raise
@@ -3868,7 +3865,9 @@ async def import_vehicle_json(
                 # With no reading, a date side carries the row on its own
                 # and the miles half drops; a miles-only row can't import.
                 if start_km is not None:
-                    due_km = (start_km + interval_km).quantize(Decimal("0.01"))
+                    due_km = (start_km + interval_km).quantize(
+                        _column_step(Reminder.due_mileage_km)
+                    )
                     _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
                 elif not has_date:
                     raise _RowError("no odometer reading to count from")
@@ -3920,7 +3919,7 @@ async def import_vehicle_json(
                     Reminder.title == title,
                     Reminder.reminder_type == reminder_type,
                     _matches(Reminder.due_date, due_date),
-                    _same_figure(Reminder.due_mileage_km, due_km, Decimal("0.01")),
+                    _same_figure(Reminder.due_mileage_km, due_km),
                     Reminder.status == status,
                 )
                 is not None
