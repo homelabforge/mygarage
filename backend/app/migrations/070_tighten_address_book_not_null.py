@@ -1,4 +1,4 @@
-"""Migration 070 — tighten address_book's four under-constrained NOT NULLs.
+"""Migration 070: tighten address_book's four under-constrained NOT NULLs.
 
 Historically the ``address_book`` columns ``source``, ``usage_count``,
 ``created_at`` and ``updated_at`` were added by migrations 002/025 without a

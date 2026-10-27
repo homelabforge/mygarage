@@ -1,4 +1,4 @@
-"""Extended fuel tracking — issue #69.
+"""Extended fuel tracking (issue #69).
 
 Additive schema for richer per-fillup metadata + user-scoped form defaults.
 No DROP COLUMN, no ALTER COLUMN — every change is purely add + backfill.

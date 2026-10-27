@@ -1,4 +1,4 @@
-"""Metric-canonical storage migration — addresses GitHub issue #67.
+"""Metric-canonical storage migration for GitHub issue #67.
 
 Converts every unit-bearing column from imperial to SI metric in-place:
 

@@ -1,4 +1,4 @@
-"""Fuel→odometer cascade — issue #69 (Phase 2.5 of v2.27.0-rc2).
+"""Fuel→odometer cascade for issue #69 (Phase 2.5 of v2.27.0-rc2).
 
 When a user creates a fuel record the app auto-syncs an
 ``odometer_records`` row so the mileage timeline includes the reading.

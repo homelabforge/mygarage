@@ -1,4 +1,4 @@
-"""Add ``vehicle_reminders.snoozed_until`` — reminder snooze (hide until date).
+"""Add ``vehicle_reminders.snoozed_until`` for reminder snooze (hide until date).
 
 While ``household_today() < snoozed_until`` a pending reminder is excluded
 from overdue and due-soon counts, the inbox, fleet next-due and scheduled

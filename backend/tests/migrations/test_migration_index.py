@@ -51,3 +51,10 @@ def test_is_fatal_recognizes_plain_and_annotated_forms():
     assert gen._is_fatal("FATAL = False\n") is False
     assert gen._is_fatal("FATAL: bool = False\n") is False
     assert gen._is_fatal("x = 1\n") is False
+
+
+def test_index_has_no_em_dashes():
+    """No em-dashes in the index, generator text or a migration's docstring summary."""
+    index = _load_gen().build_index()
+    offenders = [ln for ln in index.splitlines() if "—" in ln]
+    assert not offenders, offenders
