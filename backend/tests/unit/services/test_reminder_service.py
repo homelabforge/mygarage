@@ -1964,6 +1964,33 @@ class TestDueValueChangeRearmsTheHeadsUp:
         reminder.due_mileage_km = Decimal("55000.00")
         assert reminder.last_notified_at == _TOLD
 
+    async def test_a_write_that_stores_the_same_number_keeps_it(
+        self, db_session: AsyncSession, test_vehicle: dict[str, object], clean_reminders: None
+    ):
+        """Fable F-4. 55000.004 rounds to the stored 55000.00, so the target
+        didn't move and the heads-up already went."""
+        reminder = await self._told(
+            db_session,
+            str(test_vehicle["vin"]),
+            reminder_type="mileage",
+            due_mileage_km=Decimal("55000"),
+        )
+        reminder.due_mileage_km = Decimal("55000.004")
+        assert reminder.last_notified_at == _TOLD
+
+    async def test_a_hundredth_of_a_km_still_clears_it(
+        self, db_session: AsyncSession, test_vehicle: dict[str, object], clean_reminders: None
+    ):
+        """Control: 55000.005 rounds up to 55000.01, a new target."""
+        reminder = await self._told(
+            db_session,
+            str(test_vehicle["vin"]),
+            reminder_type="mileage",
+            due_mileage_km=Decimal("55000"),
+        )
+        reminder.due_mileage_km = Decimal("55000.005")
+        assert reminder.last_notified_at is None
+
     async def test_a_value_not_loaded_clears_it_without_loading(
         self, db_session: AsyncSession, test_vehicle: dict[str, object], clean_reminders: None
     ):

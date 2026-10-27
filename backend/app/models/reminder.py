@@ -152,14 +152,21 @@ class Reminder(Base):
         whatever the kwarg order. The current value is read from what's loaded,
         never through the attribute, which would lazy-load an expired one (and
         raise under async). Not loaded, it clears without comparing: an extra
-        heads-up beats a missed one. ``Decimal`` compares by value, so 55000 and
-        55000.00 are the same target.
+        heads-up beats a missed one. Both sides are compared as they'd be
+        stored, so 55000, 55000.00 and 55000.004 are the same target.
         """
         state = inspect(self)
         if state.transient:
             return value
         current = state.attrs[key].loaded_value
-        if current is NO_VALUE or current != value:
+        if current is NO_VALUE:
+            self.last_notified_at = None
+            return value
+        column_type = self.__table__.c[key].type
+        if isinstance(column_type, ScaledNumeric):
+            if column_type.rounded(current) != column_type.rounded(value):
+                self.last_notified_at = None
+        elif current != value:
             self.last_notified_at = None
         return value
 

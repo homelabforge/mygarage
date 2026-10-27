@@ -29,6 +29,10 @@ class ScaledNumeric(TypeDecorator[Decimal]):
         self._step = Decimal(1).scaleb(-scale)
 
     def process_bind_param(self, value: Any, dialect: Dialect) -> Any:
+        """The value rounded to the column's scale (see `rounded`)."""
+        return self.rounded(value)
+
+    def rounded(self, value: Any) -> Any:
         """The value rounded to the column's scale, ROUND_HALF_UP like PG.
 
         A float goes through its repr, so 1.005 rounds as the 1.005 that was
