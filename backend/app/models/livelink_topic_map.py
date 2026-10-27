@@ -11,11 +11,12 @@ configure a `#` that firehoses the broker into the database.
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Index, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 
 class LiveLinkTopicMap(Base):
@@ -38,8 +39,8 @@ class LiveLinkTopicMap(Base):
     unit: Mapped[str | None] = mapped_column(String(20))
     param_class: Mapped[str | None] = mapped_column(String(50))
     #: value = raw * scale + value_offset
-    scale: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=1)
-    value_offset: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=0)
+    scale: Mapped[Decimal] = mapped_column(ScaledNumeric(12, 6), nullable=False, default=1)
+    value_offset: Mapped[Decimal] = mapped_column(ScaledNumeric(12, 6), nullable=False, default=0)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())

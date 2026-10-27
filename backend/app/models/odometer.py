@@ -6,11 +6,12 @@ import datetime as dt
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 from app.utils.datetime_utils import utc_now
 
 
@@ -24,7 +25,7 @@ class OdometerRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    odometer_km: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    odometer_km: Mapped[Decimal] = mapped_column(ScaledNumeric(10, 2), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(
         String(20), default="manual"

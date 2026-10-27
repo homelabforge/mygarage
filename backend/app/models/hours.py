@@ -14,11 +14,12 @@ import datetime as dt
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 
 class HoursRecord(Base):
@@ -31,7 +32,7 @@ class HoursRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    engine_hours: Mapped[Decimal] = mapped_column(Numeric(10, 1), nullable=False)
+    engine_hours: Mapped[Decimal] = mapped_column(ScaledNumeric(10, 1), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(20), default="manual")  # manual, fuel, service_visit
     # Set when this row was synced from a fuel record. Nullable — manual and

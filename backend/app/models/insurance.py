@@ -18,7 +18,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -27,6 +26,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 POLICY_TYPES = ("Liability", "Comprehensive", "Collision", "Full Coverage", "Minimum", "Other")
 PREMIUM_FREQUENCIES = ("Monthly", "Quarterly", "Semi-Annual", "Annual")
@@ -44,7 +44,7 @@ class InsurancePolicy(Base):
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     #: Amount per `premium_frequency` period for the WHOLE policy. The term
     #: cost is always derived from it, never stored.
-    premium_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    premium_amount: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     premium_frequency: Mapped[str | None] = mapped_column(String(20))
     notes: Mapped[str | None] = mapped_column(Text)
     created_by_user_id: Mapped[int | None] = mapped_column(
@@ -105,8 +105,8 @@ class InsurancePolicyVehicle(Base):
     policy_type: Mapped[str] = mapped_column(String(30), nullable=False)
     #: NULL = this vehicle takes an even split of whatever the explicit shares
     #: leave (see `app.utils.insurance_shares`).
-    premium_share: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    deductible: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    premium_share: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    deductible: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     #: Set when the vehicle leaves the policy mid-term; NULL = the whole term.
     effective_to: Mapped[date | None] = mapped_column(Date)
@@ -197,12 +197,12 @@ class InsuranceCoverage(Base):
     #: The two generic limit slots. What they mean is per-coverage: "each
     #: person"/"each accident" for liability, "each day"/"maximum days" for
     #: rental reimbursement, a single limit for custom equipment.
-    limit_primary: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    limit_secondary: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    limit_primary: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    limit_secondary: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     #: This coverage's own deductible, beneath the link's headline one.
-    deductible: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    deductible: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     #: What the declarations page charges for this coverage alone.
-    premium: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    premium: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
 
     policy_vehicle: Mapped[InsurancePolicyVehicle] = relationship(
         "InsurancePolicyVehicle", back_populates="coverages"

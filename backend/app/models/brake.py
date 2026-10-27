@@ -18,7 +18,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -28,6 +27,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 _POSITION_CHECK = "position IN ('FL', 'FR', 'RL', 'RR')"
 _TYPE_CHECK = "brake_type IN ('disc', 'drum')"
@@ -49,11 +49,11 @@ class BrakeAxle(Base):
     axle: Mapped[str] = mapped_column(String(5), nullable=False)
     brake_type: Mapped[str] = mapped_column(String(4), nullable=False)
     # Pad (disc) or shoe lining (drum) thickness, in millimetres.
-    min_thickness_mm: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False)
-    new_thickness_mm: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False)
+    min_thickness_mm: Mapped[Decimal] = mapped_column(ScaledNumeric(4, 2), nullable=False)
+    new_thickness_mm: Mapped[Decimal] = mapped_column(ScaledNumeric(4, 2), nullable=False)
     # The "MIN TH" stamped on a rotor, or the "MAX DIA" cast into a drum.
-    rotor_min_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    drum_max_mm: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    rotor_min_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 2))
+    drum_max_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(6, 2))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
@@ -82,8 +82,8 @@ class BrakeJob(Base):
     brake_type: Mapped[str] = mapped_column(String(4), nullable=False)
     performed_on: Mapped[dt.date] = mapped_column(Date, nullable=False)
     # Context for the wear estimate. Never published to the odometer history.
-    odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
-    engine_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1))
+    odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
+    engine_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1))
     # Pads on a disc corner, shoes on a drum one. Starts the wear estimate over.
     friction_replaced: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
@@ -119,13 +119,13 @@ class BrakeMeasurement(Base):
     )
     position: Mapped[str] = mapped_column(String(2), nullable=False)
     recorded_at: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
-    engine_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1))
-    inner_pad_mm: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
-    outer_pad_mm: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
-    rotor_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    shoe_mm: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
-    drum_mm: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
+    engine_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1))
+    inner_pad_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(4, 2))
+    outer_pad_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(4, 2))
+    rotor_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 2))
+    shoe_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(4, 2))
+    drum_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(6, 2))
     # Set on the new-pads figure a brake job wrote. It counts as after that job
     # even though it shares the job's date, and it goes when the job goes.
     brake_job_id: Mapped[int | None] = mapped_column(

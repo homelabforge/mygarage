@@ -12,7 +12,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
 )
@@ -20,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 
 class DEFRecord(Base):
@@ -32,11 +32,11 @@ class DEFRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
-    liters: Mapped[Decimal | None] = mapped_column(Numeric(9, 3))
-    cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    price_per_unit: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
-    fill_level: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
+    odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
+    liters: Mapped[Decimal | None] = mapped_column(ScaledNumeric(9, 3))
+    cost: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    price_per_unit: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 3))
+    fill_level: Mapped[Decimal | None] = mapped_column(ScaledNumeric(3, 2))
     source: Mapped[str | None] = mapped_column(String(100))
     brand: Mapped[str | None] = mapped_column(String(100))
     notes: Mapped[str | None] = mapped_column(Text)

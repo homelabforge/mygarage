@@ -13,7 +13,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     text,
 )
@@ -21,6 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 from app.utils.datetime_utils import utc_now
 
 if TYPE_CHECKING:
@@ -145,7 +145,7 @@ class LiveLinkDevice(Base):
     #: First of the two consecutive above-floor speed samples the debounce needs.
     movement_candidate_at: Mapped[datetime | None] = mapped_column(DateTime)
     #: Odometer at pending open, for the odometer-increase movement signal.
-    movement_baseline_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    movement_baseline_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
 
     # State
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)

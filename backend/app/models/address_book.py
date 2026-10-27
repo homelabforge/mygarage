@@ -5,11 +5,12 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Index, Integer, Numeric, String, Text, text
+from sqlalchemy import DateTime, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 
 class AddressBookEntry(Base):
@@ -31,8 +32,8 @@ class AddressBookEntry(Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
     # Geolocation fields for shop discovery
-    latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 8))
-    longitude: Mapped[Decimal | None] = mapped_column(Numeric(11, 8))
+    latitude: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 8))
+    longitude: Mapped[Decimal | None] = mapped_column(ScaledNumeric(11, 8))
 
     # Shop discovery metadata
     source: Mapped[str] = mapped_column(
@@ -43,7 +44,9 @@ class AddressBookEntry(Base):
     )  # Google Place ID or other external ID
 
     # Ratings
-    rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))  # Google rating (0.00 - 5.00)
+    rating: Mapped[Decimal | None] = mapped_column(
+        ScaledNumeric(3, 2)
+    )  # Google rating (0.00 - 5.00)
     user_rating: Mapped[int | None] = mapped_column(Integer)  # User's 1-5 star rating
 
     # Usage tracking for recommendations

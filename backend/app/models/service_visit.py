@@ -14,7 +14,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
 )
@@ -22,6 +21,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 if TYPE_CHECKING:
     from app.models.service_line_item import ServiceLineItem
@@ -40,14 +40,14 @@ class ServiceVisit(Base):
     )
     vendor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("vendors.id"))
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
     # Engine-hours reading at this service visit (hour-metered vehicles).
     # Dimensionless — no unit conversion. Migration 083.
-    engine_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1))
-    total_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    shop_supplies: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    misc_fees: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    engine_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1))
+    total_cost: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    tax_amount: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    shop_supplies: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    misc_fees: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     service_category: Mapped[str | None] = mapped_column(String(30))
     insurance_claim_number: Mapped[str | None] = mapped_column(String(50))

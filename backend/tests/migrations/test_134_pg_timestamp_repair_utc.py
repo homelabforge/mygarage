@@ -41,6 +41,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.pool import NullPool
 from sqlalchemy.sql import functions
+from sqlalchemy.types import TypeDecorator
 
 import app.migrations as _m
 import app.models  # noqa: F401  (registers every table on Base.metadata)
@@ -515,6 +516,9 @@ def _value_for(table: Table, name: str) -> Any:
         return override[name]
     column = table.columns[name]
     kind = column.type
+    # A ScaledNumeric is a Numeric underneath.
+    if isinstance(kind, TypeDecorator):
+        kind = kind.impl_instance
     if isinstance(kind, Enum):
         return kind.enums[0]
     if isinstance(kind, Boolean):

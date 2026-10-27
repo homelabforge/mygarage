@@ -13,7 +13,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
 )
@@ -21,6 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 if TYPE_CHECKING:
     from app.models.service_visit import ServiceVisit
@@ -42,7 +42,7 @@ class ServiceLineItem(Base):
     # client or classified from `description` at write time, then matched by
     # code only. Migration 101 classified existing rows.
     maintenance_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    cost: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     is_inspection: Mapped[bool] = mapped_column(Boolean, default=False)
     inspection_result: Mapped[str | None] = mapped_column(

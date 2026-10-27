@@ -3,10 +3,11 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 
 class LocationPoint(Base):
@@ -21,11 +22,11 @@ class LocationPoint(Base):
     )
     source: Mapped[str] = mapped_column(String(10), nullable=False)  # 'torque' (only v1 source)
     timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
-    longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
-    speed: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))  # km/h (canonical)
-    heading: Mapped[Decimal | None] = mapped_column(Numeric(5, 1))  # degrees
-    altitude: Mapped[Decimal | None] = mapped_column(Numeric(7, 1))  # metres
+    latitude: Mapped[Decimal] = mapped_column(ScaledNumeric(9, 6), nullable=False)
+    longitude: Mapped[Decimal] = mapped_column(ScaledNumeric(9, 6), nullable=False)
+    speed: Mapped[Decimal | None] = mapped_column(ScaledNumeric(6, 2))  # km/h (canonical)
+    heading: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 1))  # degrees
+    altitude: Mapped[Decimal | None] = mapped_column(ScaledNumeric(7, 1))  # metres
     received_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )

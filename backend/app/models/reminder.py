@@ -14,7 +14,6 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
     text,
@@ -23,6 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 if TYPE_CHECKING:
     from app.models.maintenance_rule import MaintenanceRule
@@ -45,9 +45,9 @@ class Reminder(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     reminder_type: Mapped[str] = mapped_column(String(10), nullable=False)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    due_mileage_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    due_mileage_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2), nullable=True)
     # Hours target for reminder_type='hours' (hour-metered vehicles). Migration 083.
-    due_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1), nullable=True)
+    due_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1), nullable=True)
     # Which tire this reminder is about, for tire-sourced reminders (097).
     # Part of a COMPOSITE FK to `tires (id, vin)` declared in __table_args__,
     # so a reminder cannot name a tire belonging to a different vehicle.
@@ -64,8 +64,8 @@ class Reminder(Base):
     # Canonical tread figures on a low-tread reminder. The sync sets them when it
     # raises the reminder and keeps them current while it's pending, and the
     # notification renders them in the reader's units.
-    tread_depth_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
-    tread_threshold_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    tread_depth_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 2), nullable=True)
+    tread_threshold_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_notified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -94,18 +94,20 @@ class Reminder(Base):
     # first service.
     anchor_kind: Mapped[str | None] = mapped_column(String(12), nullable=True)
     anchor_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    anchor_odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
-    anchor_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1), nullable=True)
+    anchor_odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2), nullable=True)
+    anchor_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1), nullable=True)
     # What an unanchored reminder counts from: the readings when it was made
     # (migration 129). Not an anchor, so adoption and reconcile never read them.
-    start_odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
-    start_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1), nullable=True)
+    start_odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2), nullable=True)
+    start_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1), nullable=True)
     # How and when it was closed. `completed_line_item_id` is the work that
     # closed it, which the successor then counts from.
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    completed_odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
-    completed_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1), nullable=True)
+    completed_odometer_km: Mapped[Decimal | None] = mapped_column(
+        ScaledNumeric(10, 2), nullable=True
+    )
+    completed_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1), nullable=True)
     completed_line_item_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("service_line_items.id", ondelete="SET NULL"), nullable=True
     )

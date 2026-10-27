@@ -6,11 +6,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Numeric, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 if TYPE_CHECKING:
     from app.models.spot_rental import SpotRental
@@ -31,11 +32,11 @@ class SpotRentalBilling(Base):
         Integer, ForeignKey("spot_rentals.id", ondelete="CASCADE"), nullable=False
     )
     billing_date: Mapped[date] = mapped_column(Date, nullable=False)
-    monthly_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    electric: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    water: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    waste: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    total: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    monthly_rate: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    electric: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    water: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    waste: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    total: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

@@ -13,7 +13,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
 )
@@ -21,6 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 if TYPE_CHECKING:
     from app.models.spot_rental_billing import SpotRentalBilling
@@ -39,13 +39,13 @@ class SpotRental(Base):
     location_address: Mapped[str | None] = mapped_column(Text)
     check_in_date: Mapped[date] = mapped_column(Date, nullable=False)
     check_out_date: Mapped[date | None] = mapped_column(Date)
-    nightly_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    weekly_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    monthly_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    electric: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    water: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    waste: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    total_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    nightly_rate: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    weekly_rate: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    monthly_rate: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    electric: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    water: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    waste: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    total_cost: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     amenities: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

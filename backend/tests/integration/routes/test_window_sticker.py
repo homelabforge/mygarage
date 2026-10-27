@@ -20,6 +20,7 @@ from httpx import AsyncClient, Response
 from sqlalchemy import JSON, DateTime, Numeric, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.types import TypeDecorator
 
 from app.models.vehicle import Vehicle
 from app.routes import window_sticker as window_sticker_route
@@ -819,6 +820,9 @@ def test_an_old_path_unlink_cannot_take_is_a_warning(caplog: pytest.LogCaptureFi
 def _a_value_for(column: str) -> Any:
     """Something non-null that fits the column."""
     kind = Vehicle.__table__.c[column].type
+    # A ScaledNumeric is a Numeric underneath.
+    if isinstance(kind, TypeDecorator):
+        kind = kind.impl_instance
     if isinstance(kind, Numeric):
         return Decimal("1")
     if isinstance(kind, JSON):

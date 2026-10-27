@@ -12,7 +12,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
 )
@@ -20,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 
 class WarrantyRecord(Base):
@@ -35,7 +35,7 @@ class WarrantyRecord(Base):
     provider: Mapped[str | None] = mapped_column(String(100))
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date | None] = mapped_column(Date)
-    mileage_limit_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    mileage_limit_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
     coverage_details: Mapped[str | None] = mapped_column(Text)
     policy_number: Mapped[str | None] = mapped_column(String(50))
     notes: Mapped[str | None] = mapped_column(Text)

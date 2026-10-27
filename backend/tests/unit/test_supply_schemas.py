@@ -44,7 +44,8 @@ def test_adjustment_quantity_positive():
 
 def _column_max(column: Column) -> Decimal:
     """The largest value a Numeric(p, s) column holds."""
-    numeric = column.type
+    # ScaledNumeric wraps the Numeric the database sees.
+    numeric = column.type.impl
     assert isinstance(numeric, Numeric) and numeric.precision and numeric.scale is not None
     return Decimal(10) ** (numeric.precision - numeric.scale) - Decimal(10) ** -numeric.scale
 

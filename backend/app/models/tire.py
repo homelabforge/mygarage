@@ -13,7 +13,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -23,6 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 
 class TireSet(Base):
@@ -77,12 +77,12 @@ class TireMountPeriod(Base):
     # which is itself nullable and unset on most rows.
     mounted_on: Mapped[dt.date | None] = mapped_column(Date)
     dismounted_on: Mapped[dt.date | None] = mapped_column(Date)
-    mounted_odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
-    dismounted_odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    mounted_odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
+    dismounted_odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
     # The hour meter at the mount and the dismount (#217, migration 126).
     # Beside the odometer, not instead of it: a dual vehicle records both.
-    mounted_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1))
-    dismounted_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1))
+    mounted_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1))
+    dismounted_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1))
     # True for the period 097 invents for an existing tire. Such a period
     # asserts only "this tire was mounted here as of the migration date"; its
     # start is unknown, which is why `distance_on_tire` reports
@@ -150,11 +150,13 @@ class Tire(Base):
     # entered by mistake.
     retired_on: Mapped[dt.date | None] = mapped_column(Date)
     # Latest tread depth in millimetres (canonical).
-    tread_depth_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    tread_depth_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 2))
     # Optional cold pressure in kPa (canonical).
-    pressure_kpa: Mapped[Decimal | None] = mapped_column(Numeric(7, 2))
+    pressure_kpa: Mapped[Decimal | None] = mapped_column(ScaledNumeric(7, 2))
     # Wear-out threshold used for reminder hooks (default 2.0 mm / ~2/32").
-    min_tread_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), default=Decimal("2.0"))
+    min_tread_mm: Mapped[Decimal | None] = mapped_column(
+        ScaledNumeric(5, 2), default=Decimal("2.0")
+    )
     notes: Mapped[str | None] = mapped_column(Text)
     # Where the tire is kept while it is off the vehicle (#153, IanVinkHub).
     # Free text; never cleared by a mount, because it is where the tire goes
@@ -210,16 +212,16 @@ class TireReading(Base):
         Integer, ForeignKey("tire_mount_periods.id", ondelete="SET NULL")
     )
     recorded_at: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
     # The hour meter when the reading was taken (#217, migration 126). Context
     # for wear on an hours vehicle, like `odometer_km` on a distance one.
-    engine_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1))
+    engine_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1))
     # Nullable since migration 094: a reader with no tread gauge logs pressure
     # alone (#152). ``TireReadingCreate`` still refuses a reading that carries
     # neither, and ``TireService.add_reading`` leaves the parent tire's tread
     # untouched when a reading omits one.
-    tread_depth_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    pressure_kpa: Mapped[Decimal | None] = mapped_column(Numeric(7, 2))
+    tread_depth_mm: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 2))
+    pressure_kpa: Mapped[Decimal | None] = mapped_column(ScaledNumeric(7, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

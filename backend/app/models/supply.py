@@ -15,7 +15,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    Numeric,
     String,
     Text,
 )
@@ -23,6 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func, true
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 if TYPE_CHECKING:
     from app.models.service_line_item import ServiceLineItem
@@ -79,8 +79,8 @@ class SupplyPurchase(Base):
         Integer, ForeignKey("supplies.id", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)  # canonical
-    total_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    quantity: Mapped[Decimal] = mapped_column(ScaledNumeric(12, 3), nullable=False)  # canonical
+    total_cost: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     supplier_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("address_book.id", ondelete="SET NULL")
     )
@@ -102,9 +102,9 @@ class SupplyUsage(Base):
     supply_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("supplies.id", ondelete="CASCADE"), nullable=False
     )
-    quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)  # canonical
-    unit_cost_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(15, 4))
-    cost_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    quantity: Mapped[Decimal] = mapped_column(ScaledNumeric(12, 3), nullable=False)  # canonical
+    unit_cost_snapshot: Mapped[Decimal | None] = mapped_column(ScaledNumeric(15, 4))
+    cost_snapshot: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     service_line_item_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("service_line_items.id", ondelete="CASCADE")
     )  # NULL = standalone adjustment

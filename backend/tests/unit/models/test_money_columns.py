@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import Column, Float, Numeric
+from sqlalchemy.types import TypeDecorator, TypeEngine
 
 import app.main  # noqa: F401 (registers every model on Base.metadata)
 from app.database import Base
@@ -45,6 +46,12 @@ NOT_MONEY_COLUMNS = frozenset(
 )
 
 
+def _stored_type(column: Column[Any]) -> TypeEngine[Any]:
+    """The column's database type: a ScaledNumeric's is its `.impl`."""
+    kind = column.type
+    return kind.impl_instance if isinstance(kind, TypeDecorator) else kind
+
+
 def _numeric_columns() -> dict[str, Column[Any]]:
     """table.column -> column, for every Numeric (and Float) column."""
     return {
@@ -52,7 +59,7 @@ def _numeric_columns() -> dict[str, Column[Any]]:
         for table in Base.metadata.tables.values()
         for column in table.columns
         # SQLAlchemy 2.1 split Float off Numeric, so it has to be named.
-        if isinstance(column.type, (Numeric, Float))
+        if isinstance(_stored_type(column), (Numeric, Float))
     }
 
 
@@ -74,7 +81,7 @@ def test_every_numeric_column_is_money_exactly_when_registered():
 def _money_shaped(column: Column[Any]) -> bool:
     """Money's decimal places, and no unit word in the name."""
     words = set(column.name.lower().split("_"))
-    return column.type.scale in MONEY_SCALES and not words & UNIT_WORDS
+    return _stored_type(column).scale in MONEY_SCALES and not words & UNIT_WORDS
 
 
 def test_every_money_shaped_column_is_registered_or_excused():
@@ -103,15 +110,16 @@ def test_every_money_column_has_its_policy_type():
     columns = _numeric_columns()
     missing = sorted(MONEY_COLUMNS.keys() - columns.keys())
     assert missing == [], "registered but not a Numeric column in the models"
-    wrong = {
-        qualified: f"{type(column.type).__name__}({column.type.precision}, {column.type.scale})"
+    stored = {
+        qualified: _stored_type(column)
         for qualified, column in columns.items()
         if qualified in MONEY_COLUMNS
+    }
+    wrong = {
+        qualified: f"{type(kind).__name__}({kind.precision}, {kind.scale})"
+        for qualified, kind in stored.items()
         # Exactly Numeric: the scan takes Floats too, and a Float stores a double.
-        and (
-            type(column.type) is not Numeric
-            or (column.type.precision, column.type.scale) != MONEY_COLUMNS[qualified]
-        )
+        if type(kind) is not Numeric or (kind.precision, kind.scale) != MONEY_COLUMNS[qualified]
     }
     assert wrong == {}
 

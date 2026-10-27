@@ -26,7 +26,6 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
-    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -35,6 +34,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.models._types import ScaledNumeric
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -115,10 +115,10 @@ class ReminderPackItemRow(Base):
     item_key: Mapped[str] = mapped_column(String(64), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     maintenance_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    interval_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+    interval_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2), nullable=True)
     interval_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
     interval_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    interval_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1), nullable=True)
+    interval_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
