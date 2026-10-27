@@ -21,6 +21,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.utils.household_time import household_zone
 from app.utils.pdf_styles import (
     ACCENT_AMBER,
     ACCENT_BAR_HEIGHT,
@@ -92,10 +93,11 @@ def draw_branded_header(
     canvas.setFont(body, 13)
     canvas.drawString(text_x, icon_y + icon_size - 38, subtitle)
 
-    # Date/time (right-aligned)
-    now = datetime.now()
+    # Date/time (right-aligned), in the household's zone with its real label.
+    # This used to be the container's clock with "CST" stuck on the end.
+    now = datetime.now(household_zone())
     date_str = now.strftime("%B %d, %Y")
-    time_str = now.strftime("%I:%M %p CST")
+    time_str = now.strftime("%I:%M %p %Z")
 
     x_right = PAGE_WIDTH - MARGIN
     canvas.setFillColor(TEXT_SECONDARY)

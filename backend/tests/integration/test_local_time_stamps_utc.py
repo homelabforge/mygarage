@@ -196,6 +196,22 @@ class TestSettingsUpdatedAtIsUtc:
 
 
 @pytest.mark.usefixtures("local_clock_off_utc")
+class TestEffectiveTimezoneStampIsUtc:
+    """The computed effective_timezone entry is never stored, but it's served
+    beside real rows, and the frontend reads every naive stamp as UTC."""
+
+    async def test_public_settings(self, client: AsyncClient) -> None:
+        before = utc_now()
+        response = await client.get("/api/settings/public")
+        after = utc_now()
+
+        assert response.status_code == 200, response.text
+        entry = next(s for s in response.json()["settings"] if s["key"] == "effective_timezone")
+        assert_utc_between(dt.datetime.fromisoformat(entry["created_at"]), before, after)
+        assert_utc_between(dt.datetime.fromisoformat(entry["updated_at"]), before, after)
+
+
+@pytest.mark.usefixtures("local_clock_off_utc")
 class TestAddressBookLastUsedIsUtc:
     """Every writer of address_book.last_used."""
 

@@ -1,6 +1,5 @@
 """Settings API endpoints."""
 
-import datetime as dt
 import logging
 import re
 import sys
@@ -289,7 +288,7 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
     entries = [_to_response(s) for s in settings]
     # Computed, read-only: the zone in effect for this request. Never a
     # stored row; every write path rejects the key.
-    now = dt.datetime.now()
+    now = utc_now()
     entries.append(
         SettingResponse(
             key=EFFECTIVE_TIMEZONE_KEY,
