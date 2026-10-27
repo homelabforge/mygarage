@@ -36,12 +36,12 @@ from __future__ import annotations
 import argparse
 import sys
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 sys.path.insert(0, ".")
 
 from app.utils.units import UnitConverter  # noqa: E402
-from tools._tool_db import resolve_sync_url  # noqa: E402
+from tools._tool_db import create_tool_engine  # noqa: E402
 
 #: Above this, the vehicle's km odometer records tower over its session
 #: odometers by roughly the miles factor (1.609), so the sessions are still in
@@ -75,7 +75,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     """Convert miles-recorded session odometers to kilometres."""
     args = _parse_args()
-    engine = create_engine(resolve_sync_url(args.db))
+    engine = create_tool_engine(args.db)
 
     with engine.begin() as conn:
         devices = [

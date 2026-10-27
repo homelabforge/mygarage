@@ -55,7 +55,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import Connection, create_engine, inspect, text
+from sqlalchemy import Connection, inspect, text
 
 sys.path.insert(0, ".")
 
@@ -70,9 +70,9 @@ from app.utils.odometer_units import (  # noqa: E402
 from app.utils.units import UnitConverter  # noqa: E402
 from tools._tool_db import (  # noqa: E402
     as_date,
+    create_tool_engine,
     legacy_migration_applied,
     mixed_units_step,
-    resolve_sync_url,
 )
 
 #: A session's distance is the odometer's delta when it matches it this closely.
@@ -525,7 +525,7 @@ def main() -> int:
     """Plan, and with --apply write, one device's odometer unit repair."""
     args = _parse_args()
     print(_BACKUP_WARNING)
-    engine = create_engine(resolve_sync_url(args.db))
+    engine = create_tool_engine(args.db)
     try:
         with engine.begin() as conn:
             try:

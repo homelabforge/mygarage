@@ -109,3 +109,47 @@ class TestResolveSyncUrl:
             make_url(resolve_sync_url("sqlite:////data/my%41garage.db")).database
             == "/data/myAgarage.db"
         )
+
+
+class TestCreateToolEngine:
+    """Tools open their sync engine through one factory, on the runner's pin rule (R2)."""
+
+    def test_sqlite_gets_a_plain_engine_and_no_connection(self, tmp_path):
+        """SQLite has no session zone, and the factory shouldn't create the file by peeking."""
+        from sqlalchemy import event
+
+        from app.utils.pg_session import _set_session_utc
+        from tools._tool_db import create_tool_engine
+
+        db_file = tmp_path / "mygarage.db"
+        engine = create_tool_engine(str(db_file))
+        try:
+            assert engine.dialect.name == "sqlite"
+            assert engine.hide_parameters is True
+            assert not event.contains(engine, "connect", _set_session_utc)
+            assert not db_file.exists()
+        finally:
+            engine.dispose()
+
+    def test_no_tool_builds_its_own_sync_engine(self):
+        """A tool that called create_engine itself would skip the pin rule, pinned or not.
+
+        Its PG side runs in tests/migrations/test_runner_utc_pin.py, which can reset the schema.
+        """
+        import ast
+        from pathlib import Path
+
+        tools_dir = Path(__file__).resolve().parents[3] / "tools"
+        builders = {"create_engine", "create_utc_engine"}
+        offenders = []
+        for module in sorted(tools_dir.glob("*.py")):
+            if module.name == "_tool_db.py":
+                continue
+            for node in ast.walk(ast.parse(module.read_text(encoding="utf-8"))):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+                if name in builders:
+                    offenders.append(f"{module.name}:{node.lineno}")
+        assert offenders == []

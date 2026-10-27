@@ -189,6 +189,21 @@ class TestMain:
         assert "unsupported database dialect 'mysql'" in err
         assert err.strip().count("\n") == 0, f"expected one line, got:\n{err}"
 
+    async def test_an_unreachable_pg_server_is_one_line_and_exit_1(
+        self, capsys: pytest.CaptureFixture[str]
+    ):
+        """Guard: the engine factory reads schema_migrations, so on PG it connects up front.
+
+        Passes before the factory too, when the error came from the first query.
+        Kills dropping the DBAPIError handler around the factory call (a traceback).
+        """
+        code = main(["--username", "anyone", "--db", "postgresql://u:p@127.0.0.1:1/mygarage"])
+
+        assert code == 1
+        err = capsys.readouterr().err
+        assert err.startswith("Database error: ")
+        assert err.strip().count("\n") == 0, f"expected one line, got:\n{err}"
+
     async def test_a_schema_without_the_relink_column_is_one_line_and_exit_1(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ):

@@ -31,7 +31,7 @@ import sys
 from collections import defaultdict
 from datetime import date
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 sys.path.insert(0, ".")
 
@@ -44,11 +44,11 @@ from app.utils.odometer_units import (  # noqa: E402
 )
 from tools._tool_db import (  # noqa: E402
     as_date,
+    create_tool_engine,
     declared_odometer_keys,
     device_key_units,
     migrated_odometer_mi_devices,
     print_unreadable_note,
-    resolve_sync_url,
 )
 
 #: Below this, a "mi" device's stored telemetry already sits in the same range
@@ -78,7 +78,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     """Reconstruct and optionally write the missing odometer records."""
     args = _parse_args()
-    engine = create_engine(resolve_sync_url(args.db))
+    engine = create_tool_engine(args.db)
 
     with engine.begin() as conn:
         # Its device query needs these columns; without them it can't tell a

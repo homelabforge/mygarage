@@ -17,6 +17,10 @@ CI-tested deployment, so those instances had no repair path at all.
 * a **URL** (`postgresql+asyncpg://...`), converted to the sync driver;
 * **omitted**, falling back to the app's own configured database, which is the
   right answer when the tool runs inside the container.
+
+`create_tool_engine` is how a tool opens it: on PostgreSQL it pins sessions to
+UTC on the migration runner's rule, so a tool run before the timestamp repair
+writes rows in the zone the repair expects.
 """
 
 from __future__ import annotations
@@ -28,10 +32,12 @@ from datetime import date, datetime
 from pathlib import Path
 from types import ModuleType
 
-from sqlalchemy import inspect, text
-from sqlalchemy.engine import URL, Connection
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import URL, Connection, Engine
 
+from app.migrations.runner import pins_sessions
 from app.utils.db_url import to_sync_url
+from app.utils.pg_session import create_utc_engine
 
 #: A URL scheme: letters, digits, +/-/. then "://". Requiring the slashes keeps
 #: a Windows-style path ("C:/data/mygarage.db") from being read as a scheme.
@@ -74,6 +80,48 @@ def resolve_sync_url(db_arg: str | None) -> str:
             f"these tools support {' and '.join(_SUPPORTED_DIALECTS)}"
         )
     return url
+
+
+def create_tool_engine(db_arg: str | None) -> Engine:
+    """The sync engine a tool should use for ``--db``, pinned on the runner's rule.
+
+    On PostgreSQL its sessions keep the server's zone until the timestamp repair
+    is stamped, same as the migration runner, then pin to UTC. Telling which
+    means reading ``schema_migrations`` here, so a PG database is reached now
+    rather than at first use. SQLite gets a plain engine, untouched until used.
+
+    Args:
+        db_arg: The value of ``--db``, as ``resolve_sync_url`` takes it.
+
+    Returns:
+        A sync engine with ``hide_parameters=True``.
+
+    Raises:
+        ValueError: As ``resolve_sync_url``.
+        sqlalchemy.exc.DBAPIError: If a PostgreSQL database can't be reached or read.
+    """
+    url = resolve_sync_url(db_arg)
+    engine = create_engine(url, hide_parameters=True)
+    if engine.dialect.name != "postgresql":
+        return engine
+    try:
+        with engine.connect() as conn:
+            applied = _applied_migrations(conn)
+    except Exception:
+        engine.dispose()
+        raise
+    if not pins_sessions(engine.dialect.name, applied):
+        return engine
+    # A new engine, not a listener on this one: its pooled connection would miss it.
+    engine.dispose()
+    return create_utc_engine(url, hide_parameters=True)
+
+
+def _applied_migrations(conn: Connection) -> set[str]:
+    """Every stem in ``schema_migrations``, or none on a database never booted."""
+    if not inspect(conn).has_table("schema_migrations"):
+        return set()
+    return set(conn.execute(text("SELECT migration_name FROM schema_migrations")).scalars())
 
 
 def as_date(value: object) -> date:

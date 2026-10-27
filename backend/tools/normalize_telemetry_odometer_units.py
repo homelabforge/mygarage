@@ -36,7 +36,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 sys.path.insert(0, ".")
 
@@ -47,12 +47,12 @@ from app.utils.odometer_units import (  # noqa: E402
 )
 from app.utils.units import UnitConverter  # noqa: E402
 from tools._tool_db import (  # noqa: E402
+    create_tool_engine,
     declared_odometer_keys,
     device_key_units,
     migrated_odometer_mi_devices,
     mixed_units_step,
     print_unreadable_note,
-    resolve_sync_url,
 )
 
 #: Above this, the vehicle's km odometer records tower over its stored odometer
@@ -79,7 +79,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     """Convert miles-recorded odometer telemetry to kilometres."""
     args = _parse_args()
-    engine = create_engine(resolve_sync_url(args.db))
+    engine = create_tool_engine(args.db)
     factor = float(UnitConverter.MILES_TO_KM)
 
     with engine.begin() as conn:

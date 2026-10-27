@@ -10,7 +10,10 @@ The two drivers need different mechanics:
 - asyncpg (the app engine) ignores `PGTZ`/`PGOPTIONS` and takes the server's
   zone, so the pin rides in as a startup setting through `server_settings`.
 - psycopg2 (migration runner, tools) honours `PGTZ`/`options`, so the pin is a
-  `connect` event running `SET TIME ZONE 'UTC'`, which wins over either.
+  `connect` event running `SET TIME ZONE 'UTC'`, which wins over either. Those
+  two pin only once the timestamp repair is stamped (`pins_sessions` in
+  `app.migrations.runner`), so every row the repair converts was written in
+  the server's zone.
 
 SQLite has no session zone (`CURRENT_TIMESTAMP` is UTC), so the factories here
 hand SQLite URLs straight through.

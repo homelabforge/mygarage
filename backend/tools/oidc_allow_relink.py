@@ -24,7 +24,7 @@ import argparse
 import sys
 from datetime import datetime, timedelta
 
-from sqlalchemy import Connection, create_engine, insert, select, update
+from sqlalchemy import Connection, insert, select, update
 from sqlalchemy.exc import DBAPIError
 
 sys.path.insert(0, ".")
@@ -34,7 +34,7 @@ from app.database import Base  # noqa: E402
 from app.models.audit_log import AuditLog  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.utils.datetime_utils import utc_now  # noqa: E402
-from tools._tool_db import resolve_sync_url  # noqa: E402
+from tools._tool_db import create_tool_engine  # noqa: E402
 
 # Core tables rather than the ORM classes: a standalone ORM query would need
 # every model imported first so the mappers can configure.
@@ -139,10 +139,14 @@ def main(argv: list[str] | None = None) -> int:
     """Allow or cancel an SSO relink from the command line."""
     args = _parse_args(argv)
     try:
-        engine = create_engine(resolve_sync_url(args.db))
+        engine = create_tool_engine(args.db)
     except ValueError as exc:
         # A --db dialect the tools don't support, or no database configured.
         print(exc, file=sys.stderr)
+        return 1
+    except DBAPIError as exc:
+        # On PG the factory reads schema_migrations, so an unreachable server fails here.
+        print(f"Database error: {_first_line(exc.orig or exc)}", file=sys.stderr)
         return 1
     try:
         with engine.begin() as conn:
