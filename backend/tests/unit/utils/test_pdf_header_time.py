@@ -7,15 +7,21 @@ digits called CST.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, tzinfo
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
+import fitz  # PyMuPDF
 import pytest
 
-from app.utils import pdf_components
+from app.constants.units import METRIC_PRESET
+from app.utils import pdf_components, pdf_generator
 from app.utils.household_time import household_zone_var
+from app.utils.pdf_generator import PDFReportGenerator
+from app.utils.render_context import RenderContext
 
 
 def frozen_at(instant: datetime) -> type[datetime]:
@@ -123,3 +129,41 @@ def test_the_footer_carries_the_running_version(monkeypatch: pytest.MonkeyPatch)
 
     [footer] = footer_strings(monkeypatch, "UTC", datetime(2026, 7, 15, 18, 30, tzinfo=UTC))
     assert footer.startswith(f"v{get_version()} · "), footer
+
+
+# The report bodies' "Report Generated" line printed the container's clock,
+# so on a UTC container it disagreed with the branded header above it.
+_VEHICLE = {
+    "vin": "1HGBH41JXMN109186",
+    "year": 2018,
+    "make": "Honda",
+    "model": "Accord",
+    "license_plate": "TEST-123",
+}
+_REPORTS: list[tuple[str, Callable[[PDFReportGenerator], BytesIO]]] = [
+    ("service", lambda g: g.generate_service_history_pdf(_VEHICLE, [], None, None)),
+    ("sale", lambda g: g.generate_sale_history_pdf(_VEHICLE, [])),
+    ("cost", lambda g: g.generate_cost_summary_pdf(_VEHICLE, {}, 2026)),
+    ("tax", lambda g: g.generate_tax_deduction_pdf(_VEHICLE, [], 2026)),
+]
+
+
+@pytest.mark.parametrize("build", [b for _, b in _REPORTS], ids=[n for n, _ in _REPORTS])
+def test_report_generated_is_the_household_time(
+    monkeypatch: pytest.MonkeyPatch, build: Callable[[PDFReportGenerator], BytesIO]
+) -> None:
+    # 03:30 UTC on Jul 16 is still 10:30 PM on Jul 15 in Chicago.
+    monkeypatch.setattr(
+        pdf_generator, "datetime", frozen_at(datetime(2026, 7, 16, 3, 30, tzinfo=UTC))
+    )
+    household_zone_var.set(ZoneInfo("America/Chicago"))
+    generator = PDFReportGenerator(
+        render_context=RenderContext(units=METRIC_PRESET, show_both=False),
+        currency_code="USD",
+        locale="en_US",
+    )
+    document = fitz.open(stream=build(generator).read(), filetype="pdf")
+    text = " ".join(page.get_text() for page in document)  # type: ignore[operator]
+    document.close()
+    assert "07/15/2026 10:30 PM" in text, text
+    assert "07/16/2026" not in text, text

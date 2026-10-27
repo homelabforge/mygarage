@@ -20,6 +20,7 @@ from reportlab.platypus import (
 )
 
 from app.schemas.vehicle import NON_MOTORIZED_VEHICLE_TYPES
+from app.utils.household_time import household_zone
 from app.utils.render_context import RenderContext
 from app.utils.unit_adapters import adapter_for
 from app.utils.unit_formatting import format_label
@@ -157,6 +158,10 @@ class PDFReportGenerator:
             return date_obj
         return date_obj.strftime("%m/%d/%Y")
 
+    def _generated_at(self) -> str:
+        """When the report was made, on the household clock like the branded header."""
+        return datetime.now(household_zone()).strftime("%m/%d/%Y %I:%M %p")
+
     def generate_service_history_pdf(
         self,
         vehicle_info: dict[str, Any],
@@ -185,7 +190,7 @@ class PDFReportGenerator:
         if start_date and end_date:
             vehicle_text += f"<b>Period:</b> {self._format_date(start_date)} - {self._format_date(end_date)}<br/>"
 
-        vehicle_text += f"<b>Report Generated:</b> {datetime.now().strftime('%m/%d/%Y %I:%M %p')}"
+        vehicle_text += f"<b>Report Generated:</b> {self._generated_at()}"
 
         story.append(Paragraph(vehicle_text, self.styles["InfoText"]))
         story.append(Spacer(1, 0.3 * inch))
@@ -316,7 +321,7 @@ class PDFReportGenerator:
         vehicle_text = f"""
         <b>Vehicle:</b> {vehicle_info.get("year") or ""} {vehicle_info.get("make") or ""} {vehicle_info.get("model") or ""}<br/>
         <b>VIN (last 6):</b> {vin_tail or "N/A"}<br/>
-        <b>Report Generated:</b> {datetime.now().strftime("%m/%d/%Y %I:%M %p")}<br/>
+        <b>Report Generated:</b> {self._generated_at()}<br/>
         <i>Sanitized for prospective buyers — costs, vendors, plate, and full VIN omitted.</i>
         """
         story.append(Paragraph(vehicle_text, self.styles["InfoText"]))
@@ -382,7 +387,7 @@ class PDFReportGenerator:
         vehicle_text = f"""
         <b>Vehicle:</b> {vehicle_info["year"]} {vehicle_info["make"]} {vehicle_info["model"]}<br/>
         <b>VIN:</b> {vehicle_info["vin"]}<br/>
-        <b>Report Generated:</b> {datetime.now().strftime("%m/%d/%Y %I:%M %p")}
+        <b>Report Generated:</b> {self._generated_at()}
         """
         story.append(Paragraph(vehicle_text, self.styles["InfoText"]))
         story.append(Spacer(1, 0.3 * inch))
@@ -537,7 +542,7 @@ class PDFReportGenerator:
         <b>Vehicle:</b> {vehicle_info["year"]} {vehicle_info["make"]} {vehicle_info["model"]}<br/>
         <b>VIN:</b> {vehicle_info["vin"]}<br/>
         <b>Tax Year:</b> {year}<br/>
-        <b>Report Generated:</b> {datetime.now().strftime("%m/%d/%Y %I:%M %p")}
+        <b>Report Generated:</b> {self._generated_at()}
         """
         story.append(Paragraph(vehicle_text, self.styles["InfoText"]))
         story.append(Spacer(1, 0.3 * inch))

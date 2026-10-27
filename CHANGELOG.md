@@ -114,6 +114,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - The PDF header shows the household's date and time with its real zone (GMT, CDT and so on) instead of the container's clock labelled CST
 - The PDF footer's report ID and an imported insurance policy's "Auto-imported on" note use the household's date, not the container's
 - The PDF footer shows the running version instead of v2.21
+- The "Report Generated" time in the service history, sale, cost summary and tax PDFs is the household's, like the header, instead of the container's clock
 - Auto-fill from last drive on the fuel form reads the fill-up time in the household's zone, so it finds the drive that just ended instead of missing it (west of UTC) or offering one that ended after the fill-up (east of UTC)
 - Backup and database times in Settings > Backup no longer read hours off when the container has a timezone set
 - A fuel or DEF price typed per gallon comes back as typed: a UK 6.000/gal no longer reads 6.001, a US 3.999/gal no longer 3.997
