@@ -92,7 +92,7 @@ describe('required numeric factory', () => {
 describe('money bounds', () => {
   it('match the API policy in backend app/schemas/_money.py', () => {
     expect(MONEY_MAX).toBe(9_999_999_999.99)
-    expect(UNIT_PRICE_MAX).toBe(999_999_999.999)
+    expect(UNIT_PRICE_MAX).toBe(999_999_999.9999)
   })
 
   it('an amount takes MONEY_MAX and refuses a cent more, required or not', () => {

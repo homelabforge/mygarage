@@ -31,6 +31,21 @@ logger = logging.getLogger(__name__)
 
 _ZERO = Decimal("0")
 
+#: What on-hand and running balances round to, in canonical units. Entries keep
+#: 13 places, but 1.03 fl oz has 15 and loses a sliver to rounding, so 32 of
+#: them leave -8E-13 L behind and a supply that's used up reads as short. This
+#: hides that and nothing real: the smallest entry is 0.001.
+BALANCE_GRAIN = Decimal("1E-9")
+
+
+def ledger_balance(value: Decimal) -> Decimal:
+    """A balance at BALANCE_GRAIN, with zero as plain 0.
+
+    Rounding a tiny negative gives -0E-9, and that goes out on the wire as is.
+    """
+    balance = value.quantize(BALANCE_GRAIN, rounding=ROUND_HALF_UP)
+    return balance if balance else _ZERO
+
 
 def usage_cost_subject(supply_id: int) -> str:
     """How a usage's cost snapshot reads in a refusal, wherever it is computed."""
@@ -91,7 +106,7 @@ class SupplyService:
         for sid in supply_ids:
             p_qty, p_cost, costed_qty = purchases.get(sid, (_ZERO, _ZERO, _ZERO))
             u_qty = usages.get(sid, _ZERO)
-            on_hand = (p_qty - u_qty).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+            on_hand = ledger_balance(p_qty - u_qty)
             avg = (
                 (p_cost / costed_qty).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
                 if costed_qty > 0
@@ -474,7 +489,7 @@ class SupplyService:
                         id=obj.id,
                         at=at,
                         quantity=obj.quantity,
-                        running_balance=balance.quantize(Decimal("0.001")),
+                        running_balance=ledger_balance(balance),
                         cost=obj.total_cost,
                         supplier_id=obj.supplier_id,
                         receipt=receipts.get(obj.id),
@@ -489,7 +504,7 @@ class SupplyService:
                         id=obj.id,
                         at=at,
                         quantity=-obj.quantity,
-                        running_balance=balance.quantize(Decimal("0.001")),
+                        running_balance=ledger_balance(balance),
                         cost=obj.cost_snapshot,
                         service_line_item_id=obj.service_line_item_id,
                         service_visit_id=visit.id if visit else None,

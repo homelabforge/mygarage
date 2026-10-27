@@ -1,6 +1,6 @@
 """Every money column has exactly the type the policy gives it.
 
-Money is Numeric(12,2), a unit price Numeric(12,3), and the supply unit-cost
+Money is Numeric(12,2), a unit price Numeric(13,4), and the supply unit-cost
 snapshot Numeric(15,4). Migration 122 widens an existing PostgreSQL database to
 these, so a fresh create_all has to land on the same types or the two drift.
 
@@ -29,9 +29,9 @@ from tests.unit.schemas._money_names import (
     is_money_name,
 )
 
-#: Decimal places a money column has: cents, a unit price's tenth of a cent,
-#: the unit-cost snapshot's four.
-MONEY_SCALES = frozenset({2, 3, 4})
+#: Decimal places a money column has: cents, and the four a unit price and the
+#: unit-cost snapshot carry.
+MONEY_SCALES = frozenset({2, 4})
 
 #: Columns with money's decimal places that aren't money.
 NOT_MONEY_COLUMNS = frozenset(
@@ -39,8 +39,6 @@ NOT_MONEY_COLUMNS = frozenset(
         "address_book.rating",  # a star rating
         "def_records.fill_level",  # a tank fraction, 0 to 1
         "location_points.speed",  # a GPS fix's speed
-        "supply_purchases.quantity",  # a supply amount, Numeric(12,3)
-        "supply_usages.quantity",  # same
         "vehicles.window_sticker_confidence_score",  # the OCR parser's score
     }
 )

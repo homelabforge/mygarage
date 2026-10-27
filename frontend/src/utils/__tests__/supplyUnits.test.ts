@@ -25,9 +25,10 @@ it.each(FACTORS)('%s uses the exact factor and round-trips', (unit, litres) => {
   expect(toDisplay(toCanonical(12.34, unit), unit)).toBeCloseTo(12.34, 9)
 })
 
-it('12 fl oz survives Numeric(12,3) storage as 12.00', () => {
-  const stored = Math.round(toCanonical(12, 'fl_oz_us') * 1000) / 1000  // 0.355, the column's rounding
-  expect(toDisplay(stored, 'fl_oz_us').toFixed(2)).toBe('12.00')
+// At the old Numeric(12,3), 1 fl oz stored 0.030 L and read back 1.01.
+it.each([1, 1.03, 12])('%s fl oz survives Numeric(25,13) storage', (typed) => {
+  const stored = Number(toCanonical(typed, 'fl_oz_us').toFixed(13))  // the column's rounding
+  expect(toDisplay(stored, 'fl_oz_us').toFixed(2)).toBe(typed.toFixed(2))
 })
 
 describe('supplyDisplayUnit', () => {
@@ -70,7 +71,7 @@ describe('formatSupplyAmount', () => {
     expect(formatSupplyAmount(4, 'count', 'en-US')).toBe('4')
   })
 
-  // Smallest storable amount is 0.001 L; at two decimals every unit but mL reads it as 0.00.
+  // The smallest entry the API takes is 0.001 L; at two decimals every unit but mL reads it as 0.00.
   it.each([
     [0.003, 'L', '0.003'],
     [0.001, 'qt_us', '0.001'],

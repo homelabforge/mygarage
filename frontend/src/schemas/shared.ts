@@ -32,11 +32,11 @@ export const INVALID_NUMBER: unique symbol = Symbol('INVALID_NUMBER')
  *
  * Records carry no currency, so one cap serves forint and dollars alike: it is
  * what the column holds. Every stored amount is Numeric(12,2) and every
- * `price_per_unit` Numeric(12,3). moneyBounds.test.ts checks both against the
+ * `price_per_unit` Numeric(13,4). moneyBounds.test.ts checks both against the
  * maxima in openapi.json.
  */
 export const MONEY_MAX = 9_999_999_999.99
-export const UNIT_PRICE_MAX = 999_999_999.999
+export const UNIT_PRICE_MAX = 999_999_999.9999
 
 interface NumericFieldOptions {
   min: number

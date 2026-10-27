@@ -64,7 +64,7 @@ def _bound(name: str, attr: str) -> object:
 
 @pytest.mark.parametrize(
     ("value", "precision", "scale"),
-    [(MONEY_MAX, 12, 2), (UNIT_PRICE_MAX, 12, 3), (UNIT_COST_MAX, 15, 4)],
+    [(MONEY_MAX, 12, 2), (UNIT_PRICE_MAX, 13, 4), (UNIT_COST_MAX, 15, 4)],
     ids=["money", "unit_price", "unit_cost"],
 )
 def test_each_max_is_the_largest_its_column_holds(value: Decimal, precision: int, scale: int):
@@ -78,7 +78,7 @@ def test_each_max_is_the_largest_its_column_holds(value: Decimal, precision: int
 
 def test_the_maxima_are_the_policy_values():
     assert Decimal("9999999999.99") == MONEY_MAX
-    assert Decimal("999999999.999") == UNIT_PRICE_MAX
+    assert Decimal("999999999.9999") == UNIT_PRICE_MAX
     assert Decimal("99999999999.9999") == UNIT_COST_MAX
 
 
@@ -151,7 +151,7 @@ def test_the_importer_check_holds_money_to_the_bounds(name: str):
 @pytest.mark.parametrize("name", _PRICE_FIELDS)
 def test_the_importer_check_holds_unit_prices_to_the_bounds(name: str):
     _within_api_bounds(_Sample, **{name: UNIT_PRICE_MAX})
-    with pytest.raises(_ImportBoundError, match="at most 999999999.999"):
+    with pytest.raises(_ImportBoundError, match=r"at most 999999999\.9999,"):
         _within_api_bounds(_Sample, **{name: UNIT_PRICE_MAX + MIL})
     with pytest.raises(_ImportBoundError, match="at least 0"):
         _within_api_bounds(_Sample, **{name: -MIL})

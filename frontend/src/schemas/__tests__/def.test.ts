@@ -107,9 +107,9 @@ describe('DEF Record Schema: the unit-price cap is in canonical units', () => {
     return result.success ? [] : result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
   }
 
-  it('a litre price takes UNIT_PRICE_MAX and refuses a tenth of a cent more', () => {
+  it('a litre price takes UNIT_PRICE_MAX and refuses a hundredth of a cent more', () => {
     expect(priceMessages(defRecordSchema, UNIT_PRICE_MAX)).toEqual([])
-    expect(priceMessages(defRecordSchema, UNIT_PRICE_MAX + 0.001)).toEqual([
+    expect(priceMessages(defRecordSchema, UNIT_PRICE_MAX + 0.0001)).toEqual([
       'price_per_unit: common:validation.price.tooLarge',
     ])
   })

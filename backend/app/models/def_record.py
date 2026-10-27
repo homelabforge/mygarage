@@ -35,7 +35,7 @@ class DEFRecord(Base):
     odometer_km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 2))
     liters: Mapped[Decimal | None] = mapped_column(ScaledNumeric(9, 3))
     cost: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
-    price_per_unit: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 3))
+    price_per_unit: Mapped[Decimal | None] = mapped_column(ScaledNumeric(13, 4))
     fill_level: Mapped[Decimal | None] = mapped_column(ScaledNumeric(3, 2))
     source: Mapped[str | None] = mapped_column(String(100))
     brand: Mapped[str | None] = mapped_column(String(100))

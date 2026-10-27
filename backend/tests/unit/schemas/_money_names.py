@@ -82,7 +82,7 @@ def is_money_name(name: str) -> bool:
 #: Column types as (precision, scale). Each holds exactly its max in
 #: app.schemas._money: MONEY_MAX, UNIT_PRICE_MAX and UNIT_COST_MAX.
 MONEY_TYPE = (12, 2)
-UNIT_PRICE_TYPE = (12, 3)
+UNIT_PRICE_TYPE = (13, 4)
 UNIT_COST_TYPE = (15, 4)
 
 #: Every stored amount of money, as table.column, with its column type.

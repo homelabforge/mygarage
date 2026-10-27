@@ -164,9 +164,9 @@ describe('Propane Record Schema: money bounds', () => {
     ])
   })
 
-  it('a litre price takes UNIT_PRICE_MAX and refuses a tenth of a cent more', () => {
+  it('a litre price takes UNIT_PRICE_MAX and refuses a hundredth of a cent more', () => {
     expect(messagesFor(propaneRecordSchema, { price_per_unit: UNIT_PRICE_MAX })).toEqual([])
-    expect(messagesFor(propaneRecordSchema, { price_per_unit: UNIT_PRICE_MAX + 0.001 })).toEqual([
+    expect(messagesFor(propaneRecordSchema, { price_per_unit: UNIT_PRICE_MAX + 0.0001 })).toEqual([
       'price_per_unit: common:validation.price.tooLarge',
     ])
   })

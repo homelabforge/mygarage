@@ -398,8 +398,9 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
  * receives the raw value without that coercion, so it can reject the same
  * cases (empty, too small, and now also non-numeric) with the same message.
  *
- * A positive volume that converts below 1 mL gets its own message, since the
- * API can't store it and "enter a quantity greater than 0" would be a lie.
+ * A positive volume that converts below 1 mL gets its own message: the API
+ * refuses anything under 1 mL (the smallest amount the ledger tracks, not a
+ * storage limit), and "enter a quantity greater than 0" would be a lie.
  */
 function validateSupplyQuantity(value: unknown, unit: SupplyUnit, t: TFunction): true | string {
   if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) {

@@ -18,19 +18,19 @@ import pytest
 from sqlalchemy import Column, Engine, Float, Integer, MetaData, Numeric, Table, event, select, text
 
 import app.migrations as _m
-from app.schemas._money import MONEY_MAX, UNIT_COST_MAX, UNIT_PRICE_MAX
-from tests.migrations._money_columns import PRE_122_TYPES, pg_numeric_types
-from tests.unit.schemas._money_names import (
-    MONEY_COLUMNS,
-    MONEY_TYPE,
-    UNIT_COST_TYPE,
-    UNIT_PRICE_TYPE,
-)
+from app.schemas._money import MONEY_MAX, UNIT_COST_MAX
+from tests.migrations._money_columns import PRE_122_TYPES, TYPES_AT_122, pg_numeric_types
+from tests.unit.schemas._money_names import MONEY_TYPE, UNIT_COST_TYPE
 
 pytestmark = pytest.mark.migrations
 
 NAME = "122_widen_money_columns"
-POLICY_MAX = {MONEY_TYPE: MONEY_MAX, UNIT_PRICE_TYPE: UNIT_PRICE_MAX, UNIT_COST_TYPE: UNIT_COST_MAX}
+#: The largest value of each type 122 widens to. Its unit price is (12,3).
+POLICY_MAX = {
+    MONEY_TYPE: MONEY_MAX,
+    (12, 3): Decimal("999999999.999"),
+    UNIT_COST_TYPE: UNIT_COST_MAX,
+}
 
 type Values = dict[str, dict[int, Decimal | None]]
 #: What the engine_for_migration fixture yields: (dialect, engine, url).
@@ -155,9 +155,9 @@ def test_the_list_is_every_registered_column_that_was_narrower():
         for table, columns in _load().COLUMNS.items()
         for column, target in columns.items()
     }
-    assert listed == {qualified: MONEY_COLUMNS[qualified] for qualified in PRE_122_TYPES}
+    assert listed == {qualified: TYPES_AT_122[qualified] for qualified in PRE_122_TYPES}
     # The rest of the registry was already at its type before 122.
-    assert sorted(MONEY_COLUMNS.keys() - listed.keys()) == [
+    assert sorted(TYPES_AT_122.keys() - listed.keys()) == [
         "insurance_coverages.limit_primary",
         "insurance_coverages.limit_secondary",
     ]
@@ -198,9 +198,7 @@ def test_widens_every_column_and_keeps_every_value(engine_for_migration: EngineP
     _load().upgrade(engine)
 
     if dialect == "pg":
-        assert _types(engine) == {
-            qualified: MONEY_COLUMNS[qualified] for qualified in PRE_122_TYPES
-        }
+        assert _types(engine) == {qualified: TYPES_AT_122[qualified] for qualified in PRE_122_TYPES}
     assert _stored(engine) == written
 
 
@@ -211,7 +209,7 @@ def test_a_widened_column_holds_its_policy_max(engine_for_migration: EngineParam
     _make_pre_122_tables(engine)
     _load().upgrade(engine)
 
-    policy = {qualified: MONEY_COLUMNS[qualified] for qualified in PRE_122_TYPES}
+    policy = {qualified: TYPES_AT_122[qualified] for qualified in PRE_122_TYPES}
     maxima = {qualified: POLICY_MAX[target] for qualified, target in policy.items()}
     tables = _tables(policy).tables
     with engine.begin() as conn:

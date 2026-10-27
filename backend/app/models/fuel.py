@@ -43,7 +43,7 @@ class FuelRecord(Base):
     engine_hours: Mapped[Decimal | None] = mapped_column(ScaledNumeric(10, 1))
     liters: Mapped[Decimal | None] = mapped_column(ScaledNumeric(9, 3))
     propane_liters: Mapped[Decimal | None] = mapped_column(ScaledNumeric(9, 3))
-    tank_size_kg: Mapped[Decimal | None] = mapped_column(ScaledNumeric(6, 2))
+    tank_size_kg: Mapped[Decimal | None] = mapped_column(ScaledNumeric(7, 3))
     tank_quantity: Mapped[int | None] = mapped_column(Integer)
     kwh: Mapped[Decimal | None] = mapped_column(ScaledNumeric(8, 3))
     # EV / PHEV charge-session fields (migration 086). Optional; gasoline
@@ -59,7 +59,7 @@ class FuelRecord(Base):
     # (price × volume − rebate); this keeps the redeemed amount for display and
     # export/import round-trips.
     rebate: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
-    price_per_unit: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 3))
+    price_per_unit: Mapped[Decimal | None] = mapped_column(ScaledNumeric(13, 4))
     # Per-row classifier added by migration 053. Drives unit-aware price math.
     price_basis: Mapped[str | None] = mapped_column(String(12))
     # Per-fillup actual fuel dispensed. Surfaced in UI only when the vehicle
@@ -96,10 +96,10 @@ class FuelRecord(Base):
     payment_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
     trip_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Outside temperature in Celsius (canonical, per migration 053 metric pattern).
-    outside_temp_c: Mapped[Decimal | None] = mapped_column(ScaledNumeric(4, 1), nullable=True)
+    outside_temp_c: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 2), nullable=True)
     # On-board computer reported metrics. Optional manual entry; can be
     # auto-suggested from a matching DriveSession when filled_at is set.
-    obc_l_per_100km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 2), nullable=True)
+    obc_l_per_100km: Mapped[Decimal | None] = mapped_column(ScaledNumeric(7, 4), nullable=True)
     obc_avg_speed_kmh: Mapped[Decimal | None] = mapped_column(ScaledNumeric(5, 1), nullable=True)
     obc_trip_duration_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

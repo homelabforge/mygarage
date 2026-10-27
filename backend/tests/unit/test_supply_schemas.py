@@ -76,11 +76,11 @@ def test_a_quantity_takes_what_its_column_holds(
     build: Callable[[Decimal], BaseModel], column: Column
 ):
     top = _column_max(column)
-    assert top == Decimal("999999999.999")
+    assert top == Decimal("999999999999.9999999999999")
     assert build(top).model_dump()["quantity"] == top
 
     with pytest.raises(ValidationError) as refused:
-        build(top + Decimal("0.001"))
+        build(top + Decimal("1E-13"))
     assert [e["type"] for e in refused.value.errors()] == ["less_than_equal"]
 
 
@@ -139,24 +139,32 @@ _QUANTITY_SCHEMAS = [
 ]
 
 
+# 1 mL is the smallest amount the ledger takes. A product rule now, not the
+# column's grain, so it holds exactly: 0.0005 used to round up to 0.001 and pass.
 @pytest.mark.parametrize("build", _QUANTITY_SCHEMAS)
-def test_a_quantity_below_the_storable_grain_is_refused(build: Callable[[Decimal], BaseModel]):
-    with pytest.raises(ValidationError):
-        build(Decimal("0.0004"))
+@pytest.mark.parametrize("given", [Decimal("0.0004"), Decimal("0.0005"), Decimal("0.0009999")])
+def test_a_quantity_under_one_millilitre_is_refused(
+    build: Callable[[Decimal], BaseModel], given: Decimal
+):
+    with pytest.raises(ValidationError, match="smallest amount tracked"):
+        build(given)
 
 
 @pytest.mark.parametrize("build", _QUANTITY_SCHEMAS)
 @pytest.mark.parametrize(
     ("given", "stored"),
     [
-        (Decimal("0.0005"), Decimal("0.001")),
-        (Decimal("0.35488235475"), Decimal("0.355")),
+        (Decimal("0.001"), Decimal("0.001")),
+        # 12 US fl oz, exact at 13 places (it used to store 0.355).
+        (Decimal("0.35488235475"), Decimal("0.35488235475")),
+        # 1.03 US fl oz is 15 places; the column keeps 13, rounded half up.
+        (Decimal("0.030460735449375"), Decimal("0.0304607354494")),
         (Decimal("1"), Decimal("1")),
     ],
 )
-def test_a_quantity_normalizes_to_three_decimals(
+def test_a_quantity_normalizes_to_thirteen_decimals(
     build: Callable[[Decimal], BaseModel], given: Decimal, stored: Decimal
 ):
     got = build(given).model_dump()["quantity"]
     assert got == stored
-    assert got.as_tuple().exponent == -3
+    assert got.as_tuple().exponent == -13

@@ -4401,7 +4401,7 @@
           "price_per_unit": {
             "anyOf": [
               {
-                "maximum": 999999999.999,
+                "maximum": 999999999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -4771,7 +4771,7 @@
           "price_per_unit": {
             "anyOf": [
               {
-                "maximum": 999999999.999,
+                "maximum": 999999999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -7987,7 +7987,7 @@
           "obc_l_per_100km": {
             "anyOf": [
               {
-                "maximum": 999.99,
+                "maximum": 999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -8098,7 +8098,7 @@
           "price_per_unit": {
             "anyOf": [
               {
-                "maximum": 999999999.999,
+                "maximum": 999999999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -8227,7 +8227,7 @@
           "tank_size_kg": {
             "anyOf": [
               {
-                "maximum": 9999.99,
+                "maximum": 9999.999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -9127,7 +9127,7 @@
           "obc_l_per_100km": {
             "anyOf": [
               {
-                "maximum": 999.99,
+                "maximum": 999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -9239,7 +9239,7 @@
           "price_per_unit": {
             "anyOf": [
               {
-                "maximum": 999999999.999,
+                "maximum": 999999999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -9364,7 +9364,7 @@
           "tank_size_kg": {
             "anyOf": [
               {
-                "maximum": 9999.99,
+                "maximum": 9999.999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -20819,7 +20819,7 @@
             "anyOf": [
               {
                 "exclusiveMinimum": 0.0,
-                "maximum": 999999999.999,
+                "maximum": 1000000000000.0,
                 "type": "number"
               },
               {
@@ -21154,7 +21154,7 @@
             "anyOf": [
               {
                 "exclusiveMinimum": 0.0,
-                "maximum": 999999999.999,
+                "maximum": 1000000000000.0,
                 "type": "number"
               },
               {
@@ -21594,7 +21594,7 @@
             "anyOf": [
               {
                 "exclusiveMinimum": 0.0,
-                "maximum": 999999999.999,
+                "maximum": 1000000000000.0,
                 "type": "number"
               },
               {
@@ -31794,7 +31794,7 @@
           "price_per_unit": {
             "anyOf": [
               {
-                "maximum": 999999999.999,
+                "maximum": 999999999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -32867,7 +32867,7 @@
           "fuel_economy_city_l_per_100km": {
             "anyOf": [
               {
-                "maximum": 999.99,
+                "maximum": 999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -32884,7 +32884,7 @@
           "fuel_economy_combined_l_per_100km": {
             "anyOf": [
               {
-                "maximum": 999.99,
+                "maximum": 999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -32901,7 +32901,7 @@
           "fuel_economy_highway_l_per_100km": {
             "anyOf": [
               {
-                "maximum": 999.99,
+                "maximum": 999.9999,
                 "minimum": 0.0,
                 "type": "number"
               },

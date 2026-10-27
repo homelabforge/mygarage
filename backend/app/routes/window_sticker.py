@@ -57,8 +57,8 @@ async def _ocr_on(db: AsyncSession) -> bool:
     return await SettingsService.get_bool(db, "window_sticker_ocr_enabled", True)
 
 
-# Numeric(5,2) on the vehicle row.
-_FUEL_ECONOMY_MAX = Decimal("999.99")
+# Numeric(7,4) on the vehicle row.
+_FUEL_ECONOMY_MAX = Decimal("999.9999")
 
 # The parsed numbers and the largest each column holds. OCR can misread a
 # price, and nothing validates what a parser returns before it is written.

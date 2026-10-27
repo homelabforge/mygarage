@@ -663,8 +663,7 @@ class TestMoneyColumnsWidened:
 
     def test_upgrade_through_the_runner_widens_every_money_column(self):
         """An install with every migration but 122 applied, at the pre-122 widths."""
-        from tests.migrations._money_columns import PRE_122_TYPES
-        from tests.unit.schemas._money_names import MONEY_COLUMNS
+        from tests.migrations._money_columns import PRE_122_TYPES, TYPES_AT_122
 
         _create_all_on_pg()
         runner = MigrationRunner(PG_SYNC_URL, MIGRATIONS_DIR)
@@ -690,7 +689,8 @@ class TestMoneyColumnsWidened:
             runner.run_pending_migrations()
 
             assert MIGRATION_122 in runner._get_applied_migrations()
-            assert _money_column_types(runner.engine) == MONEY_COLUMNS
+            # 122's own targets: every later migration is marked applied above.
+            assert _money_column_types(runner.engine) == TYPES_AT_122
 
             # Rerun on the widened install: nothing left to do.
             import importlib.util
@@ -702,6 +702,6 @@ class TestMoneyColumnsWidened:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             module.upgrade(engine=runner.engine)
-            assert _money_column_types(runner.engine) == MONEY_COLUMNS
+            assert _money_column_types(runner.engine) == TYPES_AT_122
         finally:
             runner.engine.dispose()

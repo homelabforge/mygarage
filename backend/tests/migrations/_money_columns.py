@@ -8,6 +8,8 @@ were Numeric(12,2) from the start (migration 108).
 
 from sqlalchemy import Engine, text
 
+from tests.unit.schemas._money_names import MONEY_COLUMNS
+
 #: table.column -> (precision, scale) before migration 122.
 PRE_122_TYPES: dict[str, tuple[int, int]] = {
     "def_records.cost": (8, 2),
@@ -50,6 +52,15 @@ PRE_122_TYPES: dict[str, tuple[int, int]] = {
     "vehicles.msrp_total": (10, 2),
     "vehicles.purchase_price": (10, 2),
     "vehicles.sold_price": (10, 2),
+}
+
+#: table.column -> the type migration 122 widens it to. That was the registry's
+#: type then; batch 7 has since widened the unit prices to (13,4), so 122's own
+#: (12,3) is pinned here.
+TYPES_AT_122: dict[str, tuple[int, int]] = {
+    **MONEY_COLUMNS,
+    "def_records.price_per_unit": (12, 3),
+    "fuel_records.price_per_unit": (12, 3),
 }
 
 

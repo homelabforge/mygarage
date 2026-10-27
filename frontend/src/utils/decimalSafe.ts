@@ -208,8 +208,8 @@ export function priceToDisplay(
  * Posted exactly, at the wire's 12 significant digits: `price_per_unit`
  * declares no `decimal_places` in the API schema, so a client-side round would
  * be a second, invented authority on storage precision. See
- * `LITERS_WIRE_DECIMALS` for the rule. (The COLUMN is `Numeric(12, 3)`, so a
- * PostgreSQL instance rounds the tail off on arrival; that is the database's
+ * `LITERS_WIRE_DECIMALS` for the rule. (The COLUMN is `Numeric(13, 4)`, so the
+ * API rounds the tail off on arrival, on either database; that is the server's
  * contract to state, not the client's to anticipate.)
  *
  * @param value The price the user entered, per displayed unit.

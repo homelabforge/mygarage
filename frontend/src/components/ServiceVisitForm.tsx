@@ -485,7 +485,7 @@ export default function ServiceVisitForm({
         if (unit === 'count' && !Number.isInteger(usage.quantity)) {
           return t('service.supplyQuantityWholeNumber', { number: n })
         }
-        // Litres are stored to 0.001, so anything under 1 mL can't be kept.
+        // The API takes nothing under 1 mL, the smallest amount the ledger tracks.
         if (unit !== undefined && unit !== 'count' && toCanonical(usage.quantity, unit) < 0.001) {
           return t('service.supplyQuantityTooSmall', { number: n })
         }

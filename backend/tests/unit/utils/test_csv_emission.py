@@ -14,7 +14,7 @@ definition, which is this project's most common test defect.
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import get_args
 
 import pytest
@@ -188,33 +188,33 @@ class TestEmittedPrecision:
         the way a volume scales (dividing) is the classic sign error, and it
         is off by 14x for US gallons."""
         column = EMITTED_COLUMNS["Price Per Liter"]
-        assert cell_for(column, "L", Decimal("1.500")) == "1.500"
-        # 1.5 * 3.785411784 = 5.678118 (rounds to 5.678)
-        assert cell_for(column, "gal_us", Decimal("1.500")) == "5.678"
+        assert cell_for(column, "L", Decimal("1.5000")) == "1.5000"
+        # 1.5 * 3.785411784 = 5.678118 (rounds to 5.6781)
+        assert cell_for(column, "gal_us", Decimal("1.5000")) == "5.6781"
         # 1.5 * 4.54609 = 6.819135
-        assert cell_for(column, "gal_uk", Decimal("1.500")) == "6.819"
+        assert cell_for(column, "gal_uk", Decimal("1.5000")) == "6.8191"
 
     def test_def_price_matches_fuel_price(self) -> None:
         column = EMITTED_COLUMNS["Price Per Unit"]
-        assert cell_for(column, "L", Decimal("1.500")) == "1.500"
-        assert cell_for(column, "gal_us", Decimal("1.500")) == "5.678"
+        assert cell_for(column, "L", Decimal("1.5000")) == "1.5000"
+        assert cell_for(column, "gal_us", Decimal("1.5000")) == "5.6781"
 
     def test_temperature(self) -> None:
         column = EMITTED_COLUMNS["Outside Temp (C)"]
-        assert cell_for(column, "c", Decimal("20.0")) == "20.0"
-        # 20 C = 68 F. One decimal in Fahrenheit is FINER than one in Celsius,
-        # so the metric precision survives without gaining a place.
-        assert cell_for(column, "f", Decimal("20.0")) == "68.0"
+        assert cell_for(column, "c", Decimal("22.33")) == "22.33"
+        # 22.33 C = 72.194 F. Two decimals in Fahrenheit are FINER than two in
+        # Celsius, so the metric precision survives without gaining a place.
+        assert cell_for(column, "f", Decimal("22.33")) == "72.19"
 
     def test_consumption(self) -> None:
         column = EMITTED_COLUMNS["OBC L/100km"]
-        assert cell_for(column, "l_100km", Decimal("8.00")) == "8.00"
+        assert cell_for(column, "l_100km", Decimal("8.0000")) == "8.0000"
         # 100 / 8 = 12.5
-        assert cell_for(column, "km_l", Decimal("8.00")) == "12.500"
-        # 235.2145833... / 8 = 29.401823 (rounds to 29.402)
-        assert cell_for(column, "mpg_us", Decimal("8.00")) == "29.402"
-        # 282.4809363... / 8 = 35.310117 (rounds to 35.310)
-        assert cell_for(column, "mpg_uk", Decimal("8.00")) == "35.310"
+        assert cell_for(column, "km_l", Decimal("8.0000")) == "12.50000"
+        # 235.2145833... / 8 = 29.4018229 (rounds to 29.40182)
+        assert cell_for(column, "mpg_us", Decimal("8.0000")) == "29.40182"
+        # 282.4809363... / 8 = 35.310117 (rounds to 35.31012)
+        assert cell_for(column, "mpg_uk", Decimal("8.0000")) == "35.31012"
 
     def test_speed(self) -> None:
         column = EMITTED_COLUMNS["OBC Avg Speed (km/h)"]
@@ -230,7 +230,7 @@ class TestEmittedPrecision:
     def test_a_reciprocal_adapter_renders_zero_as_an_empty_cell(self) -> None:
         """0 L/100km has no MPG. The linear form still prints 0."""
         column = EMITTED_COLUMNS["OBC L/100km"]
-        assert cell_for(column, "l_100km", Decimal("0")) == "0.00"
+        assert cell_for(column, "l_100km", Decimal("0")) == "0.0000"
         assert cell_for(column, "mpg_us", Decimal("0")) == ""
 
 
@@ -252,7 +252,7 @@ class TestRoundingIsHalfUp:
 
     def test_a_temperature_on_the_half_step_rounds_away_from_zero(self) -> None:
         column = EMITTED_COLUMNS["Outside Temp (C)"]
-        assert cell_for(column, "c", Decimal("0.25")) == "0.3"
+        assert cell_for(column, "c", Decimal("0.125")) == "0.13"
 
 
 class TestCellsAreNumericOnly:
@@ -272,16 +272,16 @@ class TestCellsAreNumericOnly:
         """`-` is one of the CSV formula-injection lead characters.
 
         `sanitize_csv_cell` exempts strings that parse as a number, so a
-        sub-zero temperature must reach the file as `-10.0` and not as
-        `'-10.0`. Asserted through the sanitiser the export actually applies,
+        sub-zero temperature must reach the file as `-10.00` and not as
+        `'-10.00`. Asserted through the sanitiser the export actually applies,
         because a cell this module made non-numeric would be quoted there and
         stop being a number in the spreadsheet.
         """
         column = EMITTED_COLUMNS["Outside Temp (C)"]
-        assert cell_for(column, "c", Decimal("-10.0")) == "-10.0"
+        assert cell_for(column, "c", Decimal("-10.00")) == "-10.00"
         # -10 C = 14 F
-        assert cell_for(column, "f", Decimal("-10.0")) == "14.0"
-        assert sanitize_csv_cell(cell_for(column, "c", Decimal("-10.0"))) == "-10.0"
+        assert cell_for(column, "f", Decimal("-10.00")) == "14.00"
+        assert sanitize_csv_cell(cell_for(column, "c", Decimal("-10.00"))) == "-10.00"
 
     def test_no_cell_contains_a_letter_or_a_comma(self) -> None:
         for canonical, column in EMITTED_COLUMNS.items():
@@ -386,8 +386,8 @@ class TestEmissionMeetsTheImporter:
         """Emission multiplies by the litres in a gallon; the importer divides
         by the same factor. A sign error on either side shows up here."""
         column = EMITTED_COLUMNS["Price Per Liter"]
-        emitted = cell_for(column, "gal_uk", Decimal("1.500"))
-        assert emitted == "6.819"
+        emitted = cell_for(column, "gal_uk", Decimal("1.5000"))
+        assert emitted == "6.8191"
         context = build_csv_unit_context(
             ["Date", "Price Per Unit (gal_uk)"],
             [{"Date": "2026-05-18", "unit_system": "custom", "units_version": "6"}],
@@ -395,4 +395,19 @@ class TestEmissionMeetsTheImporter:
         )
         back = context.to_canonical("price_per_volume", Decimal(emitted))
         assert back is not None
-        assert back.quantize(Decimal("0.001")) == Decimal("1.500")
+        assert back.quantize(Decimal("0.0001")) == Decimal("1.5000")
+
+    def test_a_uk_gallon_price_survives_a_litre_export_and_reimport(self) -> None:
+        """6.000/gal UK is stored as 1.3198/L. At 3 places the litre cell went
+        out as 1.320, came back 1.320, and the UI showed 6.001."""
+        stored = Decimal("1.3198")
+        emitted = cell_for(EMITTED_COLUMNS["Price Per Liter"], "L", stored)
+        context = build_csv_unit_context(
+            ["Date", "Price Per Unit (L)"],
+            [{"Date": "2026-05-18", "unit_system": "custom", "units_version": "6"}],
+            (FUEL_PRICE,),
+        )
+        back = context.to_canonical("price_per_volume", Decimal(emitted))
+        assert back is not None
+        # What the reimported row stores, at the column's 4 places.
+        assert back.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) == stored

@@ -14,9 +14,8 @@
  *
  * Money is decided by NAME, with the word lists in backend
  * tests/unit/schemas/_money_names.py (a test below reads that file and fails
- * if the two differ). Not by value: supply quantities carry a maximum equal to
- * UNIT_PRICE_MAX because their column holds the same digits, and they aren't
- * money.
+ * if the two differ). Not by value: a supply quantity carries a maximum too,
+ * and it isn't money.
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -86,7 +85,7 @@ function isMoneyName(name: string): boolean {
   return MONEY_NAMES.has(name) || words.some((word) => MONEY_WORDS.has(word))
 }
 
-/** `price_per_unit` is a price per something; its column is Numeric(12,3). */
+/** `price_per_unit` is a price per something; its column is Numeric(13,4). */
 const expectedMax = (name: string): number =>
   name.split('_').includes('per') ? UNIT_PRICE_MAX : MONEY_MAX
 
@@ -233,16 +232,17 @@ describe('money bounds: the forms and the API agree', () => {
     expect([...maxima].sort()).toEqual([MONEY_MAX, UNIT_PRICE_MAX].sort())
   })
 
-  it('leaves a non-money quantity alone even when its maximum matches a money cap', () => {
-    // Supply quantities are Numeric(12,3) like a unit price, so the API gives
-    // them the same maximum. By name they aren't money, and they're not checked.
+  it('leaves a bounded non-money quantity alone', () => {
+    // A supply quantity has a maximum of its own (its Numeric(25,13) column's).
+    // By name it isn't money, so it's not held to a money cap.
     const { properties } = requestProperties(spec)
     const quantity = properties.find(
       (property) => property.owner === 'SupplyPurchaseCreate' && property.name === 'quantity',
     )
     expect(quantity).toBeDefined()
-    expect(numericBranches(spec, quantity!.schema).map((branch) => branch.maximum)).toContain(UNIT_PRICE_MAX)
+    expect(numericBranches(spec, quantity!.schema).map((branch) => branch.maximum)).not.toContain(undefined)
     expect(isMoneyName('quantity')).toBe(false)
+    expect(fields.some((field) => field.where.startsWith('SupplyPurchaseCreate.quantity'))).toBe(false)
   })
 })
 

@@ -99,7 +99,7 @@ export function displayDecimals(unit: SupplyUnit): number {
   return unit === 'mL' || unit === 'count' ? 0 : 2
 }
 
-// Storage holds 0.001 L, which is 0.0003 gal at worst, so four decimals always show it.
+// The API takes nothing under 1 mL, which is 0.0003 gal at worst, so four decimals always show an entry.
 const MAX_AMOUNT_DECIMALS = 4
 
 /**

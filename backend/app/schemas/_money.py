@@ -4,7 +4,7 @@ Records carry no currency: an amount is a bare number shown in each viewer's
 `currency_code`. So a money bound can only mean "fits the column" and "is a
 number a household could mean", and the same bound serves forint and dollars.
 
-Every money column is Numeric(12,2), every unit price Numeric(12,3), and the
+Every money column is Numeric(12,2), every unit price Numeric(13,4), and the
 supply unit-cost snapshot Numeric(15,4). Each max below is the largest value its
 column holds, and each fits a double at its scale, so it round-trips through
 SQLite's REAL and a JS number.
@@ -26,8 +26,8 @@ from pydantic import Field
 
 #: The largest amount a Numeric(12,2) money column holds.
 MONEY_MAX = Decimal("9999999999.99")
-#: The largest price a Numeric(12,3) unit-price column holds (`price_per_unit`).
-UNIT_PRICE_MAX = Decimal("999999999.999")
+#: The largest price a Numeric(13,4) unit-price column holds (`price_per_unit`).
+UNIT_PRICE_MAX = Decimal("999999999.9999")
 #: The largest supply unit-cost snapshot a Numeric(15,4) column holds. It is
 #: computed, never typed in, so it is checked before flush rather than bounded.
 UNIT_COST_MAX = Decimal("99999999999.9999")

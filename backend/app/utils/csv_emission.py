@@ -70,25 +70,31 @@ kilometre. The table below is derived from what each column's stored
 | volume       | NUMERIC(9,3)    | L        | 3  | the stored scale             |
 |              |                 | gal_us   | 4  | 0.001 gal = 3.79 mL > 1 mL   |
 |              |                 | gal_uk   | 4  | 0.001 gal = 4.55 mL > 1 mL   |
-| price/volume | NUMERIC(6,3)    | L        | 3  | the stored scale             |
-|              |                 | gal_us   | 3  | a gallon price is 3.79x the  |
-|              |                 | gal_uk   | 3  | litre price, so 3 dp is FINER|
-| temperature  | NUMERIC(4,1)    | c        | 1  | the stored scale             |
-|              |                 | f        | 1  | 0.1 F = 0.056 C, finer       |
-| consumption  | NUMERIC(5,2)    | l_100km  | 2  | the stored scale             |
-|              |                 | km_l     | 3  | reciprocal, see below        |
-|              |                 | mpg_us   | 3  | reciprocal, see below        |
-|              |                 | mpg_uk   | 3  | reciprocal, see below        |
+| price/volume | NUMERIC(13,4)   | L        | 4  | the stored scale             |
+|              |                 | gal_us   | 4  | a gallon price is 3.79x the  |
+|              |                 | gal_uk   | 4  | litre price, so 4 dp is FINER|
+| temperature  | NUMERIC(5,2)    | c        | 2  | the stored scale             |
+|              |                 | f        | 2  | 0.01 F = 0.0056 C, finer     |
+| consumption  | NUMERIC(7,4)    | l_100km  | 4  | the stored scale             |
+|              |                 | km_l     | 5  | reciprocal, see below        |
+|              |                 | mpg_us   | 5  | reciprocal, see below        |
+|              |                 | mpg_uk   | 5  | reciprocal, see below        |
 | speed        | NUMERIC(5,1)    | kmh      | 1  | the stored scale             |
 |              |                 | mph      | 2  | 0.1 mph = 0.16 km/h > 0.1    |
 
 The three reciprocal consumption tokens have no fixed resolution: one step of
-MPG is worth more L/100km the thirstier the vehicle. Three decimals carries
-the stored 0.01 L/100km down to 4.9 US MPG and 5.3 UK MPG, below which no
+MPG is worth more L/100km the thirstier the vehicle. Five decimals carries
+the stored 0.0001 L/100km down to 4.9 US MPG and 5.3 UK MPG, below which no
 road vehicle goes; one decimal (what v5 emitted) already loses it at 50 MPG.
-`km_l` never had a CSV precision at all, and takes the same three for the
-same reason: it is the reciprocal of the `l_100km` column it replaces, so
-equal decimals would lose precision for anything under 10 km/L.
+`km_l` takes the same five for the same reason: it is the reciprocal of the
+`l_100km` column it replaces, so equal decimals would lose precision for
+anything under 10 km/L. (At the old NUMERIC(5,2) three were enough; the
+column gained two places, so these did too.)
+
+Price, temperature and consumption all widened so a value typed in the UI
+comes back as typed, and the CSV follows. A UK 6.000/gal is stored as
+1.3198/L; the litre cell now carries all four places, so a re-import stores
+1.3198 again. At 3 places that cell went out as 1.320 and came back 6.001/gal.
 """
 
 from __future__ import annotations
@@ -135,13 +141,13 @@ class EmittedColumn:
 
 _DISTANCE_DECIMALS: Mapping[str, int] = {"km": 2, "mi": 3}
 _VOLUME_DECIMALS: Mapping[str, int] = {"L": 3, "gal_us": 4, "gal_uk": 4}
-_PRICE_DECIMALS: Mapping[str, int] = {"L": 3, "gal_us": 3, "gal_uk": 3}
-_TEMPERATURE_DECIMALS: Mapping[str, int] = {"c": 1, "f": 1}
+_PRICE_DECIMALS: Mapping[str, int] = {"L": 4, "gal_us": 4, "gal_uk": 4}
+_TEMPERATURE_DECIMALS: Mapping[str, int] = {"c": 2, "f": 2}
 _CONSUMPTION_DECIMALS: Mapping[str, int] = {
-    "l_100km": 2,
-    "km_l": 3,
-    "mpg_us": 3,
-    "mpg_uk": 3,
+    "l_100km": 4,
+    "km_l": 5,
+    "mpg_us": 5,
+    "mpg_uk": 5,
 }
 _SPEED_DECIMALS: Mapping[str, int] = {"kmh": 1, "mph": 2}
 

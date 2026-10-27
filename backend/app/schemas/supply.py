@@ -22,10 +22,16 @@ LenientSupplyVolumeUnit = Annotated[
     SupplyVolumeUnit | None, BeforeValidator(lenient_reader(SupplyVolumeUnit)), LenientVocab(None)
 ]
 
-#: The largest quantity a Numeric(12,3) supply ledger column holds (purchases
+#: The largest quantity a Numeric(25,13) supply ledger column holds (purchases
 #: and usages alike). What the column holds and no tighter: a household cap
 #: would be invented, and past the column PostgreSQL refuses the row.
-SUPPLY_QUANTITY_MAX = Decimal("999999999.999")
+SUPPLY_QUANTITY_MAX = Decimal("999999999999.9999999999999")
+#: The column's grain. 13 places hold a US fl oz (0.0295735295625 L) and every
+#: other supported unit exactly, so a typed amount reads back as typed.
+SUPPLY_QUANTITY_GRAIN = Decimal("1E-13")
+#: The smallest amount the ledger takes: 1 mL, or a thousandth of a count. A
+#: product rule, not the column's limit; the history modal checks the same.
+SUPPLY_QUANTITY_MIN = Decimal("0.001")
 
 
 class SupplyBase(BaseModel):
@@ -115,12 +121,12 @@ class SupplyReceiptSummary(BaseModel):
 
 
 def _storable_quantity(value: Decimal) -> Decimal:
-    """Numeric(12,3) rounds on write on PG but not on SQLite, so quantize here:
-    both dialects then store the same number, and a sub-0.0005 quantity that
-    would round to a stored zero is refused instead."""
-    quantized = value.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
-    if quantized == 0:
-        raise ValueError("quantity is below the smallest storable amount (0.001)")
+    """The quantity at the column's 13 places, so the response echoes what's
+    stored. Anything under 1 mL (0.001) is refused: too small to be a real
+    measurement, and the history modal won't send it either."""
+    quantized = value.quantize(SUPPLY_QUANTITY_GRAIN, rounding=ROUND_HALF_UP)
+    if quantized < SUPPLY_QUANTITY_MIN:
+        raise ValueError("quantity is below the smallest amount tracked (0.001, 1 mL)")
     return quantized
 
 

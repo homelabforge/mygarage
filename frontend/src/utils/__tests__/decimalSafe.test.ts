@@ -291,7 +291,7 @@ describe('seedPriceField / canonicalFromPriceField — the origin', () => {
 // money-fits: the API caps price_per_unit in canonical units, so the forms ask
 // this before they post. It must agree with what enteredPrice would post.
 describe('priceOverCanonicalMax — the cap, in the units the API checks', () => {
-  const MAX = 999_999_999.999
+  const MAX = 999_999_999.9999
 
   it('converts through the basis before comparing', () => {
     // 3,785,411,785 $/gal is 1,000,000,000.26 $/L; 3,000,000,000 is about 792M.

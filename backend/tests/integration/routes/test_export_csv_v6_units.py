@@ -84,11 +84,11 @@ UK_IMPERIAL = UnitSet.model_validate(
 # 500.00 km / 1.609344       = 310.68560...  -> "310.686" at 3 dp
 # 40.000 L  / 3.785411784    = 10.566882...  -> "10.5669" at 4 dp
 # 40.000 L  / 4.54609        = 8.798770...   -> "8.7988"  at 4 dp
-# 1.500/L   * 3.785411784    = 5.678118      -> "5.678"   at 3 dp
-# 1.500/L   * 4.54609        = 6.819135      -> "6.819"   at 3 dp
-# 20.0 C    * 9/5 + 32       = 68.0          -> "68.0"    at 1 dp
-# 235.2145833... / 8.00      = 29.40182      -> "29.402"  at 3 dp
-# 282.4809363... / 8.00      = 35.31012      -> "35.310"  at 3 dp
+# 1.500/L   * 3.785411784    = 5.678118      -> "5.6781"   at 4 dp
+# 1.500/L   * 4.54609        = 6.819135      -> "6.8191"   at 4 dp
+# 20.0 C    * 9/5 + 32       = 68.0          -> "68.00"    at 2 dp
+# 235.2145833... / 8.00      = 29.401823     -> "29.40182" at 5 dp
+# 282.4809363... / 8.00      = 35.310117     -> "35.31012" at 5 dp
 # 100.0 kmh / 1.609344       = 62.13712...   -> "62.14"   at 2 dp
 _FUEL_ODOMETER_KM = Decimal("500.00")
 _FUEL_LITERS = Decimal("40.000")
@@ -393,7 +393,7 @@ class TestMarkerDiscriminatesOnTheResolvedSet:
             assert row["units_version"] == "7"
             assert row["Odometer (km)"] == "500.00"
             assert row["Volume (L)"] == "40.000"
-            assert row["Price Per Unit (L)"] == "1.500"
+            assert row["Price Per Unit (L)"] == "1.5000"
         finally:
             await _cleanup(db_session)
 
@@ -423,10 +423,10 @@ class TestMarkerDiscriminatesOnTheResolvedSet:
             assert "Price Per Unit (gal_uk)" in headers
             assert row["Odometer (km)"] == "500.00"
             assert row["Volume (gal_uk)"] == "8.7988"
-            assert row["Price Per Unit (gal_uk)"] == "6.819"
+            assert row["Price Per Unit (gal_uk)"] == "6.8191"
             # Consumption and temperature stayed metric: only volume moved.
-            assert row["OBC Economy (l_100km)"] == "8.00"
-            assert row["Outside Temp (c)"] == "20.0"
+            assert row["OBC Economy (l_100km)"] == "8.0000"
+            assert row["Outside Temp (c)"] == "20.00"
         finally:
             await _cleanup(db_session)
 
@@ -533,8 +533,8 @@ class TestExplicitUnitsParameterWinsOutright:
             assert "Volume (gal_uk)" not in headers
             # 40 L is 10.5669 US gallons, not 8.7988 UK ones.
             assert row["Volume (gal_us)"] == "10.5669"
-            assert row["Price Per Unit (gal_us)"] == "5.678"
-            assert row["OBC Economy (mpg_us)"] == "29.402"
+            assert row["Price Per Unit (gal_us)"] == "5.6781"
+            assert row["OBC Economy (mpg_us)"] == "29.40182"
         finally:
             await _cleanup(db_session)
 
@@ -560,9 +560,9 @@ class TestEveryUnitBearingPairEmitsTokenisedHeaders:
             assert row["unit_system"] == "custom"
             assert row["Odometer (mi)"] == "310.686"
             assert row["Volume (gal_uk)"] == "8.7988"
-            assert row["Price Per Unit (gal_uk)"] == "6.819"
-            assert row["Outside Temp (f)"] == "68.0"
-            assert row["OBC Economy (mpg_uk)"] == "35.310"
+            assert row["Price Per Unit (gal_uk)"] == "6.8191"
+            assert row["Outside Temp (f)"] == "68.00"
+            assert row["OBC Economy (mpg_uk)"] == "35.31012"
             assert row["OBC Avg Speed (mph)"] == "62.14"
             # Dimensionless columns are untouched by the unit set.
             assert row["Engine Hours"] == "42.3"
@@ -632,9 +632,9 @@ class TestEveryUnitBearingPairEmitsTokenisedHeaders:
             ]
             assert row["unit_system"] == "custom"
             assert row["Odometer (mi)"] == "310.686"
-            # 10 L / 4.54609 = 2.19969...; 0.850 * 4.54609 = 3.8641765
+            # 10 L / 4.54609 = 2.19969...; 0.850 * 4.54609 = 3.8641765 (4 dp)
             assert row["Volume (gal_uk)"] == "2.1997"
-            assert row["Price Per Unit (gal_uk)"] == "3.864"
+            assert row["Price Per Unit (gal_uk)"] == "3.8642"
         finally:
             await _cleanup(db_session)
 

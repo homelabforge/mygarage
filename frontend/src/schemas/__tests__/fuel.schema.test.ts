@@ -87,10 +87,10 @@ describe('Fuel Record Schema: the unit-price cap follows the price basis', () =>
   }
   const TOO_LARGE = 'price_per_unit: common:validation.price.tooLarge'
 
-  it('a litre price takes UNIT_PRICE_MAX and refuses a tenth of a cent more', () => {
+  it('a litre price takes UNIT_PRICE_MAX and refuses a hundredth of a cent more', () => {
     expect(priceMessages(fuelRecordSchema, { price_per_unit: UNIT_PRICE_MAX, price_basis: 'per_volume' })).toEqual([])
     expect(
-      priceMessages(fuelRecordSchema, { price_per_unit: UNIT_PRICE_MAX + 0.001, price_basis: 'per_volume' }),
+      priceMessages(fuelRecordSchema, { price_per_unit: UNIT_PRICE_MAX + 0.0001, price_basis: 'per_volume' }),
     ).toEqual([TOO_LARGE])
   })
 
@@ -113,7 +113,7 @@ describe('Fuel Record Schema: the unit-price cap follows the price basis', () =>
   it('per_kwh and per_tank convert nothing', () => {
     for (const basis of ['per_kwh', 'per_tank']) {
       expect(priceMessages(imperial, { price_per_unit: UNIT_PRICE_MAX, price_basis: basis })).toEqual([])
-      expect(priceMessages(imperial, { price_per_unit: UNIT_PRICE_MAX + 0.001, price_basis: basis })).toEqual([
+      expect(priceMessages(imperial, { price_per_unit: UNIT_PRICE_MAX + 0.0001, price_basis: basis })).toEqual([
         TOO_LARGE,
       ])
     }

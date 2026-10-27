@@ -118,7 +118,7 @@ async def test_omitted_keeps(client: AsyncClient, auth_headers, own_vehicle):
 
     stored = await _sticker(client, auth_headers, own_vehicle)
     assert stored["interior_color"] == "Black"
-    assert stored["fuel_economy_city_l_per_100km"] == "7.84"
+    assert stored["fuel_economy_city_l_per_100km"] == "7.8400"
     assert stored["assembly_location"] == "Ohio"
 
 
@@ -142,7 +142,7 @@ async def test_too_long_is_a_422(client: AsyncClient, auth_headers, own_vehicle,
 
 
 @pytest.mark.parametrize("field", FUEL_ECONOMY)
-@pytest.mark.parametrize("value", ["-0.01", "1000"])
+@pytest.mark.parametrize("value", ["-0.01", "999.99995", "1000"])
 async def test_fuel_economy_outside_the_column_is_a_422(
     client: AsyncClient, auth_headers, own_vehicle, field, value
 ):
@@ -154,9 +154,10 @@ async def test_fuel_economy_outside_the_column_is_a_422(
 async def test_fuel_economy_at_the_column_limit_saves(
     client: AsyncClient, auth_headers, own_vehicle, field
 ):
-    r = await _patch(client, auth_headers, own_vehicle, {field: "999.99"})
+    # Numeric(7,4).
+    r = await _patch(client, auth_headers, own_vehicle, {field: "999.9999"})
     assert r.status_code == 200, r.text
-    assert r.json()[field] == "999.99"
+    assert r.json()[field] == "999.9999"
 
 
 async def test_the_extracted_vin_is_returned(

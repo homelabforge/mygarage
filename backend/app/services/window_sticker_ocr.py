@@ -386,18 +386,19 @@ class WindowStickerOCRService:
         # Fuel economy: parser extracts raw MPG (US imperial). Vehicle columns
         # are metric L/100km since the v3 metric-canonical migration. Convert at
         # this boundary so downstream consumers (the route field_mappings) can
-        # assign directly to the new column names.
+        # assign directly to the new column names. Four places, the column's
+        # scale: at two, a 58 MPG sticker came back 57.9.
         if data.fuel_economy_city:
             result["fuel_economy_city_l_per_100km"] = round(
-                _MPG_TO_L100KM / Decimal(str(data.fuel_economy_city)), 2
+                _MPG_TO_L100KM / Decimal(str(data.fuel_economy_city)), 4
             )
         if data.fuel_economy_highway:
             result["fuel_economy_highway_l_per_100km"] = round(
-                _MPG_TO_L100KM / Decimal(str(data.fuel_economy_highway)), 2
+                _MPG_TO_L100KM / Decimal(str(data.fuel_economy_highway)), 4
             )
         if data.fuel_economy_combined:
             result["fuel_economy_combined_l_per_100km"] = round(
-                _MPG_TO_L100KM / Decimal(str(data.fuel_economy_combined)), 2
+                _MPG_TO_L100KM / Decimal(str(data.fuel_economy_combined)), 4
             )
 
         # Vehicle specs

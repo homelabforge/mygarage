@@ -224,7 +224,7 @@ class FuelRecordBase(BaseModel):
         decimal_places=3,
     )
     tank_size_kg: Decimal | None = Field(
-        None, description="Propane tank size in kilograms", ge=0, le=9999.99
+        None, description="Propane tank size in kilograms", ge=0, le=Decimal("9999.999")
     )
     tank_quantity: int | None = Field(None, description="Number of propane tanks", ge=1)
     kwh: Decimal | None = Field(
@@ -334,7 +334,7 @@ class FuelRecordBase(BaseModel):
         None,
         description="OBC reported fuel consumption (L/100 km)",
         ge=0,
-        le=999.99,
+        le=Decimal("999.9999"),
     )
     obc_avg_speed_kmh: Decimal | None = Field(
         None,
@@ -517,7 +517,7 @@ class FuelRecordUpdate(BaseModel):
         decimal_places=3,
     )
     tank_size_kg: Decimal | None = Field(
-        None, description="Propane tank size in kilograms", ge=0, le=9999.99
+        None, description="Propane tank size in kilograms", ge=0, le=Decimal("9999.999")
     )
     tank_quantity: int | None = Field(None, description="Number of propane tanks", ge=1)
     kwh: Decimal | None = Field(
@@ -582,7 +582,7 @@ class FuelRecordUpdate(BaseModel):
     payment_method: str | None = Field(None, max_length=20)
     trip_type: str | None = Field(None, max_length=20)
     outside_temp_c: Decimal | None = Field(None, ge=Decimal("-60.0"), le=Decimal("70.0"))
-    obc_l_per_100km: Decimal | None = Field(None, ge=0, le=999.99)
+    obc_l_per_100km: Decimal | None = Field(None, ge=0, le=Decimal("999.9999"))
     obc_avg_speed_kmh: Decimal | None = Field(None, ge=0, le=9999.9)
     obc_trip_duration_s: int | None = Field(None, ge=0)
 

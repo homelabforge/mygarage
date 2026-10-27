@@ -79,7 +79,8 @@ class SupplyPurchase(Base):
         Integer, ForeignKey("supplies.id", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(ScaledNumeric(12, 3), nullable=False)  # canonical
+    # Canonical. 13 places so a US fl oz (0.0295735295625 L) is stored exactly.
+    quantity: Mapped[Decimal] = mapped_column(ScaledNumeric(25, 13), nullable=False)
     total_cost: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     supplier_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("address_book.id", ondelete="SET NULL")
@@ -102,7 +103,8 @@ class SupplyUsage(Base):
     supply_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("supplies.id", ondelete="CASCADE"), nullable=False
     )
-    quantity: Mapped[Decimal] = mapped_column(ScaledNumeric(12, 3), nullable=False)  # canonical
+    # Canonical, at the same 13 places as a purchase.
+    quantity: Mapped[Decimal] = mapped_column(ScaledNumeric(25, 13), nullable=False)
     unit_cost_snapshot: Mapped[Decimal | None] = mapped_column(ScaledNumeric(15, 4))
     cost_snapshot: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     service_line_item_id: Mapped[int | None] = mapped_column(

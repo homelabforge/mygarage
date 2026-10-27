@@ -84,4 +84,4 @@ def test_intrinsically_us_conversions_ignore_the_setting() -> None:
     # A window-sticker combined MPG figure is always a US MPG figure.
     data = WindowStickerData(fuel_economy_combined=30)
     result = WindowStickerOCRService()._sticker_data_to_dict(data)
-    assert result["fuel_economy_combined_l_per_100km"] == Decimal("7.84")
+    assert result["fuel_economy_combined_l_per_100km"] == Decimal("7.8405")
