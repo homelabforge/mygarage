@@ -406,4 +406,9 @@ def run_migrations(database_url: str, migrations_dir: Path) -> None:
         >>> run_migrations('sqlite:////data/mygarage.db', Path('/app/migrations'))
     """
     runner = MigrationRunner(database_url, migrations_dir)
-    runner.run_pending_migrations()
+    try:
+        runner.run_pending_migrations()
+    finally:
+        # Whichever engine it ended on (the pinned one after a swap) still
+        # holds a pooled connection, and nothing uses it after this.
+        runner.engine.dispose()

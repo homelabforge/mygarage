@@ -294,6 +294,54 @@ def test_a_conn_migration_cannot_also_replace(tmp_path: Path) -> None:
         runner.engine.dispose()
 
 
+# --- F-4: run_migrations hands back no pooled connection ------------------------
+
+
+def _runners(monkeypatch: pytest.MonkeyPatch) -> list[MigrationRunner]:
+    """Every runner built from here on, so a test can look at its engine afterwards."""
+    seen: list[MigrationRunner] = []
+    init = MigrationRunner.__init__
+
+    def _capture(self: MigrationRunner, *args: object, **kwargs: object) -> None:
+        init(self, *args, **kwargs)  # type: ignore[arg-type]
+        seen.append(self)
+
+    monkeypatch.setattr(MigrationRunner, "__init__", _capture)
+    return seen
+
+
+def test_sqlite_run_migrations_disposes_its_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It kept the pool, so every run leaked a connection (ResourceWarning at gc)."""
+    seen = _runners(monkeypatch)
+    run_migrations(f"sqlite:///{tmp_path / 'mygarage.db'}", _migrations(tmp_path, {"001": _NOOP}))
+    [runner] = seen
+    assert runner.engine.pool.checkedin() == 0
+
+
+def test_sqlite_run_migrations_disposes_its_engine_when_one_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = _runners(monkeypatch)
+    with pytest.raises(RuntimeError):
+        run_migrations(
+            f"sqlite:///{tmp_path / 'mygarage.db'}", _migrations(tmp_path, {"001_fail": _FAIL})
+        )
+    [runner] = seen
+    assert runner.engine.pool.checkedin() == 0
+
+
+def test_pg_run_migrations_disposes_the_pinned_engine_it_ended_on(
+    pg_engine: Engine, tmp_path: Path, repair_stem: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = _runners(monkeypatch)
+    run_migrations(_pg_url(), _migrations(tmp_path, {repair_stem: _NOOP, "003_after": _NOOP}))
+    [runner] = seen
+    assert runner.pinned
+    assert runner.engine.pool.checkedin() == 0
+
+
 # --- R5b: on PG, nothing fails quietly before the repair -------------------------
 
 _BEFORE_THE_REPAIR = [

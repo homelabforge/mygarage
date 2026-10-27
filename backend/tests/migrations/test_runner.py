@@ -14,7 +14,10 @@ def test_tracking_table_created(migration_db):
     """Runner creates schema_migrations table on first run against a bare DB."""
     db_file, sync_url = migration_db
     runner = MigrationRunner(sync_url, Path("/nonexistent"))  # dir not needed for this test
-    runner._ensure_migration_tracking_table()
+    try:
+        runner._ensure_migration_tracking_table()
+    finally:
+        runner.engine.dispose()
 
     conn = sqlite3.connect(str(db_file))
     cursor = conn.cursor()
@@ -123,7 +126,10 @@ def test_runner_passes_engine_to_upgrade(tmp_path, monkeypatch):
     sync_url = f"sqlite:///{db_file}"
 
     runner = MigrationRunner(sync_url, fake_dir)
-    runner.run_pending_migrations()
+    try:
+        runner.run_pending_migrations()
+    finally:
+        runner.engine.dispose()
 
     # Verify the migration was applied (engine was passed successfully)
     conn = sqlite3.connect(str(db_file))
@@ -150,7 +156,10 @@ def test_runner_handles_legacy_upgrade_no_args(tmp_path, monkeypatch):
     sync_url = f"sqlite:///{db_file}"
 
     runner = MigrationRunner(sync_url, fake_dir)
-    runner.run_pending_migrations()
+    try:
+        runner.run_pending_migrations()
+    finally:
+        runner.engine.dispose()
 
     conn = sqlite3.connect(str(db_file))
     cursor = conn.cursor()
