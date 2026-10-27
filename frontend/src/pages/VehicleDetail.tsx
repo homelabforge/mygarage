@@ -362,7 +362,9 @@ export default function VehicleDetail() {
       // A refused row isn't a clean success, so it doesn't get the green toast.
       const rowErrors = hasRowErrors(result)
       const notify = rowErrors ? toast.warning : toast.success
-      notify(t(rowErrors ? 'detail.importWithErrors' : 'detail.importSuccess'), {
+      // Two plain t() calls: the i18n gate only reads a literal key.
+      const title = rowErrors ? t('detail.importWithErrors') : t('detail.importSuccess')
+      notify(title, {
         description: buildImportSummary(result, t),
         // Lists of errors and warnings take longer to read than sonner's 4s.
         duration: importToastDuration(result.errors, result.warnings),
