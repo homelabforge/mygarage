@@ -86,9 +86,9 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - The service CSV (schema 8) numbers each visit in a new Visit column, keeps item notes and visit notes apart, and adds Tax, Shop Supplies, Misc Fees and Insurance Claim. Rows that share a number import as one visit with its line items; rows of an older file are grouped by date, odometer, shop and category
 - The JSON backup writes service visits with every line item (category, maintenance type, cost, notes, the inspection result and the repair it led to), every fuel column (fill time, engine hours, propane, kWh and charging, station, driver, payment, trip type, outside temperature and trip computer), the DEF entry type, and where each odometer reading came from
 - Supplies a service visit used aren't in the JSON backup, so a restored visit's total is its line items plus tax and fees, without the supplies' cost
-- An import updates the odometer and engine hours from its fill-ups, service visits and DEF records the way adding them by hand does, one reading a day, and refreshes the analytics
+- A MyGarage CSV or JSON import updates the odometer and engine hours from its fill-ups, service visits and DEF records, one reading a day, without taking over a reading already there, and refreshes the analytics
 - A repeating reminder from an old (v2) backup keeps the due date and mileage it was exported with, instead of counting a new interval from the import
-- Imported odometer and hours readings drop their "[AUTO-SYNC ...]" note and import as manual, LiveLink or webhook readings, so a later fill-up no longer takes one over
+- Imported odometer and hours readings drop their "[AUTO-SYNC ...]" note and import as manual, LiveLink or webhook readings, so a fill-up or delete on this instance no longer treats it as its own reading
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
