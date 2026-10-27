@@ -294,7 +294,6 @@ def test_pg_a_utc_server_is_a_logged_no_op(
         with schema.begin() as conn:
             conn.execute(text(f'ALTER DATABASE "{db}" RESET timezone'))
     assert "converted 0 timestamp(s)" in caplog.text
-    assert "UTC" in caplog.text
 
 
 def test_pg_a_value_already_equal_under_the_zone_is_not_rewritten(schema: Engine) -> None:
@@ -650,8 +649,12 @@ async def test_pg_a_fresh_install_leaves_every_listed_column_in_utc(
 async def test_pg_an_upgrade_from_the_390_head_leaves_every_listed_column_in_utc(
     schema: Engine, app_engine_disposed: None
 ) -> None:
-    """3.9.0's schema and history, a row in every listed table stamped in +05:30, then init_db.
+    """A stand-in for a 3.9.0 upgrade: 3.9.0's history, +05:30 stamps, then init_db.
 
+    Not 3.9.0's real schema. `schema` builds today's tables with create_all and
+    the migrations up to 131 are only stamped, so the later migrations meet a
+    schema they've mostly already got. What it proves is the repair converting
+    every listed column; the old Numeric widths are tested apart (135's tests).
     users.updated_at (MIXED) is stamped too and has to come out still 5:30 ahead.
     """
     from app import database

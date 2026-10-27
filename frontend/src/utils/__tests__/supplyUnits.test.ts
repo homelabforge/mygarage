@@ -25,10 +25,12 @@ it.each(FACTORS)('%s uses the exact factor and round-trips', (unit, litres) => {
   expect(toDisplay(toCanonical(12.34, unit), unit)).toBeCloseTo(12.34, 9)
 })
 
-// At the old Numeric(12,3), 1 fl oz stored 0.030 L and read back 1.01.
-it.each([1, 1.03, 12])('%s fl oz survives Numeric(25,13) storage', (typed) => {
-  const stored = Number(toCanonical(typed, 'fl_oz_us').toFixed(13))  // the column's rounding
-  expect(toDisplay(stored, 'fl_oz_us').toFixed(2)).toBe(typed.toFixed(2))
+// A conversion guard, not a storage test: it rounds to 13 places by hand, so a
+// column at the wrong scale can't fail it. The backend integration tests check
+// what the database really keeps (at the old 3 places, 1 fl oz read back 1.01).
+it.each([1, 1.03, 12])('%s fl oz still reads back after rounding litres to 13 places', (typed) => {
+  const rounded = Number(toCanonical(typed, 'fl_oz_us').toFixed(13))
+  expect(toDisplay(rounded, 'fl_oz_us').toFixed(2)).toBe(typed.toFixed(2))
 })
 
 describe('supplyDisplayUnit', () => {

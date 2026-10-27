@@ -58,22 +58,25 @@ async def _note_stamps_through_the_app(vin: str) -> tuple[datetime, datetime | N
     `notes.created_at` is a server default and `notes.updated_at` an onupdate,
     and the app never sets either, so the session zone is all that decides them.
     """
-    async with AsyncSessionLocal() as session:
-        note = Note(vin=vin, date=date(2026, 1, 15), content="zone probe")
-        session.add(note)
-        await session.commit()
-        try:
-            await session.refresh(note)
-            created = note.created_at
-            note.content = "zone probe, edited"
+    try:
+        async with AsyncSessionLocal() as session:
+            note = Note(vin=vin, date=date(2026, 1, 15), content="zone probe")
+            session.add(note)
             await session.commit()
-            await session.refresh(note)
-            updated = note.updated_at
-        finally:
-            await session.delete(note)
-            await session.commit()
-    # The app engine pools; leave none of its connections behind for other tests.
-    await app_engine.dispose()
+            try:
+                await session.refresh(note)
+                created = note.created_at
+                note.content = "zone probe, edited"
+                await session.commit()
+                await session.refresh(note)
+                updated = note.updated_at
+            finally:
+                await session.delete(note)
+                await session.commit()
+    finally:
+        # The app engine pools; leave none of its connections behind for other
+        # tests, even when the probe itself fails.
+        await app_engine.dispose()
     return created, updated
 
 
