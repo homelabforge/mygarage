@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import Engine, create_engine, text
 
+from app.utils.db_url import to_sync_url
 from app.utils.pg_session import create_utc_engine
 
 
@@ -31,20 +32,20 @@ def migration_db(tmp_path, monkeypatch):
     return db_file, f"sqlite:///{db_file}"
 
 
-def _pg_sync_url() -> str | None:
-    """Resolve TEST_DATABASE_URL → psycopg2 sync URL, or return None if unset.
+#: The TEST_DATABASE_URL schemes that mean the PG sidecar.
+_PG_SCHEMES = frozenset({"postgresql", "postgresql+asyncpg", "postgresql+psycopg2"})
 
-    The migration runner uses synchronous SQLAlchemy, so we always coerce
-    asyncpg → psycopg2 when handing engines to migrations.
+
+def _pg_sync_url() -> str | None:
+    """Resolve TEST_DATABASE_URL to a psycopg2 sync URL, or None if it isn't PG.
+
+    A SQLite URL used to come back as-is, so the PG fixtures built an aiosqlite
+    engine and errored with MissingGreenlet instead of skipping.
     """
     raw = os.getenv("TEST_DATABASE_URL", "").strip()
-    if not raw:
+    if raw.partition("://")[0] not in _PG_SCHEMES:
         return None
-    if "asyncpg" in raw:
-        return raw.replace("postgresql+asyncpg", "postgresql+psycopg2")
-    if raw.startswith("postgresql://"):
-        return raw.replace("postgresql://", "postgresql+psycopg2://", 1)
-    return raw
+    return to_sync_url(raw)
 
 
 def _reset_pg_schema(engine: Engine) -> None:
@@ -81,7 +82,7 @@ def engine_for_migration(request, tmp_path, monkeypatch) -> Generator[tuple[str,
     Yields ``(dialect, engine, url)`` where ``dialect`` is ``"sqlite"`` or
     ``"pg"``. Tests that want to verify behavior on both engines depend on
     this fixture and pytest will run them twice. PG runs are skipped (not
-    failed) when ``TEST_DATABASE_URL`` is unset, which is the default in
+    failed) when ``TEST_DATABASE_URL`` is unset or not PostgreSQL; unset is the default in
     the SQLite-only ``bin/ci-check`` flow. They run inside the
     ``docker-compose.test.yml`` stack which exports the URL automatically.
 
@@ -103,7 +104,7 @@ def engine_for_migration(request, tmp_path, monkeypatch) -> Generator[tuple[str,
     pg_url = _pg_sync_url()
     if pg_url is None:
         pytest.skip(
-            "TEST_DATABASE_URL not set — PG migration tests require the docker-compose.test.yml stack"
+            "TEST_DATABASE_URL is not a PostgreSQL URL: PG migration tests need the docker-compose.test.yml stack"
         )
     engine = create_utc_engine(pg_url)
     _reset_pg_schema(engine)
@@ -117,7 +118,7 @@ def engine_for_migration(request, tmp_path, monkeypatch) -> Generator[tuple[str,
 def pg_engine() -> Generator[Engine]:
     """PG-only engine fixture for tests that load a baseline dump.
 
-    Skipped (not failed) when ``TEST_DATABASE_URL`` is unset. The
+    Skipped (not failed) when ``TEST_DATABASE_URL`` is unset or not PostgreSQL. The
     ``public`` schema is reset to empty before yield, so the test can
     immediately call ``load_baseline`` (or run ``create_all``) without
     worrying about leftover state from prior tests.
@@ -130,7 +131,7 @@ def pg_engine() -> Generator[Engine]:
     pg_url = _pg_sync_url()
     if pg_url is None:
         pytest.skip(
-            "TEST_DATABASE_URL not set — PG-only tests require the docker-compose.test.yml stack"
+            "TEST_DATABASE_URL is not a PostgreSQL URL: PG-only tests need the docker-compose.test.yml stack"
         )
     engine = create_utc_engine(pg_url)
     _reset_pg_schema(engine)
