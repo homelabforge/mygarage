@@ -323,6 +323,7 @@ def test_sqlite_run_migrations_disposes_its_engine(
 def test_sqlite_run_migrations_disposes_its_engine_when_one_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Guard for the `finally`: disposing only on the success path leaks the pool on a failure."""
     seen = _runners(monkeypatch)
     with pytest.raises(RuntimeError):
         run_migrations(
