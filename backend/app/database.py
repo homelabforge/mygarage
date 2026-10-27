@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import settings
+from app.utils.pg_session import create_utc_async_engine
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +93,10 @@ if is_sqlite:
 
     logger.info("Database engine created for SQLite (WAL, busy_timeout=30s, foreign_keys=ON)")
 else:
-    # PostgreSQL/MySQL: Use connection pooling for production
-    engine = create_async_engine(
+    # PostgreSQL/MySQL: Use connection pooling for production.
+    # PG sessions are pinned to UTC: func.now() defaults land in the session's
+    # zone, and a server with a TZ set would store them hours off (RD-6).
+    engine = create_utc_async_engine(
         settings.database_url,
         echo=settings.debug,
         future=True,

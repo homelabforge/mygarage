@@ -47,6 +47,7 @@ from app.models.vehicle_telemetry import (
     VehicleTelemetryLatest,
 )
 from app.utils.datetime_utils import utc_now
+from app.utils.pg_session import create_utc_async_engine
 
 _NAME = "133_record_wican_legacy_odometer_unit"
 
@@ -836,7 +837,7 @@ async def migrated(db) -> AsyncGenerator[AsyncSession]:
         async_engine = create_async_engine(url.replace("sqlite://", "sqlite+aiosqlite://", 1))
         configure_sqlite_engine(async_engine)
     else:
-        async_engine = create_async_engine(
+        async_engine = create_utc_async_engine(
             url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
         )
     maker = async_sessionmaker(async_engine, expire_on_commit=False, autoflush=False)

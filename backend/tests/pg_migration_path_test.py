@@ -25,12 +25,12 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Engine, create_engine, inspect, text
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import Engine, inspect, text
 from sqlalchemy.pool import NullPool
 
 from app.database import Base
 from app.migrations.runner import MigrationRunner
+from app.utils.pg_session import create_utc_async_engine, create_utc_engine
 
 PG_ASYNC_URL = os.getenv("TEST_DATABASE_URL", "")
 PG_SYNC_URL = PG_ASYNC_URL.replace("postgresql+asyncpg", "postgresql+psycopg2")
@@ -41,7 +41,7 @@ pytestmark = pytest.mark.skipif("asyncpg" not in PG_ASYNC_URL, reason="PostgreSQ
 
 def _reset_schema():
     """Drop and recreate public schema (clean slate)."""
-    engine = create_engine(PG_SYNC_URL)
+    engine = create_utc_engine(PG_SYNC_URL)
     with engine.begin() as conn:
         # An open transaction elsewhere would block the drop with no error.
         conn.execute(text("SET LOCAL lock_timeout = '30s'"))
@@ -86,7 +86,7 @@ class TestFreshInstallPath:
         _reset_schema()
 
         # Step 1: create_all (what init_db does first)
-        async_engine = create_async_engine(PG_ASYNC_URL, poolclass=NullPool)
+        async_engine = create_utc_async_engine(PG_ASYNC_URL, poolclass=NullPool)
         import asyncio
 
         async def _create():
@@ -97,7 +97,7 @@ class TestFreshInstallPath:
         asyncio.run(_create())
 
         # Verify tables
-        sync_engine = create_engine(PG_SYNC_URL)
+        sync_engine = create_utc_engine(PG_SYNC_URL)
         tables = _get_all_tables(sync_engine)
         expected = set(Base.metadata.tables.keys())
         missing = expected - tables
@@ -110,7 +110,7 @@ class TestFreshInstallPath:
         _reset_schema()
 
         # create_all first (migrations expect base tables to exist)
-        async_engine = create_async_engine(PG_ASYNC_URL, poolclass=NullPool)
+        async_engine = create_utc_async_engine(PG_ASYNC_URL, poolclass=NullPool)
         import asyncio
 
         async def _create():
@@ -125,7 +125,7 @@ class TestFreshInstallPath:
         runner.run_pending_migrations()
 
         # Verify tracking table
-        sync_engine = create_engine(PG_SYNC_URL)
+        sync_engine = create_utc_engine(PG_SYNC_URL)
         with sync_engine.begin() as conn:
             result = conn.execute(text("SELECT count(*) FROM schema_migrations"))
             count = result.scalar()
@@ -138,7 +138,7 @@ class TestFreshInstallPath:
         """Should have applied all discovered migrations."""
         _reset_schema()
 
-        async_engine = create_async_engine(PG_ASYNC_URL, poolclass=NullPool)
+        async_engine = create_utc_async_engine(PG_ASYNC_URL, poolclass=NullPool)
         import asyncio
 
         async def _create():
@@ -206,7 +206,7 @@ class TestMigrationIdempotency:
         """Running all migrations twice should not raise any errors."""
         _reset_schema()
 
-        async_engine = create_async_engine(PG_ASYNC_URL, poolclass=NullPool)
+        async_engine = create_utc_async_engine(PG_ASYNC_URL, poolclass=NullPool)
         import asyncio
 
         async def _create():
@@ -237,7 +237,7 @@ class TestMigrationIdempotency:
         """create_all + migrations should be idempotent (the init_db path)."""
         _reset_schema()
 
-        async_engine = create_async_engine(PG_ASYNC_URL, poolclass=NullPool)
+        async_engine = create_utc_async_engine(PG_ASYNC_URL, poolclass=NullPool)
         import asyncio
 
         async def _init():
@@ -264,7 +264,7 @@ class TestMigrationIdempotency:
         runner2.engine.dispose()
 
         # Schema should be intact
-        sync_engine = create_engine(PG_SYNC_URL)
+        sync_engine = create_utc_engine(PG_SYNC_URL)
         tables = _get_all_tables(sync_engine)
         expected = set(Base.metadata.tables.keys())
         missing = expected - tables
@@ -314,7 +314,7 @@ class TestMigrationRunnerOnPG:
         """Migrations that accept engine= should receive the PG engine."""
         _reset_schema()
 
-        async_engine = create_async_engine(PG_ASYNC_URL, poolclass=NullPool)
+        async_engine = create_utc_async_engine(PG_ASYNC_URL, poolclass=NullPool)
         import asyncio
 
         async def _create():
@@ -346,7 +346,7 @@ class TestMigrationRunnerOnPG:
         """Applied migrations should be recorded in schema_migrations."""
         _reset_schema()
 
-        async_engine = create_async_engine(PG_ASYNC_URL, poolclass=NullPool)
+        async_engine = create_utc_async_engine(PG_ASYNC_URL, poolclass=NullPool)
         import asyncio
 
         async def _create():
@@ -407,7 +407,7 @@ def _make_pre_093_pg_db(*, gallon_standard: str | None, users: list[dict]):
     Python-side NOT NULL defaults.
     """
     _reset_schema()
-    engine = create_engine(PG_SYNC_URL)
+    engine = create_utc_engine(PG_SYNC_URL)
     with engine.begin() as conn:
         conn.execute(
             text("""
@@ -637,7 +637,7 @@ def _create_all_on_pg() -> None:
     import asyncio
 
     _reset_schema()
-    async_engine = create_async_engine(PG_ASYNC_URL, poolclass=NullPool)
+    async_engine = create_utc_async_engine(PG_ASYNC_URL, poolclass=NullPool)
 
     async def _create():
         async with async_engine.begin() as conn:

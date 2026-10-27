@@ -128,11 +128,12 @@ class TestUpgradeProcedure:
         fixture's rows were not committed, every tool below would find an empty
         table, exit 0, and prove nothing -- while looking green.
         """
-        from sqlalchemy import create_engine, text
+        from sqlalchemy import text
 
+        from app.utils.pg_session import create_utc_engine
         from tests.conftest import TEST_DATABASE_URL
 
-        engine = create_engine(to_sync_url(TEST_DATABASE_URL))
+        engine = create_utc_engine(to_sync_url(TEST_DATABASE_URL))
         with engine.connect() as conn:
             count = conn.execute(
                 text("SELECT COUNT(*) FROM vehicle_telemetry WHERE vin = :v"),

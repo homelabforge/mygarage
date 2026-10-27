@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 from sqlalchemy import Engine, create_engine, text
 
+from app.utils.pg_session import create_utc_engine
+
 
 @pytest.fixture
 def migrations_dir() -> Path:
@@ -65,7 +67,7 @@ def _leave_pg_schema_empty() -> Generator[None]:
     pg_url = _pg_sync_url()
     if pg_url is None:
         return
-    engine = create_engine(pg_url)
+    engine = create_utc_engine(pg_url)
     try:
         _reset_pg_schema(engine)
     finally:
@@ -103,7 +105,7 @@ def engine_for_migration(request, tmp_path, monkeypatch) -> Generator[tuple[str,
         pytest.skip(
             "TEST_DATABASE_URL not set — PG migration tests require the docker-compose.test.yml stack"
         )
-    engine = create_engine(pg_url)
+    engine = create_utc_engine(pg_url)
     _reset_pg_schema(engine)
     try:
         yield "pg", engine, pg_url
@@ -130,7 +132,7 @@ def pg_engine() -> Generator[Engine]:
         pytest.skip(
             "TEST_DATABASE_URL not set — PG-only tests require the docker-compose.test.yml stack"
         )
-    engine = create_engine(pg_url)
+    engine = create_utc_engine(pg_url)
     _reset_pg_schema(engine)
     try:
         yield engine

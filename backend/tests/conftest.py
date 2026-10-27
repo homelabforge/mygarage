@@ -27,7 +27,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.config import settings
@@ -37,6 +37,7 @@ from app.models.fuel import FuelRecord
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.utils.pg_session import create_utc_async_engine
 from tests._shard import apply_shard
 
 
@@ -71,12 +72,13 @@ async def test_engine():
     """Create async engine for tests.
 
     Uses NullPool for PostgreSQL/asyncpg to avoid event loop binding issues
-    with starlette middleware sub-tasks in pytest.
+    with starlette middleware sub-tasks in pytest. PG sessions are pinned to
+    UTC like the app's, so a test reads what production would store.
     """
     pool_kwargs = {}
     if "asyncpg" in TEST_DATABASE_URL:
         pool_kwargs["poolclass"] = NullPool
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False, **pool_kwargs)
+    engine = create_utc_async_engine(TEST_DATABASE_URL, echo=False, **pool_kwargs)
     if "sqlite" in TEST_DATABASE_URL:
         # Mirror production connection pragmas (WAL + foreign_keys=ON) so FK
         # cascade behavior in tests matches the deployed engine.

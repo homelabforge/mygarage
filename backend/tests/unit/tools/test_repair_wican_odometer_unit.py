@@ -35,6 +35,7 @@ from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
+from app.utils.pg_session import create_utc_async_engine, create_utc_engine
 
 CREATED = datetime(2026, 6, 1, 0, 0, 0)
 T0 = datetime(2026, 9, 1, 10, 0, 0)
@@ -63,9 +64,9 @@ def engine(request, tmp_path) -> Generator[Engine]:
         if url is None:
             pytest.skip("TEST_DATABASE_URL not set: PG runs in the docker-compose.test.yml stack")
         schema = f"repair_{uuid.uuid4().hex[:12]}"
-        with create_engine(url).begin() as conn:
+        with create_utc_engine(url).begin() as conn:
             conn.execute(text(f"CREATE SCHEMA {schema}"))
-        eng = create_engine(url, connect_args={"options": f"-csearch_path={schema}"})
+        eng = create_utc_engine(url, connect_args={"options": f"-csearch_path={schema}"})
     Base.metadata.create_all(eng)
     with eng.begin() as conn:
         conn.execute(text("CREATE TABLE schema_migrations (migration_name VARCHAR(255))"))
@@ -77,7 +78,7 @@ def engine(request, tmp_path) -> Generator[Engine]:
         if schema is not None:
             url = _pg_url()
             assert url is not None
-            cleanup = create_engine(url)
+            cleanup = create_utc_engine(url)
             with cleanup.begin() as conn:
                 conn.execute(text(f"DROP SCHEMA {schema} CASCADE"))
             cleanup.dispose()
@@ -534,7 +535,7 @@ async def _boot(engine: Engine, device_id: str, config: dict, odometer: float) -
         # The fixture's own schema, which the sync engine reaches by search_path.
         with engine.connect() as conn:
             schema = conn.execute(text("SELECT current_schema()")).scalar_one()
-        async_engine = create_async_engine(
+        async_engine = create_utc_async_engine(
             url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1),
             connect_args={"server_settings": {"search_path": schema}},
         )

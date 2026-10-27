@@ -9,10 +9,11 @@ import os
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.database import Base
+from app.utils.pg_session import create_utc_async_engine
 
 PG_URL = os.getenv("TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif("asyncpg" not in PG_URL, reason="PostgreSQL-only tests")
@@ -21,7 +22,7 @@ pytestmark = pytest.mark.skipif("asyncpg" not in PG_URL, reason="PostgreSQL-only
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def pg_engine():
     """Create a PostgreSQL engine for smoke tests."""
-    engine = create_async_engine(PG_URL, echo=False, poolclass=NullPool)
+    engine = create_utc_async_engine(PG_URL, echo=False, poolclass=NullPool)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import create_engine, delete, select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,7 @@ from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
 from app.utils.db_url import to_sync_url
+from app.utils.pg_session import create_utc_engine
 from tools.oidc_allow_relink import allow_relink, main
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -76,7 +77,7 @@ class TestAllowRelink:
         self, db_session: AsyncSession, account: User
     ):
         before = utc_now()
-        engine = create_engine(_db_url())
+        engine = create_utc_engine(_db_url())
         try:
             with engine.begin() as conn:
                 until = allow_relink(conn, account.username, 5)
@@ -99,7 +100,7 @@ class TestAllowRelink:
 
     async def test_an_unknown_username_raises_and_writes_nothing(self, db_session: AsyncSession):
         name = f"nobody_{uuid.uuid4().hex[:10]}"
-        engine = create_engine(_db_url())
+        engine = create_utc_engine(_db_url())
         try:
             with pytest.raises(LookupError, match=name), engine.begin() as conn:
                 allow_relink(conn, name, 30)
@@ -110,7 +111,7 @@ class TestAllowRelink:
     async def test_minutes_outside_the_window_are_refused(
         self, db_session: AsyncSession, account: User, minutes: int
     ):
-        engine = create_engine(_db_url())
+        engine = create_utc_engine(_db_url())
         try:
             with pytest.raises(ValueError), engine.begin() as conn:
                 allow_relink(conn, account.username, minutes)
