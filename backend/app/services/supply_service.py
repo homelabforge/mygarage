@@ -24,6 +24,7 @@ from app.schemas.supply import (
     SupplyUpdate,
     SupplyUsageResponse,
 )
+from app.utils.household_time import household_datetime, household_zone
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.money_fits import ensure_fits
 
@@ -468,15 +469,25 @@ class SupplyService:
 
         # Effective ledger date (R1-H3): purchase.date; job usage → owning visit
         # date (real consumption date); standalone adjustment → created_at.
+        # Dates are household days but created_at is naive UTC, so everything
+        # goes on the household clock first or a near-midnight adjustment
+        # lands on the wrong day.
+        zone = household_zone()
         events: list[tuple[datetime, str, object]] = []
         for p in purchases:
-            events.append((datetime.combine(p.date, time.min), "purchase", p))
+            events.append((datetime.combine(p.date, time.min, tzinfo=zone), "purchase", p))
         for u in usages:
             visit = u.line_item.visit if (u.line_item and u.line_item.visit) else None
-            eff = datetime.combine(visit.date, time.min) if visit else u.created_at
+            eff = (
+                datetime.combine(visit.date, time.min, tzinfo=zone)
+                if visit
+                else household_datetime(u.created_at)
+            )
             events.append((eff, "usage", u))
-        # Deterministic: same date → purchases first, then by id.
-        events.sort(key=lambda e: (e[0], 0 if e[1] == "purchase" else 1, e[2].id))
+        # Deterministic: same household wall clock → purchases first, then by id.
+        events.sort(
+            key=lambda e: (e[0].replace(tzinfo=None), 0 if e[1] == "purchase" else 1, e[2].id)
+        )
 
         entries: list[SupplyLedgerEntry] = []
         balance = _ZERO
@@ -488,6 +499,7 @@ class SupplyService:
                         entry_type="purchase",
                         id=obj.id,
                         at=at,
+                        ledger_date=at.date(),
                         quantity=obj.quantity,
                         running_balance=ledger_balance(balance),
                         cost=obj.total_cost,
@@ -503,6 +515,7 @@ class SupplyService:
                         entry_type="usage",
                         id=obj.id,
                         at=at,
+                        ledger_date=at.date(),
                         quantity=-obj.quantity,
                         running_balance=ledger_balance(balance),
                         cost=obj.cost_snapshot,

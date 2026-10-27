@@ -64,10 +64,6 @@ function formatSignedQuantity(raw: string, unit: SupplyUnit): string {
   return `${sign}${magnitude}${label ? ` ${label}` : ''}`
 }
 
-function formatEntryDate(at: string): string {
-  return formatDateForDisplay(at.includes('T') ? at.split('T')[0] : at)
-}
-
 export default function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModalProps) {
   const { t } = useTranslation('common')
   const { system } = useUnitPreference()
@@ -244,7 +240,7 @@ function PurchaseRow({ entry, supply, unit }: LedgerRowProps) {
     <div className="flex items-center justify-between gap-3 p-3 bg-garage-bg border border-garage-border rounded-md">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-medium text-garage-text">{formatEntryDate(entry.at)}</span>
+          <span className="font-medium text-garage-text">{formatDateForDisplay(entry.ledger_date)}</span>
           <span className="text-xs px-1.5 py-0.5 rounded bg-success/10 text-success">
             {t('supplies.history.purchase')}
           </span>
@@ -349,7 +345,7 @@ function UsageRow({ entry, supply, unit }: LedgerRowProps) {
     <div className="flex items-center justify-between gap-3 p-3 bg-garage-bg border border-garage-border rounded-md">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm">
-          <span className="font-medium text-garage-text">{formatEntryDate(entry.at)}</span>
+          <span className="font-medium text-garage-text">{formatDateForDisplay(entry.ledger_date)}</span>
           <span className="text-xs px-1.5 py-0.5 rounded bg-warning/10 text-warning">
             {isJob ? t('supplies.history.job') : t('supplies.history.adjustment')}
           </span>

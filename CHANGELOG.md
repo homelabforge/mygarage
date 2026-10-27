@@ -121,6 +121,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - OBC and window sticker fuel economy keep four places in L/100km, so a typed MPG comes back as typed (a 58 MPG sticker no longer reads 57.9)
 - A propane tank size and a trailer's dimensions and GVWR keep a third decimal place, so a value typed in pounds or feet comes back as typed
 - A supply quantity typed in US fl oz is stored exactly: 1.00 fl oz no longer reads 1.01, and buying 32 fl oz then logging 32 uses of 1 fl oz leaves none on hand instead of a shortage
+- A supply's history dates an adjustment logged near midnight on the household's day, so it no longer sorts before that morning's purchase with a false negative balance or shows the UTC date
 - On SQLite, every number is rounded to its column's places when it's written, as PostgreSQL does, so a tank's fuel economy no longer takes in the previous full tank's fuel and the widget's MPG no longer drops its oldest tank when the odometer was typed in miles
 - On SQLite, an import that skips duplicates now skips a row matching a stored one at the column's places (1234.56 h against a stored 1234.6 h) instead of adding it again
 - A value exactly halfway between two of its column's places, like 1.005 in a cost, rounds up on both databases; PostgreSQL could store 1.00

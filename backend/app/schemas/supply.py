@@ -209,8 +209,12 @@ class SupplyLedgerEntry(BaseModel):
     entry_type: Literal["purchase", "usage"]
     id: int
     at: datetime = Field(
-        description="Effective ledger date: purchase.date (midnight), a job usage's OWNING "
-        "VISIT date, or a standalone adjustment's created_at (R1-H3 ordering)"
+        description="Effective ledger time on the household clock, with its offset: "
+        "purchase.date (midnight), a job usage's OWNING VISIT date (midnight), or a "
+        "standalone adjustment's created_at (R1-H3 ordering)"
+    )
+    ledger_date: date_type = Field(
+        description="The household calendar day the entry falls on (the date of `at`)"
     )
     quantity: Decimal = Field(description="signed: + for purchase, − for usage")
     running_balance: Decimal

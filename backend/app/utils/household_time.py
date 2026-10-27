@@ -89,6 +89,16 @@ def household_zone() -> ZoneInfo:
     return zone if zone is not None else resolve_zone(None)
 
 
+def household_datetime(timestamp: datetime) -> datetime:
+    """A stored timestamp as an aware time on the household's clock.
+
+    A naive one is UTC, like :func:`household_date` says.
+    """
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=UTC)
+    return timestamp.astimezone(household_zone())
+
+
 def household_date(timestamp: datetime) -> date:
     """The household day of a stored timestamp. A naive one is UTC, which is how
     every timestamp column here is written.
@@ -99,9 +109,7 @@ def household_date(timestamp: datetime) -> date:
     server-only columns, unless it couldn't trust that zone (it warns and skips
     then).
     """
-    if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=UTC)
-    return timestamp.astimezone(household_zone()).date()
+    return household_datetime(timestamp).date()
 
 
 def household_wall_clock_to_utc(value: datetime) -> datetime:

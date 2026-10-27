@@ -63,6 +63,7 @@ const mockEntries = [
     entry_type: 'purchase',
     id: 10,
     at: '2026-01-05T00:00:00',
+    ledger_date: '2026-01-05',
     quantity: '5.000',
     running_balance: '5.000',
     cost: '25.00',
@@ -73,6 +74,7 @@ const mockEntries = [
     entry_type: 'usage',
     id: 20,
     at: '2026-01-10T00:00:00',
+    ledger_date: '2026-01-10',
     quantity: '-1.000',
     running_balance: '4.000',
     cost: '5.25',
@@ -84,6 +86,7 @@ const mockEntries = [
     entry_type: 'usage',
     id: 21,
     at: '2026-01-12T00:00:00',
+    ledger_date: '2026-01-12',
     quantity: '-0.500',
     running_balance: '3.500',
     cost: null,
@@ -148,6 +151,39 @@ describe('SupplyHistoryModal', () => {
     expect(dialogText).toContain('Jan 12, 2026')
     expect(dialogText).toContain('-0.50 L')
     expect(dialogText).toContain('3.50 L')
+  })
+
+  it('dates an entry by its household ledger_date, not the text of its timestamp', () => {
+    // 19:00Z on Sep 1 is 00:30 on Sep 2 in a Kolkata household. Splitting
+    // the timestamp at T showed the UTC day.
+    useSupplyHistoryMock.mockReturnValue({
+      data: {
+        supply_id: 1,
+        on_hand: '0',
+        avg_unit_cost: null,
+        entries: [
+          {
+            entry_type: 'usage',
+            id: 30,
+            at: '2026-09-01T19:00:00Z',
+            ledger_date: '2026-09-02',
+            quantity: '-1.000',
+            running_balance: '0',
+            cost: null,
+            service_line_item_id: null,
+            service_visit_id: null,
+            service_visit_date: null,
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    })
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
+    const dialogText = screen.getByRole('dialog').textContent ?? ''
+
+    expect(dialogText).toContain('Sep 2, 2026')
+    expect(dialogText).not.toContain('Sep 1, 2026')
   })
 
   it('labels a job-tied usage as a job and a standalone usage as an adjustment', () => {
