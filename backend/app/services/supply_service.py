@@ -418,7 +418,7 @@ class SupplyService:
     async def get_supply_history(
         self, supply_id: int, current_user: User | None
     ) -> SupplyHistoryResponse:
-        from datetime import datetime, time
+        from datetime import UTC, datetime, time
 
         from sqlalchemy.orm import selectinload
 
@@ -484,10 +484,10 @@ class SupplyService:
                 else household_datetime(u.created_at)
             )
             events.append((eff, "usage", u))
-        # Deterministic: same household wall clock → purchases first, then by id.
-        events.sort(
-            key=lambda e: (e[0].replace(tzinfo=None), 0 if e[1] == "purchase" else 1, e[2].id)
-        )
+        # Sort on the real instant, not the wall clock. In the fall-back hour a
+        # later adjustment has an earlier wall clock and would jump the queue.
+        # Same instant → purchases first, then by id.
+        events.sort(key=lambda e: (e[0].astimezone(UTC), 0 if e[1] == "purchase" else 1, e[2].id))
 
         entries: list[SupplyLedgerEntry] = []
         balance = _ZERO
