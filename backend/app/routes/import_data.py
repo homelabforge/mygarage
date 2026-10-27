@@ -3231,6 +3231,8 @@ async def import_vehicle_json(
         TollTransaction,
         WarrantyRecord,
         SpotRental,
+        Reminder,
+        Note,
     )
     readings = _ImportReadings()
 
@@ -3749,74 +3751,86 @@ async def import_vehicle_json(
             else _json_row_date(reminder_data, "due_date")
         )
         due_km = _maybe_mi_to_km(reminder_data.get("due_mileage"))
-        # v2 saved 0 for no mileage.
-        if due_km == 0:
-            due_km = None
-        # Rounded first so the message shows the figure we'd store. Infinity
-        # can't round; the bounds check refuses it next.
-        if due_km is not None and due_km.is_finite():
-            due_km = due_km.quantize(Decimal("0.01"))
+        if due_km is not None:
+            # NaN, sNaN and Infinity get the bounds message: == 0 raises on sNaN.
+            if not due_km.is_finite():
+                _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
+            # v2 saved 0 for no mileage.
+            if due_km == 0:
+                due_km = None
+        if due_km is not None:
+            # Rounded first so the message shows the figure we'd store. One too long
+            # to round (1e26) is past the cap, and the bounds check says so.
+            try:
+                due_km = due_km.quantize(Decimal("0.01"))
+            except InvalidOperation:
+                _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
+                raise
         _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
         return due_date, due_km
+
+    def _pending_due_point(
+        reminder_data: dict[str, Any],
+    ) -> tuple[date_type | None, Decimal | None, bool]:
+        """A pending row's due date and odometer in km, and whether its mileage half dropped.
+
+        Its own function so `import_vehicle_json` stays simple enough for pyright to check.
+        """
+        mileage_dropped = False
+        is_recurring = reminder_data.get("is_recurring", False)
+        recurrence_days = reminder_data.get("recurrence_days", 0)
+        recurrence_miles = reminder_data.get("recurrence_miles")
+
+        has_date = bool(is_recurring and recurrence_days)
+        has_miles = bool(is_recurring and recurrence_miles)
+
+        # A negative interval would import already overdue; the bounds check stops it.
+        if has_miles:
+            _within_api_bounds(ReminderCreate, due_mileage_km=Decimal(str(recurrence_miles)))
+
+        # The point the row was exported with, recurring or not (J3): the schedule
+        # said it. A stale backup imports overdue, which is honest.
+        due_date, due_km = _exported_due_point(reminder_data)
+        if is_recurring and due_date is None and due_km is None:
+            interval_km = _maybe_mi_to_km(recurrence_miles) if has_miles else None
+            if interval_km is not None:
+                # The interval counts from the odometer after the import.
+                # With no reading, a date side carries the row on its own
+                # and the miles half drops; a miles-only row can't import.
+                if start_km is not None:
+                    due_km = (start_km + interval_km).quantize(Decimal("0.01"))
+                    _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
+                elif not has_date:
+                    raise _RowError("no odometer reading to count from")
+                else:
+                    mileage_dropped = True
+
+            # Calculate due_date from recurrence_days
+            if has_date and recurrence_days:
+                # A date object, in the household zone. The previous code
+                # assigned .isoformat() -- a str the Date column rejects at
+                # flush -- so every recurring-days row errored out of the
+                # import; the per-row savepoint made it look like bad data.
+                due_date = household_today() + timedelta(days=recurrence_days)
+
+        # A pending reminder with nothing to come due on would never fire.
+        if due_date is None and due_km is None:
+            raise _RowError("no due date or mileage to import")
+        return due_date, due_km, mileage_dropped
 
     # Import reminders → map to vehicle_reminders
     for idx, reminder_data in enumerate(sections["reminders"]):
         try:
             is_completed = bool(reminder_data.get("is_completed"))
             completed_at: datetime | None = None
+            mileage_dropped = False
             if is_completed:
                 # Comes back as done, due where it was. Not logged as a
                 # service visit: the same import may already carry that work.
                 completed_at = _json_row_datetime(reminder_data, "completed_at")
                 due_date, due_km = _exported_due_point(reminder_data)
             else:
-                is_recurring = reminder_data.get("is_recurring", False)
-                recurrence_days = reminder_data.get("recurrence_days", 0)
-                recurrence_miles = reminder_data.get("recurrence_miles")
-
-                has_date = bool(is_recurring and recurrence_days)
-                has_miles = bool(is_recurring and recurrence_miles)
-
-                # A negative interval would import already overdue; the bounds check stops it.
-                # It also runs first so a quiet NaN gets its message instead of raising in
-                # the <= 0 below.
-                if has_miles:
-                    _within_api_bounds(
-                        ReminderCreate, due_mileage_km=Decimal(str(recurrence_miles))
-                    )
-                if has_miles and Decimal(str(recurrence_miles)) <= 0:
-                    results["reminders"]["errors"] += 1
-                    errors.append(f"Reminder {idx}: recurrence_miles must be positive")
-                    continue
-
-                if not is_recurring:
-                    # A one-time reminder keeps the due point it was exported with.
-                    due_date, due_km = _exported_due_point(reminder_data)
-                else:
-                    due_date = None
-                    due_km = None
-                    interval_km = _maybe_mi_to_km(recurrence_miles) if has_miles else None
-                    if interval_km is not None:
-                        # The interval counts from the odometer after the import.
-                        # With no reading, a date side carries the row on its own
-                        # and the miles half drops; a miles-only row can't import.
-                        if start_km is not None:
-                            due_km = (start_km + interval_km).quantize(Decimal("0.01"))
-                            _within_api_bounds(ReminderCreate, due_mileage_km=due_km)
-                        elif not has_date:
-                            raise _RowError("no odometer reading to count from")
-
-                    # Calculate due_date from recurrence_days
-                    if has_date and recurrence_days:
-                        # A date object, in the household zone. The previous code
-                        # assigned .isoformat() -- a str the Date column rejects at
-                        # flush -- so every recurring-days row errored out of the
-                        # import; the per-row savepoint made it look like bad data.
-                        due_date = household_today() + timedelta(days=recurrence_days)
-
-                # A pending reminder with nothing to come due on would never fire.
-                if due_date is None and due_km is None:
-                    raise _RowError("no due date or mileage to import")
+                due_date, due_km, mileage_dropped = _pending_due_point(reminder_data)
 
             if due_date is not None and due_km is not None:
                 reminder_type = "both"
@@ -3825,19 +3839,38 @@ async def import_vehicle_json(
             else:
                 reminder_type = "date"
 
+            title = reminder_data["description"]
+            status = "done" if is_completed else "pending"
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    Reminder,
+                    Reminder.vin == vin,
+                    Reminder.title == title,
+                    Reminder.reminder_type == reminder_type,
+                    _matches(Reminder.due_date, due_date),
+                    _same_figure(Reminder.due_mileage_km, due_km, Decimal("0.01")),
+                    Reminder.status == status,
+                )
+                is not None
+            ):
+                results["reminders"]["skipped"] += 1
+                continue
+
             reminder = Reminder(
                 vin=vin,
-                title=reminder_data["description"],
+                title=title,
                 reminder_type=reminder_type,
                 due_date=due_date,
                 due_mileage_km=due_km,
                 start_odometer_km=start_km,
                 start_hours=start_hours,
-                status="done" if is_completed else "pending",
+                status=status,
                 completed_at=completed_at,
                 completed_date=household_date(completed_at) if completed_at is not None else None,
                 notes=reminder_data.get("notes"),
-                maintenance_type=classify(reminder_data["description"]),
+                maintenance_type=classify(title),
             )
             # A savepoint per row. A row the database still rejects rolls
             # back alone here, instead of poisoning the session for every
@@ -3845,6 +3878,11 @@ async def import_vehicle_json(
             async with db.begin_nested():
                 db.add(reminder)
             results["reminders"]["success"] += 1
+            if mileage_dropped:
+                warnings.append(
+                    f"Reminder {idx}: no odometer reading to count the mileage from, "
+                    "imported with its date only"
+                )
         except _RowError as e:
             results["reminders"]["errors"] += 1
             errors.append(f"Reminder {idx}: {e.reason}")
@@ -3857,13 +3895,27 @@ async def import_vehicle_json(
     for idx, note_data in enumerate(sections["notes"]):
         try:
             date = _json_row_date(note_data)
+            content = note_data.get("content")
+            if _is_blank(content):
+                raise _RowError("content is missing")
+            title = note_data.get("title")  # optional: the column is nullable
 
-            note = Note(
-                vin=vin,
-                date=date,
-                title=note_data["title"],
-                content=note_data["content"],
-            )
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    Note,
+                    Note.vin == vin,
+                    Note.date == date,
+                    _matches(Note.title, title),
+                    Note.content == content,
+                )
+                is not None
+            ):
+                results["notes"]["skipped"] += 1
+                continue
+
+            note = Note(vin=vin, date=date, title=title, content=content)
             # A savepoint per row. A row the database still rejects rolls
             # back alone here, instead of poisoning the session for every
             # row and loop still to come.
@@ -3891,7 +3943,7 @@ async def import_vehicle_json(
                 "start_date": datetime.fromisoformat(entry["start_date"]).date(),
                 "end_date": datetime.fromisoformat(entry["end_date"]).date(),
                 "premium": Decimal(str(premium)) if premium is not None else None,
-                "premium_frequency": entry.get("premium_frequency"),
+                "premium_frequency": entry.get("premium_frequency") or None,
                 "deductible": Decimal(str(deductible)) if deductible is not None else None,
                 "coverages": _coverages_from_rows(entry.get("coverages") or []),
                 "notes": entry.get("notes"),
