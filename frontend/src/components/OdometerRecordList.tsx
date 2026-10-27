@@ -8,7 +8,7 @@ import api from '../services/api'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useOdometerRecords, useDeleteOdometerRecord, useImportOdometerCSV } from '../hooks/queries/useOdometerRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { listMessages } from '../utils/importSummary'
+import { importToastDuration, listMessages } from '../utils/importSummary'
 import { Button, IconButton, Card, Mono, Badge, DataTable, EmptyState } from './ui'
 import type { DataTableColumn } from './ui'
 
@@ -110,10 +110,11 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
           message = `${message} - ${t('odometerRecordList.importWarningsLabel')}: ${listMessages(warnings, t, ', ')}`
         }
 
+        const options = { duration: importToastDuration(errors, warnings) }
         if (errors.length > 0) {
-          toast.error(message)
+          toast.error(message, options)
         } else {
-          toast.success(message)
+          toast.success(message, options)
         }
       },
       onError: (err) => {

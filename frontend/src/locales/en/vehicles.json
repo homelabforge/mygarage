@@ -220,6 +220,7 @@
     "importData": "Import Data",
     "importError": "Failed to import data",
     "importSuccess": "Import completed successfully",
+    "importWithErrors": "Import finished, but some rows weren't imported",
     "importing": "Importing...",
     "keyFacts": {
       "spent": "Spent",

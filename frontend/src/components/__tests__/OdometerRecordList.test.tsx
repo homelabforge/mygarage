@@ -115,6 +115,17 @@ describe('OdometerRecordList — row actions + empty state', () => {
 })
 
 describe('OdometerRecordList: the CSV import toast', () => {
+  it('a clean import toast keeps the default duration (control: passes on c304a690)', () => {
+    importMutate.mockImplementation((_form: FormData, options: { onSuccess: (r: unknown) => void }) =>
+      options.onSuccess({ success_count: 1, skipped_count: 0, error_count: 0, errors: [], warnings: [] }),
+    )
+    const { container } = render(<OdometerRecordList {...PROPS} />)
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+    fireEvent.change(input, { target: { files: [new File(['Date\n'], 'odometer.csv')] } })
+    expect(toast.success).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(toast.success).mock.calls[0][1]?.duration).toBeUndefined()
+  })
+
   it('appends the warnings to the summary (J2)', () => {
     importMutate.mockImplementation((_form: FormData, options: { onSuccess: (r: unknown) => void }) =>
       options.onSuccess({
@@ -129,8 +140,10 @@ describe('OdometerRecordList: the CSV import toast', () => {
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
     fireEvent.change(input, { target: { files: [new File(['Date\n'], 'odometer.csv')] } })
     // main: 'odometerRecordList.importCompleted', the warning dropped
+    // c304a690: no options, so sonner's 4s for a list
     expect(toast.success).toHaveBeenCalledWith(
       'odometerRecordList.importCompleted - odometerRecordList.importWarningsLabel: Row 2: kept as text',
+      { duration: 10_000 },
     )
   })
 
@@ -152,6 +165,7 @@ describe('OdometerRecordList: the CSV import toast', () => {
       'odometerRecordList.importCompleted' +
         ' - odometerRecordList.importErrorsLabel: Row 9: bad date' +
         ' - odometerRecordList.importWarningsLabel: w1, w2, w3, w4, w5, vehicles:detail.misc.importMoreCount',
+      { duration: 10_000 },
     )
   })
 })

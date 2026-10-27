@@ -65,7 +65,7 @@ vi.mock('../../components/SubTabNav', () => ({
 
 // Mock sonner toast
 vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 
 // Mock services
@@ -808,6 +808,28 @@ describe('VehicleDetail', () => {
     importFile(second.container)
     await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(2))
     expect(vi.mocked(toast.success).mock.calls[1][1]?.duration).toBeUndefined()
+  })
+
+  it('a JSON import with a row error toasts a warning, not a success', async () => {
+    const { toast } = await import('sonner')
+    vi.mocked(api.post).mockResolvedValue({
+      data: {
+        fuel_records: { success_count: 2, skipped_count: 0, error_count: 1 },
+        errors: ['Fuel record 1: date is missing'],
+        warnings: [],
+      },
+    } as { data: unknown })
+    const { container } = renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    const input = container.querySelector('input[type="file"][accept=".json"]') as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['{}'], 'vehicle.json', { type: 'application/json' })] },
+    })
+    // c304a690: toast.success, the same green as a clean import
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledTimes(1))
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.warning).mock.calls[0][0]).toBe('detail.importWithErrors')
+    expect(vi.mocked(toast.warning).mock.calls[0][1]).toMatchObject({ duration: 10_000 })
   })
 
   it('an older stats response never overwrites a newer one (codex R1-M2: a refresh cancels the one in flight)', async () => {

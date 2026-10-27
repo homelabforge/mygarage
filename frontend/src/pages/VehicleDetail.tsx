@@ -89,14 +89,11 @@ import { VehicleUnitScope } from '../contexts/VehicleUnitScope'
 import { forgetCachedVehicle, readCachedVehicle, rememberVehicle } from '../utils/vehicleCache'
 import { useSyncQuickEntryVehicle } from '../hooks/queries/useQuickEntryVehicles'
 import { useVehicleDetailStats } from '../hooks/queries/useVehicleDetailStats'
-import { buildImportSummary, type ImportJsonResult } from '../utils/importSummary'
+import { buildImportSummary, hasRowErrors, importToastDuration, type ImportJsonResult } from '../utils/importSummary'
 
 export type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | 'torqueSource' | null
 export type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'fuel' | 'tracking' | 'financial' | 'livelink'
 export type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'hours' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'financing' | 'spotrentals' | 'suppliesused' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts' | 'trips' | 'tires' | 'brakes'
-
-/** How long an import toast stays up when it lists errors or warnings. */
-const IMPORT_LIST_TOAST_MS = 10_000
 
 export default function VehicleDetail() {
   const { t } = useTranslation('vehicles')
@@ -362,11 +359,13 @@ export default function VehicleDetail() {
         },
       })
       const result = response.data
-      const hasMessages = (result.errors?.length ?? 0) > 0 || (result.warnings?.length ?? 0) > 0
-      toast.success(t('detail.importSuccess'), {
+      // A refused row isn't a clean success, so it doesn't get the green toast.
+      const rowErrors = hasRowErrors(result)
+      const notify = rowErrors ? toast.warning : toast.success
+      notify(t(rowErrors ? 'detail.importWithErrors' : 'detail.importSuccess'), {
         description: buildImportSummary(result, t),
         // Lists of errors and warnings take longer to read than sonner's 4s.
-        duration: hasMessages ? IMPORT_LIST_TOAST_MS : undefined,
+        duration: importToastDuration(result.errors, result.warnings),
       })
 
       // Reload the vehicle data

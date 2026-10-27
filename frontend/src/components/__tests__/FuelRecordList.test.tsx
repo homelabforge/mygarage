@@ -751,6 +751,7 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
     expect(toast.error).toHaveBeenCalledWith(
       'fuelList.importErrors (fuelList.importCompleted | Row 3: bad date, Row 7: no odometer)',
+      { duration: 10_000 },
     )
     expect(toast.success).not.toHaveBeenCalled()
     // And the English keeps both slots, so neither half can fall out of the bundle.
@@ -778,9 +779,24 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
     // main: 'fuelList.importCompleted', the warning dropped
     expect(toast.success).toHaveBeenCalledWith(
       'fuelList.importWarnings (fuelList.importCompleted | Row 2: station not in this address book, kept as text)',
+      { duration: 10_000 },
     )
     expect(vehiclesEn.fuelList.importWarnings).toContain('{{message}}')
     expect(vehiclesEn.fuelList.importWarnings).toContain('{{warnings}}')
+  })
+
+  it('a clean import toast keeps the default duration (control: passes on c304a690)', async () => {
+    apiPostMock.mockResolvedValue({
+      data: { success_count: 1, skipped_count: 0, error_count: 0, errors: [], warnings: [] },
+    })
+    const user = userEvent.setup()
+    renderList()
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+    await user.upload(fileInput(), csvFile())
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled())
+    expect(vi.mocked(toast.success).mock.calls[0][1]?.duration).toBeUndefined()
   })
 
   it('caps each list at five plus a more-count, errors before warnings', async () => {
@@ -804,6 +820,7 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
     expect(toast.error).toHaveBeenCalledWith(
       'fuelList.importWarnings (fuelList.importErrors (fuelList.importCompleted | Row 9: bad date)' +
         ' | w1, w2, w3, w4, w5, vehicles:detail.misc.importMoreCount (2))',
+      { duration: 10_000 },
     )
   })
 

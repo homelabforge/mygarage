@@ -36,6 +36,19 @@ export type ImportJsonResult = Partial<Record<SectionKey, ImportSectionResult>> 
 /** How many of each list the toast shows before it says how many more. */
 const LISTED = 5
 
+/** How long an import toast stays up when it lists errors or warnings. */
+export const IMPORT_LIST_TOAST_MS = 10_000
+
+/** An import toast's duration: longer while it lists errors or warnings, else sonner's default. */
+export function importToastDuration(errors?: readonly string[], warnings?: readonly string[]): number | undefined {
+  return (errors?.length ?? 0) > 0 || (warnings?.length ?? 0) > 0 ? IMPORT_LIST_TOAST_MS : undefined
+}
+
+/** Whether any section of a JSON import refused a row. */
+export function hasRowErrors(result: ImportJsonResult): boolean {
+  return SECTIONS.some(([key]) => (result[key]?.error_count ?? 0) > 0)
+}
+
 /**
  * Up to LISTED messages, then how many more there are. One a line by default;
  * the CSV toasts pass ', ' since their text is one sentence.

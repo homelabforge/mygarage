@@ -21,7 +21,7 @@ import { priceToDisplay } from '../utils/decimalSafe'
 import { getUsageTracking } from '../utils/usageTracking'
 import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/queries/useFuelRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { listMessages } from '../utils/importSummary'
+import { importToastDuration, listMessages } from '../utils/importSummary'
 import { Button, IconButton, Card, Mono, DataTable, Badge, SearchField, EmptyState, Checkbox, Select } from './ui'
 import type { DataTableColumn } from './ui'
 import FuelImportOptionsDrawer, { type FuelImportOptions } from './FuelImportOptionsDrawer'
@@ -206,10 +206,11 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
               ? t('fuelList.importWarnings', { message: withErrors, warnings: listMessages(warnings, t, ', ') })
               : withErrors
 
+          const options = { duration: importToastDuration(errors, warnings) }
           if (errors.length > 0) {
-            toast.error(message)
+            toast.error(message, options)
           } else {
-            toast.success(message)
+            toast.success(message, options)
           }
         },
         onError: (err) => {
