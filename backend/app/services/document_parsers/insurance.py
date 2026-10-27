@@ -8,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from app.utils.household_time import household_today
 from app.utils.insurance_coverages import coverage_payload, parse_coverage_lines
 
 from .base import BaseDocumentParser, DocumentData, DocumentType
@@ -338,7 +339,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
         data.confidence_score = self._calculate_confidence(data)
 
         # Add note
-        data.notes = f"Auto-imported from Progressive PDF on {datetime.now().strftime('%Y-%m-%d')}"
+        data.notes = f"Auto-imported from Progressive PDF on {household_today().isoformat()}"
 
         return data
 
@@ -458,7 +459,7 @@ class StateFarmInsuranceParser(InsuranceDocumentParser):
         # Calculate confidence
         data.confidence_score = self._calculate_confidence(data)
 
-        data.notes = f"Auto-imported from State Farm PDF on {datetime.now().strftime('%Y-%m-%d')}"
+        data.notes = f"Auto-imported from State Farm PDF on {household_today().isoformat()}"
 
         return data
 
@@ -545,7 +546,7 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
         # Calculate confidence
         data.confidence_score = self._calculate_confidence(data)
 
-        data.notes = f"Auto-imported from GEICO PDF on {datetime.now().strftime('%Y-%m-%d')}"
+        data.notes = f"Auto-imported from GEICO PDF on {household_today().isoformat()}"
 
         return data
 
@@ -629,7 +630,7 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
         # Calculate confidence
         data.confidence_score = self._calculate_confidence(data)
 
-        data.notes = f"Auto-imported from Allstate PDF on {datetime.now().strftime('%Y-%m-%d')}"
+        data.notes = f"Auto-imported from Allstate PDF on {household_today().isoformat()}"
 
         return data
 
@@ -723,8 +724,6 @@ class GenericInsuranceParser(InsuranceDocumentParser):
         # Calculate confidence with penalty for generic
         data.confidence_score = self._calculate_confidence(data) * 0.7
 
-        data.notes = (
-            f"Auto-imported from PDF on {datetime.now().strftime('%Y-%m-%d')} (generic parser)"
-        )
+        data.notes = f"Auto-imported from PDF on {household_today().isoformat()} (generic parser)"
 
         return data

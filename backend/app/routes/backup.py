@@ -16,6 +16,7 @@ from app.services.auth import get_current_admin_user
 from app.services.backup_service import BackupService
 from app.services.restore_staging import RestoreInProgressError
 from app.services.settings_secrets import ensure_secrets_encrypted
+from app.utils.datetime_utils import utc_from_timestamp
 from app.utils.logging_utils import sanitize_for_log
 
 router = APIRouter(prefix="/api/backup", tags=["Backup"])
@@ -451,7 +452,7 @@ async def upload_backup(
                 "filename": safe_filename,
                 "type": backup_type,
                 "size_mb": round(stat.st_size / 1024 / 1024, 4 if backup_type == "settings" else 2),
-                "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "created": utc_from_timestamp(stat.st_mtime).isoformat(),
             },
         }
     except HTTPException:

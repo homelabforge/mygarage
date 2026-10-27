@@ -184,8 +184,8 @@ def test_compute_full_tank_economy_folds_partials() -> None:
     results = compute_full_tank_economy([prev, partial, cur])
 
     # Only the second full tank gets a figure; the first has no predecessor and
-    # the partial is not an endpoint. (24.79 + 52.95) / 824 * 100 = 9.43.
-    assert [(r.odometer_km, v) for r, v in results] == [(Decimal("140354"), Decimal("9.43"))]
+    # the partial is not an endpoint. (24.79 + 52.95) / 824 * 100 = 9.4345.
+    assert [(r.odometer_km, v) for r, v in results] == [(Decimal("140354"), Decimal("9.4345"))]
 
 
 @pytest.mark.unit
@@ -266,7 +266,7 @@ def test_an_impossible_tank_stays_out_of_the_average() -> None:
     records = [_fr(str(85000 + 500 * i), "40.000", full=True) for i in range(11)]
     records.append(_fr("900000", "40.000", full=True))
     periods = economy_periods(records)
-    assert periods[-1].l_per_100km == Decimal("0.00")
+    assert periods[-1].l_per_100km == Decimal("0.0049")
     assert not periods[-1].plausible
     assert average_l_per_100km(periods) == Decimal("8.00")
     assert average_l_per_100km(periods[-1:]) is None
@@ -333,9 +333,9 @@ def test_calculate_l_per_100km_uses_interval_liters() -> None:
     cur = _fr("140354", "52.950", full=True)
 
     # No-partial base case — the fallback equals the correct answer: 52.95 / 824.
-    assert calculate_l_per_100km(cur, prev) == Decimal("6.43")
+    assert calculate_l_per_100km(cur, prev) == Decimal("6.4260")
     # With a partial in between, the interval sum is the correct numerator.
-    assert calculate_l_per_100km(cur, prev, Decimal("77.740")) == Decimal("9.43")
+    assert calculate_l_per_100km(cur, prev, Decimal("77.740")) == Decimal("9.4345")
 
 
 @pytest.mark.integration
@@ -387,9 +387,9 @@ async def test_average_includes_partial_fillups(
 
     avg = await calculate_average_l_per_100km(db_session, vin)
 
-    # (24.79 + 52.95) / (140354 - 139530) * 100 = 77.74 / 824 * 100 = 9.43
-    assert avg == Decimal("9.43"), (
-        f"expected 9.43 L/100km including the partial fill-up, got {avg} "
+    # (24.79 + 52.95) / (140354 - 139530) * 100 = 77.74 / 824 * 100 = 9.4345
+    assert avg == Decimal("9.4345"), (
+        f"expected 9.4345 L/100km including the partial fill-up, got {avg} "
         "(issue #113: partial fill-up volume was ignored, using only the "
         "final full fill-up)"
     )
@@ -503,7 +503,7 @@ async def test_widget_recent_skips_an_impossible_tank(
 ) -> None:
     """A mistyped odometer sorts last. The widget's recent figure is the last
     three tanks that could be real, as on the card: (20 + 10 + 20) L over
-    900 km = 5.56, and the average 60 L over 1,000 km = 6.00."""
+    900 km = 5.5556, and the average 60 L over 1,000 km = 6.00."""
     vin = "WIDGETTYPO0000001"
     db_session.add(
         Vehicle(
@@ -540,5 +540,5 @@ async def test_widget_recent_skips_an_impossible_tank(
     await db_session.commit()
 
     recent, average = await WidgetAggregationService(db_session)._consumption_l100km(vin)
-    assert recent == Decimal("5.56")
+    assert recent == Decimal("5.5556")
     assert average == Decimal("6.00")

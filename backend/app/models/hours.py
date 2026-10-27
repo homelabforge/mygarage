@@ -62,5 +62,10 @@ class HoursRecord(Base):
         Index("idx_hours_source", "source"),  # For filtering by source
     )
 
+    # A synced row goes with its fuel record or service visit by FK cascade,
+    # so when a vehicle delete cascades both, the ORM's own DELETE for it finds
+    # nothing. That's expected, not a lost row, so don't warn about it.
+    __mapper_args__ = {"confirm_deleted_rows": False}
+
 
 from app.models.vehicle import Vehicle

@@ -33,9 +33,45 @@ Example: `048_add_new_feature.py`
 
 1. Create file in `/srv/raid0/docker/build/mygarage/backend/app/migrations/`
 2. Use next sequential number
-3. Implement `upgrade(engine=None)` function (must accept engine parameter)
+3. Implement `upgrade(engine=None)`, or `upgrade(conn)` for a migration that must stamp in its own transaction (see below)
 4. Use `inspect(engine)` for schema introspection (never `PRAGMA` or `sqlite_master`)
 5. Use dialect-aware DDL for table creation (see template below)
+
+### `upgrade(engine)` or `upgrade(conn)`
+
+The runner (`runner.py`) looks at `upgrade`'s signature and picks one of two paths.
+
+- **`upgrade(engine=None)`**, the usual one. The runner passes its engine, the
+  migration opens whatever transactions it wants, and the runner stamps
+  `schema_migrations` afterwards in a transaction of its own. A crash between
+  the two leaves the work done but unstamped, so the migration runs again next
+  boot and has to be idempotent. That's also the path for a migration that
+  wants several transactions on purpose, like 136, which rounds one table per
+  transaction so a failure keeps the tables already done.
+- **`upgrade(conn)`**, the atomic one. The runner opens one `engine.begin()`,
+  calls `upgrade(conn=conn)` on it and stamps the migration on the same
+  connection, so the work and the stamp commit or roll back together. Use it
+  for a data rewrite that must never run twice, like 134's timestamp repair.
+  Do everything on `conn`: opening another connection inside it takes you out
+  of the transaction. A `conn` migration can't declare `REPLACES` (the runner
+  refuses to load it), since a squash stamps several stems.
+
+### FATAL and startup
+
+A failed migration stops the run and nothing after it runs. Whether the app
+then starts depends on:
+
+- `FATAL = True` at module level: the app refuses to start. Use it when the
+  app can't run correctly without the migration, e.g. a column a model
+  declares non-nullable, or data the API now assumes is converted.
+- No `FATAL`: the failure is logged and the app starts anyway, and the
+  migration retries next boot. Only for changes the app can live without.
+- On PostgreSQL, any failure before the timestamp repair
+  (`TIMESTAMP_REPAIR_STEM`, 134 today) is fatal, whatever the migration says.
+  The app pins its sessions to UTC, so booting with the repair still pending
+  would write UTC rows the repair later shifts. A failure to swap the runner
+  onto its UTC-pinned engine once the repair is stamped is fatal too, and
+  `init_db` checks the repair is stamped after every run.
 
 ### Migration Template
 
@@ -117,8 +153,8 @@ def upgrade(engine=None):
 
 ## PostgreSQL Compatibility Rules
 
-1. **Never use** `PRAGMA` or `sqlite_master` — use `inspect(engine)` instead
-2. **Never hardcode** database URLs — accept `engine` parameter from the runner
+1. **Never use** `PRAGMA` or `sqlite_master`; use `inspect(engine)` instead
+2. **Never hardcode** database URLs; accept `engine` parameter from the runner
 3. **Use `SERIAL PRIMARY KEY`** on PostgreSQL, `INTEGER PRIMARY KEY AUTOINCREMENT` on SQLite
 4. **Use `TIMESTAMP`** on PostgreSQL, `DATETIME` on SQLite
 5. **Use `ON CONFLICT DO NOTHING`** instead of `INSERT OR IGNORE`
@@ -145,7 +181,7 @@ Migrations are tracked in the `schema_migrations` table:
 
 ### Migration fails with "column already exists"
 
-The migration is idempotent — safe to run again. This is harmless.
+The migration is idempotent, so it is safe to run again. This is harmless.
 
 ### Container won't start after migration
 

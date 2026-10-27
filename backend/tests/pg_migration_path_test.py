@@ -666,9 +666,12 @@ class TestMoneyColumnsWidened:
         """An install from before 122, at the pre-122 widths, upgraded through the runner.
 
         Only the migrations before 122 are stamped, as on a real install that
-        old, so 135 runs too and takes the unit prices on from 122's (12,3).
+        old, so both run: the recorded ALTERs show 122 widening the unit prices
+        to (12,3) and 135 taking them on to (13,4), in that order.
         """
-        from tests.migrations._money_columns import PRE_122_TYPES, TYPES_AT_122
+        from sqlalchemy import event
+
+        from tests.migrations._money_columns import PRE_122_TYPES
         from tests.unit.schemas._money_names import MONEY_COLUMNS
 
         _create_all_on_pg()
@@ -692,12 +695,30 @@ class TestMoneyColumnsWidened:
                 "the install must start at the old widths"
             )
 
-            runner.run_pending_migrations()
+            # Guard: passes at t=0. Kills a 122 that stops widening the prices,
+            # which the end state can't see now that 135 widens them anyway.
+            # On the Engine class: the runner swaps in a new engine once 134 is
+            # stamped, so a listener on runner.engine would miss 135.
+            alters: list[str] = []
+
+            def record(_conn, _cursor, statement: str, *_args) -> None:
+                if statement.lstrip().upper().startswith("ALTER TABLE FUEL_RECORDS"):
+                    alters.append(statement)
+
+            event.listen(Engine, "before_cursor_execute", record)
+            try:
+                runner.run_pending_migrations()
+            finally:
+                event.remove(Engine, "before_cursor_execute", record)
 
             applied = runner._get_applied_migrations()
             assert {MIGRATION_122, MIGRATION_135} <= applied
-            # 135 ran after 122: the prices end past 122's own (12,3).
-            assert TYPES_AT_122["fuel_records.price_per_unit"] == (12, 3)
+            widened_by_122 = [i for i, s in enumerate(alters) if "NUMERIC(12, 3)" in s]
+            widened_by_135 = [i for i, s in enumerate(alters) if "NUMERIC(13, 4)" in s]
+            assert widened_by_122 and widened_by_135, alters
+            assert all("price_per_unit TYPE NUMERIC(12, 3)" in alters[i] for i in widened_by_122)
+            assert all("price_per_unit TYPE NUMERIC(13, 4)" in alters[i] for i in widened_by_135)
+            assert max(widened_by_122) < min(widened_by_135), alters
             assert _money_column_types(runner.engine) == MONEY_COLUMNS
 
             # Rerun 122 on the widened install: it leaves the (13,4) prices alone.

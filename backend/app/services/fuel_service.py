@@ -108,6 +108,12 @@ def _fuel_response(
     return FuelRecordResponse(**record_dict)
 
 
+#: Computed L/100km keeps the four places the consumption columns hold, so a
+#: tank's figure and a typed OBC one compare at the same grain, and an MPG
+#: reader's conversion doesn't start from a figure already rounded off.
+L_PER_100KM_PLACES = 4
+
+
 def calculate_l_per_100km(
     current_record: FuelRecord,
     previous_record: FuelRecord | None,
@@ -162,7 +168,7 @@ def calculate_l_per_100km(
         return None
 
     l_per_100km = (liters / distance_km) * Decimal("100")
-    return round(l_per_100km, 2)
+    return round(l_per_100km, L_PER_100KM_PLACES)
 
 
 def calculate_hours_economy(
@@ -343,7 +349,7 @@ def average_l_per_100km(periods: Sequence[EconomyPeriod]) -> Decimal | None:
         return None
     liters = sum((period.liters for period in periods), Decimal(0))
     distance_km = sum((period.distance_km for period in periods), Decimal(0))
-    return round(liters / distance_km * Decimal(100), 2)
+    return round(liters / distance_km * Decimal(100), L_PER_100KM_PLACES)
 
 
 # A trailer has no odometer, so a bottle refill's consumption is volume over

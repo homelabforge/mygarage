@@ -179,9 +179,9 @@ async def test_the_economy_window_leaves_the_previous_full_tank_out(
 
     # 40 L over 20440.28 - 19867.35 = 572.93 km.
     expected = (Decimal(40) / (Decimal("20440.28") - Decimal("19867.35")) * 100).quantize(
-        Decimal("0.01")
+        Decimal("0.0001")
     )
-    assert expected == Decimal("6.98")
+    assert expected == Decimal("6.9817")
     assert Decimal(str(response.json()["l_per_100km"])) == expected
 
 
@@ -190,7 +190,7 @@ async def test_the_widget_keeps_its_anchor_tank(db_session: AsyncSession, own_ve
 
     The span starts at the lowest of the newest full-tank odometers. Raw, the
     anchor's stored 17936.13888 sat below the 17936.14 the ORM read back, so
-    `>= min(span_ends)` dropped it: 8.28 recent and average, not 9.67 and 9.32.
+    `>= min(span_ends)` dropped it: 8.28 recent and average, not 9.6658 and 9.3206.
     """
     vin = own_vehicle.vin
     miles = [11145, 11445, 11745, 12045, 12345]
@@ -210,7 +210,7 @@ async def test_the_widget_keeps_its_anchor_tank(db_session: AsyncSession, own_ve
 
     recent, average = await WidgetAggregationService(db_session)._consumption_l100km(vin)
 
-    assert (recent, average) == (Decimal("9.67"), Decimal("9.32"))
+    assert (recent, average) == (Decimal("9.6658"), Decimal("9.3206"))
 
 
 async def test_an_import_skips_an_unrounded_duplicate(

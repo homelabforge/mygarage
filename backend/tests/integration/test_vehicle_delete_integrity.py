@@ -197,6 +197,51 @@ async def test_delete_vehicle_removes_all_child_rows(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings("error::sqlalchemy.exc.SAWarning")
+async def test_delete_vehicle_with_synced_rows_warns_nothing(
+    db_session: AsyncSession, test_user: dict[str, object]
+) -> None:
+    """Rows synced from a fuel record or a service visit go with it by FK cascade.
+
+    The vehicle's ORM cascade deleted the fuel record and the service visit
+    first, the database took their synced odometer and hours rows with them,
+    and the ORM's own DELETE for those rows then matched nothing and warned
+    "expected to delete N row(s); 0 were matched" on every such delete.
+    """
+    from app.models.hours import HoursRecord
+    from app.models.service_visit import ServiceVisit
+
+    vin = "DELINTEG000000004"
+    today = date.today()
+    db_session.add(Vehicle(vin=vin, user_id=test_user["id"], nickname="Synced", vehicle_type="Car"))
+    await db_session.flush()
+    fuel = FuelRecord(vin=vin, date=today, odometer_km=Decimal("1000.00"), liters=Decimal("40.000"))
+    visit = ServiceVisit(vin=vin, date=today)
+    db_session.add_all([fuel, visit])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            OdometerRecord(
+                vin=vin, date=today, odometer_km=Decimal("1000.00"), fuel_record_id=fuel.id
+            ),
+            HoursRecord(vin=vin, date=today, engine_hours=Decimal("10.0"), fuel_record_id=fuel.id),
+            HoursRecord(
+                vin=vin, date=today, engine_hours=Decimal("11.0"), service_visit_id=visit.id
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    user = await db_session.get(User, test_user["id"])
+    assert user is not None
+    await VehicleService(db_session).delete_vehicle(vin, user)
+
+    assert await _count(db_session, OdometerRecord, vin) == 0
+    assert await _count(db_session, HoursRecord, vin) == 0
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_delete_vehicle_removes_vin_keyed_files(
     db_session: AsyncSession,
     test_user: dict[str, object],

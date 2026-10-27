@@ -25,3 +25,12 @@ def to_naive_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value
     return value.astimezone(UTC).replace(tzinfo=None)
+
+
+def utc_from_timestamp(timestamp: float) -> datetime:
+    """A POSIX timestamp (a file's mtime, say) as naive UTC, the API's stamp form.
+
+    `datetime.fromtimestamp` alone gives the container's local clock, which the
+    frontend then reads as UTC.
+    """
+    return datetime.fromtimestamp(timestamp, UTC).replace(tzinfo=None)

@@ -14,6 +14,7 @@ import pandas as pd
 from app.models import FuelRecord
 from app.services.analytics_service.trends import calculate_trend_direction
 from app.services.fuel_service import (
+    L_PER_100KM_PLACES,
     average_l_per_100km,
     compute_full_tank_hours_economy,
     economy_periods,
@@ -112,9 +113,9 @@ def calculate_fuel_economy_with_pandas(
     # *highest* (semantic flip from MPG).
     stats = {
         "average_l_per_100km": average_l_per_100km(plotted),
-        "best_l_per_100km": Decimal(str(round(values.min(), 2))),
-        "worst_l_per_100km": Decimal(str(round(values.max(), 2))),
-        "recent_l_per_100km": Decimal(str(round(values.iloc[-1], 2))),
+        "best_l_per_100km": Decimal(str(round(values.min(), L_PER_100KM_PLACES))),
+        "worst_l_per_100km": Decimal(str(round(values.max(), L_PER_100KM_PLACES))),
+        "recent_l_per_100km": Decimal(str(round(values.iloc[-1], L_PER_100KM_PLACES))),
         "trend": _l_per_100km_trend(values.tail(10)),
         "std_dev": (Decimal(str(round(values.std(), 2))) if len(values) > 1 else Decimal("0")),
     }

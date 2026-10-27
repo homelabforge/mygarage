@@ -24,6 +24,7 @@ from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.oidc.tokens import MASKED_SECRET_PLACEHOLDER
 from app.services.setting_rules import canonical_setting_value, check_setting_value
 from app.services.settings_service import SettingsService
+from app.utils.datetime_utils import utc_from_timestamp
 from app.utils.default_unit_prefs import (
     DEFAULT_UNIT_PREFS_KEY,
     validate_default_unit_prefs_value,
@@ -206,7 +207,7 @@ class BackupService:
                     return {
                         "path": str(self.database_path),
                         "size_mb": round(stat.st_size / 1024 / 1024, 2),
-                        "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        "last_modified": utc_from_timestamp(stat.st_mtime).isoformat(),
                         "exists": True,
                     }
                 return {
@@ -257,7 +258,7 @@ class BackupService:
                             "type": "settings",
                             "size_mb": round(stat.st_size / 1024 / 1024, 4),
                             "size_bytes": stat.st_size,
-                            "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            "created": utc_from_timestamp(stat.st_mtime).isoformat(),
                             "is_safety": "safety" in backup_file.name.lower(),
                         }
                     )
@@ -272,7 +273,7 @@ class BackupService:
                             "type": "full",
                             "size_mb": round(stat.st_size / 1024 / 1024, 2),
                             "size_bytes": stat.st_size,
-                            "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            "created": utc_from_timestamp(stat.st_mtime).isoformat(),
                             "is_safety": "safety" in backup_file.name.lower(),
                         }
                     )
@@ -324,7 +325,7 @@ class BackupService:
             "filename": filename,
             "type": "settings",
             "size_mb": round(stat.st_size / 1024 / 1024, 4),
-            "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "created": utc_from_timestamp(stat.st_mtime).isoformat(),
         }
 
     async def create_full_backup(self) -> dict[str, Any]:
@@ -399,7 +400,7 @@ class BackupService:
             "filename": filename,
             "type": "full",
             "size_mb": round(stat.st_size / 1024 / 1024, 2),
-            "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "created": utc_from_timestamp(stat.st_mtime).isoformat(),
         }
 
     async def restore_settings_backup(

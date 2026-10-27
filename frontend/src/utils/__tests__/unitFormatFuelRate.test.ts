@@ -178,8 +178,8 @@ describe('consumption, through the resolved token', () => {
     // nor asserted until fix round 1.
     //
     // Reachable rather than theoretical: the backend's `calculate_l_per_100km`
-    // guards `liters > 0` and `distance_km > 0` and then rounds to two places,
-    // so a bad odometer entry can round to 0.00.
+    // guards `liters > 0` and `distance_km > 0` and then rounds to four places,
+    // so a bad odometer entry can round to 0.0000.
     expect(makeUnitFormat(METRIC, true).consumption.format(0)).toBe('0.00 L/100km (N/A)')
     // And one ulp away it is a normal pair, so the line above is the boundary
     // case rather than a broken counterpart.

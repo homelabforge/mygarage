@@ -76,7 +76,7 @@ kilometre. The table below is derived from what each column's stored
 | temperature  | NUMERIC(5,2)    | c        | 2  | the stored scale             |
 |              |                 | f        | 2  | 0.01 F = 0.0056 C, finer     |
 | consumption  | NUMERIC(7,4)    | l_100km  | 4  | the stored scale             |
-|              |                 | km_l     | 5  | reciprocal, see below        |
+|              |                 | km_l     | 6  | reciprocal, see below        |
 |              |                 | mpg_us   | 5  | reciprocal, see below        |
 |              |                 | mpg_uk   | 5  | reciprocal, see below        |
 | speed        | NUMERIC(5,1)    | kmh      | 1  | the stored scale             |
@@ -86,10 +86,11 @@ The three reciprocal consumption tokens have no fixed resolution: one step of
 MPG is worth more L/100km the thirstier the vehicle. Five decimals carries
 the stored 0.0001 L/100km down to 4.9 US MPG and 5.3 UK MPG, below which no
 road vehicle goes; one decimal (what v5 emitted) already loses it at 50 MPG.
-`km_l` takes the same five for the same reason: it is the reciprocal of the
-`l_100km` column it replaces, so equal decimals would lose precision for
-anything under 10 km/L. (At the old NUMERIC(5,2) three were enough; the
-column gained two places, so these did too.)
+`km_l` takes six. Its steps are coarser for the same consumption (one km/L
+spans more L/100km than one MPG does), so five would carry the stored 0.0001
+L/100km only down to 3.16 km/L (31.6 L/100km), which an RV or a loaded truck
+goes below. Six carry it to 1 km/L (100 L/100km). (At the old NUMERIC(5,2)
+three were enough; the column gained two places, so these did too.)
 
 Price, temperature and consumption all widened so a value typed in the UI
 comes back as typed, and the CSV follows. A UK 6.000/gal is stored as
@@ -145,7 +146,7 @@ _PRICE_DECIMALS: Mapping[str, int] = {"L": 4, "gal_us": 4, "gal_uk": 4}
 _TEMPERATURE_DECIMALS: Mapping[str, int] = {"c": 2, "f": 2}
 _CONSUMPTION_DECIMALS: Mapping[str, int] = {
     "l_100km": 4,
-    "km_l": 5,
+    "km_l": 6,
     "mpg_us": 5,
     "mpg_uk": 5,
 }

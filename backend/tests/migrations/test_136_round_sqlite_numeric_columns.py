@@ -224,6 +224,30 @@ def test_unchanged_rows_are_not_rewritten(sqlite_db: tuple[Engine, Path]) -> Non
     assert _rewrites(engine) == [("fuel_records", raw)]
 
 
+def test_a_full_scale_double_is_never_rewritten(sqlite_db: tuple[Engine, Path]) -> None:
+    """Guard: passes once 136 exists. A supply quantity at all 13 places is 16
+    significant digits, as many as a double prints. Its repr is already at
+    scale, so neither run touches it. Kills a rounding that reads the double's
+    exact binary value, which would rewrite it on every boot."""
+    engine, _path = sqlite_db
+    with engine.begin() as conn:
+        conn.execute(text("INSERT INTO supplies (id, name, unit_type) VALUES (1, 'Oil', 'volume')"))
+        usage = conn.execute(
+            text(
+                "INSERT INTO supply_usages (supply_id, quantity) "
+                "VALUES (1, 123.0304607354494) RETURNING id"
+            )
+        ).scalar_one()
+    _count_rewrites(engine, "supply_usages")
+
+    migration = _load()
+    migration.upgrade(engine)
+    migration.upgrade(engine)
+
+    assert _rewrites(engine) == []
+    assert _raw(engine, "supply_usages", "quantity", usage) == Decimal("123.0304607354494")
+
+
 def test_rows_past_one_batch_all_round(
     sqlite_db: tuple[Engine, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -380,7 +404,7 @@ async def test_the_economy_window_on_rows_written_before_3_10(
     try:
         record = await db.get(FuelRecord, ids[-1])
         assert record is not None
-        assert await FuelRecordService(db)._economy_for(VIN, record) == Decimal("6.98")
+        assert await FuelRecordService(db)._economy_for(VIN, record) == Decimal("6.9817")
     finally:
         await db.close()
         await async_engine.dispose()
@@ -390,7 +414,7 @@ async def test_the_widget_keeps_its_anchor_tank_on_rows_written_before_3_10(
     sqlite_db: tuple[Engine, Path],
 ) -> None:
     """T6's widget case, on the prod shape. Raw, the anchor's 17936.13888 sat
-    below the 17936.14 bound and dropped out: 8.28, not 9.67 and 9.32."""
+    below the 17936.14 bound and dropped out: 8.28, not 9.6658 and 9.3206."""
     from app.services.widget_aggregation import WidgetAggregationService
 
     engine, path = sqlite_db
@@ -409,7 +433,7 @@ async def test_the_widget_keeps_its_anchor_tank_on_rows_written_before_3_10(
     async_engine, db = await _session(path)
     try:
         recent, average = await WidgetAggregationService(db)._consumption_l100km(VIN)
-        assert (recent, average) == (Decimal("9.67"), Decimal("9.32"))
+        assert (recent, average) == (Decimal("9.6658"), Decimal("9.3206"))
     finally:
         await db.close()
         await async_engine.dispose()

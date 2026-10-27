@@ -291,7 +291,6 @@ class WidgetAggregationService:
 
         odometer_km, odometer_date = await self._latest_odometer_reading(vin)
         recent_l100km, average_l100km = await self._consumption_l100km(vin)
-        current_odometer_km = int(odometer_km) if odometer_km is not None else None
 
         # Canonical latest engine-hours reading (Task 8 §1 helper) + hours
         # economy. Null for a pure-distance vehicle (no hours_records rows).
@@ -301,7 +300,7 @@ class WidgetAggregationService:
         latest_hours, _latest_hours_date = await latest_engine_hours_and_date(self.db, vin)
         average_l_per_hr, average_cost_per_hr = await calculate_average_hours_economy(self.db, vin)
 
-        overdue, upcoming = await self._overdue_upcoming([vin], current_odometer_km, latest_hours)
+        overdue, upcoming = await self._overdue_upcoming([vin], odometer_km, latest_hours)
 
         return _VehicleCore(
             label=_vehicle_label(vehicle),
@@ -450,8 +449,12 @@ class WidgetAggregationService:
             return None, None
         return row.odometer_km, row.date
 
-    async def _latest_odometer_km(self, vin: str) -> int | None:
-        """Internal: latest odometer reading for `vin` in km (for SQL comparisons)."""
+    async def _latest_odometer_km(self, vin: str) -> Decimal | None:
+        """Internal: latest odometer reading for `vin` in km, fraction and all.
+
+        Not cut to whole km: 10000.8 read as 10000 left a reminder due at
+        10000.4 not yet overdue here while the dashboard said it was.
+        """
         stmt = (
             select(OdometerRecord.odometer_km)
             .where(OdometerRecord.vin == vin)
@@ -465,7 +468,7 @@ class WidgetAggregationService:
         row = (await self.db.execute(stmt)).first()
         if row is None or row.odometer_km is None:
             return None
-        return int(row.odometer_km)
+        return row.odometer_km
 
     async def _reminder_totals(self, vins: list[str]) -> tuple[int, int]:
         """Sum overdue and upcoming pending reminders across `vins`.
@@ -483,7 +486,7 @@ class WidgetAggregationService:
 
         # Per-VIN latest odometer_km / engine hours for mileage/hours-based
         # overdue checks — one fetch per VIN, reused for every reminder.
-        odometer_by_vin: dict[str, int] = {}
+        odometer_by_vin: dict[str, Decimal] = {}
         hours_by_vin: dict[str, Decimal] = {}
         for vin in vins:
             current_km = await self._latest_odometer_km(vin)
@@ -508,7 +511,7 @@ class WidgetAggregationService:
     async def _overdue_upcoming(
         self,
         vins: list[str],
-        current_odometer_km: int | None,
+        current_odometer_km: Decimal | None,
         current_hours: Decimal | None,
     ) -> tuple[int, int]:
         """Classify pending reminders for the given VIN(s).
@@ -520,14 +523,11 @@ class WidgetAggregationService:
         if not vins:
             return 0, 0
         today = household_today()
-        current_km_decimal = (
-            Decimal(current_odometer_km) if current_odometer_km is not None else None
-        )
         stmt = select(Reminder).where(Reminder.vin.in_(vins), Reminder.status == "pending")
         reminders = (await self.db.execute(stmt)).scalars().all()
         # No rates: the widget has no due-soon figure, so no projection is needed.
         counts = classify_pending_reminders(
-            reminders, current_km_decimal, current_hours, None, None, today
+            reminders, current_odometer_km, current_hours, None, None, today
         )
         return counts.overdue, counts.upcoming
 

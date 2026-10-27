@@ -210,7 +210,7 @@ class TestEmittedPrecision:
         column = EMITTED_COLUMNS["OBC L/100km"]
         assert cell_for(column, "l_100km", Decimal("8.0000")) == "8.0000"
         # 100 / 8 = 12.5
-        assert cell_for(column, "km_l", Decimal("8.0000")) == "12.50000"
+        assert cell_for(column, "km_l", Decimal("8.0000")) == "12.500000"
         # 235.2145833... / 8 = 29.4018229 (rounds to 29.40182)
         assert cell_for(column, "mpg_us", Decimal("8.0000")) == "29.40182"
         # 282.4809363... / 8 = 35.310117 (rounds to 35.31012)
@@ -411,3 +411,23 @@ class TestEmissionMeetsTheImporter:
         assert back is not None
         # What the reimported row stores, at the column's 4 places.
         assert back.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) == stored
+
+    def test_a_thirsty_km_l_cell_round_trips_at_the_columns_four_places(self) -> None:
+        """km_l at five places only carried 0.0001 L/100km down to 3.16 km/L
+        (31.6 L/100km), so an RV or a loaded truck came back 1E-4 off. At six it
+        holds to 1 km/L."""
+        column = EMITTED_COLUMNS["OBC L/100km"]
+        context = build_csv_unit_context(
+            ["Date", header_for(column, "km_l")],
+            [{"Date": "2026-05-18", "unit_system": "custom", "units_version": "6"}],
+            (FUEL_CONSUMPTION,),
+        )
+        drifted: list[Decimal] = []
+        # 31.7 to 99.9 L/100km in odd steps, so no shared digit pattern hides a miss.
+        for step in range(317000, 999000, 997):
+            stored = Decimal(step).scaleb(-4)
+            back = context.to_canonical("consumption", Decimal(cell_for(column, "km_l", stored)))
+            assert back is not None
+            if back.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP) != stored:
+                drifted.append(stored)
+        assert drifted == []

@@ -425,14 +425,15 @@ async def download_service_history_csv(
     # These cells format a Decimal directly (`f"{cost:.2f}"`), where they used
     # to cast to float first. That change is PROVABLY INERT, not merely
     # untestable, and this note exists so nobody re-opens it looking for a
-    # missing test. ServiceLineItem.cost is Numeric(10, 2) and
-    # FuelRecord.cost is Numeric(8, 2), so the value reaching `:.2f` carries
-    # at most two decimals on either dialect: PostgreSQL rounds to scale on
-    # insert, and SQLAlchemy's Numeric result processor re-quantizes to scale
-    # on read for SQLite. Decimal's ROUND_HALF_EVEN and float's binary
-    # rounding can only disagree when a third decimal digit exists to round,
-    # and the column scale forbids one. There is nothing to observe, at any
-    # precision, on any dialect, so there is no test to write.
+    # missing test. ServiceLineItem.cost and FuelRecord.cost are both
+    # ScaledNumeric(12, 2), so the value reaching `:.2f` carries at most two
+    # decimals on either dialect: ScaledNumeric rounds every bind to scale
+    # (as PostgreSQL does on insert), and SQLAlchemy's Numeric result
+    # processor re-quantizes to scale on read for SQLite. Decimal's
+    # ROUND_HALF_EVEN and float's binary rounding can only disagree when a
+    # third decimal digit exists to round, and the column scale forbids one.
+    # There is nothing to observe, at any precision, on any dialect, so there
+    # is no test to write.
     for visit in visits:
         vendor_name = visit.vendor.name if visit.vendor else ""
         for item in visit.line_items:

@@ -240,6 +240,29 @@ class TestBackupRoutes:
         assert data["backup"]["type"] == "settings"
         assert data["backup"]["filename"].endswith(".json")
 
+    @pytest.mark.usefixtures("local_clock_off_utc")
+    async def test_an_uploaded_backup_serves_its_time_in_utc(
+        self, client: AsyncClient, auth_headers, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """The upload answer's `created` was the container's local clock, which
+        the frontend reads as UTC, so it showed hours off under a TZ."""
+        from datetime import datetime, timedelta
+
+        from app.routes import backup as backup_routes
+        from app.utils.datetime_utils import utc_now
+
+        monkeypatch.setattr(backup_routes, "BACKUP_DIR", tmp_path)
+        content = json.dumps({"version": "1.0.0", "settings": []}).encode()
+        response = await client.post(
+            "/api/backup/upload",
+            headers=auth_headers,
+            files={"file": ("up.json", BytesIO(content), "application/json")},
+        )
+
+        assert response.status_code == 200, response.text
+        created = datetime.fromisoformat(response.json()["backup"]["created"])
+        assert abs(created - utc_now()) < timedelta(minutes=1), created
+
     @requires_write_access
     async def test_upload_invalid_json(self, client: AsyncClient, auth_headers):
         """Test uploading invalid JSON backup."""

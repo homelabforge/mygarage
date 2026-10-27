@@ -32,7 +32,7 @@ class TestMPGCalculation:
         )
 
         # Current record: distance 482.80 km, 45.42 liters
-        # 45.42 L / (482.80 km / 100) = 9.41 L/100km
+        # 45.42 L / (482.80 km / 100) = 9.4076 L/100km
         current_record = FuelRecord(
             id="curr-1",
             vin="1HGBH41JXMN109186",
@@ -44,7 +44,7 @@ class TestMPGCalculation:
 
         result = calculate_l_per_100km(current_record, previous_record)
 
-        assert result == Decimal("9.41")
+        assert result == Decimal("9.4076")
 
     def test_calculate_mpg_partial_fillup_returns_none(self):
         """Test that partial fill-ups don't calculate L/100km."""
@@ -243,7 +243,7 @@ class TestMPGCalculation:
             is_full_tank=True,
         )
 
-        # 535.92 km / 45.42 L = 11.79 km/L → 8.48 L/100km
+        # 535.92 km / 45.42 L = 11.79 km/L → 8.4751 L/100km
         current_record = FuelRecord(
             id="curr-1",
             vin="1HGBH41JXMN109186",
@@ -255,10 +255,10 @@ class TestMPGCalculation:
 
         result = calculate_l_per_100km(current_record, previous_record)
 
-        # 45.42 / 535.92 * 100 = 8.475 → rounds to 8.48
-        assert result == Decimal("8.48")
-        # Check it's actually rounded to 2 places
-        assert result.as_tuple().exponent == -2
+        # 45.42 / 535.92 * 100 = 8.47514... → rounds to 8.4751
+        assert result == Decimal("8.4751")
+        # Check it's actually rounded to the consumption columns' 4 places
+        assert result.as_tuple().exponent == -4
 
     def test_calculate_mpg_high_efficiency(self):
         """Test L/100km calculation for high-efficiency vehicle."""
@@ -271,7 +271,7 @@ class TestMPGCalculation:
             is_full_tank=True,
         )
 
-        # 804.67 km / 37.85 L → 4.70 L/100km (hybrid/efficient)
+        # 804.67 km / 37.85 L → 4.7038 L/100km (hybrid/efficient)
         current_record = FuelRecord(
             id="curr-1",
             vin="1HGBH41JXMN109186",
@@ -283,8 +283,8 @@ class TestMPGCalculation:
 
         result = calculate_l_per_100km(current_record, previous_record)
 
-        # 37.85 / 804.67 * 100 = 4.7038... → 4.70
-        assert result == Decimal("4.70")
+        # 37.85 / 804.67 * 100 = 4.70379... → 4.7038
+        assert result == Decimal("4.7038")
 
     def test_calculate_mpg_low_efficiency(self):
         """Test L/100km calculation for low-efficiency vehicle."""
@@ -297,7 +297,7 @@ class TestMPGCalculation:
             is_full_tank=True,
         )
 
-        # 321.87 km / 75.71 L → 23.52 L/100km (truck/SUV)
+        # 321.87 km / 75.71 L → 23.5219 L/100km (truck/SUV)
         current_record = FuelRecord(
             id="curr-1",
             vin="1HGBH41JXMN109186",
@@ -309,8 +309,8 @@ class TestMPGCalculation:
 
         result = calculate_l_per_100km(current_record, previous_record)
 
-        # 75.71 / 321.87 * 100 = 23.522... → 23.52
-        assert result == Decimal("23.52")
+        # 75.71 / 321.87 * 100 = 23.52192... → 23.5219
+        assert result == Decimal("23.5219")
 
     def test_calculate_mpg_small_tank(self):
         """Test L/100km calculation with small tank (motorcycle/small car)."""
@@ -323,7 +323,7 @@ class TestMPGCalculation:
             is_full_tank=True,
         )
 
-        # 241.40 km / 13.25 L → 5.49 L/100km
+        # 241.40 km / 13.25 L → 5.4888 L/100km
         current_record = FuelRecord(
             id="curr-1",
             vin="1HGBH41JXMN109186",
@@ -335,8 +335,8 @@ class TestMPGCalculation:
 
         result = calculate_l_per_100km(current_record, previous_record)
 
-        # 13.25 / 241.40 * 100 = 5.4888... → 5.49
-        assert result == Decimal("5.49")
+        # 13.25 / 241.40 * 100 = 5.48881... → 5.4888
+        assert result == Decimal("5.4888")
 
     def test_calculate_mpg_decimal_precision(self):
         """Test that L/100km calculation handles Decimal types correctly."""
@@ -361,8 +361,8 @@ class TestMPGCalculation:
         result = calculate_l_per_100km(current_record, previous_record)
 
         assert isinstance(result, Decimal)
-        # 46.737 / 482.80 * 100 = 9.6804... → 9.68
-        assert result == Decimal("9.68")
+        # 46.737 / 482.80 * 100 = 9.68040... → 9.6804
+        assert result == Decimal("9.6804")
 
 
 @pytest.mark.unit

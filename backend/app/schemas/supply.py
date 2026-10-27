@@ -24,7 +24,9 @@ LenientSupplyVolumeUnit = Annotated[
 
 #: The largest quantity a Numeric(25,13) supply ledger column holds (purchases
 #: and usages alike). What the column holds and no tighter: a household cap
-#: would be invented, and past the column PostgreSQL refuses the row.
+#: would be invented, and past the column PostgreSQL refuses the row. SQLite
+#: keeps it as a REAL, so the max and any entry of 16+ significant digits read
+#: back with noise in the last digit, and OpenAPI renders it as the float 1e12.
 SUPPLY_QUANTITY_MAX = Decimal("999999999999.9999999999999")
 #: The column's grain. 13 places hold a US fl oz (0.0295735295625 L) and every
 #: other supported unit exactly, so a typed amount reads back as typed.

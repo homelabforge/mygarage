@@ -95,3 +95,23 @@ def test_header_shows_the_household_time_and_zone(
 def test_a_non_central_household_never_says_cst(monkeypatch: pytest.MonkeyPatch) -> None:
     drawn = header_strings(monkeypatch, "Europe/London", datetime(2026, 1, 15, 18, 30, tzinfo=UTC))
     assert not any("CST" in text for text in drawn), drawn
+
+
+def footer_strings(monkeypatch: pytest.MonkeyPatch, zone: str, instant: datetime) -> list[str]:
+    """Draw the footer in `zone` at `instant`; return the right-aligned text."""
+    monkeypatch.setattr(pdf_components, "datetime", frozen_at(instant))
+    household_zone_var.set(ZoneInfo(zone))
+    canvas = MagicMock()
+    pdf_components.draw_branded_footer(canvas, SimpleNamespace(page=1))
+    return [call.args[2] for call in canvas.drawRightString.call_args_list]
+
+
+def test_the_footer_report_id_is_the_household_time_like_the_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 23:30 UTC is already the next morning in Auckland, so a footer on the
+    # container's clock would be dated a day before the header.
+    instant = datetime(2026, 7, 15, 23, 30, tzinfo=UTC)
+    [footer] = footer_strings(monkeypatch, "Pacific/Auckland", instant)
+    assert footer.endswith("MG-20260716-113000"), footer
+    assert header_strings(monkeypatch, "Pacific/Auckland", instant)[0] == "July 16, 2026"

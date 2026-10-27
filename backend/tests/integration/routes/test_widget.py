@@ -457,3 +457,56 @@ class TestRateLimiting:
         widget_limiter.reset()
         resp = await client.get("/api/widget/summary", headers={"X-API-Key": plaintext})
         assert resp.status_code == 200
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestMileageReminderAgreesWithTheDashboard:
+    """A reading 0.4 km past a mileage reminder is overdue on every surface.
+
+    The widget used to cut the latest odometer to whole km before comparing, so
+    10000.80 km read as 10000 and a reminder due at 10000.40 wasn't overdue yet
+    there, while the dashboard (which keeps the fraction) said it was.
+    """
+
+    async def test_widget_and_dashboard_agree_inside_a_km_of_due(
+        self, client: AsyncClient, db_session, widget_owner, set_auth_mode
+    ):
+        from decimal import Decimal
+
+        from app.models.odometer import OdometerRecord
+        from app.models.reminder import Reminder
+        from app.services.auth import create_access_token
+
+        await set_auth_mode("local")
+        plaintext = await _make_key(db_session, widget_owner)
+        v = await _make_vehicle(db_session, widget_owner)
+        db_session.add(
+            OdometerRecord(vin=v.vin, date=date(2026, 9, 1), odometer_km=Decimal("10000.80"))
+        )
+        db_session.add(
+            Reminder(
+                vin=v.vin,
+                title="Rotate tyres",
+                reminder_type="mileage",
+                due_mileage_km=Decimal("10000.40"),
+                status="pending",
+            )
+        )
+        await db_session.commit()
+
+        token = create_access_token(
+            data={"sub": str(widget_owner.id), "username": widget_owner.username}
+        )
+        dashboard = await client.get("/api/dashboard", headers={"Authorization": f"Bearer {token}"})
+        assert dashboard.status_code == 200, dashboard.text
+        card = next(c for c in dashboard.json()["vehicles"] if c["vin"] == v.vin)
+        assert card["overdue_maintenance_count"] == 1
+
+        key = {"X-API-Key": plaintext}
+        summary = (await client.get("/api/widget/summary", headers=key)).json()
+        assert summary["total_overdue_maintenance"] == 1
+        for path in (f"/api/widget/vehicle/{v.vin}", f"/api/v2/widget/vehicle/{v.vin}"):
+            detail = await client.get(path, headers=key)
+            assert detail.status_code == 200, detail.text
+            assert detail.json()["overdue_maintenance"] == 1, path

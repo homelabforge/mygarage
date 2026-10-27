@@ -1083,7 +1083,7 @@ class TestHomePageFuelEconomyAndTowing:
     ):
         """Tanks of 100 km at 10.0 and 400 km at 5.0, twice over. All four:
         60 L / 1000 km = 6.00 (a mean of figures says 7.50). The last three:
-        50 L / 900 km = 5.56 (a mean says 6.67)."""
+        50 L / 900 km = 5.5556 (a mean says 6.67)."""
         vin, headers = await _isolated_fleet(db_session)
         today = date.today()
         for days, odo, litres in [
@@ -1107,14 +1107,14 @@ class TestHomePageFuelEconomyAndTowing:
 
         stats = await self._stats(client, headers, vin)
         assert Decimal(str(stats["average_l_per_100km"])) == Decimal("6.00")
-        assert Decimal(str(stats["recent_l_per_100km"])) == Decimal("5.56")
+        assert Decimal(str(stats["recent_l_per_100km"])) == Decimal("5.5556")
         assert stats["towing_l_per_100km"] is None
 
     async def test_the_last_three_tanks_skip_an_impossible_one(
         self, client: AsyncClient, db_session: AsyncSession
     ):
         """A mistyped odometer sorts last. "Last 3 tanks" is the last three
-        tanks that could be real: (20 + 10 + 20) L over 900 km = 5.56."""
+        tanks that could be real: (20 + 10 + 20) L over 900 km = 5.5556."""
         vin, headers = await _isolated_fleet(db_session)
         today = date.today()
         for days, odo, litres in [
@@ -1139,7 +1139,7 @@ class TestHomePageFuelEconomyAndTowing:
 
         stats = await self._stats(client, headers, vin)
         assert Decimal(str(stats["average_l_per_100km"])) == Decimal("6.00")
-        assert Decimal(str(stats["recent_l_per_100km"])) == Decimal("5.56")
+        assert Decimal(str(stats["recent_l_per_100km"])) == Decimal("5.5556")
 
     async def test_a_vehicle_that_never_tows_has_no_towing_figure(
         self, client: AsyncClient, db_session: AsyncSession

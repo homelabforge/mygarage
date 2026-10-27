@@ -15,7 +15,7 @@ Don't downgrade without a plan for the secrets. An older version reads the encry
 
 Keep every key you retire. To rotate, put a new key first in the keyring (the file or the variable, with keys separated by commas or newlines) and the old one after it, restart, and check that the log line `Encrypted N, re-keyed M, unreadable: ...` says `unreadable: none`. Then remove the old key and restart again. Removing a key makes every backup taken under it unreadable for secrets, even though the live settings moved to the new key, so keep old keys somewhere safe outside the keyring if you may restore an old backup. A key is a base64url-encoded 32-byte value, such as the output of Python's `secrets.token_urlsafe(32)`.
 
-There is no migration and nothing else to do. The first start encrypts the stored secrets and logs how many. If MyGarage can't write `/data/settings.key` and neither variable is set, the secrets stay unencrypted and keep working, but saving one answers 503, and so does creating or restoring a backup while any of them is unencrypted, until you set `MYGARAGE_SETTINGS_KEY` or make the data directory writable. Settings shows a banner while the key is unavailable or a secret can't be decrypted.
+The encryption needs no migration and nothing else from you. The first start encrypts the stored secrets and logs how many. If MyGarage can't write `/data/settings.key` and neither variable is set, the secrets stay unencrypted and keep working, but saving one answers 503, and so does creating or restoring a backup while any of them is unencrypted, until you set `MYGARAGE_SETTINGS_KEY` or make the data directory writable. Settings shows a banner while the key is unavailable or a secret can't be decrypted.
 
 The old plaintext can outlive the encryption inside the database files. On SQLite the first start zeroes the old copies of the rows it rewrites (`secure_delete`) and truncates the WAL, but plaintext freed by edits made before the upgrade can stay in free space, which a full backup copies, until a `VACUUM`. On PostgreSQL the pre-upgrade values stay in the table's files (VACUUM frees that space but doesn't zero it) and in the WAL until both are reused; `pg_dump`, and so a full backup, doesn't carry them.
 
@@ -24,6 +24,18 @@ The encryption protects the secret settings in every copy that leaves without th
 The scheduled recall check now follows the Recall Check Interval in Settings > Integrations instead of running every Sunday. Upload size limits are set with `MYGARAGE_MAX_UPLOAD_SIZE_MB` (photos and attachments) and `MYGARAGE_MAX_DOCUMENT_SIZE_MB` (documents), not in Settings; the Files tab shows the limits in force.
 
 Back up before you upgrade. Migration 133 is FATAL: if it fails, MyGarage refuses to start. Make a full backup from Settings > Backup > Create Full Backup, or as an admin call `POST /api/backup/create-full`. Migration 133 records how each odometer key was read before (km for a standard PID key like `A6-ODOMETER`, miles for a named one like `ODOMETER` or `MILEAGE`) on each WiCAN with no odometer unit set that already sent it, so its odometer reads as it did before, whatever its config declares now.
+
+Migrations 134 and 135 are FATAL too, so the same backup covers them. A full backup on PostgreSQL runs `pg_dump`; to back up by hand, use `sqlite3 /data/mygarage.db ".backup /path/to/copy.db"` on SQLite (never a plain copy of the live file) or `pg_dump` on PostgreSQL.
+
+On PostgreSQL, MyGarage now pins every database session to UTC. Before, a server whose timezone wasn't UTC (a `TZ` on its container is enough) stored the times the database stamps itself, like most created and updated times, in its own zone, hours off. Migration 134 converts those stored times to UTC once. A UTC server has nothing to convert. If the session zone came from MyGarage's side instead (`PGTZ`, `PGOPTIONS` or a connection option), nothing is converted, the log warns and names the zone, and the migration doesn't run again.
+
+On PostgreSQL, any migration that fails before 134 has run now stops startup, FATAL or not, and so does a failure to switch the migration run to UTC once 134 has run. Starting with the conversion still pending would write UTC times that it then shifts. Fix the logged error and restart.
+
+If you ran an unreleased build of main from commit b241336e on, against PostgreSQL in a non-UTC zone, that build already stored the created times of LiveLink devices, their declared units and odometer readings in UTC, and 134 shifts those by the server's offset. Released versions aren't affected.
+
+Migration 135 widens 14 columns on PostgreSQL, so prices keep four decimal places and temperatures, consumption, tank sizes, trailer sizes and supply quantities keep what you type. On PostgreSQL a fuel or DEF price saved before this version was already rounded to three places and keeps that rounding: a UK 6.000/gal saved before still reads 6.001 until you re-enter it.
+
+On SQLite, migration 136 rounds the numbers already stored to their column's places once, so older rows compare like new ones. It isn't FATAL: if it fails, MyGarage starts anyway and it tries again on the next start.
 
 If you still have the 3.3.0 odometer repair to run, make this version's first start a maintenance-mode one (`MYGARAGE_MAINTENANCE_MODE=1`: it runs the migrations and takes no readings), run the repair then in the 3.3.0 order (backfill, normalize, fix sessions, recompute), and restart without the variable.
 
@@ -97,6 +109,23 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - A drive's details list every parameter it recorded, and count only its own device's readings inside its own window
 - A vehicle's LiveLink status no longer comes from a device that's switched off while an enabled one is linked
 - The manual SD pull answers 404 for a device that doesn't exist, instead of an empty result
+- On PostgreSQL, created and updated times the database stamps itself are stored in UTC whatever the server's timezone, and earlier ones are converted once (migration 134)
+- A setting's updated time, including the computed timezone entry, and an address book entry's last-used time are stored and served in UTC instead of the container's local time
+- The PDF header shows the household's date and time with its real zone (GMT, CDT and so on) instead of the container's clock labelled CST
+- The PDF footer's report ID and an imported insurance policy's "Auto-imported on" note use the household's date, not the container's
+- Backup and database times in Settings > Backup no longer read hours off when the container has a timezone set
+- A fuel or DEF price typed per gallon comes back as typed: a UK 6.000/gal no longer reads 6.001, a US 3.999/gal no longer 3.997
+- An outside temperature typed in Fahrenheit comes back as typed (72.2 F no longer reads 72.1)
+- OBC and window sticker fuel economy keep four places in L/100km, so a typed MPG comes back as typed (a 58 MPG sticker no longer reads 57.9)
+- A propane tank size and a trailer's dimensions and GVWR keep a third decimal place, so a value typed in pounds or feet comes back as typed
+- A supply quantity typed in US fl oz is stored exactly: 1.00 fl oz no longer reads 1.01, and buying 32 fl oz then logging 32 uses of 1 fl oz leaves none on hand instead of a shortage
+- On SQLite, every number is rounded to its column's places when it's written, as PostgreSQL does, so a tank's fuel economy no longer takes in the previous full tank's fuel and the widget's MPG no longer drops its oldest tank when the odometer was typed in miles
+- On SQLite, an import that skips duplicates now skips a row matching a stored one at the column's places (1234.56 h against a stored 1234.6 h) instead of adding it again
+- A value exactly halfway between two of its column's places, like 1.005 in a cost, rounds up on both databases; PostgreSQL could store 1.00
+- Fuel economy per tank, its averages, the Analytics figures and the OBC suggestion from a drive are worked out to four places in L/100km, the precision it's stored at, instead of two
+- A CSV export in km/L carries six decimal places, so economy past 31.6 L/100km (under 3.16 km/L) re-imports as it was
+- The homepage widget counts a mileage reminder overdue as soon as the odometer passes it, like the dashboard, instead of up to 1 km later
+- Deleting a vehicle with odometer or engine-hours readings synced from its fuel records or service visits no longer logs a SQLAlchemy warning
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)

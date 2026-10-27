@@ -147,8 +147,9 @@ def draw_branded_footer(canvas: Any, doc: Any) -> None:  # pyright: ignore[repor
     canvas.setFillColor(TEXT_MUTED)
     canvas.drawString(x_left + text_w + bold_w, y + 5, " · homelabforge.io")
 
-    # Right: version + report ID
-    now = datetime.now()
+    # Right: version + report ID. Household time, like the header, so the two
+    # dates on the page agree.
+    now = datetime.now(household_zone())
     report_id = f"MG-{now.strftime('%Y%m%d-%H%M%S')}"
     canvas.setFont(mono, 11)
     canvas.setFillColor(TEXT_MUTED)

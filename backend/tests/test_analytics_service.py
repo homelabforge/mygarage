@@ -270,7 +270,7 @@ class TestCalculateFuelEconomy:
 
         # Only the normal trip (482.80 km / 45.42 L ≈ 9.41 L/100km) should remain
         assert len(df) == 1
-        assert stats["average_l_per_100km"] == Decimal("9.41")
+        assert stats["average_l_per_100km"] == Decimal("9.4076")
 
     def test_orders_by_odometer_not_date(self):
         """Records are sequenced by odometer (the canonical economy model), so a
@@ -345,10 +345,10 @@ class TestCalculateFuelEconomy:
 
         # One point (the second full tank); the partial is not plotted.
         assert len(df) == 1
-        # (24.79 + 52.95) / (140354 - 139530) * 100 = 77.74 / 824 * 100 = 9.43,
+        # (24.79 + 52.95) / (140354 - 139530) * 100 = 77.74 / 824 * 100 = 9.4345,
         # not the 52.95-only 6.43 the old per-fill-up path produced.
-        assert stats["average_l_per_100km"] == Decimal("9.43")
-        assert stats["recent_l_per_100km"] == Decimal("9.43")
+        assert stats["average_l_per_100km"] == Decimal("9.4345")
+        assert stats["recent_l_per_100km"] == Decimal("9.4345")
 
     def test_the_average_is_total_fuel_over_total_distance(self):
         """A 100 km tank at 10 L/100km and a 400 km tank at 5 L/100km burned

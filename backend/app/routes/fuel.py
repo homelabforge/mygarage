@@ -203,7 +203,7 @@ async def obc_suggestion(
                 Decimal(str(session.fuel_used_estimate))
                 / Decimal(str(session.distance_km))
                 * Decimal("100")
-            ).quantize(Decimal("0.01"))
+            ).quantize(Decimal("0.0001"))  # the column's four places
         except Exception:
             obc_l_per_100km = None
 
