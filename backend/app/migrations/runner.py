@@ -56,12 +56,21 @@ class MigrationRunner:
 
         A fresh engine, not a listener on this one: a connection already in the
         pool never sees a new listener and would keep the server's zone.
+
+        A failed swap is fatal whatever migration it follows. Past the repair
+        nothing else stops startup, so the run would end here and the app would
+        boot with the rest never run.
         """
         if self.pinned or not pins_sessions(self.engine.dialect.name, applied):
             return
-        unpinned = self.engine
-        self.engine = create_utc_engine(self.database_url, hide_parameters=True)
-        unpinned.dispose()
+        try:
+            unpinned = self.engine
+            self.engine = create_utc_engine(self.database_url, hide_parameters=True)
+            unpinned.dispose()
+        except Exception as e:
+            logger.error("Couldn't pin migration sessions to UTC, so startup stops: %s", e)
+            e.__migration_fatal__ = True  # type: ignore[attr-defined]
+            raise
         self.pinned = True
         logger.info("Timestamp repair is applied; migration sessions now run in UTC")
 
@@ -328,8 +337,9 @@ class MigrationRunner:
         inside ONE try/except: on the first failure the runner logs, annotates
         the exception with ``__migration_fatal__`` (from the loaded module's
         FATAL flag, or False if it failed to load; always True on PostgreSQL
-        while the timestamp repair is unstamped), and re-raises, stopping the
-        chain without marking the failed migration applied.
+        while the timestamp repair is unstamped, and when the UTC pin swap
+        fails), and re-raises, stopping the chain without marking the failed
+        migration applied. A swap that fails at the start is annotated too.
         """
         self._ensure_migration_tracking_table()
 
@@ -360,6 +370,8 @@ class MigrationRunner:
             except Exception as e:
                 logger.error("Migration '%s' failed: %s", name, e)
                 fatal = bool(getattr(module, "FATAL", False)) if module is not None else False
+                if getattr(e, "__migration_fatal__", False) is True:
+                    fatal = True  # a failed pin swap marks itself
                 if (
                     self.engine.dialect.name == "postgresql"
                     and TIMESTAMP_REPAIR_STEM not in applied

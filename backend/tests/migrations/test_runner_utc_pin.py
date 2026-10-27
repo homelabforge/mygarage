@@ -358,6 +358,127 @@ def test_sqlite_a_failure_before_the_repair_stays_non_fatal(
     assert getattr(raised.value, "__migration_fatal__", None) is False
 
 
+# --- R5b: init_db's positive check, and a pin swap that fails --------------------
+
+
+async def _init_db_on(d: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The app's own startup, on the real runner, against a fake dir."""
+    from app import database
+
+    run = runner_module.run_migrations
+    monkeypatch.setattr(runner_module, "run_migrations", lambda url, _dir: run(url, d))
+    try:
+        await database.init_db()
+    finally:
+        # The app engine pools; leave none of its connections behind for other tests.
+        await database.engine.dispose()
+
+
+def _injected(*_args: object, **_kwargs: object) -> None:
+    raise RuntimeError("injected failure")
+
+
+@pytest.mark.parametrize("seam", ["_ensure_migration_tracking_table", "_get_applied_migrations"])
+async def test_pg_init_db_stops_when_the_runner_fails_outside_its_handler(
+    pg_engine: Engine,
+    tmp_path: Path,
+    repair_stem: str,
+    monkeypatch: pytest.MonkeyPatch,
+    seam: str,
+) -> None:
+    """The bootstrap and the history read run before the per-migration try, unannotated."""
+    monkeypatch.setattr(MigrationRunner, seam, _injected)
+
+    with pytest.raises(RuntimeError, match=repair_stem):
+        await _init_db_on(_migrations(tmp_path, {repair_stem: _NOOP}), monkeypatch)
+
+
+async def test_pg_init_db_stops_when_the_runner_is_clean_but_the_repair_is_missing(
+    pg_engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No file has the stem's name, so every migration runs fine and the repair never does."""
+    monkeypatch.setattr(runner_module, "TIMESTAMP_REPAIR_STEM", "999_no_such_migration")
+
+    with pytest.raises(RuntimeError, match="999_no_such_migration"):
+        await _init_db_on(_migrations(tmp_path, {"001_other": _NOOP}), monkeypatch)
+
+    assert _applied(pg_engine) == {"001_other"}
+
+
+async def test_pg_init_db_goes_on_once_the_repair_is_stamped(
+    pg_engine: Engine, tmp_path: Path, repair_stem: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Guard: the check lets a repaired database start.
+
+    Kills a check that refuses on PG whatever it finds, or that looks for a name
+    other than the runner's constant.
+    """
+    await _init_db_on(_migrations(tmp_path, {repair_stem: _NOOP}), monkeypatch)
+
+    assert _applied(pg_engine) == {repair_stem}
+
+
+async def test_sqlite_init_db_still_logs_a_bootstrap_failure_and_goes_on(
+    tmp_path: Path, repair_stem: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Guard: SQLite keeps today's policy. Kills dropping the dialect test from the check."""
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app import database
+    from app.config import settings
+
+    url = f"sqlite+aiosqlite:///{tmp_path / 'mygarage.db'}"
+    engine = create_async_engine(url)
+    monkeypatch.setattr(database, "engine", engine)
+    monkeypatch.setattr(settings, "database_url", url)
+    monkeypatch.setattr(MigrationRunner, "_ensure_migration_tracking_table", _injected)
+    d = _migrations(tmp_path, {repair_stem: _NOOP})
+    run = runner_module.run_migrations
+    monkeypatch.setattr(runner_module, "run_migrations", lambda u, _dir: run(u, d))
+    try:
+        await database.init_db()
+    finally:
+        await engine.dispose()
+
+
+def _swap_fails(*_args: object, **_kwargs: object) -> Engine:
+    raise RuntimeError("pin swap failed")
+
+
+async def test_pg_a_pin_swap_that_fails_at_start_stops_startup(
+    pg_engine: Engine, tmp_path: Path, repair_stem: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The repair is stamped, so the positive check passes; the swap itself has to be fatal.
+
+    Otherwise the run stops at the swap, unannotated, and the app boots with
+    later migrations never run.
+    """
+    d = _migrations(tmp_path, {repair_stem: _NOOP})
+    run_migrations(_pg_url(), d)
+    _migrations(tmp_path, {"003_after": _NOOP})
+    monkeypatch.setattr(runner_module, "create_utc_engine", _swap_fails)
+
+    with pytest.raises(RuntimeError, match="pin swap failed") as raised:
+        await _init_db_on(d, monkeypatch)
+
+    assert getattr(raised.value, "__migration_fatal__", None) is True
+    assert _applied(pg_engine) == {repair_stem}
+
+
+def test_pg_a_pin_swap_that_fails_after_the_repair_is_fatal(
+    pg_engine: Engine, tmp_path: Path, repair_stem: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The repair stamped, then its swap failed: fatal even though the repair's module isn't."""
+    d = _migrations(tmp_path, {repair_stem: _NOOP, "003_after": _NOOP})
+    monkeypatch.setattr(runner_module, "create_utc_engine", _swap_fails)
+
+    with pytest.raises(RuntimeError, match="pin swap failed") as raised:
+        run_migrations(_pg_url(), d)
+
+    assert getattr(raised.value, "__migration_fatal__", None) is True
+    assert _applied(pg_engine) == {repair_stem}
+
+
 # --- tools: same pin rule as the runner -------------------------------------------
 
 

@@ -143,3 +143,4 @@ migrations must swallow their own operational errors.
 | `131_add_brake_tracking` | Add brake tracking: axle setup, brake measurements, brake jobs and reminder marks (#202). |
 | `132_add_livelink_device_units` | Add livelink_device_units: the units each LiveLink device declared on the wire (R12). |
 | `133_record_wican_legacy_odometer_unit` | **FATAL** — Record main's reading of each WiCAN odometer key, so 3.10 reads them the same (D6a, R1-H1). |
+| `134_pg_timestamp_repair_utc` | **FATAL** — Convert PostgreSQL timestamps written in the server's zone to UTC (RD-6). |

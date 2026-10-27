@@ -4,7 +4,7 @@ import logging
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -197,3 +197,41 @@ async def init_db():
             raise
         # Otherwise: log-and-continue (preserves the historical behaviour for
         # additive migrations that are safe to run alongside the old schema).
+
+    # Whatever happened above, PG doesn't start until the timestamp repair is in.
+    await require_timestamp_repair()
+
+
+async def require_timestamp_repair() -> None:
+    """On PostgreSQL, refuse to start unless the timestamp repair is stamped (R5b).
+
+    The runner's own handler can't catch everything: its bootstrap and history
+    read run outside it, and a non-FATAL failure is logged and shrugged off. The
+    app is pinned to UTC, so booting with the repair pending would write UTC rows
+    that a later repair then shifts.
+
+    Raises:
+        RuntimeError: the stem isn't in ``schema_migrations``, or it can't be read.
+    """
+    if engine.dialect.name != "postgresql":
+        return
+    from app.migrations import runner
+
+    stem = runner.TIMESTAMP_REPAIR_STEM
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text("SELECT 1 FROM schema_migrations WHERE migration_name = :stem"),
+                {"stem": stem},
+            )
+            found = result.first()
+    except Exception as e:
+        raise RuntimeError(
+            f"Couldn't check that the PostgreSQL timestamp repair ({stem}) ran, "
+            f"so startup stops: {e}"
+        ) from e
+    if found is None:
+        raise RuntimeError(
+            f"The PostgreSQL timestamp repair ({stem}) hasn't run, so startup stops. "
+            "Fix the migration error logged above and restart."
+        )
