@@ -149,6 +149,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - A reminder due soon with no expected date (no driving rate to project one from) shows on today on the calendar, marked estimated, instead of not at all
 - Low-tread reminders follow their tire: dismounting it dismisses the reminder, retiring it completes it, a rotation or set fit renames it to the new corner or closes it, and deleting the tire dismisses it. A tire in storage raises none. On the tire's next save (a reading added, edited or deleted, an edit, a restore, a retire, a mount, a rotation or a set fit), an older "(in storage)" reminder is dismissed if the tire stays off the vehicle, completed if the tire is retired or goes back on above the minimum, and becomes that corner's reminder if it goes back on still below the minimum
 - The reminder list's type chip shows a translated label instead of the stored value (such as "smart")
+- Insurance and warranty expiry notifications no longer skip a day when the daily check starts a moment earlier than the day before
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)

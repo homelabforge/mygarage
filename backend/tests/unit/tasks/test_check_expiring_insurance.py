@@ -1,4 +1,7 @@
-"""The expiry job notifies about a household policy ONCE, and only while it matters."""
+"""The expiry job notifies about a household policy ONCE, and only while it matters.
+
+It runs daily, so yesterday's stamp must not hold back today's nag.
+"""
 
 from datetime import timedelta
 
@@ -9,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.vehicle import Vehicle
+from app.models.warranty import WarrantyRecord
 from app.tasks import scheduled
 from app.utils.datetime_utils import utc_now
 from app.utils.household_time import household_today
@@ -140,3 +144,57 @@ async def test_a_policy_whose_renewal_is_already_entered_stops_asking(db_session
     await scheduled.check_expiring_documents()
 
     assert sent == [], "entering the next term early is how the user says it is handled"
+
+
+@pytest_asyncio.fixture
+async def warranty_sent(db_session: AsyncSession, sent, monkeypatch: pytest.MonkeyPatch):
+    """The stub dispatcher from `sent`, recording warranty calls too."""
+    calls: list[dict] = []
+    base = scheduled.NotificationDispatcher
+
+    class _WithWarranty(base):
+        async def notify_warranty_expiring(self, **kwargs):
+            calls.append(kwargs)
+            return {"discord": True}
+
+    monkeypatch.setattr(scheduled, "NotificationDispatcher", _WithWarranty)
+    await db_session.execute(delete(WarrantyRecord))
+    await db_session.commit()
+    yield calls
+    await db_session.execute(delete(WarrantyRecord))
+    await db_session.commit()
+
+
+@pytest.mark.parametrize(
+    ("ago", "nags"), [(timedelta(hours=23, minutes=59), 1), (timedelta(hours=2), 0)]
+)
+async def test_yesterdays_policy_stamp_does_not_hold_back_todays_nag(db_session, sent, ago, nags):
+    db_session.add(_expiring(RAM, last_notified_at=utc_now() - ago))
+    await db_session.commit()
+
+    await scheduled.check_expiring_documents()
+
+    assert len(sent) == nags
+
+
+@pytest.mark.parametrize(
+    ("ago", "nags"), [(timedelta(hours=23, minutes=59), 1), (timedelta(hours=2), 0)]
+)
+async def test_yesterdays_warranty_stamp_does_not_hold_back_todays_nag(
+    db_session, warranty_sent, ago, nags
+):
+    today = household_today()
+    db_session.add(
+        WarrantyRecord(
+            vin=RAM,
+            warranty_type="Powertrain",
+            start_date=today - timedelta(days=700),
+            end_date=today + timedelta(days=10),
+            last_notified_at=utc_now() - ago,
+        )
+    )
+    await db_session.commit()
+
+    await scheduled.check_expiring_documents()
+
+    assert len(warranty_sent) == nags

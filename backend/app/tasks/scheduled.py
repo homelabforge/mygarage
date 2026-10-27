@@ -56,6 +56,8 @@ scheduler = AsyncIOScheduler()
 
 # Notification dedup cooldown (24 hours)
 NOTIFICATION_COOLDOWN = timedelta(hours=24)
+# The checks run once a day, so yesterday's stamp can read a little under 24 h.
+NOTIFICATION_COOLDOWN_SLACK = timedelta(hours=1)
 
 
 async def _get_setting(db: AsyncSession, key: str, default: str = "") -> str:
@@ -98,7 +100,8 @@ async def check_expiring_documents() -> None:
     """Check for expiring insurance and warranties and send notifications.
 
     Runs daily at 9 AM UTC. Reads notify_insurance_days and notify_warranty_days
-    settings. Uses 24-hour cooldown to prevent duplicate notifications.
+    settings. A 24-hour cooldown, less an hour of slack, keeps it to one
+    notification a day.
     """
     async with AsyncSessionLocal() as db:
         await load_household_zone(db)
@@ -145,7 +148,8 @@ async def check_expiring_documents() -> None:
                     continue
                 if (
                     policy.last_notified_at
-                    and (now - policy.last_notified_at) < NOTIFICATION_COOLDOWN
+                    and (now - policy.last_notified_at)
+                    < NOTIFICATION_COOLDOWN - NOTIFICATION_COOLDOWN_SLACK
                 ):
                     continue
 
@@ -184,7 +188,8 @@ async def check_expiring_documents() -> None:
                 # Dedup check
                 if (
                     warranty.last_notified_at
-                    and (now - warranty.last_notified_at) < NOTIFICATION_COOLDOWN
+                    and (now - warranty.last_notified_at)
+                    < NOTIFICATION_COOLDOWN - NOTIFICATION_COOLDOWN_SLACK
                 ):
                     continue
 
