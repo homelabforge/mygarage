@@ -16,6 +16,9 @@
 services:
   postgres-test:
     image: postgres:16-alpine
+    # A non-UTC server zone, so a session that isn't pinned to UTC shows up.
+    # +05:30 catches a sign flip or hour-only maths too (RD-6).
+    command: ["postgres", "-c", "timezone=Asia/Kolkata"]
     environment:
       POSTGRES_USER: mygarage
       POSTGRES_PASSWORD: testpass
