@@ -133,4 +133,25 @@ describe('OdometerRecordList: the CSV import toast', () => {
       'odometerRecordList.importCompleted - odometerRecordList.importWarningsLabel: Row 2: kept as text',
     )
   })
+
+  it('caps each list at five plus a more-count, errors before warnings', () => {
+    importMutate.mockImplementation((_form: FormData, options: { onSuccess: (r: unknown) => void }) =>
+      options.onSuccess({
+        success_count: 7,
+        skipped_count: 0,
+        error_count: 1,
+        errors: ['Row 9: bad date'],
+        warnings: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7'],
+      }),
+    )
+    const { container } = render(<OdometerRecordList {...PROPS} />)
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+    fireEvent.change(input, { target: { files: [new File(['Date\n'], 'odometer.csv')] } })
+    // Before: warnings first, and all seven of them.
+    expect(toast.error).toHaveBeenCalledWith(
+      'odometerRecordList.importCompleted' +
+        ' - odometerRecordList.importErrorsLabel: Row 9: bad date' +
+        ' - odometerRecordList.importWarningsLabel: w1, w2, w3, w4, w5, vehicles:detail.misc.importMoreCount',
+    )
+  })
 })

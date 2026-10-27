@@ -85,4 +85,12 @@ describe('AppToaster against real sonner', () => {
     expect(s.getPropertyValue('--mobile-offset-bottom')).toBe('calc(16px + var(--toast-lift))')
     expect(s.getPropertyValue('--mobile-offset-top')).toBe('16px')
   })
+
+  it('a description keeps its line breaks', () => {
+    // The import summary is one line per section, and sonner renders white-space normal.
+    render(ui(false))
+    act(() => { toast.success('done', { description: 'a\nb' }) })
+    settle(100)
+    expect(document.querySelector('[data-description]')!.className).toContain('whitespace-pre-line')
+  })
 })

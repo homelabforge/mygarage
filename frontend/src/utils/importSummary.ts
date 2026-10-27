@@ -8,7 +8,7 @@ export type ImportSectionResult = {
 }
 
 /** The section buckets the JSON import returns, in the order it imports them. */
-const SECTIONS = [
+export const SECTIONS = [
   ['service_records', 'vehicles:detail.misc.importServiceRecords'],
   ['fuel_records', 'vehicles:detail.misc.importFuelRecords'],
   ['def_records', 'vehicles:defList.title'],
@@ -36,16 +36,20 @@ export type ImportJsonResult = Partial<Record<SectionKey, ImportSectionResult>> 
 /** How many of each list the toast shows before it says how many more. */
 const LISTED = 5
 
-/** Up to LISTED messages, one a line, then how many more there are. */
-function listMessages(messages: readonly string[], t: TFunction): string {
-  const shown = messages.slice(0, LISTED).join('\n')
+/**
+ * Up to LISTED messages, then how many more there are. One a line by default;
+ * the CSV toasts pass ', ' since their text is one sentence.
+ */
+export function listMessages(messages: readonly string[], t: TFunction, separator = '\n'): string {
+  const shown = messages.slice(0, LISTED).join(separator)
   const rest = messages.length - LISTED
-  return rest > 0 ? `${shown}\n${t('vehicles:detail.misc.importMoreCount', { count: rest })}` : shown
+  return rest > 0 ? `${shown}${separator}${t('vehicles:detail.misc.importMoreCount', { count: rest })}` : shown
 }
 
 /**
  * The toast text for a vehicle JSON import: a heading, one line per section
  * the response carries, then the first errors and warnings (N-3, J2).
+ * It's built from \n lines, so the caller has to render it pre-line.
  */
 export function buildImportSummary(result: ImportJsonResult, t: TFunction): string {
   // Qualified keys: this runs outside a component, so there's no bound namespace.

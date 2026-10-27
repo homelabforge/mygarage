@@ -8,6 +8,7 @@ import api from '../services/api'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useOdometerRecords, useDeleteOdometerRecord, useImportOdometerCSV } from '../hooks/queries/useOdometerRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { listMessages } from '../utils/importSummary'
 import { Button, IconButton, Card, Mono, Badge, DataTable, EmptyState } from './ui'
 import type { DataTableColumn } from './ui'
 
@@ -98,15 +99,19 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
           parts.push(t('odometerRecordList.importErrored', { count: result.error_count }))
         }
         let message = t('odometerRecordList.importCompleted', { summary: parts.join(', ') })
-        if (result.warnings && result.warnings.length > 0) {
-          // Backend-supplied warning strings are appended verbatim, never routed through t().
-          message = `${message} - ${t('odometerRecordList.importWarningsLabel')}: ${result.warnings.join(', ')}`
+        // Errors then warnings, five of each at most. Backend strings go in
+        // verbatim, never routed through t().
+        const errors = result.errors ?? []
+        const warnings = result.warnings ?? []
+        if (errors.length > 0) {
+          message = `${message} - ${t('odometerRecordList.importErrorsLabel')}: ${listMessages(errors, t, ', ')}`
+        }
+        if (warnings.length > 0) {
+          message = `${message} - ${t('odometerRecordList.importWarningsLabel')}: ${listMessages(warnings, t, ', ')}`
         }
 
-        if (result.errors && result.errors.length > 0) {
-          // Backend-supplied error strings are appended verbatim, never
-          // routed through t().
-          toast.error(`${message} - ${t('odometerRecordList.importErrorsLabel')}: ${result.errors.join(', ')}`)
+        if (errors.length > 0) {
+          toast.error(message)
         } else {
           toast.success(message)
         }

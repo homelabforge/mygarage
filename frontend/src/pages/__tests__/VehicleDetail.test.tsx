@@ -785,6 +785,31 @@ describe('VehicleDetail', () => {
     }
   })
 
+  it('a JSON import toast with errors or warnings stays up longer than a clean one', async () => {
+    const { toast } = await import('sonner')
+    const importFile = (container: HTMLElement): void => {
+      const input = container.querySelector('input[type="file"][accept=".json"]') as HTMLInputElement
+      fireEvent.change(input, {
+        target: { files: [new File(['{}'], 'vehicle.json', { type: 'application/json' })] },
+      })
+    }
+    vi.mocked(api.post).mockResolvedValue({ data: { warnings: ['Toll transaction 0: kept'] } } as { data: unknown })
+    const first = renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    importFile(first.container)
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1))
+    // Before: sonner's default 4s, lists or not.
+    expect(vi.mocked(toast.success).mock.calls[0][1]).toMatchObject({ duration: 10_000 })
+    first.unmount()
+
+    vi.mocked(api.post).mockResolvedValue({ data: { errors: [], warnings: [] } } as { data: unknown })
+    const second = renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    importFile(second.container)
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(2))
+    expect(vi.mocked(toast.success).mock.calls[1][1]?.duration).toBeUndefined()
+  })
+
   it('an older stats response never overwrites a newer one (codex R1-M2: a refresh cancels the one in flight)', async () => {
     const deferred: Array<(stats: VehicleDetailStats) => void> = []
     mockedVehicleService.getDetailStats.mockImplementation(

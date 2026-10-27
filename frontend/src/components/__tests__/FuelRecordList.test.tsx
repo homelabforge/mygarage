@@ -78,12 +78,14 @@ vi.mock('react-i18next', () => ({
         message?: string
         errors?: string | number
         warnings?: string
+        count?: number
       },
     ) => {
       if (options?.message !== undefined) {
         return `${key} (${options.message} | ${options.errors ?? options.warnings})`
       }
-      const echoed = options?.unit ?? options?.value ?? options?.format
+      // count too, so the import lists' "+N more" shows its N.
+      const echoed = options?.unit ?? options?.value ?? options?.format ?? options?.count
       return echoed !== undefined ? `${key} (${echoed})` : key
     },
     i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
@@ -779,6 +781,30 @@ describe('FuelRecordList: third-party imports ask for units and decimals (G5a-82
     )
     expect(vehiclesEn.fuelList.importWarnings).toContain('{{message}}')
     expect(vehiclesEn.fuelList.importWarnings).toContain('{{warnings}}')
+  })
+
+  it('caps each list at five plus a more-count, errors before warnings', async () => {
+    apiPostMock.mockResolvedValue({
+      data: {
+        success_count: 7,
+        skipped_count: 0,
+        error_count: 1,
+        errors: ['Row 9: bad date'],
+        warnings: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7'],
+      },
+    })
+    const user = userEvent.setup()
+    renderList()
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+
+    await user.upload(fileInput(), csvFile())
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    // Before: every warning joined, and the warnings wrapped inside the errors.
+    expect(toast.error).toHaveBeenCalledWith(
+      'fuelList.importWarnings (fuelList.importErrors (fuelList.importCompleted | Row 9: bad date)' +
+        ' | w1, w2, w3, w4, w5, vehicles:detail.misc.importMoreCount (2))',
+    )
   })
 
   it('MyGarage CSV still posts at once with no drawer and no unit fields (control: passes on main)', async () => {

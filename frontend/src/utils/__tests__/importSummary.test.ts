@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import i18next, { type TFunction } from 'i18next'
 import vehiclesEn from '../../locales/en/vehicles.json'
-import { buildImportSummary, type ImportSectionResult } from '../importSummary'
+import { buildImportSummary, listMessages, SECTIONS, type ImportSectionResult } from '../importSummary'
 
 // Echoes the key, plus the count when one is passed, so a count that never
 // reaches its line still fails.
@@ -148,5 +148,25 @@ describe('buildImportSummary: the errors and warnings behind the counts (J2, N-3
         '\n\nErrors:\ne1\ne2\ne3\ne4\ne5\n+2 more' +
         '\n\nWarnings:\nToll transaction 0: its toll tag was not imported, saved without one',
     )
+  })
+})
+
+describe('importSummary: the section table and the CSV toast lists', () => {
+  // t(label) takes a variable, so the i18n usage gate can't see these keys.
+  // This walks the table instead: a row whose key isn't in the bundle fails here.
+  it('every section label resolves to its English title', async () => {
+    const en = await english()
+    for (const [, label] of SECTIONS) {
+      const path = label.replace(/^vehicles:/, '').split('.')
+      const value = path.reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], vehiclesEn)
+      expect(typeof value, label).toBe('string')
+      expect(en(label)).toBe(value)
+    }
+  })
+
+  it('a comma-joined list keeps the first five, then says how many more', async () => {
+    const seven = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7']
+    expect(listMessages(seven, await english(), ', ')).toBe('w1, w2, w3, w4, w5, +2 more')
+    expect(listMessages(seven.slice(0, 5), await english(), ', ')).toBe('w1, w2, w3, w4, w5')
   })
 })

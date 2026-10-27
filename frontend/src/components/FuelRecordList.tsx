@@ -21,6 +21,7 @@ import { priceToDisplay } from '../utils/decimalSafe'
 import { getUsageTracking } from '../utils/usageTracking'
 import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/queries/useFuelRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { listMessages } from '../utils/importSummary'
 import { Button, IconButton, Card, Mono, DataTable, Badge, SearchField, EmptyState, Checkbox, Select } from './ui'
 import type { DataTableColumn } from './ui'
 import FuelImportOptionsDrawer, { type FuelImportOptions } from './FuelImportOptionsDrawer'
@@ -195,12 +196,18 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
             skipped: result.skipped_count,
             errors: result.error_count,
           })
+          // Errors then warnings, five of each at most: a moved history warns on every row.
+          const errors = result.errors ?? []
           const warnings = result.warnings ?? []
+          const withErrors =
+            errors.length > 0 ? t('fuelList.importErrors', { message: summary, errors: listMessages(errors, t, ', ') }) : summary
           const message =
-            warnings.length > 0 ? t('fuelList.importWarnings', { message: summary, warnings: warnings.join(', ') }) : summary
+            warnings.length > 0
+              ? t('fuelList.importWarnings', { message: withErrors, warnings: listMessages(warnings, t, ', ') })
+              : withErrors
 
-          if (result.errors && result.errors.length > 0) {
-            toast.error(t('fuelList.importErrors', { message, errors: result.errors.join(', ') }))
+          if (errors.length > 0) {
+            toast.error(message)
           } else {
             toast.success(message)
           }

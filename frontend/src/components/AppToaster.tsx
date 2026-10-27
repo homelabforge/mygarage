@@ -54,6 +54,8 @@ export default function AppToaster() {
           success: 'bg-success text-on-status border-success',
           warning: 'bg-warning text-on-status border-warning',
           info: 'bg-info text-on-status border-info',
+          // sonner leaves white-space normal, which ran the import summary's lines together.
+          description: 'whitespace-pre-line',
         },
       }}
     />,
