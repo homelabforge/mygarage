@@ -110,7 +110,7 @@ _CSV_ZEROS = {
         {
             "Odometer (km)": "0.00",
             "Volume (L)": "0.000",
-            "Price Per Unit (L)": "0.000",
+            "Price Per Unit (L)": "0.0000",
             "Rebate": "0.00",
             "Total Cost": "0.00",
             "OBC Trip Duration (s)": "0",
@@ -121,7 +121,7 @@ _CSV_ZEROS = {
         {
             "Odometer (km)": "0.00",
             "Volume (L)": "0.000",
-            "Price Per Unit (L)": "0.000",
+            "Price Per Unit (L)": "0.0000",
             "Total Cost": "0.00",
             "Fill Level": "0.00",
         },

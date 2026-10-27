@@ -608,12 +608,6 @@ _CATEGORY_WORDS = "Maintenance, Inspection, Collision, Upgrades, Detailing"
         pytest.param(
             {"vendor_name": 7, "line_items": []}, "vendor_name must be text", id="vendor-not-text"
         ),
-        # VendorCreate's bound, the same one the financing lender is held to.
-        pytest.param(
-            {"vendor_name": "v" * 101, "line_items": []},
-            "vendor_name must be at most 100 characters",
-            id="vendor-past-its-bound",
-        ),
         pytest.param(
             {
                 "tax_amount": 1.0,
@@ -650,6 +644,38 @@ async def test_a_json_visit_the_api_would_refuse_is_a_row_error(
     )
     assert data["errors"] == [f"Service visit 0: {reason}"], data
     assert await _visits(test_sessionmaker, vin) == []
+
+
+async def test_a_json_visit_at_a_vendor_past_100_characters_restores_with_it(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """The CSV and v8 imports make vendors with no length cap and SQLite keeps the whole
+    name, so the v9 backup has to bring the visit back on that same vendor."""
+    source = await _vehicle(db_session, test_user["id"], "B3RTSVCLONGVSRC01")
+    target = await _vehicle(db_session, test_user["id"], "B3RTSVCLONGVDST01")
+    long_name = "B3 Long Shop " + "v" * 88
+    assert len(long_name) == 101
+    vendor_id = await _vendor(db_session, long_name)
+    db_session.add(
+        ServiceVisit(
+            vin=source,
+            vendor_id=vendor_id,
+            date=date(2026, 7, 14),
+            odometer_km=Decimal("9400.00"),
+            service_category="Maintenance",
+            total_cost=Decimal("0.00"),
+        )
+    )
+    await db_session.commit()
+
+    exported = await client.get(f"/api/export/vehicles/{source}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    assert exported.json()["service_visits"][0]["vendor_name"] == long_name
+    data = await _post_json(client, auth_headers, target, exported.json())
+    # 30150423: a row error, "vendor_name must be at most 100 characters"
+    assert (data["service_records"]["success_count"], data["errors"]) == (1, []), data
+    (restored,) = await _visits(test_sessionmaker, target)
+    assert (restored.vendor_id, restored.vendor.name) == (vendor_id, long_name)
 
 
 async def test_a_csv_visit_whose_total_is_past_the_column_is_a_row_error_on_every_row(

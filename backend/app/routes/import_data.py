@@ -3394,8 +3394,9 @@ async def import_vehicle_json(
             total_cost = _visit_total(
                 (columns["cost"] for columns, _link in items), tax_amount, shop_supplies, misc_fees
             )
-            # VendorCreate's bound, as the financing lender's.
-            vendor_name = _json_text(visit_data, "vendor_name", max_length=100)
+            # As given: the CSV and v8 imports make vendors with no length cap, and
+            # _vendor_id_for matches the exact name, so a cut name would make a second.
+            vendor_name = _json_text(visit_data, "vendor_name")
             insurance_claim_number = _json_text(visit_data, "insurance_claim_number")
             notes = _json_text(visit_data, "notes")
 
@@ -3929,7 +3930,8 @@ async def import_vehicle_json(
     for idx, row in enumerate(sections["financing_records"]):
         try:
             record = _financing_record_from_json(vin, row)
-            lender = _json_text(row, "vendor_name", max_length=100)
+            # As given, same as a service visit's vendor.
+            lender = _json_text(row, "vendor_name")
             if (
                 skip_duplicates
                 and await matcher.take(

@@ -669,16 +669,6 @@ _ROW_ERRORS = [
         "Financing record 0: amount is missing",
     ),
     (
-        "financing_records",
-        {
-            "date": "2026-01-01",
-            "amount": 1.0,
-            "category": "lease_payment",
-            "vendor_name": "v" * 101,
-        },
-        "Financing record 0: vendor_name must be at most 100 characters",
-    ),
-    (
         "tax_records",
         {"date": "2026-01-01", "amount": -1.0},
         "Tax record 0: amount must be at least 0, not -1.0",
@@ -815,6 +805,43 @@ async def test_a_warranty_past_its_column_but_not_the_api_restores(
     assert (data["warranties"]["success_count"], data["errors"]) == (1, []), data
     restored = await _restored(test_sessionmaker, vin)
     assert [(w[1], w[6]) for w in restored["warranties"]] == [("p" * 101, "n" * 51)]
+
+
+async def test_a_financing_lender_past_100_characters_restores_on_its_vendor(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """The CSV and v8 imports make vendors with no length cap and SQLite keeps the whole
+    name. The lender is looked up by exact name, so it has to come back whole."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSECTIONLLONG1")
+    long_name = "B3 Long Lender " + "v" * 86
+    assert len(long_name) == 101
+    lender = (
+        await db_session.execute(select(Vendor).where(Vendor.name == long_name))
+    ).scalar() or Vendor(name=long_name)
+    db_session.add(lender)
+    await db_session.commit()
+    payload = {
+        "export_version": "9",
+        "units": "metric",
+        "financing_records": [
+            {
+                "date": "2026-01-01",
+                "amount": 1.0,
+                "category": "lease_payment",
+                "vendor_name": long_name,
+            }
+        ],
+    }
+    data = await _post_json(client, auth_headers, vin, payload)
+    # 30150423: a row error, "vendor_name must be at most 100 characters"
+    assert (data["financing_records"]["success_count"], data["errors"]) == (1, []), data
+    async with test_sessionmaker() as fresh:
+        (record,) = (
+            await fresh.execute(select(FinancingRecord).where(FinancingRecord.vin == vin))
+        ).scalars()
+        assert record.vendor_id == lender.id
+    restored = await _restored(test_sessionmaker, vin)
+    assert [f[3] for f in restored["financing"]] == [long_name]
 
 
 async def test_a_rental_with_no_billings_key_writes_no_bills_and_keys_without_them(
