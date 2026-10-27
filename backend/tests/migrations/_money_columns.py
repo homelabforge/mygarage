@@ -8,8 +8,6 @@ were Numeric(12,2) from the start (migration 108).
 
 from sqlalchemy import Engine, text
 
-from tests.unit.schemas._money_names import MONEY_COLUMNS
-
 #: table.column -> (precision, scale) before migration 122.
 PRE_122_TYPES: dict[str, tuple[int, int]] = {
     "def_records.cost": (8, 2),
@@ -54,13 +52,52 @@ PRE_122_TYPES: dict[str, tuple[int, int]] = {
     "vehicles.sold_price": (10, 2),
 }
 
-#: table.column -> the type migration 122 widens it to. That was the registry's
-#: type then; batch 7 has since widened the unit prices to (13,4), so 122's own
-#: (12,3) is pinned here.
+#: table.column -> the type migration 122 widens it to, as 122 itself has it.
+#: A literal, not the registry: batch 7 has since widened the unit prices to
+#: (13,4) (migration 135), and a later widening mustn't move 122's targets.
 TYPES_AT_122: dict[str, tuple[int, int]] = {
-    **MONEY_COLUMNS,
+    "def_records.cost": (12, 2),
     "def_records.price_per_unit": (12, 3),
+    "financing_records.amount": (12, 2),
+    "fuel_records.cost": (12, 2),
     "fuel_records.price_per_unit": (12, 3),
+    "fuel_records.rebate": (12, 2),
+    "insurance_coverages.deductible": (12, 2),
+    "insurance_coverages.limit_primary": (12, 2),
+    "insurance_coverages.limit_secondary": (12, 2),
+    "insurance_coverages.premium": (12, 2),
+    "insurance_policies.premium_amount": (12, 2),
+    "insurance_policy_vehicles.deductible": (12, 2),
+    "insurance_policy_vehicles.premium_share": (12, 2),
+    "service_line_items.cost": (12, 2),
+    "service_visits.misc_fees": (12, 2),
+    "service_visits.shop_supplies": (12, 2),
+    "service_visits.tax_amount": (12, 2),
+    "service_visits.total_cost": (12, 2),
+    "spot_rental_billings.electric": (12, 2),
+    "spot_rental_billings.monthly_rate": (12, 2),
+    "spot_rental_billings.total": (12, 2),
+    "spot_rental_billings.waste": (12, 2),
+    "spot_rental_billings.water": (12, 2),
+    "spot_rentals.electric": (12, 2),
+    "spot_rentals.monthly_rate": (12, 2),
+    "spot_rentals.nightly_rate": (12, 2),
+    "spot_rentals.total_cost": (12, 2),
+    "spot_rentals.waste": (12, 2),
+    "spot_rentals.water": (12, 2),
+    "spot_rentals.weekly_rate": (12, 2),
+    "supply_purchases.total_cost": (12, 2),
+    "supply_usages.cost_snapshot": (12, 2),
+    "supply_usages.unit_cost_snapshot": (15, 4),
+    "tax_records.amount": (12, 2),
+    "toll_transactions.amount": (12, 2),
+    "vehicles.archive_sale_price": (12, 2),
+    "vehicles.destination_charge": (12, 2),
+    "vehicles.msrp_base": (12, 2),
+    "vehicles.msrp_options": (12, 2),
+    "vehicles.msrp_total": (12, 2),
+    "vehicles.purchase_price": (12, 2),
+    "vehicles.sold_price": (12, 2),
 }
 
 

@@ -621,6 +621,7 @@ class TestUnitPreferenceColumns:
 # ===========================================================================
 
 MIGRATION_122 = "122_widen_money_columns"
+MIGRATION_135 = "135_widen_numeric_columns"
 
 
 def _money_column_types(engine: Engine) -> dict[str, tuple[int | None, int | None]]:
@@ -662,8 +663,13 @@ class TestMoneyColumnsWidened:
             runner.engine.dispose()
 
     def test_upgrade_through_the_runner_widens_every_money_column(self):
-        """An install with every migration but 122 applied, at the pre-122 widths."""
+        """An install from before 122, at the pre-122 widths, upgraded through the runner.
+
+        Only the migrations before 122 are stamped, as on a real install that
+        old, so 135 runs too and takes the unit prices on from 122's (12,3).
+        """
         from tests.migrations._money_columns import PRE_122_TYPES, TYPES_AT_122
+        from tests.unit.schemas._money_names import MONEY_COLUMNS
 
         _create_all_on_pg()
         runner = MigrationRunner(PG_SYNC_URL, MIGRATIONS_DIR)
@@ -679,8 +685,8 @@ class TestMoneyColumnsWidened:
                     )
             runner._ensure_migration_tracking_table()
             discovered = [name for name, _ in runner._discover_migrations()]
-            assert MIGRATION_122 in discovered
-            runner._mark_migrations_applied([n for n in discovered if n != MIGRATION_122])
+            assert MIGRATION_122 in discovered and MIGRATION_135 in discovered
+            runner._mark_migrations_applied([n for n in discovered if n < MIGRATION_122])
             narrow = _money_column_types(runner.engine)
             assert {q: narrow[q] for q in PRE_122_TYPES} == PRE_122_TYPES, (
                 "the install must start at the old widths"
@@ -688,20 +694,87 @@ class TestMoneyColumnsWidened:
 
             runner.run_pending_migrations()
 
-            assert MIGRATION_122 in runner._get_applied_migrations()
-            # 122's own targets: every later migration is marked applied above.
-            assert _money_column_types(runner.engine) == TYPES_AT_122
+            applied = runner._get_applied_migrations()
+            assert {MIGRATION_122, MIGRATION_135} <= applied
+            # 135 ran after 122: the prices end past 122's own (12,3).
+            assert TYPES_AT_122["fuel_records.price_per_unit"] == (12, 3)
+            assert _money_column_types(runner.engine) == MONEY_COLUMNS
 
-            # Rerun on the widened install: nothing left to do.
-            import importlib.util
+            # Rerun 122 on the widened install: it leaves the (13,4) prices alone.
+            _load_migration(MIGRATION_122).upgrade(engine=runner.engine)
+            assert _money_column_types(runner.engine) == MONEY_COLUMNS
+        finally:
+            runner.engine.dispose()
 
-            spec = importlib.util.spec_from_file_location(
-                MIGRATION_122, MIGRATIONS_DIR / f"{MIGRATION_122}.py"
-            )
-            assert spec is not None and spec.loader is not None
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            module.upgrade(engine=runner.engine)
-            assert _money_column_types(runner.engine) == TYPES_AT_122
+
+# ===========================================================================
+# Scenario 7: Batch 7's widened columns (migration 135)
+#
+# tests/migrations/test_135_widen_numeric_columns.py runs the ALTERs on bare
+# tables. Here it's the whole install, through the runner.
+# ===========================================================================
+
+
+def _load_migration(name: str):
+    """Import a migration as a module, the way the runner does."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(name, MIGRATIONS_DIR / f"{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _widened_types(engine: Engine) -> dict[str, tuple[int | None, int | None]]:
+    """(precision, scale) of each of the 14 columns 135 widens."""
+    from tests.migrations._money_columns import pg_numeric_types
+    from tests.migrations._widened_columns import R7_TYPES
+
+    found = pg_numeric_types(engine)
+    return {qualified: found[qualified][1:] for qualified in R7_TYPES}
+
+
+class TestBatch7ColumnsWidened:
+    """The 14 columns end at their R7 types, fresh or upgraded."""
+
+    def test_fresh_install_lands_on_the_new_types(self):
+        from tests.migrations._widened_columns import R7_TYPES
+
+        _create_all_on_pg()
+        runner = MigrationRunner(PG_SYNC_URL, MIGRATIONS_DIR)
+        runner.run_pending_migrations()
+        try:
+            assert MIGRATION_135 in runner._get_applied_migrations()
+            assert _widened_types(runner.engine) == R7_TYPES
+        finally:
+            runner.engine.dispose()
+
+    def test_upgrade_through_the_runner_widens_them(self):
+        """An install with every migration but 135 applied, at the old types."""
+        from tests.migrations._widened_columns import PRE_135_TYPES, R7_TYPES
+
+        _create_all_on_pg()
+        runner = MigrationRunner(PG_SYNC_URL, MIGRATIONS_DIR)
+        try:
+            with runner.engine.begin() as conn:
+                for qualified, (precision, scale) in PRE_135_TYPES.items():
+                    table, column = qualified.split(".", 1)
+                    conn.execute(
+                        text(
+                            f"ALTER TABLE {table} ALTER COLUMN {column} "
+                            f"TYPE NUMERIC({precision}, {scale})"
+                        )
+                    )
+            runner._ensure_migration_tracking_table()
+            discovered = [name for name, _ in runner._discover_migrations()]
+            assert MIGRATION_135 in discovered
+            runner._mark_migrations_applied([n for n in discovered if n != MIGRATION_135])
+            assert _widened_types(runner.engine) == PRE_135_TYPES, "must start at the old types"
+
+            runner.run_pending_migrations()
+
+            assert MIGRATION_135 in runner._get_applied_migrations()
+            assert _widened_types(runner.engine) == R7_TYPES
         finally:
             runner.engine.dispose()
