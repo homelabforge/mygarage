@@ -168,6 +168,8 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - A blank premium frequency in a backup imports as none instead of failing the policy
 - A backup figure that isn't a number (a fuel, DEF, odometer, service or hours reading, volume or price, or an old reminder's due mileage or interval) names its field, and a due mileage too large to store says why, instead of "could not be imported"
 - On PostgreSQL, an imported value longer than its column says so instead of a generic error
+- A CSV cell typed with a quote before =, +, - or @ comes back as typed, instead of losing its quote on import
+- A backup restores a spot rental bill dated outside the stay, which editing the rental's dates can leave, instead of refusing the rental
 - A reading or volume converted from miles or gallons is stored at the column's precision, so SQLite and PostgreSQL hold the same figure
 
 ### Security
