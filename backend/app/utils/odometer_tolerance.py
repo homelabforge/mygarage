@@ -11,7 +11,7 @@ One band, used by every odometer ordering comparison in tire history and tire
 distance, so the two cannot disagree about what counts as the same figure. The
 import duplicate check uses it too, but only where the drift can exist: a value
 converted from miles or gallons in that import, against a row stored before it
-(`app.routes.import_data._converted_value_matches`). Everywhere else in an
+(`app.routes.import_data._matching._converted_value_matches`). Everywhere else in an
 import, two figures inside the band are two different readings.
 """
 
