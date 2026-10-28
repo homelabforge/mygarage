@@ -139,7 +139,7 @@ from app.utils.units import UnitConverter
 logger = logging.getLogger(__name__)
 
 
-#: The record lists a vehicle JSON backup may carry, in the order they import.
+#: The top-level lists a vehicle JSON backup may carry. The route's order is S7's, not this tuple's.
 _JSON_IMPORT_SECTIONS = (
     "service_records",
     "service_visits",
@@ -156,6 +156,38 @@ _JSON_IMPORT_SECTIONS = (
     "toll_transactions",
     "warranties",
     "spot_rentals",
+    "maintenance_rules",
+    "tire_sets",
+    "tires",
+    "brake_axles",
+    "brake_jobs",
+    "brake_measurements",
+    "supplies",
+)
+
+#: The response's buckets, one per section it counts, in the order it lists them.
+_JSON_RESULT_BUCKETS = (
+    "service_records",
+    "fuel_records",
+    "def_records",
+    "odometer_records",
+    "hours_records",
+    "reminders",
+    "notes",
+    "insurance_policies",
+    "financing_records",
+    "tax_records",
+    "toll_tags",
+    "toll_transactions",
+    "warranties",
+    "spot_rentals",
+    "maintenance_rules",
+    "tire_sets",
+    "tires",
+    "brake_axles",
+    "brake_jobs",
+    "brake_measurements",
+    "supplies",
 )
 
 
@@ -269,24 +301,9 @@ async def import_vehicle_json(
 
     errors: list[str] = []
     warnings: list[str] = []
-    results = {
-        "service_records": {"success": 0, "errors": 0, "skipped": 0},
-        "fuel_records": {"success": 0, "errors": 0, "skipped": 0},
-        "def_records": {"success": 0, "errors": 0, "skipped": 0},
-        "odometer_records": {"success": 0, "errors": 0, "skipped": 0},
-        "hours_records": {"success": 0, "errors": 0, "skipped": 0},
-        "reminders": {"success": 0, "errors": 0, "skipped": 0},
-        "notes": {"success": 0, "errors": 0, "skipped": 0},
-        "insurance_policies": {"success": 0, "errors": 0, "skipped": 0},
-        "financing_records": {"success": 0, "errors": 0, "skipped": 0},
-        "tax_records": {"success": 0, "errors": 0, "skipped": 0},
-        "toll_tags": {"success": 0, "errors": 0, "skipped": 0},
-        "toll_transactions": {"success": 0, "errors": 0, "skipped": 0},
-        "warranties": {"success": 0, "errors": 0, "skipped": 0},
-        "spot_rentals": {"success": 0, "errors": 0, "skipped": 0},
-        "errors": errors,
-        "warnings": warnings,
-    }
+    results: dict[str, Any] = {
+        name: {"success": 0, "errors": 0, "skipped": 0} for name in _JSON_RESULT_BUCKETS
+    } | {"errors": errors, "warnings": warnings}
 
     # Import service records (creates ServiceVisit + ServiceLineItem + Vendor)
     for idx, record_data in enumerate(sections["service_records"]):
@@ -1257,23 +1274,7 @@ async def import_vehicle_json(
     await maintenance_service.reconcile_vehicle(db, vin)
     await invalidate_cache_for_vehicle(vin)
 
-    metric_keys = (
-        "service_records",
-        "fuel_records",
-        "def_records",
-        "odometer_records",
-        "hours_records",
-        "reminders",
-        "notes",
-        "insurance_policies",
-        "financing_records",
-        "tax_records",
-        "toll_tags",
-        "toll_transactions",
-        "warranties",
-        "spot_rentals",
-    )
-    for key in metric_keys:
+    for key in _JSON_RESULT_BUCKETS:
         bucket = results[key]
         bucket["success_count"] = bucket.get("success", 0)
         bucket["error_count"] = bucket.get("errors", 0)
