@@ -33,6 +33,8 @@ from app.models import (
 )
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.financing import FinancingRecord
+from app.models.maintenance_rule import MaintenanceRule
+from app.models.reminder import Reminder
 from app.models.spot_rental import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
@@ -56,6 +58,49 @@ class JsonSection:
     keys: frozenset[str]  # the model columns the section writes
     exclude: frozenset[str]  # the model columns it leaves out, each with a reason below
     portable: frozenset[str] = frozenset()  # keys that are not model columns
+
+
+#: A reminder a person made or a rule made, as both reminder lists write it (K5).
+_REMINDER_KEYS = frozenset(
+    {
+        "title",
+        "reminder_type",
+        "due_date",
+        "due_mileage_km",
+        "due_hours",
+        "status",
+        "notes",
+        "snoozed_until",
+        "maintenance_type",
+        "anchor_kind",
+        "anchor_date",
+        "anchor_odometer_km",
+        "anchor_hours",
+        "start_odometer_km",
+        "start_hours",
+        "completed_at",
+        "completed_date",
+        "completed_odometer_km",
+        "completed_hours",
+        "created_at",
+    }
+)
+_REMINDER_EXCLUDE = frozenset(
+    {
+        "id",
+        "vin",
+        "updated_at",
+        "rule_id",  # the rule is the parent, or there's none
+        "line_item_id",  # line items here; a service anchor imports as a completion (S8)
+        "completed_line_item_id",  # as above
+        "superseded_by_id",  # another reminder here
+        "last_notified_at",  # notification marker
+        "tire_id",  # sync-owned reminders don't travel (J1)
+        "source",  # as above
+        "tread_depth_mm",  # as above
+        "tread_threshold_mm",  # as above
+    }
+)
 
 
 SECTIONS = [
@@ -349,6 +394,33 @@ SECTIONS = [
         exclude=frozenset({"id", "spot_rental_id", "created_at"}),
     ),
     JsonSection(
+        "maintenance_rules",
+        MaintenanceRule,
+        keys=frozenset(
+            {
+                "maintenance_type",
+                "title",
+                "interval_km",
+                "interval_months",
+                "interval_days",
+                "interval_hours",
+                "source",
+                "source_pack_id",
+                "source_pack_key",
+                "notes",
+                "is_active",
+            }
+        ),
+        exclude=_ALWAYS | {"updated_at"},
+        portable=frozenset({"reminders"}),
+    ),
+    JsonSection(
+        "maintenance_rules.reminders",
+        Reminder,
+        keys=_REMINDER_KEYS,
+        exclude=_REMINDER_EXCLUDE,
+    ),
+    JsonSection(
         "tire_sets",
         TireSet,
         keys=frozenset({"name", "notes"}),
@@ -515,6 +587,13 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             ),
             SpotRentalBilling(spot_rental_id=rental.id, billing_date=day),
         ]
+    )
+    # A rule and its reminder.
+    rule = MaintenanceRule(vin=_VIN, title="Oil", interval_months=6, source="manual")
+    db_session.add(rule)
+    await db_session.flush()
+    db_session.add(
+        Reminder(vin=_VIN, rule_id=rule.id, title="Oil", reminder_type="date", due_date=day)
     )
     # A set, a tire in it, a period and a reading in that period.
     tire_set = TireSet(vin=_VIN, name="Winter")

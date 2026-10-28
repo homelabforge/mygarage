@@ -115,6 +115,7 @@ from app.routes.import_data._service import (
     _visit_total,
 )
 from app.routes.import_data.json_brakes import parse_brakes, write_brakes
+from app.routes.import_data.json_schedule import parse_rules, write_rules
 from app.routes.import_data.json_tires import (
     parse_tires,
     sync_imported_tires,
@@ -1276,6 +1277,22 @@ async def import_vehicle_json(
             results["spot_rentals"]["errors"] += 1
             logger.warning("Import: spot rental %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Spot rental {idx}: {_unexpected_reason(e)}")
+
+    # The rules come with their reminders, whole or not at all, and only into a
+    # vehicle with no rules. The reconcile after the commit keeps their due points (K1).
+    rules = await run_family(
+        db,
+        vin,
+        "maintenance_rules",
+        sections,
+        results,
+        errors,
+        warnings,
+        parse=lambda: parse_rules(vin, sections),
+        write=lambda plan: write_rules(db, plan),
+    )
+    if rules.outcome == "written" and rules.plan is not None:
+        warnings.extend(rules.plan.warnings)
 
     # The tire family comes in whole or not at all, and only into a vehicle with no tires.
     tires = await run_family(

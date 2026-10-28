@@ -35,6 +35,8 @@ from app.models import (
     WarrantyRecord,
 )
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
+from app.models.maintenance_rule import MaintenanceRule
+from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -100,7 +102,8 @@ limiter = Limiter(key_func=get_remote_address)
 #   whole, and `financing_records`, `tax_records`, `toll_tags`,
 #   `toll_transactions`, `warranties` and `spot_rentals` are new. The
 #   importer still reads v2 to v8, and a section a file lacks is empty.
-#   Batch 3b adds `tire_sets` and `tires` (each tire with its nested
+#   Batch 3b adds `maintenance_rules` (each rule with its nested
+#   `reminders`), `tire_sets` and `tires` (each tire with its nested
 #   `mount_periods` and `readings`), `brake_axles`, `brake_jobs` and
 #   `brake_measurements` to v9 without a bump: a 3a file simply has none.
 CSV_SCHEMA_VERSION = "8"
@@ -256,6 +259,24 @@ _WARRANTY_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"last_notified_at"}
 _SPOT_RENTAL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 #: The rental is the parent.
 _BILLING_JSON_EXCLUDE = frozenset({"id", "spot_rental_id", "created_at"})
+_RULE_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: A reminder keeps its `created_at` (K5).
+_REMINDER_JSON_EXCLUDE = frozenset(
+    {
+        "id",
+        "vin",
+        "updated_at",
+        "rule_id",  # the rule is the parent, or there's none
+        "line_item_id",  # line items here; a service anchor imports as a completion (S8)
+        "completed_line_item_id",  # as above
+        "superseded_by_id",  # another reminder here
+        "last_notified_at",  # notification marker
+        "tire_id",  # sync-owned reminders don't travel (J1)
+        "source",  # as above
+        "tread_depth_mm",  # as above
+        "tread_threshold_mm",  # as above
+    }
+)
 _TIRE_SET_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 #: The set travels as its place in this file's tire_sets.
 _TIRE_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"set_id"}
@@ -1079,6 +1100,32 @@ async def export_vehicle_json(
     )
     spot_rentals = rental_result.scalars().all()
 
+    rules = (
+        (
+            await db.execute(
+                select(MaintenanceRule)
+                .where(MaintenanceRule.vin == vin)
+                .order_by(MaintenanceRule.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # Every status travels under its rule: a done one is what the next counts from (K1).
+    rule_reminders: dict[int | None, list[Reminder]] = {}
+    for reminder in (
+        (
+            await db.execute(
+                select(Reminder)
+                .where(Reminder.vin == vin, Reminder.rule_id.isnot(None))
+                .order_by(Reminder.id)
+            )
+        )
+        .scalars()
+        .all()
+    ):
+        rule_reminders.setdefault(reminder.rule_id, []).append(reminder)
+
     tire_set_result = await db.execute(
         select(TireSet).where(TireSet.vin == vin).order_by(TireSet.id)
     )
@@ -1214,6 +1261,16 @@ async def export_vehicle_json(
                 "billings": [_json_columns(b, _BILLING_JSON_EXCLUDE) for b in r.billings],
             }
             for r in spot_rentals
+        ],
+        "maintenance_rules": [
+            {
+                **_json_columns(rule, _RULE_JSON_EXCLUDE),
+                "reminders": [
+                    _json_columns(r, _REMINDER_JSON_EXCLUDE)
+                    for r in rule_reminders.get(rule.id, [])
+                ],
+            }
+            for rule in rules
         ],
         "tire_sets": [_json_columns(s, _TIRE_SET_JSON_EXCLUDE) for s in tire_sets],
         "tires": [_tire_json(t, set_index) for t in tires],
