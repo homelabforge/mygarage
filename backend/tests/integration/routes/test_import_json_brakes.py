@@ -274,6 +274,11 @@ _REFUSED = [
         id="axle-without-a-minimum",
     ),
     pytest.param(
+        {"brake_jobs": [{k: v for k, v in _JOB.items() if k != "position"}]},
+        "Brake job 0: position is missing",
+        id="job-without-a-position",
+    ),
+    pytest.param(
         {"brake_jobs": [{**_JOB, "surface": "polished"}]},
         "Brake job 0: surface must be one of replaced, resurfaced",
         id="job-surface-word",
@@ -369,7 +374,8 @@ async def test_a_family_not_written_raises_nothing(
     db_session: AsyncSession,
     new_vehicle,
 ):
-    # A LOW corner already on the vehicle with no reminder yet: 08:00's to raise, not the import's.
+    # Passes before the feature too, on purpose: it kills a raise that runs
+    # whatever the family's outcome. The LOW corner here is 08:00's to raise.
     vin = await new_vehicle()
     db_session.add(
         BrakeMeasurement(

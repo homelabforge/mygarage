@@ -11,7 +11,7 @@ they key on measurement ids (N-5).
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, cast, get_args
+from typing import Any, get_args
 
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,14 +20,18 @@ from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.routes.import_data._common import (
     _blank_to_none,
     _in_vocabulary,
-    _is_blank,
     _json_bool,
     _json_decimal,
     _json_row_date,
     _json_text,
     _RowError,
 )
-from app.routes.import_data._families import as_object, file_index, within_figure_bounds
+from app.routes.import_data._families import (
+    as_object,
+    file_index,
+    required_word,
+    within_figure_bounds,
+)
 from app.schemas.brake import (
     MEASURES,
     Axle,
@@ -62,21 +66,12 @@ class BrakePlan:
     measurements: list[tuple[BrakeMeasurement, int | None]]
 
 
-def _required_word(row: Mapping[str, Any], key: str, vocabulary: tuple[str, ...]) -> str:
-    """A word the row must carry, from the API's vocabulary."""
-    raw = row.get(key)
-    if _is_blank(raw):
-        raise _RowError(f"{key} is missing")
-    # Not blank, so a word that passes is one of the vocabulary's strings.
-    return cast(str, _in_vocabulary(raw, key, vocabulary))
-
-
 def _axle_from_json(vin: str, index: int, raw: Any) -> BrakeAxle:
     """One axle setup as an unsaved row, held to the API's whole-setup rule."""
     try:
         row = as_object(raw)
-        axle = _required_word(row, "axle", _AXLES)
-        brake_type = _required_word(row, "brake_type", _TYPES)
+        axle = required_word(row, "axle", _AXLES)
+        brake_type = required_word(row, "brake_type", _TYPES)
         min_thickness_mm = _json_decimal(row, "min_thickness_mm")
         new_thickness_mm = _json_decimal(row, "new_thickness_mm")
         rotor_min_mm = _json_decimal(row, "rotor_min_mm")
@@ -117,8 +112,8 @@ def _job_from_json(vin: str, index: int, raw: Any) -> BrakeJob:
     """
     try:
         row = as_object(raw)
-        position = _required_word(row, "position", _POSITIONS)
-        brake_type = _required_word(row, "brake_type", _TYPES)
+        position = required_word(row, "position", _POSITIONS)
+        brake_type = required_word(row, "brake_type", _TYPES)
         performed_on = _json_row_date(row, "performed_on")
         odometer_km = _json_decimal(row, "odometer_km")
         engine_hours = _json_decimal(row, "engine_hours")
@@ -145,7 +140,7 @@ def _measurement_from_json(
     """One corner's measurement as an unsaved row, with its job's index in the file."""
     try:
         row = as_object(raw)
-        position = _required_word(row, "position", _POSITIONS)
+        position = required_word(row, "position", _POSITIONS)
         recorded_at = _json_row_date(row, "recorded_at")
         odometer_km = _json_decimal(row, "odometer_km")
         engine_hours = _json_decimal(row, "engine_hours")

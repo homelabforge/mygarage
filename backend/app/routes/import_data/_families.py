@@ -22,7 +22,13 @@ from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.maintenance_rule import MaintenanceRule
 from app.models.supply import Supply
 from app.models.tire import Tire, TireSet
-from app.routes.import_data._common import _check_bounds, _RowError, _unexpected_reason
+from app.routes.import_data._common import (
+    _check_bounds,
+    _in_vocabulary,
+    _is_blank,
+    _RowError,
+    _unexpected_reason,
+)
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -151,6 +157,15 @@ def as_object(row: Any) -> Mapping[str, Any]:
     if not isinstance(row, Mapping):
         raise _RowError("must be an object")
     return cast(Mapping[str, Any], row)
+
+
+def required_word(row: Mapping[str, Any], key: str, vocabulary: tuple[str, ...]) -> str:
+    """A word the row must carry, from the API's vocabulary."""
+    raw = row.get(key)
+    if _is_blank(raw):
+        raise _RowError(f"{key} is missing")
+    # Not blank, so a word that passes is one of the vocabulary's strings.
+    return cast(str, _in_vocabulary(raw, key, vocabulary))
 
 
 def file_index(row: Mapping[str, Any], key: str, size: int, *, what: str) -> int | None:

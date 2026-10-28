@@ -20,7 +20,6 @@ from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.routes.import_data._common import (
     _blank_to_none,
     _in_vocabulary,
-    _is_blank,
     _json_bool,
     _json_decimal,
     _json_optional_date,
@@ -33,6 +32,7 @@ from app.routes.import_data._families import (
     as_object,
     file_index,
     nested_list,
+    required_word,
     within_figure_bounds,
 )
 from app.schemas.tire import (
@@ -92,9 +92,7 @@ def _period_from_json(tire_index: int, index: int, raw: Any) -> TireMountPeriod:
     """
     try:
         row = as_object(raw)
-        if _is_blank(row.get("position")):
-            raise _RowError("position is missing")
-        position = _in_vocabulary(row.get("position"), "position", _POSITIONS)
+        position = required_word(row, "position", _POSITIONS)
         mounted_odometer_km = _json_decimal(row, "mounted_odometer_km")
         dismounted_odometer_km = _json_decimal(row, "dismounted_odometer_km")
         _within_api_bounds(
