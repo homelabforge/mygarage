@@ -1974,7 +1974,15 @@ class _ServiceCsvRow:
         """The visit the row belongs to: its number, else what one visit's rows share."""
         if self.visit_number:
             return ("visit", self.visit_number)
-        return ("shared", self.date, self.odometer_km, self.vendor_name, self.category)
+        # Hours too: an hours-only vehicle has no odometer to tell two same-day visits apart.
+        return (
+            "shared",
+            self.date,
+            self.odometer_km,
+            self.engine_hours,
+            self.vendor_name,
+            self.category,
+        )
 
 
 def _parse_service_row(
@@ -2115,8 +2123,14 @@ def _item_counts(keys: Iterable[tuple[Any, ...]]) -> Counter[tuple[Any, ...]]:
 
     The cent is the column's scale; a stored row reads back at it through the ORM (T-20).
     """
+    # The description is trimmed on both sides: the CSV import strips its cell,
+    # and the API keeps a stored one's spaces (Q-3).
     return Counter(
-        (description, _at_scale(cost, _MONEY_STEP) or Decimal(0), *rest)
+        (
+            _blank_to_none(description.strip()) if isinstance(description, str) else description,
+            _at_scale(cost, _MONEY_STEP) or Decimal(0),
+            *rest,
+        )
         for description, cost, *rest in keys
     )
 
@@ -2152,12 +2166,33 @@ def _same_visit(
     return stored == items
 
 
-def _visit_total(item_costs: Iterable[Decimal | None], *fees: Decimal | None) -> Decimal:
+def _as_stored(column: InstrumentedAttribute[Any], value: Decimal | None) -> Decimal | None:
+    """`value` as `column` will store it: its own ScaledNumeric rounding."""
+    column_type = column.type
+    if not isinstance(column_type, ScaledNumeric):
+        raise TypeError(f"{column} is not a ScaledNumeric column")
+    return column_type.rounded(value)
+
+
+def _visit_total(
+    item_costs: Iterable[Decimal | None],
+    tax_amount: Decimal | None,
+    shop_supplies: Decimal | None,
+    misc_fees: Decimal | None,
+) -> Decimal:
     """A written visit's total: its items' costs and its fees, the ones it has.
 
+    Each part is rounded the way its own column stores it before it's added, so
+    the total is the sum of what's stored, not 20.01 for two items of 10.01 (Q-2).
     A row error past the largest amount the column holds, though each part fits.
     """
-    total = sum((amount for amount in (*item_costs, *fees) if amount is not None), Decimal(0))
+    parts = [
+        *(_as_stored(ServiceLineItem.cost, cost) for cost in item_costs),
+        _as_stored(ServiceVisit.tax_amount, tax_amount),
+        _as_stored(ServiceVisit.shop_supplies, shop_supplies),
+        _as_stored(ServiceVisit.misc_fees, misc_fees),
+    ]
+    total = sum((amount for amount in parts if amount is not None), Decimal(0))
     if total > MONEY_MAX:
         raise _ImportBoundError(too_large("The visit total"))
     return total

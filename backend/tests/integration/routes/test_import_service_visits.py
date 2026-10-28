@@ -1075,3 +1075,143 @@ async def test_a_json_visit_differing_in_hours_or_category_imports(
         again["service_records"]["success_count"],
         again["service_records"]["skipped_count"],
     ) == (0, 1), again
+
+
+# -- PR Codex round 2 ------------------------------------------------------------
+
+
+async def test_two_same_day_v7_visits_on_an_hours_only_vehicle_stay_apart(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """Q-1: no odometer, same shop and category, 10 h and 20 h: two visits, not one at 10 h."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSVCHOURSGRP01")
+    body = (
+        "units_version,unit_system,Date,Category,Description,Odometer (km),Engine Hours,"
+        "Cost,Vendor,Notes\n"
+        "7,metric,2026-07-20,Maintenance,Oil,,10.0,40.00,B3 Hours Shop,\n"
+        "7,metric,2026-07-20,Maintenance,Filter,,20.0,10.00,B3 Hours Shop,\n"
+    )
+    data = await _post_csv(client, auth_headers, vin, body, skip=False)
+    assert (data["success_count"], data["error_count"]) == (2, 0), data
+    visits = await _visits(test_sessionmaker, vin)
+    # 2fbc4248: one visit at 10.0 h holding both items
+    assert sorted((v.engine_hours, [i.description for i in v.line_items]) for v in visits) == [
+        (Decimal("10.0"), ["Oil"]),
+        (Decimal("20.0"), ["Filter"]),
+    ]
+
+
+async def _visit_totals(sessionmaker: Any, vin: str) -> list[tuple[Decimal, Decimal, Decimal]]:
+    """(stored total, sum of stored item costs, calculated total) per visit."""
+    async with sessionmaker() as fresh:
+        visits = (
+            await fresh.execute(
+                select(ServiceVisit)
+                .where(ServiceVisit.vin == vin)
+                .options(
+                    selectinload(ServiceVisit.line_items).selectinload(
+                        ServiceLineItem.supply_usages
+                    )
+                )
+            )
+        ).scalars()
+        return [
+            (
+                v.total_cost,
+                sum((i.cost or Decimal(0) for i in v.line_items), Decimal(0)),
+                v.calculated_total_cost,
+            )
+            for v in visits
+        ]
+
+
+async def test_a_csv_visit_total_is_the_sum_of_what_its_items_store(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """Q-2: two 10.005 items store 10.01 each, so the visit total is 20.02, not 20.01."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSVCROUNDCSV01")
+    body = (
+        f"{_V8_HEADER}\n"
+        "8,metric,1,2026-07-21,Maintenance,Oil,7300.00,,10.005,,,,,,,\n"
+        "8,metric,1,2026-07-21,Maintenance,Filter,7300.00,,10.005,,,,,,,\n"
+    )
+    data = await _post_csv(client, auth_headers, vin, body)
+    assert data["success_count"] == 2, data
+    # 2fbc4248: [(20.01, 20.02, 20.02)]
+    assert await _visit_totals(test_sessionmaker, vin) == [
+        (Decimal("20.02"), Decimal("20.02"), Decimal("20.02"))
+    ]
+
+
+async def test_a_json_visit_total_is_the_sum_of_what_its_items_and_fees_store(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSVCROUNDJSON1")
+    payload = {
+        "export_version": "9",
+        "units": "metric",
+        "service_visits": [
+            {
+                "date": "2026-07-22",
+                "odometer_km": 7400.0,
+                "service_category": "Maintenance",
+                "tax_amount": 1.005,
+                "line_items": [
+                    {"description": "Oil", "cost": 10.005},
+                    {"description": "Filter", "cost": 10.005},
+                ],
+            }
+        ],
+    }
+    data = await _post_json(client, auth_headers, vin, payload)
+    assert data["service_records"]["success_count"] == 1, data
+    # 2fbc4248: [(21.02, 20.02, 21.03)], the total summed the raw thousandths
+    assert await _visit_totals(test_sessionmaker, vin) == [
+        (Decimal("21.03"), Decimal("20.02"), Decimal("21.03"))
+    ]
+
+
+async def _seed_padded_visit(db_session: AsyncSession, vin: str) -> None:
+    visit = ServiceVisit(
+        vin=vin,
+        date=date(2026, 7, 23),
+        odometer_km=Decimal("7500.00"),
+        service_category="Maintenance",
+        total_cost=Decimal("40.00"),
+    )
+    db_session.add(visit)
+    await db_session.flush()
+    db_session.add(
+        ServiceLineItem(visit_id=visit.id, description=" Oil change ", cost=Decimal("40.00"))
+    )
+    await db_session.commit()
+
+
+async def test_a_padded_item_description_matches_its_own_csv_export(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
+):
+    """Q-3: the CSV import strips the cell, so the stored side is read stripped too."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSVCPADDEDCSV1")
+    await _seed_padded_visit(db_session, vin)
+    exported = await client.get(
+        f"/api/export/vehicles/{vin}/service/csv?units=metric", headers=auth_headers
+    )
+    assert exported.status_code == 200, exported.text
+    data = await _post_csv(client, auth_headers, vin, exported.text)
+    # 2fbc4248: (1, 0), "Oil change" never met " Oil change "
+    assert (data["success_count"], data["skipped_count"]) == (0, 1), data
+
+
+async def test_a_padded_item_description_matches_its_own_json_export(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
+):
+    """Control: the JSON path keeps the spaces on both sides, so it already matched."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTSVCPADDEDJSN1")
+    await _seed_padded_visit(db_session, vin)
+    exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    data = await _post_json(client, auth_headers, vin, exported.json())
+    assert (
+        data["service_records"]["success_count"],
+        data["service_records"]["skipped_count"],
+    ) == (0, 1), data
