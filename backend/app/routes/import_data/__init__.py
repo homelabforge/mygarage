@@ -29,7 +29,9 @@ because the ORM columns are metric.
 
 # isort: off
 # Each route module adds its routes to the shared router as it imports, so this
-# order is the routes' order in openapi.json: CSV, the JSON backup, third party.
+# order is the order the served schema and /docs list them in: CSV, the JSON
+# backup, third party. The committed openapi.json is sorted and won't notice; the
+# route-order dump does.
 from app.routes.import_data import csv_routes, vehicle_json, third_party
 
 # isort: on

@@ -1,8 +1,8 @@
-"""The importer's modules, whether `app.routes.import_data` is one file or a package.
+"""The importer's modules: the `app.routes.import_data` package and every module in it.
 
-It's one file until batch 3b-1 splits it into a package (B3-9). The guards that
-walk its source and the tests that patch its names read every module either
-way, so a walk can't go quietly empty when the file becomes a directory.
+It was one file until batch 3b-1 split it into a package (B3-9). The guards that
+walk its source and the tests that patch its names read every module here, so a
+walk can't go quietly empty when code moves between modules.
 """
 
 import importlib
@@ -14,9 +14,7 @@ import app.routes.import_data as import_data
 
 
 def importer_modules() -> list[ModuleType]:
-    """The module itself, then each of its submodules once it's a package."""
-    if not hasattr(import_data, "__path__"):
-        return [import_data]
+    """The package itself, then each of its submodules."""
     return [
         import_data,
         *(
@@ -28,7 +26,7 @@ def importer_modules() -> list[ModuleType]:
 
 def importer_files() -> list[Path]:
     """The source file behind each of `importer_modules()`."""
-    files = []
+    files: list[Path] = []
     for module in importer_modules():
         assert module.__file__ is not None, module.__name__
         files.append(Path(module.__file__))

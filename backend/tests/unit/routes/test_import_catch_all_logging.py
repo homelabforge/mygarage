@@ -11,7 +11,7 @@ import pytest
 
 from tests._importer_source import importer_files
 
-#: Every importer module's source by file name: one file today, the package after B3-9.
+#: Every importer module's source by file name. It was one file until B3-9 made it a package.
 _SOURCES = {path.name: path.read_text() for path in importer_files()}
 
 
