@@ -114,6 +114,7 @@ from app.routes.import_data._service import (
     _vendor_id_for,
     _visit_total,
 )
+from app.routes.import_data.json_brakes import parse_brakes, write_brakes
 from app.routes.import_data.json_tires import (
     parse_tires,
     sync_imported_tires,
@@ -128,6 +129,7 @@ from app.schemas.service_visit import (
 )
 from app.services import maintenance_service
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.brake_service import BrakeService
 from app.services.fuel_side_effects import invalidate_cache_for_vehicle
 from app.services.insurance_service import InsuranceService
 from app.services.reminder_service import start_readings
@@ -1288,6 +1290,19 @@ async def import_vehicle_json(
         write=lambda plan: write_tires(db, plan),
     )
 
+    # Brakes too: whole or not at all, and only into a vehicle with no brake records.
+    brakes = await run_family(
+        db,
+        vin,
+        "brakes",
+        sections,
+        results,
+        errors,
+        warnings,
+        parse=lambda: parse_brakes(vin, sections),
+        write=lambda plan: write_brakes(db, plan),
+    )
+
     # Only the tires this import wrote can raise a low-tread reminder (N-2).
     if tires.outcome == "written" and tires.plan is not None:
         try:
@@ -1297,6 +1312,20 @@ async def import_vehicle_json(
             # Derived data, like the reading sync: the tires stay without it.
             logger.warning(
                 "Import: low-tread sync failed for vin=%s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
+            )
+
+    # A LOW corner in the file raises its reminder now, not at 08:00 (N-2). A
+    # skipped family brought nothing new, so only a written one runs the pass.
+    if brakes.outcome == "written":
+        try:
+            async with db.begin_nested():
+                await BrakeService(db).raise_reminders_for(vin)
+        except Exception as e:
+            # The brakes stay; the 08:00 pass raises it instead.
+            logger.warning(
+                "Import: brake reminder raise failed for vin=%s: %s",
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )

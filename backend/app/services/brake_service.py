@@ -495,6 +495,19 @@ class BrakeService:
         axes = await TireService(self.db).request_axes(current_user, vin)
         return await self._respond(vin, axes)
 
+    async def raise_reminders_for(self, vin: str) -> None:
+        """The daily pass for one vehicle: raise only, no lock, no commit.
+
+        The caller holds the vehicle lock. Archived or gone, the vehicle is
+        skipped, judged here so the lock has been taken first.
+        """
+        vehicle = await self.db.get(Vehicle, vin, populate_existing=True)
+        if vehicle is None or vehicle.archived_at is not None:
+            return
+        axes = VehicleAxes.for_vehicle(vehicle.usage_unit, vehicle.secondary_usage_enabled)
+        setups, corners = await self._corners(vin, axes)
+        await self._sync_axle_reminders(vin, setups, corners, evidence=(), raise_only=True)
+
     async def refresh_reminders(self) -> None:
         """Raise the axle reminders that time alone has made due. The daily job, at 08:00.
 
@@ -527,14 +540,8 @@ class BrakeService:
         for vin in vins:
             try:
                 await lock_vehicle_for_write(self.db, vin)
-                vehicle = await self.db.get(Vehicle, vin, populate_existing=True)
-                if vehicle is None or vehicle.archived_at is not None:
-                    # Ends the lock's transaction, so the next vehicle can take its own.
-                    await self.db.rollback()
-                    continue
-                axes = VehicleAxes.for_vehicle(vehicle.usage_unit, vehicle.secondary_usage_enabled)
-                setups, corners = await self._corners(vin, axes)
-                await self._sync_axle_reminders(vin, setups, corners, evidence=(), raise_only=True)
+                await self.raise_reminders_for(vin)
+                # Ends the lock's transaction, so the next vehicle can take its own.
                 await self.db.commit()
             except Exception as e:
                 await self.db.rollback()

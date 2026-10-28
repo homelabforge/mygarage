@@ -34,6 +34,7 @@ from app.models import (
     TollTransaction,
     WarrantyRecord,
 )
+from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -100,8 +101,8 @@ limiter = Limiter(key_func=get_remote_address)
 #   `toll_transactions`, `warranties` and `spot_rentals` are new. The
 #   importer still reads v2 to v8, and a section a file lacks is empty.
 #   Batch 3b adds `tire_sets` and `tires` (each tire with its nested
-#   `mount_periods` and `readings`) to v9 without a bump: a 3a file simply
-#   has none.
+#   `mount_periods` and `readings`), `brake_axles`, `brake_jobs` and
+#   `brake_measurements` to v9 without a bump: a 3a file simply has none.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -262,6 +263,10 @@ _TIRE_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"set_id"}
 _MOUNT_PERIOD_JSON_EXCLUDE = frozenset({"id", "tire_id", "created_at"})
 #: The tire is the parent; the period travels as its place in the tire's periods.
 _TIRE_READING_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"tire_id", "mount_period_id"}
+_BRAKE_AXLE_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+_BRAKE_JOB_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: The job travels as its place in this file's brake_jobs.
+_BRAKE_MEASUREMENT_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"brake_job_id"}
 #: What the service exports read off a visit.
 _SERVICE_VISIT_EXPORT_LOADS = (
     selectinload(ServiceVisit.line_items),
@@ -1088,6 +1093,32 @@ async def export_vehicle_json(
     tires = tire_result.scalars().all()
     # A tire names its set by the set's place in `tire_sets` (R6).
     set_index = {tire_set.id: index for index, tire_set in enumerate(tire_sets)}
+
+    brake_axles = (
+        (await db.execute(select(BrakeAxle).where(BrakeAxle.vin == vin).order_by(BrakeAxle.id)))
+        .scalars()
+        .all()
+    )
+    brake_jobs = (
+        (await db.execute(select(BrakeJob).where(BrakeJob.vin == vin).order_by(BrakeJob.id)))
+        .scalars()
+        .all()
+    )
+    brake_measurements = (
+        (
+            await db.execute(
+                select(BrakeMeasurement)
+                .where(BrakeMeasurement.vin == vin)
+                .order_by(BrakeMeasurement.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # A measurement names the job that wrote it by the job's place in
+    # `brake_jobs` (R6). The reminder marks stay home: they key on measurement
+    # ids, which a restore doesn't keep (N-5).
+    job_index = {job.id: index for index, job in enumerate(brake_jobs)}
     # A transaction names its tag by the tag's place in `toll_tags` (R6).
     tag_index = {tag.id: index for index, tag in enumerate(toll_tags)}
 
@@ -1186,6 +1217,17 @@ async def export_vehicle_json(
         ],
         "tire_sets": [_json_columns(s, _TIRE_SET_JSON_EXCLUDE) for s in tire_sets],
         "tires": [_tire_json(t, set_index) for t in tires],
+        "brake_axles": [_json_columns(a, _BRAKE_AXLE_JSON_EXCLUDE) for a in brake_axles],
+        "brake_jobs": [_json_columns(j, _BRAKE_JOB_JSON_EXCLUDE) for j in brake_jobs],
+        "brake_measurements": [
+            {
+                **_json_columns(m, _BRAKE_MEASUREMENT_JSON_EXCLUDE),
+                "brake_job_index": job_index.get(m.brake_job_id)
+                if m.brake_job_id is not None
+                else None,
+            }
+            for m in brake_measurements
+        ],
     }
 
     # Generate filename

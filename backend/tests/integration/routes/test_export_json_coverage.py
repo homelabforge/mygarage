@@ -31,6 +31,7 @@ from app.models import (
     Vehicle,
     WarrantyRecord,
 )
+from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.financing import FinancingRecord
 from app.models.spot_rental import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
@@ -413,6 +414,59 @@ SECTIONS = [
         exclude=_ALWAYS | {"tire_id", "mount_period_id"},
         portable=frozenset({"mount_period_index"}),
     ),
+    JsonSection(
+        "brake_axles",
+        BrakeAxle,
+        keys=frozenset(
+            {
+                "axle",
+                "brake_type",
+                "min_thickness_mm",
+                "new_thickness_mm",
+                "rotor_min_mm",
+                "drum_max_mm",
+            }
+        ),
+        exclude=_ALWAYS | {"updated_at"},
+    ),
+    JsonSection(
+        "brake_jobs",
+        BrakeJob,
+        keys=frozenset(
+            {
+                "position",
+                "brake_type",
+                "performed_on",
+                "odometer_km",
+                "engine_hours",
+                "friction_replaced",
+                "surface",
+                "notes",
+            }
+        ),
+        exclude=_ALWAYS,
+    ),
+    JsonSection(
+        "brake_measurements",
+        BrakeMeasurement,
+        keys=frozenset(
+            {
+                "position",
+                "recorded_at",
+                "odometer_km",
+                "engine_hours",
+                "inner_pad_mm",
+                "outer_pad_mm",
+                "rotor_mm",
+                "shoe_mm",
+                "drum_mm",
+                "notes",
+            }
+        ),
+        # The job travels as its place in this file's brake_jobs.
+        exclude=_ALWAYS | {"brake_job_id"},
+        portable=frozenset({"brake_job_index"}),
+    ),
 ]
 
 
@@ -479,6 +533,32 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             mount_period_id=period.id,
             recorded_at=day,
             tread_depth_mm=Decimal("8"),
+        )
+    )
+    # An axle setup, a job and the check it wrote.
+    brake_job = BrakeJob(
+        vin=_VIN, position="FL", brake_type="disc", performed_on=day, friction_replaced=True
+    )
+    db_session.add_all(
+        [
+            brake_job,
+            BrakeAxle(
+                vin=_VIN,
+                axle="front",
+                brake_type="disc",
+                min_thickness_mm=Decimal("3"),
+                new_thickness_mm=Decimal("10"),
+            ),
+        ]
+    )
+    await db_session.flush()
+    db_session.add(
+        BrakeMeasurement(
+            vin=_VIN,
+            position="FL",
+            recorded_at=day,
+            inner_pad_mm=Decimal("9"),
+            brake_job_id=brake_job.id,
         )
     )
     await db_session.commit()

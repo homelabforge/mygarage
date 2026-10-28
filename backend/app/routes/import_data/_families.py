@@ -146,6 +146,13 @@ async def run_family[T](
     return FamilyResult("written", plan)
 
 
+def as_object(row: Any) -> Mapping[str, Any]:
+    """The row as a mapping, or a row error when it isn't an object."""
+    if not isinstance(row, Mapping):
+        raise _RowError("must be an object")
+    return cast(Mapping[str, Any], row)
+
+
 def file_index(row: Mapping[str, Any], key: str, size: int, *, what: str) -> int | None:
     """The in-file index under `key`, None when it's missing, a row error when it points nowhere."""
     raw = row.get(key)

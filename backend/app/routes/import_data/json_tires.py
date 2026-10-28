@@ -10,7 +10,7 @@ tire's `set_index`, a reading's `mount_period_index`.
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, cast, get_args
+from typing import Any, get_args
 
 from sqlalchemy import null, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +29,12 @@ from app.routes.import_data._common import (
     _RowError,
     _within_api_bounds,
 )
-from app.routes.import_data._families import file_index, nested_list, within_figure_bounds
+from app.routes.import_data._families import (
+    as_object,
+    file_index,
+    nested_list,
+    within_figure_bounds,
+)
 from app.schemas.tire import (
     HoursFigure,
     MountPeriodUpdate,
@@ -63,13 +68,6 @@ class TirePlan:
     tires: list[ParsedTire]
 
 
-def _as_object(row: Any) -> Mapping[str, Any]:
-    """The row as a mapping, or a row error when it isn't an object."""
-    if not isinstance(row, Mapping):
-        raise _RowError("must be an object")
-    return cast(Mapping[str, Any], row)
-
-
 def _optional_position(row: Mapping[str, Any]) -> str | None:
     """A tire's or a reading's corner: blank is none, anything else one the API takes."""
     return _in_vocabulary(_blank_to_none(row.get("position")), "position", _POSITIONS)
@@ -78,7 +76,7 @@ def _optional_position(row: Mapping[str, Any]) -> str | None:
 def _set_from_json(vin: str, index: int, raw: Any) -> TireSet:
     """One tire set as an unsaved row."""
     try:
-        row = _as_object(raw)
+        row = as_object(raw)
         name = _json_text(row, "name")
         if name is None:
             raise _RowError("name is missing")
@@ -93,7 +91,7 @@ def _period_from_json(tire_index: int, index: int, raw: Any) -> TireMountPeriod:
     No closed-period or future-date rule (N-7): a backup restores what it holds.
     """
     try:
-        row = _as_object(raw)
+        row = as_object(raw)
         if _is_blank(row.get("position")):
             raise _RowError("position is missing")
         position = _in_vocabulary(row.get("position"), "position", _POSITIONS)
@@ -130,7 +128,7 @@ def _reading_from_json(
 ) -> tuple[TireReading, int | None]:
     """One reading as an unsaved row, with the index of the period it falls in."""
     try:
-        row = _as_object(raw)
+        row = as_object(raw)
         recorded_at = _json_row_date(row, "recorded_at")
         # A snapshot of where the tire was, so it keeps its own corner.
         position = _optional_position(row)
@@ -186,7 +184,7 @@ def _check_mount_state(tire: Tire, periods: list[TireMountPeriod]) -> None:
 def _tire_from_json(vin: str, index: int, raw: Any, set_count: int) -> ParsedTire:
     """One tire with its periods and readings, checked and unsaved."""
     try:
-        row = _as_object(raw)
+        row = as_object(raw)
         position = _optional_position(row)
         tread_depth_mm = _json_decimal(row, "tread_depth_mm")
         pressure_kpa = _json_decimal(row, "pressure_kpa")
