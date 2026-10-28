@@ -13,6 +13,7 @@ of the column's 25 digits.
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from typing import Any, Literal, get_args
 
@@ -42,7 +43,7 @@ from app.routes.import_data._families import (
     required_word,
     within_figure_bounds,
 )
-from app.routes.import_data._matching import _matches, _text_matches
+from app.routes.import_data._matching import _matches, _same_figure, _text_matches
 from app.routes.import_data._service import usage_counts
 from app.schemas._money import UNIT_COST_MAX, OptionalMoney
 from app.schemas.supply import (
@@ -52,6 +53,7 @@ from app.schemas.supply import (
     SupplyUsageInput,
     SupplyVolumeUnit,
 )
+from app.utils.household_time import household_date
 
 logger = logging.getLogger(__name__)
 
@@ -257,9 +259,10 @@ def line_item_usages_from_json(
     for k, raw in enumerate(raw_usages):
         try:
             row = as_object(raw)
-            supply = row.get("supply")
-            if not isinstance(supply, Mapping):
+            raw_supply = row.get("supply")
+            if not isinstance(raw_supply, Mapping):
                 raise _RowError("supply must be an object")
+            supply = as_object(raw_supply)
             ref: int | SupplyKey
             if "index" in supply:
                 index = file_index(
@@ -324,7 +327,8 @@ class SupplyResolver:
     What a visit found or added sits in its own layer until its savepoint
     commits. A visit that rolls back takes its added supplies with it, so their
     cache entries and warnings go too (R1-H1): on SQLite the next supply added
-    reuses the id, so a stale entry would point at the wrong one.
+    reuses the id, so a stale entry would point at the wrong one. The standalone
+    usages a visit took back (`moved_usage`) follow the same layers.
     """
 
     def __init__(
@@ -333,14 +337,19 @@ class SupplyResolver:
         file_supplies: list[Any],
         user_id: int | None,
         family: FamilyResult[SupplyPlan],
+        *,
+        last_usage_id: int,
     ) -> None:
         self._vin = vin
         self._file_supplies = file_supplies
         self._user_id = user_id
         self._family = family
+        self._last_usage_id = last_usage_id
         self._cache: dict[tuple[_Scope, SupplyKey], int] = {}
         self._visit_cache: dict[tuple[_Scope, SupplyKey], int] = {}
         self._visit_warnings: list[str] = []
+        self._taken: set[int] = set()
+        self._visit_taken: set[int] = set()
 
     async def resolve(self, db: AsyncSession, ref: int | SupplyKey) -> int:
         """The id of the supply `ref` names; a row error when its family was refused."""
@@ -351,7 +360,7 @@ class SupplyResolver:
         if self._family.outcome == "refused":
             # Nothing is added, so the fixed file's family still finds the vehicle without it (R1-H2).
             row = self._file_supplies[ref]
-            name = row.get("name") if isinstance(row, Mapping) else None
+            name = as_object(row).get("name") if isinstance(row, Mapping) else None
             what = (
                 f'the pinned supply "{name}"' if isinstance(name, str) else f"pinned supply {ref}"
             )
@@ -360,16 +369,59 @@ class SupplyResolver:
         # Never empty here: file_index already refused an index into no supplies.
         return await self._find(db, "pinned", file_supply_key(self._file_supplies, ref))
 
+    async def moved_usage(
+        self,
+        db: AsyncSession,
+        ref: int | SupplyKey,
+        supply_id: int,
+        visit_date: date,
+        usage: LineItemUsage,
+    ) -> SupplyUsage | None:
+        """The standalone usage another vehicle's restore made of this very job, if there is one.
+
+        A supply pinned elsewhere exports this vehicle's job usage as a
+        standalone one dated by the visit (R1-H3), so restoring both vehicles
+        would count it twice. Only one stored before this import, each taken once.
+        """
+        if not isinstance(ref, SupplyKey):
+            return None
+        pinned_to = (await db.execute(select(Supply.vin).where(Supply.id == supply_id))).scalar()
+        if pinned_to is None or pinned_to == self._vin:
+            return None
+        candidates = await db.execute(
+            select(SupplyUsage)
+            .where(
+                SupplyUsage.supply_id == supply_id,
+                SupplyUsage.service_line_item_id.is_(None),
+                SupplyUsage.id <= self._last_usage_id,
+                _same_figure(SupplyUsage.quantity, usage.quantity),
+                _same_figure(SupplyUsage.unit_cost_snapshot, usage.unit_cost_snapshot),
+                _same_figure(SupplyUsage.cost_snapshot, usage.cost_snapshot),
+            )
+            .order_by(SupplyUsage.id)
+        )
+        for row in candidates.scalars():
+            if row.id in self._taken or row.id in self._visit_taken:
+                continue
+            if household_date(row.created_at) != visit_date:
+                continue
+            self._visit_taken.add(row.id)
+            return row
+        return None
+
     def visit_done(self) -> list[str]:
-        """Keep this visit's cache entries and hand back its warnings."""
+        """Keep this visit's cache entries and taken usages, and hand back its warnings."""
         self._cache.update(self._visit_cache)
         self._visit_cache.clear()
+        self._taken |= self._visit_taken
+        self._visit_taken.clear()
         warnings, self._visit_warnings = self._visit_warnings, []
         return warnings
 
     def visit_failed(self) -> None:
-        """Drop this visit's cache entries and warnings; its savepoint took the rows."""
+        """Drop this visit's layer; its savepoint took the rows and the re-links back."""
         self._visit_cache.clear()
+        self._visit_taken.clear()
         self._visit_warnings = []
 
     async def _find(self, db: AsyncSession, scope: _Scope, key: SupplyKey) -> int:

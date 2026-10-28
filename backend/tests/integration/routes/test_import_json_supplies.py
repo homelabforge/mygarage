@@ -346,14 +346,43 @@ async def test_a_bad_pinned_supply_refuses_the_family(
     assert await _pinned(db_session, vin) == []
 
 
+_RAGS = {"name": "Rags", "part_number": None, "unit_type": "count", "volume_unit": None}
+
+_BAD_USAGES = [
+    pytest.param(
+        {"supply": {"index": 0}, "quantity": 1},
+        "index must be the index of a supply in this file",
+        id="index-out-of-range",
+    ),
+    pytest.param(
+        {"supply": _RAGS, "quantity": 1, "cost_snapshot": "NaN"},
+        "cost_snapshot must be a number",
+        id="nan-cost-snapshot",
+    ),
+    pytest.param(
+        {"supply": _RAGS, "quantity": 1, "unit_cost_snapshot": -1},
+        "unit_cost_snapshot must be at least 0, not -1",
+        id="negative-unit-cost-snapshot",
+    ),
+    pytest.param(
+        {"supply": {**_RAGS, "volume_unit": "qt_us"}, "quantity": 1},
+        "A count supply cannot carry a volume unit",
+        id="keyed-count-with-volume-unit",
+    ),
+]
+
+
+@pytest.mark.parametrize(("usage", "reason"), _BAD_USAGES)
 async def test_a_bad_usage_is_its_visits_row_error(
-    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+    usage: dict[str, Any],
+    reason: str,
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
 ):
     vin = await new_vehicle()
-    item = {
-        "description": "Oil change",
-        "supply_usages": [{"supply": {"index": 0}, "quantity": 1}],
-    }
+    item = {"description": "Oil change", "supply_usages": [usage]}
     data = await import_json(
         client,
         auth_headers,
@@ -361,9 +390,7 @@ async def test_a_bad_usage_is_its_visits_row_error(
         {**V9, "service_visits": [{"date": "2026-05-01", "line_items": [item]}]},
     )
     # main: the usage is never read, so the visit imports.
-    assert data["errors"] == [
-        "Service visit 0: line item 0, supply usage 0: index must be the index of a supply in this file"
-    ]
+    assert data["errors"] == [f"Service visit 0: line item 0, supply usage 0: {reason}"]
     assert data["service_records"]["error_count"] == 1
 
 
@@ -559,6 +586,161 @@ async def test_a_repinned_supply_brings_usage_from_another_vehicle(
     assert household_date(restored["created_at"]) == date(2026, 3, 1)
 
 
+async def test_restoring_both_vehicles_keeps_a_repinned_supplys_balance(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    name = f"Jug {tag}"
+    a, b = await new_vehicle(), await new_vehicle()
+    # Bought 10 while shared, 3 used on B's visit, then pinned to A.
+    jug = Supply(name=name, unit_type="count")
+    job = ServiceVisit(vin=b, date=date(2026, 3, 1), service_category="Maintenance")
+    db_session.add_all([jug, job])
+    await db_session.flush()
+    item = ServiceLineItem(visit_id=job.id, description="Top up")
+    db_session.add(item)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=jug.id, date=date(2026, 2, 1), quantity=Decimal("10")),
+            SupplyUsage(
+                supply_id=jug.id,
+                service_line_item_id=item.id,
+                quantity=Decimal("3"),
+                unit_cost_snapshot=Decimal("1.5000"),
+                cost_snapshot=Decimal("4.50"),
+            ),
+        ]
+    )
+    await db_session.flush()
+    jug.vin = a
+    await db_session.commit()
+    backup_a = await export_json(client, auth_headers, a)
+    backup_b = await export_json(client, auth_headers, b)
+    # A fresh instance: the original isn't there to be found.
+    jug.name = f"Gone {tag}"
+    await db_session.commit()
+
+    # A's file brings B's usage as a standalone one, B's file the same usage on its visit.
+    new_a, new_b = await new_vehicle(), await new_vehicle()
+    first = await import_json(client, auth_headers, new_a, backup_a)
+    second = await import_json(client, auth_headers, new_b, backup_b)
+    assert (first["errors"], first["warnings"]) == ([], [])
+    assert (second["errors"], second["warnings"]) == ([], [])
+
+    # main: ValueError, A's file brings no supply to unpack.
+    [copy_id] = (
+        (await db_session.execute(select(Supply.id).where(Supply.name == name))).scalars().all()
+    )
+    bought = (
+        await db_session.execute(
+            select(func.sum(SupplyPurchase.quantity)).where(SupplyPurchase.supply_id == copy_id)
+        )
+    ).scalar_one()
+    used = (
+        await db_session.execute(
+            select(func.sum(SupplyUsage.quantity)).where(SupplyUsage.supply_id == copy_id)
+        )
+    ).scalar_one()
+    # Without the re-link the 3 counts twice: 4.
+    assert Decimal(bought) - Decimal(used) == Decimal("7")
+    # One usage, back on B's restored visit, and no standalone one left on A's copy.
+    assert await _usages_of(db_session, copy_id) == 1
+    [restored] = await _pinned(db_session, new_a)
+    assert restored["adjustments"] == []
+    assert await _usages_by_name(db_session, new_b) == [(name, Decimal("3"))]
+
+
+async def test_a_restore_takes_each_moved_usage_once_and_only_on_its_day(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    name = f"Can {tag}"
+    a, b = await new_vehicle(), await new_vehicle()
+    # A real adjustment of the same 2, logged on another day, then two jobs of 2 on B's visit.
+    can = Supply(name=name, unit_type="count")
+    job = ServiceVisit(vin=b, date=date(2026, 3, 1), service_category="Maintenance")
+    db_session.add_all([can, job])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=can.id, date=date(2026, 2, 1), quantity=Decimal("10")),
+            SupplyUsage(
+                supply_id=can.id, quantity=Decimal("2"), created_at=datetime(2026, 4, 10, 12, 0)
+            ),
+        ]
+    )
+    await db_session.flush()
+    items = [ServiceLineItem(visit_id=job.id, description=f"Job {n}") for n in (1, 2)]
+    db_session.add_all(items)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyUsage(supply_id=can.id, service_line_item_id=i.id, quantity=Decimal("2"))
+            for i in items
+        ]
+    )
+    await db_session.flush()
+    can.vin = a
+    await db_session.commit()
+    backup_a = await export_json(client, auth_headers, a)
+    backup_b = await export_json(client, auth_headers, b)
+    can.name = f"Gone {tag}"
+    await db_session.commit()
+
+    new_a, new_b = await new_vehicle(), await new_vehicle()
+    await import_json(client, auth_headers, new_a, backup_a)
+    await import_json(client, auth_headers, new_b, backup_b)
+
+    # main: ValueError, A's file brings no supply to unpack.
+    [restored] = await _pinned(db_session, new_a)
+    # Only the real adjustment stays standalone.
+    assert [(u["quantity"], u["created_at"]) for u in restored["adjustments"]] == [
+        (Decimal("2"), datetime(2026, 4, 10, 12, 0))
+    ]
+    visit = await _visit(db_session, new_b)
+    # Each job got one of the two moved usages back, not the same one twice.
+    assert sorted(len(i.supply_usages) for i in visit.line_items) == [1, 1]
+
+
+async def test_a_shared_supplys_own_adjustment_on_the_visit_day_stays_standalone(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Shared rag {_tag()}"
+    vin = await new_vehicle()
+    # Only a supply pinned elsewhere can hold a moved job usage; this one's shared.
+    rag = Supply(name=name, unit_type="count")
+    db_session.add(rag)
+    await db_session.flush()
+    db_session.add(
+        SupplyUsage(supply_id=rag.id, quantity=Decimal("1"), created_at=datetime(2026, 5, 1, 12, 0))
+    )
+    await db_session.commit()
+    rag_id = rag.id
+
+    ref = {"name": name, "part_number": None, "unit_type": "count", "volume_unit": None}
+    await import_json(
+        client, auth_headers, vin, {**V9, "service_visits": [_visit_using("2026-05-01", (ref, 1))]}
+    )
+    db_session.expire_all()
+    linked = (
+        (
+            await db_session.execute(
+                select(SupplyUsage.service_line_item_id)
+                .where(SupplyUsage.supply_id == rag_id)
+                .order_by(SupplyUsage.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # A guard: passes on the task base, which never re-links. Red when the
+    # pinned-elsewhere check goes.
+    assert linked[0] is None
+    # main: [None], the usage is never read.
+    assert len(linked) == 2 and linked[1] is not None
+
+
 # -- D-5, D-15: where a supply the file names is looked up -----------------------
 
 
@@ -671,6 +853,34 @@ async def test_a_skipped_familys_bad_row_is_the_using_visits_row_error(
         "unit_type must be one of volume, count"
     ]
     assert data["service_records"]["error_count"] == 1
+
+
+async def test_a_blank_stored_part_number_is_found_by_a_key_with_none(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Blank part {_tag()}"
+    vin = await new_vehicle()
+    # An older write left '' where the file says null.
+    shared = Supply(name=name, part_number="", unit_type="count")
+    db_session.add(shared)
+    await db_session.commit()
+    shared_id = shared.id
+
+    ref = {"name": name, "part_number": None, "unit_type": "count", "volume_unit": None}
+    data = await import_json(
+        client,
+        auth_headers,
+        vin,
+        {**V9, "service_visits": [_visit_using("2026-05-01", (ref, 1))]},
+    )
+    # main: no warning either, the usage is never read.
+    assert data["warnings"] == []
+    assert await _usages_of(db_session, shared_id) == 1
+    assert (
+        await db_session.execute(
+            select(func.count()).select_from(Supply).where(Supply.name == name)
+        )
+    ).scalar_one() == 1
 
 
 # -- R1-H4: what a visit used is part of which visit it is ----------------------

@@ -319,6 +319,7 @@ async def import_vehicle_json(
         SpotRental,
         Reminder,
         Note,
+        SupplyUsage,
     )
     readings = _ImportReadings()
 
@@ -344,7 +345,13 @@ async def import_vehicle_json(
     )
     if supplies.outcome == "written" and supplies.plan is not None:
         warnings.extend(supplies.plan.warnings)
-    resolver = SupplyResolver(vin, sections["supplies"], user_id, supplies)
+    resolver = SupplyResolver(
+        vin,
+        sections["supplies"],
+        user_id,
+        supplies,
+        last_usage_id=matcher.last_id(SupplyUsage),
+    )
 
     # Import service records (creates ServiceVisit + ServiceLineItem + Vendor)
     for idx, record_data in enumerate(sections["service_records"]):
@@ -535,7 +542,7 @@ async def import_vehicle_json(
                     line_item_usage_counts(position, item_usages, sections["supplies"])
                     for position, item_usages in enumerate(usages)
                 ]
-                if compare_usages
+                if skip_duplicates and compare_usages
                 else []
             )
             if (
@@ -615,6 +622,12 @@ async def import_vehicle_json(
                             raise _RowError(
                                 f"line item {position}, supply usage {k}: {e.reason}"
                             ) from e
+                        moved = await resolver.moved_usage(db, usage.ref, supply_id, date, usage)
+                        if moved is not None:
+                            # Another vehicle's restore brought this job back as a
+                            # standalone usage; hand it back to its job, not count it twice.
+                            moved.service_line_item_id = line_item.id
+                            continue
                         db.add(
                             SupplyUsage(
                                 supply_id=supply_id,
