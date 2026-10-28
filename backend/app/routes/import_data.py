@@ -292,6 +292,11 @@ def _matches(column: InstrumentedAttribute[Any], value: Any) -> ColumnElement[bo
     return column.is_(None) if value is None else column == value
 
 
+def _text_matches(column: InstrumentedAttribute[Any], value: str | None) -> ColumnElement[bool]:
+    """`_matches` for free-ish text: no value also matches a stored '', which older writes left."""
+    return or_(column.is_(None), column == "") if value is None else column == value
+
+
 def _same_figure(column: InstrumentedAttribute[Any], value: Decimal | None) -> ColumnElement[bool]:
     """`column` holds `value` at its scale: within half its step, or NULL for None.
 
@@ -1058,7 +1063,39 @@ def _json_fuel_key(
         key.append(_same_figure(FuelRecord.propane_liters, record.propane_liters))
     if "cost" in row:
         key.append(_money_matches(FuelRecord.cost, record.cost))
+    # C-1, C-5: the rest of what tells two fill-ups apart. A propane exchange
+    # has no odometer or litres, so the tanks and hours carry it.
+    for name in ("engine_hours", "tank_size_kg", "soc_start_pct", "soc_end_pct"):
+        if name in row:
+            key.append(_same_figure(getattr(FuelRecord, name), getattr(record, name)))
+    if "tank_quantity" in row:
+        key.append(_matches(FuelRecord.tank_quantity, record.tank_quantity))
+    if "rebate" in row:
+        key.append(_money_matches(FuelRecord.rebate, record.rebate))
+    # A legacy unit price was converted from per gallon, at a scale that moved
+    # since, so only a canonical one is compared.
+    if "price_per_unit" in row and not converted:
+        key.append(_same_figure(FuelRecord.price_per_unit, record.price_per_unit))
+    if "octane" in row:
+        key.append(_matches(FuelRecord.octane, record.octane))
+    if "diesel_grade" in row:
+        key.append(_matches(FuelRecord.diesel_grade, record.diesel_grade))
     return key
+
+
+def _canonical_fuel_type(raw: str | None) -> str | None:
+    """A fuel type as the import stores it: the listed value, 'other' for an unknown word."""
+    if raw is None or not raw.strip():
+        return None
+    normalized = normalize_fuel_type(raw)
+    return (normalized or FuelTypeEnum.OTHER).value
+
+
+def _same_fuel_type(row: Mapping[str, Any], record: FuelRecord) -> Callable[[Any], bool] | None:
+    """The fuel type compared on the loaded row, so an old 'Gasoline' still reads as gasoline (T-16)."""
+    if "fuel_type_used" not in row:
+        return None
+    return lambda stored: _canonical_fuel_type(stored.fuel_type_used) == record.fuel_type_used
 
 
 def _def_record_from_json(
@@ -1152,6 +1189,13 @@ def _json_def_key(
         )
     if "entry_type" in row:
         key.append(DEFRecord.entry_type == record.entry_type)
+    # C-5: the unit price (a canonical one, as fuel), and where and which brand.
+    if "price_per_unit" in row and not converted:
+        key.append(_same_figure(DEFRecord.price_per_unit, record.price_per_unit))
+    if "source" in row:
+        key.append(_text_matches(DEFRecord.source, record.source))
+    if "brand" in row:
+        key.append(_text_matches(DEFRecord.brand, record.brand))
     return key
 
 
@@ -1396,12 +1440,11 @@ def _json_warranty_key(row: Mapping[str, Any], record: WarrantyRecord) -> list[C
     return key
 
 
-def _billing_from_json(
-    position: int, bill: Any, check_in_date: date_type, check_out_date: date_type | None
-) -> SpotRentalBilling:
+def _billing_from_json(position: int, bill: Any) -> SpotRentalBilling:
     """One v9 bill as an unsaved record; the caller sets its rental once that has an id.
 
-    Its date is held to the rental's stay, as the billing route holds it (T-7).
+    Its date isn't held to the stay: editing a rental moves the stay and leaves
+    its bills where they were, so a backup can carry that and restores it (C-4).
     A row error names the bill by `position`.
     """
     try:
@@ -1423,10 +1466,6 @@ def _billing_from_json(
             total=total,
         )
         notes = _json_text(bill, "notes", max_length=1000)
-        if billing_date < check_in_date:
-            raise _RowError("billing date cannot be before check-in date")
-        if check_out_date is not None and billing_date > check_out_date:
-            raise _RowError("billing date cannot be after check-out date")
     except _RowError as e:
         raise _RowError(f"billing {position}: {e.reason}") from e
     return SpotRentalBilling(
@@ -1473,7 +1512,7 @@ def _spot_rental_from_json(
     if not isinstance(raw_bills, list):
         raise _RowError("billings must be a list")
     bills = [
-        _billing_from_json(position, bill, check_in_date, check_out_date)
+        _billing_from_json(position, bill)
         for position, bill in enumerate(cast(list[Any], raw_bills))
     ]
     rental = SpotRental(
@@ -1504,7 +1543,17 @@ def _json_spot_rental_key(row: Mapping[str, Any], rental: SpotRental) -> list[Co
         key.append(_matches(SpotRental.check_out_date, rental.check_out_date))
     if "total_cost" in row:
         key.append(_money_matches(SpotRental.total_cost, rental.total_cost))
+    # C-2: the rental's own rates and utilities, like a bill's amounts.
+    for name in _RENTAL_AMOUNTS:
+        if name in row:
+            key.append(_money_matches(getattr(SpotRental, name), getattr(rental, name)))
+    if "location_address" in row:
+        key.append(_text_matches(SpotRental.location_address, rental.location_address))
     return key
+
+
+#: The amounts a v9 export writes on a rental besides its total.
+_RENTAL_AMOUNTS = ("nightly_rate", "weekly_rate", "monthly_rate", "electric", "water", "waste")
 
 
 #: Every amount a v9 export writes on a bill. Two bills with one total can
@@ -3467,8 +3516,14 @@ async def import_vehicle_json(
                         "insurance_claim_number",
                         _matches(ServiceVisit.insurance_claim_number, insurance_claim_number),
                     ),
+                    # C-5: the visit's own hours reading and category.
+                    ("engine_hours", _same_figure(ServiceVisit.engine_hours, engine_hours)),
+                    (
+                        "service_category",
+                        _matches(ServiceVisit.service_category, service_category),
+                    ),
                 )
-                if key in visit_data  # T-16: a v9 export writes all four
+                if key in visit_data  # T-16: a v9 export writes them all
             ]
             # The items' other fields, each only when every item has it (T-16).
             item_fields = tuple(
@@ -3598,6 +3653,7 @@ async def import_vehicle_json(
                         last_id=matcher.last_id(FuelRecord),
                         zero_was_null=zero_was_null,
                     ),
+                    same=_same_fuel_type(record_data, record),
                 )
                 is not None
             ):

@@ -880,6 +880,37 @@ async def test_a_formula_quoted_cell_round_trips_as_typed(
     assert (again["success_count"], again["skipped_count"]) == (0, 1), again
 
 
+async def test_a_typed_quote_before_a_formula_lead_round_trips_as_typed(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """C-3: text that already starts with a quote and a formula lead comes back whole."""
+    source = await _vehicle(db_session, test_user["id"], "B3RTSVCFORMULA003")
+    target = await _vehicle(db_session, test_user["id"], "B3RTSVCFORMULA004")
+    visit = ServiceVisit(
+        vin=source,
+        date=date(2026, 7, 12),
+        odometer_km=Decimal("7150.00"),
+        service_category="Maintenance",
+        total_cost=Decimal("30.00"),
+    )
+    db_session.add(visit)
+    await db_session.flush()
+    db_session.add(
+        ServiceLineItem(visit_id=visit.id, description="'=Literal", cost=Decimal("30.00"))
+    )
+    await db_session.commit()
+    exported = await client.get(
+        f"/api/export/vehicles/{source}/service/csv?units=metric", headers=auth_headers
+    )
+    assert exported.status_code == 200, exported.text
+
+    data = await _post_csv(client, auth_headers, target, exported.text)
+    assert data["success_count"] == 1, data
+    (restored,) = await _visits(test_sessionmaker, target)
+    # a354f33a: "=Literal", the typed quote read as the export's escape
+    assert restored.line_items[0].description == "'=Literal"
+
+
 @pytest.mark.parametrize(
     ("suffix", "field", "value"),
     [
@@ -994,3 +1025,53 @@ async def test_each_service_csv_fee_column_is_keyed_only_when_the_sheet_has_it(
 
     data = await _post_csv(client, auth_headers, vin, body)
     assert (data["success_count"], data["skipped_count"]) == expected, data
+
+
+@pytest.mark.parametrize(
+    ("suffix", "field", "value"),
+    [("1", "engine_hours", 13.3), ("2", "service_category", "Inspection")],
+)
+async def test_a_json_visit_differing_in_hours_or_category_imports(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    suffix: str,
+    field: str,
+    value: Any,
+):
+    """C-5: the visit's own engine hours and category were missing from its key."""
+    vin = await _vehicle(db_session, test_user["id"], f"B3RTSVCVISITKEY0{suffix}")
+    visit = ServiceVisit(
+        vin=vin,
+        date=date(2026, 7, 15),
+        odometer_km=Decimal("9500.00"),
+        engine_hours=Decimal("12.3"),
+        service_category="Maintenance",
+        total_cost=Decimal("40.00"),
+    )
+    db_session.add(visit)
+    await db_session.flush()
+    db_session.add(ServiceLineItem(visit_id=visit.id, description="Oil", cost=Decimal("40.00")))
+    await db_session.commit()
+    exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    own_export = exported.json()
+    (stored,) = own_export["service_visits"]
+    other = {
+        "export_version": own_export["export_version"],
+        "units": own_export["units"],
+        "service_visits": [{**stored, field: value}],
+    }
+
+    data = await _post_json(client, auth_headers, vin, other)
+    # a354f33a: (0, 1), neither column was in the key
+    assert (
+        data["service_records"]["success_count"],
+        data["service_records"]["skipped_count"],
+    ) == (1, 0), data
+    again = await _post_json(client, auth_headers, vin, own_export)
+    assert (
+        again["service_records"]["success_count"],
+        again["service_records"]["skipped_count"],
+    ) == (0, 1), again

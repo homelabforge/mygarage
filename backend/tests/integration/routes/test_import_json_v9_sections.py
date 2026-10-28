@@ -341,7 +341,7 @@ async def test_a_row_the_api_would_refuse_is_a_row_error_and_the_rest_imports(
             {
                 "location_name": "Early Park",
                 "check_in_date": "2026-02-01",
-                "billings": [{"billing_date": "2026-01-15", "total": 10.0}],
+                "billings": [{"billing_date": "2026-02-15", "total": -10.0}],
             }
         ],
     }
@@ -352,7 +352,7 @@ async def test_a_row_the_api_would_refuse_is_a_row_error_and_the_rest_imports(
         "Tax record 0: tax_type must be one of Registration, Inspection, Property Tax, Tolls",
         "Toll tag 0: status must be one of active, inactive",
         "Warranty 0: warranty_type is missing",
-        "Spot rental 0: billing 0: billing date cannot be before check-in date",
+        "Spot rental 0: billing 0: total must be at least 0, not -10.0",
     ], data
     assert data["warnings"] == [
         "Toll transaction 0: its toll tag was not imported, saved without one"
@@ -722,12 +722,8 @@ _ROW_ERRORS = [
     ),
     (
         "spot_rentals",
-        {
-            "check_in_date": "2026-01-01",
-            "check_out_date": "2026-01-31",
-            "billings": [{"billing_date": "2026-02-01"}],
-        },
-        "Spot rental 0: billing 0: billing date cannot be after check-out date",
+        {"check_in_date": "2026-01-01", "billings": [{"total": 5.0}]},
+        "Spot rental 0: billing 0: billing_date is missing",
     ),
 ]
 
@@ -985,3 +981,105 @@ async def test_a_bill_with_the_same_total_and_another_breakdown_imports(
     assert (rentals["success_count"], rentals["skipped_count"]) == (0, 1), again
     restored = await _restored(test_sessionmaker, vin)
     assert len(restored["rentals"]) == 2
+
+
+async def test_a_bill_left_outside_moved_stay_dates_restores_as_given(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """C-4: the rental edit moves the stay without moving its bills, so a backup can hold a
+    bill outside the stay. That's a state the app makes, so it restores whole."""
+    source = await _vehicle(db_session, test_user["id"], "B3RTSECTIONMOVE01")
+    target = await _vehicle(db_session, test_user["id"], "B3RTSECTIONMOVE02")
+    created = await client.post(
+        f"/api/vehicles/{source}/spot-rentals",
+        headers=auth_headers,
+        json={
+            "location_name": "B3 Moved Park",
+            "check_in_date": "2026-07-01",
+            "check_out_date": "2026-07-31",
+        },
+    )
+    assert created.status_code == 201, created.text
+    rental_id = created.json()["id"]
+    billed = await client.post(
+        f"/api/vehicles/{source}/spot-rentals/{rental_id}/billings",
+        headers=auth_headers,
+        json={"billing_date": "2026-07-15", "total": 300.0},
+    )
+    assert billed.status_code == 201, billed.text
+    moved = await client.put(
+        f"/api/vehicles/{source}/spot-rentals/{rental_id}",
+        headers=auth_headers,
+        json={"check_in_date": "2026-08-01", "check_out_date": "2026-08-31"},
+    )
+    assert moved.status_code == 200, moved.text
+    exported = await client.get(f"/api/export/vehicles/{source}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+
+    data = await _post_json(client, auth_headers, target, exported.json())
+    # a354f33a: (0, ["Spot rental 0: billing 0: billing date cannot be before check-in date"])
+    assert (data["spot_rentals"]["success_count"], data["errors"]) == (1, []), data
+    restored = await _restored(test_sessionmaker, target)
+    assert [(r[2], r[3], [(b[0], b[5]) for b in r[13]]) for r in restored["rentals"]] == [
+        (date(2026, 8, 1), date(2026, 8, 31), [(date(2026, 7, 15), Decimal("300.00"))])
+    ]
+
+
+@pytest.mark.parametrize(
+    ("suffix", "field", "value"),
+    [
+        ("1", "nightly_rate", 31.0),
+        ("2", "weekly_rate", 151.0),
+        ("3", "monthly_rate", 501.0),
+        ("4", "electric", 41.0),
+        ("5", "water", 11.0),
+        ("6", "waste", 6.0),
+        ("7", "location_address", "2 Other Road"),
+    ],
+)
+async def test_a_rental_differing_in_its_own_rates_or_address_imports(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    suffix: str,
+    field: str,
+    value: Any,
+):
+    """C-2: same stay, place, total and bills, other charges: another rental."""
+    vin = await _vehicle(db_session, test_user["id"], f"B3RTSECTIONRATE0{suffix}")
+    db_session.add(
+        SpotRental(
+            vin=vin,
+            location_name="B3 Rate Park",
+            location_address="1 Park Road",
+            check_in_date=date(2026, 9, 1),
+            check_out_date=date(2026, 9, 30),
+            nightly_rate=Decimal("30.00"),
+            weekly_rate=Decimal("150.00"),
+            monthly_rate=Decimal("500.00"),
+            electric=Decimal("40.00"),
+            water=Decimal("10.00"),
+            waste=Decimal("5.00"),
+            total_cost=Decimal("555.00"),
+        )
+    )
+    await db_session.commit()
+    exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    own_export = exported.json()
+    (stored,) = own_export["spot_rentals"]
+    other = {
+        "export_version": own_export["export_version"],
+        "units": own_export["units"],
+        "spot_rentals": [{**stored, field: value}],
+    }
+
+    data = await _post_json(client, auth_headers, vin, other)
+    # a354f33a: (0, 1), the rental's own charges weren't in the key
+    rentals = data["spot_rentals"]
+    assert (rentals["success_count"], rentals["skipped_count"]) == (1, 0), data
+    again = await _post_json(client, auth_headers, vin, own_export)
+    rentals = again["spot_rentals"]
+    assert (rentals["success_count"], rentals["skipped_count"]) == (0, 1), again

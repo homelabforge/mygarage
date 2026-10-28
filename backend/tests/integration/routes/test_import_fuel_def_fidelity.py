@@ -765,3 +765,152 @@ async def test_a_json_def_text_column_holding_a_number_is_a_row_error(
     )
     # 3c5eb849: success 1, the 5 stored as text on SQLite
     assert data["errors"] == ["DEF record 0: brand must be text"], data
+
+
+# -- C-1 / C-5: every column that tells two fill-ups apart is in the key -------
+
+
+@pytest.mark.parametrize(
+    ("suffix", "field", "value"),
+    [
+        ("001", "engine_hours", 101.0),
+        # C-1: one tank against a stored two, same cost, no liquid quantity.
+        ("002", "tank_quantity", 1),
+        ("003", "tank_size_kg", 18.144),
+        ("004", "soc_start_pct", 30.0),
+        ("005", "soc_end_pct", 90.0),
+        ("006", "rebate", 2.0),
+        ("007", "price_per_unit", 1.3345),
+        ("008", "fuel_type_used", "gasoline"),
+        ("009", "octane", 91),
+        ("010", "diesel_grade", "onroad"),
+    ],
+)
+async def test_a_json_fill_up_differing_in_one_keyed_column_imports(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    suffix: str,
+    field: str,
+    value: Any,
+):
+    """Same day, cost and no odometer: the one changed column makes it another fill-up."""
+    vin = await _vehicle(db_session, test_user["id"], f"B3RTFUELKEYSWP{suffix}")
+    db_session.add(
+        FuelRecord(
+            vin=vin,
+            date=date(2026, 8, 20),
+            engine_hours=Decimal("100.0"),
+            tank_size_kg=Decimal("9.072"),
+            tank_quantity=2,
+            soc_start_pct=Decimal("20.00"),
+            soc_end_pct=Decimal("80.00"),
+            cost=Decimal("40.00"),
+            rebate=Decimal("1.00"),
+            price_per_unit=Decimal("1.2345"),
+            fuel_type_used="propane_lpg",
+        )
+    )
+    await db_session.commit()
+    exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    own_export = exported.json()
+    (stored,) = own_export["fuel_records"]
+    other = {
+        "export_version": own_export["export_version"],
+        "units": own_export["units"],
+        "fuel_records": [{**stored, field: value}],
+    }
+
+    data = await _post_json(client, auth_headers, vin, other)
+    # a354f33a: (0, 1), the column wasn't in the key
+    assert (data["fuel_records"]["success_count"], data["fuel_records"]["skipped_count"]) == (
+        1,
+        0,
+    ), data
+    again = await _post_json(client, auth_headers, vin, own_export)
+    assert (again["fuel_records"]["success_count"], again["fuel_records"]["skipped_count"]) == (
+        0,
+        1,
+    ), again
+
+
+@pytest.mark.parametrize(
+    ("suffix", "field", "value"),
+    [("001", "price_per_unit", 0.95), ("002", "source", "B3 Other Stop"), ("003", "brand", "Peak")],
+)
+async def test_a_json_def_row_differing_in_one_keyed_column_imports(
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    test_sessionmaker,
+    suffix: str,
+    field: str,
+    value: Any,
+):
+    vin = await _vehicle(db_session, test_user["id"], f"B3RTDEFKEYSWAP{suffix}")
+    db_session.add(
+        DEFRecord(
+            vin=vin,
+            date=date(2026, 8, 21),
+            odometer_km=Decimal("1000.00"),
+            liters=Decimal("10.000"),
+            cost=Decimal("9.00"),
+            price_per_unit=Decimal("0.9000"),
+            fill_level=Decimal("0.50"),
+            source="B3 Truck Stop",
+            brand="BlueDEF",
+            entry_type="purchase",
+        )
+    )
+    await db_session.commit()
+    exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    own_export = exported.json()
+    (stored,) = own_export["def_records"]
+    other = {
+        "export_version": own_export["export_version"],
+        "units": own_export["units"],
+        "def_records": [{**stored, field: value}],
+    }
+
+    data = await _post_json(client, auth_headers, vin, other)
+    # a354f33a: (0, 1), the column wasn't in the key
+    assert (data["def_records"]["success_count"], data["def_records"]["skipped_count"]) == (
+        1,
+        0,
+    ), data
+    again = await _post_json(client, auth_headers, vin, own_export)
+    assert (again["def_records"]["success_count"], again["def_records"]["skipped_count"]) == (
+        0,
+        1,
+    ), again
+
+
+async def test_a_fill_up_stored_under_an_old_fuel_type_spelling_matches_its_own_backup(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
+):
+    """The import writes 'gasoline' for the file's 'Gasoline', so the stored side is read the same way."""
+    vin = await _vehicle(db_session, test_user["id"], "B3RTFUELKEYSPELL1")
+    db_session.add(
+        FuelRecord(
+            vin=vin,
+            date=date(2026, 8, 22),
+            odometer_km=Decimal("2000.00"),
+            liters=Decimal("30.000"),
+            cost=Decimal("45.00"),
+            fuel_type_used="Gasoline",
+        )
+    )
+    await db_session.commit()
+    exported = await client.get(f"/api/export/vehicles/{vin}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+
+    data = await _post_json(client, auth_headers, vin, exported.json())
+    assert (data["fuel_records"]["success_count"], data["fuel_records"]["skipped_count"]) == (
+        0,
+        1,
+    ), data
