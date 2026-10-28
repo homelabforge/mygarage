@@ -10,10 +10,11 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
-from fastapi import Depends, File, Form, HTTPException, UploadFile
+from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.database import get_db
 from app.models import (
     DEFRecord,
@@ -49,6 +50,7 @@ from app.routes.import_data._common import (
     _RowError,
     _unexpected_reason,
     _within_api_bounds,
+    limiter,
     router,
 )
 from app.routes.import_data._fuel import (
@@ -158,7 +160,9 @@ _JSON_IMPORT_SECTIONS = (
 
 
 @router.post("/vehicles/{vin}/json")
+@limiter.limit(settings.rate_limit_uploads)
 async def import_vehicle_json(
+    request: Request,
     vin: str,
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),

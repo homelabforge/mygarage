@@ -280,3 +280,49 @@ async def client_via(client: AsyncClient) -> AsyncIterator[Callable[[str], Async
     yield make
     for via in made:
         await via.aclose()
+
+
+# --- Import rate limits and throwaway vehicles --------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_import_limiter() -> None:
+    """Each test starts with the import routes' 20 a minute and the export's
+    5 a minute unspent (K6). The new JSON modules export more than 5 times."""
+    from app.routes.export import limiter as export_limiter
+    from app.routes.import_data import limiter as import_limiter
+
+    import_limiter.reset()
+    export_limiter.reset()
+
+
+@pytest_asyncio.fixture
+async def new_vehicle(
+    db_session: AsyncSession, test_user: dict[str, object]
+) -> AsyncIterator[Callable[..., Awaitable[str]]]:
+    """Make throwaway vehicles owned by the test user; they're deleted after the test.
+
+    The suite shares one database with no rollback, so each test gets its own VINs.
+    """
+    made: list[str] = []
+
+    async def make(**fields: object) -> str:
+        vin = f"B3B{uuid.uuid4().hex[:14].upper()}"
+        values: dict[str, object] = {
+            "nickname": vin,
+            "vehicle_type": "Car",
+            "year": 2020,
+            "make": "Test",
+            "model": "Backup",
+            **fields,
+        }
+        db_session.add(Vehicle(vin=vin, user_id=test_user["id"], **values))
+        await db_session.commit()
+        made.append(vin)
+        return vin
+
+    yield make
+    await db_session.rollback()
+    if made:
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_(made)))
+        await db_session.commit()
