@@ -37,6 +37,7 @@ from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
 from app.models.spot_rental import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
+from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.toll import TollTag, TollTransaction
 
@@ -231,7 +232,7 @@ SECTIONS = [
         ),
         # The visit is the parent; the inspection link travels as an index in the visit.
         exclude=frozenset({"id", "visit_id", "triggered_by_inspection_id", "created_at"}),
-        portable=frozenset({"triggered_by_inspection"}),
+        portable=frozenset({"triggered_by_inspection", "supply_usages"}),
     ),
     JsonSection(
         "fuel_records",
@@ -392,6 +393,49 @@ SECTIONS = [
             {"billing_date", "monthly_rate", "electric", "water", "waste", "total", "notes"}
         ),
         exclude=frozenset({"id", "spot_rental_id", "created_at"}),
+    ),
+    JsonSection(
+        "supplies",
+        Supply,
+        keys=frozenset(
+            {
+                "name",
+                "part_number",
+                "barcode",
+                "category",
+                "unit_type",
+                "volume_unit",
+                "is_active",
+                "notes",
+            }
+        ),
+        # Pinned to this vehicle by being in the file; who made it is a user here.
+        exclude=_ALWAYS | {"created_by_user_id", "updated_at"},
+        portable=frozenset({"purchases", "usages"}),
+    ),
+    JsonSection(
+        "supplies.purchases",
+        SupplyPurchase,
+        keys=frozenset({"date", "quantity", "total_cost", "part_number", "notes"}),
+        # The supply is the parent; the supplier travels by name, like a vendor.
+        exclude=frozenset({"id", "supply_id", "supplier_id", "created_at"}),
+        portable=frozenset({"supplier_name"}),
+    ),
+    JsonSection(
+        "supplies.usages",
+        SupplyUsage,
+        # created_at is a standalone usage's ledger date.
+        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot", "created_at"}),
+        # Standalone only; a line item's usage travels under its line item.
+        exclude=frozenset({"id", "supply_id", "service_line_item_id"}),
+    ),
+    JsonSection(
+        "service_visits.line_items.supply_usages",
+        SupplyUsage,
+        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot"}),
+        # The line item is the parent; the supply travels as an index or a name key.
+        exclude=frozenset({"id", "supply_id", "service_line_item_id", "created_at"}),
+        portable=frozenset({"supply"}),
     ),
     JsonSection(
         "maintenance_rules",
@@ -647,6 +691,20 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             inner_pad_mm=Decimal("9"),
             brake_job_id=brake_job.id,
         )
+    )
+    # A pinned supply with a purchase and an adjustment, and a line item that used it.
+    pinned = Supply(name="Coverage oil", unit_type="volume", vin=_VIN)
+    used_on = ServiceLineItem(visit_id=visit.id, description="oil")
+    db_session.add_all([pinned, used_on])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=pinned.id, date=day, quantity=Decimal("1")),
+            SupplyUsage(supply_id=pinned.id, quantity=Decimal("0.5")),
+            SupplyUsage(
+                supply_id=pinned.id, service_line_item_id=used_on.id, quantity=Decimal("1")
+            ),
+        ]
     )
     await db_session.commit()
     return _VIN

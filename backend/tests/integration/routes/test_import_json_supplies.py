@@ -1,0 +1,814 @@
+"""Supplies in the JSON backup: pinned supplies whole, and what each line item used (task 9, K12)."""
+
+import json
+import uuid
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.models import ServiceLineItem, ServiceVisit
+from app.models.address_book import AddressBookEntry
+from app.models.supply import Supply, SupplyPurchase, SupplyUsage
+from app.utils.household_time import household_date
+from tests.integration.routes._json_backup import V9, export_json, import_json
+
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+
+
+def _tag() -> str:
+    # Shared supplies and address-book rows outlive the test's vehicles.
+    return uuid.uuid4().hex[:8]
+
+
+async def _seed(db_session: AsyncSession, vin: str, tag: str) -> dict[str, Any]:
+    """A pinned oil with two purchases and an adjustment, and a visit that used it and a shared filter."""
+    shop = AddressBookEntry(business_name=f"B3 Parts {tag}")
+    oil = Supply(
+        name=f"Mobil 1 {tag}",
+        part_number="M1-5W30",
+        barcode="0071924",
+        category="oil",
+        unit_type="volume",
+        volume_unit="qt_us",
+        vin=vin,
+        notes="the good stuff",
+    )
+    shared = Supply(name=f"Filter {tag}", part_number="PH7317", unit_type="count")
+    visit = ServiceVisit(
+        vin=vin,
+        date=date(2026, 5, 1),
+        odometer_km=Decimal("40000.00"),
+        service_category="Maintenance",
+        tax_amount=Decimal("2.00"),
+        total_cost=Decimal("0"),
+    )
+    db_session.add_all([shop, oil, shared, visit])
+    await db_session.flush()
+    item = ServiceLineItem(visit_id=visit.id, description="Oil change", cost=Decimal("20.00"))
+    db_session.add(item)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(
+                supply_id=oil.id,
+                date=date(2026, 4, 1),
+                quantity=Decimal("4.7317647"),
+                total_cost=Decimal("30.00"),
+                supplier_id=shop.id,
+                part_number="M1-5W30-5QT",
+                notes="jug",
+            ),
+            SupplyPurchase(supply_id=oil.id, date=date(2026, 4, 20), quantity=Decimal("0.946353")),
+            SupplyPurchase(supply_id=shared.id, date=date(2026, 4, 1), quantity=Decimal("3")),
+            # A spill: a standalone usage, dated by when it was logged.
+            SupplyUsage(
+                supply_id=oil.id,
+                quantity=Decimal("0.25"),
+                unit_cost_snapshot=Decimal("6.3400"),
+                cost_snapshot=Decimal("1.59"),
+                created_at=datetime(2026, 4, 25, 10, 0),
+            ),
+            SupplyUsage(
+                supply_id=oil.id,
+                service_line_item_id=item.id,
+                quantity=Decimal("4.4"),
+                unit_cost_snapshot=Decimal("6.3400"),
+                cost_snapshot=Decimal("27.90"),
+            ),
+            SupplyUsage(
+                supply_id=shared.id,
+                service_line_item_id=item.id,
+                quantity=Decimal("1"),
+                unit_cost_snapshot=Decimal("8.5000"),
+                cost_snapshot=Decimal("8.50"),
+            ),
+        ]
+    )
+    await db_session.commit()
+    return {"oil": oil.id, "shared": shared.id, "shop": shop.id}
+
+
+_SUPPLY_SKIP = {"id", "vin", "created_by_user_id", "created_at", "updated_at"}
+
+
+def _columns(row: Any, skip: set[str]) -> dict[str, Any]:
+    return {c.key: getattr(row, c.key) for c in row.__table__.columns if c.key not in skip}
+
+
+async def _pinned(db_session: AsyncSession, vin: str) -> list[dict[str, Any]]:
+    """The vehicle's pinned supplies with their purchases and adjustments, ids out."""
+    db_session.expire_all()
+    supplies = (
+        (
+            await db_session.execute(
+                select(Supply)
+                .where(Supply.vin == vin)
+                .options(selectinload(Supply.purchases), selectinload(Supply.usages))
+                .order_by(Supply.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            **_columns(s, _SUPPLY_SKIP),
+            "purchases": sorted(
+                (_columns(p, {"id", "supply_id", "created_at"}) for p in s.purchases),
+                key=lambda p: (p["date"], p["quantity"]),
+            ),
+            "adjustments": sorted(
+                (
+                    _columns(u, {"id", "supply_id", "service_line_item_id"})
+                    for u in s.usages
+                    if u.service_line_item_id is None
+                ),
+                key=lambda u: u["quantity"],
+            ),
+        }
+        for s in supplies
+    ]
+
+
+async def _visit(db_session: AsyncSession, vin: str) -> ServiceVisit:
+    db_session.expire_all()
+    return (
+        await db_session.execute(
+            select(ServiceVisit)
+            .where(ServiceVisit.vin == vin)
+            .options(
+                selectinload(ServiceVisit.line_items).selectinload(ServiceLineItem.supply_usages)
+            )
+        )
+    ).scalar_one()
+
+
+async def _usages_of(db_session: AsyncSession, supply_id: int) -> int:
+    return (
+        await db_session.execute(
+            select(func.count()).select_from(SupplyUsage).where(SupplyUsage.supply_id == supply_id)
+        )
+    ).scalar_one()
+
+
+# -- K12: pinned supplies whole, usages under their line item --------------------
+
+
+async def test_supplies_round_trip_into_an_empty_vehicle(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    source = await new_vehicle()
+    target = await new_vehicle()
+    ids = await _seed(db_session, source, tag)
+
+    backup = await export_json(client, auth_headers, source)
+    data = await import_json(client, auth_headers, target, backup)
+
+    assert data["errors"] == []
+    # The filter is shared and already here: looked up, not added.
+    assert data["warnings"] == []
+    # main: KeyError, no supplies bucket.
+    assert data["supplies"]["success_count"] == 1
+    assert await _pinned(db_session, target) == await _pinned(db_session, source)
+
+    [copy_id] = (
+        (await db_session.execute(select(Supply.id).where(Supply.vin == target))).scalars().all()
+    )
+    visit = await _visit(db_session, target)
+    [item] = visit.line_items
+    assert sorted(
+        (u.supply_id, u.quantity, u.unit_cost_snapshot, u.cost_snapshot) for u in item.supply_usages
+    ) == sorted(
+        [
+            (copy_id, Decimal("4.4"), Decimal("6.3400"), Decimal("27.90")),
+            (ids["shared"], Decimal("1"), Decimal("8.5000"), Decimal("8.50")),
+        ]
+    )
+    # The item, the supplies used on it and the tax.
+    assert visit.total_cost == Decimal("58.40")
+
+
+async def test_the_export_names_a_supply_by_index_or_by_key(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    vin = await new_vehicle()
+    await _seed(db_session, vin, tag)
+    backup = await export_json(client, auth_headers, vin)
+    # main: KeyError, no supplies section.
+    [oil] = backup["supplies"]
+    assert oil["purchases"][0]["supplier_name"] == f"B3 Parts {tag}"
+    assert [u["created_at"] for u in oil["usages"]] == ["2026-04-25T10:00:00"]
+    usages = backup["service_visits"][0]["line_items"][0]["supply_usages"]
+    assert [u["supply"] for u in usages] == [
+        {"index": 0},
+        {
+            "name": f"Filter {tag}",
+            "part_number": "PH7317",
+            "unit_type": "count",
+            "volume_unit": None,
+        },
+    ]
+
+
+async def test_a_shared_supply_missing_here_is_added_with_no_stock(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Mobil 1 5W-30 {_tag()}"
+    vin = await new_vehicle()
+    payload = {
+        **V9,
+        "service_visits": [
+            {
+                "date": "2026-05-01",
+                "line_items": [
+                    {
+                        "description": "Oil change",
+                        "cost": 20,
+                        "supply_usages": [
+                            {
+                                "supply": {
+                                    "name": name,
+                                    "part_number": None,
+                                    "unit_type": "volume",
+                                    "volume_unit": "qt_us",
+                                },
+                                "quantity": 4.7,
+                                "unit_cost_snapshot": 2.5,
+                                "cost_snapshot": 11.75,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    data = await import_json(client, auth_headers, vin, payload)
+    # main: no warning, the usage is never read.
+    assert data["warnings"] == [
+        f"Supply \"{name}\" wasn't in this household's supplies, so it was added with no stock"
+    ]
+    [added] = (await db_session.execute(select(Supply).where(Supply.name == name))).scalars().all()
+    assert (added.vin, added.unit_type, added.volume_unit) == (None, "volume", "qt_us")
+    assert await _usages_of(db_session, added.id) == 1
+    assert (await _visit(db_session, vin)).total_cost == Decimal("31.75")
+
+
+async def test_a_reimport_into_the_source_takes_no_stock_twice(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    vin = await new_vehicle()
+    ids = await _seed(db_session, vin, tag)
+    before = await _pinned(db_session, vin)
+    backup = await export_json(client, auth_headers, vin)
+
+    data = await import_json(client, auth_headers, vin, backup)
+    # main: KeyError, no supplies bucket.
+    assert data["supplies"]["skipped_count"] == 1
+    assert data["service_records"]["skipped_count"] == 1
+    assert data["warnings"] == [
+        "Supplies: this vehicle already has supplies pinned to it, "
+        "so the file's pinned supplies weren't imported"
+    ]
+    assert await _pinned(db_session, vin) == before
+    assert await _usages_of(db_session, ids["shared"]) == 1
+    assert await _usages_of(db_session, ids["oil"]) == 2
+
+
+async def test_a_new_visit_links_to_the_pinned_supply_already_here(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    vin = await new_vehicle()
+    ids = await _seed(db_session, vin, tag)
+    backup = await export_json(client, auth_headers, vin)
+    # A second visit in the file that this vehicle doesn't have yet.
+    second = {**backup["service_visits"][0], "date": "2026-08-01", "odometer_km": 45000}
+    second["line_items"] = [
+        {**second["line_items"][0], "supply_usages": [second["line_items"][0]["supply_usages"][0]]}
+    ]
+    backup["service_visits"].append(second)
+
+    data = await import_json(client, auth_headers, vin, backup)
+    assert data["service_records"]["success_count"] == 1
+    # The pinned family skipped, so index 0 resolves to the oil pinned here.
+    assert await _usages_of(db_session, ids["oil"]) == 3
+
+
+_SUPPLY = {"name": "Rags", "unit_type": "count", "purchases": [], "usages": []}
+
+_REFUSED = [
+    pytest.param(
+        {**_SUPPLY, "volume_unit": "qt_us"},
+        "Supply 1: A count supply cannot carry a volume unit",
+        id="count-with-volume-unit",
+    ),
+    pytest.param(
+        {**_SUPPLY, "unit_type": "box"},
+        "Supply 1: unit_type must be one of volume, count",
+        id="unit-type-word",
+    ),
+    pytest.param(
+        {**_SUPPLY, "purchases": [{"date": "2026-01-01", "quantity": 0}]},
+        "Supply 1, purchase 0: quantity must be more than 0, not 0",
+        id="purchase-quantity",
+    ),
+    pytest.param(
+        {**_SUPPLY, "usages": "none"},
+        "Supply 1: usages must be a list",
+        id="usages-not-a-list",
+    ),
+]
+
+
+@pytest.mark.parametrize(("supply", "reason"), _REFUSED)
+async def test_a_bad_pinned_supply_refuses_the_family(
+    supply: dict[str, Any],
+    reason: str,
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
+):
+    vin = await new_vehicle()
+    data = await import_json(client, auth_headers, vin, {**V9, "supplies": [_SUPPLY, supply]})
+    # main: the section is never read.
+    assert data["errors"] == [f"{reason}, so the file's pinned supplies weren't imported"]
+    assert data["supplies"]["error_count"] == 2
+    assert await _pinned(db_session, vin) == []
+
+
+async def test_a_bad_usage_is_its_visits_row_error(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    vin = await new_vehicle()
+    item = {
+        "description": "Oil change",
+        "supply_usages": [{"supply": {"index": 0}, "quantity": 1}],
+    }
+    data = await import_json(
+        client,
+        auth_headers,
+        vin,
+        {**V9, "service_visits": [{"date": "2026-05-01", "line_items": [item]}]},
+    )
+    # main: the usage is never read, so the visit imports.
+    assert data["errors"] == [
+        "Service visit 0: line item 0, supply usage 0: index must be the index of a supply in this file"
+    ]
+    assert data["service_records"]["error_count"] == 1
+
+
+async def test_a_supplier_missing_here_is_left_off_with_a_warning(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    vin = await new_vehicle()
+    purchase = {"date": "2026-01-01", "quantity": 2, "supplier_name": f"Nowhere {_tag()}"}
+    data = await import_json(
+        client, auth_headers, vin, {**V9, "supplies": [{**_SUPPLY, "purchases": [purchase]}]}
+    )
+    # main: no warning; the section is never read.
+    assert data["warnings"] == [
+        "Supply 0, purchase 0: its supplier isn't in this address book, so it was saved without one"
+    ]
+    [supply] = await _pinned(db_session, vin)
+    assert [p["supplier_id"] for p in supply["purchases"]] == [None]
+
+
+def _added(name: str) -> str:
+    return f"Supply \"{name}\" wasn't in this household's supplies, so it was added with no stock"
+
+
+def _shared_ref(name: str) -> dict[str, Any]:
+    return {"name": name, "part_number": None, "unit_type": "count", "volume_unit": None}
+
+
+def _visit_using(day: str, *usages: tuple[dict[str, Any], int]) -> dict[str, Any]:
+    return {
+        "date": day,
+        "line_items": [
+            {
+                "description": "Shop job",
+                "cost": 10,
+                "supply_usages": [{"supply": ref, "quantity": qty} for ref, qty in usages],
+            }
+        ],
+    }
+
+
+async def _usages_by_name(db_session: AsyncSession, vin: str) -> list[tuple[str, Decimal]]:
+    db_session.expire_all()
+    rows = await db_session.execute(
+        select(Supply.name, SupplyUsage.quantity)
+        .join(SupplyUsage, SupplyUsage.supply_id == Supply.id)
+        .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
+        .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
+        .where(ServiceVisit.vin == vin)
+    )
+    return sorted((name, quantity) for name, quantity in rows.all())
+
+
+# -- R1-H1: a failed visit takes its added supply, and its warning, with it -------
+
+
+async def test_a_failed_visit_leaves_nothing_behind_for_the_next(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    first, second = f"Added one {tag}", f"Added two {tag}"
+    vin = await new_vehicle()
+    payload = {
+        **V9,
+        # A refused family, so a usage that points into it fails its visit.
+        "supplies": [
+            {
+                "name": f"Rags {tag}",
+                "unit_type": "count",
+                "purchases": [{"date": "2026-01-01", "quantity": 0}],
+            }
+        ],
+        "service_visits": [
+            # Adds `first`, then fails on the refused supply: `first` goes back.
+            _visit_using("2026-05-01", (_shared_ref(first), 1), ({"index": 0}, 1)),
+            # SQLite hands `second` the id `first` had. A stale cache would point
+            # the `first` usage at it.
+            _visit_using("2026-06-01", (_shared_ref(second), 2), (_shared_ref(first), 3)),
+        ],
+    }
+    data = await import_json(client, auth_headers, vin, payload)
+    # main: neither the supplies nor the usages are read, so no errors.
+    assert data["errors"] == [
+        "Supply 0, purchase 0: quantity must be more than 0, not 0, "
+        "so the file's pinned supplies weren't imported",
+        f'Service visit 0: line item 0, supply usage 1: the pinned supply "Rags {tag}" '
+        "was refused with its family",
+    ]
+    assert data["service_records"]["success_count"] == 1
+    # Each added once, each warned about once: the first visit's warning went back with it.
+    assert data["warnings"] == [_added(second), _added(first)]
+    assert await _usages_by_name(db_session, vin) == [
+        (first, Decimal("3")),
+        (second, Decimal("2")),
+    ]
+    for name in (first, second):
+        assert (
+            await db_session.execute(
+                select(func.count()).select_from(Supply).where(Supply.name == name)
+            )
+        ).scalar_one() == 1, name
+
+
+# -- R1-H2: a refused family stays refused --------------------------------------
+
+
+async def test_a_refused_family_leaves_no_fragment_and_a_fixed_file_restores_it(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    oil = f"Oil {_tag()}"
+    vin = await new_vehicle()
+    supply = {"name": oil, "unit_type": "volume", "volume_unit": "qt_us"}
+    visit = _visit_using("2026-05-01", ({"index": 0}, 4))
+
+    bad = {**supply, "purchases": [{"date": "2026-04-01", "quantity": 0}]}
+    data = await import_json(
+        client, auth_headers, vin, {**V9, "supplies": [bad], "service_visits": [visit]}
+    )
+    # main: the supplies and usages are never read, so the visit imports bare.
+    assert data["errors"] == [
+        "Supply 0, purchase 0: quantity must be more than 0, not 0, "
+        "so the file's pinned supplies weren't imported",
+        f'Service visit 0: line item 0, supply usage 0: the pinned supply "{oil}" '
+        "was refused with its family",
+    ]
+    assert await _pinned(db_session, vin) == []
+    assert (
+        await db_session.execute(select(func.count()).select_from(Supply).where(Supply.name == oil))
+    ).scalar_one() == 0
+
+    good = {**supply, "purchases": [{"date": "2026-04-01", "quantity": 5}]}
+    data = await import_json(
+        client, auth_headers, vin, {**V9, "supplies": [good], "service_visits": [visit]}
+    )
+    assert (data["errors"], data["warnings"]) == ([], [])
+    assert data["supplies"]["success_count"] == 1
+    assert data["service_records"]["success_count"] == 1
+    [restored] = await _pinned(db_session, vin)
+    assert [p["quantity"] for p in restored["purchases"]] == [Decimal("5")]
+    assert await _usages_by_name(db_session, vin) == [(oil, Decimal("4"))]
+
+
+# -- R1-H3: a pinned supply brings its whole ledger -----------------------------
+
+
+async def test_a_repinned_supply_brings_usage_from_another_vehicle(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    a, b, c = await new_vehicle(), await new_vehicle(), await new_vehicle()
+    # Bought 10 while shared, 3 used on B's visit, then pinned to A.
+    jug = Supply(name=f"Jug {tag}", unit_type="count")
+    visit = ServiceVisit(vin=b, date=date(2026, 3, 1), service_category="Maintenance")
+    db_session.add_all([jug, visit])
+    await db_session.flush()
+    item = ServiceLineItem(visit_id=visit.id, description="Top up")
+    db_session.add(item)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=jug.id, date=date(2026, 2, 1), quantity=Decimal("10")),
+            SupplyUsage(
+                supply_id=jug.id,
+                service_line_item_id=item.id,
+                quantity=Decimal("3"),
+                cost_snapshot=Decimal("4.50"),
+            ),
+        ]
+    )
+    await db_session.flush()
+    jug.vin = a
+    await db_session.commit()
+
+    backup = await export_json(client, auth_headers, a)
+    # main: KeyError, no supplies section.
+    [exported] = backup["supplies"]
+    # Every ledger entry once: the purchase, and B's usage as a standalone one.
+    assert [Decimal(p["quantity"]) for p in exported["purchases"]] == [Decimal("10")]
+    assert [(Decimal(u["quantity"]), u["cost_snapshot"]) for u in exported["usages"]] == [
+        (Decimal("3"), 4.5)
+    ]
+    assert backup["service_visits"] == []
+    # B's usage keeps the day it was used, not the day it was logged (D-14).
+    [moved] = exported["usages"]
+    assert household_date(datetime.fromisoformat(moved["created_at"])) == date(2026, 3, 1)
+
+    await import_json(client, auth_headers, c, backup)
+    [copy] = await _pinned(db_session, c)
+    on_hand = sum(p["quantity"] for p in copy["purchases"]) - sum(
+        u["quantity"] for u in copy["adjustments"]
+    )
+    assert on_hand == Decimal("7")
+    [restored] = copy["adjustments"]
+    assert household_date(restored["created_at"]) == date(2026, 3, 1)
+
+
+# -- D-5, D-15: where a supply the file names is looked up -----------------------
+
+
+async def test_a_supply_pinned_to_another_vehicle_is_found_by_its_key(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    a, b, c = await new_vehicle(), await new_vehicle(), await new_vehicle()
+    # A's visit used oil pinned to B, so A's file names it by key.
+    theirs = Supply(name=f"B's oil {tag}", unit_type="volume", volume_unit="qt_us", vin=b)
+    job = ServiceVisit(vin=a, date=date(2026, 5, 1), service_category="Maintenance")
+    db_session.add_all([theirs, job])
+    await db_session.flush()
+    item = ServiceLineItem(visit_id=job.id, description="Top up")
+    db_session.add(item)
+    await db_session.flush()
+    db_session.add(
+        SupplyUsage(supply_id=theirs.id, service_line_item_id=item.id, quantity=Decimal("1"))
+    )
+    await db_session.commit()
+    theirs_id = theirs.id
+
+    backup = await export_json(client, auth_headers, a)
+    # main: KeyError, the export writes no supply_usages.
+    assert backup["service_visits"][0]["line_items"][0]["supply_usages"][0]["supply"] == {
+        "name": f"B's oil {tag}",
+        "part_number": None,
+        "unit_type": "volume",
+        "volume_unit": "qt_us",
+    }
+    data = await import_json(client, auth_headers, c, backup)
+    # Found pinned to B, not added again as a shared one.
+    assert data["warnings"] == []
+    assert await _usages_of(db_session, theirs_id) == 2
+    assert (
+        await db_session.execute(
+            select(func.count()).select_from(Supply).where(Supply.name == f"B's oil {tag}")
+        )
+    ).scalar_one() == 1
+
+
+async def test_a_skipped_familys_index_is_looked_up_here_then_shared_then_added(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    vin = await new_vehicle()
+    oil, rag, new = f"Oil {tag}", f"Rag {tag}", f"New {tag}"
+    # The vehicle has its own oil, so the file's pinned supplies are skipped.
+    # A shared oil with the same key sits there too, and a shared rag.
+    ours = Supply(name=oil, unit_type="count", vin=vin)
+    shared_oil = Supply(name=oil, unit_type="count")
+    shared_rag = Supply(name=rag, unit_type="count")
+    db_session.add_all([shared_oil, shared_rag, ours])
+    await db_session.commit()
+    ids = {"ours": ours.id, "shared_oil": shared_oil.id, "shared_rag": shared_rag.id}
+
+    payload = {
+        **V9,
+        "supplies": [
+            {"name": oil, "unit_type": "count"},
+            {"name": rag, "unit_type": "count"},
+            {"name": new, "unit_type": "count"},
+        ],
+        "service_visits": [
+            _visit_using("2026-05-01", ({"index": 0}, 1), ({"index": 1}, 2), ({"index": 2}, 3))
+        ],
+    }
+    data = await import_json(client, auth_headers, vin, payload)
+    # main: no warnings, neither section is read.
+    assert data["warnings"] == [
+        "Supplies: this vehicle already has supplies pinned to it, "
+        "so the file's pinned supplies weren't imported",
+        _added(new),
+    ]
+    [added] = (await db_session.execute(select(Supply).where(Supply.name == new))).scalars().all()
+    # Added pinned here, like the pinned supply it stands in for.
+    assert added.vin == vin
+    added_id = added.id
+    db_session.expire_all()
+    rows = await db_session.execute(
+        select(SupplyUsage.supply_id, SupplyUsage.quantity)
+        .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
+        .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
+        .where(ServiceVisit.vin == vin)
+    )
+    # This vehicle's oil before the shared one; the rag is only shared.
+    assert sorted(rows.all(), key=lambda r: r[1]) == [
+        (ids["ours"], Decimal("1")),
+        (ids["shared_rag"], Decimal("2")),
+        (added_id, Decimal("3")),
+    ]
+
+
+async def test_a_skipped_familys_bad_row_is_the_using_visits_row_error(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    vin = await new_vehicle()
+    db_session.add(Supply(name=f"Ours {_tag()}", unit_type="count", vin=vin))
+    await db_session.commit()
+    payload = {
+        **V9,
+        # Never parsed, since the family is skipped; the usage reads it.
+        "supplies": [{"name": "Rags", "unit_type": "box"}],
+        "service_visits": [_visit_using("2026-05-01", ({"index": 0}, 1))],
+    }
+    data = await import_json(client, auth_headers, vin, payload)
+    # main: neither section is read.
+    assert data["errors"] == [
+        "Service visit 0: line item 0, supply usage 0: supply 0: "
+        "unit_type must be one of volume, count"
+    ]
+    assert data["service_records"]["error_count"] == 1
+
+
+# -- R1-H4: what a visit used is part of which visit it is ----------------------
+
+
+async def test_visits_that_differ_only_in_what_they_used_are_told_apart(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    vin = await new_vehicle()
+    ids = await _seed(db_session, vin, tag)
+    backup = await export_json(client, auth_headers, vin)
+    same = backup["service_visits"][0]
+
+    def variant(change: Any) -> dict[str, Any]:
+        visit = json.loads(json.dumps(same))
+        change(visit["line_items"][0]["supply_usages"])
+        return visit
+
+    def more_oil(usages: list[dict[str, Any]]) -> None:
+        usages[0]["quantity"] = 5
+
+    def other_filter(usages: list[dict[str, Any]]) -> None:
+        usages[1]["supply"] = {**usages[1]["supply"], "name": f"Other filter {tag}"}
+
+    def dearer_oil(usages: list[dict[str, Any]]) -> None:
+        usages[0]["cost_snapshot"] = 30.0
+
+    # No exact copy in the file: without the usages in the key, the first
+    # variant takes the stored visit and its own consumption is dropped.
+    # main: KeyError, the export writes no supply_usages.
+    backup["service_visits"] = [variant(more_oil), variant(other_filter), variant(dearer_oil)]
+    data = await import_json(client, auth_headers, vin, backup)
+    assert (
+        data["service_records"]["success_count"],
+        data["service_records"]["skipped_count"],
+    ) == (3, 0)
+    used = await _usages_of(db_session, ids["oil"])
+    # The spill, the stored visit, and each variant's oil.
+    assert used == 5
+
+    again = await import_json(client, auth_headers, vin, backup)
+    assert (
+        again["service_records"]["success_count"],
+        again["service_records"]["skipped_count"],
+    ) == (0, 3)
+    assert await _usages_of(db_session, ids["oil"]) == used
+
+
+async def test_a_visit_restored_from_a_3a_file_isnt_taken_for_one_with_supplies(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    source = await new_vehicle()
+    target = await new_vehicle()
+    await _seed(db_session, source, tag)
+    backup = await export_json(client, auth_headers, source)
+    # The same visit as a 3a file wrote it: no supplies, no supply_usages key.
+    three_a = {**V9, "service_visits": json.loads(json.dumps(backup["service_visits"]))}
+    for item in three_a["service_visits"][0]["line_items"]:
+        item.pop("supply_usages", None)
+    first = await import_json(client, auth_headers, target, three_a)
+    assert first["service_records"]["success_count"] == 1
+
+    data = await import_json(client, auth_headers, target, backup)
+    # main: the 3b visit matches the bare one, and its supplies are lost.
+    assert data["service_records"]["success_count"] == 1
+    assert len(await _usages_by_name(db_session, target)) == 2
+
+    again = await import_json(client, auth_headers, target, backup)
+    assert again["service_records"]["skipped_count"] == 1
+    assert len(await _usages_by_name(db_session, target)) == 2
+    # And the 3a file still finds its own visit (T-16: no key, not compared).
+    bare = await import_json(client, auth_headers, target, three_a)
+    assert (bare["service_records"]["success_count"], bare["service_records"]["skipped_count"]) == (
+        0,
+        1,
+    )
+
+
+# -- R1-M1: quantities travel as decimal text -----------------------------------
+
+
+async def test_supply_quantities_travel_as_decimal_text(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    vin = await new_vehicle()
+    await _seed(db_session, vin, _tag())
+    backup = await export_json(client, auth_headers, vin)
+    # main: KeyError, no supplies section.
+    [oil] = backup["supplies"]
+    quantities = [
+        *(p["quantity"] for p in oil["purchases"]),
+        *(u["quantity"] for u in oil["usages"]),
+        *(u["quantity"] for u in backup["service_visits"][0]["line_items"][0]["supply_usages"]),
+    ]
+    # A float holds about 16 digits and the column 25.
+    assert all(isinstance(q, str) for q in quantities), quantities
+    assert [Decimal(q) for q in quantities] == [
+        Decimal("4.7317647"),
+        Decimal("0.946353"),
+        Decimal("0.25"),
+        Decimal("4.4"),
+        Decimal("1"),
+    ]
+
+
+async def test_quantities_past_a_float_keep_every_digit_on_postgresql(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    if db_session.get_bind().dialect.name == "sqlite":
+        pytest.skip("SQLite keeps a NUMERIC as a REAL; only PostgreSQL holds 25 digits")
+    from app.schemas.supply import SUPPLY_QUANTITY_MAX
+
+    source = await new_vehicle()
+    target = await new_vehicle()
+    fine = Decimal("10000.0000000000001")
+    supply = Supply(name=f"Bulk {_tag()}", unit_type="count", vin=source)
+    db_session.add(supply)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=supply.id, date=date(2026, 1, 1), quantity=fine),
+            SupplyPurchase(
+                supply_id=supply.id, date=date(2026, 1, 2), quantity=SUPPLY_QUANTITY_MAX
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    backup = await export_json(client, auth_headers, source)
+    # main: KeyError, no supplies section.
+    assert [Decimal(p["quantity"]) for p in backup["supplies"][0]["purchases"]] == [
+        fine,
+        SUPPLY_QUANTITY_MAX,
+    ]
+    data = await import_json(client, auth_headers, target, backup)
+    # As floats: 10000.0 and 1e12, past the import's bound, so the family was refused.
+    assert data["errors"] == []
+    [copy] = await _pinned(db_session, target)
+    assert sorted(p["quantity"] for p in copy["purchases"]) == [fine, SUPPLY_QUANTITY_MAX]

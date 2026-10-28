@@ -2,7 +2,7 @@ import csv
 import io
 import json
 from collections.abc import Sequence
-from datetime import date, datetime
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any, cast
 
@@ -35,9 +35,11 @@ from app.models import (
     TollTransaction,
     WarrantyRecord,
 )
+from app.models.address_book import AddressBookEntry
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
+from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -45,6 +47,7 @@ from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import resolve_station_names
 from app.utils.csv_emission import apply_unit_set, marker_for
 from app.utils.csv_safe import sanitize_csv_row
+from app.utils.household_time import household_zone
 from app.utils.insurance_coverages import coverage_text
 from app.utils.insurance_shares import effective_shares
 from app.utils.render_context import render_context_for_request
@@ -106,8 +109,10 @@ limiter = Limiter(key_func=get_remote_address)
 #   Batch 3b adds `maintenance_rules` (each rule with its nested
 #   `reminders`), `manual_reminders` (every status; `reminders` stays the
 #   v2 list), `tire_sets` and `tires` (each tire with its nested
-#   `mount_periods` and `readings`), `brake_axles`, `brake_jobs` and
-#   `brake_measurements` to v9 without a bump: a 3a file simply has none.
+#   `mount_periods` and `readings`), `brake_axles`, `brake_jobs`,
+#   `brake_measurements` and `supplies` (each pinned supply with its nested
+#   `purchases` and standalone `usages`; a line item carries its own
+#   `supply_usages`) to v9 without a bump: a 3a file simply has none.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -204,6 +209,11 @@ def _json_value(value: Any) -> Any:
     return value
 
 
+def _json_quantity(value: Decimal | None) -> str | None:
+    """A supply quantity as decimal text. The column holds 25 digits and a float about 16."""
+    return format(value, "f") if value is not None else None
+
+
 def _json_columns(row: Any, exclude: frozenset[str]) -> dict[str, Any]:
     """Every column of `row` but `exclude`, in model order (R1).
 
@@ -290,9 +300,24 @@ _BRAKE_AXLE_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 _BRAKE_JOB_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 #: The job travels as its place in this file's brake_jobs.
 _BRAKE_MEASUREMENT_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"brake_job_id"}
-#: What the service exports read off a visit.
+#: Pinned to this vehicle by being in the file; who made it is a user here.
+_SUPPLY_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"created_by_user_id"}
+#: The supply is the parent; the supplier travels by name, like a vendor.
+_SUPPLY_PURCHASE_JSON_EXCLUDE = frozenset({"id", "supply_id", "supplier_id", "created_at"})
+#: A standalone usage keeps its `created_at`: it's the only date it has.
+_SUPPLY_ADJUSTMENT_JSON_EXCLUDE = frozenset({"id", "supply_id", "service_line_item_id"})
+#: The line item is the parent, and its visit dates the usage.
+_LINE_ITEM_USAGE_JSON_EXCLUDE = frozenset({"id", "supply_id", "service_line_item_id", "created_at"})
+#: What the service CSV exports read off a visit.
 _SERVICE_VISIT_EXPORT_LOADS = (
     selectinload(ServiceVisit.line_items),
+    selectinload(ServiceVisit.vendor),
+)
+#: The JSON backup also writes what each line item used, naming the supply.
+_SERVICE_VISIT_JSON_LOADS = (
+    selectinload(ServiceVisit.line_items)
+    .selectinload(ServiceLineItem.supply_usages)
+    .selectinload(SupplyUsage.supply),
     selectinload(ServiceVisit.vendor),
 )
 
@@ -365,7 +390,7 @@ def _tire_json(tire: Tire, set_index: dict[int, int]) -> dict[str, Any]:
     }
 
 
-def _line_items_json(visit: ServiceVisit) -> list[dict[str, Any]]:
+def _line_items_json(visit: ServiceVisit, supply_index: dict[int, int]) -> list[dict[str, Any]]:
     """A visit's line items; an inspection link is the linked item's index here."""
     position = {item.id: index for index, item in enumerate(visit.line_items)}
     return [
@@ -373,9 +398,77 @@ def _line_items_json(visit: ServiceVisit) -> list[dict[str, Any]]:
             **_json_columns(item, _LINE_ITEM_JSON_EXCLUDE),
             # A link outside the visit has no index here, so it drops.
             "triggered_by_inspection": position.get(item.triggered_by_inspection_id),
+            "supply_usages": [
+                _line_item_usage_json(u, supply_index)
+                for u in sorted(item.supply_usages, key=lambda u: u.id)
+            ],
         }
         for item in visit.line_items
     ]
+
+
+def _line_item_usage_json(usage: SupplyUsage, supply_index: dict[int, int]) -> dict[str, Any]:
+    """What a line item used. A supply in this file goes by its index, any other by its name key."""
+    supply = usage.supply
+    index = supply_index.get(supply.id)
+    return {
+        **_json_columns(usage, _LINE_ITEM_USAGE_JSON_EXCLUDE),
+        "quantity": _json_quantity(usage.quantity),
+        "supply": {"index": index}
+        if index is not None
+        else {
+            "name": supply.name,
+            "part_number": supply.part_number,
+            "unit_type": supply.unit_type,
+            "volume_unit": supply.volume_unit,
+        },
+    }
+
+
+def _moved_usage_created_at(visit: ServiceVisit) -> str:
+    """Household midnight of `visit`'s day as naive UTC, the stamp a standalone usage carries.
+
+    The ledger dates a job usage by its visit, so the restored one lands on the same day.
+    """
+    midnight = datetime.combine(visit.date, time.min, tzinfo=household_zone())
+    return midnight.astimezone(UTC).replace(tzinfo=None).isoformat()
+
+
+def _supply_json(supply: Supply, vin: str, supplier_names: dict[int, str]) -> dict[str, Any]:
+    """A pinned supply and its whole ledger, each entry once.
+
+    A usage on this vehicle's visit goes under its line item. Every other one,
+    standalone or on another vehicle's visit, comes along here so the balance
+    survives a restore.
+    """
+    purchases: list[SupplyPurchase] = sorted(supply.purchases, key=lambda p: p.id)
+    usages: list[SupplyUsage] = sorted(
+        (u for u in supply.usages if u.line_item is None or u.line_item.visit.vin != vin),
+        key=lambda u: u.id,
+    )
+    standalone: list[dict[str, Any]] = []
+    for usage in usages:
+        row = {
+            **_json_columns(usage, _SUPPLY_ADJUSTMENT_JSON_EXCLUDE),
+            "quantity": _json_quantity(usage.quantity),
+        }
+        if usage.line_item is not None:
+            row["created_at"] = _moved_usage_created_at(usage.line_item.visit)
+        standalone.append(row)
+    return {
+        **_json_columns(supply, _SUPPLY_JSON_EXCLUDE),
+        "purchases": [
+            {
+                **_json_columns(p, _SUPPLY_PURCHASE_JSON_EXCLUDE),
+                "quantity": _json_quantity(p.quantity),
+                "supplier_name": supplier_names.get(p.supplier_id)
+                if p.supplier_id is not None
+                else None,
+            }
+            for p in purchases
+        ],
+        "usages": standalone,
+    }
 
 
 @router.get("/vehicles/{vin}/service/csv")
@@ -1050,12 +1143,12 @@ async def export_vehicle_json(
     # Verify vehicle exists and user has access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
-    # Get all related records. A visit carries its line items and vendor name;
-    # supply usages aren't exported (J4), so they aren't loaded.
+    # Get all related records. A visit carries its line items, what each used
+    # and its vendor name.
     service_result = await db.execute(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
-        .options(*_SERVICE_VISIT_EXPORT_LOADS)
+        .options(*_SERVICE_VISIT_JSON_LOADS)
         .order_by(ServiceVisit.date.desc())
     )
     service_visits = service_result.scalars().all()
@@ -1235,6 +1328,43 @@ async def export_vehicle_json(
     # A transaction names its tag by the tag's place in `toll_tags` (R6).
     tag_index = {tag.id: index for index, tag in enumerate(toll_tags)}
 
+    pinned_supplies = (
+        (
+            await db.execute(
+                select(Supply)
+                .where(Supply.vin == vin)
+                .options(
+                    selectinload(Supply.purchases),
+                    selectinload(Supply.usages)
+                    .selectinload(SupplyUsage.line_item)
+                    .selectinload(ServiceLineItem.visit),
+                )
+                .order_by(Supply.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # A line item names a pinned supply by its place in `supplies`.
+    supply_index = {supply.id: index for index, supply in enumerate(pinned_supplies)}
+    supplier_ids = {
+        p.supplier_id for s in pinned_supplies for p in s.purchases if p.supplier_id is not None
+    }
+    supplier_names: dict[int, str] = (
+        {
+            entry_id: name
+            for entry_id, name in (
+                await db.execute(
+                    select(AddressBookEntry.id, AddressBookEntry.business_name).where(
+                        AddressBookEntry.id.in_(supplier_ids)
+                    )
+                )
+            ).all()
+        }
+        if supplier_ids
+        else {}
+    )
+
     # Build export data
     export_data = {
         "export_version": JSON_SCHEMA_VERSION,
@@ -1246,7 +1376,7 @@ async def export_vehicle_json(
             {
                 **_json_columns(v, _SERVICE_VISIT_JSON_EXCLUDE),
                 "vendor_name": v.vendor.name if v.vendor else None,
-                "line_items": _line_items_json(v),
+                "line_items": _line_items_json(v, supply_index),
             }
             for v in service_visits
         ],
@@ -1328,6 +1458,7 @@ async def export_vehicle_json(
             }
             for r in spot_rentals
         ],
+        "supplies": [_supply_json(s, vin, supplier_names) for s in pinned_supplies],
         "maintenance_rules": [
             {
                 **_json_columns(rule, _RULE_JSON_EXCLUDE),

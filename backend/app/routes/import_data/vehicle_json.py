@@ -32,6 +32,7 @@ from app.models import (
     TollTransaction,
     WarrantyRecord,
 )
+from app.models.supply import SupplyUsage
 from app.models.user import User
 from app.routes.import_data._common import (
     _SERVICE_CATEGORIES,
@@ -120,6 +121,13 @@ from app.routes.import_data.json_schedule import (
     parse_rules,
     reminder_from_json,
     write_rules,
+)
+from app.routes.import_data.json_supplies import (
+    SupplyResolver,
+    line_item_usage_counts,
+    line_item_usages_from_json,
+    parse_supplies,
+    write_supplies,
 )
 from app.routes.import_data.json_tires import (
     parse_tires,
@@ -320,6 +328,24 @@ async def import_vehicle_json(
         name: {"success": 0, "errors": 0, "skipped": 0} for name in _JSON_RESULT_BUCKETS
     } | {"errors": errors, "warnings": warnings}
 
+    # Pinned supplies come first, whole or not at all and only into a vehicle
+    # with none pinned, so a visit's usage can name one by its place in the file.
+    user_id = current_user.id if current_user else None
+    supplies = await run_family(
+        db,
+        vin,
+        "supplies",
+        sections,
+        results,
+        errors,
+        warnings,
+        parse=lambda: parse_supplies(vin, sections, user_id),
+        write=lambda plan: write_supplies(db, plan),
+    )
+    if supplies.outcome == "written" and supplies.plan is not None:
+        warnings.extend(supplies.plan.warnings)
+    resolver = SupplyResolver(vin, sections["supplies"], user_id, supplies)
+
     # Import service records (creates ServiceVisit + ServiceLineItem + Vendor)
     for idx, record_data in enumerate(sections["service_records"]):
         try:
@@ -456,8 +482,18 @@ async def import_vehicle_json(
                 _line_item_from_json(position, item, len(line_items))
                 for position, item in enumerate(line_items)
             ]
+            # Beside the item, not in it, so each reason names its usage.
+            usages = [
+                line_item_usages_from_json(position, item, sections["supplies"])
+                for position, item in enumerate(line_items)
+            ]
+            # The supplies a visit used count toward its total (K12).
             total_cost = _visit_total(
-                (columns["cost"] for columns, _link in items), tax_amount, shop_supplies, misc_fees
+                (columns["cost"] for columns, _link in items),
+                tax_amount,
+                shop_supplies,
+                misc_fees,
+                usage_costs=(u.cost_snapshot for item_usages in usages for u in item_usages),
             )
             # As given: the CSV and v8 imports make vendors with no length cap, and
             # _vendor_id_for matches the exact name, so a cut name would make a second.
@@ -491,6 +527,17 @@ async def import_vehicle_json(
             item_fields = tuple(
                 f for f in _ITEM_KEY_FIELDS if all(f in item for item in line_items)
             )
+            # What each item used, when every item says (T-16). A 3a file's
+            # don't, so its visits keep the key they had (R1-H4).
+            compare_usages = all("supply_usages" in item for item in line_items)
+            usage_keys = (
+                [
+                    line_item_usage_counts(position, item_usages, sections["supplies"])
+                    for position, item_usages in enumerate(usages)
+                ]
+                if compare_usages
+                else []
+            )
             if (
                 skip_duplicates
                 and await matcher.take(
@@ -515,10 +562,12 @@ async def import_vehicle_json(
                                 columns["description"],
                                 columns["cost"],
                                 *(_item_key_value(f, columns[f]) for f in item_fields),
+                                *([usage_keys[position]] if compare_usages else []),
                             )
-                            for columns, _link in items
+                            for position, (columns, _link) in enumerate(items)
                         ),
                         item_fields=item_fields,
+                        compare_usages=compare_usages,
                     ),
                 )
                 is not None
@@ -555,7 +604,29 @@ async def import_vehicle_json(
                 for line_item, (_columns, link) in zip(written, items, strict=True):
                     if link is not None:
                         line_item.triggered_by_inspection_id = written[link].id
+                # What each item used, its supply found or added in this savepoint.
+                for position, (line_item, item_usages) in enumerate(
+                    zip(written, usages, strict=True)
+                ):
+                    for k, usage in enumerate(item_usages):
+                        try:
+                            supply_id = await resolver.resolve(db, usage.ref)
+                        except _RowError as e:
+                            raise _RowError(
+                                f"line item {position}, supply usage {k}: {e.reason}"
+                            ) from e
+                        db.add(
+                            SupplyUsage(
+                                supply_id=supply_id,
+                                service_line_item_id=line_item.id,
+                                quantity=usage.quantity,
+                                unit_cost_snapshot=usage.unit_cost_snapshot,
+                                cost_snapshot=usage.cost_snapshot,
+                            )
+                        )
                 await db.flush()
+            # The savepoint held, so the supplies it added stay.
+            warnings.extend(resolver.visit_done())
             readings.add(
                 "service_visit",
                 visit.id,
@@ -565,9 +636,11 @@ async def import_vehicle_json(
             )
             results["service_records"]["success"] += 1
         except _RowError as e:
+            resolver.visit_failed()
             results["service_records"]["errors"] += 1
             errors.append(f"Service visit {idx}: {e.reason}")
         except Exception as e:
+            resolver.visit_failed()
             results["service_records"]["errors"] += 1
             logger.warning("Import: service visit %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Service visit {idx}: {_unexpected_reason(e)}")

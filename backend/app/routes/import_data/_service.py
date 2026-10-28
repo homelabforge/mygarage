@@ -18,6 +18,7 @@ from app.models import (
     ServiceVisit,
 )
 from app.models._types import ScaledNumeric
+from app.models.supply import SupplyUsage
 from app.models.vendor import Vendor
 from app.routes.import_data._common import (
     _INSPECTION_RESULTS,
@@ -38,6 +39,7 @@ from app.routes.import_data._matching import (
     _MONEY_STEP,
     _at_scale,
     _canonical_cell,
+    _column_step,
     _money_matches,
     _text_matches,
 )
@@ -270,8 +272,13 @@ def _visit_fee_key(row: _ServiceCsvRow, header: set[str]) -> list[ColumnElement[
     ]
 
 
-#: What `_same_visit` reads off a stored visit.
-_VISIT_MATCH_LOADS = (selectinload(ServiceVisit.vendor), selectinload(ServiceVisit.line_items))
+#: What `_same_visit` reads off a stored visit, down to the supply each item used.
+_VISIT_MATCH_LOADS = (
+    selectinload(ServiceVisit.vendor),
+    selectinload(ServiceVisit.line_items)
+    .selectinload(ServiceLineItem.supply_usages)
+    .selectinload(SupplyUsage.supply),
+)
 
 
 #: What else tells two line items apart: the work's category and how an
@@ -302,6 +309,34 @@ def _item_counts(keys: Iterable[tuple[Any, ...]]) -> Counter[tuple[Any, ...]]:
     )
 
 
+#: Each usage figure's column step, so the file's figure and the stored one round alike (T-20).
+_USAGE_STEPS = (
+    _column_step(SupplyUsage.quantity),
+    _column_step(SupplyUsage.unit_cost_snapshot),
+    _column_step(SupplyUsage.cost_snapshot),
+)
+
+
+def usage_counts(
+    entries: Iterable[tuple[str, str | None, str, Decimal | None, Decimal | None, Decimal | None]],
+) -> frozenset[tuple[tuple[Any, ...], int]]:
+    """One line item's usages as an order-free multiset: (name, part number, unit type, quantity, unit cost, cost).
+
+    No volume unit: it's how the supply shows, and the quantity is canonical.
+    A blank part number reads as none, as the file's does.
+    """
+    counts = Counter(
+        (
+            name,
+            _blank_to_none(part_number),
+            unit_type,
+            *(_at_scale(value, step) for value, step in zip(figures, _USAGE_STEPS, strict=True)),
+        )
+        for name, part_number, unit_type, *figures in entries
+    )
+    return frozenset(counts.items())
+
+
 def _row_item_counts(group: list[_ServiceCsvRow]) -> Counter[tuple[Any, ...]]:
     """The line items a group of rows writes, as `_write_service_csv_visit` names them."""
     return _item_counts(
@@ -316,21 +351,44 @@ def _same_visit(
     check_vendor: bool,
     items: Counter[tuple[Any, ...]] | None,
     item_fields: Sequence[str] = (),
+    compare_usages: bool = False,
 ) -> bool:
     """Whether a stored visit (vendor and items loaded) is the file's visit (R5).
 
     `items` None means the file doesn't carry them, so they aren't compared.
     `item_fields` are the `_ITEM_KEY_FIELDS` the file's items carry, in order.
+    With `compare_usages`, each file item's key ends in its `usage_counts`, so
+    each stored item's key gets its own (R1-H4).
     """
     if check_vendor and (visit.vendor.name if visit.vendor else None) != vendor_name:
         return False
     if items is None:
         return True
     stored = _item_counts(
-        (i.description, i.cost, *(_item_key_value(f, getattr(i, f)) for f in item_fields))
+        (
+            i.description,
+            i.cost,
+            *(_item_key_value(f, getattr(i, f)) for f in item_fields),
+            *([_stored_usage_counts(i)] if compare_usages else []),
+        )
         for i in visit.line_items
     )
     return stored == items
+
+
+def _stored_usage_counts(item: ServiceLineItem) -> frozenset[tuple[tuple[Any, ...], int]]:
+    """A stored line item's `usage_counts`, its usages and their supplies loaded."""
+    return usage_counts(
+        (
+            u.supply.name,
+            u.supply.part_number,
+            u.supply.unit_type,
+            u.quantity,
+            u.unit_cost_snapshot,
+            u.cost_snapshot,
+        )
+        for u in item.supply_usages
+    )
 
 
 def _as_stored(column: InstrumentedAttribute[Any], value: Decimal | None) -> Decimal | None:
@@ -346,8 +404,9 @@ def _visit_total(
     tax_amount: Decimal | None,
     shop_supplies: Decimal | None,
     misc_fees: Decimal | None,
+    usage_costs: Iterable[Decimal | None] = (),
 ) -> Decimal:
-    """A written visit's total: its items' costs and its fees, the ones it has.
+    """A written visit's total: its items' costs, the supplies they used and its fees.
 
     Each part is rounded the way its own column stores it before it's added, so
     the total is the sum of what's stored, not 20.01 for two items of 10.01 (Q-2).
@@ -355,6 +414,8 @@ def _visit_total(
     """
     parts = [
         *(_as_stored(ServiceLineItem.cost, cost) for cost in item_costs),
+        # The app's own total counts each usage's cost snapshot too (K12).
+        *(_as_stored(SupplyUsage.cost_snapshot, cost) for cost in usage_costs),
         _as_stored(ServiceVisit.tax_amount, tax_amount),
         _as_stored(ServiceVisit.shop_supplies, shop_supplies),
         _as_stored(ServiceVisit.misc_fees, misc_fees),
