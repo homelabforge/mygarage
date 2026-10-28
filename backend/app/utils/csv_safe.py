@@ -8,9 +8,11 @@ like ``=cmd|'/c calc'!A1`` that executes when the victim opens the export.
 
 The rule (plan §11-F, R1-F2): act only on ``str`` values -- numeric types are
 written by ``csv.writer`` verbatim and cannot carry a formula. A string is
-neutralised (prefixed with a single ``'``) only when it is non-empty, its first
-character is one of the dangerous lead characters, AND it does not parse as a
-number. That leaves genuine numeric strings like ``-12.5`` untouched (R5).
+neutralised (prefixed with a single ``'``) only when, past any ``'`` it already
+starts with, its first character is one of the dangerous lead characters AND it
+does not parse as a number. That leaves genuine numeric strings like ``-12.5``
+untouched (R5), and makes the escape reversible: ``'=x`` typed as text writes
+``''=x``, so `unquote_csv_cell` can tell it from a quoted ``=x`` (C-3).
 """
 
 from __future__ import annotations
@@ -33,35 +35,37 @@ def _is_number(text: str) -> bool:
         return False
 
 
+def _reads_as_formula(text: str) -> bool:
+    """Whether ``text``, past any leading ``'``, starts like a formula and isn't a number."""
+    body = text.lstrip("'")
+    return bool(body) and body[0] in _DANGEROUS_LEAD and not _is_number(body)
+
+
 def sanitize_csv_cell(value: Any) -> Any:
     """Neutralise a potential CSV formula-injection payload.
 
     Non-string values are returned unchanged (``csv.writer`` renders them
-    safely). A string is prefixed with a single quote only when it starts with a
-    dangerous lead character and is not a legitimate number.
+    safely). A string is prefixed with a single quote only when, past any quotes
+    it already has, it starts with a dangerous lead character and is not a
+    legitimate number. Quoting the already-quoted ones too keeps the escape
+    reversible.
     """
     if not isinstance(value, str):
         return value
-    if not value:
-        return value
-    if value[0] in _DANGEROUS_LEAD and not _is_number(value):
+    if _reads_as_formula(value):
         return "'" + value
     return value
 
 
 def unquote_csv_cell(value: str) -> str:
-    """Undo `sanitize_csv_cell` on a cell read back: one `'` before a formula lead character.
+    """Undo `sanitize_csv_cell` on a cell read back: exactly one `'` it added.
 
-    The export quotes a text cell that starts with = + - @, a tab or a CR and
-    isn't a number, so a spreadsheet won't run it. Read back as it is, the
-    quote became part of the stored text and no key matched it (T-21).
+    The export quotes a text cell that starts like a formula, so a spreadsheet
+    won't run it. Read back as it is, the quote became part of the stored text
+    and no key matched it (T-21).
     """
-    if (
-        len(value) > 1
-        and value[0] == "'"
-        and value[1] in _DANGEROUS_LEAD
-        and not _is_number(value[1:])
-    ):
+    # A file written before C-3 left a typed "'=x" alone, so it reads as "=x" here.
+    if value.startswith("'") and _reads_as_formula(value[1:]):
         return value[1:]
     return value
 

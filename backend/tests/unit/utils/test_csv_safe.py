@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.utils.csv_safe import sanitize_csv_cell, sanitize_csv_row
+from app.utils.csv_safe import sanitize_csv_cell, sanitize_csv_row, unquote_csv_cell
 
 
 class TestSanitizeCsvCell:
@@ -47,3 +47,26 @@ class TestSanitizeCsvCell:
     def test_sanitize_row_applies_per_cell(self):
         row = ["=evil()", "-12.5", "safe", 99]
         assert sanitize_csv_row(row) == ["'=evil()", "-12.5", "safe", 99]
+
+
+class TestRoundTrip:
+    """What the export quotes, the import unquotes back to exactly what was typed (C-3)."""
+
+    @pytest.mark.parametrize(
+        "typed",
+        ["=x", "'=x", "''=x", "'hello", "-12.5", "'-12.5", "'", "''", "plain", "@SUM(A1)"],
+    )
+    def test_a_cell_comes_back_as_typed(self, typed):
+        # a354f33a: "'=x" exported unquoted and came back "=x"
+        assert unquote_csv_cell(sanitize_csv_cell(typed)) == typed
+
+    @pytest.mark.parametrize(
+        ("typed", "written"), [("'=x", "''=x"), ("''+1+cmd", "'''+1+cmd"), ("'hello", "'hello")]
+    )
+    def test_a_quote_before_a_formula_is_quoted_again(self, typed, written):
+        # Still text to a spreadsheet, and now the import can tell it from a quoted formula.
+        assert sanitize_csv_cell(typed) == written
+
+    def test_an_old_file_reads_a_single_quote_as_the_escape(self):
+        # Written before the change, "'=x" can't say which it was; it reads as the formula's text.
+        assert unquote_csv_cell("'=x") == "=x"
