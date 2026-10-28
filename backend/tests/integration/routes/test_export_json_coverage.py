@@ -421,6 +421,12 @@ SECTIONS = [
         exclude=_REMINDER_EXCLUDE,
     ),
     JsonSection(
+        "manual_reminders",
+        Reminder,
+        keys=_REMINDER_KEYS,
+        exclude=_REMINDER_EXCLUDE,
+    ),
+    JsonSection(
         "tire_sets",
         TireSet,
         keys=frozenset({"name", "notes"}),
@@ -595,6 +601,8 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
     db_session.add(
         Reminder(vin=_VIN, rule_id=rule.id, title="Oil", reminder_type="date", due_date=day)
     )
+    # A reminder a person made.
+    db_session.add(Reminder(vin=_VIN, title="Plates", reminder_type="date", due_date=day))
     # A set, a tire in it, a period and a reading in that period.
     tire_set = TireSet(vin=_VIN, name="Winter")
     db_session.add(tire_set)

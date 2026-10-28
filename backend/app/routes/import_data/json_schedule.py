@@ -1,9 +1,10 @@
-"""The maintenance rules family of a JSON backup: each rule with its reminders (J5).
+"""The maintenance rules family of a JSON backup, and the reminders a person made (J5).
 
 Read whole before anything is written, so a bad rule refuses the family and
 leaves the vehicle as it was. Every reminder travels under its rule, done ones
 too, because reconcile only rebuilds a due point from typed service history
 (N-1) and would otherwise start the schedule over on the import day (K1).
+A manual reminder is a flat row instead, matched one to one like the others (R5).
 """
 
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false, reportUnusedClass=false
@@ -13,6 +14,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, get_args
 
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.maintenance_rule import MaintenanceRule
@@ -30,6 +32,7 @@ from app.routes.import_data._common import (
     _within_field_bounds,
 )
 from app.routes.import_data._families import as_object, nested_list, required_word
+from app.routes.import_data._matching import _matches, _same_figure
 from app.schemas.maintenance import (
     AnchorKind,
     AnchorSpec,
@@ -139,6 +142,26 @@ def reminder_from_json(vin: str, row: Any) -> tuple[Reminder, bool]:
     if created_at is not None:
         columns["created_at"] = created_at
     return Reminder(**columns), raw_type is not None and maintenance_type is None
+
+
+def manual_reminder_key(row: Mapping[str, Any], reminder: Reminder) -> list[ColumnElement[bool]]:
+    """S6's manual reminder key, each due part only when the row has it (T-16).
+
+    Type and status are always in it: the row can't parse without them. The
+    route adds the vehicle and the no-rule, no-sync filters.
+    """
+    key = [
+        Reminder.title == reminder.title,
+        Reminder.reminder_type == reminder.reminder_type,
+        Reminder.status == reminder.status,
+    ]
+    if "due_date" in row:
+        key.append(_matches(Reminder.due_date, reminder.due_date))
+    if "due_mileage_km" in row:
+        key.append(_same_figure(Reminder.due_mileage_km, reminder.due_mileage_km))
+    if "due_hours" in row:
+        key.append(_same_figure(Reminder.due_hours, reminder.due_hours))
+    return key
 
 
 def _rule_from_json(vin: str, row: Mapping[str, Any]) -> MaintenanceRule:

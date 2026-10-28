@@ -104,7 +104,8 @@ limiter = Limiter(key_func=get_remote_address)
 #   `toll_transactions`, `warranties` and `spot_rentals` are new. The
 #   importer still reads v2 to v8, and a section a file lacks is empty.
 #   Batch 3b adds `maintenance_rules` (each rule with its nested
-#   `reminders`), `tire_sets` and `tires` (each tire with its nested
+#   `reminders`), `manual_reminders` (every status; `reminders` stays the
+#   v2 list), `tire_sets` and `tires` (each tire with its nested
 #   `mount_periods` and `readings`), `brake_axles`, `brake_jobs` and
 #   `brake_measurements` to v9 without a bump: a 3a file simply has none.
 CSV_SCHEMA_VERSION = "8"
@@ -1178,6 +1179,19 @@ async def export_vehicle_json(
         ).all()
     }
 
+    # The reminders a person made, every status. Sync-owned ones stay home (J1).
+    manual_reminders = (
+        (
+            await db.execute(
+                select(Reminder)
+                .where(Reminder.vin == vin, Reminder.rule_id.is_(None), Reminder.source.is_(None))
+                .order_by(Reminder.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
     tire_set_result = await db.execute(
         select(TireSet).where(TireSet.vin == vin).order_by(TireSet.id)
     )
@@ -1324,6 +1338,7 @@ async def export_vehicle_json(
             }
             for rule in rules
         ],
+        "manual_reminders": [_json_columns(r, _REMINDER_JSON_EXCLUDE) for r in manual_reminders],
         "tire_sets": [_json_columns(s, _TIRE_SET_JSON_EXCLUDE) for s in tire_sets],
         "tires": [_tire_json(t, set_index) for t in tires],
         "brake_axles": [_json_columns(a, _BRAKE_AXLE_JSON_EXCLUDE) for a in brake_axles],

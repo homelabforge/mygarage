@@ -115,7 +115,12 @@ from app.routes.import_data._service import (
     _visit_total,
 )
 from app.routes.import_data.json_brakes import parse_brakes, write_brakes
-from app.routes.import_data.json_schedule import parse_rules, write_rules
+from app.routes.import_data.json_schedule import (
+    manual_reminder_key,
+    parse_rules,
+    reminder_from_json,
+    write_rules,
+)
 from app.routes.import_data.json_tires import (
     parse_tires,
     sync_imported_tires,
@@ -172,6 +177,7 @@ _JSON_IMPORT_SECTIONS = (
     "brake_jobs",
     "brake_measurements",
     "supplies",
+    "manual_reminders",
 )
 
 #: The response's buckets, one per section it counts, in the order it lists them.
@@ -1293,6 +1299,43 @@ async def import_vehicle_json(
     )
     if rules.outcome == "written" and rules.plan is not None:
         warnings.extend(rules.plan.warnings)
+
+    # Reminders a person made, every status, counted with the legacy ones (T-4).
+    # The v2 loop reads ["description"], so v9 writes them in their own list (N-3).
+    for idx, row in enumerate(sections["manual_reminders"]):
+        try:
+            reminder, type_dropped = reminder_from_json(vin, row)
+            # A rule's or a sync's reminder with the same title is never spent.
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    Reminder,
+                    Reminder.vin == vin,
+                    Reminder.rule_id.is_(None),
+                    Reminder.source.is_(None),
+                    *manual_reminder_key(row, reminder),
+                )
+                is not None
+            ):
+                results["reminders"]["skipped"] += 1
+                continue
+
+            async with db.begin_nested():
+                db.add(reminder)
+            results["reminders"]["success"] += 1
+            if type_dropped:
+                warnings.append(
+                    f"Manual reminder {idx}: its maintenance type isn't a code, "
+                    "so it was saved without one"
+                )
+        except _RowError as e:
+            results["reminders"]["errors"] += 1
+            errors.append(f"Manual reminder {idx}: {e.reason}")
+        except Exception as e:
+            results["reminders"]["errors"] += 1
+            logger.warning("Import: manual reminder %s failed: %s", idx, sanitize_for_log(e))
+            errors.append(f"Manual reminder {idx}: {_unexpected_reason(e)}")
 
     # The tire family comes in whole or not at all, and only into a vehicle with no tires.
     tires = await run_family(
