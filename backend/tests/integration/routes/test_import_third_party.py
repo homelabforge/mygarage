@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from app.models.fuel import FuelRecord
 from app.models.odometer import OdometerRecord
+from tests._importer_source import importer_modules
 
 
 @pytest.mark.integration
@@ -114,7 +115,11 @@ class TestThirdPartyFuelImport:
             called.append(kwargs.get("date"))
             raise RuntimeError("simulated sync failure")
 
-        monkeypatch.setattr(import_data, "sync_odometer_from_record", boom)
+        # After the split (B3-9) the readings helper binds the sync in its own
+        # module, so patch it wherever the importer binds it.
+        for module in importer_modules():
+            if hasattr(module, "sync_odometer_from_record"):
+                monkeypatch.setattr(module, "sync_odometer_from_record", boom)
 
         parsed = [
             {"date": date(2027, 7, 1), "odometer_km": Decimal("1000"), "liters": Decimal("40")},

@@ -6,13 +6,13 @@ catch-alls logged it raw while the service one sanitised it.
 """
 
 import ast
-from pathlib import Path
 
 import pytest
 
-import app.routes.import_data as import_data
+from tests._importer_source import importer_files
 
-_SOURCE = Path(import_data.__file__).read_text()
+#: Every importer module's source by file name. It was one file until B3-9 made it a package.
+_SOURCES = {path.name: path.read_text() for path in importer_files()}
 
 
 def _uses_raw(node: ast.AST, name: str) -> bool:
@@ -84,13 +84,18 @@ def test_the_walk_lets_a_sanitised_read_through(log_call: str) -> None:
 
 def test_the_walk_sees_the_catch_alls() -> None:
     # Guards the guard: a walk that finds no handlers passes for nothing.
+    # 63 is the count on 32b15b50, so a walk that drops a module comes up short.
     handlers = [
         node
-        for node in ast.walk(ast.parse(_SOURCE))
+        for source in _SOURCES.values()
+        for node in ast.walk(ast.parse(source))
         if isinstance(node, ast.ExceptHandler) and node.name is not None
     ]
-    assert len(handlers) > 20
+    assert len(handlers) >= 63
 
 
 def test_no_catch_all_logs_a_raw_exception() -> None:
-    assert _raw_exception_logs(_SOURCE) == []
+    raw = {
+        name: lines for name, source in _SOURCES.items() if (lines := _raw_exception_logs(source))
+    }
+    assert raw == {}

@@ -18,6 +18,7 @@ update it, which a hand-written list would not do.
 
 import ast
 import re
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -83,8 +84,34 @@ def _called_names(node: ast.AST) -> set[str]:
     return names
 
 
-def _writing_routes() -> list[tuple[str, str]]:
-    """Every (path, source file) whose handler reaches a telemetry writer.
+def _route_sources() -> list[tuple[str, ast.Module]]:
+    """Each router's source as one tree: a module, or every module of a package.
+
+    A package declares its router in one module and decorates it in others, so
+    its prefix and its helpers only line up when the package reads as one.
+    """
+    sources = [(path.name, ast.parse(path.read_text())) for path in sorted(ROUTES_DIR.glob("*.py"))]
+    for package in sorted(p for p in ROUTES_DIR.iterdir() if (p / "__init__.py").is_file()):
+        body = [
+            stmt
+            for path in sorted(package.glob("*.py"))
+            for stmt in ast.parse(path.read_text()).body
+        ]
+        # The scan keys functions by name, so two modules defining the same name
+        # would quietly hide one of them.
+        defined = Counter(
+            stmt.name
+            for stmt in body
+            if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+        )
+        duplicates = sorted(name for name, count in defined.items() if count > 1)
+        assert not duplicates, f"{package.name} defines {duplicates} in more than one module"
+        sources.append((package.name, ast.Module(body=body, type_ignores=[])))
+    return sources
+
+
+def _routes() -> list[tuple[str, str, bool]]:
+    """Every (path, source, reaches a telemetry writer) the scan reads off a decorator.
 
     Resolution is **transitive within the module**. The first version of this
     scan looked only at direct calls in the handler body and therefore missed
@@ -92,9 +119,8 @@ def _writing_routes() -> list[tuple[str, str]]:
     the handler delegates to. A one-level scan silently under-reports, which in
     a test that asserts "everything is closed" reads as everything passing.
     """
-    found: list[tuple[str, str]] = []
-    for module in sorted(ROUTES_DIR.glob("*.py")):
-        tree = ast.parse(module.read_text())
+    found: list[tuple[str, str, bool]] = []
+    for source, tree in _route_sources():
         prefix = _router_prefix(tree)
 
         funcs = {
@@ -115,8 +141,8 @@ def _writing_routes() -> list[tuple[str, str]]:
                     writes.add(name)
                     changed = True
 
-        for name in writes:
-            for dec in funcs[name].decorator_list:
+        for name, func in funcs.items():
+            for dec in func.decorator_list:
                 if (
                     isinstance(dec, ast.Call)
                     and isinstance(dec.func, ast.Attribute)
@@ -124,8 +150,13 @@ def _writing_routes() -> list[tuple[str, str]]:
                     and dec.args
                     and isinstance(dec.args[0], ast.Constant)
                 ):
-                    found.append((prefix + str(dec.args[0].value), module.name))
-    return sorted(set(found))
+                    found.append((prefix + str(dec.args[0].value), source, name in writes))
+    return found
+
+
+def _writing_routes() -> list[tuple[str, str]]:
+    """Every (path, source) whose handler reaches a telemetry writer."""
+    return sorted({(path, source) for path, source, writes in _routes() if writes})
 
 
 class TestMaintenanceRouteInventory:
@@ -140,6 +171,14 @@ class TestMaintenanceRouteInventory:
         assert "/api/v1/torque/{token}/upload" in paths
         # The route the first implementation of maintenance mode left open.
         assert "/api/livelink/devices/{device_id}/backfill" in paths
+
+    def test_the_scan_reads_every_import_route(self):
+        """The importer writes no telemetry, but a scan that skips it skips any package.
+
+        14 is the count on 32b15b50, read with the router's own prefix.
+        """
+        imports = {path for path, _, _ in _routes() if path.startswith("/api/import/")}
+        assert len(imports) >= 14
 
     @pytest.mark.parametrize("path,module", _writing_routes(), ids=lambda v: str(v))
     def test_every_telemetry_writing_route_is_closed(self, path: str, module: str):

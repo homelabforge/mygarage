@@ -47,6 +47,7 @@ from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from tests._importer_source import importer_files
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -847,8 +848,10 @@ class TestImporterIgnoresPreferences:
         }
         backend = Path(__file__).resolve().parents[3]
         offenders: list[str] = []
-        for relative in ("app/routes/import_data.py", "app/utils/csv_units.py"):
-            tree = ast.parse((backend / relative).read_text(encoding="utf-8"))
+        unit_reads = 0
+        for path in [*importer_files(), backend / "app/utils/csv_units.py"]:
+            relative = path.resolve().relative_to(backend).as_posix()
+            tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Name) and node.id in forbidden_calls:
                     offenders.append(f"{relative}:{node.lineno} {node.id}")
@@ -856,6 +859,13 @@ class TestImporterIgnoresPreferences:
                     node.attr in forbidden_calls or node.attr in forbidden_attrs
                 ):
                     offenders.append(f"{relative}:{node.lineno} .{node.attr}")
+                elif isinstance(node, ast.Call) and getattr(node.func, "id", None) == (
+                    "_read_csv_with_units"
+                ):
+                    unit_reads += 1
+        # A floor: the importer reads a unit-bearing CSV in five places on 32b15b50,
+        # so a walk that lost the importer can't pass over nothing.
+        assert unit_reads >= 5
         assert not offenders, (
             "the CSV import path reads a unit PREFERENCE: "
             + ", ".join(offenders)

@@ -29,7 +29,6 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-import app.routes.import_data as import_data_module
 from app.database import get_db
 from app.main import app
 from app.models import (
@@ -49,6 +48,7 @@ from app.models import (
 )
 from app.models.vehicle import Vehicle
 from app.services.vehicle_lock import lock_vehicle_for_write
+from tests._importer_source import importer_modules
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -411,7 +411,11 @@ def lock_calls(monkeypatch) -> list[str]:
         calls.append(vin)
         await real(db, vin)
 
-    monkeypatch.setattr(import_data_module, "lock_vehicle_for_write", recording)
+    # Each route module binds the lock for itself once the importer is a
+    # package (B3-9), so every module that binds it gets the patch.
+    for module in importer_modules():
+        if getattr(module, "lock_vehicle_for_write", None) is real:
+            monkeypatch.setattr(module, "lock_vehicle_for_write", recording)
     return calls
 
 
