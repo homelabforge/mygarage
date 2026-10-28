@@ -400,12 +400,12 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
 
 
 def _rows_at(export: dict[str, Any], path: str) -> list[dict[str, Any]]:
-    """The rows at `path`: a top-level list, the vehicle object, or a nested list."""
-    top, _, nested = path.partition(".")
+    """The rows at `path`: a top-level list, the vehicle object, or a list nested at any depth."""
+    top, *nested = path.split(".")
     value = export[top]
     rows = [value] if isinstance(value, dict) else value
-    if nested:
-        rows = [child for row in rows for child in row[nested]]
+    for key in nested:
+        rows = [child for row in rows for child in row[key]]
     return rows
 
 
@@ -438,3 +438,14 @@ async def test_every_model_column_is_exported_or_excluded(
     assert not (spec.keys | spec.exclude) - columns, (
         f"{spec.path}: not model columns: {sorted((spec.keys | spec.exclude) - columns)}"
     )
+
+
+def test_rows_at_walks_a_path_of_any_depth():
+    export = {
+        "vehicle": {"vin": "x"},
+        "a": [{"b": [{"c": [{"k": 1}, {"k": 2}]}, {"c": []}]}, {"b": []}],
+    }
+    assert _rows_at(export, "vehicle") == [{"vin": "x"}]
+    assert _rows_at(export, "a.b") == [{"c": [{"k": 1}, {"k": 2}]}, {"c": []}]
+    # main: KeyError 'b.c', it only walks one level.
+    assert _rows_at(export, "a.b.c") == [{"k": 1}, {"k": 2}]
