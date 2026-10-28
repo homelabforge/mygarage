@@ -143,9 +143,24 @@ def _within_api_bounds(schema: type[BaseModel], **values: Decimal | int | None) 
     past the three decimal places `liters` allows, and would all fail.
     """
     for name, value in values.items():
-        # Looked up first, so a misspelt name fails every row, not only
-        # the rows that happen to fill that column.
-        metadata = schema.model_fields[name].metadata
+        _within_field_bounds(schema, name, **{name: value})
+
+
+def _within_field_bounds(
+    schema: type[BaseModel], field: str, /, **values: Decimal | int | None
+) -> None:
+    """Hold each value to the bounds of one schema field, naming it by its own key.
+
+    For file columns that borrow a field named otherwise on the schema, like a
+    reminder's anchor_odometer_km against AnchorSpec.odometer_km.
+    """
+    # Looked up first, so a misspelt field fails every row, not only the rows
+    # that happen to fill that column.
+    metadata = schema.model_fields[field].metadata
+    # A field typed `HoursFigure | None` shows no bounds here (D-8), and would check nothing.
+    if not metadata:
+        raise TypeError(f"{schema.__name__}.{field} carries no bounds")
+    for name, value in values.items():
         if value is not None:
             _check_bounds(name, value, metadata)
 

@@ -370,6 +370,27 @@ def test_a_figure_type_bounds_are_checked():
         within_figure_bounds(HoursFigure | None, engine_hours=Decimal("1"))
 
 
+def test_a_borrowed_field_bound_names_the_files_key():
+    from app.routes.import_data._common import (
+        _RowError,
+        _within_api_bounds,
+        _within_field_bounds,
+    )
+    from app.schemas.maintenance import AnchorSpec
+    from app.schemas.reminder import ReminderCreate
+
+    # The bound is AnchorSpec.odometer_km's; the reason names the file's column.
+    with pytest.raises(_RowError) as caught:
+        _within_field_bounds(AnchorSpec, "odometer_km", start_odometer_km=Decimal("-1"))
+    assert caught.value.reason == "start_odometer_km must be at least 0, not -1"
+    _within_field_bounds(AnchorSpec, "odometer_km", anchor_odometer_km=None)
+    # A field with no bounds would check nothing, so it's a bug, not a pass.
+    with pytest.raises(TypeError):
+        _within_field_bounds(ReminderCreate, "notes", notes=None)
+    with pytest.raises(TypeError):
+        _within_api_bounds(ReminderCreate, notes="x")
+
+
 # -- D-9: one boolean reader for every 3b section --------------------------------
 
 

@@ -11,17 +11,14 @@ too, because reconcile only rebuilds a due point from typed service history
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import Any, get_args
 
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
 from app.routes.import_data._common import (
     _blank_to_none,
-    _check_bounds,
     _json_bool,
     _json_decimal,
     _json_int,
@@ -30,6 +27,7 @@ from app.routes.import_data._common import (
     _json_text,
     _RowError,
     _within_api_bounds,
+    _within_field_bounds,
 )
 from app.routes.import_data._families import as_object, nested_list, required_word
 from app.schemas.maintenance import (
@@ -59,18 +57,6 @@ class RulePlan:
 
     rules: list[tuple[MaintenanceRule, list[Reminder]]]
     warnings: list[str]
-
-
-def _within_field_bounds(schema: type[BaseModel], field: str, **values: Decimal | None) -> None:
-    """`_within_api_bounds` for columns that share one schema field's bounds.
-
-    The anchor, start and completion readings all borrow a field named
-    differently on the schema, so the reason names the file's key instead.
-    """
-    metadata = schema.model_fields[field].metadata
-    for name, value in values.items():
-        if value is not None:
-            _check_bounds(name, value, metadata)
 
 
 def _anchor_kind(row: Mapping[str, Any]) -> str | None:
