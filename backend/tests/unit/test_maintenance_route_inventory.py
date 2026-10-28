@@ -18,6 +18,7 @@ update it, which a hand-written list would not do.
 
 import ast
 import re
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,15 @@ def _route_sources() -> list[tuple[str, ast.Module]]:
             for path in sorted(package.glob("*.py"))
             for stmt in ast.parse(path.read_text()).body
         ]
+        # The scan keys functions by name, so two modules defining the same name
+        # would quietly hide one of them.
+        defined = Counter(
+            stmt.name
+            for stmt in body
+            if isinstance(stmt, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+        )
+        duplicates = sorted(name for name, count in defined.items() if count > 1)
+        assert not duplicates, f"{package.name} defines {duplicates} in more than one module"
         sources.append((package.name, ast.Module(body=body, type_ignores=[])))
     return sources
 

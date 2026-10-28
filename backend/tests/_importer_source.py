@@ -15,12 +15,17 @@ import app.routes.import_data as import_data
 
 def importer_modules() -> list[ModuleType]:
     """The package itself, then each of its submodules."""
+    infos = list(pkgutil.iter_modules(import_data.__path__))
+    # The guards only walk one level, so a subpackage would hide its modules from
+    # all of them. The package stays flat by design.
+    nested = [info.name for info in infos if info.ispkg]
+    assert not nested, (
+        f"{import_data.__name__} has subpackages {nested}; the importer guards walk "
+        "one level, so keep the package flat"
+    )
     return [
         import_data,
-        *(
-            importlib.import_module(f"{import_data.__name__}.{info.name}")
-            for info in pkgutil.iter_modules(import_data.__path__)
-        ),
+        *(importlib.import_module(f"{import_data.__name__}.{info.name}") for info in infos),
     ]
 
 
