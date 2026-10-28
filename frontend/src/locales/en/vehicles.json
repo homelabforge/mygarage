@@ -205,7 +205,7 @@
     "exportData": "Export Data",
     "exportError": "Failed to export data",
     "exportSuccess": "Vehicle data exported successfully",
-    "exportTooltip": "Export complete vehicle data as JSON",
+    "exportTooltip": "Export this vehicle and most of its records as JSON",
     "exporting": "Exporting...",
     "fuelEconomy": "Fuel Economy",
     "hero": {

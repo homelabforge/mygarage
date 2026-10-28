@@ -3293,7 +3293,7 @@ async def import_vehicle_json(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
-    """Import complete vehicle data from JSON file."""
+    """Import a vehicle's records from a JSON export."""
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Check file size BEFORE reading into memory to prevent DoS

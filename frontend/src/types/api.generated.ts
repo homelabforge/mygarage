@@ -1317,7 +1317,7 @@ export interface paths {
         };
         /**
          * Export Vehicle Json
-         * @description Export complete vehicle data as JSON
+         * @description Export the vehicle and most of its records as JSON.
          */
         get: operations["export_vehicle_json_api_export_vehicles__vin__json_get"];
         put?: never;
@@ -1950,7 +1950,7 @@ export interface paths {
         put?: never;
         /**
          * Import Vehicle Json
-         * @description Import complete vehicle data from JSON file.
+         * @description Import a vehicle's records from a JSON export.
          */
         post: operations["import_vehicle_json_api_import_vehicles__vin__json_post"];
         delete?: never;

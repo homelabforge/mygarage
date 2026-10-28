@@ -948,7 +948,7 @@ async def export_vehicle_json(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
-    """Export complete vehicle data as JSON"""
+    """Export the vehicle and most of its records as JSON."""
     # Verify vehicle exists and user has access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 

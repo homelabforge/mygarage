@@ -36518,7 +36518,7 @@
     },
     "/api/export/vehicles/{vin}/json": {
       "get": {
-        "description": "Export complete vehicle data as JSON",
+        "description": "Export the vehicle and most of its records as JSON.",
         "operationId": "export_vehicle_json_api_export_vehicles__vin__json_get",
         "parameters": [
           {
@@ -38003,7 +38003,7 @@
     },
     "/api/import/vehicles/{vin}/json": {
       "post": {
-        "description": "Import complete vehicle data from JSON file.",
+        "description": "Import a vehicle's records from a JSON export.",
         "operationId": "import_vehicle_json_api_import_vehicles__vin__json_post",
         "parameters": [
           {

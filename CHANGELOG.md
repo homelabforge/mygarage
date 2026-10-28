@@ -84,7 +84,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - Low-tread reminders show the tread and the minimum in the notification bell, on the calendar and in the PDF report's Due column
 - A reminder's calendar description, in the app and in the iCal export, is "Reminder" instead of naming its type ("Reminder (smart)")
 - The reminder list refreshes every minute while it's open, so a fill-up logged from Telegram or LiveLink moves it without a reload
-- The service CSV (schema 8) numbers each visit in a new Visit column, keeps item notes and visit notes apart, and adds Tax, Shop Supplies, Misc Fees and Insurance Claim. Rows that share a number import as one visit with its line items; rows of an older file are grouped by date, odometer, shop and category
+- The service CSV (schema 8) numbers each visit in a new Visit column, keeps item notes and visit notes apart, and adds Tax, Shop Supplies, Misc Fees and Insurance Claim. Rows that share a number import as one visit with its line items; rows of an older file are grouped by date, odometer, engine hours, shop and category
 - The JSON backup writes service visits with every line item (category, maintenance type, cost, notes, the inspection result and the repair it led to), every fuel column (fill time, engine hours, propane, kWh and charging, station, driver, payment, trip type, outside temperature and trip computer), the DEF entry type, and where each odometer reading came from
 - Supplies a service visit used aren't in the JSON backup, so a restored visit's total is its line items plus tax and fees, without the supplies' cost
 - A MyGarage CSV or JSON import updates the odometer and engine hours from its fill-ups, service visits and DEF records, one reading a day, without taking over a reading already there, and refreshes the analytics
@@ -169,6 +169,8 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - A backup figure that isn't a number (a fuel, DEF, odometer, service or hours reading, volume or price, or an old reminder's due mileage or interval) names its field, and a due mileage too large to store says why, instead of "could not be imported"
 - On PostgreSQL, an imported value longer than its column says so instead of a generic error
 - A CSV cell typed with a quote before =, +, - or @ comes back as typed, instead of losing its quote on import
+- An imported service visit's total matches its stored items and fees when an amount has fractions of a cent
+- Re-importing a service CSV skips a visit whose item description has leading or trailing spaces instead of adding it again
 - A backup restores a spot rental bill dated outside the stay, which editing the rental's dates can leave, instead of refusing the rental
 - A reading or volume converted from miles or gallons is stored at the column's precision, so SQLite and PostgreSQL hold the same figure
 
