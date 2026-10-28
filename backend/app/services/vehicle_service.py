@@ -89,8 +89,9 @@ class VehicleService:
 
             ownership_filter = visible_vehicles_filter(current_user)
 
-            # Get vehicles with pagination
-            query = select(Vehicle).order_by(Vehicle.created_at.desc())
+            # Get vehicles with pagination. The vin breaks created_at ties, so
+            # vehicles added in the same second don't swap pages between requests.
+            query = select(Vehicle).order_by(Vehicle.created_at.desc(), Vehicle.vin)
             if ownership_filter is not None:
                 query = query.where(ownership_filter)
             result = await self.db.execute(query.offset(skip).limit(limit))

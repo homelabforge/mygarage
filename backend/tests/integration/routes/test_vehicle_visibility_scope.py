@@ -52,20 +52,29 @@ class TestTheFilterItself:
 class TestTheVehicleList:
     """`GET /api/vehicles`, via `VehicleService.list_vehicles`.
 
-    ★ EVERY REQUEST HERE PASSES `limit=500`, the route's maximum, and that is
-    load-bearing rather than tidy. The default limit is 100 and the shared test
-    database holds more vehicles than that, so an admin's page 1 does not reach
-    this fixture's vin. Worse than the false failure: an ABSENCE assertion on a
-    truncated page passes for the wrong reason, because a leaked vehicle sitting
-    on page 2 looks exactly like a vehicle that was correctly filtered out.
+    ★ The vin checks walk EVERY page, not one. The shared test database holds
+    more vehicles than even the route's 500 maximum, so an admin's page 1 does
+    not reach this fixture's vin. Worse than the false failure: an ABSENCE
+    assertion on a truncated page passes for the wrong reason, because a leaked
+    vehicle sitting on page 2 looks exactly like a vehicle that was correctly
+    filtered out.
     """
 
     PAGE = "/api/vehicles?limit=500"
 
+    async def _every_vin(self, client, headers) -> list[str]:
+        """Every vin the caller's list returns, page by page up to its total."""
+        vins: list[str] = []
+        while True:
+            resp = await client.get(f"{self.PAGE}&skip={len(vins)}", headers=headers)
+            assert resp.status_code == 200
+            body = resp.json()
+            vins += [v["vin"] for v in body["vehicles"]]
+            if not body["vehicles"] or len(vins) >= body["total"]:
+                return vins
+
     async def test_a_stranger_does_not_see_it(self, client, owned_vehicle, unrelated_headers):
-        resp = await client.get(self.PAGE, headers=unrelated_headers)
-        assert resp.status_code == 200
-        assert owned_vehicle.vin not in [v["vin"] for v in resp.json()["vehicles"]]
+        assert owned_vehicle.vin not in await self._every_vin(client, unrelated_headers)
 
     async def test_the_total_is_scoped_like_the_list(
         self, client, owned_vehicle, unrelated_headers, admin_user_headers
@@ -90,14 +99,10 @@ class TestTheVehicleList:
         assert stranger_body["total"] < admin_body["total"]
 
     async def test_a_read_share_sees_it(self, client, owned_vehicle, reader_headers):
-        resp = await client.get(self.PAGE, headers=reader_headers)
-        assert resp.status_code == 200
-        assert owned_vehicle.vin in [v["vin"] for v in resp.json()["vehicles"]]
+        assert owned_vehicle.vin in await self._every_vin(client, reader_headers)
 
     async def test_an_admin_sees_it(self, client, owned_vehicle, admin_user_headers):
-        resp = await client.get(self.PAGE, headers=admin_user_headers)
-        assert resp.status_code == 200
-        assert owned_vehicle.vin in [v["vin"] for v in resp.json()["vehicles"]]
+        assert owned_vehicle.vin in await self._every_vin(client, admin_user_headers)
 
 
 class TestGarageAnalytics:
