@@ -29,7 +29,6 @@ from pydantic.fields import FieldInfo
 from starlette.routing import BaseRoute
 
 from app.main import app
-from app.routes import import_data
 from app.routes.import_data import _ImportBoundError, _within_api_bounds
 from app.routes.window_sticker import WindowStickerDataUpdate
 from app.schemas._money import MONEY_MAX, UNIT_PRICE_MAX
@@ -65,6 +64,7 @@ from app.schemas.vehicle import (
     VehicleUpdate,
 )
 from app.services.fuel_ingest import WebhookFuelPayload
+from tests._importer_source import importer_modules
 from tests.unit.schemas._money_names import MONEY_COLUMN_NAMES, is_money_name
 from tests.unit.schemas._schema_walk import unwrap, walk
 
@@ -415,32 +415,42 @@ def test_a_forint_price_per_tank_is_accepted():
 # ---------------------------------------------------------------------------
 
 
-def _importer_calls() -> dict[str, set[str]]:
+def _importer_calls() -> tuple[dict[str, set[str]], dict[str, type[BaseModel]], int]:
     """Schema name -> the fields the importers pass `_within_api_bounds` for it.
 
     Read from the source, so a new importer call is covered the day it lands.
+    Every importer module is read, and each schema is looked up in the module
+    that passes it. Also returns how many calls the walk saw.
     """
     calls: dict[str, set[str]] = {}
-    for node in ast.walk(ast.parse(inspect.getsource(import_data))):
-        if not (
-            isinstance(node, ast.Call) and getattr(node.func, "id", None) == "_within_api_bounds"
-        ):
-            continue
-        schema = node.args[0]
-        assert isinstance(schema, ast.Name), ast.unparse(node)
-        calls.setdefault(schema.id, set()).update(kw.arg for kw in node.keywords if kw.arg)
-    return calls
+    schemas: dict[str, type[BaseModel]] = {}
+    seen = 0
+    for module in importer_modules():
+        for node in ast.walk(ast.parse(inspect.getsource(module))):
+            if not (
+                isinstance(node, ast.Call)
+                and getattr(node.func, "id", None) == "_within_api_bounds"
+            ):
+                continue
+            schema = node.args[0]
+            assert isinstance(schema, ast.Name), ast.unparse(node)
+            calls.setdefault(schema.id, set()).update(kw.arg for kw in node.keywords if kw.arg)
+            schemas[schema.id] = getattr(module, schema.id)
+            seen += 1
+    return calls, schemas, seen
 
 
-IMPORTER_CALLS = _importer_calls()
-IMPORTER_SCHEMAS: dict[str, type[BaseModel]] = {
-    name: getattr(import_data, name) for name in IMPORTER_CALLS
-}
+IMPORTER_CALLS, IMPORTER_SCHEMAS, IMPORTER_CALL_COUNT = _importer_calls()
 IMPORTER_ROWS = [
     pytest.param(schema, name, id=f"{schema.__name__}.{name}")
     for schema in sorted(IMPORTER_SCHEMAS.values(), key=lambda s: s.__name__)
     for name in _money_names(schema)
 ]
+
+
+def test_the_walk_sees_every_importer_call():
+    # 30 is the count on 32b15b50, so a walk that drops a module comes up short.
+    assert IMPORTER_CALL_COUNT >= 30
 
 
 def test_the_importers_check_the_money_they_import():

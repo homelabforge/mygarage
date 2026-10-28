@@ -36,9 +36,9 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import RelationshipProperty
 
 import app.models as models
+from tests._importer_source import importer_files
 
 EXPORT = Path("app/routes/export.py")
-IMPORT = Path("app/routes/import_data.py")
 
 
 def _mapped(name: str) -> type | None:
@@ -203,24 +203,25 @@ def export_attribute_reads() -> list[tuple[str, type, str]]:
     return reads
 
 
-def import_constructions() -> list[tuple[int, type, list[str]]]:
-    """Every `Model(...)` built by the importer, with its keyword names."""
-    tree = ast.parse(IMPORT.read_text())
-    built: list[tuple[int, type, list[str]]] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
-            continue
-        cls = _mapped(node.func.id)
-        if cls is None:
-            continue
-        built.append((node.lineno, cls, [kw.arg for kw in node.keywords if kw.arg]))
+def import_constructions() -> list[tuple[str, type, list[str]]]:
+    """Every `Model(...)` built by the importer, as `file:line`, with its keyword names."""
+    built: list[tuple[str, type, list[str]]] = []
+    for path in importer_files():
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+                continue
+            cls = _mapped(node.func.id)
+            if cls is None:
+                continue
+            where = f"{path.name}:{node.lineno}"
+            built.append((where, cls, [kw.arg for kw in node.keywords if kw.arg]))
     return built
 
 
 def test_every_import_construction_uses_real_attributes():
     offenders = [
-        f"{IMPORT.name}:{line} {cls.__name__} {sorted(set(kwargs) - _attrs(cls))}"
-        for line, cls, kwargs in import_constructions()
+        f"{where} {cls.__name__} {sorted(set(kwargs) - _attrs(cls))}"
+        for where, cls, kwargs in import_constructions()
         if set(kwargs) - _attrs(cls)
     ]
     assert offenders == [], (
@@ -286,6 +287,10 @@ class TestTheEnumeratorsFindWhatTheyClaimTo:
             (cls.__name__, tuple(sorted(kwargs))) for _l, cls, kwargs in import_constructions()
         }
         assert any(cls == "WarrantyRecord" for cls, _ in built), built
+
+    def test_the_import_walker_sees_every_construction(self):
+        # 33 is the count on 32b15b50, so a walk that drops a module comes up short.
+        assert len(import_constructions()) >= 33
 
     @pytest.mark.parametrize("cls_name", ["WarrantyRecord", "InsurancePolicy", "TaxRecord"])
     def test_the_three_repaired_importers_are_still_walked(self, cls_name: str):
