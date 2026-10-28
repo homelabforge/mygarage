@@ -53,6 +53,7 @@ from app.routes.import_data._common import (
     limiter,
     router,
 )
+from app.routes.import_data._families import run_family
 from app.routes.import_data._fuel import (
     _DRIVER_KEPT_AS_TEXT,
     _STATION_KEPT_AS_TEXT,
@@ -112,6 +113,11 @@ from app.routes.import_data._service import (
     _same_visit,
     _vendor_id_for,
     _visit_total,
+)
+from app.routes.import_data.json_tires import (
+    parse_tires,
+    sync_imported_tires,
+    write_tires,
 )
 from app.schemas.hours import HoursRecordCreate
 from app.schemas.odometer import OdometerRecordCreate
@@ -1268,6 +1274,32 @@ async def import_vehicle_json(
             results["spot_rentals"]["errors"] += 1
             logger.warning("Import: spot rental %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Spot rental {idx}: {_unexpected_reason(e)}")
+
+    # The tire family comes in whole or not at all, and only into a vehicle with no tires.
+    tires = await run_family(
+        db,
+        vin,
+        "tires",
+        sections,
+        results,
+        errors,
+        warnings,
+        parse=lambda: parse_tires(vin, sections),
+        write=lambda plan: write_tires(db, plan),
+    )
+
+    # Only the tires this import wrote can raise a low-tread reminder (N-2).
+    if tires.outcome == "written" and tires.plan is not None:
+        try:
+            async with db.begin_nested():
+                await sync_imported_tires(db, tires.plan)
+        except Exception as e:
+            # Derived data, like the reading sync: the tires stay without it.
+            logger.warning(
+                "Import: low-tread sync failed for vin=%s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
+            )
 
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once.

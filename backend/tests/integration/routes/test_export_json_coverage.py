@@ -34,6 +34,7 @@ from app.models import (
 from app.models.financing import FinancingRecord
 from app.models.spot_rental import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
+from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.toll import TollTag, TollTransaction
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -346,6 +347,72 @@ SECTIONS = [
         ),
         exclude=frozenset({"id", "spot_rental_id", "created_at"}),
     ),
+    JsonSection(
+        "tire_sets",
+        TireSet,
+        keys=frozenset({"name", "notes"}),
+        exclude=_ALWAYS,
+    ),
+    JsonSection(
+        "tires",
+        Tire,
+        keys=frozenset(
+            {
+                "position",
+                "brand",
+                "model_name",
+                "size",
+                "dot_code",
+                "retired_on",
+                "tread_depth_mm",
+                "pressure_kpa",
+                "min_tread_mm",
+                "notes",
+                "storage_location",
+            }
+        ),
+        # The set travels as its place in this file's tire_sets.
+        exclude=_ALWAYS | {"set_id", "updated_at"},
+        portable=frozenset({"set_index", "mount_periods", "readings"}),
+    ),
+    JsonSection(
+        "tires.mount_periods",
+        TireMountPeriod,
+        keys=frozenset(
+            {
+                "position",
+                "mounted_on",
+                "dismounted_on",
+                "mounted_odometer_km",
+                "dismounted_odometer_km",
+                "mounted_hours",
+                "dismounted_hours",
+                "is_assumed",
+                "observed_active_on",
+                "notes",
+            }
+        ),
+        # The tire is the parent.
+        exclude=frozenset({"id", "tire_id", "created_at"}),
+    ),
+    JsonSection(
+        "tires.readings",
+        TireReading,
+        keys=frozenset(
+            {
+                "position",
+                "recorded_at",
+                "odometer_km",
+                "engine_hours",
+                "tread_depth_mm",
+                "pressure_kpa",
+                "notes",
+            }
+        ),
+        # The tire is the parent; the period travels as its place in the tire's periods.
+        exclude=_ALWAYS | {"tire_id", "mount_period_id"},
+        portable=frozenset({"mount_period_index"}),
+    ),
 ]
 
 
@@ -394,6 +461,25 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             ),
             SpotRentalBilling(spot_rental_id=rental.id, billing_date=day),
         ]
+    )
+    # A set, a tire in it, a period and a reading in that period.
+    tire_set = TireSet(vin=_VIN, name="Winter")
+    db_session.add(tire_set)
+    await db_session.flush()
+    tire = Tire(vin=_VIN, position="FL", set_id=tire_set.id)
+    db_session.add(tire)
+    await db_session.flush()
+    period = TireMountPeriod(tire_id=tire.id, position="FL", mounted_on=day)
+    db_session.add(period)
+    await db_session.flush()
+    db_session.add(
+        TireReading(
+            tire_id=tire.id,
+            vin=_VIN,
+            mount_period_id=period.id,
+            recorded_at=day,
+            tread_depth_mm=Decimal("8"),
+        )
     )
     await db_session.commit()
     return _VIN
