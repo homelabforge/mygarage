@@ -230,6 +230,8 @@ _STORED = {
     "due_hours": Decimal("1250.5"),
     "status": "pending",
 }
+#: In a case's file row: the key is there, and null. A plain None leaves it out.
+_NULL = object()
 _FILE = {
     "title": "Plates",
     "reminder_type": "both",
@@ -263,6 +265,25 @@ _FILE = {
             True,
             id="no-hours-key",
         ),
+        # A null the file writes is a value: only a stored null matches it.
+        pytest.param(
+            {"reminder_type": "mileage"},
+            {"reminder_type": "mileage", "due_date": _NULL},
+            False,
+            id="null-date",
+        ),
+        pytest.param(
+            {"reminder_type": "date"},
+            {"reminder_type": "date", "due_mileage_km": _NULL},
+            False,
+            id="null-mileage",
+        ),
+        pytest.param(
+            {"reminder_type": "date"},
+            {"reminder_type": "date", "due_hours": _NULL},
+            False,
+            id="null-hours",
+        ),
     ],
 )
 async def test_the_key_compares_each_part_the_file_has(
@@ -277,8 +298,7 @@ async def test_the_key_compares_each_part_the_file_has(
     vin = await new_vehicle()
     db_session.add(Reminder(vin=vin, **(_STORED | stored)))
     await db_session.commit()
-    # A None here means the file leaves the key out.
-    file_row = {k: v for k, v in (_FILE | row).items() if v is not None}
+    file_row = {k: None if v is _NULL else v for k, v in (_FILE | row).items() if v is not None}
     data = await import_json(client, auth_headers, vin, {**V9, "manual_reminders": [file_row]})
     assert data["errors"] == []
     assert data["reminders"]["skipped_count"] == int(skipped)
@@ -313,6 +333,43 @@ async def test_a_figure_stored_past_its_scale_still_matches(
     data = await import_json(client, auth_headers, vin, {**V9, "manual_reminders": [_FILE]})
     # An exact compare misses the stored row and imports it again.
     assert data["reminders"]["skipped_count"] == 1, data
+
+
+@pytest.mark.parametrize("owner", [{"rule": True}, {"source": "low_tread"}], ids=["rule", "sync"])
+async def test_a_legacy_row_does_not_spend_a_rule_or_sync_reminder(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
+    owner: dict[str, Any],
+):
+    vin = await new_vehicle()
+    columns: dict[str, Any] = {"source": owner.get("source")}
+    if owner.get("rule"):
+        rule = MaintenanceRule(vin=vin, title="Inspection", interval_months=12, source="manual")
+        db_session.add(rule)
+        await db_session.flush()
+        columns["rule_id"] = rule.id
+    db_session.add(
+        Reminder(
+            vin=vin,
+            title="Inspection",
+            reminder_type="date",
+            due_date=date(2026, 12, 1),
+            status="pending",
+            **columns,
+        )
+    )
+    await db_session.commit()
+    data = await import_json(
+        client,
+        auth_headers,
+        vin,
+        {**V9, "reminders": [{"description": "Inspection", "due_date": "2026-12-01"}]},
+    )
+    # 3a's key had no rule or source filter, so this was skipped.
+    assert data["reminders"]["success_count"] == 1, data
+    assert [r["title"] for r in await _manual(db_session, vin)] == ["Inspection"]
 
 
 async def test_a_type_that_isnt_a_code_imports_as_none_with_a_warning(

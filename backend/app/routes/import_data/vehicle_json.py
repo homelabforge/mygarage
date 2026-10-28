@@ -928,12 +928,15 @@ async def import_vehicle_json(
 
             title = reminder_data["description"]
             status = "done" if is_completed else "pending"
+            # A person made these too, so a rule's or a sync's reminder is never spent (S6).
             if (
                 skip_duplicates
                 and await matcher.take(
                     db,
                     Reminder,
                     Reminder.vin == vin,
+                    Reminder.rule_id.is_(None),
+                    Reminder.source.is_(None),
                     Reminder.title == title,
                     Reminder.reminder_type == reminder_type,
                     _matches(Reminder.due_date, due_date),
