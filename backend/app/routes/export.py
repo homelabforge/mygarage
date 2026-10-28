@@ -4,7 +4,7 @@ import json
 from collections.abc import Sequence
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
@@ -27,6 +27,7 @@ from app.models import (
     InsurancePolicyVehicle,
     Note,
     OdometerRecord,
+    ServiceLineItem,
     ServiceVisit,
     SpotRental,
     TaxRecord,
@@ -302,6 +303,39 @@ async def _driver_usernames(db: AsyncSession, records: Sequence[FuelRecord]) -> 
         return {}
     rows = await db.execute(select(User.id, User.username).where(User.id.in_(ids)))
     return {user_id: username for user_id, username in rows.all()}
+
+
+def _rule_reminder_json(
+    reminder: Reminder,
+    rule: MaintenanceRule,
+    work: dict[int, tuple[ServiceLineItem, ServiceVisit]],
+) -> dict[str, Any]:
+    """One of a rule's reminders, a done one as its rule counts it now.
+
+    A completion that wrote or linked a line item counts from that visit as it
+    is now, and not at all once the item is retyped away. The link stays home,
+    so the visit's date, readings and type go in place of the stale snapshot (K1).
+    """
+    row = _json_columns(reminder, _REMINDER_JSON_EXCLUDE)
+    found = (
+        work.get(reminder.completed_line_item_id)
+        if reminder.status == "done" and reminder.completed_line_item_id is not None
+        else None
+    )
+    if found is None:
+        return row
+    item, visit = found
+    row["completed_date"] = _json_value(visit.date)
+    row["completed_odometer_km"] = _json_value(visit.odometer_km)
+    row["completed_hours"] = _json_value(visit.engine_hours)
+    # The reminder's own type is checked first, so it wins when it already rules this out.
+    own = reminder.maintenance_type
+    ruled_out = (
+        own is not None and rule.maintenance_type is not None and own != rule.maintenance_type
+    )
+    if not ruled_out and item.maintenance_type is not None:
+        row["maintenance_type"] = item.maintenance_type
+    return row
 
 
 def _tire_json(tire: Tire, set_index: dict[int, int]) -> dict[str, Any]:
@@ -1112,7 +1146,7 @@ async def export_vehicle_json(
         .all()
     )
     # Every status travels under its rule: a done one is what the next counts from (K1).
-    rule_reminders: dict[int | None, list[Reminder]] = {}
+    rule_reminders: dict[int, list[Reminder]] = {}
     for reminder in (
         (
             await db.execute(
@@ -1124,7 +1158,25 @@ async def export_vehicle_json(
         .scalars()
         .all()
     ):
-        rule_reminders.setdefault(reminder.rule_id, []).append(reminder)
+        # The query filters NULL out.
+        rule_reminders.setdefault(cast(int, reminder.rule_id), []).append(reminder)
+    # The live work behind each done reminder, as `_latest_completion` reads it.
+    completed_ids = {
+        r.completed_line_item_id
+        for reminders in rule_reminders.values()
+        for r in reminders
+        if r.status == "done" and r.completed_line_item_id is not None
+    }
+    completed_work = {
+        item.id: (item, visit)
+        for item, visit in (
+            await db.execute(
+                select(ServiceLineItem, ServiceVisit)
+                .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
+                .where(ServiceLineItem.id.in_(completed_ids), ServiceVisit.vin == vin)
+            )
+        ).all()
+    }
 
     tire_set_result = await db.execute(
         select(TireSet).where(TireSet.vin == vin).order_by(TireSet.id)
@@ -1266,7 +1318,7 @@ async def export_vehicle_json(
             {
                 **_json_columns(rule, _RULE_JSON_EXCLUDE),
                 "reminders": [
-                    _json_columns(r, _REMINDER_JSON_EXCLUDE)
+                    _rule_reminder_json(r, rule, completed_work)
                     for r in rule_reminders.get(rule.id, [])
                 ],
             }

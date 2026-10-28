@@ -283,6 +283,182 @@ async def test_two_rules_of_one_type_keep_their_own_due_points(
     assert await _schedule(db_session, target) == expected
 
 
+async def _completed_line_item(db_session: AsyncSession, vin: str) -> ServiceLineItem:
+    """The line item the vehicle's one done reminder was completed by."""
+    db_session.expire_all()
+    return (
+        await db_session.execute(
+            select(ServiceLineItem)
+            .join(Reminder, Reminder.completed_line_item_id == ServiceLineItem.id)
+            .where(Reminder.vin == vin, Reminder.status == "done")
+        )
+    ).scalar_one()
+
+
+async def test_a_completion_whose_visit_moved_counts_from_the_visit(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    source = await new_vehicle()
+    target = await new_vehicle()
+    await _post(
+        client,
+        auth_headers,
+        f"/api/vehicles/{source}/reminders",
+        {"title": "Wax", "recurrence": {"interval_months": 12}},
+    )
+    pending = await _pending_id(db_session, source, "Wax")
+    # The default mode writes a visit and links the done reminder to it.
+    await _post(
+        client,
+        auth_headers,
+        f"/api/vehicles/{source}/reminders/{pending}/complete",
+        {"mode": "create_visit", "completed_date": "2026-06-01", "odometer_km": 50000},
+    )
+    item = await _completed_line_item(db_session, source)
+    # A typo fixed later: it was May. The done row's own snapshot still says June.
+    moved = await client.put(
+        f"/api/vehicles/{source}/service-visits/{item.visit_id}",
+        headers=auth_headers,
+        json={"date": "2026-05-01"},
+    )
+    assert moved.status_code == 200, moved.text
+
+    await _round_trip(client, auth_headers, db_session, source, target)
+
+    expected = await _schedule(db_session, source)
+    assert [(row[5], row[7]) for row in expected if row[5] == "pending"] == [
+        ("pending", date(2027, 5, 1))
+    ]
+    got = await _schedule(db_session, target)
+    # main: the stale June snapshot completes the pending one again on reconcile,
+    # leaving a phantom done row and a successor due 2027-06-01.
+    assert [row for row in got if row[5] == "pending"] == [
+        row for row in expected if row[5] == "pending"
+    ]
+    assert [(row[5], row[12]) for row in got if row[5] == "done"] == [("done", date(2026, 5, 1))]
+
+
+async def test_a_completion_retyped_away_stays_out_of_the_rules_history(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    source = await new_vehicle()
+    target = await new_vehicle()
+    await _post(
+        client,
+        auth_headers,
+        f"/api/vehicles/{source}/reminders",
+        {
+            "title": "Oil change",
+            "maintenance_type": "engine_oil_filter",
+            "recurrence": {"interval_months": 6},
+        },
+    )
+    pending = await _pending_id(db_session, source, "Oil change")
+    await _post(
+        client,
+        auth_headers,
+        f"/api/vehicles/{source}/reminders/{pending}/complete",
+        {"mode": "create_visit", "completed_date": "2026-03-01", "odometer_km": 50000},
+    )
+    # That work turned out to be a rotation: it's no longer this rule's history,
+    # so the source counts from a baseline today.
+    item = await _completed_line_item(db_session, source)
+    item.maintenance_type = "tire_rotation"
+    await db_session.commit()
+
+    await _round_trip(client, auth_headers, db_session, source, target)
+
+    expected = await _schedule(db_session, source)
+    pending_rows = [row for row in expected if row[5] == "pending"]
+    assert len(pending_rows) == 1
+    assert pending_rows[0][7] != date(2026, 9, 1)
+    got = await _schedule(db_session, target)
+    # main: the done row still says engine_oil_filter, so the target counts
+    # from it and the pending one falls due 2026-09-01.
+    assert [row for row in got if row[5] == "pending"] == pending_rows
+    assert len(got) == len(expected)
+
+
+@pytest.mark.parametrize(
+    ("own", "rule_type", "item_type", "written"),
+    [
+        # Its own type already rules it out, and that check runs first.
+        ("engine_oil_filter", "tire_rotation", "tire_rotation", "engine_oil_filter"),
+        # The item was retyped away: the item's type rules it out.
+        ("engine_oil_filter", "engine_oil_filter", "tire_rotation", "tire_rotation"),
+        # An untyped item rules nothing out.
+        ("engine_oil_filter", "engine_oil_filter", None, "engine_oil_filter"),
+        # A typeless rule reads no type at all.
+        (None, None, "tire_rotation", "tire_rotation"),
+    ],
+)
+def test_a_done_reminder_carries_the_type_its_rule_reads(
+    own: str | None, rule_type: str | None, item_type: str | None, written: str | None
+):
+    from app.routes.export import _rule_reminder_json
+
+    rule = MaintenanceRule(id=1, title="Oil", maintenance_type=rule_type, source="manual")
+    visit = ServiceVisit(
+        id=2, date=date(2026, 5, 1), odometer_km=Decimal("41000.00"), engine_hours=Decimal("812.5")
+    )
+    item = ServiceLineItem(id=3, visit_id=2, description="Oil", maintenance_type=item_type)
+    done = Reminder(
+        title="Oil",
+        reminder_type="date",
+        status="done",
+        maintenance_type=own,
+        completed_date=date(2026, 6, 1),
+        completed_line_item_id=3,
+    )
+    row = _rule_reminder_json(done, rule, {3: (item, visit)})
+    assert (
+        row["maintenance_type"],
+        row["completed_date"],
+        row["completed_odometer_km"],
+        row["completed_hours"],
+    ) == (written, "2026-05-01", 41000.0, 812.5)
+    # A pending one keeps what it has; only `_latest_completion` reads the done ones.
+    pending = Reminder(title="Oil", reminder_type="date", status="pending", maintenance_type=own)
+    pending.completed_line_item_id = 3
+    assert _rule_reminder_json(pending, rule, {3: (item, visit)})["maintenance_type"] == own
+
+
+async def test_a_done_reminder_linked_to_another_vehicles_work_keeps_its_snapshot(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    vin = await new_vehicle()
+    other = await new_vehicle()
+    visit = ServiceVisit(
+        vin=other,
+        date=date(2026, 5, 1),
+        odometer_km=Decimal("9.00"),
+        service_category="Maintenance",
+    )
+    db_session.add(visit)
+    await db_session.flush()
+    item = ServiceLineItem(visit_id=visit.id, description="Wax")
+    rule = MaintenanceRule(vin=vin, title="Wax", interval_months=12, source="manual")
+    db_session.add_all([item, rule])
+    await db_session.flush()
+    db_session.add(
+        Reminder(
+            vin=vin,
+            rule_id=rule.id,
+            title="Wax",
+            reminder_type="date",
+            due_date=date(2026, 6, 1),
+            status="done",
+            completed_date=date(2026, 6, 1),
+            completed_line_item_id=item.id,
+        )
+    )
+    await db_session.commit()
+
+    [done] = (await export_json(client, auth_headers, vin))["maintenance_rules"][0]["reminders"]
+    # `_latest_completion` only reads this vehicle's work, so neither does the export.
+    assert done["completed_date"] == "2026-06-01"
+
+
 #: Every reminder column the backup carries (K5).
 _REMINDER_COLUMNS = (
     "title",
