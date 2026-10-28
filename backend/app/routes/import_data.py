@@ -1064,7 +1064,10 @@ def _json_fuel_key(
     if "cost" in row:
         key.append(_money_matches(FuelRecord.cost, record.cost))
     # C-1, C-5: the rest of what tells two fill-ups apart. A propane exchange
-    # has no odometer or litres, so the tanks and hours carry it.
+    # has no odometer or litres, so the tanks and hours carry it. Flags, payment,
+    # trip type, trip computer, temperature and charge details stay out on purpose:
+    # they describe the same fill-up, and an edit to one shouldn't re-import it.
+    # Price basis, station and driver are derived or rewritten on import.
     for name in ("engine_hours", "tank_size_kg", "soc_start_pct", "soc_end_pct"):
         if name in row:
             key.append(_same_figure(getattr(FuelRecord, name), getattr(record, name)))
