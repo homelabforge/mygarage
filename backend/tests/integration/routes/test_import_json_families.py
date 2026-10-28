@@ -230,7 +230,7 @@ async def test_a_parser_that_crashes_refuses_the_family_not_the_file(
     errors: list[str] = []
 
     def parse() -> None:
-        # A parser bug, not a row error: it still mustn't 500 the import (P-3).
+        # A parser bug, not a row error: it still mustn't 500 the import.
         raise TypeError("'int' object is not subscriptable")
 
     async def write(plan: None) -> None:
@@ -321,14 +321,13 @@ def test_an_index_must_be_an_int_in_range(raw: object):
 
 
 def test_an_index_reads_none_when_absent_or_null():
+    from app.routes.import_data._common import _RowError
     from app.routes.import_data._families import file_index
 
     assert file_index({}, "set_index", 3, what="a tire set in this file") is None
     assert file_index({"set_index": None}, "set_index", 3, what="a tire set in this file") is None
     assert file_index({"set_index": 2}, "set_index", 3, what="a tire set in this file") == 2
     # Nothing to point at: any index is out of range.
-    from app.routes.import_data._common import _RowError
-
     with pytest.raises(_RowError):
         file_index({"set_index": 0}, "set_index", 0, what="a tire set in this file")
 
@@ -361,11 +360,14 @@ def test_a_figure_type_bounds_are_checked():
     with pytest.raises(_RowError) as caught:
         within_figure_bounds(Thickness, inner_pad_mm=Decimal("-1"))
     assert caught.value.reason == "inner_pad_mm must be at least 0, not -1"
-    # A bare NaN in the file is a row error too, not an InvalidOperation 500 (P-2).
+    # A bare NaN in the file is a row error too, not an InvalidOperation 500.
     with pytest.raises(_RowError) as caught:
         within_figure_bounds(Thickness, inner_pad_mm=Decimal("NaN"))
     assert caught.value.reason == "inner_pad_mm must be a number"
     within_figure_bounds(Thickness, inner_pad_mm=Decimal("50"), outer_pad_mm=None)
+    # The field's type, not the alias: its bounds are out of reach, so it mustn't check nothing.
+    with pytest.raises(TypeError):
+        within_figure_bounds(HoursFigure | None, engine_hours=Decimal("1"))
 
 
 # -- D-9: one boolean reader for every 3b section --------------------------------
