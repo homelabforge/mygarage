@@ -1,5 +1,6 @@
 """Tires in the JSON backup: sets, tires, mount periods and readings (task 5, J1, N-4, N-6)."""
 
+import logging
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
+from app.routes.import_data import json_tires, vehicle_json
 from tests.integration.routes._json_backup import V9, export_json, import_json
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -230,6 +232,48 @@ async def test_the_export_writes_indices_not_ids(
     assert backup["tires"][1]["set_index"] is None
 
 
+async def test_the_export_orders_periods_by_id_not_by_date(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # The relationship sorts periods by mounted_on; an index has to mean the same row every time (S2).
+    vin = await new_vehicle()
+    tire = Tire(vin=vin)
+    db_session.add(tire)
+    await db_session.flush()
+    later_mount = TireMountPeriod(
+        tire_id=tire.id,
+        position="RL",
+        mounted_on=date(2026, 3, 1),
+        dismounted_on=date(2026, 4, 1),
+    )
+    db_session.add(later_mount)
+    await db_session.flush()
+    # Entered second, mounted first.
+    earlier_mount = TireMountPeriod(
+        tire_id=tire.id,
+        position="FR",
+        mounted_on=date(2025, 1, 1),
+        dismounted_on=date(2025, 2, 1),
+    )
+    db_session.add(earlier_mount)
+    await db_session.flush()
+    db_session.add(
+        TireReading(
+            tire_id=tire.id,
+            vin=vin,
+            position="FR",
+            mount_period_id=earlier_mount.id,
+            recorded_at=date(2025, 1, 15),
+            tread_depth_mm=Decimal("7"),
+        )
+    )
+    await db_session.commit()
+
+    [row] = (await export_json(client, auth_headers, vin))["tires"]
+    assert [p["position"] for p in row["mount_periods"]] == ["RL", "FR"]
+    assert [r["mount_period_index"] for r in row["readings"]] == [1]
+
+
 # -- N-2: a mounted tire below its minimum raises the reminder at import ---------
 
 
@@ -335,47 +379,120 @@ async def test_one_empty_tire_set_on_the_target_skips_the_files_tires(
     assert await _tires(db_session, vin) == []
 
 
+_TWO_LOW = {
+    **V9,
+    "tires": [
+        _mounted("FL", tread_depth_mm=1.5),
+        _mounted("FR", tread_depth_mm=1.0),
+    ],
+}
+
+
+async def test_a_failed_low_tread_sync_keeps_the_tires(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    async def broken(*_: Any) -> None:
+        raise RuntimeError("sync failed")
+
+    monkeypatch.setattr(vehicle_json, "sync_imported_tires", broken)
+    caplog.set_level(logging.WARNING)
+    vin = await new_vehicle()
+
+    data = await import_json(client, auth_headers, vin, _TWO_LOW)
+
+    assert data["tires"]["success_count"] == 2
+    assert [t["position"] for t in await _tires(db_session, vin)] == ["FL", "FR"]
+    assert await _low_tread(db_session, vin) == []
+    assert any("low-tread sync failed" in r.getMessage() for r in caplog.records)
+
+
+async def test_one_tire_failing_its_sync_leaves_the_others_reminder(
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    real = json_tires.sync_low_tread_reminder
+    calls: list[int] = []
+
+    async def first_one_fails(db: AsyncSession, tire: Tire) -> bool:
+        # Writes its reminder, then raises: the savepoint has to take the reminder back.
+        calls.append(tire.id)
+        changed = await real(db, tire)
+        if len(calls) == 1:
+            raise RuntimeError("sync failed")
+        return changed
+
+    monkeypatch.setattr(json_tires, "sync_low_tread_reminder", first_one_fails)
+    caplog.set_level(logging.WARNING)
+    vin = await new_vehicle()
+
+    await import_json(client, auth_headers, vin, _TWO_LOW)
+
+    assert len(calls) == 2
+    assert [t["position"] for t in await _tires(db_session, vin)] == ["FL", "FR"]
+    assert [r.title for r in await _low_tread(db_session, vin)] == ["Tire tread low (FR)"]
+    assert any("low-tread sync failed" in r.getMessage() for r in caplog.records)
+
+
 # -- N-4, S4, R6: a bad row refuses the whole family ----------------------------
+
+_ONE_SET: list[dict[str, Any]] = [{"name": "Only"}]
 
 _REFUSED = [
     pytest.param(
         [_mounted("FL", mount_periods=[_period("FL", "2026-01-01"), _period("FR", "2026-02-01")])],
         "Tire 0: has more than one open mount period",
+        _ONE_SET,
         id="two-open-periods",
     ),
     pytest.param(
         [_mounted("FL", mount_periods=[_period("FL", "2026-01-01", "2026-02-01")])],
         "Tire 0: is mounted at FL but has no open mount period",
+        _ONE_SET,
         id="mounted-no-open-period",
     ),
     pytest.param(
         [_mounted("FL", mount_periods=[_period("RR", "2026-01-01")])],
         "Tire 0: is mounted at FL but its open mount period is at RR",
+        _ONE_SET,
         id="open-period-elsewhere",
     ),
     pytest.param(
         [{"position": None, "mount_periods": [_period("FL", "2026-01-01")]}],
         "Tire 0: is off the vehicle but has an open mount period",
+        _ONE_SET,
         id="stored-with-open-period",
     ),
     pytest.param(
         [_mounted("FL", retired_on="2026-05-01")],
         "Tire 0: is retired but still mounted",
+        _ONE_SET,
         id="retired-but-mounted",
     ),
     pytest.param(
         [_mounted("FL"), {"position": None}, _mounted("FL")],
         "Tire 2: FL is taken by tire 0",
+        _ONE_SET,
         id="two-tires-one-corner",
     ),
     pytest.param(
         [_mounted("FL", set_index=1)],
         "Tire 0: set_index must be the index of a tire set in this file",
+        _ONE_SET,
         id="set-index-out-of-range",
     ),
     pytest.param(
         [_mounted("FL", set_index=True)],
         "Tire 0: set_index must be the index of a tire set in this file",
+        _ONE_SET,
         id="set-index-true",
     ),
     pytest.param(
@@ -389,40 +506,82 @@ _REFUSED = [
             },
         ],
         "Tire 1, reading 0: mount_period_index must be the index of a mount period of this tire",
+        _ONE_SET,
         id="period-index-of-another-tire",
     ),
     pytest.param(
         [_mounted("FL", readings=[{"recorded_at": "2026-02-01", "odometer_km": 100}])],
         "Tire 0, reading 0: a reading needs a tread depth, a pressure, or both",
+        _ONE_SET,
         id="reading-measures-nothing",
     ),
     pytest.param(
         [_mounted("FL", readings=[{"recorded_at": "2026-02-01", "tread_depth_mm": 31}])],
         "Tire 0, reading 0: tread_depth_mm must be at most 30, not 31",
+        _ONE_SET,
         id="tread-past-the-api-bound",
     ),
     pytest.param(
         [_mounted("FL", mount_periods=[{"position": "XX", "mounted_on": "2026-01-01"}])],
         "Tire 0, mount period 0: position must be one of FL, FR, RL, RR, SPARE",
+        _ONE_SET,
         id="period-position-word",
     ),
     pytest.param(
         [_mounted("FL", mount_periods=[{**_period("FL", "2026-01-01"), "is_assumed": "yes"}])],
         "Tire 0, mount period 0: is_assumed must be true or false",
+        _ONE_SET,
         id="is-assumed-word",
     ),
     pytest.param(
         [_mounted("FL", readings="none")],
         "Tire 0: readings must be a list",
+        _ONE_SET,
         id="readings-not-a-list",
+    ),
+    pytest.param(
+        ["FL"],
+        "Tire 0: must be an object",
+        _ONE_SET,
+        id="tire-not-an-object",
+    ),
+    pytest.param(
+        [_mounted("FL")],
+        "Tire set 0: name is missing",
+        [{"notes": "no name"}],
+        id="set-without-a-name",
+    ),
+    pytest.param(
+        [_mounted("FL", mount_periods=[{"mounted_on": "2026-01-01"}])],
+        "Tire 0, mount period 0: position is missing",
+        _ONE_SET,
+        id="period-without-a-position",
+    ),
+    pytest.param(
+        [_mounted("FL", mount_periods=[{**_period("FL", "2026-01-01"), "mounted_hours": -1}])],
+        "Tire 0, mount period 0: mounted_hours must be at least 0, not -1",
+        _ONE_SET,
+        id="period-hours-below-zero",
+    ),
+    pytest.param(
+        [
+            _mounted(
+                "FL",
+                readings=[{"recorded_at": "2026-02-01", "pressure_kpa": 200, "engine_hours": 1e9}],
+            )
+        ],
+        "Tire 0, reading 0: engine_hours must be at most 999999999.9, not 1000000000.0",
+        _ONE_SET,
+        id="reading-hours-past-the-bound",
     ),
 ]
 
 
-@pytest.mark.parametrize(("tires", "reason"), _REFUSED)
+@pytest.mark.parametrize(("tires", "reason", "tire_sets"), _REFUSED)
 async def test_a_bad_tire_refuses_the_family_and_writes_nothing(
-    tires: list[dict[str, Any]],
+    tires: list[Any],
     reason: str,
+    tire_sets: list[dict[str, Any]],
     client: AsyncClient,
     auth_headers,
     db_session: AsyncSession,
@@ -430,7 +589,7 @@ async def test_a_bad_tire_refuses_the_family_and_writes_nothing(
 ):
     vin = await new_vehicle()
     data = await import_json(
-        client, auth_headers, vin, {**V9, "tire_sets": [{"name": "Only"}], "tires": tires}
+        client, auth_headers, vin, {**V9, "tire_sets": tire_sets, "tires": tires}
     )
     # main: the tires section is never read, so nothing is refused.
     assert data["errors"] == [f"{reason}, so the file's tires weren't imported"]

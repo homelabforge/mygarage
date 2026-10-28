@@ -38,6 +38,7 @@ from app.schemas.tire import (
     TireUpdate,
 )
 from app.services.tire_service import sync_low_tread_reminder
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -276,9 +277,10 @@ async def write_tires(db: AsyncSession, plan: TirePlan) -> None:
 async def sync_imported_tires(db: AsyncSession, plan: TirePlan) -> None:
     """Raise or close the low-tread reminder for each tire this import wrote.
 
-    Reloaded first: the sync reads the readings, and the rows written above
-    never had them loaded. Nothing else raises one (N-2), and a stored or
-    retired tire gets none (D3a).
+    Reloaded first: the sync reads the readings (and the wear projection the
+    periods), and the rows written above never had them loaded. Nothing else
+    raises one (N-2), and a stored or retired tire gets none (D3a). Each tire
+    syncs in its own savepoint, so one that fails doesn't cost the others theirs.
     """
     ids = [parsed.tire.id for parsed in plan.tires]
     if not ids:
@@ -288,7 +290,7 @@ async def sync_imported_tires(db: AsyncSession, plan: TirePlan) -> None:
             await db.execute(
                 select(Tire)
                 .where(Tire.id.in_(ids))
-                .options(selectinload(Tire.readings))
+                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
                 .order_by(Tire.id)
                 .execution_options(populate_existing=True)
             )
@@ -297,4 +299,11 @@ async def sync_imported_tires(db: AsyncSession, plan: TirePlan) -> None:
         .all()
     )
     for tire in tires:
-        await sync_low_tread_reminder(db, tire)
+        try:
+            async with db.begin_nested():
+                await sync_low_tread_reminder(db, tire)
+        except Exception as e:
+            # Derived data only: the tire stays, it just waits for its next sync.
+            logger.warning(
+                "Import: low-tread sync failed for tire %s: %s", tire.id, sanitize_for_log(e)
+            )

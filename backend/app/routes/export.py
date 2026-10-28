@@ -99,6 +99,9 @@ limiter = Limiter(key_func=get_remote_address)
 #   whole, and `financing_records`, `tax_records`, `toll_tags`,
 #   `toll_transactions`, `warranties` and `spot_rentals` are new. The
 #   importer still reads v2 to v8, and a section a file lacks is empty.
+#   Batch 3b adds `tire_sets` and `tires` (each tire with its nested
+#   `mount_periods` and `readings`) to v9 without a bump: a 3a file simply
+#   has none.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
