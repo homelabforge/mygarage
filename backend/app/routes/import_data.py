@@ -1433,11 +1433,11 @@ def _json_warranty_key(row: Mapping[str, Any], record: WarrantyRecord) -> list[C
         WarrantyRecord.start_date == record.start_date,
     ]
     if "provider" in row:
-        key.append(_matches(WarrantyRecord.provider, record.provider))
+        key.append(_text_matches(WarrantyRecord.provider, record.provider))
     if "end_date" in row:
         key.append(_matches(WarrantyRecord.end_date, record.end_date))
     if "policy_number" in row:
-        key.append(_matches(WarrantyRecord.policy_number, record.policy_number))
+        key.append(_text_matches(WarrantyRecord.policy_number, record.policy_number))
     if "mileage_limit_km" in row:
         key.append(_same_figure(WarrantyRecord.mileage_limit_km, record.mileage_limit_km))
     return key
@@ -1541,7 +1541,7 @@ def _json_spot_rental_key(row: Mapping[str, Any], rental: SpotRental) -> list[Co
     """R5's rental key but the bills, each optional part only when the row has it (T-16)."""
     key = [SpotRental.check_in_date == rental.check_in_date]
     if "location_name" in row:
-        key.append(_matches(SpotRental.location_name, rental.location_name))
+        key.append(_text_matches(SpotRental.location_name, rental.location_name))
     if "check_out_date" in row:
         key.append(_matches(SpotRental.check_out_date, rental.check_out_date))
     if "total_cost" in row:
@@ -1897,6 +1897,23 @@ def parse_bool(value: str) -> bool:
     return value in ("true", "yes", "1", "y")
 
 
+def _read_mygarage_csv(csv_data: str) -> tuple[list[dict[str, Any]], Sequence[str] | None]:
+    """A MyGarage CSV's rows, each text cell with the export's formula quote taken off once.
+
+    Done here and nowhere else (P-2): a pair that skipped it stored the quote
+    and grew another one every round trip, and a second unquote eats a typed one.
+    """
+    reader = csv.DictReader(io.StringIO(csv_data))
+    rows = [
+        {
+            key: unquote_csv_cell(value) if isinstance(value, str) else value
+            for key, value in row.items()
+        }
+        for row in reader
+    ]
+    return rows, reader.fieldnames
+
+
 def _read_csv_with_units(
     csv_data: str, specs: Sequence[QuantitySpec]
 ) -> tuple[list[dict[str, Any]], CsvUnitContext]:
@@ -1909,9 +1926,8 @@ def _read_csv_with_units(
     `validate_csv_upload`) so that disagreement is detectable and so every
     rejection lands before a single ORM row is added.
     """
-    reader = csv.DictReader(io.StringIO(csv_data))
-    rows = list(reader)
-    return rows, build_csv_unit_context(reader.fieldnames, rows, specs)
+    rows, fieldnames = _read_mygarage_csv(csv_data)
+    return rows, build_csv_unit_context(fieldnames, rows, specs)
 
 
 def _canonical_cell(units: CsvUnitContext, row: Mapping[str, Any], quantity: str) -> Decimal | None:
@@ -1967,8 +1983,8 @@ def _parse_service_row(
     """One service CSV row read and held to the API's bounds; a row error says what's wrong."""
 
     def text(column: str) -> str | None:
-        # The export quotes a formula-like cell; the quote isn't the text (T-21).
-        return unquote_csv_cell(row.get(column) or "").strip() or None
+        # The formula quote is already off (`_read_mygarage_csv`, T-21).
+        return (row.get(column) or "").strip() or None
 
     date = parse_date(row.get("Date") or "")
     if not date:
@@ -2072,7 +2088,7 @@ def _visit_fee_key(row: _ServiceCsvRow, header: set[str]) -> list[ColumnElement[
             ("Misc Fees", _money_matches(ServiceVisit.misc_fees, row.misc_fees)),
             (
                 "Insurance Claim",
-                _matches(ServiceVisit.insurance_claim_number, row.insurance_claim_number),
+                _text_matches(ServiceVisit.insurance_claim_number, row.insurance_claim_number),
             ),
         )
         if column in header
@@ -2444,9 +2460,9 @@ async def import_fuel_csv(
             filled_at = _local_datetime(row.get("Filled At"), "Filled At")
             is_hauling = parse_bool(row.get("Is Hauling", "False"))
             station_id = parse_int(row.get("Station ID", ""))
-            station_cell = unquote_csv_cell((row.get("Station") or "").strip()) or None
+            station_cell = (row.get("Station") or "").strip() or None
             driver_id = parse_int(row.get("Driver ID", ""))
-            driver_cell = unquote_csv_cell((row.get("Driver") or "").strip()) or None
+            driver_cell = (row.get("Driver") or "").strip() or None
             payment_method = _in_vocabulary(
                 _blank_to_none((row.get("Payment Method") or "").strip()),
                 "payment_method",
@@ -2855,7 +2871,7 @@ async def import_hours_csv(
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    csv_reader, _fields = _read_mygarage_csv(csv_data)
 
     await lock_vehicle_for_write(db, vin)
     matcher = await _DuplicateMatcher.before_import(db, HoursRecord)
@@ -2972,13 +2988,13 @@ async def import_warranties_csv(
             if skip_duplicates and start_date and warranty_type:
                 key = [
                     WarrantyRecord.warranty_type == warranty_type,
-                    _matches(WarrantyRecord.provider, provider),
+                    _text_matches(WarrantyRecord.provider, provider),
                     WarrantyRecord.start_date == start_date,
                 ]
                 if "End Date" in row:
                     key.append(_matches(WarrantyRecord.end_date, end_date))
                 if "Policy Number" in row:
-                    key.append(_matches(WarrantyRecord.policy_number, policy_number))
+                    key.append(_text_matches(WarrantyRecord.policy_number, policy_number))
                 if has_mileage_limit:
                     key.append(
                         _converted_value_matches(
@@ -3045,7 +3061,7 @@ async def import_insurance_csv(
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    csv_reader, _fields = _read_mygarage_csv(csv_data)
 
     await lock_vehicle_for_write(db, vin)
 
@@ -3107,7 +3123,7 @@ async def import_tax_csv(
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    csv_reader, _fields = _read_mygarage_csv(csv_data)
 
     await lock_vehicle_for_write(db, vin)
     matcher = await _DuplicateMatcher.before_import(db, TaxRecord)
@@ -3188,7 +3204,7 @@ async def import_notes_csv(
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    csv_reader, _fields = _read_mygarage_csv(csv_data)
 
     await lock_vehicle_for_write(db, vin)
     matcher = await _DuplicateMatcher.before_import(db, Note)
@@ -3207,7 +3223,7 @@ async def import_notes_csv(
             if skip_duplicates and date:
                 key = [Note.date == date]
                 if "Title" in row:
-                    key.append(_matches(Note.title, title))
+                    key.append(_text_matches(Note.title, title))
                 if "Content" in row:
                     key.append(_matches(Note.content, content))
                 if await matcher.take(db, Note, Note.vin == vin, *key) is not None:
@@ -3517,7 +3533,7 @@ async def import_vehicle_json(
                     ("misc_fees", _money_matches(ServiceVisit.misc_fees, misc_fees)),
                     (
                         "insurance_claim_number",
-                        _matches(ServiceVisit.insurance_claim_number, insurance_claim_number),
+                        _text_matches(ServiceVisit.insurance_claim_number, insurance_claim_number),
                     ),
                     # C-5: the visit's own hours reading and category.
                     ("engine_hours", _same_figure(ServiceVisit.engine_hours, engine_hours)),
@@ -4038,7 +4054,7 @@ async def import_vehicle_json(
                     Note.vin == vin,
                     Note.date == date,
                     # T-16: a row with no title key matches any title.
-                    *([_matches(Note.title, title)] if "title" in note_data else []),
+                    *([_text_matches(Note.title, title)] if "title" in note_data else []),
                     Note.content == content,
                 )
                 is not None
