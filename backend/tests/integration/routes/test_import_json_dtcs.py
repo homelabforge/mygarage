@@ -637,7 +637,7 @@ async def test_an_import_and_a_report_racing_on_postgresql_leave_one_active_row(
     creates: list[str] = []
 
     async def counting_create(self: DTCService, *args: Any) -> VehicleDTC:
-        creates.append(args[1])
+        creates.append(args[2])  # (vin, device_id, code, now)
         return await real_create(self, *args)
 
     monkeypatch.setattr(DTCService, "_create_vehicle_dtc", counting_create)
