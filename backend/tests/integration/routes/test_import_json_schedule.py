@@ -20,7 +20,8 @@ from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
 from tests.integration.routes._json_backup import V9, export_json, import_json
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+# No asyncio mark: auto mode marks the async tests, and the sync ones would warn.
+pytestmark = [pytest.mark.integration]
 
 
 async def _post(client: AsyncClient, headers, url: str, body: dict[str, Any]) -> dict[str, Any]:

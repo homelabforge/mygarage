@@ -25,16 +25,6 @@ _V8_HEADER = (
 )
 
 
-@pytest.fixture(autouse=True)
-def _reset_limits() -> None:
-    """The import and export limiters are per route; this module posts more than they allow."""
-    from app.routes.export import limiter as export_limiter
-    from app.routes.import_data import limiter as import_limiter
-
-    export_limiter.reset()
-    import_limiter.reset()
-
-
 async def _vehicle(db_session: AsyncSession, owner_id: Any, vin: str) -> str:
     db_session.add(
         Vehicle(

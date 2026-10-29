@@ -14,10 +14,7 @@ async def test_the_21st_json_import_in_a_minute_is_refused(
     auth_headers: dict[str, str],
     new_vehicle: Callable[..., Awaitable[str]],
 ) -> None:
-    from app.routes.import_data import limiter as import_limiter
-
-    # Start from an empty bucket, whatever ran before.
-    import_limiter.reset()
+    # The routes conftest empties the bucket before each test.
     vin = await new_vehicle()
     body = json.dumps({"export_version": "9", "units": "metric"}).encode()
     codes: list[int] = []

@@ -13,7 +13,8 @@ from app.models.supply import Supply
 from app.models.tire import Tire, TireSet
 from tests.integration.routes._json_backup import V9, import_json, post_json
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+# No asyncio mark: auto mode marks the async tests, and the sync ones would warn.
+pytestmark = [pytest.mark.integration]
 
 _FAMILY_LISTS = (
     "tire_sets",

@@ -38,16 +38,6 @@ _TYPED = ("'=example", "=example")
 _INSURER = "B3 Quote Insure"
 
 
-@pytest.fixture(autouse=True)
-def _reset_limits() -> None:
-    """The import and export limiters are per route; this module posts more than they allow."""
-    from app.routes.export import limiter as export_limiter
-    from app.routes.import_data import limiter as import_limiter
-
-    export_limiter.reset()
-    import_limiter.reset()
-
-
 def _cell(text: str) -> str:
     """The text as the export writes it, CSV-quoted for the two commas-free cells here."""
     return str(sanitize_csv_cell(text))
