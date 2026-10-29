@@ -670,6 +670,9 @@ async def test_a_use_on_another_vehicles_visit_travels_as_a_reference(
             "vin": b,
             "date": "2026-03-01",
             "description": "Top up",
+            # 5f10d883: neither, so a twin item that day could take the use.
+            "item_index": 0,
+            "item_cost": None,
             "quantity": Decimal("3"),
             "unit_cost_snapshot": 1.5,
             "cost_snapshot": 4.5,
@@ -863,6 +866,105 @@ async def test_reimporting_b_while_a_is_deleted_keeps_one_visit(
             select(func.count()).select_from(ServiceVisit).where(ServiceVisit.vin == b)
         )
     ).scalar_one() == 1
+
+
+async def test_a_lookalike_shared_supply_never_takes_a_use_of_one_kept_elsewhere(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Jug {_tag()}"
+    a, b = await new_vehicle(), await new_vehicle()
+    # Same name, part number and unit as A's jug, and older.
+    lookalike = Supply(name=name, unit_type="count")
+    db_session.add(lookalike)
+    await db_session.commit()
+    lookalike_id = lookalike.id
+    await _jug_used_on_b(db_session, name, a, b)
+    backup_a = await export_json(client, auth_headers, a)
+    backup_b = await export_json(client, auth_headers, b)
+
+    await _start_over(db_session, a, b)
+    await import_json(client, auth_headers, a, backup_a)
+    data = await import_json(client, auth_headers, b, backup_b)
+    assert (data["errors"], data["warnings"]) == ([], [])
+
+    [_, copy_id] = await _supply_ids(db_session, name)
+    # 5f10d883: 10 and 1, B's use landed on the shared one.
+    assert await _balance(db_session, copy_id) == Decimal("7")
+    assert await _usages_of(db_session, lookalike_id) == 0
+
+
+async def _jug_used_on_a_twin(
+    db_session: AsyncSession, name: str, a: str, b: str, costs: list[Decimal]
+) -> list[int]:
+    """B's visit has a "Top up" item per cost, and A's jug was used on the last one."""
+    jug = Supply(name=name, unit_type="count", vin=a)
+    job = ServiceVisit(vin=b, date=date(2026, 3, 1), service_category="Maintenance")
+    db_session.add_all([jug, job])
+    await db_session.flush()
+    items = [ServiceLineItem(visit_id=job.id, description="Top up", cost=c) for c in costs]
+    db_session.add_all(items)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=jug.id, date=date(2026, 2, 1), quantity=Decimal("10")),
+            SupplyUsage(supply_id=jug.id, service_line_item_id=items[-1].id, quantity=Decimal("3")),
+        ]
+    )
+    await db_session.commit()
+    return [i.id for i in items]
+
+
+async def _items_using(db_session: AsyncSession, name: str) -> list[int | None]:
+    db_session.expire_all()
+    rows = await db_session.execute(
+        select(SupplyUsage.service_line_item_id)
+        .join(Supply, SupplyUsage.supply_id == Supply.id)
+        .where(Supply.name == name)
+    )
+    return list(rows.scalars().all())
+
+
+async def test_a_restored_use_goes_back_on_its_own_item_not_a_twin(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Jug {_tag()}"
+    a, b = await new_vehicle(), await new_vehicle()
+    [_twin, used] = await _jug_used_on_a_twin(
+        db_session, name, a, b, [Decimal("5.00"), Decimal("5.00")]
+    )
+    backup_a = await export_json(client, auth_headers, a)
+
+    await _start_over(db_session, a)
+    data = await import_json(client, auth_headers, a, backup_a)
+    assert (data["errors"], data["warnings"]) == ([], [])
+    # 5f10d883: the twin, the first "Top up" that day.
+    assert await _items_using(db_session, name) == [used]
+
+
+async def test_a_restored_use_finds_its_item_by_cost_after_the_visit_was_edited(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Jug {_tag()}"
+    a, b = await new_vehicle(), await new_vehicle()
+    [first, used] = await _jug_used_on_a_twin(
+        db_session, name, a, b, [Decimal("5.00"), Decimal("9.00")]
+    )
+    visit_id = (
+        await db_session.execute(select(ServiceLineItem.visit_id).where(ServiceLineItem.id == used))
+    ).scalar_one()
+    backup_a = await export_json(client, auth_headers, a)
+
+    await _start_over(db_session, a)
+    # The 5.00 one gets redone at the end, so the used item is first now and a
+    # twin sits at the place the file names.
+    await db_session.execute(delete(ServiceLineItem).where(ServiceLineItem.id == first))
+    db_session.add(ServiceLineItem(visit_id=visit_id, description="Top up", cost=Decimal("5.00")))
+    await db_session.commit()
+
+    data = await import_json(client, auth_headers, a, backup_a)
+    assert (data["errors"], data["warnings"]) == ([], [])
+    # Without the cost check: the new 5.00 item, at the place the file names.
+    assert await _items_using(db_session, name) == [used]
 
 
 async def test_a_restored_use_counts_in_the_other_visits_total(
@@ -1425,11 +1527,13 @@ async def test_a_supply_pinned_to_another_vehicle_is_found_by_its_key(
 
     backup = await export_json(client, auth_headers, a)
     # main: KeyError, the export writes no supply_usages.
+    # 5f10d883: no vin, so a shared oil with the same key could take the use.
     assert backup["service_visits"][0]["line_items"][0]["supply_usages"][0]["supply"] == {
         "name": f"B's oil {tag}",
         "part_number": None,
         "unit_type": "volume",
         "volume_unit": "qt_us",
+        "vin": b,
     }
     data = await import_json(client, auth_headers, c, backup)
     # Found pinned to B, not added again as a shared one.

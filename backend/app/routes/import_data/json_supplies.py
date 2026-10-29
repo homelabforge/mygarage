@@ -19,8 +19,9 @@ from typing import Any, Literal, get_args
 
 from fastapi import HTTPException
 from pydantic import Field
-from sqlalchemy import ColumnElement, and_, exists, or_, select, update
+from sqlalchemy import ColumnElement, and_, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.address_book import AddressBookEntry
 from app.models.service_line_item import ServiceLineItem
@@ -33,6 +34,7 @@ from app.routes.import_data._common import (
     _in_vocabulary,
     _json_bool,
     _json_decimal,
+    _json_int,
     _json_row_date,
     _json_row_datetime,
     _json_text,
@@ -88,6 +90,11 @@ class UsedElsewhere:
     quantity: Decimal
     unit_cost_snapshot: Decimal | None
     cost_snapshot: Decimal | None
+    #: The item's place in its visit, and its cost when the file says. Both
+    #: tell it from a twin with the same description that day.
+    item_index: int | None = None
+    item_cost: Decimal | None = None
+    has_item_cost: bool = False
 
 
 @dataclass(frozen=True)
@@ -124,6 +131,8 @@ class LineItemUsage:
     quantity: Decimal
     unit_cost_snapshot: Decimal | None
     cost_snapshot: Decimal | None
+    #: The vehicle a key's supply is kept for, when the exporter could read it.
+    owner: str | None = None
 
 
 def _supply_key(row: Mapping[str, Any], name_missing: str) -> SupplyKey:
@@ -208,7 +217,22 @@ def _used_elsewhere_from_json(row: Mapping[str, Any]) -> UsedElsewhere | Unnamed
     quantity = _required_quantity(row)
     _within_api_bounds(SupplyUsageInput, quantity=quantity)
     unit_cost, cost = _snapshots(row)
-    return UsedElsewhere(other_vin, used_on, description, quantity, unit_cost, cost)
+    item_index = _json_int(row, "item_index")
+    if item_index is not None and item_index < 0:
+        raise _RowError("item_index must be 0 or more")
+    item_cost = _json_decimal(row, "item_cost")
+    within_figure_bounds(OptionalMoney, item_cost=item_cost)
+    return UsedElsewhere(
+        other_vin,
+        used_on,
+        description,
+        quantity,
+        unit_cost,
+        cost,
+        item_index=item_index,
+        item_cost=item_cost,
+        has_item_cost="item_cost" in row,
+    )
 
 
 def _supply_from_json(vin: str, user_id: int | None, index: int, raw: Any) -> PinnedSupply:
@@ -361,6 +385,7 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
         ServiceVisit.vin == use.vin,
         ServiceVisit.date == use.used_on,
         ServiceLineItem.description == use.description,
+        *([_same_figure(ServiceLineItem.cost, use.item_cost)] if use.has_item_cost else []),
     ]
     # Shared only: nothing else is pinned here yet, and a supply pinned to
     # another vehicle is a different supply (K12). A moved one leaves the pool.
@@ -400,18 +425,25 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
         )
         .correlate(ServiceLineItem)
     )
-    item = (
+    earlier = aliased(ServiceLineItem)
+    place = (
+        select(func.count())
+        .where(earlier.visit_id == ServiceLineItem.visit_id, earlier.id < ServiceLineItem.id)
+        .correlate(ServiceLineItem)
+        .scalar_subquery()
+    )
+    free = (
         await db.execute(
-            select(ServiceLineItem.id, ServiceLineItem.visit_id)
+            select(ServiceLineItem.id, ServiceLineItem.visit_id, place)
             .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
             .where(*on_the_item, ~has_this_supply)
             .order_by(ServiceLineItem.id)
-            .limit(1)
         )
-    ).first()
-    if item is None:
+    ).all()
+    if not free:
         return False
-    item_id, visit_id = item
+    # The item at the file's place first; an edit since can have moved it.
+    item_id, visit_id, _place = next((row for row in free if row[2] == use.item_index), free[0])
     db.add(
         SupplyUsage(
             supply_id=pinned.supply.id,
@@ -444,6 +476,7 @@ def line_item_usages_from_json(
                 raise _RowError("supply must be an object")
             supply = as_object(raw_supply)
             ref: int | SupplyKey
+            owner: str | None = None
             if "index" in supply:
                 index = file_index(
                     supply, "index", len(file_supplies), what="a supply in this file"
@@ -454,12 +487,13 @@ def line_item_usages_from_json(
                 ref = index
             else:
                 ref = _supply_key(supply, "supply name is missing")
+                owner = _json_text(supply, "vin")
             quantity = _required_quantity(row)
             _within_api_bounds(SupplyUsageInput, quantity=quantity)
             unit_cost, cost = _snapshots(row)
         except _RowError as e:
             raise _RowError(f"line item {position}, supply usage {k}: {e.reason}") from e
-        usages.append(LineItemUsage(ref, quantity, unit_cost, cost))
+        usages.append(LineItemUsage(ref, quantity, unit_cost, cost, owner))
     return usages
 
 
@@ -521,14 +555,19 @@ class SupplyResolver:
         self._file_supplies = file_supplies
         self._user_id = user_id
         self._family = family
-        self._cache: dict[tuple[_Scope, SupplyKey], int] = {}
-        self._visit_cache: dict[tuple[_Scope, SupplyKey], int] = {}
+        self._cache: dict[tuple[_Scope, SupplyKey, str | None], int] = {}
+        self._visit_cache: dict[tuple[_Scope, SupplyKey, str | None], int] = {}
         self._visit_warnings: list[str] = []
 
-    async def resolve(self, db: AsyncSession, ref: int | SupplyKey) -> int:
-        """The id of the supply `ref` names; a row error when its family was refused."""
+    async def resolve(
+        self, db: AsyncSession, ref: int | SupplyKey, owner: str | None = None
+    ) -> int:
+        """The id of the supply `ref` names; a row error when its family was refused.
+
+        A key's `owner` is the vehicle its supply is kept for, looked at first.
+        """
         if isinstance(ref, SupplyKey):
-            return await self._find(db, "shared", ref)
+            return await self._find(db, "shared", ref, owner)
         if self._family.outcome == "written" and self._family.plan is not None:
             return self._family.plan.supplies[ref].supply.id
         if self._family.outcome == "refused":
@@ -578,8 +617,10 @@ class SupplyResolver:
         self._visit_cache.clear()
         self._visit_warnings = []
 
-    async def _find(self, db: AsyncSession, scope: _Scope, key: SupplyKey) -> int:
-        cache_key = (scope, key)
+    async def _find(
+        self, db: AsyncSession, scope: _Scope, key: SupplyKey, owner: str | None = None
+    ) -> int:
+        cache_key = (scope, key, owner)
         found = self._visit_cache.get(cache_key, self._cache.get(cache_key))
         if found is not None:
             return found
@@ -590,6 +631,10 @@ class SupplyResolver:
             # Shared first, then pinned to another vehicle (D-15). A key only ever
             # means "not pinned here", so this vehicle's own is never it (F-5).
             places = [Supply.vin.is_(None), and_(Supply.vin.isnot(None), Supply.vin != self._vin)]
+            # The file says whose it is, so a shared one with the same key can't
+            # take its use.
+            if owner is not None and owner != self._vin:
+                places.insert(0, Supply.vin == owner)
         for place in places:
             found = await self._lookup(db, key, place)
             if found is not None:

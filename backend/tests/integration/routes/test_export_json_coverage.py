@@ -439,7 +439,7 @@ SECTIONS = [
         # The other vehicle's line item is named by its visit and description;
         # the visit dates it.
         exclude=frozenset({"id", "supply_id", "service_line_item_id", "created_at"}),
-        portable=frozenset({"vin", "date", "description"}),
+        portable=frozenset({"vin", "date", "description", "item_index", "item_cost"}),
     ),
     JsonSection(
         "service_visits.line_items.supply_usages",

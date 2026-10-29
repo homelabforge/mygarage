@@ -626,7 +626,7 @@ async def import_vehicle_json(
                 ):
                     for k, usage in enumerate(item_usages):
                         try:
-                            supply_id = await resolver.resolve(db, usage.ref)
+                            supply_id = await resolver.resolve(db, usage.ref, usage.owner)
                         except _RowError as e:
                             raise _RowError(
                                 f"line item {position}, supply usage {k}: {e.reason}"

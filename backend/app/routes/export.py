@@ -398,7 +398,9 @@ def _tire_json(tire: Tire, set_index: dict[int, int]) -> dict[str, Any]:
     }
 
 
-def _line_items_json(visit: ServiceVisit, supply_index: dict[int, int]) -> list[dict[str, Any]]:
+def _line_items_json(
+    visit: ServiceVisit, supply_index: dict[int, int], readable_vins: set[str]
+) -> list[dict[str, Any]]:
     """A visit's line items; an inspection link is the linked item's index here."""
     position = {item.id: index for index, item in enumerate(visit.line_items)}
     return [
@@ -407,7 +409,7 @@ def _line_items_json(visit: ServiceVisit, supply_index: dict[int, int]) -> list[
             # A link outside the visit has no index here, so it drops.
             "triggered_by_inspection": position.get(item.triggered_by_inspection_id),
             "supply_usages": [
-                _line_item_usage_json(u, supply_index)
+                _line_item_usage_json(u, supply_index, readable_vins)
                 for u in sorted(item.supply_usages, key=lambda u: u.id)
             ],
         }
@@ -415,21 +417,31 @@ def _line_items_json(visit: ServiceVisit, supply_index: dict[int, int]) -> list[
     ]
 
 
-def _line_item_usage_json(usage: SupplyUsage, supply_index: dict[int, int]) -> dict[str, Any]:
-    """What a line item used. A supply in this file goes by its index, any other by its name key."""
+def _line_item_usage_json(
+    usage: SupplyUsage, supply_index: dict[int, int], readable_vins: set[str]
+) -> dict[str, Any]:
+    """What a line item used. A supply in this file goes by its index, any other by its name key.
+
+    One kept for another vehicle you can read also names that vehicle, so a
+    shared supply with the same key can't take its use on restore.
+    """
     supply = usage.supply
     index = supply_index.get(supply.id)
-    return {
-        **_json_columns(usage, _LINE_ITEM_USAGE_JSON_EXCLUDE),
-        "quantity": _json_quantity(usage.quantity),
-        "supply": {"index": index}
-        if index is not None
-        else {
+    if index is not None:
+        ref: dict[str, Any] = {"index": index}
+    else:
+        ref = {
             "name": supply.name,
             "part_number": supply.part_number,
             "unit_type": supply.unit_type,
             "volume_unit": supply.volume_unit,
-        },
+        }
+        if supply.vin is not None and supply.vin in readable_vins:
+            ref["vin"] = supply.vin
+    return {
+        **_json_columns(usage, _LINE_ITEM_USAGE_JSON_EXCLUDE),
+        "quantity": _json_quantity(usage.quantity),
+        "supply": ref,
     }
 
 
@@ -446,6 +458,10 @@ def _used_elsewhere_json(usage: SupplyUsage, readable_vins: set[str]) -> dict[st
         "vin": line_item.visit.vin,
         "date": line_item.visit.date.isoformat(),
         "description": line_item.description,
+        # The item's place in its visit and its cost, so a twin with the same
+        # description that day isn't taken for it.
+        "item_index": [i.id for i in line_item.visit.line_items].index(line_item.id),
+        "item_cost": _json_value(line_item.cost),
         "quantity": _json_quantity(usage.quantity),
         "unit_cost_snapshot": _json_value(usage.unit_cost_snapshot),
         "cost_snapshot": _json_value(usage.cost_snapshot),
@@ -1383,7 +1399,8 @@ async def export_vehicle_json(
                     selectinload(Supply.purchases),
                     selectinload(Supply.usages)
                     .selectinload(SupplyUsage.line_item)
-                    .selectinload(ServiceLineItem.visit),
+                    .selectinload(ServiceLineItem.visit)
+                    .selectinload(ServiceVisit.line_items),
                 )
                 .order_by(Supply.id)
             )
@@ -1400,6 +1417,13 @@ async def export_vehicle_json(
         for s in pinned_supplies
         for u in s.usages
         if u.line_item is not None and u.line_item.visit.vin != vin
+    } | {
+        # And the ones whose pinned supply this vehicle's visits used.
+        u.supply.vin
+        for v in service_visits
+        for i in v.line_items
+        for u in i.supply_usages
+        if u.supply.vin is not None and u.supply.vin != vin
     }
     scope = visible_vehicles_filter(current_user)
     readable_vins: set[str] = (
@@ -1446,7 +1470,7 @@ async def export_vehicle_json(
             {
                 **_json_columns(v, _SERVICE_VISIT_JSON_EXCLUDE),
                 "vendor_name": v.vendor.name if v.vendor else None,
-                "line_items": _line_items_json(v, supply_index),
+                "line_items": _line_items_json(v, supply_index, readable_vins),
             }
             for v in service_visits
         ],
