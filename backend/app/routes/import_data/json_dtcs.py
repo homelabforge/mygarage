@@ -102,6 +102,8 @@ async def import_dtcs(
 
     Nothing here notifies: only telemetry ingest creates a DTC and tells anyone.
     """
+    # Anything an earlier section left pending fails here, not on DTC 0's insert.
+    await db.flush()
     for idx, row in enumerate(rows):
         try:
             dtc = _dtc_from_json(vin, as_object(row))

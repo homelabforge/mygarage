@@ -180,6 +180,16 @@ async def test_a_code_already_active_here_keeps_one_active_row(
         ("P0300", True),
     ]
 
+    # Skipping duplicates too: another first_seen misses the key, and the index still says no.
+    skipping = await import_json(
+        client, auth_headers, vin, _v9(_dtc("P0300", "2026-08-01T08:00:00"))
+    )
+    assert (skipping["dtcs"]["skipped_count"], skipping["dtcs"]["error_count"]) == (1, 0), skipping
+    assert skipping["warnings"] == [
+        "DTC 0: P0300 is already active on this vehicle, so this copy wasn't imported"
+    ], skipping
+    assert len(await _dtcs(test_sessionmaker, vin)) == 3
+
     # The next report from the device bumps the one active row instead of raising.
     processed = await DTCService(db_session).process_dtcs(vin, "a1b2c3d4e5f6", ["P0300", "P0171"])
     assert [d.code for d in processed] == ["P0300", "P0171"]
@@ -198,6 +208,8 @@ async def test_a_bad_dtc_row_is_a_row_error_and_the_rest_import(
     del no_device["device_id"]
     no_last_seen = _dtc("P0005", "2026-01-01T00:00:00")
     del no_last_seen["last_seen"]
+    no_first_seen = _dtc("P0007", "2026-01-01T00:00:00")
+    del no_first_seen["first_seen"]
     # Severity and is_active are optional: the columns' defaults fill them in.
     bare = _dtc("P0006", "2026-01-01T00:00:00")
     del bare["is_active"]
@@ -211,6 +223,7 @@ async def test_a_bad_dtc_row_is_a_row_error_and_the_rest_import(
             _dtc("P0003", "not a time"),
             _dtc("P0004", "2026-01-01T00:00:00", is_active="yes"),
             no_last_seen,
+            no_first_seen,
             bare,
         ),
     )
@@ -222,6 +235,7 @@ async def test_a_bad_dtc_row_is_a_row_error_and_the_rest_import(
         "DTC 2: first_seen is not a valid date and time",
         "DTC 3: is_active must be true or false",
         "DTC 4: last_seen is missing",
+        "DTC 5: first_seen is missing",
     ], data
     assert [(d[1], d[3], d[8]) for d in await _dtcs(test_sessionmaker, vin)] == [
         ("P0006", "warning", True)
@@ -316,9 +330,16 @@ async def test_ingest_that_loses_the_race_bumps_the_row_that_won(
     assert processed[0].last_seen > datetime(2026, 7, 1, 8, 0, 0)
 
 
-async def _refuse(*_args: Any, **_kwargs: Any) -> None:
-    """A flush the database refused for some reason that isn't the index."""
-    raise IntegrityError("INSERT INTO vehicle_dtcs", {}, Exception("refused"))
+def _refuse_dtc_inserts(session: AsyncSession) -> Callable[..., Awaitable[None]]:
+    """A flush that refuses any new DTC for some reason that isn't the index."""
+    real_flush = session.flush
+
+    async def flush(*args: Any, **kwargs: Any) -> None:
+        if any(isinstance(row, VehicleDTC) for row in session.new):
+            raise IntegrityError("INSERT INTO vehicle_dtcs", {}, Exception("refused"))
+        await real_flush(*args, **kwargs)
+
+    return flush
 
 
 async def test_a_refused_insert_that_isnt_the_index_is_a_row_error(
@@ -350,7 +371,7 @@ async def test_a_refused_insert_that_isnt_the_index_is_a_row_error(
     )
     await db_session.commit()
     matcher = await _DuplicateMatcher.before_import(db_session, VehicleDTC)
-    monkeypatch.setattr(db_session, "flush", _refuse)
+    monkeypatch.setattr(db_session, "flush", _refuse_dtc_inserts(db_session))
     bucket = {"success": 0, "errors": 0, "skipped": 0}
     errors: list[str] = []
     warnings: list[str] = []
@@ -382,15 +403,72 @@ async def test_a_refused_report_with_no_row_that_won_still_raises(
 ):
     """The recovery only covers a lost race; any other refusal still reaches the caller."""
     vin = await new_vehicle()
-    monkeypatch.setattr(db_session, "flush", _refuse)
+    monkeypatch.setattr(db_session, "flush", _refuse_dtc_inserts(db_session))
 
-    # main: raises too, so this pins the recovery's guard rather than going red
+    # main: raises too. A guard: drop `if winner is None: raise` and this turns
+    # into an AttributeError on None.last_seen.
     with pytest.raises(IntegrityError):
         await DTCService(db_session).process_dtcs(vin, "a1b2c3d4e5f6", ["P0171"])
 
 
+async def _pending_second_active(db_session: AsyncSession, vin: str) -> None:
+    """Leave a row pending that can't flush: a second active P0300 beside a stored one."""
+    for day in (1, 2):
+        db_session.add(
+            VehicleDTC(
+                vin=vin,
+                device_id="a1b2c3d4e5f6",
+                code="P0300",
+                first_seen=datetime(2026, 6, day, 8, 0, 0),
+                last_seen=datetime(2026, 6, day, 8, 0, 0),
+                is_active=True,
+            )
+        )
+        if day == 1:
+            await db_session.commit()
+
+
+async def test_a_report_after_someone_elses_bad_pending_row_raises_that_failure(
+    db_session: AsyncSession, new_vehicle: NewVehicle
+):
+    """The recovery is for this insert only; a caller's broken row isn't a lost race."""
+    vin = await new_vehicle()
+    await _pending_second_active(db_session, vin)
+
+    # 23148458: PendingRollbackError, the re-read runs on a rolled-back session
+    with pytest.raises(IntegrityError):
+        await DTCService(db_session).process_dtcs(vin, "a1b2c3d4e5f6", ["P0171"])
+
+
+async def test_an_import_after_someone_elses_bad_pending_row_blames_no_dtc(
+    db_session: AsyncSession, new_vehicle: NewVehicle
+):
+    """A pending row from before the DTCs fails as itself, not as DTC 0."""
+    vin = await new_vehicle()
+    matcher = await _DuplicateMatcher.before_import(db_session, VehicleDTC)
+    await _pending_second_active(db_session, vin)
+    errors: list[str] = []
+
+    # 23148458: no raise, and the failure lands as "DTC 0: could not be imported"
+    with pytest.raises(IntegrityError):
+        await import_dtcs(
+            db_session,
+            vin,
+            [_dtc("P0171", "2026-07-01T08:00:00")],
+            matcher=matcher,
+            skip_duplicates=False,
+            bucket={"success": 0, "errors": 0, "skipped": 0},
+            errors=errors,
+            warnings=[],
+        )
+    assert errors == []
+
+
 async def test_an_import_and_a_report_racing_on_postgresql_leave_one_active_row(
-    test_engine: Any, test_sessionmaker: Any, new_vehicle: NewVehicle
+    test_engine: Any,
+    test_sessionmaker: Any,
+    new_vehicle: NewVehicle,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     """Codex proof case 5: the import's insert and a live report's insert overlap.
 
@@ -402,6 +480,15 @@ async def test_an_import_and_a_report_racing_on_postgresql_leave_one_active_row(
 
     vin = await new_vehicle()
     imported = asyncio.Event()
+    # Counts the report's inserts, so a report that read after the commit (the fast path) can't pass.
+    real_create = DTCService._create_vehicle_dtc
+    creates: list[str] = []
+
+    async def counting_create(self: DTCService, *args: Any) -> VehicleDTC:
+        creates.append(args[1])
+        return await real_create(self, *args)
+
+    monkeypatch.setattr(DTCService, "_create_vehicle_dtc", counting_create)
     bucket = {"success": 0, "errors": 0, "skipped": 0}
     errors: list[str] = []
     warnings: list[str] = []
@@ -434,7 +521,9 @@ async def test_an_import_and_a_report_racing_on_postgresql_leave_one_active_row(
 
     _, processed = await asyncio.gather(restore(), report())
 
-    # main: two active P0455 rows (no index), and the next report raises
+    # b6ad5477: the report's insert fails on the index once the import commits, and
+    # with no recovery that IntegrityError comes straight out of gather.
+    assert creates == ["P0455"], "the report took the fast path; the race wasn't staged"
     assert bucket["success"] == 1 and errors == [], (bucket, errors)
     async with test_sessionmaker() as fresh:
         assert await _active_count(fresh, vin, "P0455") == 1

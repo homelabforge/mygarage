@@ -127,7 +127,9 @@ class DTCService:
                 existing.last_seen = now
                 processed.append(existing)
             else:
-                # Create new DTC record
+                # Create new DTC record. Flush first, so the except below only ever
+                # sees this insert and not something the caller left pending.
+                await self.db.flush()
                 try:
                     async with self.db.begin_nested():
                         dtc = await self._create_vehicle_dtc(vin, device_id, code, now)
