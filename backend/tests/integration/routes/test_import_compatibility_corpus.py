@@ -62,6 +62,9 @@ Timeline, with the commit that first emitted each tuple:
                        marker. This is the ONLY version that ever emitted it.
   49a4166  2026-08-26  v6: per-column vocabulary tokens, marker `metric` |
                        `imperial` | `custom`.
+  c0244a5  2026-10-28  v8 fuel: `Propane Volume`, `Tank Size`, `Tank Quantity`,
+                       `kWh` and `Price Basis` (batch 3b, B3-3). A price that
+                       isn't per volume is written by its basis (K9).
 
 The `reports.py` CSVs: all four tuples covered, none importable
 ---------------------------------------------------------------
@@ -306,6 +309,17 @@ _FUEL_V6_CUSTOM = (
     "units_version,unit_system,Date,Filled At,Odometer (km),Engine Hours,Volume (gal_uk),"
     "Price Per Unit (gal_uk),Rebate,Total Cost,Full Tank,Missed Fill-up,Is Hauling,"
     "Fuel Type Used,Station ID,Station,Driver ID,Driver,Payment Method,Trip Type,"
+    "Outside Temp (f),OBC Economy (mpg_uk),OBC Avg Speed (mph),OBC Trip Duration (s),"
+    "SOC Start (%),SOC End (%),Charge Level,Charge Location,Battery SOH (%),Notes"
+)
+# v8 with batch 3b's five columns: propane by volume, tank size by mass, the
+# tank count, kWh, and the price's basis (K9). A custom account on km, UK
+# gallons and pounds.
+_FUEL_V8_CUSTOM = (
+    "units_version,unit_system,Date,Filled At,Odometer (km),Engine Hours,Volume (gal_uk),"
+    "Propane Volume (gal_uk),Tank Size (lb),Tank Quantity,kWh,Price Per Unit (gal_uk),"
+    "Price Basis,Rebate,Total Cost,Full Tank,Missed Fill-up,Is Hauling,Fuel Type Used,"
+    "Octane,Diesel Grade,Station ID,Station,Driver ID,Driver,Payment Method,Trip Type,"
     "Outside Temp (f),OBC Economy (mpg_uk),OBC Avg Speed (mph),OBC Trip Duration (s),"
     "SOC Start (%),SOC End (%),Charge Level,Charge Location,Battery SOH (%),Notes"
 )
@@ -952,6 +966,25 @@ CORPUS: Mapping[str, Shape] = {
             "outside_temp_c": "50.0",
             "obc_l_per_100km": "10.00",
             "obc_avg_speed_kmh": "128.7",
+        },
+    ),
+    "fuel-v8-custom-propane-by-weight": Shape(
+        pair="fuel",
+        evidence="c0244a5",
+        header=_FUEL_V8_CUSTOM,
+        # Two 20 lb tanks priced by the pound. 20 * 0.45359237 = 9.0718474 kg;
+        # 1.00004 / 0.45359237 = 2.20470 a kg. The price follows Tank Size's
+        # token, not the gal_uk in its own header (K9).
+        row=(
+            "8,custom,2026-04-13,,,,,,20.000,2,,1.00004,per_weight,,40.00,Yes,No,No,"
+            ",,,,,,,,,,,,,,,,,,"
+        ),
+        expected={
+            "tank_size_kg": "9.072",
+            "tank_quantity": "2",
+            "price_per_unit": "2.2047",
+            "propane_liters": None,
+            "kwh": None,
         },
     ),
 }
