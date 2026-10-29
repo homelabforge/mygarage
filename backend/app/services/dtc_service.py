@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dtc_definition import DTCDefinition
@@ -99,7 +100,8 @@ class DTCService:
         An active row for the code gets its last_seen bumped. Anything else
         gets a new row, so a code that comes back after a clear starts a
         fresh record and the cleared one stays as history. Codes missing
-        from the list are left alone.
+        from the list are left alone. An insert that loses the race to the
+        one-active-code index lands on the row that won.
 
         Args:
             vin: Vehicle VIN
@@ -126,7 +128,17 @@ class DTCService:
                 processed.append(existing)
             else:
                 # Create new DTC record
-                dtc = await self._create_vehicle_dtc(vin, device_id, code, now)
+                try:
+                    async with self.db.begin_nested():
+                        dtc = await self._create_vehicle_dtc(vin, device_id, code, now)
+                except IntegrityError:
+                    # Another writer (an import, or a second report) got there between the
+                    # look and the insert. Its row wins; just touch it.
+                    winner = await self._get_vehicle_dtc(vin, code)
+                    if winner is None:
+                        raise
+                    winner.last_seen = now
+                    dtc = winner
                 processed.append(dtc)
 
         return processed

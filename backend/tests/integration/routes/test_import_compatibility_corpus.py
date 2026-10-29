@@ -1682,6 +1682,7 @@ _3B_BUCKETS = (
     "brake_measurements",
     "supplies",
     "recalls",
+    "dtcs",
 )
 
 

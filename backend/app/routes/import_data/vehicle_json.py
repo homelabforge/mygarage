@@ -35,6 +35,7 @@ from app.models import (
 from app.models.recall import Recall
 from app.models.supply import SupplyUsage
 from app.models.user import User
+from app.models.vehicle_dtc import VehicleDTC
 from app.routes.import_data._common import (
     _SERVICE_CATEGORIES,
     VALID_SERVICE_CATEGORIES,
@@ -117,6 +118,7 @@ from app.routes.import_data._service import (
     _visit_total,
 )
 from app.routes.import_data.json_brakes import parse_brakes, write_brakes
+from app.routes.import_data.json_dtcs import import_dtcs
 from app.routes.import_data.json_recalls import import_recalls
 from app.routes.import_data.json_schedule import (
     manual_reminder_key,
@@ -189,6 +191,7 @@ _JSON_IMPORT_SECTIONS = (
     "supplies",
     "manual_reminders",
     "recalls",
+    "dtcs",
 )
 
 #: The response's buckets, one per section it counts, in the order it lists them.
@@ -215,6 +218,7 @@ _JSON_RESULT_BUCKETS = (
     "brake_measurements",
     "supplies",
     "recalls",
+    "dtcs",
 )
 
 
@@ -324,6 +328,7 @@ async def import_vehicle_json(
         Reminder,
         Note,
         Recall,
+        VehicleDTC,
     )
     readings = _ImportReadings()
 
@@ -1433,6 +1438,18 @@ async def import_vehicle_json(
         skip_duplicates=skip_duplicates,
         bucket=results["recalls"],
         errors=errors,
+    )
+
+    # DTCs, keyed on code and first seen. The index keeps one active row per code.
+    await import_dtcs(
+        db,
+        vin,
+        sections["dtcs"],
+        matcher=matcher,
+        skip_duplicates=skip_duplicates,
+        bucket=results["dtcs"],
+        errors=errors,
+        warnings=warnings,
     )
 
     # The tire family comes in whole or not at all, and only into a vehicle with no tires.

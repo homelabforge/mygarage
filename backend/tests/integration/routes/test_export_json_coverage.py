@@ -41,6 +41,7 @@ from app.models.spot_rental_billing import SpotRentalBilling
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.toll import TollTag, TollTransaction
+from app.models.vehicle_dtc import VehicleDTC
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -490,6 +491,24 @@ SECTIONS = [
         exclude=_ALWAYS,
     ),
     JsonSection(
+        "dtcs",
+        VehicleDTC,
+        keys=frozenset(
+            {
+                "device_id",  # the WiCAN's id as text; no FK, nothing reads the link (K11)
+                "code",
+                "description",
+                "severity",
+                "user_notes",
+                "first_seen",
+                "last_seen",
+                "cleared_at",
+                "is_active",
+            }
+        ),
+        exclude=_ALWAYS,
+    ),
+    JsonSection(
         "tire_sets",
         TireSet,
         keys=frozenset({"name", "notes"}),
@@ -646,6 +665,7 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             TaxRecord(vin=_VIN, date=day, amount=Decimal("1")),
             WarrantyRecord(vin=_VIN, warranty_type="Other", start_date=day),
             Recall(vin=_VIN, component="x", summary="x"),
+            VehicleDTC(vin=_VIN, device_id="b3bcoverage", code="P0420"),
         ]
     )
     await db_session.flush()

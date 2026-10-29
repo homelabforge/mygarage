@@ -44,6 +44,7 @@ from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.vehicle_dtc import VehicleDTC
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import resolve_station_names
 from app.utils.csv_emission import apply_unit_set, marker_for
@@ -109,8 +110,8 @@ limiter = Limiter(key_func=get_remote_address)
 #   importer still reads v2 to v8, and a section a file lacks is empty.
 #   Batch 3b adds `maintenance_rules` (each rule with its nested
 #   `reminders`), `manual_reminders` (every status; `reminders` stays the
-#   v2 list), `recalls`, `tire_sets` and `tires` (each tire with its nested
-#   `mount_periods` and `readings`), `brake_axles`, `brake_jobs`,
+#   v2 list), `recalls`, `dtcs`, `tire_sets` and `tires` (each tire with
+#   its nested `mount_periods` and `readings`), `brake_axles`, `brake_jobs`,
 #   `brake_measurements` and `supplies` (each pinned supply with its nested
 #   `purchases` and standalone `usages`; a line item carries its own
 #   `supply_usages`) to v9 without a bump: a 3a file simply has none.
@@ -274,6 +275,8 @@ _SPOT_RENTAL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 _BILLING_JSON_EXCLUDE = frozenset({"id", "spot_rental_id", "created_at"})
 #: Every recall column travels; the resolution and notes are the user's.
 _RECALL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: device_id travels as text: it has no FK and every DTC list reads by vin (K11).
+_DTC_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 _RULE_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 #: A reminder keeps its `created_at` (K5).
 _REMINDER_JSON_EXCLUDE = frozenset(
@@ -1215,6 +1218,12 @@ async def export_vehicle_json(
         .all()
     )
 
+    dtcs = (
+        (await db.execute(select(VehicleDTC).where(VehicleDTC.vin == vin).order_by(VehicleDTC.id)))
+        .scalars()
+        .all()
+    )
+
     toll_result = await db.execute(
         select(TollTransaction)
         .where(TollTransaction.vin == vin)
@@ -1480,6 +1489,7 @@ async def export_vehicle_json(
         ],
         "manual_reminders": [_json_columns(r, _REMINDER_JSON_EXCLUDE) for r in manual_reminders],
         "recalls": [_json_columns(r, _RECALL_JSON_EXCLUDE) for r in recalls],
+        "dtcs": [_json_columns(d, _DTC_JSON_EXCLUDE) for d in dtcs],
         "tire_sets": [_json_columns(s, _TIRE_SET_JSON_EXCLUDE) for s in tire_sets],
         "tires": [_tire_json(t, set_index) for t in tires],
         "brake_axles": [_json_columns(a, _BRAKE_AXLE_JSON_EXCLUDE) for a in brake_axles],
