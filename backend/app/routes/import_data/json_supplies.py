@@ -19,7 +19,7 @@ from typing import Any, Literal, get_args
 
 from fastapi import HTTPException
 from pydantic import Field
-from sqlalchemy import ColumnElement, and_, delete, exists, or_, select, update
+from sqlalchemy import ColumnElement, and_, exists, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.address_book import AddressBookEntry
@@ -58,6 +58,7 @@ from app.schemas.supply import (
     SupplyVolumeUnit,
 )
 from app.services.auth import get_vehicle_or_403
+from app.services.service_visit_service import ServiceVisitService
 
 logger = logging.getLogger(__name__)
 
@@ -363,9 +364,9 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
     ]
     # Shared only: nothing else is pinned here yet, and a supply pinned to
     # another vehicle is a different supply (K12). A moved one leaves the pool.
-    found = (
+    usage_id = (
         await db.execute(
-            select(SupplyUsage.id, SupplyUsage.supply_id)
+            select(SupplyUsage.id)
             .join(Supply, SupplyUsage.supply_id == Supply.id)
             .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
             .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
@@ -380,23 +381,14 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
             .order_by(SupplyUsage.id)
             .limit(1)
         )
-    ).first()
-    if found is not None:
-        usage_id, donor_id = found
+    ).scalar_one_or_none()
+    if usage_id is not None:
+        # The shared one stays, empty or not. Nothing says it was only a
+        # placeholder, and a real catalog item's details would go with it.
+        # Same item and cost snapshot, so the visit's total doesn't move.
         await db.execute(
             update(SupplyUsage).where(SupplyUsage.id == usage_id).values(supply_id=pinned.supply.id)
         )
-        # The bare one added with no stock has nothing left, so it goes.
-        still_used = await db.scalar(
-            select(
-                or_(
-                    exists().where(SupplyPurchase.supply_id == donor_id),
-                    exists().where(SupplyUsage.supply_id == donor_id),
-                )
-            )
-        )
-        if not still_used:
-            await db.execute(delete(Supply).where(Supply.id == donor_id))
         return True
 
     has_this_supply = (
@@ -408,17 +400,18 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
         )
         .correlate(ServiceLineItem)
     )
-    item_id = (
+    item = (
         await db.execute(
-            select(ServiceLineItem.id)
+            select(ServiceLineItem.id, ServiceLineItem.visit_id)
             .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
             .where(*on_the_item, ~has_this_supply)
             .order_by(ServiceLineItem.id)
             .limit(1)
         )
-    ).scalar_one_or_none()
-    if item_id is None:
+    ).first()
+    if item is None:
         return False
+    item_id, visit_id = item
     db.add(
         SupplyUsage(
             supply_id=pinned.supply.id,
@@ -428,7 +421,9 @@ async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: Use
             cost_snapshot=use.cost_snapshot,
         )
     )
-    await db.flush()
+    # That visit's cached total dropped this use if it was edited after the
+    # cascade, and reports sum the cache.
+    await ServiceVisitService(db).recompute_visit_total(visit_id)
     return True
 
 

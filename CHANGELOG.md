@@ -55,7 +55,7 @@ Migration 137 closes any duplicate active DTC rows a vehicle has for one code, k
 - A JSON import that refused rows shows a warning instead of a success, and the fuel and odometer CSV messages stay up longer while they list errors or warnings
 - The vehicle JSON backup (schema 9) also carries tires with their sets, mount periods and readings, brakes (axle setup, jobs and measurements), the maintenance rules with their reminders, your own reminders in every status, recalls, DTCs, and the supplies kept for the vehicle with their purchases and usages
 - A service visit in the JSON backup carries the supplies it used, so a restored visit's total includes them again. A supply shared across vehicles, or kept for another vehicle, is found by its name, part number and unit, or added with no stock and a warning
-- Restoring a vehicle whose supply was used on another vehicle's visit counts that use once, in either restore order
+- Restoring a vehicle whose supply was used on another vehicle's visit counts that use once, in either restore order, and that visit's total includes it
 - Restoring only the supply's vehicle warns about the use it can't count
 - The fuel CSV (schema 8) carries kWh, Propane Volume, Tank Size, Tank Quantity and Price Basis, so an EV charge or a propane fill-up round-trips
 

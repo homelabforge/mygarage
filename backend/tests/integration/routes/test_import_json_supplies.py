@@ -743,12 +743,52 @@ async def test_restoring_the_vehicle_that_used_it_then_the_supplys_counts_the_us
     assert (second["errors"], second["warnings"]) == ([], [])
 
     # 29e738c9: two jugs, the bare one at -3 and A's at 7 with B's use again.
-    [copy_id] = await _supply_ids(db_session, name)
+    [bare_id, copy_id] = await _supply_ids(db_session, name)
     assert await _balance(db_session, copy_id) == Decimal("7")
+    # The bare jug stays, with nothing on it.
+    assert await _usages_of(db_session, bare_id) == 0
     assert await _usages_of(db_session, copy_id) == 1
     assert await _usages_by_name(db_session, b) == [(name, Decimal("3"))]
     [restored] = await _pinned(db_session, a)
     assert restored["adjustments"] == []
+
+
+async def test_a_use_moved_off_a_catalog_supply_leaves_the_catalog_supply_whole(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Jug {_tag()}"
+    a, b = await new_vehicle(), await new_vehicle()
+    item_id = await _jug_used_on_b(db_session, name, a, b)
+    backup_a = await export_json(client, auth_headers, a)
+    # B's use sits on a real shared jug now, one with no stock but its own details.
+    catalog = Supply(
+        name=name, unit_type="count", barcode="0071924", notes="the blue jug", category="oil"
+    )
+    db_session.add(catalog)
+    await db_session.flush()
+    await db_session.execute(
+        update(SupplyUsage)
+        .where(SupplyUsage.service_line_item_id == item_id)
+        .values(supply_id=catalog.id)
+    )
+    await db_session.commit()
+    catalog_id = catalog.id
+
+    await _start_over(db_session, a)
+    data = await import_json(client, auth_headers, a, backup_a)
+    assert (data["errors"], data["warnings"]) == ([], [])
+
+    # 820fc5ab: None, the emptied catalog jug was deleted with its details.
+    kept = (
+        await db_session.execute(
+            select(Supply.barcode, Supply.notes, Supply.category).where(Supply.id == catalog_id)
+        )
+    ).one_or_none()
+    assert kept == ("0071924", "the blue jug", "oil")
+    assert await _usages_of(db_session, catalog_id) == 0
+    [_catalog, copy_id] = await _supply_ids(db_session, name)
+    assert await _usages_by_name(db_session, b) == [(name, Decimal("3"))]
+    assert await _balance(db_session, copy_id) == Decimal("7")
 
 
 async def test_restoring_a_deleted_supplys_vehicle_gives_the_other_visit_its_use_back(
@@ -786,6 +826,47 @@ async def test_restoring_a_deleted_supplys_vehicle_gives_the_other_visit_its_use
         1,
     )
     assert await _usages_of(db_session, copy_id) == 1
+
+
+async def test_a_restored_use_counts_in_the_other_visits_total(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Jug {_tag()}"
+    a, b = await new_vehicle(), await new_vehicle()
+    item_id = await _jug_used_on_b(db_session, name, a, b)
+    visit_id = (
+        await db_session.execute(
+            select(ServiceLineItem.visit_id).where(ServiceLineItem.id == item_id)
+        )
+    ).scalar_one()
+    backup_a = await export_json(client, auth_headers, a)
+
+    async def edit_b() -> Decimal | None:
+        r = await client.put(
+            f"/api/vehicles/{b}/service-visits/{visit_id}",
+            json={"notes": "checked the level"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        return await _visit_total_cost(db_session, visit_id)
+
+    assert await edit_b() == Decimal("4.50")
+    # Deleting A takes B's use, and B's next edit drops it from the total.
+    await _start_over(db_session, a)
+    assert await edit_b() == Decimal("0")
+
+    data = await import_json(client, auth_headers, a, backup_a)
+    assert (data["errors"], data["warnings"]) == ([], [])
+
+    # 820fc5ab: 0, the use came back but the visit's total never counted it.
+    assert await _visit_total_cost(db_session, visit_id) == Decimal("4.50")
+
+
+async def _visit_total_cost(db_session: AsyncSession, visit_id: int) -> Decimal | None:
+    db_session.expire_all()
+    return (
+        await db_session.execute(select(ServiceVisit.total_cost).where(ServiceVisit.id == visit_id))
+    ).scalar_one()
 
 
 async def test_each_use_elsewhere_takes_one_stored_usage(
@@ -827,8 +908,9 @@ async def test_each_use_elsewhere_takes_one_stored_usage(
     assert (data["errors"], data["warnings"]) == ([], [])
 
     # 29e738c9: the bare can kept both jobs and A's took two standalone copies.
-    [copy_id] = await _supply_ids(db_session, name)
+    [bare_id, copy_id] = await _supply_ids(db_session, name)
     assert await _balance(db_session, copy_id) == Decimal("4")
+    assert await _usages_of(db_session, bare_id) == 0
     [restored] = await _pinned(db_session, a)
     assert [(u["quantity"], u["created_at"]) for u in restored["adjustments"]] == [
         (Decimal("2"), datetime(2026, 3, 1, 12, 0))
@@ -910,7 +992,7 @@ async def test_a_use_elsewhere_takes_the_stored_usage_with_its_own_figures(
     assert (
         await db_session.execute(select(*figures).where(SupplyUsage.supply_id == copy_id))
     ).all() == [_TARGET]
-    # The shared jug keeps the use that was its own, and it stays: it has stock.
+    # The shared jug keeps the use that was its own and stays.
     assert (
         await db_session.execute(select(*figures).where(SupplyUsage.supply_id == shared_id))
     ).all() == [decoy]
@@ -1098,7 +1180,11 @@ async def test_a_use_elsewhere_never_mistakes_another_supply_on_the_item(
     assert (data["errors"], data["warnings"]) == ([], [])
 
     # 29e738c9: the jug's use came back standalone on A's copy.
-    [copy_id] = await _supply_ids(db_session, name)
+    # B then A also leaves the bare jug B's restore added, empty.
+    *bare, copy_id = await _supply_ids(db_session, name)
+    assert len(bare) == (1 if path == "b-then-a" else 0)
+    for bare_id in bare:
+        assert await _usages_of(db_session, bare_id) == 0
     assert await _usages_by_name(db_session, b) == [(name, Decimal("3")), (rag_name, Decimal("3"))]
     assert await _balance(db_session, copy_id) == Decimal("7")
     assert await _usages_of(db_session, rag_id) == 1
