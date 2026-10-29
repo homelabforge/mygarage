@@ -32,6 +32,7 @@ from app.models import (
     TollTransaction,
     WarrantyRecord,
 )
+from app.models.recall import Recall
 from app.models.supply import SupplyUsage
 from app.models.user import User
 from app.routes.import_data._common import (
@@ -116,6 +117,7 @@ from app.routes.import_data._service import (
     _visit_total,
 )
 from app.routes.import_data.json_brakes import parse_brakes, write_brakes
+from app.routes.import_data.json_recalls import import_recalls
 from app.routes.import_data.json_schedule import (
     manual_reminder_key,
     parse_rules,
@@ -186,6 +188,7 @@ _JSON_IMPORT_SECTIONS = (
     "brake_measurements",
     "supplies",
     "manual_reminders",
+    "recalls",
 )
 
 #: The response's buckets, one per section it counts, in the order it lists them.
@@ -211,6 +214,7 @@ _JSON_RESULT_BUCKETS = (
     "brake_jobs",
     "brake_measurements",
     "supplies",
+    "recalls",
 )
 
 
@@ -319,6 +323,7 @@ async def import_vehicle_json(
         SpotRental,
         Reminder,
         Note,
+        Recall,
     )
     readings = _ImportReadings()
 
@@ -1418,6 +1423,17 @@ async def import_vehicle_json(
             results["reminders"]["errors"] += 1
             logger.warning("Import: manual reminder %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Manual reminder {idx}: {_unexpected_reason(e)}")
+
+    # Recalls, keyed on the campaign. One the nightly check put back gains the file's resolution.
+    await import_recalls(
+        db,
+        vin,
+        sections["recalls"],
+        matcher=matcher,
+        skip_duplicates=skip_duplicates,
+        bucket=results["recalls"],
+        errors=errors,
+    )
 
     # The tire family comes in whole or not at all, and only into a vehicle with no tires.
     tires = await run_family(

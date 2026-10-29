@@ -34,6 +34,7 @@ from app.models import (
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.financing import FinancingRecord
 from app.models.maintenance_rule import MaintenanceRule
+from app.models.recall import Recall
 from app.models.reminder import Reminder
 from app.models.spot_rental import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
@@ -471,6 +472,24 @@ SECTIONS = [
         exclude=_REMINDER_EXCLUDE,
     ),
     JsonSection(
+        "recalls",
+        Recall,
+        keys=frozenset(
+            {
+                "nhtsa_campaign_number",
+                "component",
+                "summary",
+                "consequence",
+                "remedy",
+                "date_announced",
+                "is_resolved",
+                "resolved_at",
+                "notes",
+            }
+        ),
+        exclude=_ALWAYS,
+    ),
+    JsonSection(
         "tire_sets",
         TireSet,
         keys=frozenset({"name", "notes"}),
@@ -626,6 +645,7 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             FinancingRecord(vin=_VIN, date=day, amount=Decimal("1"), category="upfront_fee"),
             TaxRecord(vin=_VIN, date=day, amount=Decimal("1")),
             WarrantyRecord(vin=_VIN, warranty_type="Other", start_date=day),
+            Recall(vin=_VIN, component="x", summary="x"),
         ]
     )
     await db_session.flush()

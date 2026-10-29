@@ -38,6 +38,7 @@ from app.models import (
 from app.models.address_book import AddressBookEntry
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.maintenance_rule import MaintenanceRule
+from app.models.recall import Recall
 from app.models.reminder import Reminder
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
@@ -108,7 +109,7 @@ limiter = Limiter(key_func=get_remote_address)
 #   importer still reads v2 to v8, and a section a file lacks is empty.
 #   Batch 3b adds `maintenance_rules` (each rule with its nested
 #   `reminders`), `manual_reminders` (every status; `reminders` stays the
-#   v2 list), `tire_sets` and `tires` (each tire with its nested
+#   v2 list), `recalls`, `tire_sets` and `tires` (each tire with its nested
 #   `mount_periods` and `readings`), `brake_axles`, `brake_jobs`,
 #   `brake_measurements` and `supplies` (each pinned supply with its nested
 #   `purchases` and standalone `usages`; a line item carries its own
@@ -271,6 +272,8 @@ _WARRANTY_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"last_notified_at"}
 _SPOT_RENTAL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 #: The rental is the parent.
 _BILLING_JSON_EXCLUDE = frozenset({"id", "spot_rental_id", "created_at"})
+#: Every recall column travels; the resolution and notes are the user's.
+_RECALL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 _RULE_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 #: A reminder keeps its `created_at` (K5).
 _REMINDER_JSON_EXCLUDE = frozenset(
@@ -1206,6 +1209,12 @@ async def export_vehicle_json(
     )
     toll_tags = toll_tag_result.scalars().all()
 
+    recalls = (
+        (await db.execute(select(Recall).where(Recall.vin == vin).order_by(Recall.id)))
+        .scalars()
+        .all()
+    )
+
     toll_result = await db.execute(
         select(TollTransaction)
         .where(TollTransaction.vin == vin)
@@ -1470,6 +1479,7 @@ async def export_vehicle_json(
             for rule in rules
         ],
         "manual_reminders": [_json_columns(r, _REMINDER_JSON_EXCLUDE) for r in manual_reminders],
+        "recalls": [_json_columns(r, _RECALL_JSON_EXCLUDE) for r in recalls],
         "tire_sets": [_json_columns(s, _TIRE_SET_JSON_EXCLUDE) for s in tire_sets],
         "tires": [_tire_json(t, set_index) for t in tires],
         "brake_axles": [_json_columns(a, _BRAKE_AXLE_JSON_EXCLUDE) for a in brake_axles],

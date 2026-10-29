@@ -1681,6 +1681,7 @@ _3B_BUCKETS = (
     "brake_jobs",
     "brake_measurements",
     "supplies",
+    "recalls",
 )
 
 

@@ -21,7 +21,8 @@ class Recall(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     nhtsa_campaign_number: Mapped[str | None] = mapped_column(String(20))
-    component: Mapped[str | None] = mapped_column(String(100))
+    # 200, what RecallCreate and the NHTSA sync take (K10, migration 137).
+    component: Mapped[str | None] = mapped_column(String(200))
     summary: Mapped[str | None] = mapped_column(Text)
     consequence: Mapped[str | None] = mapped_column(Text)
     remedy: Mapped[str | None] = mapped_column(Text)

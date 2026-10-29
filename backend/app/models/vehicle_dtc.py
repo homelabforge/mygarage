@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -68,4 +68,14 @@ class VehicleDTC(Base):
         Index("idx_dtcs_vehicle_code", "vin", "code"),
         Index("idx_dtcs_device", "device_id"),
         Index("idx_dtcs_first_seen", "first_seen"),
+        # One active row per code: ingest reads it with scalar_one_or_none, so a
+        # second one makes the next report raise (K11, R1-H5).
+        Index(
+            "uq_vehicle_dtcs_active_code",
+            "vin",
+            "code",
+            unique=True,
+            sqlite_where=text("is_active"),
+            postgresql_where=text("is_active"),
+        ),
     )

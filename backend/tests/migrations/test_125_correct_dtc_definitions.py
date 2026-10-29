@@ -87,7 +87,9 @@ def _define(
         )
 
 
-def _vehicle_dtc(engine: Engine, code: str, description: str | None, severity: str) -> None:
+def _vehicle_dtc(
+    engine: Engine, code: str, description: str | None, severity: str, *, active: bool = True
+) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -95,7 +97,7 @@ def _vehicle_dtc(engine: Engine, code: str, description: str | None, severity: s
                 "first_seen, last_seen, is_active) VALUES ('VDTC125TEST000001', 'dev1', :c, :d, :s, "
                 "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :a)"
             ),
-            {"c": code, "d": description, "s": severity, "a": True},
+            {"c": code, "d": description, "s": severity, "a": active},
         )
 
 
@@ -252,7 +254,8 @@ def test_125_fills_vehicle_dtcs_recorded_without_a_definition(
     _make_tables(engine)
     _vehicle_dtc(engine, "P0104", None, "warning")
     _vehicle_dtc(engine, "P0300", None, "critical")
-    _vehicle_dtc(engine, "P0104", "My note", "warning")
+    # Cleared: one active row per code now (migration 137). 125 fills either way.
+    _vehicle_dtc(engine, "P0104", "My note", "warning", active=False)
     _vehicle_dtc(engine, "P1131", None, "warning")
 
     _load().upgrade(engine)
