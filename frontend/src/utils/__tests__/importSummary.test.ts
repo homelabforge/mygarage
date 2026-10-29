@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import i18next, { type TFunction } from 'i18next'
 import vehiclesEn from '../../locales/en/vehicles.json'
-import { buildImportSummary, listMessages, SECTIONS, type ImportSectionResult } from '../importSummary'
+import { buildImportSummary, hasRowErrors, listMessages, SECTIONS, type ImportSectionResult } from '../importSummary'
 
 // Echoes the key, plus the count when one is passed, so a count that never
 // reaches its line still fails.
@@ -67,13 +67,13 @@ describe('buildImportSummary', () => {
     expect(summary).not.toContain('insuranceList.title')
   })
 
-  it('renders the five existing sections in English exactly as before', async () => {
+  it('renders the five existing sections in English', async () => {
     expect(buildImportSummary(FIVE_SECTIONS, await english())).toBe(
       'Import completed:\n' +
         '\nService Records: ✓ 2 imported, ○ 1 skipped' +
         '\nFuel Records: ✓ 3 imported, ✗ 1 error(s)' +
         '\nOdometer Records: ✓ 0 imported' +
-        '\nMaintenance (from reminders): ✓ 1 imported' +
+        '\nReminders: ✓ 1 imported' +
         '\nNotes: ✓ 4 imported',
     )
   })
@@ -95,7 +95,7 @@ describe('buildImportSummary', () => {
         '\nDEF Records: ✓ 5 imported' +
         '\nOdometer Records: ✓ 0 imported' +
         '\nEngine Hours Readings: ✓ 6 imported, ○ 2 skipped' +
-        '\nMaintenance (from reminders): ✓ 1 imported' +
+        '\nReminders: ✓ 1 imported' +
         '\nNotes: ✓ 4 imported' +
         '\nInsurance Policies: ✓ 1 imported, ✗ 1 error(s)',
     )
@@ -168,5 +168,87 @@ describe('importSummary: the section table and the CSV toast lists', () => {
     const seven = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7']
     expect(listMessages(seven, await english(), ', ')).toBe('w1, w2, w3, w4, w5, +2 more')
     expect(listMessages(seven.slice(0, 5), await english(), ', ')).toBe('w1, w2, w3, w4, w5')
+  })
+})
+
+describe('importSummary: the batch 3b sections (S9, B3-10)', () => {
+  it('renders the nine new buckets in English, in import order', async () => {
+    expect(
+      buildImportSummary(
+        {
+          supplies: bucket(2),
+          service_records: bucket(1),
+          maintenance_rules: bucket(3),
+          recalls: bucket(1, 1),
+          dtcs: bucket(2),
+          tire_sets: bucket(1),
+          tires: bucket(4),
+          brake_axles: bucket(0, 2),
+          brake_jobs: bucket(0, 1),
+          brake_measurements: bucket(0, 0, 3),
+        },
+        await english(),
+      ),
+    ).toBe(
+      'Import completed:\n' +
+        '\nSupplies: ✓ 2 imported' +
+        '\nService Records: ✓ 1 imported' +
+        '\nMaintenance Rules: ✓ 3 imported' +
+        '\nSafety Recalls: ✓ 1 imported, ○ 1 skipped' +
+        '\nDiagnostic Trouble Codes: ✓ 2 imported' +
+        '\nTire Sets: ✓ 1 imported' +
+        '\nTires: ✓ 4 imported' +
+        '\nBrake Axles: ✓ 0 imported, ○ 2 skipped' +
+        '\nBrake Jobs: ✓ 0 imported, ○ 1 skipped' +
+        '\nBrake Measurements: ✓ 0 imported, ✗ 3 error(s)',
+    )
+  })
+
+  it('walks every bucket in the order vehicle_json.py runs them, not the order _JSON_RESULT_BUCKETS lists them', () => {
+    // main: the fourteen 3a buckets only
+    expect(SECTIONS.map(([key]) => key)).toEqual([
+      'supplies',
+      'service_records',
+      'fuel_records',
+      'def_records',
+      'odometer_records',
+      'hours_records',
+      'reminders',
+      'notes',
+      'insurance_policies',
+      'financing_records',
+      'tax_records',
+      'toll_tags',
+      'toll_transactions',
+      'warranties',
+      'spot_rentals',
+      'maintenance_rules',
+      'recalls',
+      'dtcs',
+      'tire_sets',
+      'tires',
+      'brake_axles',
+      'brake_jobs',
+      'brake_measurements',
+    ])
+  })
+
+  it('calls the reminders bucket Reminders, since manual ones like Registration land there too', async () => {
+    // main: 'Maintenance (from reminders)'
+    expect(buildImportSummary({ reminders: bucket(2, 1) }, await english())).toBe(
+      'Import completed:\n\nReminders: ✓ 2 imported, ○ 1 skipped',
+    )
+  })
+
+  it('hasRowErrors reads the errors list, so a bucket it has no row for still counts', () => {
+    // main: false, since no SECTIONS bucket carries an error_count
+    expect(hasRowErrors({ errors: ['Recall 0: component must be at most 200 characters'] })).toBe(true)
+  })
+
+  it('hasRowErrors is false with an empty or missing errors list, warnings or not', () => {
+    // main: true, from the bucket's error_count alone
+    expect(hasRowErrors({ fuel_records: bucket(0, 0, 1), errors: [] })).toBe(false)
+    expect(hasRowErrors({ warnings: ['Tires: this vehicle already has tires, so the file\'s tires weren\'t imported'] })).toBe(false)
+    expect(hasRowErrors({})).toBe(false)
   })
 })

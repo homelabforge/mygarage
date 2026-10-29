@@ -7,8 +7,12 @@ export type ImportSectionResult = {
   error_count: number
 }
 
-/** The section buckets the JSON import returns, in the order it imports them. */
+/**
+ * The section buckets the JSON import returns, in the order it imports them.
+ * That's the order vehicle_json.py runs them in, not how _JSON_RESULT_BUCKETS lists them.
+ */
 export const SECTIONS = [
+  ['supplies', 'vehicles:detail.misc.importSupplies'],
   ['service_records', 'vehicles:detail.misc.importServiceRecords'],
   ['fuel_records', 'vehicles:detail.misc.importFuelRecords'],
   ['def_records', 'vehicles:defList.title'],
@@ -23,6 +27,14 @@ export const SECTIONS = [
   ['toll_transactions', 'vehicles:tollList.title'],
   ['warranties', 'vehicles:warrantyList.title'],
   ['spot_rentals', 'vehicles:spotRentalList.title'],
+  ['maintenance_rules', 'vehicles:detail.misc.importMaintenanceRules'],
+  ['recalls', 'vehicles:detail.misc.importRecalls'],
+  ['dtcs', 'vehicles:detail.misc.importDtcs'],
+  ['tire_sets', 'vehicles:detail.misc.importTireSets'],
+  ['tires', 'vehicles:detail.misc.importTires'],
+  ['brake_axles', 'vehicles:detail.misc.importBrakeAxles'],
+  ['brake_jobs', 'vehicles:detail.misc.importBrakeJobs'],
+  ['brake_measurements', 'vehicles:detail.misc.importBrakeMeasurements'],
 ] as const
 
 type SectionKey = (typeof SECTIONS)[number][0]
@@ -44,9 +56,12 @@ export function importToastDuration(errors?: readonly string[], warnings?: reado
   return (errors?.length ?? 0) > 0 || (warnings?.length ?? 0) > 0 ? IMPORT_LIST_TOAST_MS : undefined
 }
 
-/** Whether any section of a JSON import refused a row. */
+/**
+ * Whether the JSON import refused a row. Reads the errors list, as
+ * importToastDuration does, so a bucket this table doesn't list still counts.
+ */
 export function hasRowErrors(result: ImportJsonResult): boolean {
-  return SECTIONS.some(([key]) => (result[key]?.error_count ?? 0) > 0)
+  return (result.errors?.length ?? 0) > 0
 }
 
 /**
