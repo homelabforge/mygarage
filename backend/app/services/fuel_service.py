@@ -658,6 +658,17 @@ class FuelRecordService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _ensure_driver_exists(self, driver_user_id: int | None) -> None:
+        """Refuse a driver id that names no user here, active or not (B3-1).
+
+        Without it the FK caught it as a 409 that reads like a duplicate. SQLite
+        installs from before 054 have no FK, and there the dead id just got stored.
+        """
+        if driver_user_id is None:
+            return
+        if await self.db.get(User, driver_user_id) is None:
+            raise HTTPException(status_code=422, detail="driver_user_id: no such user")
+
     async def _economy_for(self, vin: str, record: FuelRecord) -> Decimal | None:
         """L/100km for a single just-written/read full-tank record.
 
@@ -831,6 +842,8 @@ class FuelRecordService:
 
             record_dict = record_data.model_dump()
             record_dict["vin"] = vin
+            # Before the station resolve, which can add an address book row.
+            await self._ensure_driver_exists(record_dict.get("driver_user_id"))
 
             # Pop DEF fill level before creating FuelRecord (not a fuel table column)
             def_fill_level = record_dict.pop("def_fill_level", None)
@@ -997,6 +1010,13 @@ class FuelRecordService:
                 raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
 
             update_data = record_data.model_dump(exclude_unset=True)
+            # Only a changed driver is checked, so a fill-up keeps its driver
+            # through an unrelated edit (S13).
+            if (
+                "driver_user_id" in update_data
+                and update_data["driver_user_id"] != record.driver_user_id
+            ):
+                await self._ensure_driver_exists(update_data["driver_user_id"])
             # An edit can't leave a fill-up create would refuse, e.g. an emptied
             # propane refill that no list shows any more. Only an edit that
             # CHANGES one of the rule's fields is held to it: the forms send them

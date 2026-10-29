@@ -5,7 +5,7 @@
 import csv
 import io
 import operator
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
@@ -99,7 +99,7 @@ def _json_optional_date(record_data: Mapping[str, Any], key: str) -> date_type |
     return None if _is_blank(record_data.get(key)) else _json_row_date(record_data, key)
 
 
-def _json_row_datetime(record_data: dict[str, Any], key: str) -> datetime | None:
+def _json_row_datetime(record_data: Mapping[str, Any], key: str) -> datetime | None:
     """The row's timestamp under `key` as naive UTC, None when it's missing.
 
     A naive value is read as UTC, like every timestamp column here. Anything
@@ -143,27 +143,51 @@ def _within_api_bounds(schema: type[BaseModel], **values: Decimal | int | None) 
     past the three decimal places `liters` allows, and would all fail.
     """
     for name, value in values.items():
-        # Looked up first, so a misspelt name fails every row, not only
-        # the rows that happen to fill that column.
-        metadata = schema.model_fields[name].metadata
-        if value is None:
-            continue
-        number = value if isinstance(value, Decimal) else Decimal(str(value))
-        if not number.is_finite():
-            raise _ImportBoundError(f"{name} must be a number")
-        for bound in metadata:
-            for attr, holds, reads in _API_BOUNDS:
-                limit = getattr(bound, attr, None)
-                if limit is None:
-                    continue
-                # A float bound (le=9999.999) compared as a float sits a hair
-                # below 9999.999 and refused the value pydantic accepts.
-                exact = Decimal(str(limit)) if isinstance(limit, float) else limit
-                if not holds(number, exact):
-                    # Plain digits: str() of Decimal("1e12") reads 1E+12.
-                    raise _ImportBoundError(
-                        f"{name} must be {reads} {exact}, not {format(number, 'f')}"
-                    )
+        _within_field_bounds(schema, name, **{name: value})
+
+
+def _within_field_bounds(
+    schema: type[BaseModel], field: str, /, **values: Decimal | int | None
+) -> None:
+    """Hold each value to the bounds of one schema field, naming it by its own key.
+
+    For file columns that borrow a field named otherwise on the schema, like a
+    reminder's anchor_odometer_km against AnchorSpec.odometer_km.
+    """
+    # Looked up first, so a misspelt field fails every row, not only the rows
+    # that happen to fill that column.
+    metadata = schema.model_fields[field].metadata
+    # A field typed `HoursFigure | None` shows no bounds here (D-8), and would check nothing.
+    if not metadata:
+        raise TypeError(f"{schema.__name__}.{field} carries no bounds")
+    for name, value in values.items():
+        if value is not None:
+            _check_bounds(name, value, metadata)
+
+
+def _check_bounds(name: str, value: Decimal | int, metadata: Iterable[Any]) -> None:
+    """Refuse `value` when it isn't a number or breaks a bound in `metadata`.
+
+    `metadata` is a FieldInfo's, so a schema field and an Annotated figure
+    read the same way and say the same thing.
+    """
+    number = value if isinstance(value, Decimal) else Decimal(str(value))
+    # Before the bounds: comparing a NaN raises InvalidOperation, not a row error.
+    if not number.is_finite():
+        raise _ImportBoundError(f"{name} must be a number")
+    for bound in metadata:
+        for attr, holds, reads in _API_BOUNDS:
+            limit = getattr(bound, attr, None)
+            if limit is None:
+                continue
+            # A float bound (le=9999.999) compared as a float sits a hair
+            # below 9999.999 and refused the value pydantic accepts.
+            exact = Decimal(str(limit)) if isinstance(limit, float) else limit
+            if not holds(number, exact):
+                # Plain digits: str() of Decimal("1e12") reads 1E+12.
+                raise _ImportBoundError(
+                    f"{name} must be {reads} {exact}, not {format(number, 'f')}"
+                )
 
 
 def _in_vocabulary(value: Any, field: str, vocabulary: tuple[str, ...]) -> str | None:
@@ -257,6 +281,20 @@ def _json_int(row: Mapping[str, Any], key: str) -> int | None:
     if isinstance(raw, float) and raw.is_integer():
         return int(raw)
     raise _RowError(f"{key} is not a whole number")
+
+
+def _json_bool(row: Mapping[str, Any], key: str, *, default: bool) -> bool:
+    """The flag under `key`, `default` when it's missing or null, a row error otherwise.
+
+    Checked as a bool, not an int: bool subclasses int, so the other way round
+    would let a 1 through. A backup writes true and false, nothing else.
+    """
+    raw = row.get(key)
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    raise _RowError(f"{key} must be true or false")
 
 
 class ImportResult:

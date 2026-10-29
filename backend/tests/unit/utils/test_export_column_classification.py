@@ -53,7 +53,7 @@ EXPECTED_HEADER_LISTS: dict[str, int] = {
     # The four unit-bearing pairs, which go through `build_csv` ->
     # `apply_unit_set`. These are the ones a miss actually corrupts.
     "export_service_records_csv": 14,
-    "export_fuel_records_csv": 30,
+    "export_fuel_records_csv": 35,
     "export_def_records_csv": 9,
     "export_odometer_records_csv": 3,
     # The five dimensionless pairs, which call `generate_csv_stream` directly
@@ -131,6 +131,7 @@ DIMENSIONLESS_HEADERS: frozenset[str] = frozenset(
         "Full Tank",
         "Missed Fill-up",
         "Is Hauling",
+        "Tank Quantity",
         # Percentages and ratios. Unitless by definition.
         "SOC Start (%)",
         "SOC End (%)",
@@ -143,6 +144,11 @@ DIMENSIONLESS_HEADERS: frozenset[str] = frozenset(
         # `UnitSet` has no duration entry, so there is no second spelling to
         # convert to and the column names its unit in prose.
         "OBC Trip Duration (s)",
+        # Energy. `UnitSet` has no energy quantity, so kWh is the only spelling,
+        # like the seconds above.
+        "kWh",
+        # The price's denominator, a word from PRICE_BASIS_VALUES (K9).
+        "Price Basis",
     }
 )
 

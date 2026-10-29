@@ -19,7 +19,9 @@ from app.routes.import_data._common import parse_decimal
 from app.utils.csv_units import (
     CONSUMPTION,
     DISTANCE,
+    MASS,
     PRICE_PER_VOLUME,
+    PROPANE_VOLUME,
     SPEED,
     TEMPERATURE,
     VOLUME,
@@ -238,6 +240,8 @@ _COLUMN_SCALE: Mapping[str, Decimal] = {
     TEMPERATURE: _column_step(FuelRecord.outside_temp_c),
     CONSUMPTION: _column_step(FuelRecord.obc_l_per_100km),
     SPEED: _column_step(FuelRecord.obc_avg_speed_kmh),
+    PROPANE_VOLUME: _column_step(FuelRecord.propane_liters),
+    MASS: _column_step(FuelRecord.tank_size_kg),
 }
 
 

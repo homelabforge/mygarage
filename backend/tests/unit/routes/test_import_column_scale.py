@@ -25,7 +25,9 @@ from app.routes.import_data import _COLUMN_SCALE, _column_step, _same_figure
 from app.utils.csv_units import (
     CONSUMPTION,
     DISTANCE,
+    MASS,
     PRICE_PER_VOLUME,
+    PROPANE_VOLUME,
     SPEED,
     TEMPERATURE,
     VOLUME,
@@ -47,6 +49,9 @@ _LANDS_IN: dict[str, tuple[InstrumentedAttribute[Any], ...]] = {
     TEMPERATURE: (FuelRecord.outside_temp_c,),
     CONSUMPTION: (FuelRecord.obc_l_per_100km,),
     SPEED: (FuelRecord.obc_avg_speed_kmh,),
+    # The fuel CSV's Propane Volume and Tank Size columns (batch 3b, B3-3).
+    PROPANE_VOLUME: (FuelRecord.propane_liters,),
+    MASS: (FuelRecord.tank_size_kg,),
 }
 
 

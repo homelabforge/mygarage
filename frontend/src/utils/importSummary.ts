@@ -7,14 +7,18 @@ export type ImportSectionResult = {
   error_count: number
 }
 
-/** The section buckets the JSON import returns, in the order it imports them. */
+/**
+ * The section buckets the JSON import returns, in the order it imports them.
+ * vehicle_json.py's _JSON_RESULT_BUCKETS lists them in that order too; keep the two in step by hand.
+ */
 export const SECTIONS = [
+  ['supplies', 'vehicles:detail.misc.supplies'],
   ['service_records', 'vehicles:detail.misc.importServiceRecords'],
   ['fuel_records', 'vehicles:detail.misc.importFuelRecords'],
   ['def_records', 'vehicles:defList.title'],
   ['odometer_records', 'vehicles:detail.misc.importOdometerRecords'],
   ['hours_records', 'vehicles:hoursList.title'],
-  ['reminders', 'vehicles:detail.misc.importMaintenanceRecords'],
+  ['reminders', 'vehicles:reminderList.title'],
   ['notes', 'vehicles:noteList.title'],
   ['insurance_policies', 'vehicles:insuranceList.title'],
   ['financing_records', 'vehicles:financingList.title'],
@@ -23,6 +27,14 @@ export const SECTIONS = [
   ['toll_transactions', 'vehicles:tollList.title'],
   ['warranties', 'vehicles:warrantyList.title'],
   ['spot_rentals', 'vehicles:spotRentalList.title'],
+  ['maintenance_rules', 'vehicles:detail.misc.importMaintenanceRules'],
+  ['recalls', 'vehicles:recallList.title'],
+  ['dtcs', 'vehicles:detail.misc.importDtcs'],
+  ['tire_sets', 'vehicles:tireList.setsTitle'],
+  ['tires', 'vehicles:tireList.title'],
+  ['brake_axles', 'vehicles:detail.misc.importBrakeAxles'],
+  ['brake_jobs', 'vehicles:detail.misc.importBrakeJobs'],
+  ['brake_measurements', 'vehicles:detail.misc.importBrakeMeasurements'],
 ] as const
 
 type SectionKey = (typeof SECTIONS)[number][0]
@@ -44,9 +56,12 @@ export function importToastDuration(errors?: readonly string[], warnings?: reado
   return (errors?.length ?? 0) > 0 || (warnings?.length ?? 0) > 0 ? IMPORT_LIST_TOAST_MS : undefined
 }
 
-/** Whether any section of a JSON import refused a row. */
+/**
+ * Whether the JSON import refused a row. Reads the errors list, as
+ * importToastDuration does, so a bucket this table doesn't list still counts.
+ */
 export function hasRowErrors(result: ImportJsonResult): boolean {
-  return SECTIONS.some(([key]) => (result[key]?.error_count ?? 0) > 0)
+  return (result.errors?.length ?? 0) > 0
 }
 
 /**

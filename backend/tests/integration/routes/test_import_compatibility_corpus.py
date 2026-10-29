@@ -62,6 +62,9 @@ Timeline, with the commit that first emitted each tuple:
                        marker. This is the ONLY version that ever emitted it.
   49a4166  2026-08-26  v6: per-column vocabulary tokens, marker `metric` |
                        `imperial` | `custom`.
+  c0244a5  2026-10-28  v8 fuel: `Propane Volume`, `Tank Size`, `Tank Quantity`,
+                       `kWh` and `Price Basis` (batch 3b, B3-3). A price that
+                       isn't per volume is written by its basis (K9).
 
 The `reports.py` CSVs: all four tuples covered, none importable
 ---------------------------------------------------------------
@@ -306,6 +309,17 @@ _FUEL_V6_CUSTOM = (
     "units_version,unit_system,Date,Filled At,Odometer (km),Engine Hours,Volume (gal_uk),"
     "Price Per Unit (gal_uk),Rebate,Total Cost,Full Tank,Missed Fill-up,Is Hauling,"
     "Fuel Type Used,Station ID,Station,Driver ID,Driver,Payment Method,Trip Type,"
+    "Outside Temp (f),OBC Economy (mpg_uk),OBC Avg Speed (mph),OBC Trip Duration (s),"
+    "SOC Start (%),SOC End (%),Charge Level,Charge Location,Battery SOH (%),Notes"
+)
+# v8 with batch 3b's five columns: propane by volume, tank size by mass, the
+# tank count, kWh, and the price's basis (K9). A custom account on km, UK
+# gallons and pounds.
+_FUEL_V8_CUSTOM = (
+    "units_version,unit_system,Date,Filled At,Odometer (km),Engine Hours,Volume (gal_uk),"
+    "Propane Volume (gal_uk),Tank Size (lb),Tank Quantity,kWh,Price Per Unit (gal_uk),"
+    "Price Basis,Rebate,Total Cost,Full Tank,Missed Fill-up,Is Hauling,Fuel Type Used,"
+    "Octane,Diesel Grade,Station ID,Station,Driver ID,Driver,Payment Method,Trip Type,"
     "Outside Temp (f),OBC Economy (mpg_uk),OBC Avg Speed (mph),OBC Trip Duration (s),"
     "SOC Start (%),SOC End (%),Charge Level,Charge Location,Battery SOH (%),Notes"
 )
@@ -954,6 +968,25 @@ CORPUS: Mapping[str, Shape] = {
             "obc_avg_speed_kmh": "128.7",
         },
     ),
+    "fuel-v8-custom-propane-by-weight": Shape(
+        pair="fuel",
+        evidence="c0244a5",
+        header=_FUEL_V8_CUSTOM,
+        # Two 20 lb tanks priced by the pound. 20 * 0.45359237 = 9.0718474 kg;
+        # 1.00004 / 0.45359237 = 2.20470 a kg. The price follows Tank Size's
+        # token, not the gal_uk in its own header (K9).
+        row=(
+            "8,custom,2026-04-13,,,,,,20.000,2,,1.00004,per_weight,,40.00,Yes,No,No,"
+            ",,,,,,,,,,,,,,,,,,"
+        ),
+        expected={
+            "tank_size_kg": "9.072",
+            "tank_quantity": "2",
+            "price_per_unit": "2.2047",
+            "propane_liters": None,
+            "kwh": None,
+        },
+    ),
 }
 
 MODELS = {
@@ -1599,3 +1632,136 @@ class TestJsonV8Backup:
                 ("2026-08-04", "5300.00", "def"),
                 ("2026-08-05", "5400.00", "Monthly"),
             ]
+
+
+# --------------------------------------------------------------------------
+# Batch 3b (R8, S14): a v9 backup as 3a wrote it, before tires, brakes, the
+# schedule, recalls, DTCs and supplies joined the file.
+# --------------------------------------------------------------------------
+
+_V9_3A_BACKUP = {
+    "export_version": "9",
+    "units": "metric",
+    "export_date": "2026-10-28T12:00:00",
+    "vehicle": {"vin": "IGNORED", "year": 2024, "make": "Test", "model": "Corpus"},
+    "service_visits": [
+        {
+            "date": "2026-09-02",
+            "odometer_km": 6100.0,
+            "engine_hours": None,
+            "tax_amount": 3.0,
+            "shop_supplies": None,
+            "misc_fees": None,
+            "notes": "3a visit",
+            "service_category": "Maintenance",
+            "insurance_claim_number": None,
+            "vendor_name": CORPUS_VENDOR,
+            # No supply_usages key: 3a didn't write one.
+            "line_items": [
+                {
+                    "description": "Oil change",
+                    "category": "Maintenance",
+                    "maintenance_type": "engine_oil_filter",
+                    "cost": 40.0,
+                    "notes": None,
+                    "is_inspection": False,
+                    "inspection_result": None,
+                    "inspection_severity": None,
+                    "triggered_by_inspection": None,
+                }
+            ],
+        }
+    ],
+    "fuel_records": [
+        {
+            "date": "2026-09-03",
+            "filled_at": None,
+            "odometer_km": 6200.0,
+            "liters": 40.0,
+            "cost": 60.0,
+            "price_per_unit": 1.5,
+            "price_basis": "per_volume",
+            "fuel_type_used": "diesel",
+            "is_full_tank": True,
+            "missed_fillup": False,
+            "is_hauling": False,
+            "station_name": None,
+            "driver_username": None,
+        }
+    ],
+    "notes": [{"date": "2026-09-04", "title": "3a note", "content": "kept"}],
+    "financing_records": [
+        {
+            "date": "2026-09-05",
+            "amount": 450.0,
+            "category": "loan_payment",
+            "notes": None,
+            "vendor_name": CORPUS_VENDOR,
+        }
+    ],
+    "toll_tags": [{"toll_system": "EZ TAG", "tag_number": "CORPUS3A", "status": "active"}],
+    "toll_transactions": [
+        {"date": "2026-09-06", "amount": 2.5, "location": "Hardy", "toll_tag_index": 0}
+    ],
+}
+
+#: Every bucket 3b adds, each untouched by a 3a file.
+_3B_BUCKETS = (
+    "maintenance_rules",
+    "tire_sets",
+    "tires",
+    "brake_axles",
+    "brake_jobs",
+    "brake_measurements",
+    "supplies",
+    "recalls",
+    "dtcs",
+)
+
+
+class TestJsonV9From3a:
+    async def test_a_3a_v9_backup_imports_as_before_and_again_as_duplicates(
+        self, client, auth_headers, test_user, db_session, test_sessionmaker
+    ) -> None:
+        import json
+
+        body = json.dumps(_V9_3A_BACKUP).encode()
+        async with _vehicle(db_session, test_user["id"], "CORPUSJSONV93A001") as vin:
+            counts = []
+            for _ in range(2):
+                resp = await client.post(
+                    f"/api/import/vehicles/{vin}/json",
+                    headers=auth_headers,
+                    files={"file": ("v9.json", body, "application/json")},
+                    data={"skip_duplicates": "true"},
+                )
+                assert resp.status_code == 200, resp.text
+                data = resp.json()
+                assert (data["errors"], data["warnings"]) == ([], []), data
+                counts.append(
+                    [
+                        (data[s]["success_count"], data[s]["skipped_count"])
+                        for s in (
+                            "service_records",
+                            "fuel_records",
+                            "notes",
+                            "financing_records",
+                            "toll_tags",
+                            "toll_transactions",
+                        )
+                    ]
+                )
+                # main: KeyError, the 3b buckets don't exist yet.
+                for bucket in _3B_BUCKETS:
+                    assert data[bucket]["success_count"] == 0, bucket
+                    assert data[bucket]["skipped_count"] == 0, bucket
+                    assert data[bucket]["error_count"] == 0, bucket
+            assert counts == [[(1, 0)] * 6, [(0, 1)] * 6]
+            async with test_sessionmaker() as fresh:
+                total = (
+                    await fresh.execute(
+                        select(ServiceVisit.total_cost).where(ServiceVisit.vin == vin)
+                    )
+                ).scalar_one()
+            # The item and the tax: no supplies in a 3a file.
+            assert total == Decimal("43.00")

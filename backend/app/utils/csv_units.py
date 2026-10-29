@@ -78,6 +78,7 @@ from fastapi import HTTPException
 from app.constants.units import (
     ConsumptionUnit,
     DistanceUnit,
+    MassUnit,
     SpeedUnit,
     TemperatureUnit,
     VolumeUnit,
@@ -90,6 +91,10 @@ PRICE_PER_VOLUME = "price_per_volume"
 TEMPERATURE = "temperature"
 CONSUMPTION = "consumption"
 SPEED = "speed"
+# Batch 3b (B3-3). Propane gets its own quantity rather than sharing VOLUME,
+# because a file binds one column per quantity and a fuel CSV carries both.
+PROPANE_VOLUME = "propane_volume"
+MASS = "mass"
 
 # R7: a recognised token for the WRONG quantity is an error, not a fallback.
 # `Odometer (gal_us)` and `Volume (mi)` are both real `ADAPTERS` keys and
@@ -104,6 +109,8 @@ QUANTITY_TOKENS: Mapping[str, frozenset[str]] = {
     TEMPERATURE: frozenset(get_args(TemperatureUnit)),
     CONSUMPTION: frozenset(get_args(ConsumptionUnit)),
     SPEED: frozenset(get_args(SpeedUnit)),
+    PROPANE_VOLUME: frozenset(get_args(VolumeUnit)),
+    MASS: frozenset(get_args(MassUnit)),
 }
 
 # The token a metric-canonical file's values are already in.
@@ -114,6 +121,8 @@ _CANONICAL_TOKEN: Mapping[str, str] = {
     TEMPERATURE: "c",
     CONSUMPTION: "l_100km",
     SPEED: "kmh",
+    PROPANE_VOLUME: "L",
+    MASS: "kg",
 }
 
 # The token a legacy-imperial file's values are in, as (US, UK). Only the
@@ -126,6 +135,8 @@ _IMPERIAL_TOKEN: Mapping[str, tuple[str, str]] = {
     TEMPERATURE: ("f", "f"),
     CONSUMPTION: ("mpg_us", "mpg_uk"),
     SPEED: ("mph", "mph"),
+    PROPANE_VOLUME: ("gal_us", "gal_uk"),
+    MASS: ("lb", "lb"),
 }
 
 # R8: exactly these, and nothing else. Until this task anything starting
@@ -250,6 +261,11 @@ FUEL_SPEED = QuantitySpec(
     SPEED, ("OBC Avg Speed",), (LegacyHeader("OBC Avg Speed (km/h)", declared="kmh"),)
 )
 
+# Batch 3b's propane and tank columns. Neither was ever exported before v8, so
+# the tokenised spelling is the only one.
+FUEL_PROPANE_VOLUME = QuantitySpec(PROPANE_VOLUME, ("Propane Volume",))
+FUEL_TANK_SIZE = QuantitySpec(MASS, ("Tank Size",))
+
 
 def _reject(detail: str) -> NoReturn:
     """Refuse the whole file, naming the cause. Never guess (R8).
@@ -277,6 +293,21 @@ def volume_factor(token: str) -> Decimal:
     factor = ADAPTERS[token].to_canonical(Decimal("1"))
     if factor is None:  # pragma: no cover - a volume adapter never returns None for 1
         raise ValueError(f"volume adapter {token!r} has no factor")
+    return factor
+
+
+def mass_factor(token: str) -> Decimal:
+    """Kilograms in one `token`, e.g. `0.45359237` for `lb`.
+
+    Read off the adapter like `volume_factor`, and public for the same reason:
+    a per-weight price is multiplied by it on the way out and divided by it on
+    the way in, so both directions share this one definition.
+    """
+    if token not in QUANTITY_TOKENS[MASS]:
+        raise ValueError(f"{token!r} is not a mass token")
+    factor = ADAPTERS[token].to_canonical(Decimal("1"))
+    if factor is None:  # pragma: no cover - a mass adapter never returns None for 1
+        raise ValueError(f"mass adapter {token!r} has no factor")
     return factor
 
 
@@ -345,6 +376,35 @@ class CsvUnitContext:
         if quantity == PRICE_PER_VOLUME:
             return value / volume_factor(binding.token)
         return ADAPTERS[binding.token].to_canonical(value)
+
+    def price_to_canonical(self, value: Decimal | None, basis: str | None) -> Decimal | None:
+        """One price cell into canonical storage, read by its basis (K9).
+
+        per_kwh, per_tank and per_weight follow the frontend's rule
+        (`decimalSafe.ts:153-171`): the first two have no unit to convert, and
+        a per_weight price is per the Tank Size column's mass unit. Unlike the
+        frontend, no basis reads per volume, since every fuel CSV before v8
+        meant that. The import refuses a per_weight price with no Tank Size
+        column before it gets here; this raises if anything else tries.
+        """
+        if value is None:
+            return None
+        if basis in ("per_kwh", "per_tank"):
+            return value
+        if basis == "per_weight":
+            token = self.token(MASS)
+            if token is None:
+                raise ValueError("a per_weight price needs a Tank Size column")
+            return value / mass_factor(token)
+        return self.to_canonical(PRICE_PER_VOLUME, value)
+
+    def price_converts(self, basis: str | None) -> bool:
+        """`converts` for a price read by its basis: whether it changes on the way in."""
+        if basis in ("per_kwh", "per_tank"):
+            return False
+        if basis == "per_weight":
+            return self.converts(MASS)
+        return self.converts(PRICE_PER_VOLUME)
 
 
 def _normalised_markers(rows: Sequence[Mapping[str, Any]]) -> str:

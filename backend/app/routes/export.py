@@ -4,7 +4,7 @@ import json
 from collections.abc import Sequence
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
@@ -27,6 +27,7 @@ from app.models import (
     InsurancePolicyVehicle,
     Note,
     OdometerRecord,
+    ServiceLineItem,
     ServiceVisit,
     SpotRental,
     TaxRecord,
@@ -34,11 +35,19 @@ from app.models import (
     TollTransaction,
     WarrantyRecord,
 )
+from app.models.address_book import AddressBookEntry
+from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
+from app.models.maintenance_rule import MaintenanceRule
+from app.models.recall import Recall
+from app.models.reminder import Reminder
+from app.models.supply import Supply, SupplyPurchase, SupplyUsage
+from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.services.auth import get_vehicle_or_403, require_auth
+from app.models.vehicle_dtc import VehicleDTC
+from app.services.auth import get_vehicle_or_403, require_auth, visible_vehicles_filter
 from app.services.fuel_service import resolve_station_names
-from app.utils.csv_emission import apply_unit_set, marker_for
+from app.utils.csv_emission import BasisPrice, apply_unit_set, marker_for
 from app.utils.csv_safe import sanitize_csv_row
 from app.utils.insurance_coverages import coverage_text
 from app.utils.insurance_shares import effective_shares
@@ -91,13 +100,23 @@ limiter = Limiter(key_func=get_remote_address)
 #   `Notes` into `Item Notes` and `Visit Notes`, and adds `Tax`,
 #   `Shop Supplies`, `Misc Fees` and `Insurance Claim` (J6). Rows sharing a
 #   number import as one visit; an older file groups by date, odometer,
-#   vendor and category. The other CSVs keep their shape.
+#   vendor and category. The fuel CSV adds Propane Volume, Tank Size, Tank
+#   Quantity, kWh and Price Basis, and writes a price that isn't per volume by
+#   its basis (B3-3, K9). The other CSVs keep their shape.
 # - JSON "9": every section writes every column (R1): `service_visits` with
 #   nested `line_items` replaces `service_records`, the fuel, DEF, odometer
 #   and hours rows carry the rest of their columns, the vehicle is written
 #   whole, and `financing_records`, `tax_records`, `toll_tags`,
 #   `toll_transactions`, `warranties` and `spot_rentals` are new. The
 #   importer still reads v2 to v8, and a section a file lacks is empty.
+#   Batch 3b adds `maintenance_rules` (each rule with its nested
+#   `reminders`), `manual_reminders` (every status; `reminders` stays the
+#   v2 list), `recalls`, `dtcs`, `tire_sets` and `tires` (each tire with
+#   its nested `mount_periods` and `readings`), `brake_axles`, `brake_jobs`,
+#   `brake_measurements` and `supplies` (each pinned supply with its nested
+#   `purchases`, standalone `usages` and `used_elsewhere`, its uses on
+#   another vehicle's visits; a line item carries its own `supply_usages`)
+#   to v9 without a bump: a 3a file simply has none.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -194,6 +213,11 @@ def _json_value(value: Any) -> Any:
     return value
 
 
+def _json_quantity(value: Decimal | None) -> str | None:
+    """A supply quantity as decimal text. The column holds 25 digits and a float about 16."""
+    return format(value, "f") if value is not None else None
+
+
 def _json_columns(row: Any, exclude: frozenset[str]) -> dict[str, Any]:
     """Every column of `row` but `exclude`, in model order (R1).
 
@@ -251,9 +275,57 @@ _WARRANTY_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"last_notified_at"}
 _SPOT_RENTAL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 #: The rental is the parent.
 _BILLING_JSON_EXCLUDE = frozenset({"id", "spot_rental_id", "created_at"})
-#: What the service exports read off a visit.
+#: Every recall column travels; the resolution and notes are the user's.
+_RECALL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: device_id travels as text: it has no FK and every DTC list reads by vin (K11).
+_DTC_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+_RULE_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: A reminder keeps its `created_at` (K5).
+_REMINDER_JSON_EXCLUDE = frozenset(
+    {
+        "id",
+        "vin",
+        "updated_at",
+        "rule_id",  # the rule is the parent, or there's none
+        "line_item_id",  # line items here; a service anchor imports as a completion (S8)
+        "completed_line_item_id",  # as above
+        "superseded_by_id",  # another reminder here
+        "last_notified_at",  # notification marker
+        "tire_id",  # sync-owned reminders don't travel (J1)
+        "source",  # as above
+        "tread_depth_mm",  # as above
+        "tread_threshold_mm",  # as above
+    }
+)
+_TIRE_SET_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: The set travels as its place in this file's tire_sets.
+_TIRE_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"set_id"}
+#: The tire is the parent.
+_MOUNT_PERIOD_JSON_EXCLUDE = frozenset({"id", "tire_id", "created_at"})
+#: The tire is the parent; the period travels as its place in the tire's periods.
+_TIRE_READING_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"tire_id", "mount_period_id"}
+_BRAKE_AXLE_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+_BRAKE_JOB_JSON_EXCLUDE = _ALWAYS_EXCLUDED
+#: The job travels as its place in this file's brake_jobs.
+_BRAKE_MEASUREMENT_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"brake_job_id"}
+#: Pinned to this vehicle by being in the file; who made it is a user here.
+_SUPPLY_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"created_by_user_id"}
+#: The supply is the parent; the supplier travels by name, like a vendor.
+_SUPPLY_PURCHASE_JSON_EXCLUDE = frozenset({"id", "supply_id", "supplier_id", "created_at"})
+#: A standalone usage keeps its `created_at`: it's the only date it has.
+_SUPPLY_ADJUSTMENT_JSON_EXCLUDE = frozenset({"id", "supply_id", "service_line_item_id"})
+#: The line item is the parent, and its visit dates the usage.
+_LINE_ITEM_USAGE_JSON_EXCLUDE = frozenset({"id", "supply_id", "service_line_item_id", "created_at"})
+#: What the service CSV exports read off a visit.
 _SERVICE_VISIT_EXPORT_LOADS = (
     selectinload(ServiceVisit.line_items),
+    selectinload(ServiceVisit.vendor),
+)
+#: The JSON backup also writes what each line item used, naming the supply.
+_SERVICE_VISIT_JSON_LOADS = (
+    selectinload(ServiceVisit.line_items)
+    .selectinload(ServiceLineItem.supply_usages)
+    .selectinload(SupplyUsage.supply),
     selectinload(ServiceVisit.vendor),
 )
 
@@ -267,7 +339,68 @@ async def _driver_usernames(db: AsyncSession, records: Sequence[FuelRecord]) -> 
     return {user_id: username for user_id, username in rows.all()}
 
 
-def _line_items_json(visit: ServiceVisit) -> list[dict[str, Any]]:
+def _rule_reminder_json(
+    reminder: Reminder,
+    rule: MaintenanceRule,
+    work: dict[int, tuple[ServiceLineItem, ServiceVisit]],
+) -> dict[str, Any]:
+    """One of a rule's reminders, a done one as its rule counts it now.
+
+    A completion that wrote or linked a line item counts from that visit as it
+    is now, and not at all once the item is retyped away. The link stays home,
+    so the visit's date, readings and type go in place of the stale snapshot (K1).
+    """
+    row = _json_columns(reminder, _REMINDER_JSON_EXCLUDE)
+    found = (
+        work.get(reminder.completed_line_item_id)
+        if reminder.status == "done" and reminder.completed_line_item_id is not None
+        else None
+    )
+    if found is None:
+        return row
+    item, visit = found
+    row["completed_date"] = _json_value(visit.date)
+    row["completed_odometer_km"] = _json_value(visit.odometer_km)
+    row["completed_hours"] = _json_value(visit.engine_hours)
+    # The reminder's own type is checked first, so it wins when it already rules this out.
+    own = reminder.maintenance_type
+    ruled_out = (
+        own is not None and rule.maintenance_type is not None and own != rule.maintenance_type
+    )
+    if not ruled_out and item.maintenance_type is not None:
+        row["maintenance_type"] = item.maintenance_type
+    return row
+
+
+def _tire_json(tire: Tire, set_index: dict[int, int]) -> dict[str, Any]:
+    """A tire with its periods and readings; every link is a place in this file (R6).
+
+    Periods and readings go out by id, so an index means the same row on every
+    export. The relationship sorts periods by `mounted_on`, which ties (S2).
+    """
+    periods: list[TireMountPeriod] = sorted(tire.mount_periods, key=lambda p: p.id)
+    readings: list[TireReading] = sorted(tire.readings, key=lambda r: r.id)
+    period_index = {period.id: index for index, period in enumerate(periods)}
+    return {
+        **_json_columns(tire, _TIRE_JSON_EXCLUDE),
+        "set_index": set_index.get(tire.set_id) if tire.set_id is not None else None,
+        "mount_periods": [_json_columns(p, _MOUNT_PERIOD_JSON_EXCLUDE) for p in periods],
+        # A reading taken before its tire had periods has none (N-6).
+        "readings": [
+            {
+                **_json_columns(r, _TIRE_READING_JSON_EXCLUDE),
+                "mount_period_index": period_index.get(r.mount_period_id)
+                if r.mount_period_id is not None
+                else None,
+            }
+            for r in readings
+        ],
+    }
+
+
+def _line_items_json(
+    visit: ServiceVisit, supply_index: dict[int, int], readable_vins: set[str]
+) -> list[dict[str, Any]]:
     """A visit's line items; an inspection link is the linked item's index here."""
     position = {item.id: index for index, item in enumerate(visit.line_items)}
     return [
@@ -275,9 +408,105 @@ def _line_items_json(visit: ServiceVisit) -> list[dict[str, Any]]:
             **_json_columns(item, _LINE_ITEM_JSON_EXCLUDE),
             # A link outside the visit has no index here, so it drops.
             "triggered_by_inspection": position.get(item.triggered_by_inspection_id),
+            "supply_usages": [
+                _line_item_usage_json(u, supply_index, readable_vins)
+                for u in sorted(item.supply_usages, key=lambda u: u.id)
+            ],
         }
         for item in visit.line_items
     ]
+
+
+def _line_item_usage_json(
+    usage: SupplyUsage, supply_index: dict[int, int], readable_vins: set[str]
+) -> dict[str, Any]:
+    """What a line item used. A supply in this file goes by its index, any other by its name key.
+
+    One kept for another vehicle you can read also names that vehicle, so a
+    shared supply with the same key can't take its use on restore.
+    """
+    supply = usage.supply
+    index = supply_index.get(supply.id)
+    if index is not None:
+        ref: dict[str, Any] = {"index": index}
+    else:
+        ref = {
+            "name": supply.name,
+            "part_number": supply.part_number,
+            "unit_type": supply.unit_type,
+            "volume_unit": supply.volume_unit,
+        }
+        if supply.vin is not None and supply.vin in readable_vins:
+            ref["vin"] = supply.vin
+    return {
+        **_json_columns(usage, _LINE_ITEM_USAGE_JSON_EXCLUDE),
+        "quantity": _json_quantity(usage.quantity),
+        "supply": ref,
+    }
+
+
+def _used_elsewhere_json(usage: SupplyUsage, readable_vins: set[str]) -> dict[str, Any]:
+    """A use of this supply on another vehicle's visit, named by that visit, not copied.
+
+    The visit's date goes out as written, so no zone can move it a day.
+    """
+    line_item = cast(ServiceLineItem, usage.line_item)
+    # Can't read that vehicle? Then you get how much was used and nothing about it.
+    if line_item.visit.vin not in readable_vins:
+        return {"quantity": _json_quantity(usage.quantity)}
+    return {
+        "vin": line_item.visit.vin,
+        "date": line_item.visit.date.isoformat(),
+        "description": line_item.description,
+        # The item's place in its visit and its cost, so a twin with the same
+        # description that day isn't taken for it.
+        "item_index": [i.id for i in line_item.visit.line_items].index(line_item.id),
+        "item_cost": _json_value(line_item.cost),
+        "quantity": _json_quantity(usage.quantity),
+        "unit_cost_snapshot": _json_value(usage.unit_cost_snapshot),
+        "cost_snapshot": _json_value(usage.cost_snapshot),
+    }
+
+
+def _supply_json(
+    supply: Supply, vin: str, supplier_names: dict[int, str], readable_vins: set[str]
+) -> dict[str, Any]:
+    """A pinned supply and its whole ledger, each entry once.
+
+    A usage on this vehicle's visit goes under its line item, and a standalone
+    one comes along here. One on another vehicle's visit goes in
+    `used_elsewhere`, so a restore can find it there instead of counting it twice.
+    """
+    purchases: list[SupplyPurchase] = sorted(supply.purchases, key=lambda p: p.id)
+    usages: list[SupplyUsage] = sorted(supply.usages, key=lambda u: u.id)
+    standalone = [
+        {
+            **_json_columns(usage, _SUPPLY_ADJUSTMENT_JSON_EXCLUDE),
+            "quantity": _json_quantity(usage.quantity),
+        }
+        for usage in usages
+        if usage.line_item is None
+    ]
+    used_elsewhere = [
+        _used_elsewhere_json(usage, readable_vins)
+        for usage in usages
+        if usage.line_item is not None and usage.line_item.visit.vin != vin
+    ]
+    return {
+        **_json_columns(supply, _SUPPLY_JSON_EXCLUDE),
+        "purchases": [
+            {
+                **_json_columns(p, _SUPPLY_PURCHASE_JSON_EXCLUDE),
+                "quantity": _json_quantity(p.quantity),
+                "supplier_name": supplier_names.get(p.supplier_id)
+                if p.supplier_id is not None
+                else None,
+            }
+            for p in purchases
+        ],
+        "usages": standalone,
+        "used_elsewhere": used_elsewhere,
+    }
 
 
 @router.get("/vehicles/{vin}/service/csv")
@@ -416,7 +645,12 @@ async def export_fuel_records_csv(
         "Odometer (km)",
         "Engine Hours",
         "Liters",
+        "Propane Volume (L)",
+        "Tank Size (kg)",
+        "Tank Quantity",
+        "kWh",
         "Price Per Liter",
+        "Price Basis",
         "Rebate",
         "Total Cost",
         "Full Tank",
@@ -460,7 +694,14 @@ async def export_fuel_records_csv(
                 # / obc_l_per_100km below.
                 f"{record.engine_hours:.1f}" if record.engine_hours is not None else "",
                 record.liters,
-                record.price_per_unit,
+                record.propane_liters,
+                record.tank_size_kg,
+                record.tank_quantity if record.tank_quantity is not None else "",
+                f"{record.kwh:.3f}" if record.kwh is not None else "",
+                # The price goes out by its basis, so a per-kg or per-kWh price
+                # isn't scaled like a per-litre one (K9).
+                BasisPrice(record.price_per_unit, record.price_basis),
+                record.price_basis or "",
                 _money_cell(record.rebate),
                 _money_cell(record.cost),
                 "Yes" if record.is_full_tank else "No",
@@ -952,12 +1193,12 @@ async def export_vehicle_json(
     # Verify vehicle exists and user has access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
-    # Get all related records. A visit carries its line items and vendor name;
-    # supply usages aren't exported (J4), so they aren't loaded.
+    # Get all related records. A visit carries its line items, what each used
+    # and its vendor name.
     service_result = await db.execute(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
-        .options(*_SERVICE_VISIT_EXPORT_LOADS)
+        .options(*_SERVICE_VISIT_JSON_LOADS)
         .order_by(ServiceVisit.date.desc())
     )
     service_visits = service_result.scalars().all()
@@ -1015,6 +1256,18 @@ async def export_vehicle_json(
     )
     toll_tags = toll_tag_result.scalars().all()
 
+    recalls = (
+        (await db.execute(select(Recall).where(Recall.vin == vin).order_by(Recall.id)))
+        .scalars()
+        .all()
+    )
+
+    dtcs = (
+        (await db.execute(select(VehicleDTC).where(VehicleDTC.vin == vin).order_by(VehicleDTC.id)))
+        .scalars()
+        .all()
+    )
+
     toll_result = await db.execute(
         select(TollTransaction)
         .where(TollTransaction.vin == vin)
@@ -1036,8 +1289,175 @@ async def export_vehicle_json(
         .order_by(SpotRental.check_in_date.desc(), SpotRental.id)
     )
     spot_rentals = rental_result.scalars().all()
+
+    rules = (
+        (
+            await db.execute(
+                select(MaintenanceRule)
+                .where(MaintenanceRule.vin == vin)
+                .order_by(MaintenanceRule.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # Every status travels under its rule: a done one is what the next counts from (K1).
+    rule_reminders: dict[int, list[Reminder]] = {}
+    for reminder in (
+        (
+            await db.execute(
+                select(Reminder)
+                .where(Reminder.vin == vin, Reminder.rule_id.isnot(None))
+                .order_by(Reminder.id)
+            )
+        )
+        .scalars()
+        .all()
+    ):
+        # The query filters NULL out.
+        rule_reminders.setdefault(cast(int, reminder.rule_id), []).append(reminder)
+    # The live work behind each done reminder, as `_latest_completion` reads it.
+    completed_ids = {
+        r.completed_line_item_id
+        for reminders in rule_reminders.values()
+        for r in reminders
+        if r.status == "done" and r.completed_line_item_id is not None
+    }
+    completed_work = {
+        item.id: (item, visit)
+        for item, visit in (
+            await db.execute(
+                select(ServiceLineItem, ServiceVisit)
+                .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
+                .where(ServiceLineItem.id.in_(completed_ids), ServiceVisit.vin == vin)
+            )
+        ).all()
+    }
+
+    # The reminders a person made, every status. Sync-owned ones stay home (J1).
+    manual_reminders = (
+        (
+            await db.execute(
+                select(Reminder)
+                .where(Reminder.vin == vin, Reminder.rule_id.is_(None), Reminder.source.is_(None))
+                .order_by(Reminder.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    tire_set_result = await db.execute(
+        select(TireSet).where(TireSet.vin == vin).order_by(TireSet.id)
+    )
+    tire_sets = tire_set_result.scalars().all()
+
+    tire_result = await db.execute(
+        select(Tire)
+        .where(Tire.vin == vin)
+        .options(selectinload(Tire.mount_periods), selectinload(Tire.readings))
+        .order_by(Tire.id)
+    )
+    tires = tire_result.scalars().all()
+    # A tire names its set by the set's place in `tire_sets` (R6).
+    set_index = {tire_set.id: index for index, tire_set in enumerate(tire_sets)}
+
+    brake_axles = (
+        (await db.execute(select(BrakeAxle).where(BrakeAxle.vin == vin).order_by(BrakeAxle.id)))
+        .scalars()
+        .all()
+    )
+    brake_jobs = (
+        (await db.execute(select(BrakeJob).where(BrakeJob.vin == vin).order_by(BrakeJob.id)))
+        .scalars()
+        .all()
+    )
+    brake_measurements = (
+        (
+            await db.execute(
+                select(BrakeMeasurement)
+                .where(BrakeMeasurement.vin == vin)
+                .order_by(BrakeMeasurement.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # A measurement names the job that wrote it by the job's place in
+    # `brake_jobs` (R6). The reminder marks stay home: they key on measurement
+    # ids, which a restore doesn't keep (N-5).
+    job_index = {job.id: index for index, job in enumerate(brake_jobs)}
     # A transaction names its tag by the tag's place in `toll_tags` (R6).
     tag_index = {tag.id: index for index, tag in enumerate(toll_tags)}
+
+    pinned_supplies = (
+        (
+            await db.execute(
+                select(Supply)
+                .where(Supply.vin == vin)
+                .options(
+                    selectinload(Supply.purchases),
+                    selectinload(Supply.usages)
+                    .selectinload(SupplyUsage.line_item)
+                    .selectinload(ServiceLineItem.visit)
+                    .selectinload(ServiceVisit.line_items),
+                )
+                .order_by(Supply.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # A line item names a pinned supply by its place in `supplies`.
+    supply_index = {supply.id: index for index, supply in enumerate(pinned_supplies)}
+    # The other vehicles a pinned supply was used on, narrowed to the ones this
+    # user can read, by the same rule as get_vehicle_or_403.
+    other_vins = {
+        u.line_item.visit.vin
+        for s in pinned_supplies
+        for u in s.usages
+        if u.line_item is not None and u.line_item.visit.vin != vin
+    } | {
+        # And the ones whose pinned supply this vehicle's visits used.
+        u.supply.vin
+        for v in service_visits
+        for i in v.line_items
+        for u in i.supply_usages
+        if u.supply.vin is not None and u.supply.vin != vin
+    }
+    scope = visible_vehicles_filter(current_user)
+    readable_vins: set[str] = (
+        set(
+            (
+                await db.execute(
+                    select(Vehicle.vin).where(
+                        Vehicle.vin.in_(other_vins), *([scope] if scope is not None else [])
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if other_vins
+        else set()
+    )
+    supplier_ids = {
+        p.supplier_id for s in pinned_supplies for p in s.purchases if p.supplier_id is not None
+    }
+    supplier_names: dict[int, str] = (
+        {
+            entry_id: name
+            for entry_id, name in (
+                await db.execute(
+                    select(AddressBookEntry.id, AddressBookEntry.business_name).where(
+                        AddressBookEntry.id.in_(supplier_ids)
+                    )
+                )
+            ).all()
+        }
+        if supplier_ids
+        else {}
+    )
 
     # Build export data
     export_data = {
@@ -1050,7 +1470,7 @@ async def export_vehicle_json(
             {
                 **_json_columns(v, _SERVICE_VISIT_JSON_EXCLUDE),
                 "vendor_name": v.vendor.name if v.vendor else None,
-                "line_items": _line_items_json(v),
+                "line_items": _line_items_json(v, supply_index, readable_vins),
             }
             for v in service_visits
         ],
@@ -1131,6 +1551,33 @@ async def export_vehicle_json(
                 "billings": [_json_columns(b, _BILLING_JSON_EXCLUDE) for b in r.billings],
             }
             for r in spot_rentals
+        ],
+        "supplies": [_supply_json(s, vin, supplier_names, readable_vins) for s in pinned_supplies],
+        "maintenance_rules": [
+            {
+                **_json_columns(rule, _RULE_JSON_EXCLUDE),
+                "reminders": [
+                    _rule_reminder_json(r, rule, completed_work)
+                    for r in rule_reminders.get(rule.id, [])
+                ],
+            }
+            for rule in rules
+        ],
+        "manual_reminders": [_json_columns(r, _REMINDER_JSON_EXCLUDE) for r in manual_reminders],
+        "recalls": [_json_columns(r, _RECALL_JSON_EXCLUDE) for r in recalls],
+        "dtcs": [_json_columns(d, _DTC_JSON_EXCLUDE) for d in dtcs],
+        "tire_sets": [_json_columns(s, _TIRE_SET_JSON_EXCLUDE) for s in tire_sets],
+        "tires": [_tire_json(t, set_index) for t in tires],
+        "brake_axles": [_json_columns(a, _BRAKE_AXLE_JSON_EXCLUDE) for a in brake_axles],
+        "brake_jobs": [_json_columns(j, _BRAKE_JOB_JSON_EXCLUDE) for j in brake_jobs],
+        "brake_measurements": [
+            {
+                **_json_columns(m, _BRAKE_MEASUREMENT_JSON_EXCLUDE),
+                "brake_job_index": job_index.get(m.brake_job_id)
+                if m.brake_job_id is not None
+                else None,
+            }
+            for m in brake_measurements
         ],
     }
 

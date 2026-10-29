@@ -63,13 +63,13 @@ def test_the_column_is_actually_widened(engine_for_migration):
     _make_pre_110_kind_column(engine)
 
     before = {c["name"]: c for c in inspect(engine).get_columns("livelink_devices")}
-    if dialect == "postgresql":
+    if dialect == "pg":
         assert before["kind"]["type"].length == 10, "fixture must start in the PRE state"
 
     _load("110_widen_livelink_device_kind").upgrade(engine)
 
     after = {c["name"]: c for c in inspect(engine).get_columns("livelink_devices")}
-    if dialect == "postgresql":
+    if dialect == "pg":
         assert after["kind"]["type"].length >= len("generic_mqtt")
 
 

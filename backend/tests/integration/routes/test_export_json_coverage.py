@@ -31,14 +31,22 @@ from app.models import (
     Vehicle,
     WarrantyRecord,
 )
+from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.models.financing import FinancingRecord
+from app.models.maintenance_rule import MaintenanceRule
+from app.models.recall import Recall
+from app.models.reminder import Reminder
 from app.models.spot_rental import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
+from app.models.supply import Supply, SupplyPurchase, SupplyUsage
+from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.toll import TollTag, TollTransaction
+from app.models.vehicle_dtc import VehicleDTC
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 _VIN = "B3RTJSONCOVERAGE1"
+_OTHER_VIN = "B3RTJSONCOVERAGE2"
 
 # Left out of every section: the row's own key, its vehicle (the file is the
 # vehicle's), and the bookkeeping timestamps.
@@ -54,6 +62,49 @@ class JsonSection:
     keys: frozenset[str]  # the model columns the section writes
     exclude: frozenset[str]  # the model columns it leaves out, each with a reason below
     portable: frozenset[str] = frozenset()  # keys that are not model columns
+
+
+#: A reminder a person made or a rule made, as both reminder lists write it (K5).
+_REMINDER_KEYS = frozenset(
+    {
+        "title",
+        "reminder_type",
+        "due_date",
+        "due_mileage_km",
+        "due_hours",
+        "status",
+        "notes",
+        "snoozed_until",
+        "maintenance_type",
+        "anchor_kind",
+        "anchor_date",
+        "anchor_odometer_km",
+        "anchor_hours",
+        "start_odometer_km",
+        "start_hours",
+        "completed_at",
+        "completed_date",
+        "completed_odometer_km",
+        "completed_hours",
+        "created_at",
+    }
+)
+_REMINDER_EXCLUDE = frozenset(
+    {
+        "id",
+        "vin",
+        "updated_at",
+        "rule_id",  # the rule is the parent, or there's none
+        "line_item_id",  # line items here; a service anchor imports as a completion (S8)
+        "completed_line_item_id",  # as above
+        "superseded_by_id",  # another reminder here
+        "last_notified_at",  # notification marker
+        "tire_id",  # sync-owned reminders don't travel (J1)
+        "source",  # as above
+        "tread_depth_mm",  # as above
+        "tread_threshold_mm",  # as above
+    }
+)
 
 
 SECTIONS = [
@@ -184,7 +235,7 @@ SECTIONS = [
         ),
         # The visit is the parent; the inspection link travels as an index in the visit.
         exclude=frozenset({"id", "visit_id", "triggered_by_inspection_id", "created_at"}),
-        portable=frozenset({"triggered_by_inspection"}),
+        portable=frozenset({"triggered_by_inspection", "supply_usages"}),
     ),
     JsonSection(
         "fuel_records",
@@ -346,6 +397,246 @@ SECTIONS = [
         ),
         exclude=frozenset({"id", "spot_rental_id", "created_at"}),
     ),
+    JsonSection(
+        "supplies",
+        Supply,
+        keys=frozenset(
+            {
+                "name",
+                "part_number",
+                "barcode",
+                "category",
+                "unit_type",
+                "volume_unit",
+                "is_active",
+                "notes",
+            }
+        ),
+        # Pinned to this vehicle by being in the file; who made it is a user here.
+        exclude=_ALWAYS | {"created_by_user_id", "updated_at"},
+        portable=frozenset({"purchases", "usages", "used_elsewhere"}),
+    ),
+    JsonSection(
+        "supplies.purchases",
+        SupplyPurchase,
+        keys=frozenset({"date", "quantity", "total_cost", "part_number", "notes"}),
+        # The supply is the parent; the supplier travels by name, like a vendor.
+        exclude=frozenset({"id", "supply_id", "supplier_id", "created_at"}),
+        portable=frozenset({"supplier_name"}),
+    ),
+    JsonSection(
+        "supplies.usages",
+        SupplyUsage,
+        # created_at is a standalone usage's ledger date.
+        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot", "created_at"}),
+        # Standalone only; a line item's usage travels under its line item.
+        exclude=frozenset({"id", "supply_id", "service_line_item_id"}),
+    ),
+    JsonSection(
+        "supplies.used_elsewhere",
+        SupplyUsage,
+        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot"}),
+        # The other vehicle's line item is named by its visit and description;
+        # the visit dates it.
+        exclude=frozenset({"id", "supply_id", "service_line_item_id", "created_at"}),
+        portable=frozenset({"vin", "date", "description", "item_index", "item_cost"}),
+    ),
+    JsonSection(
+        "service_visits.line_items.supply_usages",
+        SupplyUsage,
+        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot"}),
+        # The line item is the parent; the supply travels as an index or a name key.
+        exclude=frozenset({"id", "supply_id", "service_line_item_id", "created_at"}),
+        portable=frozenset({"supply"}),
+    ),
+    JsonSection(
+        "maintenance_rules",
+        MaintenanceRule,
+        keys=frozenset(
+            {
+                "maintenance_type",
+                "title",
+                "interval_km",
+                "interval_months",
+                "interval_days",
+                "interval_hours",
+                "source",
+                "source_pack_id",
+                "source_pack_key",
+                "notes",
+                "is_active",
+            }
+        ),
+        exclude=_ALWAYS | {"updated_at"},
+        portable=frozenset({"reminders"}),
+    ),
+    JsonSection(
+        "maintenance_rules.reminders",
+        Reminder,
+        keys=_REMINDER_KEYS,
+        exclude=_REMINDER_EXCLUDE,
+    ),
+    JsonSection(
+        "manual_reminders",
+        Reminder,
+        keys=_REMINDER_KEYS,
+        exclude=_REMINDER_EXCLUDE,
+    ),
+    JsonSection(
+        "recalls",
+        Recall,
+        keys=frozenset(
+            {
+                "nhtsa_campaign_number",
+                "component",
+                "summary",
+                "consequence",
+                "remedy",
+                "date_announced",
+                "is_resolved",
+                "resolved_at",
+                "notes",
+            }
+        ),
+        exclude=_ALWAYS,
+    ),
+    JsonSection(
+        "dtcs",
+        VehicleDTC,
+        keys=frozenset(
+            {
+                "device_id",  # the WiCAN's id as text; no FK, nothing reads the link (K11)
+                "code",
+                "description",
+                "severity",
+                "user_notes",
+                "first_seen",
+                "last_seen",
+                "cleared_at",
+                "is_active",
+            }
+        ),
+        exclude=_ALWAYS,
+    ),
+    JsonSection(
+        "tire_sets",
+        TireSet,
+        keys=frozenset({"name", "notes"}),
+        exclude=_ALWAYS,
+    ),
+    JsonSection(
+        "tires",
+        Tire,
+        keys=frozenset(
+            {
+                "position",
+                "brand",
+                "model_name",
+                "size",
+                "dot_code",
+                "retired_on",
+                "tread_depth_mm",
+                "pressure_kpa",
+                "min_tread_mm",
+                "notes",
+                "storage_location",
+            }
+        ),
+        # The set travels as its place in this file's tire_sets.
+        exclude=_ALWAYS | {"set_id", "updated_at"},
+        portable=frozenset({"set_index", "mount_periods", "readings"}),
+    ),
+    JsonSection(
+        "tires.mount_periods",
+        TireMountPeriod,
+        keys=frozenset(
+            {
+                "position",
+                "mounted_on",
+                "dismounted_on",
+                "mounted_odometer_km",
+                "dismounted_odometer_km",
+                "mounted_hours",
+                "dismounted_hours",
+                "is_assumed",
+                "observed_active_on",
+                "notes",
+            }
+        ),
+        # The tire is the parent.
+        exclude=frozenset({"id", "tire_id", "created_at"}),
+    ),
+    JsonSection(
+        "tires.readings",
+        TireReading,
+        keys=frozenset(
+            {
+                "position",
+                "recorded_at",
+                "odometer_km",
+                "engine_hours",
+                "tread_depth_mm",
+                "pressure_kpa",
+                "notes",
+            }
+        ),
+        # The tire is the parent; the period travels as its place in the tire's periods.
+        exclude=_ALWAYS | {"tire_id", "mount_period_id"},
+        portable=frozenset({"mount_period_index"}),
+    ),
+    JsonSection(
+        "brake_axles",
+        BrakeAxle,
+        keys=frozenset(
+            {
+                "axle",
+                "brake_type",
+                "min_thickness_mm",
+                "new_thickness_mm",
+                "rotor_min_mm",
+                "drum_max_mm",
+            }
+        ),
+        exclude=_ALWAYS | {"updated_at"},
+    ),
+    JsonSection(
+        "brake_jobs",
+        BrakeJob,
+        keys=frozenset(
+            {
+                "position",
+                "brake_type",
+                "performed_on",
+                "odometer_km",
+                "engine_hours",
+                "friction_replaced",
+                "surface",
+                "notes",
+            }
+        ),
+        exclude=_ALWAYS,
+    ),
+    JsonSection(
+        "brake_measurements",
+        BrakeMeasurement,
+        keys=frozenset(
+            {
+                "position",
+                "recorded_at",
+                "odometer_km",
+                "engine_hours",
+                "inner_pad_mm",
+                "outer_pad_mm",
+                "rotor_mm",
+                "shoe_mm",
+                "drum_mm",
+                "notes",
+            }
+        ),
+        # The job travels as its place in this file's brake_jobs.
+        exclude=_ALWAYS | {"brake_job_id"},
+        portable=frozenset({"brake_job_index"}),
+    ),
 ]
 
 
@@ -383,6 +674,8 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             FinancingRecord(vin=_VIN, date=day, amount=Decimal("1"), category="upfront_fee"),
             TaxRecord(vin=_VIN, date=day, amount=Decimal("1")),
             WarrantyRecord(vin=_VIN, warranty_type="Other", start_date=day),
+            Recall(vin=_VIN, component="x", summary="x"),
+            VehicleDTC(vin=_VIN, device_id="b3bcoverage", code="P0420"),
         ]
     )
     await db_session.flush()
@@ -395,17 +688,96 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             SpotRentalBilling(spot_rental_id=rental.id, billing_date=day),
         ]
     )
+    # A rule and its reminder.
+    rule = MaintenanceRule(vin=_VIN, title="Oil", interval_months=6, source="manual")
+    db_session.add(rule)
+    await db_session.flush()
+    db_session.add(
+        Reminder(vin=_VIN, rule_id=rule.id, title="Oil", reminder_type="date", due_date=day)
+    )
+    # A reminder a person made.
+    db_session.add(Reminder(vin=_VIN, title="Plates", reminder_type="date", due_date=day))
+    # A set, a tire in it, a period and a reading in that period.
+    tire_set = TireSet(vin=_VIN, name="Winter")
+    db_session.add(tire_set)
+    await db_session.flush()
+    tire = Tire(vin=_VIN, position="FL", set_id=tire_set.id)
+    db_session.add(tire)
+    await db_session.flush()
+    period = TireMountPeriod(tire_id=tire.id, position="FL", mounted_on=day)
+    db_session.add(period)
+    await db_session.flush()
+    db_session.add(
+        TireReading(
+            tire_id=tire.id,
+            vin=_VIN,
+            mount_period_id=period.id,
+            recorded_at=day,
+            tread_depth_mm=Decimal("8"),
+        )
+    )
+    # An axle setup, a job and the check it wrote.
+    brake_job = BrakeJob(
+        vin=_VIN, position="FL", brake_type="disc", performed_on=day, friction_replaced=True
+    )
+    db_session.add_all(
+        [
+            brake_job,
+            BrakeAxle(
+                vin=_VIN,
+                axle="front",
+                brake_type="disc",
+                min_thickness_mm=Decimal("3"),
+                new_thickness_mm=Decimal("10"),
+            ),
+        ]
+    )
+    await db_session.flush()
+    db_session.add(
+        BrakeMeasurement(
+            vin=_VIN,
+            position="FL",
+            recorded_at=day,
+            inner_pad_mm=Decimal("9"),
+            brake_job_id=brake_job.id,
+        )
+    )
+    # A pinned supply with a purchase and an adjustment, a line item that used
+    # it, and a line item on another vehicle's visit that used it too.
+    pinned = Supply(name="Coverage oil", unit_type="volume", vin=_VIN)
+    used_on = ServiceLineItem(visit_id=visit.id, description="oil")
+    other = Vehicle(vin=_OTHER_VIN, user_id=test_user["id"], nickname="Other", vehicle_type="Car")
+    db_session.add_all([pinned, used_on, other])
+    await db_session.flush()
+    elsewhere = ServiceVisit(vin=_OTHER_VIN, date=day, service_category="Maintenance")
+    db_session.add(elsewhere)
+    await db_session.flush()
+    used_elsewhere = ServiceLineItem(visit_id=elsewhere.id, description="top up")
+    db_session.add(used_elsewhere)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=pinned.id, date=day, quantity=Decimal("1")),
+            SupplyUsage(supply_id=pinned.id, quantity=Decimal("0.5")),
+            SupplyUsage(
+                supply_id=pinned.id, service_line_item_id=used_on.id, quantity=Decimal("1")
+            ),
+            SupplyUsage(
+                supply_id=pinned.id, service_line_item_id=used_elsewhere.id, quantity=Decimal("1")
+            ),
+        ]
+    )
     await db_session.commit()
     return _VIN
 
 
 def _rows_at(export: dict[str, Any], path: str) -> list[dict[str, Any]]:
-    """The rows at `path`: a top-level list, the vehicle object, or a nested list."""
-    top, _, nested = path.partition(".")
+    """The rows at `path`: a top-level list, the vehicle object, or a list nested at any depth."""
+    top, *nested = path.split(".")
     value = export[top]
     rows = [value] if isinstance(value, dict) else value
-    if nested:
-        rows = [child for row in rows for child in row[nested]]
+    for key in nested:
+        rows = [child for row in rows for child in row[key]]
     return rows
 
 
@@ -438,3 +810,14 @@ async def test_every_model_column_is_exported_or_excluded(
     assert not (spec.keys | spec.exclude) - columns, (
         f"{spec.path}: not model columns: {sorted((spec.keys | spec.exclude) - columns)}"
     )
+
+
+def test_rows_at_walks_a_path_of_any_depth():
+    export = {
+        "vehicle": {"vin": "x"},
+        "a": [{"b": [{"c": [{"k": 1}, {"k": 2}]}, {"c": []}]}, {"b": []}],
+    }
+    assert _rows_at(export, "vehicle") == [{"vin": "x"}]
+    assert _rows_at(export, "a.b") == [{"c": [{"k": 1}, {"k": 2}]}, {"c": []}]
+    # main: KeyError 'b.c', it only walks one level.
+    assert _rows_at(export, "a.b.c") == [{"k": 1}, {"k": 2}]

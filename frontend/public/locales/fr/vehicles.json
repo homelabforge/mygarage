@@ -235,7 +235,6 @@
       "gvwrClass": "Classe GVWR",
       "highway": "Autoroute",
       "importFuelRecords": "Enregistrements de carburant",
-      "importMaintenanceRecords": "Maintenance (à partir des rappels)",
       "importOdometerRecords": "Relevés d'odomètre",
       "importServiceRecords": "Dossiers d'entretien",
       "importSummaryHeading": "Import terminé :",

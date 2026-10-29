@@ -43,6 +43,8 @@ Rerunning `tools/recompute_session_aggregates.py` changes the figures on a drive
 
 A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit) is stored as km/h from now on. Earlier history from those devices stays in raw mph. A parameter labelled mph is relabelled km/h, and its alert lines are rescaled to km/h, when its first mph reading on this version arrives.
 
+Migration 137 closes any duplicate active DTC rows a vehicle has for one code, keeping the newest, before it adds the index that allows one active row per code. The closed rows stay in the history with a note saying why. It isn't FATAL.
+
 ### Added
 - LiveLink offline alerts cover sensors with no status topic, such as a Mopeka gateway: a live reading marks the sensor online, and it alerts once when it goes quiet
 - LiveLink device responses carry `online`, and the device list's status reads it
@@ -51,6 +53,11 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - Imports report warnings beside errors, for rows that came in but not whole: a fuel station or driver this instance doesn't have (kept as text), a toll whose tag didn't import, or an old reminder that kept its date but not its mileage
 - The JSON import's message lists its errors and warnings, not only counts, and the fuel and odometer CSV imports list their warnings beside their errors. Each list shows the first five and how many more
 - A JSON import that refused rows shows a warning instead of a success, and the fuel and odometer CSV messages stay up longer while they list errors or warnings
+- The vehicle JSON backup (schema 9) also carries tires with their sets, mount periods and readings, brakes (axle setup, jobs and measurements), the maintenance rules with their reminders, your own reminders in every status, recalls, DTCs, and the supplies kept for the vehicle with their purchases and usages
+- A service visit in the JSON backup carries the supplies it used, so a restored visit's total includes them again. A supply shared across vehicles, or kept for another vehicle, is found by its name, part number and unit, or added with no stock and a warning
+- Restoring a vehicle whose supply was used on another vehicle's visit counts that use once, in either restore order, and that visit's total includes it
+- Restoring only the supply's vehicle warns about the use it can't count
+- The fuel CSV (schema 8) carries kWh, Propane Volume, Tank Size, Tank Quantity and Price Basis, so an EV charge or a propane fill-up round-trips
 
 ### Changed
 - An engine-off stop shorter than the drive gap no longer splits a drive
@@ -86,10 +93,15 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - The reminder list refreshes every minute while it's open, so a fill-up logged from Telegram or LiveLink moves it without a reload
 - The service CSV (schema 8) numbers each visit in a new Visit column, keeps item notes and visit notes apart, and adds Tax, Shop Supplies, Misc Fees and Insurance Claim. Rows that share a number import as one visit with its line items; rows of an older file are grouped by date, odometer, engine hours, shop and category
 - The JSON backup writes service visits with every line item (category, maintenance type, cost, notes, the inspection result and the repair it led to), every fuel column (fill time, engine hours, propane, kWh and charging, station, driver, payment, trip type, outside temperature and trip computer), the DEF entry type, and where each odometer reading came from
-- Supplies a service visit used aren't in the JSON backup, so a restored visit's total is its line items plus tax and fees, without the supplies' cost
 - A MyGarage CSV or JSON import updates the odometer and engine hours from its fill-ups, service visits and DEF records, one reading a day, without taking over a reading already there, and refreshes the analytics
 - A repeating reminder from an old (v2) backup keeps the due date and mileage it was exported with, instead of counting a new interval from the import
 - Imported odometer and hours readings drop their "[AUTO-SYNC ...]" note and import as manual, LiveLink or webhook readings, so a fill-up or delete on this instance no longer treats it as its own reading
+- A JSON restore brings in tires, brakes, maintenance rules and the vehicle's supplies, each only when the vehicle has none of that kind yet, and says so when it skips one. A section with a bad row is refused whole, with the row named
+- A JSON restore raises the low-tread and brake reminders its tires and brakes call for straight away, instead of at the next morning's check
+- A restored recall that the NHTSA check already brought back takes the backup's resolution and notes, unless the one here has its own
+- A service CSV whose rows of one visit disagree on the date, shop, odometer, fees or another visit column refuses that visit, naming the column and two of the rows, instead of taking the first row's values. A sheet with one Notes column instead of Item Notes and Visit Notes can still have a different note on each row
+- The JSON import is rate limited like the other imports
+- The import message lists the new sections, reusing the app's translated list titles where there is one, and its reminders line reads Reminders instead of Maintenance (from reminders)
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
@@ -173,6 +185,13 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 - Re-importing a service CSV skips a visit whose item description has leading or trailing spaces instead of adding it again
 - A backup restores a spot rental bill dated outside the stay, which editing the rental's dates can leave, instead of refusing the rental
 - A reading or volume converted from miles or gallons is stored at the column's precision, so SQLite and PostgreSQL hold the same figure
+- A fuel CSV price that isn't per volume (per kWh, per weight or per tank) is written by its basis instead of as a price per gallon or litre, and comes back with its basis
+- A fill-up saved with a driver who isn't a user answers 422 "driver_user_id: no such user". Before, it was a 409 that read as a duplicate, or on a SQLite install older than 2.27.0 the id was stored as is
+- On a SQLite install older than 2.27.0, deleting a user clears them as the driver on their fill-ups, as every other install already did, and migration 138 (not FATAL) clears the ones already left behind
+- A recall component up to 200 characters saves on PostgreSQL, which refused anything past 100 and failed the whole NHTSA refresh (migration 137, not FATAL)
+- A vehicle keeps one active row per DTC code: a device report that races another report or an import updates the row that got there first, and an import that brings a second active copy skips it and says so
+- A DTC import never adds a second active copy of a code, even where migration 137 couldn't build its index
+- An old (v2) backup's reminder is only skipped as a copy of a reminder you made, never of a maintenance rule's, a tire's or a brake's
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)

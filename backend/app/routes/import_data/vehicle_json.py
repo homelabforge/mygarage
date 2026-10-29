@@ -10,10 +10,11 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, cast
 
-from fastapi import Depends, File, Form, HTTPException, UploadFile
+from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.database import get_db
 from app.models import (
     DEFRecord,
@@ -31,7 +32,10 @@ from app.models import (
     TollTransaction,
     WarrantyRecord,
 )
+from app.models.recall import Recall
+from app.models.supply import Supply, SupplyUsage
 from app.models.user import User
+from app.models.vehicle_dtc import VehicleDTC
 from app.routes.import_data._common import (
     _SERVICE_CATEGORIES,
     VALID_SERVICE_CATEGORIES,
@@ -49,8 +53,10 @@ from app.routes.import_data._common import (
     _RowError,
     _unexpected_reason,
     _within_api_bounds,
+    limiter,
     router,
 )
+from app.routes.import_data._families import run_family
 from app.routes.import_data._fuel import (
     _DRIVER_KEPT_AS_TEXT,
     _STATION_KEPT_AS_TEXT,
@@ -111,6 +117,27 @@ from app.routes.import_data._service import (
     _vendor_id_for,
     _visit_total,
 )
+from app.routes.import_data.json_brakes import parse_brakes, write_brakes
+from app.routes.import_data.json_dtcs import import_dtcs
+from app.routes.import_data.json_recalls import import_recalls
+from app.routes.import_data.json_schedule import (
+    manual_reminder_key,
+    parse_rules,
+    reminder_from_json,
+    write_rules,
+)
+from app.routes.import_data.json_supplies import (
+    SupplyResolver,
+    line_item_usage_counts,
+    line_item_usages_from_json,
+    parse_supplies,
+    write_supplies,
+)
+from app.routes.import_data.json_tires import (
+    parse_tires,
+    sync_imported_tires,
+    write_tires,
+)
 from app.schemas.hours import HoursRecordCreate
 from app.schemas.odometer import OdometerRecordCreate
 from app.schemas.reminder import ReminderCreate
@@ -120,6 +147,7 @@ from app.schemas.service_visit import (
 )
 from app.services import maintenance_service
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.brake_service import BrakeService
 from app.services.fuel_side_effects import invalidate_cache_for_vehicle
 from app.services.insurance_service import InsuranceService
 from app.services.reminder_service import start_readings
@@ -137,7 +165,7 @@ from app.utils.units import UnitConverter
 logger = logging.getLogger(__name__)
 
 
-#: The record lists a vehicle JSON backup may carry, in the order they import.
+#: The top-level lists a vehicle JSON backup may carry. The route's order is S7's, not this tuple's.
 _JSON_IMPORT_SECTIONS = (
     "service_records",
     "service_visits",
@@ -154,11 +182,51 @@ _JSON_IMPORT_SECTIONS = (
     "toll_transactions",
     "warranties",
     "spot_rentals",
+    "maintenance_rules",
+    "tire_sets",
+    "tires",
+    "brake_axles",
+    "brake_jobs",
+    "brake_measurements",
+    "supplies",
+    "manual_reminders",
+    "recalls",
+    "dtcs",
+)
+
+#: The response's buckets, one per section it counts, in the order the import
+#: runs them. The frontend's SECTIONS (utils/importSummary.ts) copies this order.
+_JSON_RESULT_BUCKETS = (
+    "supplies",
+    "service_records",
+    "fuel_records",
+    "def_records",
+    "odometer_records",
+    "hours_records",
+    "reminders",
+    "notes",
+    "insurance_policies",
+    "financing_records",
+    "tax_records",
+    "toll_tags",
+    "toll_transactions",
+    "warranties",
+    "spot_rentals",
+    "maintenance_rules",
+    "recalls",
+    "dtcs",
+    "tire_sets",
+    "tires",
+    "brake_axles",
+    "brake_jobs",
+    "brake_measurements",
 )
 
 
 @router.post("/vehicles/{vin}/json")
+@limiter.limit(settings.rate_limit_uploads)
 async def import_vehicle_json(
+    request: Request,
     vin: str,
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
@@ -248,6 +316,7 @@ async def import_vehicle_json(
     matcher = await _DuplicateMatcher.before_import(
         db,
         ServiceVisit,
+        Supply,
         FuelRecord,
         DEFRecord,
         OdometerRecord,
@@ -260,29 +329,34 @@ async def import_vehicle_json(
         SpotRental,
         Reminder,
         Note,
+        Recall,
+        VehicleDTC,
     )
     readings = _ImportReadings()
 
     errors: list[str] = []
     warnings: list[str] = []
-    results = {
-        "service_records": {"success": 0, "errors": 0, "skipped": 0},
-        "fuel_records": {"success": 0, "errors": 0, "skipped": 0},
-        "def_records": {"success": 0, "errors": 0, "skipped": 0},
-        "odometer_records": {"success": 0, "errors": 0, "skipped": 0},
-        "hours_records": {"success": 0, "errors": 0, "skipped": 0},
-        "reminders": {"success": 0, "errors": 0, "skipped": 0},
-        "notes": {"success": 0, "errors": 0, "skipped": 0},
-        "insurance_policies": {"success": 0, "errors": 0, "skipped": 0},
-        "financing_records": {"success": 0, "errors": 0, "skipped": 0},
-        "tax_records": {"success": 0, "errors": 0, "skipped": 0},
-        "toll_tags": {"success": 0, "errors": 0, "skipped": 0},
-        "toll_transactions": {"success": 0, "errors": 0, "skipped": 0},
-        "warranties": {"success": 0, "errors": 0, "skipped": 0},
-        "spot_rentals": {"success": 0, "errors": 0, "skipped": 0},
-        "errors": errors,
-        "warnings": warnings,
-    }
+    results: dict[str, Any] = {
+        name: {"success": 0, "errors": 0, "skipped": 0} for name in _JSON_RESULT_BUCKETS
+    } | {"errors": errors, "warnings": warnings}
+
+    # Pinned supplies come first, whole or not at all and only into a vehicle
+    # with none pinned, so a visit's usage can name one by its place in the file.
+    user_id = current_user.id if current_user else None
+    supplies = await run_family(
+        db,
+        vin,
+        "supplies",
+        sections,
+        results,
+        errors,
+        warnings,
+        parse=lambda: parse_supplies(vin, sections, user_id),
+        write=lambda plan: write_supplies(db, plan, current_user),
+    )
+    if supplies.outcome == "written" and supplies.plan is not None:
+        warnings.extend(supplies.plan.warnings)
+    resolver = SupplyResolver(vin, sections["supplies"], user_id, supplies)
 
     # Import service records (creates ServiceVisit + ServiceLineItem + Vendor)
     for idx, record_data in enumerate(sections["service_records"]):
@@ -420,8 +494,18 @@ async def import_vehicle_json(
                 _line_item_from_json(position, item, len(line_items))
                 for position, item in enumerate(line_items)
             ]
+            # Beside the item, not in it, so each reason names its usage.
+            usages = [
+                line_item_usages_from_json(position, item, sections["supplies"])
+                for position, item in enumerate(line_items)
+            ]
+            # The supplies a visit used count toward its total (K12).
             total_cost = _visit_total(
-                (columns["cost"] for columns, _link in items), tax_amount, shop_supplies, misc_fees
+                (columns["cost"] for columns, _link in items),
+                tax_amount,
+                shop_supplies,
+                misc_fees,
+                usage_costs=(u.cost_snapshot for item_usages in usages for u in item_usages),
             )
             # As given: the CSV and v8 imports make vendors with no length cap, and
             # _vendor_id_for matches the exact name, so a cut name would make a second.
@@ -455,6 +539,21 @@ async def import_vehicle_json(
             item_fields = tuple(
                 f for f in _ITEM_KEY_FIELDS if all(f in item for item in line_items)
             )
+            # What each item used, when every item says (T-16). A 3a file's
+            # don't, so its visits keep the key they had (R1-H4).
+            compare_usages = all("supply_usages" in item for item in line_items)
+            usage_keys = (
+                [
+                    line_item_usage_counts(
+                        position,
+                        await resolver.stored_before(db, item_usages, matcher.last_id(Supply)),
+                        sections["supplies"],
+                    )
+                    for position, item_usages in enumerate(usages)
+                ]
+                if skip_duplicates and compare_usages
+                else []
+            )
             if (
                 skip_duplicates
                 and await matcher.take(
@@ -479,10 +578,12 @@ async def import_vehicle_json(
                                 columns["description"],
                                 columns["cost"],
                                 *(_item_key_value(f, columns[f]) for f in item_fields),
+                                *([usage_keys[position]] if compare_usages else []),
                             )
-                            for columns, _link in items
+                            for position, (columns, _link) in enumerate(items)
                         ),
                         item_fields=item_fields,
+                        compare_usages=compare_usages,
                     ),
                 )
                 is not None
@@ -519,7 +620,29 @@ async def import_vehicle_json(
                 for line_item, (_columns, link) in zip(written, items, strict=True):
                     if link is not None:
                         line_item.triggered_by_inspection_id = written[link].id
+                # What each item used, its supply found or added in this savepoint.
+                for position, (line_item, item_usages) in enumerate(
+                    zip(written, usages, strict=True)
+                ):
+                    for k, usage in enumerate(item_usages):
+                        try:
+                            supply_id = await resolver.resolve(db, usage.ref, usage.owner)
+                        except _RowError as e:
+                            raise _RowError(
+                                f"line item {position}, supply usage {k}: {e.reason}"
+                            ) from e
+                        db.add(
+                            SupplyUsage(
+                                supply_id=supply_id,
+                                service_line_item_id=line_item.id,
+                                quantity=usage.quantity,
+                                unit_cost_snapshot=usage.unit_cost_snapshot,
+                                cost_snapshot=usage.cost_snapshot,
+                            )
+                        )
                 await db.flush()
+            # The savepoint held, so the supplies it added stay.
+            warnings.extend(resolver.visit_done())
             readings.add(
                 "service_visit",
                 visit.id,
@@ -529,9 +652,11 @@ async def import_vehicle_json(
             )
             results["service_records"]["success"] += 1
         except _RowError as e:
+            resolver.visit_failed()
             results["service_records"]["errors"] += 1
             errors.append(f"Service visit {idx}: {e.reason}")
         except Exception as e:
+            resolver.visit_failed()
             results["service_records"]["errors"] += 1
             logger.warning("Import: service visit %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Service visit {idx}: {_unexpected_reason(e)}")
@@ -892,12 +1017,15 @@ async def import_vehicle_json(
 
             title = reminder_data["description"]
             status = "done" if is_completed else "pending"
+            # A person made these too, so a rule's or a sync's reminder is never spent (S6).
             if (
                 skip_duplicates
                 and await matcher.take(
                     db,
                     Reminder,
                     Reminder.vin == vin,
+                    Reminder.rule_id.is_(None),
+                    Reminder.source.is_(None),
                     Reminder.title == title,
                     Reminder.reminder_type == reminder_type,
                     _matches(Reminder.due_date, due_date),
@@ -1248,28 +1376,141 @@ async def import_vehicle_json(
             logger.warning("Import: spot rental %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Spot rental {idx}: {_unexpected_reason(e)}")
 
+    # The rules come with their reminders, whole or not at all, and only into a
+    # vehicle with no rules. The reconcile after the commit keeps their due points (K1).
+    rules = await run_family(
+        db,
+        vin,
+        "maintenance_rules",
+        sections,
+        results,
+        errors,
+        warnings,
+        parse=lambda: parse_rules(vin, sections),
+        write=lambda plan: write_rules(db, plan),
+    )
+    if rules.outcome == "written" and rules.plan is not None:
+        warnings.extend(rules.plan.warnings)
+
+    # Reminders a person made, every status, counted with the legacy ones (T-4).
+    # The v2 loop reads ["description"], so v9 writes them in their own list (N-3).
+    for idx, row in enumerate(sections["manual_reminders"]):
+        try:
+            reminder, type_dropped = reminder_from_json(vin, row)
+            # A rule's or a sync's reminder with the same title is never spent.
+            if (
+                skip_duplicates
+                and await matcher.take(
+                    db,
+                    Reminder,
+                    Reminder.vin == vin,
+                    Reminder.rule_id.is_(None),
+                    Reminder.source.is_(None),
+                    *manual_reminder_key(row, reminder),
+                )
+                is not None
+            ):
+                results["reminders"]["skipped"] += 1
+                continue
+
+            async with db.begin_nested():
+                db.add(reminder)
+            results["reminders"]["success"] += 1
+            if type_dropped:
+                warnings.append(
+                    f"Manual reminder {idx}: its maintenance type isn't a code, "
+                    "so it was saved without one"
+                )
+        except _RowError as e:
+            results["reminders"]["errors"] += 1
+            errors.append(f"Manual reminder {idx}: {e.reason}")
+        except Exception as e:
+            results["reminders"]["errors"] += 1
+            logger.warning("Import: manual reminder %s failed: %s", idx, sanitize_for_log(e))
+            errors.append(f"Manual reminder {idx}: {_unexpected_reason(e)}")
+
+    # Recalls, keyed on the campaign. One the nightly check put back gains the file's resolution.
+    await import_recalls(
+        db,
+        vin,
+        sections["recalls"],
+        matcher=matcher,
+        skip_duplicates=skip_duplicates,
+        bucket=results["recalls"],
+        errors=errors,
+    )
+
+    # DTCs, keyed on code and first seen. The index keeps one active row per code.
+    await import_dtcs(
+        db,
+        vin,
+        sections["dtcs"],
+        matcher=matcher,
+        skip_duplicates=skip_duplicates,
+        bucket=results["dtcs"],
+        errors=errors,
+        warnings=warnings,
+    )
+
+    # The tire family comes in whole or not at all, and only into a vehicle with no tires.
+    tires = await run_family(
+        db,
+        vin,
+        "tires",
+        sections,
+        results,
+        errors,
+        warnings,
+        parse=lambda: parse_tires(vin, sections),
+        write=lambda plan: write_tires(db, plan),
+    )
+
+    # Brakes too: whole or not at all, and only into a vehicle with no brake records.
+    brakes = await run_family(
+        db,
+        vin,
+        "brakes",
+        sections,
+        results,
+        errors,
+        warnings,
+        parse=lambda: parse_brakes(vin, sections),
+        write=lambda plan: write_brakes(db, plan),
+    )
+
+    # Only the tires this import wrote can raise a low-tread reminder (N-2).
+    if tires.outcome == "written" and tires.plan is not None:
+        try:
+            async with db.begin_nested():
+                await sync_imported_tires(db, tires.plan)
+        except Exception as e:
+            # Derived data, like the reading sync: the tires stay without it.
+            logger.warning(
+                "Import: low-tread sync failed for vin=%s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
+            )
+
+    # A LOW corner in the file raises its reminder now, not at 08:00 (N-2). A
+    # skipped family brought nothing new, so only a written one runs the pass.
+    if brakes.outcome == "written":
+        try:
+            async with db.begin_nested():
+                await BrakeService(db).raise_reminders_for(vin)
+        except Exception as e:
+            # The brakes stay; the 08:00 pass raises it instead.
+            logger.warning(
+                "Import: brake reminder raise failed for vin=%s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
+            )
+
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once.
     await maintenance_service.reconcile_vehicle(db, vin)
     await invalidate_cache_for_vehicle(vin)
 
-    metric_keys = (
-        "service_records",
-        "fuel_records",
-        "def_records",
-        "odometer_records",
-        "hours_records",
-        "reminders",
-        "notes",
-        "insurance_policies",
-        "financing_records",
-        "tax_records",
-        "toll_tags",
-        "toll_transactions",
-        "warranties",
-        "spot_rentals",
-    )
-    for key in metric_keys:
+    for key in _JSON_RESULT_BUCKETS:
         bucket = results[key]
         bucket["success_count"] = bucket.get("success", 0)
         bucket["error_count"] = bucket.get("errors", 0)

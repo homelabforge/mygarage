@@ -90,7 +90,12 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "Filled At": "filled_at",
             "Odometer (km)": "odometer_km",
             "Volume (L)": "liters",
+            "Propane Volume (L)": "propane_liters",
+            "Tank Size (kg)": "tank_size_kg",
+            "Tank Quantity": "tank_quantity",
+            "kWh": "kwh",
             "Price Per Unit (L)": "price_per_unit",
+            "Price Basis": "price_basis",
             "Rebate": "rebate",
             "Total Cost": "cost",
             "Full Tank": "is_full_tank",
@@ -123,12 +128,6 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "vin",
             # Internal bookkeeping not meaningful in user-facing exports:
             "created_at",
-            # Alternate-unit fields covered by Volume; format is canonical metric:
-            "propane_liters",
-            "tank_size_kg",
-            "tank_quantity",
-            "kwh",
-            "price_basis",
         },
     ),
     # Service is one row per line item (J6): the visit's columns repeat on each of

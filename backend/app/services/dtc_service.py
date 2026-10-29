@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dtc_definition import DTCDefinition
@@ -99,7 +100,8 @@ class DTCService:
         An active row for the code gets its last_seen bumped. Anything else
         gets a new row, so a code that comes back after a clear starts a
         fresh record and the cleared one stays as history. Codes missing
-        from the list are left alone.
+        from the list are left alone. An insert that loses the race to the
+        one-active-code index lands on the row that won.
 
         Args:
             vin: Vehicle VIN
@@ -125,19 +127,37 @@ class DTCService:
                 existing.last_seen = now
                 processed.append(existing)
             else:
-                # Create new DTC record
-                dtc = await self._create_vehicle_dtc(vin, device_id, code, now)
+                # Create new DTC record. Flush first, so the except below only ever
+                # sees this insert and not something the caller left pending.
+                await self.db.flush()
+                try:
+                    async with self.db.begin_nested():
+                        dtc = await self._create_vehicle_dtc(vin, device_id, code, now)
+                except IntegrityError:
+                    # Another writer (an import, or a second report) got there between the
+                    # look and the insert. Its row wins; just touch it.
+                    winner = await self._get_vehicle_dtc(vin, code)
+                    if winner is None:
+                        raise
+                    winner.last_seen = now
+                    dtc = winner
                 processed.append(dtc)
 
         return processed
 
     async def _get_vehicle_dtc(self, vin: str, code: str) -> VehicleDTC | None:
-        """Get an existing DTC record for a vehicle."""
+        """The vehicle's active row of `code`, the newest if there's more than one.
+
+        137's index keeps it to one, but where 137 failed there can be two, and
+        a report touching the newest beats one that raises.
+        """
         result = await self.db.execute(
             select(VehicleDTC)
             .where(VehicleDTC.vin == vin)
             .where(VehicleDTC.code == code)
             .where(VehicleDTC.is_active == True)  # noqa: E712
+            .order_by(VehicleDTC.last_seen.desc(), VehicleDTC.id.desc())
+            .limit(1)
         )
         return result.scalar_one_or_none()
 
