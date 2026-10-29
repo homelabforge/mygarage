@@ -45,7 +45,7 @@ from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_dtc import VehicleDTC
-from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.auth import get_vehicle_or_403, require_auth, visible_vehicles_filter
 from app.services.fuel_service import resolve_station_names
 from app.utils.csv_emission import BasisPrice, apply_unit_set, marker_for
 from app.utils.csv_safe import sanitize_csv_row
@@ -433,12 +433,15 @@ def _line_item_usage_json(usage: SupplyUsage, supply_index: dict[int, int]) -> d
     }
 
 
-def _used_elsewhere_json(usage: SupplyUsage) -> dict[str, Any]:
+def _used_elsewhere_json(usage: SupplyUsage, readable_vins: set[str]) -> dict[str, Any]:
     """A use of this supply on another vehicle's visit, named by that visit, not copied.
 
     The visit's date goes out as written, so no zone can move it a day.
     """
     line_item = cast(ServiceLineItem, usage.line_item)
+    # Can't read that vehicle? Then you get how much was used and nothing about it.
+    if line_item.visit.vin not in readable_vins:
+        return {"quantity": _json_quantity(usage.quantity)}
     return {
         "vin": line_item.visit.vin,
         "date": line_item.visit.date.isoformat(),
@@ -449,7 +452,9 @@ def _used_elsewhere_json(usage: SupplyUsage) -> dict[str, Any]:
     }
 
 
-def _supply_json(supply: Supply, vin: str, supplier_names: dict[int, str]) -> dict[str, Any]:
+def _supply_json(
+    supply: Supply, vin: str, supplier_names: dict[int, str], readable_vins: set[str]
+) -> dict[str, Any]:
     """A pinned supply and its whole ledger, each entry once.
 
     A usage on this vehicle's visit goes under its line item, and a standalone
@@ -467,7 +472,7 @@ def _supply_json(supply: Supply, vin: str, supplier_names: dict[int, str]) -> di
         if usage.line_item is None
     ]
     used_elsewhere = [
-        _used_elsewhere_json(usage)
+        _used_elsewhere_json(usage, readable_vins)
         for usage in usages
         if usage.line_item is not None and usage.line_item.visit.vin != vin
     ]
@@ -1388,6 +1393,30 @@ async def export_vehicle_json(
     )
     # A line item names a pinned supply by its place in `supplies`.
     supply_index = {supply.id: index for index, supply in enumerate(pinned_supplies)}
+    # The other vehicles a pinned supply was used on, narrowed to the ones this
+    # user can read, by the same rule as get_vehicle_or_403.
+    other_vins = {
+        u.line_item.visit.vin
+        for s in pinned_supplies
+        for u in s.usages
+        if u.line_item is not None and u.line_item.visit.vin != vin
+    }
+    scope = visible_vehicles_filter(current_user)
+    readable_vins: set[str] = (
+        set(
+            (
+                await db.execute(
+                    select(Vehicle.vin).where(
+                        Vehicle.vin.in_(other_vins), *([scope] if scope is not None else [])
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if other_vins
+        else set()
+    )
     supplier_ids = {
         p.supplier_id for s in pinned_supplies for p in s.purchases if p.supplier_id is not None
     }
@@ -1499,7 +1528,7 @@ async def export_vehicle_json(
             }
             for r in spot_rentals
         ],
-        "supplies": [_supply_json(s, vin, supplier_names) for s in pinned_supplies],
+        "supplies": [_supply_json(s, vin, supplier_names, readable_vins) for s in pinned_supplies],
         "maintenance_rules": [
             {
                 **_json_columns(rule, _RULE_JSON_EXCLUDE),

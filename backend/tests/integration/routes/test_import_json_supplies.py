@@ -17,6 +17,7 @@ from app.models.address_book import AddressBookEntry
 from app.models.settings import Setting
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.vehicle import Vehicle
+from app.models.vehicle_share import VehicleShare
 from tests.integration.routes._json_backup import V9, export_json, import_json
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -648,8 +649,8 @@ async def _balance(db_session: AsyncSession, supply_id: int) -> Decimal:
 
 def _not_counted(name: str, quantity: str, vin: str, day: str) -> str:
     return (
-        f'{quantity} of supply "{name}" was used on {vin}\'s service on {day}, '
-        "which isn't here, so it isn't counted"
+        f'{quantity} of supply "{name}" was used on {vin}\'s service on {day} '
+        "and couldn't be matched here, so it isn't counted"
     )
 
 
@@ -1161,6 +1162,74 @@ async def test_a_use_elsewhere_never_writes_to_a_vehicle_the_importer_cant_edit(
     ).scalar_one() == 0
     [copy_id] = await _supply_ids(db_session, name)
     assert await _balance(db_session, copy_id) == Decimal("10")
+
+
+@pytest.mark.parametrize("shared", [False, True], ids=["no-access-to-b", "b-shared-read"])
+async def test_a_use_elsewhere_names_only_a_vehicle_the_exporter_can_read(
+    shared: bool,
+    client: AsyncClient,
+    auth_headers,
+    non_admin_headers,
+    non_admin_user,
+    test_user,
+    db_session: AsyncSession,
+    new_vehicle,
+):
+    name = f"Jug {_tag()}"
+    a, b = await new_vehicle(), await new_vehicle()
+    await _jug_used_on_b(db_session, name, a, b)
+    # A is the non-admin's; B is someone else's, shared to them read-only or not at all.
+    await db_session.execute(
+        update(Vehicle).where(Vehicle.vin == a).values(user_id=non_admin_user["id"])
+    )
+    if shared:
+        db_session.add(
+            VehicleShare(
+                vehicle_vin=b,
+                user_id=non_admin_user["id"],
+                permission="read",
+                shared_by=test_user["id"],
+            )
+        )
+    await db_session.commit()
+
+    [exported] = (await export_json(client, non_admin_headers, a))["supplies"]
+    [use] = exported["used_elsewhere"]
+    if shared:
+        assert (use["vin"], use["date"], use["description"]) == (b, "2026-03-01", "Top up")
+        assert (use["unit_cost_snapshot"], use["cost_snapshot"]) == (1.5, 4.5)
+    else:
+        # 7e9821aa: B's VIN, item and costs went to someone who can't read B.
+        assert set(use) == {"quantity"}
+    assert Decimal(use["quantity"]) == Decimal("3")
+
+
+async def test_a_use_elsewhere_with_only_a_quantity_warns_and_writes_nothing(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Jug {_tag()}"
+    vin = await new_vehicle()
+    payload = {
+        **V9,
+        "supplies": [
+            {
+                "name": name,
+                "unit_type": "count",
+                "purchases": [{"date": "2026-02-01", "quantity": "10"}],
+                "used_elsewhere": [{"quantity": "3.0000000000000"}],
+            }
+        ],
+    }
+    data = await import_json(client, auth_headers, vin, payload)
+
+    # 7e9821aa: "vin is missing" refused the whole family.
+    assert data["errors"] == []
+    assert data["warnings"] == [
+        f"3 of supply \"{name}\" was used on another vehicle's service, so it isn't counted"
+    ]
+    [copy_id] = await _supply_ids(db_session, name)
+    assert await _balance(db_session, copy_id) == Decimal("10")
+    assert await _usages_of(db_session, copy_id) == 0
 
 
 async def test_a_restore_never_takes_another_visits_job_usage(

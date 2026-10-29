@@ -90,6 +90,13 @@ class UsedElsewhere:
 
 
 @dataclass(frozen=True)
+class UnnamedUse:
+    """A use on a vehicle the exporter couldn't read: only how much, nothing to match."""
+
+    quantity: Decimal
+
+
+@dataclass(frozen=True)
 class PinnedSupply:
     """One pinned supply, each purchase with its supplier's name, and its usages."""
 
@@ -97,7 +104,7 @@ class PinnedSupply:
     key: SupplyKey
     purchases: list[tuple[SupplyPurchase, str | None]]
     usages: list[SupplyUsage]
-    used_elsewhere: list[UsedElsewhere]
+    used_elsewhere: list[UsedElsewhere | UnnamedUse]
 
 
 @dataclass
@@ -183,8 +190,13 @@ def _standalone_usage_from_json(row: Mapping[str, Any]) -> SupplyUsage:
     return usage
 
 
-def _used_elsewhere_from_json(row: Mapping[str, Any]) -> UsedElsewhere:
+def _used_elsewhere_from_json(row: Mapping[str, Any]) -> UsedElsewhere | UnnamedUse:
     """One use on another vehicle's visit, checked like a line item's usage."""
+    # The exporter couldn't read that vehicle, so the file only says how much.
+    if not any(k in row for k in ("vin", "date", "description")):
+        quantity = _required_quantity(row)
+        _within_api_bounds(SupplyUsageInput, quantity=quantity)
+        return UnnamedUse(quantity)
     other_vin = _json_text(row, "vin")
     if other_vin is None:
         raise _RowError("vin is missing")
@@ -232,7 +244,7 @@ def _supply_from_json(vin: str, user_id: int | None, index: int, raw: Any) -> Pi
             usages.append(_standalone_usage_from_json(as_object(raw_usage)))
         except _RowError as e:
             raise _RowError(f"Supply {index}, usage {j}: {e.reason}") from e
-    used_elsewhere: list[UsedElsewhere] = []
+    used_elsewhere: list[UsedElsewhere | UnnamedUse] = []
     for j, raw_use in enumerate(raw_used_elsewhere):
         try:
             used_elsewhere.append(_used_elsewhere_from_json(as_object(raw_use)))
@@ -295,14 +307,20 @@ async def write_supplies(db: AsyncSession, plan: SupplyPlan, user: User | None) 
     editable: dict[str, bool] = {}
     for pinned in plan.supplies:
         for use in pinned.used_elsewhere:
+            if isinstance(use, UnnamedUse):
+                plan.warnings.append(
+                    f'{_plain(use.quantity)} of supply "{pinned.supply.name}" was used on '
+                    "another vehicle's service, so it isn't counted"
+                )
+                continue
             if use.vin not in editable:
                 editable[use.vin] = await _can_edit(db, use.vin, user)
             if editable[use.vin] and await _place_used_elsewhere(db, pinned, use):
                 continue
             plan.warnings.append(
                 f'{_plain(use.quantity)} of supply "{pinned.supply.name}" was used on '
-                f"{use.vin}'s service on {use.used_on.isoformat()}, which isn't here, "
-                "so it isn't counted"
+                f"{use.vin}'s service on {use.used_on.isoformat()} and couldn't be "
+                "matched here, so it isn't counted"
             )
 
 
