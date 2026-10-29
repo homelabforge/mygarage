@@ -337,14 +337,11 @@ class SupplyResolver:
         file_supplies: list[Any],
         user_id: int | None,
         family: FamilyResult[SupplyPlan],
-        *,
-        last_usage_id: int,
     ) -> None:
         self._vin = vin
         self._file_supplies = file_supplies
         self._user_id = user_id
         self._family = family
-        self._last_usage_id = last_usage_id
         self._cache: dict[tuple[_Scope, SupplyKey], int] = {}
         self._visit_cache: dict[tuple[_Scope, SupplyKey], int] = {}
         self._visit_warnings: list[str] = []
@@ -381,11 +378,13 @@ class SupplyResolver:
 
         A supply pinned elsewhere exports this vehicle's job usage as a
         standalone one dated by the visit (R1-H3), so restoring both vehicles
-        would count it twice. Only one stored before this import, each taken once.
+        would count it twice. Each one is taken at most once.
         """
         if not isinstance(ref, SupplyKey):
             return None
         pinned_to = (await db.execute(select(Supply.vin).where(Supply.id == supply_id))).scalar()
+        # Pinned elsewhere only. That also keeps this import's own standalone
+        # usages out: the family only writes them on supplies pinned here.
         if pinned_to is None or pinned_to == self._vin:
             return None
         candidates = await db.execute(
@@ -393,7 +392,6 @@ class SupplyResolver:
             .where(
                 SupplyUsage.supply_id == supply_id,
                 SupplyUsage.service_line_item_id.is_(None),
-                SupplyUsage.id <= self._last_usage_id,
                 _same_figure(SupplyUsage.quantity, usage.quantity),
                 _same_figure(SupplyUsage.unit_cost_snapshot, usage.unit_cost_snapshot),
                 _same_figure(SupplyUsage.cost_snapshot, usage.cost_snapshot),

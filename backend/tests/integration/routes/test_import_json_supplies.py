@@ -394,6 +394,26 @@ async def test_a_bad_usage_is_its_visits_row_error(
     assert data["service_records"]["error_count"] == 1
 
 
+async def test_a_refused_familys_bad_row_says_refused_without_duplicate_checks(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    vin = await new_vehicle()
+    payload = {
+        **V9,
+        "supplies": [{"name": "Rags", "unit_type": "box"}],
+        "service_visits": [_visit_using("2026-05-01", ({"index": 0}, 1))],
+    }
+    data = await import_json(client, auth_headers, vin, payload, skip_duplicates=False)
+    # No key to build, so the row's own reason doesn't come up; the refusal does.
+    # main: neither section is read, so no errors.
+    assert data["errors"] == [
+        "Supply 0: unit_type must be one of volume, count, "
+        "so the file's pinned supplies weren't imported",
+        'Service visit 0: line item 0, supply usage 0: the pinned supply "Rags" '
+        "was refused with its family",
+    ]
+
+
 async def test_a_supplier_missing_here_is_left_off_with_a_warning(
     client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
 ):
@@ -739,6 +759,203 @@ async def test_a_shared_supplys_own_adjustment_on_the_visit_day_stays_standalone
     assert linked[0] is None
     # main: [None], the usage is never read.
     assert len(linked) == 2 and linked[1] is not None
+
+
+async def _balance(db_session: AsyncSession, supply_id: int) -> Decimal:
+    """Bought less used, over the supply's whole ledger."""
+    db_session.expire_all()
+    bought = (
+        await db_session.execute(
+            select(func.coalesce(func.sum(SupplyPurchase.quantity), 0)).where(
+                SupplyPurchase.supply_id == supply_id
+            )
+        )
+    ).scalar_one()
+    used = (
+        await db_session.execute(
+            select(func.coalesce(func.sum(SupplyUsage.quantity), 0)).where(
+                SupplyUsage.supply_id == supply_id
+            )
+        )
+    ).scalar_one()
+    return Decimal(str(bought)) - Decimal(str(used))
+
+
+async def test_a_failed_visit_gives_back_the_moved_usage_it_took(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    name, ghost = f"Jug {tag}", f"Ghost {tag}"
+    a, b = await new_vehicle(), await new_vehicle()
+    jug = Supply(name=name, unit_type="count")
+    job = ServiceVisit(vin=b, date=date(2026, 3, 1), service_category="Maintenance")
+    db_session.add_all([jug, job])
+    await db_session.flush()
+    item = ServiceLineItem(visit_id=job.id, description="Top up")
+    db_session.add(item)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=jug.id, date=date(2026, 2, 1), quantity=Decimal("10")),
+            SupplyUsage(supply_id=jug.id, service_line_item_id=item.id, quantity=Decimal("3")),
+        ]
+    )
+    await db_session.flush()
+    jug.vin = a
+    await db_session.commit()
+    backup_a = await export_json(client, auth_headers, a)
+    backup_b = await export_json(client, auth_headers, b)
+    jug.name = f"Gone {tag}"
+    await db_session.commit()
+
+    new_a, new_b = await new_vehicle(), await new_vehicle()
+    await import_json(client, auth_headers, new_a, backup_a)
+    real = backup_b["service_visits"][0]
+    # Takes the moved usage back, adds a ghost, then fails on the refused supply.
+    failing = json.loads(json.dumps(real))
+    failing["line_items"][0]["supply_usages"] += [
+        {"supply": _shared_ref(ghost), "quantity": 1},
+        {"supply": {"index": 0}, "quantity": 1},
+    ]
+    payload = {
+        **backup_b,
+        "supplies": [
+            {
+                "name": f"Rags {tag}",
+                "unit_type": "count",
+                "purchases": [{"date": "2026-01-01", "quantity": 0}],
+            }
+        ],
+        "service_visits": [failing, real],
+    }
+    data = await import_json(client, auth_headers, new_b, payload)
+    assert [e.split(":")[0] for e in data["errors"]] == ["Supply 0, purchase 0", "Service visit 0"]
+    assert data["warnings"] == []
+    assert data["service_records"]["success_count"] == 1
+
+    # main: ValueError, A's file brings no supply to unpack.
+    [copy_id] = (
+        (await db_session.execute(select(Supply.id).where(Supply.name == name))).scalars().all()
+    )
+    # The failed visit's claim went back with it, so the real one took the usage.
+    assert await _balance(db_session, copy_id) == Decimal("7")
+    assert await _usages_of(db_session, copy_id) == 1
+    assert await _usages_by_name(db_session, new_b) == [(name, Decimal("3"))]
+    assert (
+        await db_session.execute(
+            select(func.count()).select_from(Supply).where(Supply.name == ghost)
+        )
+    ).scalar_one() == 0
+
+
+async def test_a_restore_never_takes_another_visits_job_usage(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    tag = _tag()
+    name = f"Jug {tag}"
+    a, b = await new_vehicle(), await new_vehicle()
+    # Pinned to A, used on B's visit and logged that day: a job usage, not a moved one.
+    jug = Supply(name=name, unit_type="count", vin=a)
+    job = ServiceVisit(vin=b, date=date(2026, 3, 1), service_category="Maintenance")
+    db_session.add_all([jug, job])
+    await db_session.flush()
+    item = ServiceLineItem(visit_id=job.id, description="Top up")
+    db_session.add(item)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SupplyPurchase(supply_id=jug.id, date=date(2026, 2, 1), quantity=Decimal("10")),
+            SupplyUsage(
+                supply_id=jug.id,
+                service_line_item_id=item.id,
+                quantity=Decimal("3"),
+                created_at=datetime(2026, 3, 1, 12, 0),
+            ),
+        ]
+    )
+    await db_session.commit()
+    jug_id, item_id = jug.id, item.id
+
+    backup_b = await export_json(client, auth_headers, b)
+    new_b = await new_vehicle()
+    await import_json(client, auth_headers, new_b, backup_b)
+
+    # B's own job keeps its usage; the restored visit gets its own.
+    db_session.expire_all()
+    assert (
+        await db_session.execute(
+            select(func.count())
+            .select_from(SupplyUsage)
+            .where(SupplyUsage.service_line_item_id == item_id)
+        )
+    ).scalar_one() == 1
+    # main: KeyError, the export writes no supply_usages.
+    assert await _usages_by_name(db_session, new_b) == [(name, Decimal("3"))]
+    assert await _usages_of(db_session, jug_id) == 2
+
+
+_TARGET = (Decimal("2"), Decimal("1.5000"), Decimal("3.00"))
+
+_DECOYS = [
+    pytest.param((Decimal("3"), Decimal("1.5000"), Decimal("3.00")), id="quantity"),
+    pytest.param((Decimal("2"), Decimal("2.0000"), Decimal("3.00")), id="unit-cost-snapshot"),
+    pytest.param((Decimal("2"), Decimal("1.5000"), Decimal("4.00")), id="cost-snapshot"),
+]
+
+
+@pytest.mark.parametrize("decoy", _DECOYS)
+async def test_each_job_takes_back_the_moved_usage_with_its_own_figures(
+    decoy: tuple[Decimal, Decimal, Decimal],
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
+):
+    tag = _tag()
+    name = f"Jug {tag}"
+    a, b = await new_vehicle(), await new_vehicle()
+    jug = Supply(name=name, unit_type="count")
+    job = ServiceVisit(vin=b, date=date(2026, 3, 1), service_category="Maintenance")
+    db_session.add_all([jug, job])
+    await db_session.flush()
+    target_item = ServiceLineItem(visit_id=job.id, description="Target")
+    decoy_item = ServiceLineItem(visit_id=job.id, description="Decoy")
+    db_session.add_all([target_item, decoy_item])
+    await db_session.flush()
+    db_session.add(SupplyPurchase(supply_id=jug.id, date=date(2026, 2, 1), quantity=Decimal("10")))
+    # The decoy's usage first, so it's the first candidate the target job sees.
+    for line_item, (quantity, unit_cost, cost) in ((decoy_item, decoy), (target_item, _TARGET)):
+        db_session.add(
+            SupplyUsage(
+                supply_id=jug.id,
+                service_line_item_id=line_item.id,
+                quantity=quantity,
+                unit_cost_snapshot=unit_cost,
+                cost_snapshot=cost,
+            )
+        )
+        await db_session.flush()
+    jug.vin = a
+    await db_session.commit()
+    backup_a = await export_json(client, auth_headers, a)
+    backup_b = await export_json(client, auth_headers, b)
+    jug.name = f"Gone {tag}"
+    await db_session.commit()
+
+    new_a, new_b = await new_vehicle(), await new_vehicle()
+    await import_json(client, auth_headers, new_a, backup_a)
+    await import_json(client, auth_headers, new_b, backup_b)
+
+    visit = await _visit(db_session, new_b)
+    # main: KeyError, the export writes no supply_usages.
+    assert {
+        i.description: [
+            (u.quantity, u.unit_cost_snapshot, u.cost_snapshot) for u in i.supply_usages
+        ]
+        for i in visit.line_items
+    } == {"Target": [_TARGET], "Decoy": [decoy]}
+    [restored] = await _pinned(db_session, new_a)
+    assert restored["adjustments"] == []
 
 
 # -- D-5, D-15: where a supply the file names is looked up -----------------------
