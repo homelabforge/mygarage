@@ -371,7 +371,6 @@
       "gvwrClass": "Classe PTT (GVWR)",
       "highway": "Extraurbano",
       "importFuelRecords": "Record di carburante",
-      "importMaintenanceRecords": "Manutenzione (da promemoria)",
       "importOdometerRecords": "Record contachilometri",
       "importServiceRecords": "Record tagliandi",
       "importSummaryHeading": "Importazione completata:",

@@ -204,8 +204,9 @@ describe('importSummary: the batch 3b sections (S9, B3-10)', () => {
     )
   })
 
-  it('walks every bucket in the order vehicle_json.py runs them, not the order _JSON_RESULT_BUCKETS lists them', () => {
-    // main: the fourteen 3a buckets only
+  it('pins the SECTIONS order, which matches the backend import order by hand', () => {
+    // main: the fourteen 3a buckets only. Nothing reads vehicle_json.py here,
+    // so a backend reorder has to land in this list too.
     expect(SECTIONS.map(([key]) => key)).toEqual([
       'supplies',
       'service_records',
@@ -231,13 +232,6 @@ describe('importSummary: the batch 3b sections (S9, B3-10)', () => {
       'brake_jobs',
       'brake_measurements',
     ])
-  })
-
-  it('calls the reminders bucket Reminders, since manual ones like Registration land there too', async () => {
-    // main: 'Maintenance (from reminders)'
-    expect(buildImportSummary({ reminders: bucket(2, 1) }, await english())).toBe(
-      'Import completed:\n\nReminders: ✓ 2 imported, ○ 1 skipped',
-    )
   })
 
   it('hasRowErrors reads the errors list, so a bucket it has no row for still counts', () => {

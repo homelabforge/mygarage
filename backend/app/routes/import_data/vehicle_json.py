@@ -194,8 +194,10 @@ _JSON_IMPORT_SECTIONS = (
     "dtcs",
 )
 
-#: The response's buckets, one per section it counts, in the order it lists them.
+#: The response's buckets, one per section it counts, in the order the import
+#: runs them. The frontend's SECTIONS (utils/importSummary.ts) copies this order.
 _JSON_RESULT_BUCKETS = (
+    "supplies",
     "service_records",
     "fuel_records",
     "def_records",
@@ -211,14 +213,13 @@ _JSON_RESULT_BUCKETS = (
     "warranties",
     "spot_rentals",
     "maintenance_rules",
+    "recalls",
+    "dtcs",
     "tire_sets",
     "tires",
     "brake_axles",
     "brake_jobs",
     "brake_measurements",
-    "supplies",
-    "recalls",
-    "dtcs",
 )
 
 

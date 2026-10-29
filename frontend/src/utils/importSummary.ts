@@ -9,16 +9,16 @@ export type ImportSectionResult = {
 
 /**
  * The section buckets the JSON import returns, in the order it imports them.
- * That's the order vehicle_json.py runs them in, not how _JSON_RESULT_BUCKETS lists them.
+ * vehicle_json.py's _JSON_RESULT_BUCKETS lists them in that order too; keep the two in step by hand.
  */
 export const SECTIONS = [
-  ['supplies', 'vehicles:detail.misc.importSupplies'],
+  ['supplies', 'vehicles:detail.misc.supplies'],
   ['service_records', 'vehicles:detail.misc.importServiceRecords'],
   ['fuel_records', 'vehicles:detail.misc.importFuelRecords'],
   ['def_records', 'vehicles:defList.title'],
   ['odometer_records', 'vehicles:detail.misc.importOdometerRecords'],
   ['hours_records', 'vehicles:hoursList.title'],
-  ['reminders', 'vehicles:detail.misc.importMaintenanceRecords'],
+  ['reminders', 'vehicles:reminderList.title'],
   ['notes', 'vehicles:noteList.title'],
   ['insurance_policies', 'vehicles:insuranceList.title'],
   ['financing_records', 'vehicles:financingList.title'],
@@ -28,10 +28,10 @@ export const SECTIONS = [
   ['warranties', 'vehicles:warrantyList.title'],
   ['spot_rentals', 'vehicles:spotRentalList.title'],
   ['maintenance_rules', 'vehicles:detail.misc.importMaintenanceRules'],
-  ['recalls', 'vehicles:detail.misc.importRecalls'],
+  ['recalls', 'vehicles:recallList.title'],
   ['dtcs', 'vehicles:detail.misc.importDtcs'],
-  ['tire_sets', 'vehicles:detail.misc.importTireSets'],
-  ['tires', 'vehicles:detail.misc.importTires'],
+  ['tire_sets', 'vehicles:tireList.setsTitle'],
+  ['tires', 'vehicles:tireList.title'],
   ['brake_axles', 'vehicles:detail.misc.importBrakeAxles'],
   ['brake_jobs', 'vehicles:detail.misc.importBrakeJobs'],
   ['brake_measurements', 'vehicles:detail.misc.importBrakeMeasurements'],

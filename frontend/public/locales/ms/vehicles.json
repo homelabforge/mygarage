@@ -369,7 +369,6 @@
       "gvwrClass": "Kelas GVWR",
       "highway": "Lebuh Raya",
       "importFuelRecords": "Rekod Bahan Api",
-      "importMaintenanceRecords": "Penyelenggaraan (daripada peringatan)",
       "importOdometerRecords": "Rekod Odometer",
       "importServiceRecords": "Rekod Servis",
       "importSummaryHeading": "Import selesai:",

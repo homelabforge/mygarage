@@ -242,7 +242,6 @@
       "gvwrClass": "ZGG-Klasse (GVWR)",
       "highway": "Autobahn / Landstraße",
       "importFuelRecords": "Kraftstoffeinträge",
-      "importMaintenanceRecords": "Wartung (aus Erinnerungen)",
       "importOdometerRecords": "Kilometerstandseinträge",
       "importServiceRecords": "Serviceberichte",
       "importSummaryHeading": "Import abgeschlossen:",
