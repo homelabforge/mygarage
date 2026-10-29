@@ -33,8 +33,11 @@ from app.routes.import_data._common import (
     _json_text,
     _RowError,
     _within_api_bounds,
+    parse_decimal,
 )
 from app.routes.import_data._matching import (
+    _COLUMN_SCALE,
+    _at_scale,
     _converted_value_matches,
     _matches,
     _money_matches,
@@ -53,6 +56,7 @@ from app.schemas.fuel import (
     _validate_diesel_grade,
     _validate_octane,
 )
+from app.utils.csv_units import MASS, PRICE_PER_VOLUME, CsvUnitContext
 from app.utils.odometer_tolerance import LITRE_STEP
 
 logger = logging.getLogger(__name__)
@@ -99,6 +103,35 @@ def _derive_price_basis(
     if liters is not None or propane_liters is not None:
         return "per_volume"
     return None
+
+
+def _csv_fuel_price(
+    units: CsvUnitContext,
+    row: Mapping[str, Any],
+    *,
+    liters: Decimal | None,
+    propane_liters: Decimal | None,
+    kwh: Decimal | None,
+) -> tuple[Decimal | None, str | None]:
+    """A fuel CSV row's canonical price and its basis (K9, S11).
+
+    The Price Basis column says what the price is per; a file without one
+    derives it like the migration did, so an old file reads exactly as before.
+    A per_weight price takes its pound or kilo from the Tank Size header, the
+    only place it's written, so without that column the row is refused.
+    """
+    header = units.column(PRICE_PER_VOLUME)
+    raw = parse_decimal(row.get(header) or "") if header is not None else None
+    basis = _in_vocabulary(
+        _blank_to_none((row.get("Price Basis") or "").strip()), "price_basis", PRICE_BASIS_VALUES
+    ) or _derive_price_basis(raw, liters=liters, propane_liters=propane_liters, kwh=kwh)
+    if raw is not None and basis == "per_weight" and units.column(MASS) is None:
+        raise _RowError("a per_weight price needs the Tank Size column to say what weight it's per")
+    price = units.price_to_canonical(raw, basis)
+    # R7: a converted price is rounded to the column's scale, like `_canonical_cell` does.
+    if units.price_converts(basis):
+        price = _at_scale(price, _COLUMN_SCALE[PRICE_PER_VOLUME])
+    return price, basis
 
 
 def _local_datetime(raw: Any, key: str) -> datetime | None:

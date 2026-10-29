@@ -81,6 +81,14 @@ kilometre. The table below is derived from what each column's stored
 |              |                 | mpg_uk   | 5  | reciprocal, see below        |
 | speed        | NUMERIC(5,1)    | kmh      | 1  | the stored scale             |
 |              |                 | mph      | 2  | 0.1 mph = 0.16 km/h > 0.1    |
+| propane vol  | NUMERIC(9,3)    | L        | 3  | as volume                    |
+|              |                 | gal_us   | 4  | as volume                    |
+|              |                 | gal_uk   | 4  | as volume                    |
+| tank size    | NUMERIC(7,3)    | kg       | 3  | the stored scale             |
+|              |                 | lb       | 3  | 0.001 lb = 0.45 g, finer     |
+| price/mass   | NUMERIC(13,4)   | kg       | 4  | the stored scale             |
+|              |                 | lb       | 5  | a pound price is 0.4536x the |
+|              |                 |          |    | kilo price; 4 dp is coarser  |
 
 The three reciprocal consumption tokens have no fixed resolution: one step of
 MPG is worth more L/100km the thirstier the vehicle. Five decimals carries
@@ -96,6 +104,11 @@ Price, temperature and consumption all widened so a value typed in the UI
 comes back as typed, and the CSV follows. A UK 6.000/gal is stored as
 1.3198/L; the litre cell now carries all four places, so a re-import stores
 1.3198 again. At 3 places that cell went out as 1.320 and came back 6.001/gal.
+
+A fuel price is written by its basis (K9). A per_weight one is per the mass
+unit, at the price/mass places above; a per_kwh or per_tank one has no unit
+in its denominator, so it goes out as stored, at 4 places, whatever the
+file's units.
 """
 
 from __future__ import annotations
@@ -109,10 +122,13 @@ from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet
 from app.utils.csv_units import (
     CONSUMPTION,
     DISTANCE,
+    MASS,
     PRICE_PER_VOLUME,
+    PROPANE_VOLUME,
     SPEED,
     TEMPERATURE,
     VOLUME,
+    mass_factor,
     spell_header,
     volume_factor,
 )
@@ -151,6 +167,12 @@ _CONSUMPTION_DECIMALS: Mapping[str, int] = {
     "mpg_uk": 5,
 }
 _SPEED_DECIMALS: Mapping[str, int] = {"kmh": 1, "mph": 2}
+_MASS_DECIMALS: Mapping[str, int] = {"kg": 3, "lb": 3}
+# Five for a pound: at four, 2.2047/kg goes out as 1.0000/lb and comes back
+# 2.2046. Five carry it home.
+_PRICE_PER_MASS_DECIMALS: Mapping[str, int] = {"kg": 4, "lb": 5}
+#: per_kwh and per_tank prices go out as stored.
+_UNITLESS_PRICE_DECIMALS = 4
 
 # Keyed by the CANONICAL header name the four export routes declare, which is
 # also the metric spelling v3 through v5 emitted. A header not in this map is
@@ -164,6 +186,7 @@ _SPEED_DECIMALS: Mapping[str, int] = {"kmh": 1, "mph": 2}
 # places from these definitions rather than from a second copy.
 ODOMETER_COLUMN = EmittedColumn(DISTANCE, "distance", "Odometer", _DISTANCE_DECIMALS)
 VOLUME_COLUMN = EmittedColumn(VOLUME, "volume", "Volume", _VOLUME_DECIMALS)
+_FUEL_PRICE_COLUMN = EmittedColumn(PRICE_PER_VOLUME, "volume", "Price Per Unit", _PRICE_DECIMALS)
 
 EMITTED_COLUMNS: Mapping[str, EmittedColumn] = {
     "Odometer (km)": ODOMETER_COLUMN,
@@ -172,7 +195,7 @@ EMITTED_COLUMNS: Mapping[str, EmittedColumn] = {
     # had never been exported at all, so there is no legacy spelling to alias.
     "Mileage Limit (km)": EmittedColumn(DISTANCE, "distance", "Mileage Limit", _DISTANCE_DECIMALS),
     "Liters": VOLUME_COLUMN,
-    "Price Per Liter": EmittedColumn(PRICE_PER_VOLUME, "volume", "Price Per Unit", _PRICE_DECIMALS),
+    "Price Per Liter": _FUEL_PRICE_COLUMN,
     # DEF's price column has always been called `Price Per Unit`; v6 adds the
     # volume token to it and the two pairs then share one spelling.
     "Price Per Unit": EmittedColumn(PRICE_PER_VOLUME, "volume", "Price Per Unit", _PRICE_DECIMALS),
@@ -184,7 +207,25 @@ EMITTED_COLUMNS: Mapping[str, EmittedColumn] = {
     # v6 has one base name and four tokens.
     "OBC L/100km": EmittedColumn(CONSUMPTION, "consumption", "OBC Economy", _CONSUMPTION_DECIMALS),
     "OBC Avg Speed (km/h)": EmittedColumn(SPEED, "speed", "OBC Avg Speed", _SPEED_DECIMALS),
+    # Batch 3b's fuel columns (B3-3). Propane is a volume, so it follows the
+    # account's volume unit; tank size follows its mass unit.
+    "Propane Volume (L)": EmittedColumn(
+        PROPANE_VOLUME, "volume", "Propane Volume", _VOLUME_DECIMALS
+    ),
+    "Tank Size (kg)": EmittedColumn(MASS, "mass", "Tank Size", _MASS_DECIMALS),
 }
+
+
+@dataclass(frozen=True)
+class BasisPrice:
+    """A fuel price cell and the basis its denominator is in (K9).
+
+    The fuel export hands this to `apply_unit_set` in place of a bare price, so
+    a per-kg or per-kWh price isn't scaled as if it were per litre.
+    """
+
+    value: Decimal | None
+    basis: str | None
 
 
 def marker_for(units: UnitSet) -> str:
@@ -235,6 +276,11 @@ def _as_decimal(value: Any) -> Decimal | None:
     return Decimal(str(value))
 
 
+def _quantized(value: Decimal, decimals: int) -> str:
+    """`value` at `decimals` places, half up, as a plain numeric cell."""
+    return format(value.quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP), "f")
+
+
 def cell_for(column: EmittedColumn, token: str, value: Decimal | None) -> str:
     """One canonical value as the numeric cell `column` writes in `token`.
 
@@ -254,7 +300,25 @@ def cell_for(column: EmittedColumn, token: str, value: Decimal | None) -> str:
         display = ADAPTERS[token].to_display(value)
     if display is None:
         return ""
-    return format(display.quantize(Decimal(1).scaleb(-decimals), rounding=ROUND_HALF_UP), "f")
+    return _quantized(display, decimals)
+
+
+def price_cell(price: BasisPrice, volume_token: str, units: UnitSet) -> str:
+    """One fuel price as the cell it's written as, read by its basis.
+
+    The header still says the volume token (K9 accepts that); the Price Basis
+    column next to it says what the number is per. A per_weight price is
+    per the account's mass unit, which the Tank Size header spells out.
+    """
+    if price.value is None:
+        return ""
+    if price.basis == "per_weight":
+        return _quantized(
+            price.value * mass_factor(units.mass), _PRICE_PER_MASS_DECIMALS[units.mass]
+        )
+    if price.basis in ("per_kwh", "per_tank"):
+        return _quantized(price.value, _UNITLESS_PRICE_DECIMALS)
+    return cell_for(_FUEL_PRICE_COLUMN, volume_token, price.value)
 
 
 def apply_unit_set(
@@ -281,10 +345,16 @@ def apply_unit_set(
         columns.append((column, token))
 
     out_rows = [
-        [
-            value if bound is None else cell_for(bound[0], bound[1], _as_decimal(value))
-            for value, bound in zip(row, columns, strict=True)
-        ]
+        [_unit_cell(value, bound, units) for value, bound in zip(row, columns, strict=True)]
         for row in rows
     ]
     return out_headers, out_rows
+
+
+def _unit_cell(value: Any, bound: tuple[EmittedColumn, str] | None, units: UnitSet) -> Any:
+    """One cell of `apply_unit_set`: untouched, a price read by its basis, or converted."""
+    if bound is None:
+        return value
+    if isinstance(value, BasisPrice):
+        return price_cell(value, bound[1], units)
+    return cell_for(bound[0], bound[1], _as_decimal(value))

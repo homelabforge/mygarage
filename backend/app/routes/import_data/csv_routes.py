@@ -48,7 +48,7 @@ from app.routes.import_data._common import (
 from app.routes.import_data._fuel import (
     _DRIVER_KEPT_AS_TEXT,
     _STATION_KEPT_AS_TEXT,
-    _derive_price_basis,
+    _csv_fuel_price,
     _local_datetime,
     _portable_driver,
     _portable_station,
@@ -101,12 +101,16 @@ from app.utils.csv_units import (
     DISTANCE,
     FUEL_CONSUMPTION,
     FUEL_PRICE,
+    FUEL_PROPANE_VOLUME,
     FUEL_SPEED,
+    FUEL_TANK_SIZE,
     FUEL_TEMPERATURE,
     FUEL_VOLUME,
+    MASS,
     MILEAGE_LIMIT_DISTANCE,
     ODOMETER_DISTANCE,
     PRICE_PER_VOLUME,
+    PROPANE_VOLUME,
     READING_DISTANCE,
     SPEED,
     TEMPERATURE,
@@ -285,6 +289,8 @@ async def import_fuel_csv(
             FUEL_TEMPERATURE,
             FUEL_CONSUMPTION,
             FUEL_SPEED,
+            FUEL_PROPANE_VOLUME,
+            FUEL_TANK_SIZE,
         ),
     )
 
@@ -316,7 +322,15 @@ async def import_fuel_csv(
             # into odometer_km would lose ~38% of the distance).
             odometer_km = _canonical_cell(units, row, DISTANCE)
             liters = _canonical_cell(units, row, VOLUME)
-            price_per_unit = _canonical_cell(units, row, PRICE_PER_VOLUME)
+            # v8's propane, tank and kWh columns (B3-3). The price is read after
+            # them, since what it's per can depend on which of them the row has.
+            propane_liters = _canonical_cell(units, row, PROPANE_VOLUME)
+            tank_size_kg = _canonical_cell(units, row, MASS)
+            tank_quantity = parse_int(row.get("Tank Quantity") or "")
+            kwh = parse_decimal(row.get("kWh") or "")
+            price_per_unit, price_basis = _csv_fuel_price(
+                units, row, liters=liters, propane_liters=propane_liters, kwh=kwh
+            )
             # Temperature, consumption and speed have been EXPORTED since v4
             # and were dropped on the way back in until #152 phase 2b, so a
             # fuel CSV could not round-trip them at all.
@@ -406,6 +420,10 @@ async def import_fuel_csv(
                 odometer_km=odometer_km,
                 engine_hours=engine_hours,
                 liters=liters,
+                propane_liters=propane_liters,
+                tank_size_kg=tank_size_kg,
+                tank_quantity=tank_quantity,
+                kwh=kwh,
                 price_per_unit=price_per_unit,
                 cost=cost,
                 rebate=rebate,
@@ -418,9 +436,9 @@ async def import_fuel_csv(
                 obc_trip_duration_s=obc_trip_duration_s,
             )
 
-            # R5's fuel key. The CSV carries no kWh or propane (J7). A part is
-            # compared only when the file has its column (T-16), so two same-day
-            # fill-ups at one odometer both import (R1-H1).
+            # R5's fuel key. A part is compared only when the file has its
+            # column (T-16), so two same-day fill-ups at one odometer both
+            # import (R1-H1).
             if skip_duplicates:
                 key = [
                     FuelRecord.date == date,
@@ -448,6 +466,14 @@ async def import_fuel_csv(
                             zero_was_blank=zero_was_blank,
                         )
                     )
+                if units.column(PROPANE_VOLUME):
+                    key.append(_same_figure(FuelRecord.propane_liters, propane_liters))
+                if units.column(MASS):
+                    key.append(_same_figure(FuelRecord.tank_size_kg, tank_size_kg))
+                if "Tank Quantity" in row:
+                    key.append(_matches(FuelRecord.tank_quantity, tank_quantity))
+                if "kWh" in row:
+                    key.append(_same_figure(FuelRecord.kwh, kwh))
                 if "Total Cost" in row or "Cost" in row:
                     key.append(_money_matches(FuelRecord.cost, cost))
                 if await matcher.take(db, FuelRecord, FuelRecord.vin == vin, *key) is not None:
@@ -472,8 +498,12 @@ async def import_fuel_csv(
                 odometer_km=odometer_km,
                 engine_hours=engine_hours,
                 liters=liters,
+                propane_liters=propane_liters,
+                tank_size_kg=tank_size_kg,
+                tank_quantity=tank_quantity,
+                kwh=kwh,
                 price_per_unit=price_per_unit,
-                price_basis=_derive_price_basis(price_per_unit, liters=liters),
+                price_basis=price_basis,
                 cost=cost,
                 rebate=rebate,
                 is_full_tank=is_full_tank,

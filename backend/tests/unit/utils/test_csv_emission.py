@@ -33,7 +33,9 @@ from app.utils.csv_units import (
     DEF_PRICE,
     FUEL_CONSUMPTION,
     FUEL_PRICE,
+    FUEL_PROPANE_VOLUME,
     FUEL_SPEED,
+    FUEL_TANK_SIZE,
     FUEL_TEMPERATURE,
     FUEL_VOLUME,
     MILEAGE_LIMIT_DISTANCE,
@@ -363,6 +365,8 @@ class TestEmissionMeetsTheImporter:
         "Outside Temp (C)": (FUEL_TEMPERATURE, "temperature"),
         "OBC L/100km": (FUEL_CONSUMPTION, "consumption"),
         "OBC Avg Speed (km/h)": (FUEL_SPEED, "speed"),
+        "Propane Volume (L)": (FUEL_PROPANE_VOLUME, "propane_volume"),
+        "Tank Size (kg)": (FUEL_TANK_SIZE, "mass"),
     }
 
     def test_every_emitted_column_is_declared_here(self) -> None:

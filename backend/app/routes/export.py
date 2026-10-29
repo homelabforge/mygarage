@@ -47,7 +47,7 @@ from app.models.vehicle import Vehicle
 from app.models.vehicle_dtc import VehicleDTC
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import resolve_station_names
-from app.utils.csv_emission import apply_unit_set, marker_for
+from app.utils.csv_emission import BasisPrice, apply_unit_set, marker_for
 from app.utils.csv_safe import sanitize_csv_row
 from app.utils.household_time import household_zone
 from app.utils.insurance_coverages import coverage_text
@@ -101,7 +101,9 @@ limiter = Limiter(key_func=get_remote_address)
 #   `Notes` into `Item Notes` and `Visit Notes`, and adds `Tax`,
 #   `Shop Supplies`, `Misc Fees` and `Insurance Claim` (J6). Rows sharing a
 #   number import as one visit; an older file groups by date, odometer,
-#   vendor and category. The other CSVs keep their shape.
+#   vendor and category. The fuel CSV adds Propane Volume, Tank Size, Tank
+#   Quantity, kWh and Price Basis, and writes a price that isn't per volume by
+#   its basis (B3-3, K9). The other CSVs keep their shape.
 # - JSON "9": every section writes every column (R1): `service_visits` with
 #   nested `line_items` replaces `service_records`, the fuel, DEF, odometer
 #   and hours rows carry the rest of their columns, the vehicle is written
@@ -613,7 +615,12 @@ async def export_fuel_records_csv(
         "Odometer (km)",
         "Engine Hours",
         "Liters",
+        "Propane Volume (L)",
+        "Tank Size (kg)",
+        "Tank Quantity",
+        "kWh",
         "Price Per Liter",
+        "Price Basis",
         "Rebate",
         "Total Cost",
         "Full Tank",
@@ -657,7 +664,14 @@ async def export_fuel_records_csv(
                 # / obc_l_per_100km below.
                 f"{record.engine_hours:.1f}" if record.engine_hours is not None else "",
                 record.liters,
-                record.price_per_unit,
+                record.propane_liters,
+                record.tank_size_kg,
+                record.tank_quantity if record.tank_quantity is not None else "",
+                f"{record.kwh:.3f}" if record.kwh is not None else "",
+                # The price goes out by its basis, so a per-kg or per-kWh price
+                # isn't scaled like a per-litre one (K9).
+                BasisPrice(record.price_per_unit, record.price_basis),
+                record.price_basis or "",
                 _money_cell(record.rebate),
                 _money_cell(record.cost),
                 "Yes" if record.is_full_tank else "No",
