@@ -548,12 +548,14 @@ class SupplyResolver:
         self,
         vin: str,
         file_supplies: list[Any],
-        user_id: int | None,
+        user: User | None,
         family: FamilyResult[SupplyPlan],
     ) -> None:
         self._vin = vin
         self._file_supplies = file_supplies
-        self._user_id = user_id
+        self._user = user
+        self._user_id = user.id if user else None
+        self._editable: dict[str, bool] = {}
         self._family = family
         self._cache: dict[tuple[_Scope, SupplyKey, str | None], int] = {}
         self._visit_cache: dict[tuple[_Scope, SupplyKey, str | None], int] = {}
@@ -589,8 +591,11 @@ class SupplyResolver:
 
         A key names a supply that isn't in this file. When none was stored with
         that key, no stored item can have used it. Usually its vehicle was
-        deleted and took the use along. So it can't tell two visits apart, and restoring
-        that vehicle puts the use back.
+        deleted and took the use along. So it can't tell two visits apart, and
+        restoring that vehicle puts the use back.
+
+        Any vehicle's supply counts here, editable or not: a stored item keeps
+        its use either way, and this only reads.
         """
         kept: list[LineItemUsage] = []
         for usage in usages:
@@ -636,7 +641,7 @@ class SupplyResolver:
             if owner is not None and owner != self._vin:
                 places.insert(0, Supply.vin == owner)
         for place in places:
-            found = await self._lookup(db, key, place)
+            found = await self._usable(db, key, place)
             if found is not None:
                 break
         if found is None:
@@ -657,6 +662,26 @@ class SupplyResolver:
             )
         self._visit_cache[cache_key] = found
         return found
+
+    async def _usable(
+        self, db: AsyncSession, key: SupplyKey, place: ColumnElement[bool]
+    ) -> int | None:
+        """The lowest-id supply in `place` with the key that this import may use.
+
+        A use on a supply kept for another vehicle changes that vehicle's stock,
+        so it has to be one you can edit. A file can name any vehicle.
+        """
+        rows = await db.execute(
+            select(Supply.id, Supply.vin).where(*_key_matches(key), place).order_by(Supply.id)
+        )
+        for supply_id, supply_vin in rows.all():
+            if supply_vin is None or supply_vin == self._vin:
+                return supply_id
+            if supply_vin not in self._editable:
+                self._editable[supply_vin] = await _can_edit(db, supply_vin, self._user)
+            if self._editable[supply_vin]:
+                return supply_id
+        return None
 
     @staticmethod
     async def _lookup(db: AsyncSession, key: SupplyKey, place: ColumnElement[bool]) -> int | None:

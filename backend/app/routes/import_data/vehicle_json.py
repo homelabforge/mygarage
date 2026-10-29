@@ -356,7 +356,7 @@ async def import_vehicle_json(
     )
     if supplies.outcome == "written" and supplies.plan is not None:
         warnings.extend(supplies.plan.warnings)
-    resolver = SupplyResolver(vin, sections["supplies"], user_id, supplies)
+    resolver = SupplyResolver(vin, sections["supplies"], current_user, supplies)
 
     # Import service records (creates ServiceVisit + ServiceLineItem + Vendor)
     for idx, record_data in enumerate(sections["service_records"]):

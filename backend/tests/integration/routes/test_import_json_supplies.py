@@ -1389,6 +1389,76 @@ async def test_a_use_elsewhere_never_writes_to_a_vehicle_the_importer_cant_edit(
     assert await _balance(db_session, copy_id) == Decimal("10")
 
 
+@pytest.mark.parametrize("named", [True, False], ids=["by-vin", "by-key"])
+@pytest.mark.parametrize(
+    ("share", "usable"),
+    [(None, False), ("read", False), ("write", True)],
+    ids=["not-shared", "shared-read", "shared-write"],
+)
+async def test_a_use_lands_only_on_a_supply_the_importer_can_edit(
+    client: AsyncClient,
+    auth_headers,
+    non_admin_headers,
+    non_admin_user,
+    test_user,
+    db_session: AsyncSession,
+    new_vehicle,
+    named: bool,
+    share: str | None,
+    usable: bool,
+):
+    name = f"Jug {_tag()}"
+    theirs, mine = await new_vehicle(), await new_vehicle()
+    jug = Supply(name=name, unit_type="count", vin=theirs)
+    db_session.add(jug)
+    await db_session.flush()
+    db_session.add(SupplyPurchase(supply_id=jug.id, date=date(2026, 2, 1), quantity=Decimal("10")))
+    await db_session.execute(
+        update(Vehicle).where(Vehicle.vin == mine).values(user_id=non_admin_user["id"])
+    )
+    if share is not None:
+        db_session.add(
+            VehicleShare(
+                vehicle_vin=theirs,
+                user_id=non_admin_user["id"],
+                permission=share,
+                shared_by=test_user["id"],
+            )
+        )
+    await db_session.commit()
+    jug_id = jug.id
+
+    # A hand-made file can name anyone's supply.
+    ref: dict[str, Any] = {"name": name, "part_number": None, "unit_type": "count"}
+    if named:
+        ref["vin"] = theirs
+    payload = {
+        **V9,
+        "service_visits": [
+            {
+                "date": "2026-05-01",
+                "line_items": [
+                    {
+                        "description": "Top up",
+                        "supply_usages": [{"supply": ref, "quantity": 3}],
+                    }
+                ],
+            }
+        ],
+    }
+    data = await import_json(client, non_admin_headers, mine, payload)
+    assert data["service_records"]["success_count"] == 1
+
+    # a0bdc916: 7 every time, the use came off a jug they can't edit.
+    assert await _balance(db_session, jug_id) == (Decimal("7") if usable else Decimal("10"))
+    if not usable:
+        assert data["warnings"] == [
+            f"Supply \"{name}\" wasn't in this household's supplies, so it was added with no stock"
+        ]
+        [_, added] = await _supply_ids(db_session, name)
+        assert await _usages_of(db_session, added) == 1
+
+
 @pytest.mark.parametrize("shared", [False, True], ids=["no-access-to-b", "b-shared-read"])
 async def test_a_use_elsewhere_names_only_a_vehicle_the_exporter_can_read(
     shared: bool,
