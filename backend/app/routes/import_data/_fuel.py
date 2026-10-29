@@ -187,7 +187,8 @@ async def _portable_driver(
     """The driver id and text to store, and whether a link was dropped (R6).
 
     The id stays only when it is a user here with the exported username. The
-    API checks nothing more for a driver (T-5).
+    API checks only that the user exists (B3-1); this is stricter, and still
+    keeps a link to an inactive user, since a restore carries history.
     """
     if driver_id is None:
         return None, ((freetext or "").strip()[:100] or None), False
