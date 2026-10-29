@@ -46,6 +46,7 @@ from app.models.vehicle_dtc import VehicleDTC
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 _VIN = "B3RTJSONCOVERAGE1"
+_OTHER_VIN = "B3RTJSONCOVERAGE2"
 
 # Left out of every section: the row's own key, its vehicle (the file is the
 # vehicle's), and the bookkeeping timestamps.
@@ -413,7 +414,7 @@ SECTIONS = [
         ),
         # Pinned to this vehicle by being in the file; who made it is a user here.
         exclude=_ALWAYS | {"created_by_user_id", "updated_at"},
-        portable=frozenset({"purchases", "usages"}),
+        portable=frozenset({"purchases", "usages", "used_elsewhere"}),
     ),
     JsonSection(
         "supplies.purchases",
@@ -430,6 +431,15 @@ SECTIONS = [
         keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot", "created_at"}),
         # Standalone only; a line item's usage travels under its line item.
         exclude=frozenset({"id", "supply_id", "service_line_item_id"}),
+    ),
+    JsonSection(
+        "supplies.used_elsewhere",
+        SupplyUsage,
+        keys=frozenset({"quantity", "unit_cost_snapshot", "cost_snapshot"}),
+        # The other vehicle's line item is named by its visit and description;
+        # the visit dates it.
+        exclude=frozenset({"id", "supply_id", "service_line_item_id", "created_at"}),
+        portable=frozenset({"vin", "date", "description"}),
     ),
     JsonSection(
         "service_visits.line_items.supply_usages",
@@ -732,10 +742,18 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             brake_job_id=brake_job.id,
         )
     )
-    # A pinned supply with a purchase and an adjustment, and a line item that used it.
+    # A pinned supply with a purchase and an adjustment, a line item that used
+    # it, and a line item on another vehicle's visit that used it too.
     pinned = Supply(name="Coverage oil", unit_type="volume", vin=_VIN)
     used_on = ServiceLineItem(visit_id=visit.id, description="oil")
-    db_session.add_all([pinned, used_on])
+    other = Vehicle(vin=_OTHER_VIN, user_id=test_user["id"], nickname="Other", vehicle_type="Car")
+    db_session.add_all([pinned, used_on, other])
+    await db_session.flush()
+    elsewhere = ServiceVisit(vin=_OTHER_VIN, date=day, service_category="Maintenance")
+    db_session.add(elsewhere)
+    await db_session.flush()
+    used_elsewhere = ServiceLineItem(visit_id=elsewhere.id, description="top up")
+    db_session.add(used_elsewhere)
     await db_session.flush()
     db_session.add_all(
         [
@@ -743,6 +761,9 @@ async def seeded(db_session: AsyncSession, test_user) -> str:
             SupplyUsage(supply_id=pinned.id, quantity=Decimal("0.5")),
             SupplyUsage(
                 supply_id=pinned.id, service_line_item_id=used_on.id, quantity=Decimal("1")
+            ),
+            SupplyUsage(
+                supply_id=pinned.id, service_line_item_id=used_elsewhere.id, quantity=Decimal("1")
             ),
         ]
     )

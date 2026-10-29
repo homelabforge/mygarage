@@ -2,7 +2,7 @@ import csv
 import io
 import json
 from collections.abc import Sequence
-from datetime import UTC, date, datetime, time
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -49,7 +49,6 @@ from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import resolve_station_names
 from app.utils.csv_emission import BasisPrice, apply_unit_set, marker_for
 from app.utils.csv_safe import sanitize_csv_row
-from app.utils.household_time import household_zone
 from app.utils.insurance_coverages import coverage_text
 from app.utils.insurance_shares import effective_shares
 from app.utils.render_context import render_context_for_request
@@ -115,8 +114,9 @@ limiter = Limiter(key_func=get_remote_address)
 #   v2 list), `recalls`, `dtcs`, `tire_sets` and `tires` (each tire with
 #   its nested `mount_periods` and `readings`), `brake_axles`, `brake_jobs`,
 #   `brake_measurements` and `supplies` (each pinned supply with its nested
-#   `purchases` and standalone `usages`; a line item carries its own
-#   `supply_usages`) to v9 without a bump: a 3a file simply has none.
+#   `purchases`, standalone `usages` and `used_elsewhere`, its uses on
+#   another vehicle's visits; a line item carries its own `supply_usages`)
+#   to v9 without a bump: a 3a file simply has none.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -433,36 +433,44 @@ def _line_item_usage_json(usage: SupplyUsage, supply_index: dict[int, int]) -> d
     }
 
 
-def _moved_usage_created_at(visit: ServiceVisit) -> str:
-    """Household midnight of `visit`'s day as naive UTC, the stamp a standalone usage carries.
+def _used_elsewhere_json(usage: SupplyUsage) -> dict[str, Any]:
+    """A use of this supply on another vehicle's visit, named by that visit, not copied.
 
-    The ledger dates a job usage by its visit, so the restored one lands on the same day.
+    The visit's date goes out as written, so no zone can move it a day.
     """
-    midnight = datetime.combine(visit.date, time.min, tzinfo=household_zone())
-    return midnight.astimezone(UTC).replace(tzinfo=None).isoformat()
+    line_item = cast(ServiceLineItem, usage.line_item)
+    return {
+        "vin": line_item.visit.vin,
+        "date": line_item.visit.date.isoformat(),
+        "description": line_item.description,
+        "quantity": _json_quantity(usage.quantity),
+        "unit_cost_snapshot": _json_value(usage.unit_cost_snapshot),
+        "cost_snapshot": _json_value(usage.cost_snapshot),
+    }
 
 
 def _supply_json(supply: Supply, vin: str, supplier_names: dict[int, str]) -> dict[str, Any]:
     """A pinned supply and its whole ledger, each entry once.
 
-    A usage on this vehicle's visit goes under its line item. Every other one,
-    standalone or on another vehicle's visit, comes along here so the balance
-    survives a restore.
+    A usage on this vehicle's visit goes under its line item, and a standalone
+    one comes along here. One on another vehicle's visit goes in
+    `used_elsewhere`, so a restore can find it there instead of counting it twice.
     """
     purchases: list[SupplyPurchase] = sorted(supply.purchases, key=lambda p: p.id)
-    usages: list[SupplyUsage] = sorted(
-        (u for u in supply.usages if u.line_item is None or u.line_item.visit.vin != vin),
-        key=lambda u: u.id,
-    )
-    standalone: list[dict[str, Any]] = []
-    for usage in usages:
-        row = {
+    usages: list[SupplyUsage] = sorted(supply.usages, key=lambda u: u.id)
+    standalone = [
+        {
             **_json_columns(usage, _SUPPLY_ADJUSTMENT_JSON_EXCLUDE),
             "quantity": _json_quantity(usage.quantity),
         }
-        if usage.line_item is not None:
-            row["created_at"] = _moved_usage_created_at(usage.line_item.visit)
-        standalone.append(row)
+        for usage in usages
+        if usage.line_item is None
+    ]
+    used_elsewhere = [
+        _used_elsewhere_json(usage)
+        for usage in usages
+        if usage.line_item is not None and usage.line_item.visit.vin != vin
+    ]
     return {
         **_json_columns(supply, _SUPPLY_JSON_EXCLUDE),
         "purchases": [
@@ -476,6 +484,7 @@ def _supply_json(supply: Supply, vin: str, supplier_names: dict[int, str]) -> di
             for p in purchases
         ],
         "usages": standalone,
+        "used_elsewhere": used_elsewhere,
     }
 
 

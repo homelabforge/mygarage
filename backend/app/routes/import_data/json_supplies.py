@@ -1,11 +1,11 @@
 """Supplies in a JSON backup: the pinned ones whole, and what each line item used (K12).
 
-A pinned supply brings its whole ledger: its purchases, and every usage that
-isn't on one of this vehicle's visits as a standalone one, so its balance
-survives a restore. A line item's usage names its supply by its place in the
-file's `supplies`, or, for a shared supply or one pinned elsewhere, by a name
-key looked up here. Quantities travel as decimal text; a float keeps about 16
-of the column's 25 digits.
+A pinned supply brings its whole ledger: its purchases, its standalone usages,
+and a reference to each use on another vehicle's visit (`used_elsewhere`), so
+its balance survives a restore in either order. A line item's usage names its
+supply by its place in the file's `supplies`, or, for a shared supply or one
+pinned elsewhere, by a name key looked up here. Quantities travel as decimal
+text; a float keeps about 16 of the column's 25 digits.
 """
 
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false, reportUnusedClass=false
@@ -17,12 +17,16 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Literal, get_args
 
+from fastapi import HTTPException
 from pydantic import Field
-from sqlalchemy import ColumnElement, select
+from sqlalchemy import ColumnElement, and_, delete, exists, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.address_book import AddressBookEntry
+from app.models.service_line_item import ServiceLineItem
+from app.models.service_visit import ServiceVisit
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
+from app.models.user import User
 from app.routes.import_data._common import (
     _blank_to_none,
     _check_bounds,
@@ -53,7 +57,7 @@ from app.schemas.supply import (
     SupplyUsageInput,
     SupplyVolumeUnit,
 )
-from app.utils.household_time import household_date
+from app.services.auth import get_vehicle_or_403
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +78,26 @@ class SupplyKey:
 
 
 @dataclass(frozen=True)
+class UsedElsewhere:
+    """A use of a pinned supply on another vehicle's visit, named by that visit's line item."""
+
+    vin: str
+    used_on: date
+    description: str
+    quantity: Decimal
+    unit_cost_snapshot: Decimal | None
+    cost_snapshot: Decimal | None
+
+
+@dataclass(frozen=True)
 class PinnedSupply:
-    """One pinned supply, each purchase with its supplier's name, and its standalone usages."""
+    """One pinned supply, each purchase with its supplier's name, and its usages."""
 
     supply: Supply
+    key: SupplyKey
     purchases: list[tuple[SupplyPurchase, str | None]]
     usages: list[SupplyUsage]
+    used_elsewhere: list[UsedElsewhere]
 
 
 @dataclass
@@ -165,6 +183,21 @@ def _standalone_usage_from_json(row: Mapping[str, Any]) -> SupplyUsage:
     return usage
 
 
+def _used_elsewhere_from_json(row: Mapping[str, Any]) -> UsedElsewhere:
+    """One use on another vehicle's visit, checked like a line item's usage."""
+    other_vin = _json_text(row, "vin")
+    if other_vin is None:
+        raise _RowError("vin is missing")
+    used_on = _json_row_date(row, "date")
+    description = _json_text(row, "description")
+    if description is None:
+        raise _RowError("description is missing")
+    quantity = _required_quantity(row)
+    _within_api_bounds(SupplyUsageInput, quantity=quantity)
+    unit_cost, cost = _snapshots(row)
+    return UsedElsewhere(other_vin, used_on, description, quantity, unit_cost, cost)
+
+
 def _supply_from_json(vin: str, user_id: int | None, index: int, raw: Any) -> PinnedSupply:
     """One pinned supply with its ledger, every row checked."""
     try:
@@ -184,6 +217,7 @@ def _supply_from_json(vin: str, user_id: int | None, index: int, raw: Any) -> Pi
         )
         raw_purchases = nested_list(row, "purchases")
         raw_usages = nested_list(row, "usages")
+        raw_used_elsewhere = nested_list(row, "used_elsewhere")
     except _RowError as e:
         raise _RowError(f"Supply {index}: {e.reason}") from e
     purchases: list[tuple[SupplyPurchase, str | None]] = []
@@ -198,7 +232,19 @@ def _supply_from_json(vin: str, user_id: int | None, index: int, raw: Any) -> Pi
             usages.append(_standalone_usage_from_json(as_object(raw_usage)))
         except _RowError as e:
             raise _RowError(f"Supply {index}, usage {j}: {e.reason}") from e
-    return PinnedSupply(supply=supply, purchases=purchases, usages=usages)
+    used_elsewhere: list[UsedElsewhere] = []
+    for j, raw_use in enumerate(raw_used_elsewhere):
+        try:
+            used_elsewhere.append(_used_elsewhere_from_json(as_object(raw_use)))
+        except _RowError as e:
+            raise _RowError(f"Supply {index}, used elsewhere {j}: {e.reason}") from e
+    return PinnedSupply(
+        supply=supply,
+        key=key,
+        purchases=purchases,
+        usages=usages,
+        used_elsewhere=used_elsewhere,
+    )
 
 
 def parse_supplies(vin: str, sections: Mapping[str, list[Any]], user_id: int | None) -> SupplyPlan:
@@ -210,12 +256,13 @@ def parse_supplies(vin: str, sections: Mapping[str, list[Any]], user_id: int | N
     )
 
 
-async def write_supplies(db: AsyncSession, plan: SupplyPlan) -> None:
+async def write_supplies(db: AsyncSession, plan: SupplyPlan, user: User | None) -> None:
     """Write the supplies, then their purchases and usages with each supply's new id.
 
     A supplier is the address book entry with that business name, lowest id
     first. One that isn't here leaves the purchase without one, with a warning:
-    making an entry from an import would put it on the map (D-6).
+    making an entry from an import would put it on the map (D-6). Each use on
+    another vehicle's visit is then put back on that visit, or warned about.
     """
     db.add_all([pinned.supply for pinned in plan.supplies])
     await db.flush()
@@ -245,6 +292,126 @@ async def write_supplies(db: AsyncSession, plan: SupplyPlan) -> None:
         db.add_all([purchase for purchase, _name in pinned.purchases])
         db.add_all(pinned.usages)
     await db.flush()
+    editable: dict[str, bool] = {}
+    for pinned in plan.supplies:
+        for use in pinned.used_elsewhere:
+            if use.vin not in editable:
+                editable[use.vin] = await _can_edit(db, use.vin, user)
+            if editable[use.vin] and await _place_used_elsewhere(db, pinned, use):
+                continue
+            plan.warnings.append(
+                f'{_plain(use.quantity)} of supply "{pinned.supply.name}" was used on '
+                f"{use.vin}'s service on {use.used_on.isoformat()}, which isn't here, "
+                "so it isn't counted"
+            )
+
+
+def _plain(quantity: Decimal) -> str:
+    """A quantity with no trailing zeros, the way a person would write it."""
+    return format(quantity.normalize(), "f")
+
+
+async def _can_edit(db: AsyncSession, vin: str, user: User | None) -> bool:
+    """Whether `user` may write to that vehicle. A use never lands on one they can't."""
+    try:
+        await get_vehicle_or_403(vin, user, db, require_write=True)
+    except HTTPException:
+        return False
+    return True
+
+
+def _key_matches(key: SupplyKey) -> list[ColumnElement[bool]]:
+    """A supply with the key's name, part number and units (K12)."""
+    return [
+        Supply.name == key.name,
+        # A blank stored part number is none, as the file's reads.
+        _text_matches(Supply.part_number, key.part_number),
+        Supply.unit_type == key.unit_type,
+        _matches(Supply.volume_unit, key.volume_unit),
+    ]
+
+
+async def _place_used_elsewhere(db: AsyncSession, pinned: PinnedSupply, use: UsedElsewhere) -> bool:
+    """Put one use of `pinned` back on the other vehicle's visit; False when it isn't here.
+
+    That vehicle restored first left the use on a shared supply with this key
+    (the resolver adds a bare one), so it moves over. Deleting this vehicle took
+    the use off that visit's item with it, so it's written back.
+    """
+    on_the_item = [
+        ServiceVisit.vin == use.vin,
+        ServiceVisit.date == use.used_on,
+        ServiceLineItem.description == use.description,
+    ]
+    # Shared only: nothing else is pinned here yet, and a supply pinned to
+    # another vehicle is a different supply (K12). A moved one leaves the pool.
+    found = (
+        await db.execute(
+            select(SupplyUsage.id, SupplyUsage.supply_id)
+            .join(Supply, SupplyUsage.supply_id == Supply.id)
+            .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
+            .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
+            .where(
+                *on_the_item,
+                *_key_matches(pinned.key),
+                Supply.vin.is_(None),
+                _same_figure(SupplyUsage.quantity, use.quantity),
+                _same_figure(SupplyUsage.unit_cost_snapshot, use.unit_cost_snapshot),
+                _same_figure(SupplyUsage.cost_snapshot, use.cost_snapshot),
+            )
+            .order_by(SupplyUsage.id)
+            .limit(1)
+        )
+    ).first()
+    if found is not None:
+        usage_id, donor_id = found
+        await db.execute(
+            update(SupplyUsage).where(SupplyUsage.id == usage_id).values(supply_id=pinned.supply.id)
+        )
+        # The bare one added with no stock has nothing left, so it goes.
+        still_used = await db.scalar(
+            select(
+                or_(
+                    exists().where(SupplyPurchase.supply_id == donor_id),
+                    exists().where(SupplyUsage.supply_id == donor_id),
+                )
+            )
+        )
+        if not still_used:
+            await db.execute(delete(Supply).where(Supply.id == donor_id))
+        return True
+
+    has_this_supply = (
+        exists()
+        .where(
+            SupplyUsage.service_line_item_id == ServiceLineItem.id,
+            SupplyUsage.supply_id == Supply.id,
+            *_key_matches(pinned.key),
+        )
+        .correlate(ServiceLineItem)
+    )
+    item_id = (
+        await db.execute(
+            select(ServiceLineItem.id)
+            .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
+            .where(*on_the_item, ~has_this_supply)
+            .order_by(ServiceLineItem.id)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if item_id is None:
+        return False
+    db.add(
+        SupplyUsage(
+            supply_id=pinned.supply.id,
+            service_line_item_id=item_id,
+            quantity=use.quantity,
+            unit_cost_snapshot=use.unit_cost_snapshot,
+            cost_snapshot=use.cost_snapshot,
+        )
+    )
+    await db.flush()
+    return True
 
 
 def line_item_usages_from_json(
@@ -327,8 +494,7 @@ class SupplyResolver:
     What a visit found or added sits in its own layer until its savepoint
     commits. A visit that rolls back takes its added supplies with it, so their
     cache entries and warnings go too (R1-H1): on SQLite the next supply added
-    reuses the id, so a stale entry would point at the wrong one. The standalone
-    usages a visit took back (`moved_usage`) follow the same layers.
+    reuses the id, so a stale entry would point at the wrong one.
     """
 
     def __init__(
@@ -345,8 +511,6 @@ class SupplyResolver:
         self._cache: dict[tuple[_Scope, SupplyKey], int] = {}
         self._visit_cache: dict[tuple[_Scope, SupplyKey], int] = {}
         self._visit_warnings: list[str] = []
-        self._taken: set[int] = set()
-        self._visit_taken: set[int] = set()
 
     async def resolve(self, db: AsyncSession, ref: int | SupplyKey) -> int:
         """The id of the supply `ref` names; a row error when its family was refused."""
@@ -366,60 +530,16 @@ class SupplyResolver:
         # Never empty here: file_index already refused an index into no supplies.
         return await self._find(db, "pinned", file_supply_key(self._file_supplies, ref))
 
-    async def moved_usage(
-        self,
-        db: AsyncSession,
-        ref: int | SupplyKey,
-        supply_id: int,
-        visit_date: date,
-        usage: LineItemUsage,
-    ) -> SupplyUsage | None:
-        """The standalone usage another vehicle's restore made of this very job, if there is one.
-
-        A supply pinned elsewhere exports this vehicle's job usage as a
-        standalone one dated by the visit (R1-H3), so restoring both vehicles
-        would count it twice. Each one is taken at most once.
-        """
-        if not isinstance(ref, SupplyKey):
-            return None
-        pinned_to = (await db.execute(select(Supply.vin).where(Supply.id == supply_id))).scalar()
-        # Pinned elsewhere only. That also keeps this import's own standalone
-        # usages out: the family only writes them on supplies pinned here.
-        if pinned_to is None or pinned_to == self._vin:
-            return None
-        candidates = await db.execute(
-            select(SupplyUsage)
-            .where(
-                SupplyUsage.supply_id == supply_id,
-                SupplyUsage.service_line_item_id.is_(None),
-                _same_figure(SupplyUsage.quantity, usage.quantity),
-                _same_figure(SupplyUsage.unit_cost_snapshot, usage.unit_cost_snapshot),
-                _same_figure(SupplyUsage.cost_snapshot, usage.cost_snapshot),
-            )
-            .order_by(SupplyUsage.id)
-        )
-        for row in candidates.scalars():
-            if row.id in self._taken or row.id in self._visit_taken:
-                continue
-            if household_date(row.created_at) != visit_date:
-                continue
-            self._visit_taken.add(row.id)
-            return row
-        return None
-
     def visit_done(self) -> list[str]:
-        """Keep this visit's cache entries and taken usages, and hand back its warnings."""
+        """Keep this visit's cache entries and hand back its warnings."""
         self._cache.update(self._visit_cache)
         self._visit_cache.clear()
-        self._taken |= self._visit_taken
-        self._visit_taken.clear()
         warnings, self._visit_warnings = self._visit_warnings, []
         return warnings
 
     def visit_failed(self) -> None:
-        """Drop this visit's layer; its savepoint took the rows and the re-links back."""
+        """Drop this visit's layer; its savepoint took the rows back."""
         self._visit_cache.clear()
-        self._visit_taken.clear()
         self._visit_warnings = []
 
     async def _find(self, db: AsyncSession, scope: _Scope, key: SupplyKey) -> int:
@@ -431,8 +551,9 @@ class SupplyResolver:
             # This vehicle's own first, then the shared ones.
             places = [Supply.vin == self._vin, Supply.vin.is_(None)]
         else:
-            # Shared first, then pinned to any vehicle (D-15).
-            places = [Supply.vin.is_(None), Supply.vin.isnot(None)]
+            # Shared first, then pinned to another vehicle (D-15). A key only ever
+            # means "not pinned here", so this vehicle's own is never it (F-5).
+            places = [Supply.vin.is_(None), and_(Supply.vin.isnot(None), Supply.vin != self._vin)]
         for place in places:
             found = await self._lookup(db, key, place)
             if found is not None:
@@ -461,16 +582,6 @@ class SupplyResolver:
         """The lowest-id supply in `place` with the key's name, part number and units (K12)."""
         return (
             await db.execute(
-                select(Supply.id)
-                .where(
-                    Supply.name == key.name,
-                    # A blank stored part number is none, as the file's reads.
-                    _text_matches(Supply.part_number, key.part_number),
-                    Supply.unit_type == key.unit_type,
-                    _matches(Supply.volume_unit, key.volume_unit),
-                    place,
-                )
-                .order_by(Supply.id)
-                .limit(1)
+                select(Supply.id).where(*_key_matches(key), place).order_by(Supply.id).limit(1)
             )
         ).scalar_one_or_none()

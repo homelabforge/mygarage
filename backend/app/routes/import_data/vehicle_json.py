@@ -351,7 +351,7 @@ async def import_vehicle_json(
         errors,
         warnings,
         parse=lambda: parse_supplies(vin, sections, user_id),
-        write=lambda plan: write_supplies(db, plan),
+        write=lambda plan: write_supplies(db, plan, current_user),
     )
     if supplies.outcome == "written" and supplies.plan is not None:
         warnings.extend(supplies.plan.warnings)
@@ -626,12 +626,6 @@ async def import_vehicle_json(
                             raise _RowError(
                                 f"line item {position}, supply usage {k}: {e.reason}"
                             ) from e
-                        moved = await resolver.moved_usage(db, usage.ref, supply_id, date, usage)
-                        if moved is not None:
-                            # Another vehicle's restore brought this job back as a
-                            # standalone usage; hand it back to its job, not count it twice.
-                            moved.service_line_item_id = line_item.id
-                            continue
                         db.add(
                             SupplyUsage(
                                 supply_id=supply_id,
