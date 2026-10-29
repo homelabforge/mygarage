@@ -1,13 +1,14 @@
 """DTCs in the JSON backup: every column, code + first seen, one active row per code (batch 3b task 11)."""
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -328,6 +329,157 @@ async def test_ingest_that_loses_the_race_bumps_the_row_that_won(
     assert [d.id for d in processed] == [winner.id]
     assert await _active_count(db_session, vin, "P0420") == 1
     assert processed[0].last_seen > datetime(2026, 7, 1, 8, 0, 0)
+
+
+# -- Migration 137 failed: no index, so the import and ingest guard themselves --
+
+
+@pytest_asyncio.fixture
+async def without_the_index(test_engine: Any) -> AsyncIterator[list[str]]:
+    """Drop 137's one-active-code index, as where 137 failed; it's back after the test.
+
+    A test adds its vins, so their rows go before the index is built again.
+    """
+    [index] = [i for i in VehicleDTC.__table__.indexes if i.name == "uq_vehicle_dtcs_active_code"]
+    vins: list[str] = []
+    async with test_engine.begin() as conn:
+        await conn.run_sync(index.drop)
+    yield vins
+    async with test_engine.begin() as conn:
+        await conn.execute(delete(VehicleDTC).where(VehicleDTC.vin.in_(vins)))
+        await conn.run_sync(index.create)
+
+
+@pytest.mark.parametrize("skip_duplicates", [False, True])
+async def test_with_no_index_an_active_copy_is_still_skipped(
+    skip_duplicates: bool,
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    new_vehicle: NewVehicle,
+    without_the_index: list[str],
+):
+    vin = await new_vehicle()
+    without_the_index.append(vin)
+    db_session.add(
+        VehicleDTC(
+            vin=vin,
+            device_id="a1b2c3d4e5f6",
+            code="P0300",
+            first_seen=datetime(2026, 6, 1, 8, 0, 0),
+            last_seen=datetime(2026, 6, 2, 8, 0, 0),
+            is_active=True,
+        )
+    )
+    await db_session.commit()
+
+    data = await import_json(
+        client,
+        auth_headers,
+        vin,
+        _v9(_dtc("P0300", "2026-05-01T08:00:00")),
+        skip_duplicates=skip_duplicates,
+    )
+    # 29e738c9: nothing said no, so a second active P0300 went in.
+    assert data["warnings"] == [
+        "DTC 0: P0300 is already active on this vehicle, so this copy wasn't imported"
+    ], data
+    assert data["dtcs"]["skipped_count"] == 1
+    assert await _active_count(db_session, vin, "P0300") == 1
+
+
+@pytest.mark.parametrize(
+    ("older_seen", "newer_seen"),
+    [
+        pytest.param(datetime(2026, 6, 1, 8, 0), datetime(2026, 6, 2, 8, 0), id="last-seen"),
+        pytest.param(datetime(2026, 6, 2, 8, 0), datetime(2026, 6, 2, 8, 0), id="tie-by-id"),
+    ],
+)
+async def test_with_no_index_a_report_over_two_active_rows_bumps_the_newest(
+    older_seen: datetime,
+    newer_seen: datetime,
+    db_session: AsyncSession,
+    new_vehicle: NewVehicle,
+    without_the_index: list[str],
+):
+    vin = await new_vehicle()
+    without_the_index.append(vin)
+    rows = [
+        VehicleDTC(
+            vin=vin,
+            device_id="a1b2c3d4e5f6",
+            code="P0300",
+            first_seen=datetime(2026, 5, 1, 8, 0),
+            last_seen=seen,
+            is_active=True,
+        )
+        for seen in (older_seen, newer_seen)
+    ]
+    for row in rows:
+        db_session.add(row)
+        await db_session.flush()
+    await db_session.commit()
+    newer_id = rows[1].id
+
+    # 29e738c9: MultipleResultsFound, the read wanted exactly one.
+    processed = await DTCService(db_session).process_dtcs(vin, "a1b2c3d4e5f6", ["P0300"])
+    assert [d.id for d in processed] == [newer_id]
+    assert await _active_count(db_session, vin, "P0300") == 2
+
+
+async def test_an_import_that_loses_the_race_skips_the_copy_with_the_warning(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, new_vehicle: NewVehicle
+):
+    """The look found nothing, then a live report's row landed first; the index says no.
+
+    Staged like the ingest race: the first look misses a row that's already there.
+    """
+    from app.routes.import_data import json_dtcs
+
+    vin = await new_vehicle()
+    db_session.add(
+        VehicleDTC(
+            vin=vin,
+            device_id="a1b2c3d4e5f6",
+            code="P0420",
+            first_seen=datetime(2026, 7, 1, 8, 0, 0),
+            last_seen=datetime(2026, 7, 1, 8, 0, 0),
+            is_active=True,
+        )
+    )
+    await db_session.commit()
+    real_look = json_dtcs._active_here
+    looks: list[str] = []
+
+    async def first_look_misses(db: AsyncSession, vin_: str, code: str) -> bool:
+        looks.append(code)
+        return False if len(looks) == 1 else await real_look(db, vin_, code)
+
+    monkeypatch.setattr(json_dtcs, "_active_here", first_look_misses)
+    matcher = await _DuplicateMatcher.before_import(db_session, VehicleDTC)
+    bucket = {"success": 0, "errors": 0, "skipped": 0}
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    await import_dtcs(
+        db_session,
+        vin,
+        [_dtc("P0420", "2026-07-02T08:00:00")],
+        matcher=matcher,
+        skip_duplicates=False,
+        bucket=bucket,
+        errors=errors,
+        warnings=warnings,
+    )
+
+    # A guard for the race path. 29e738c9 only looked after the insert, so its
+    # one look was the staged miss and the copy was a row error.
+    assert looks == ["P0420", "P0420"]
+    assert (bucket, errors) == ({"success": 0, "errors": 0, "skipped": 1}, [])
+    assert warnings == [
+        "DTC 0: P0420 is already active on this vehicle, so this copy wasn't imported"
+    ]
+    assert await _active_count(db_session, vin, "P0420") == 1
 
 
 def _refuse_dtc_inserts(session: AsyncSession) -> Callable[..., Awaitable[None]]:

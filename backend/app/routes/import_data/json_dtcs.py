@@ -75,9 +75,7 @@ def _json_dtc_key(dtc: VehicleDTC) -> list[ColumnElement[bool]]:
 async def _active_here(db: AsyncSession, vin: str, code: str) -> bool:
     """Whether the vehicle has an active row of `code`, any row at all.
 
-    Only read after an insert was refused, to tell the one-active-code index
-    from some other failure. A row this import wrote counts, and so does one a
-    live report just committed.
+    A row this import wrote counts, and so does one a live report just committed.
     """
     result = await db.execute(
         select(VehicleDTC.id)
@@ -85,6 +83,14 @@ async def _active_here(db: AsyncSession, vin: str, code: str) -> bool:
         .limit(1)
     )
     return result.first() is not None
+
+
+def _skip_active_copy(bucket: dict[str, int], warnings: list[str], idx: int, code: str) -> None:
+    """Skip an active copy of a code that's active here, and say so (K11)."""
+    bucket["skipped"] += 1
+    warnings.append(
+        f"DTC {idx}: {code} is already active on this vehicle, so this copy wasn't imported"
+    )
 
 
 async def import_dtcs(
@@ -115,9 +121,13 @@ async def import_dtcs(
                     bucket["skipped"] += 1
                     continue
 
-            # The index holds one active row per code (migration 137). Insert and let it
-            # say no, so a live report landing first can't leave two.
             code, active = dtc.code, dtc.is_active
+            # Looked for first, so the rule holds where 137 couldn't build its index.
+            if active and await _active_here(db, vin, code):
+                _skip_active_copy(bucket, warnings, idx, code)
+                continue
+            # Then the index (migration 137) says no to a live report that lands
+            # between the look and the insert, so the race can't leave two.
             try:
                 async with db.begin_nested():
                     db.add(dtc)
@@ -126,11 +136,7 @@ async def import_dtcs(
                 # A cleared row never meets the index, so it's some other failure.
                 if not (active and await _active_here(db, vin, code)):
                     raise
-                bucket["skipped"] += 1
-                warnings.append(
-                    f"DTC {idx}: {code} is already active on this vehicle, "
-                    "so this copy wasn't imported"
-                )
+                _skip_active_copy(bucket, warnings, idx, code)
                 continue
             bucket["success"] += 1
         except _RowError as e:

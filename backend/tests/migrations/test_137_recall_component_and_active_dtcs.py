@@ -11,8 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 import app.migrations as _m
 from app.database import Base
@@ -242,3 +242,31 @@ def test_missing_tables_are_skipped(engine_for_migration):
     _load(_NAME).upgrade(engine)
     assert not inspect(engine).has_table("recalls")
     assert not inspect(engine).has_table("vehicle_dtcs")
+
+
+_HALVES = ["_widen_component", "_index_active_dtcs"]
+_LOGGED = {
+    "_widen_component": "137: recalls.component not widened",
+    "_index_active_dtcs": "137: active DTCs not indexed",
+}
+
+
+@pytest.mark.parametrize("half", _HALVES)
+def test_a_failure_is_logged_not_raised(
+    half: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-FATAL failure that raises stops every migration after it, so 137 logs it instead."""
+    mod = _load(_NAME)
+    ran: list[str] = []
+
+    def boom(_engine: Engine) -> None:
+        raise OperationalError("ALTER TABLE recalls", {}, Exception("database is locked"))
+
+    [other] = [h for h in _HALVES if h != half]
+    monkeypatch.setattr(mod, half, boom)
+    monkeypatch.setattr(mod, other, lambda _engine: ran.append(other))
+    # 29e738c9: the OperationalError comes straight out of upgrade.
+    mod.upgrade(create_engine("sqlite://"))
+    assert _LOGGED[half] in caplog.text
+    # One half failing never keeps the other from running.
+    assert ran == [other]

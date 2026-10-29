@@ -4,12 +4,15 @@ The API and the NHTSA sync both take a 200-character component, but the column
 held 100, so PostgreSQL refused a long one and the whole recall refresh failed
 with it. SQLite ignores the length, so the widening only runs on PostgreSQL.
 
-Two active rows of one code make DTC ingest raise, since it reads the active
-row with scalar_one_or_none, and an import racing a live report could make
-them. So any duplicates are closed first, newest kept, the way a person
-clearing one would close it, and then a partial unique index holds the line.
+Two active rows of one code are one fault shown twice, and an import racing a
+live report could make them. So any duplicates are closed first, newest kept,
+the way a person clearing one would close it, and then a partial unique index
+holds the line.
 
-Not FATAL: if it fails, the column stays at 100 and the duplicates stay, which is today.
+Not FATAL, and each half logs its own failure instead of raising, so the other
+half and the migrations after it still run. If the index half fails, the
+duplicates stay; ingest touches the newest and the import looks before it
+inserts, so neither needs the index to be right.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +111,17 @@ def _index_active_dtcs(engine: Engine) -> None:
 
 
 def upgrade(engine: Engine | None = None) -> None:
-    """Widen the recall component, then index the active DTCs. Each half skips on its own."""
+    """Widen the recall component, then index the active DTCs. Each half fails on its own."""
     if engine is None:
         engine = _get_fallback_engine()
-    _widen_component(engine)
-    _index_active_dtcs(engine)
+    try:
+        _widen_component(engine)
+    except SQLAlchemyError as e:
+        logger.error("137: recalls.component not widened, it stays at 100: %s", e, exc_info=True)
+    try:
+        _index_active_dtcs(engine)
+    except SQLAlchemyError as e:
+        logger.error("137: active DTCs not indexed, any duplicates stay open: %s", e, exc_info=True)
 
 
 def downgrade() -> None:  # pragma: no cover

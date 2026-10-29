@@ -146,12 +146,18 @@ class DTCService:
         return processed
 
     async def _get_vehicle_dtc(self, vin: str, code: str) -> VehicleDTC | None:
-        """Get an existing DTC record for a vehicle."""
+        """The vehicle's active row of `code`, the newest if there's more than one.
+
+        137's index keeps it to one, but where 137 failed there can be two, and
+        a report touching the newest beats one that raises.
+        """
         result = await self.db.execute(
             select(VehicleDTC)
             .where(VehicleDTC.vin == vin)
             .where(VehicleDTC.code == code)
             .where(VehicleDTC.is_active == True)  # noqa: E712
+            .order_by(VehicleDTC.last_seen.desc(), VehicleDTC.id.desc())
+            .limit(1)
         )
         return result.scalar_one_or_none()
 
