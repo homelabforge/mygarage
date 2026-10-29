@@ -55,7 +55,8 @@ Migration 137 closes any duplicate active DTC rows a vehicle has for one code, k
 - A JSON import that refused rows shows a warning instead of a success, and the fuel and odometer CSV messages stay up longer while they list errors or warnings
 - The vehicle JSON backup (schema 9) also carries tires with their sets, mount periods and readings, brakes (axle setup, jobs and measurements), the maintenance rules with their reminders, your own reminders in every status, recalls, DTCs, and the supplies kept for the vehicle with their purchases and usages
 - A service visit in the JSON backup carries the supplies it used, so a restored visit's total includes them again. A supply shared across vehicles, or kept for another vehicle, is found by its name, part number and unit, or added with no stock and a warning
-- Restoring the vehicle a supply is kept for, then another vehicle whose service visit used it, counts that usage once
+- Restoring a vehicle whose supply was used on another vehicle's visit counts that use once, in either restore order
+- Restoring only the supply's vehicle warns about the use it can't count
 - The fuel CSV (schema 8) carries kWh, Propane Volume, Tank Size, Tank Quantity and Price Basis, so an EV charge or a propane fill-up round-trips
 
 ### Changed
@@ -189,6 +190,7 @@ Migration 137 closes any duplicate active DTC rows a vehicle has for one code, k
 - On a SQLite install older than 2.27.0, deleting a user clears them as the driver on their fill-ups, as every other install already did, and migration 138 (not FATAL) clears the ones already left behind
 - A recall component up to 200 characters saves on PostgreSQL, which refused anything past 100 and failed the whole NHTSA refresh (migration 137, not FATAL)
 - A vehicle keeps one active row per DTC code: a device report that races another report or an import updates the row that got there first, and an import that brings a second active copy skips it and says so
+- A DTC import never adds a second active copy of a code, even where migration 137 couldn't build its index
 - An old (v2) backup's reminder is only skipped as a copy of a reminder you made, never of a maintenance rule's, a tire's or a brake's
 
 ### Security
