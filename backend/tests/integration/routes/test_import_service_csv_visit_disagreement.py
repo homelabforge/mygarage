@@ -34,7 +34,7 @@ _VISIT = {
 # One changed cell per field, and the column name the error uses for it.
 _CHANGED = [
     ("Date", "2026-05-02", "Date"),
-    ("Category", "Repair", "Category"),
+    ("Category", "Inspection", "Category"),
     ("Odometer (km)", "1001.00", "Odometer"),
     ("Engine Hours", "12.6", "Engine Hours"),
     ("Vendor", "Another Shop", "Vendor"),
