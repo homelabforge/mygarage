@@ -172,13 +172,17 @@ _VISIT_FIELDS: tuple[tuple[str, str], ...] = (
 def _visit_disagreement(group: list[_ServiceCsvRow]) -> str | None:
     """Why one Visit's rows can't be one visit, or None when they agree.
 
-    Only a v8 Visit-numbered group is checked; an older file's rows are grouped
-    by these fields already. Values compare as parsed, so 1000 and 1000.00 agree.
+    Only a Visit-numbered group is checked. An older file groups its rows by
+    date, odometer, hours, vendor and category, and has no visit-only columns.
+    Values compare as parsed, so 1000 and 1000.00 agree.
     """
     first = group[0]
     if not first.visit_number:
         return None
     for attribute, column in _VISIT_FIELDS:
+        # One Notes column holds each row's item note, and the writer sorts those out (T-13).
+        if attribute == "visit_notes" and not first.split_notes:
+            continue
         expected = getattr(first, attribute)
         for row in group[1:]:
             if getattr(row, attribute) != expected:
