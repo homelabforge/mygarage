@@ -7,7 +7,7 @@ the PG runs prove the widening; the index and the clean-up run on both.
 """
 
 import importlib.util
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -141,7 +141,7 @@ def test_the_model_allows_one_active_row_per_code():
 def test_the_migration_is_not_fatal():
     # A guard that passes once the file exists. It kills a 137 that copies
     # 110's FATAL = True, which would keep the app down over a cleanup it can live without.
-    # If it fails, the column stays at 100 and the duplicates stay, which is today.
+    # If the migration fails at boot, the column stays at 100 and the duplicates stay, which is today.
     assert not getattr(_load(_NAME), "FATAL", False)
 
 
@@ -166,6 +166,17 @@ def test_the_column_is_widened_and_a_long_component_stores(engine_for_migration)
     assert stored == component
 
 
+def _cleared_at(engine) -> list[datetime]:
+    """Every cleared_at the migration wrote, as naive datetimes (SQLite hands back text)."""
+    with engine.connect() as conn:
+        values = conn.execute(
+            text("SELECT cleared_at FROM vehicle_dtcs WHERE cleared_at IS NOT NULL ORDER BY id")
+        ).scalars()
+        return [v if isinstance(v, datetime) else datetime.fromisoformat(v) for v in values]
+
+
+# Off UTC, so a cleared_at written in local time can't pass for UTC.
+@pytest.mark.usefixtures("local_clock_off_utc")
 @pytest.mark.parametrize("engine_for_migration", ["sqlite", "pg"], indirect=True)
 def test_duplicate_active_dtcs_are_closed_newest_kept_then_indexed(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
@@ -173,13 +184,15 @@ def test_duplicate_active_dtcs_are_closed_newest_kept_then_indexed(engine_for_mi
     with engine.begin() as conn:
         _add_dtc(conn, _V1, "P0300", datetime(2026, 1, 1), notes="first one")  # 1
         _add_dtc(conn, _V1, "P0300", datetime(2026, 3, 1))  # 2: newest, kept
-        _add_dtc(conn, _V1, "P0300", datetime(2026, 2, 1))  # 3
+        _add_dtc(conn, _V1, "P0300", datetime(2026, 2, 1), notes="")  # 3: blank, like no note
         _add_dtc(conn, _V1, "P0171", datetime(2026, 4, 1))  # 4
         _add_dtc(conn, _V1, "P0171", datetime(2026, 4, 1))  # 5: same last_seen, higher id kept
         _add_dtc(conn, _V2, "P0300", datetime(2026, 1, 1))  # 6: another vehicle, kept
         _add_dtc(conn, _V1, "P0300", datetime(2025, 1, 1), active=False)  # 7: history, untouched
 
+    before = datetime.now(UTC).replace(tzinfo=None)
     _load(_NAME).upgrade(engine)
+    after = datetime.now(UTC).replace(tzinfo=None)
 
     # main: FileNotFoundError, no migration 137
     assert _dtcs(engine) == [
@@ -191,6 +204,10 @@ def test_duplicate_active_dtcs_are_closed_newest_kept_then_indexed(engine_for_mi
         (6, _V2, "P0300", True, False, None),
         (7, _V1, "P0300", False, False, None),
     ]
+    # Naive UTC, as clear_dtc stamps it.
+    cleared = _cleared_at(engine)
+    assert len(cleared) == 3
+    assert all(before <= c <= after for c in cleared), (before, cleared, after)
     assert _INDEX in _index_names(engine)
     with pytest.raises(IntegrityError), engine.begin() as conn:
         _add_dtc(conn, _V1, "P0300", datetime(2026, 5, 1))
