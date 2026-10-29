@@ -828,6 +828,43 @@ async def test_restoring_a_deleted_supplys_vehicle_gives_the_other_visit_its_use
     assert await _usages_of(db_session, copy_id) == 1
 
 
+async def test_reimporting_b_while_a_is_deleted_keeps_one_visit(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    name = f"Jug {_tag()}"
+    a, b = await new_vehicle(), await new_vehicle()
+    item_id = await _jug_used_on_b(db_session, name, a, b)
+    backup_a = await export_json(client, auth_headers, a)
+    backup_b = await export_json(client, auth_headers, b)
+
+    # Deleting A takes B's use of its jug, then B's own backup comes back first.
+    await _start_over(db_session, a)
+    again = await import_json(client, auth_headers, b, backup_b)
+    # 2dd122bf: (1, 0), the bare item didn't match the file's, so the visit came in twice.
+    assert (
+        again["service_records"]["success_count"],
+        again["service_records"]["skipped_count"],
+    ) == (0, 1)
+    assert await _supply_ids(db_session, name) == []
+
+    data = await import_json(client, auth_headers, a, backup_a)
+    assert (data["errors"], data["warnings"]) == ([], [])
+    [copy_id] = await _supply_ids(db_session, name)
+    assert await _balance(db_session, copy_id) == Decimal("7")
+    assert (
+        await db_session.execute(
+            select(SupplyUsage.service_line_item_id, SupplyUsage.quantity).where(
+                SupplyUsage.supply_id == copy_id
+            )
+        )
+    ).all() == [(item_id, Decimal("3"))]
+    assert (
+        await db_session.execute(
+            select(func.count()).select_from(ServiceVisit).where(ServiceVisit.vin == b)
+        )
+    ).scalar_one() == 1
+
+
 async def test_a_restored_use_counts_in_the_other_visits_total(
     client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
 ):

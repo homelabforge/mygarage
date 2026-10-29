@@ -19,7 +19,7 @@ from typing import Any, Literal, get_args
 
 from fastapi import HTTPException
 from pydantic import Field
-from sqlalchemy import ColumnElement, and_, exists, select, update
+from sqlalchemy import ColumnElement, and_, exists, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.address_book import AddressBookEntry
@@ -542,6 +542,29 @@ class SupplyResolver:
         # Skipped: the vehicle has its own pinned supplies, so look the row up (D-5).
         # Never empty here: file_index already refused an index into no supplies.
         return await self._find(db, "pinned", file_supply_key(self._file_supplies, ref))
+
+    async def stored_before(
+        self, db: AsyncSession, usages: list[LineItemUsage], last_id: int
+    ) -> list[LineItemUsage]:
+        """The usages a visit stored before this import could hold.
+
+        A key names a supply that isn't in this file. When none was stored with
+        that key, no stored item can have used it. Usually its vehicle was
+        deleted and took the use along. So it can't tell two visits apart, and restoring
+        that vehicle puts the use back.
+        """
+        kept: list[LineItemUsage] = []
+        for usage in usages:
+            if isinstance(usage.ref, SupplyKey):
+                found = await self._lookup(
+                    db,
+                    usage.ref,
+                    and_(Supply.id <= last_id, or_(Supply.vin.is_(None), Supply.vin != self._vin)),
+                )
+                if found is None:
+                    continue
+            kept.append(usage)
+        return kept
 
     def visit_done(self) -> list[str]:
         """Keep this visit's cache entries and hand back its warnings."""

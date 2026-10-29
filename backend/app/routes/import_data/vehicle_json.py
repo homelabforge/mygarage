@@ -33,7 +33,7 @@ from app.models import (
     WarrantyRecord,
 )
 from app.models.recall import Recall
-from app.models.supply import SupplyUsage
+from app.models.supply import Supply, SupplyUsage
 from app.models.user import User
 from app.models.vehicle_dtc import VehicleDTC
 from app.routes.import_data._common import (
@@ -316,6 +316,7 @@ async def import_vehicle_json(
     matcher = await _DuplicateMatcher.before_import(
         db,
         ServiceVisit,
+        Supply,
         FuelRecord,
         DEFRecord,
         OdometerRecord,
@@ -543,7 +544,11 @@ async def import_vehicle_json(
             compare_usages = all("supply_usages" in item for item in line_items)
             usage_keys = (
                 [
-                    line_item_usage_counts(position, item_usages, sections["supplies"])
+                    line_item_usage_counts(
+                        position,
+                        await resolver.stored_before(db, item_usages, matcher.last_id(Supply)),
+                        sections["supplies"],
+                    )
                     for position, item_usages in enumerate(usages)
                 ]
                 if skip_duplicates and compare_usages
