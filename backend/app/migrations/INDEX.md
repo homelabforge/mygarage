@@ -147,3 +147,4 @@ migrations must swallow their own operational errors.
 | `135_widen_numeric_columns` | **FATAL**: Widen the 14 columns a typed value couldn't round-trip through, on PostgreSQL. |
 | `136_round_sqlite_numeric_columns` | Round every Numeric column SQLite holds to its column's scale. |
 | `137_recall_component_and_active_dtcs` | Widen ``recalls.component`` to VARCHAR(200), and allow one active DTC per vehicle and code. |
+| `138_clear_dangling_fuel_drivers` | Clear a fill-up's driver when it names a user that no longer exists (B3-1). |

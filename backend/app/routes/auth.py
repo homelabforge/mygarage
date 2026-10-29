@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import delete, exists, func, select
+from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -712,6 +712,7 @@ async def delete_user(
     # via the FKs themselves.
     from sqlalchemy import or_
 
+    from app.models.fuel import FuelRecord
     from app.models.vehicle_share import VehicleShare
     from app.models.vehicle_transfer import VehicleTransfer
 
@@ -724,6 +725,12 @@ async def delete_user(
                 VehicleTransfer.transferred_by == user_id,
             )
         )
+    )
+
+    # SQLite installs from before 054 have no FK on a fill-up's driver, so
+    # nothing would clear it. Do what ON DELETE SET NULL does everywhere else.
+    await db.execute(
+        update(FuelRecord).where(FuelRecord.driver_user_id == user_id).values(driver_user_id=None)
     )
 
     await db.delete(user)

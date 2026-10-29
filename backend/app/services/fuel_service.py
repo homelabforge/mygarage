@@ -661,7 +661,8 @@ class FuelRecordService:
     async def _ensure_driver_exists(self, driver_user_id: int | None) -> None:
         """Refuse a driver id that names no user here, active or not (B3-1).
 
-        Without this the FK catches it and the caller gets a 409 that reads like a duplicate.
+        Without it the FK caught it as a 409 that reads like a duplicate. SQLite
+        installs from before 054 have no FK, and there the dead id just got stored.
         """
         if driver_user_id is None:
             return
