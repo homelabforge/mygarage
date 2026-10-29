@@ -154,6 +154,41 @@ class _ServiceCsvRow:
         )
 
 
+#: What a v8 export repeats on each of a visit's rows, as (attribute, column).
+_VISIT_FIELDS: tuple[tuple[str, str], ...] = (
+    ("date", "Date"),
+    ("category", "Category"),
+    ("odometer_km", "Odometer"),
+    ("engine_hours", "Engine Hours"),
+    ("vendor_name", "Vendor"),
+    ("tax_amount", "Tax"),
+    ("shop_supplies", "Shop Supplies"),
+    ("misc_fees", "Misc Fees"),
+    ("insurance_claim_number", "Insurance Claim"),
+    ("visit_notes", "Visit Notes"),
+)
+
+
+def _visit_disagreement(group: list[_ServiceCsvRow]) -> str | None:
+    """Why one Visit's rows can't be one visit, or None when they agree.
+
+    Only a v8 Visit-numbered group is checked; an older file's rows are grouped
+    by these fields already. Values compare as parsed, so 1000 and 1000.00 agree.
+    """
+    first = group[0]
+    if not first.visit_number:
+        return None
+    for attribute, column in _VISIT_FIELDS:
+        expected = getattr(first, attribute)
+        for row in group[1:]:
+            if getattr(row, attribute) != expected:
+                return (
+                    f"Visit {first.visit_number}: rows {row.row_num} and {first.row_num} "
+                    f"disagree on {column}"
+                )
+    return None
+
+
 def _parse_service_row(
     row_num: int, row: Mapping[str, Any], units: CsvUnitContext
 ) -> _ServiceCsvRow:

@@ -74,6 +74,7 @@ from app.routes.import_data._service import (
     _row_item_counts,
     _same_visit,
     _ServiceCsvRow,
+    _visit_disagreement,
     _visit_fee_key,
     _write_service_csv_visit,
 )
@@ -174,6 +175,12 @@ async def import_service_csv(
         groups.setdefault(parsed.group, []).append(parsed)
 
     for group in groups.values():
+        # A MyGarage export never disagrees with itself, so this is a hand edit.
+        # Refuse it rather than guess which row is right (K8).
+        if (reason := _visit_disagreement(group)) is not None:
+            for row in group:
+                import_result.add_error(row.row_num, reason)
+            continue
         first = group[0]
         try:
             # R5's service key: a stored visit on the day and odometer with the
