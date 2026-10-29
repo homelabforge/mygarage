@@ -380,12 +380,12 @@ class CsvUnitContext:
     def price_to_canonical(self, value: Decimal | None, basis: str | None) -> Decimal | None:
         """One price cell into canonical storage, read by its basis (K9).
 
-        The rule is the frontend's (`decimalSafe.ts:153-171`): per_kwh and
-        per_tank prices have no unit to convert, and a per_weight price is per
-        the Tank Size column's mass unit. Anything else, no basis included, is
-        per the price column's own volume, which is what every fuel CSV before
-        v8 meant. The caller has already refused a per_weight price in a file
-        with no Tank Size column.
+        per_kwh, per_tank and per_weight follow the frontend's rule
+        (`decimalSafe.ts:153-171`): the first two have no unit to convert, and
+        a per_weight price is per the Tank Size column's mass unit. Unlike the
+        frontend, no basis reads per volume, since every fuel CSV before v8
+        meant that. The import refuses a per_weight price with no Tank Size
+        column before it gets here; this raises if anything else tries.
         """
         if value is None:
             return None
@@ -393,7 +393,7 @@ class CsvUnitContext:
             return value
         if basis == "per_weight":
             token = self.token(MASS)
-            if token is None:  # pragma: no cover - the caller refuses this first
+            if token is None:
                 raise ValueError("a per_weight price needs a Tank Size column")
             return value / mass_factor(token)
         return self.to_canonical(PRICE_PER_VOLUME, value)

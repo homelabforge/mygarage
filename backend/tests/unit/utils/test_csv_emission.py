@@ -22,10 +22,12 @@ import pytest
 from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet
 from app.utils.csv_emission import (
     EMITTED_COLUMNS,
+    BasisPrice,
     apply_unit_set,
     cell_for,
     header_for,
     marker_for,
+    price_cell,
     token_for,
 )
 from app.utils.csv_safe import sanitize_csv_cell
@@ -43,6 +45,7 @@ from app.utils.csv_units import (
     READING_DISTANCE,
     QuantitySpec,
     build_csv_unit_context,
+    mass_factor,
 )
 from app.utils.unit_adapters import ADAPTERS
 
@@ -234,6 +237,56 @@ class TestEmittedPrecision:
         column = EMITTED_COLUMNS["OBC L/100km"]
         assert cell_for(column, "l_100km", Decimal("0")) == "0.0000"
         assert cell_for(column, "mpg_us", Decimal("0")) == ""
+
+
+class TestPriceCellByBasis:
+    """A fuel price goes out by its basis (K9), whatever its header's volume says.
+
+    Sentinels: 2.2047 a kg, 0.3000 a kWh, 25.0000 a tank, 1.5000 a litre.
+    """
+
+    def test_per_weight_on_a_kg_account_keeps_all_four_places(self) -> None:
+        price = BasisPrice(Decimal("2.2047"), "per_weight")
+        assert price_cell(price, "L", METRIC_PRESET) == "2.2047"
+
+    def test_per_weight_on_a_lb_account_carries_five(self) -> None:
+        # 2.2047 * 0.45359237 = 1.0000351; at four it'd come back 2.2046.
+        price = BasisPrice(Decimal("2.2047"), "per_weight")
+        assert price_cell(price, "gal_us", IMPERIAL_PRESET) == "1.00004"
+
+    def test_per_kwh_and_per_tank_go_out_as_stored(self) -> None:
+        assert price_cell(BasisPrice(Decimal("0.3"), "per_kwh"), "gal_us", IMPERIAL_PRESET) == (
+            "0.3000"
+        )
+        assert price_cell(BasisPrice(Decimal("25"), "per_tank"), "gal_uk", UK_IMPERIAL) == (
+            "25.0000"
+        )
+
+    def test_per_volume_and_no_basis_are_per_the_headers_volume(self) -> None:
+        # 1.5 * 3.785411784 = 5.678118
+        for basis in ("per_volume", None):
+            price = BasisPrice(Decimal("1.5000"), basis)
+            assert price_cell(price, "gal_us", IMPERIAL_PRESET) == "5.6781", basis
+            assert price_cell(price, "L", METRIC_PRESET) == "1.5000", basis
+
+    def test_no_price_is_an_empty_cell_on_every_basis(self) -> None:
+        for basis in ("per_volume", "per_weight", "per_tank", "per_kwh", None):
+            assert price_cell(BasisPrice(None, basis), "gal_us", IMPERIAL_PRESET) == "", basis
+
+
+class TestAPerWeightPriceNeedsItsMassUnit:
+    def test_without_a_tank_size_column_the_reader_names_the_cause(self) -> None:
+        """The import refuses this row first; the reader still says why if anything else asks."""
+        context = build_csv_unit_context(
+            ["units_version", "unit_system", "Price Per Unit (L)"],
+            [{"units_version": "8", "unit_system": "metric"}],
+            (FUEL_PRICE, FUEL_TANK_SIZE),
+        )
+        with pytest.raises(ValueError, match="a per_weight price needs a Tank Size column"):
+            context.price_to_canonical(Decimal("1"), "per_weight")
+        # And a litre is no weight, though ADAPTERS has a factor for it.
+        with pytest.raises(ValueError, match="'L' is not a mass token"):
+            mass_factor("L")
 
 
 class TestRoundingIsHalfUp:

@@ -210,33 +210,96 @@ async def test_a_propane_row_round_trips_in_uk_gallons_and_pounds(
     ]
 
 
-async def test_a_fill_up_that_differs_only_in_kwh_is_not_a_duplicate(
-    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+# One stored fill-up and a file row that differs from it in one column only.
+# Each is (VIN, stored fields, the file's Propane/Tank Size/Tank Quantity/kWh
+# cells, basis, where that column sits in `_stored`'s tuple, both values).
+_ONE_COLUMN_APART: dict[str, tuple[str, dict[str, Any], str, str, int, list[Any]]] = {
+    "kwh": (
+        "B3BFUELKEYKWH001",
+        {"kwh": Decimal("50.000"), "price_basis": "per_kwh"},
+        ",,,30.000",
+        "per_kwh",
+        1,
+        [Decimal("30.000"), Decimal("50.000")],
+    ),
+    "propane": (
+        "B3BFUELKEYLPG001",
+        {"propane_liters": Decimal("18.184"), "price_basis": "per_volume"},
+        "10.000,,,",
+        "per_volume",
+        2,
+        [Decimal("10.000"), Decimal("18.184")],
+    ),
+    "tank-size": (
+        "B3BFUELKEYSIZE01",
+        {"tank_size_kg": Decimal("9.072"), "tank_quantity": 1, "price_basis": "per_tank"},
+        ",4.536,1,",
+        "per_tank",
+        3,
+        [Decimal("4.536"), Decimal("9.072")],
+    ),
+    # Two same-day tank refills: no odometer to tell them apart, only the count.
+    "tank-quantity": (
+        "B3BFUELKEYQTY001",
+        {"tank_size_kg": Decimal("9.072"), "tank_quantity": 1, "price_basis": "per_tank"},
+        ",9.072,2,",
+        "per_tank",
+        4,
+        [1, 2],
+    ),
+}
+
+
+@pytest.mark.parametrize("case", sorted(_ONE_COLUMN_APART))
+async def test_a_fill_up_that_differs_in_one_new_column_is_not_a_duplicate(
+    case: str,
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    test_sessionmaker,
 ):
-    vin = await _vehicle(db_session, test_user["id"], "B3BFUELEVKEY0001")
+    vin, stored, cells, basis, index, expected = _ONE_COLUMN_APART[case]
+    await _vehicle(db_session, test_user["id"], vin)
     db_session.add(
         FuelRecord(
             vin=vin,
             date=date(2026, 9, 1),
-            kwh=Decimal("50.000"),
             price_per_unit=Decimal("0.3000"),
-            price_basis="per_kwh",
             cost=Decimal("15.00"),
+            **stored,
         )
     )
     await db_session.commit()
     body = (
-        "units_version,unit_system,Date,Total Cost,kWh,Price Per Unit (L),Price Basis\n"
-        "8,metric,2026-09-01,15.00,30.000,0.5000,per_kwh\n"
+        "units_version,unit_system,Date,Total Cost,Propane Volume (L),Tank Size (kg),"
+        "Tank Quantity,kWh,Price Per Unit (L),Price Basis\n"
+        f"8,metric,2026-09-01,15.00,{cells},0.3000,{basis}\n"
     )
 
     data = await _import(client, auth_headers, vin, body)
 
-    # main: kWh isn't read, so the row matches the stored one and is skipped
+    # main: none of the four is read, so the row matches the stored one and is skipped
     assert (data["success_count"], data["skipped_count"]) == (1, 0), data
-    assert sorted(r[1] for r in await _stored(test_sessionmaker, vin)) == [
-        Decimal("30.000"),
-        Decimal("50.000"),
+    assert sorted(r[index] for r in await _stored(test_sessionmaker, vin)) == expected
+
+
+async def test_a_kwh_row_with_no_price_basis_column_is_priced_per_kwh(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """A file without Price Basis derives it from what the row has, kWh included (S11)."""
+    vin = await _vehicle(db_session, test_user["id"], "B3BFUELEVNOBASIS")
+    body = (
+        "units_version,unit_system,Date,Total Cost,kWh,Price Per Unit (gal_us)\n"
+        "8,imperial,2026-09-05,15.00,50.000,0.3000\n"
+    )
+
+    data = await _import(client, auth_headers, vin, body)
+
+    # Derived from litres alone it'd be no basis, and 0.3 a gallon would land as 0.0793 a litre.
+    assert (data["success_count"], data["error_count"]) == (1, 0), data
+    assert await _stored(test_sessionmaker, vin) == [
+        (date(2026, 9, 5), Decimal("50.000"), None, None, None, Decimal("0.3000"), "per_kwh"),
     ]
 
 
