@@ -937,6 +937,13 @@ def _place_switch(
                 f"--switch-at {_fmt(switch_at)} is before {plan.device_id} reached this vehicle "
                 f"({_fmt(since)})"
             )
+        # Past the last reading there's nothing left to tell the switch by.
+        latest = series[-1].at if series else datetime.now(UTC).replace(tzinfo=None)
+        if switch_at > latest:
+            what = "the latest surviving reading" if series else "now"
+            raise RepairRefusedError(
+                f"--switch-at {_fmt(switch_at)} is after {what} ({_fmt(latest)})"
+            )
         plan.boundary_source = "--switch-at"
         if not (len(steps) == 1 and steps[0][1] and series[steps[0][0]].at == switch_at):
             plan.context += [
@@ -1024,6 +1031,19 @@ def _plan_torque_sessions(
         started = _at(row.started_at)
         ended = _as_datetime(row.ended_at)
         inside = mine[bisect_left(times, started) : bisect_right(times, ended or datetime.max)]
+        # Pruning goes by age, so it can cut a session's head. A session that
+        # started before B with no row of it left from before B may have had
+        # its km low in rows since pruned: kept whole like a no-row one. A row
+        # older than the session proves the head is all there.
+        head_gone = (
+            bool(inside)
+            and started < boundary <= inside[0].at
+            and inside[0].at > started
+            and not (mine and mine[0].at < started)
+        )
+        if head_gone:
+            plan.sessions_kept.append((row.id, started, ended))
+            continue
         if inside:
             scale_start, scale_end = inside[0].at >= boundary, inside[-1].at >= boundary
         else:
@@ -1163,8 +1183,8 @@ def _report(plan: RepairPlan) -> None:
     for session_id, started, ended in plan.sessions_kept:
         until = _fmt(ended) if ended is not None else "open"
         print(
-            f"  session {session_id} ({_fmt(started)} to {until}): no rows left to say which "
-            "side of the switch its odometers read, so it stays as is"
+            f"  session {session_id} ({_fmt(started)} to {until}): not enough rows left to say "
+            "which side of the switch its odometers read, so it stays as is"
         )
     if plan.summaries or plan.summaries_left:
         scaled = sum(1 for c in plan.summaries if c.how == "scaled")
@@ -1173,8 +1193,9 @@ def _report(plan: RepairPlan) -> None:
             f"  daily summaries: {scaled} scaled, {rebuilt} rebuilt, "
             f"{len(plan.summaries_left)} left as is"
         )
+        which = "the switch day" if action == "clear_device_unit" else "the window-start day"
         for day in plan.summaries_left:
-            print(f"    {day}: B's day, its raw rows are gone and it may mix readings, so it stays")
+            print(f"    {day}: {which}, its raw rows are gone and it may mix readings, so it stays")
 
 
 def _switch_at(value: str) -> datetime:

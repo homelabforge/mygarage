@@ -957,7 +957,7 @@ def test_wican_pruned_window_day_is_left_when_another_device_was_ever_here(engin
     _report(plan)
     out = capsys.readouterr().out
     assert "1 scaled, 0 rebuilt, 1 left as is" in out
-    assert "2026-08-30" in out
+    assert "2026-08-30: the window-start day" in out
 
     _apply(engine, "prundev", "km")
     sums = _summaries(engine, SUMVIN)
@@ -1683,3 +1683,118 @@ def test_the_cli_parses_switch_at_and_ignore_device(monkeypatch):
 
     assert args.switch_at == SWITCH
     assert args.ignore_device == ["tq_a", "tq_b"]
+
+
+# --- Fix round 1 (T5 review) -----------------------------------------------------
+
+
+def _pruned_head(engine: Engine, rows: list[tuple[datetime, float]], *, record: bool) -> int:
+    """A session from 11:00 across the switch whose km rows (11:30) were pruned:
+    pruning goes by age, so it cut the session's head."""
+    with Session(engine) as s:
+        _vehicle(s, TQVIN)
+        _phone(s)
+        _rows(s, rows)
+        if record:
+            _record(s, date(2026, 7, 1), _up(57010.0), "Auto-updated from LiveLink", RECORD_SWITCH)
+        session = _session(
+            s, datetime(2026, 7, 1, 11), datetime(2026, 7, 1, 13), 57000.0, _up(57030.0)
+        )
+        s.commit()
+        return session.id
+
+
+def test_a_spanning_session_with_its_head_pruned_is_kept_whole_in_the_record_case(engine):
+    """Review fix 1: its km low came from a row since pruned, so its first
+    surviving row is after the switch, and the per-row rule divided a correct
+    57,000 by 1.609 (distance 21,612). Kept whole and reported. Red on 861eb1a0."""
+    session_id = _pruned_head(
+        engine,
+        [(datetime(2026, 7, 1, 12, 30), _up(57020.0)), (datetime(2026, 7, 1, 13), _up(57030.0))],
+        record=True,
+    )
+
+    plan = _plan(engine, TQ, "km", key=TQKEY)
+
+    assert plan.boundary == RECORD_SWITCH
+    assert plan.sessions == []
+    assert [k[0] for k in plan.sessions_kept] == [session_id]
+    _apply(engine, TQ, "km", key=TQKEY)
+    assert _snapshot(engine, TQ, TQVIN)["sessions"] == [
+        (57000.0, _up(57030.0), _up(57030.0) - 57000.0)
+    ]
+
+
+def test_a_spanning_session_with_its_head_pruned_is_kept_whole_under_switch_at(engine):
+    """Review fix 1, `--switch-at`: same session, no step, no record. Red on 861eb1a0."""
+    session_id = _pruned_head(
+        engine,
+        [(datetime(2026, 7, 1, 12, 30), 96561.0), (datetime(2026, 7, 1, 13), 96600.0)],
+        record=False,
+    )
+
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=SWITCH)
+
+    assert plan.sessions == []
+    assert [k[0] for k in plan.sessions_kept] == [session_id]
+
+
+def test_a_spanning_session_follows_its_rows_when_an_older_row_survives(engine):
+    """Review fix 1's limit: a surviving row older than the session proves its
+    head wasn't pruned, so under `--switch-at` the per-row rule still applies
+    (start from an inflated first row after an odometer-less edge frame)."""
+    with Session(engine) as s:
+        _vehicle(s, TQVIN)
+        _phone(s)
+        _rows(
+            s,
+            [
+                (datetime(2026, 7, 1, 9), 57000.0),
+                (datetime(2026, 7, 1, 12, 30), 96561.0),
+                (datetime(2026, 7, 1, 13), 96600.0),
+            ],
+        )
+        _session(s, datetime(2026, 7, 1, 11), datetime(2026, 7, 1, 13), 96561.0, 96600.0)
+        s.commit()
+
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=SWITCH)
+
+    assert plan.sessions_kept == []
+    assert plan.sessions[0].start == (96561.0, _down(96561.0))
+
+
+def test_switch_at_must_fall_inside_the_window(engine):
+    """Review fix 2: after the latest surviving reading (or after now, with
+    none) there's nothing left to place the switch by. Red on 861eb1a0, which
+    checked only the lower bound."""
+    from tools.repair_wican_odometer_unit import RepairRefusedError
+
+    _torque_history(engine)
+    last = HISTORY[-1][0]
+
+    with pytest.raises(RepairRefusedError, match="after the latest surviving reading"):
+        _plan(engine, TQ, "km", key=TQKEY, switch_at=last + timedelta(seconds=1))
+    assert _plan(engine, TQ, "km", key=TQKEY, switch_at=last).boundary == last
+
+
+def test_switch_at_with_no_surviving_rows_must_not_be_in_the_future(engine):
+    from tools.repair_wican_odometer_unit import RepairRefusedError
+
+    _record_case(engine, rows=False)
+
+    with pytest.raises(RepairRefusedError, match="after now"):
+        _plan(engine, TQ, "km", key=TQKEY, switch_at=datetime(2999, 1, 1))
+    assert _plan(engine, TQ, "km", key=TQKEY, switch_at=SWITCH).boundary == SWITCH
+
+
+def test_the_report_names_the_left_day_in_the_owners_words(engine, capsys):
+    """Review fix 3: "B's day" is reviewer shorthand."""
+    from tools.repair_wican_odometer_unit import _report
+
+    _record_case(engine)
+
+    _report(_plan(engine, TQ, "km", key=TQKEY))
+
+    out = capsys.readouterr().out
+    assert "2026-07-01: the switch day" in out
+    assert "B's" not in out
