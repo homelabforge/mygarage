@@ -1,4 +1,5 @@
-"""Torque query-string parsing, including the device-clock clamp."""
+"""Torque query-string parsing, including the device-clock clamp, plus an upload
+through ingest to storage."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -48,10 +49,10 @@ def test_names_its_own_pids_as_its_vocabulary():
     assert not {"SPEED", "COOLANT_TMP"} & M.own_param_keys
 
 
-def test_storage_policy_is_newer_only_with_the_interval_and_no_odometer_or_movement():
-    """G5b-12: Torque honours storage_interval_seconds like every other source."""
+def test_storage_policy_is_newer_only_with_no_odometer_or_movement():
+    """The storage interval isn't a policy field: every source honours it, Torque
+    included since G5b-12 (see the upload test at the bottom)."""
     assert M.storage_policy.latest == "if_newer"
-    assert M.storage_policy.apply_storage_interval is True
     assert M.storage_policy.sync_odometer is False
     assert M.storage_policy.observe_movement is False
 

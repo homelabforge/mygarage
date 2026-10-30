@@ -96,7 +96,6 @@ class GenericMqttModule(BaseSourceModule):
     capabilities = frozenset({Capability.TELEMETRY})
     storage_policy = StoragePolicy(
         latest="always",
-        apply_storage_interval=True,
         sync_odometer=False,
         observe_movement=False,
     )

@@ -71,7 +71,6 @@ class TorqueModule(BaseSourceModule):
     #: source; the old Torque writer just never checked it (G5b-12).
     storage_policy = StoragePolicy(
         latest="if_newer",
-        apply_storage_interval=True,
         sync_odometer=False,
         observe_movement=False,
     )

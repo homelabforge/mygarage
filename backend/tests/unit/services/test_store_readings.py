@@ -127,14 +127,14 @@ async def test_latest_if_newer_refuses_an_older_reading(db_session, make_livelin
 
 
 @pytest.mark.asyncio
-async def test_storage_interval_thins_history_when_applied(db_session, make_livelink_vehicle):
+async def test_storage_interval_thins_history(db_session, make_livelink_vehicle):
     vin, device = await make_livelink_vehicle(P, "04")
     svc = TelemetryService(db_session)
     await svc.auto_register_parameter("STORERD_X")
     param = await svc.get_parameter("STORERD_X")
     param.storage_interval_seconds = 300
     await db_session.flush()
-    p = StoragePolicy(apply_storage_interval=True)
+    p = StoragePolicy()
     await svc.store_readings(
         vin=vin,
         device_id=device.device_id,
@@ -154,38 +154,14 @@ async def test_storage_interval_thins_history_when_applied(db_session, make_live
 
 
 @pytest.mark.asyncio
-async def test_storage_interval_ignored_when_policy_says_so(db_session, make_livelink_vehicle):
-    """False skips the interval check entirely, whatever the parameter says."""
-    vin, device = await make_livelink_vehicle(P, "05")
-    svc = TelemetryService(db_session)
-    await svc.auto_register_parameter("STORERD_Y")
-    param = await svc.get_parameter("STORERD_Y")
-    param.storage_interval_seconds = 300
-    await db_session.flush()
-    p = StoragePolicy(apply_storage_interval=False)
-    await svc.store_readings(
-        vin=vin,
-        device_id=device.device_id,
-        readings=[Reading("STORERD_Y", 1.0)],
-        timestamp=TS,
-        policy=p,
-    )
-    await svc.store_readings(
-        vin=vin,
-        device_id=device.device_id,
-        readings=[Reading("STORERD_Y", 2.0)],
-        timestamp=TS + timedelta(seconds=30),
-        policy=p,
-    )
-    await db_session.commit()
-    assert len(await _history(db_session, vin)) == 2
-
-
-@pytest.mark.asyncio
 async def test_duplicate_timestamp_is_deduped_not_an_error(db_session, make_livelink_vehicle):
     vin, device = await make_livelink_vehicle(P, "06")
     svc = TelemetryService(db_session)
-    p = StoragePolicy(apply_storage_interval=False)
+    # No interval, so only the dedup can drop the second one.
+    param = await svc.auto_register_parameter("X")
+    param.storage_interval_seconds = 0
+    await db_session.flush()
+    p = StoragePolicy()
     for _ in range(2):
         await svc.store_readings(
             vin=vin,
@@ -222,7 +198,7 @@ async def test_a_reading_name_reaches_the_registry(db_session, make_livelink_veh
         device_id=device.device_id,
         readings=[Reading(key, 1.0, display_name="Readable name")],
         timestamp=TS,
-        policy=StoragePolicy(latest="if_newer", apply_storage_interval=False),
+        policy=StoragePolicy(latest="if_newer"),
     )
     assert (await svc.get_parameter(key)).display_name == "Readable name"
 
@@ -240,7 +216,7 @@ async def test_the_odometer_rebuild_keeps_the_name(db_session, make_livelink_veh
         device_id=device.device_id,
         readings=[Reading(key, 1000.0, display_name="Readable odometer")],
         timestamp=TS,
-        policy=StoragePolicy(latest="if_newer", apply_storage_interval=False),
+        policy=StoragePolicy(latest="if_newer"),
         device=device,
     )
     assert (await svc.get_parameter(key)).display_name == "Readable odometer"

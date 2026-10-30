@@ -1699,18 +1699,17 @@ class TelemetryService:
                     vin, reading.param_key, reading.value, ts, utc_now()
                 )
 
-            if policy.apply_storage_interval:
-                param = await self.get_parameter(reading.param_key)
-                if param is not None and param.storage_interval_seconds > 0:
-                    keep = await self._should_store_historical(
-                        vin,
-                        device_id,
-                        reading.param_key,
-                        param.storage_interval_seconds,
-                        ts,
-                    )
-                    if not keep:
-                        continue
+            param = await self.get_parameter(reading.param_key)
+            if param is not None and param.storage_interval_seconds > 0:
+                keep = await self._should_store_historical(
+                    vin,
+                    device_id,
+                    reading.param_key,
+                    param.storage_interval_seconds,
+                    ts,
+                )
+                if not keep:
+                    continue
 
             stmt = (
                 dialect_insert(VehicleTelemetry)

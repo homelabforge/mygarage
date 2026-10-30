@@ -160,7 +160,7 @@ SessionSignal = InferSession | StatusTransition | ExplicitSession
 class StoragePolicy:
     """How a source's readings are persisted.
 
-    These four fields are not preferences. Each one started as a real,
+    These three fields are not preferences. Each one started as a real,
     pre-existing behavioral difference between the WiCAN and Torque paths,
     made explicit so the port could not silently merge them:
 
@@ -171,13 +171,12 @@ class StoragePolicy:
     strictly newer (`_update_latest_if_newer`), so a backfilled row never
     clobbers a fresher live one.
 
-    `apply_storage_interval`: whether `storage_interval_seconds` thins the
-    history rows. WiCAN and Torque both honour it; the old Torque writer
-    never checked it, which was a bug, fixed in G5b-12.
+    `storage_interval_seconds` isn't one of them: it thins the history rows
+    for every source. The old Torque writer never checked it, which was a
+    bug, fixed in G5b-12.
     """
 
     latest: str = "always"  # 'always' | 'if_newer'
-    apply_storage_interval: bool = True
     sync_odometer: bool = False
     observe_movement: bool = False
 
