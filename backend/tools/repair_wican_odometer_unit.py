@@ -1140,6 +1140,8 @@ def _plan_torque_sessions(
             scale_start = low is not None and low.at >= boundary
             scale_end = high is not None and high.at >= boundary
         else:
+            # An open one that matches no row falls through untouched. Its close
+            # recomputes both odometers from the rows, which are repaired by then.
             last = ended or started
             touches = from_record and boundary.date() in (started.date(), last.date())
             if started < boundary <= last or touches:

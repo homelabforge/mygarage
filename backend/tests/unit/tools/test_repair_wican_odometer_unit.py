@@ -25,6 +25,7 @@ from typing import TypedDict
 
 import pytest
 from sqlalchemy import Engine, create_engine, select, text
+from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401  (registers every table on Base.metadata)
@@ -545,28 +546,36 @@ def test_to_km_over_a_wire_declaration_survives_the_next_boot(engine):
     assert after["raw"][-1] == 50030.0
 
 
-async def _boot(engine: Engine, device_id: str, config: dict, odometer: float) -> None:
-    """A WiCAN boot POST through real ingest, on the test's own database."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+def _async_engine(engine: Engine) -> AsyncEngine:
+    """An async engine on the test's own database, as the app would open it."""
+    from sqlalchemy.ext.asyncio import create_async_engine
 
     from app.database import configure_sqlite_engine
-    from app.schemas.livelink_ingest import WiCANPayload
-    from app.services.livelink_ingest import ingest
-    from app.services.livelink_sources.base import WicanHttpsEnvelope
-    from app.services.livelink_sources.wican import WicanModule
 
     url = engine.url.render_as_string(hide_password=False)
     if engine.dialect.name == "sqlite":
         async_engine = create_async_engine(url.replace("sqlite://", "sqlite+aiosqlite://", 1))
         configure_sqlite_engine(async_engine)
-    else:
-        # The fixture's own schema, which the sync engine reaches by search_path.
-        with engine.connect() as conn:
-            schema = conn.execute(text("SELECT current_schema()")).scalar_one()
-        async_engine = create_utc_async_engine(
-            url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1),
-            connect_args={"server_settings": {"search_path": schema}},
-        )
+        return async_engine
+    # The fixture's own schema, which the sync engine reaches by search_path.
+    with engine.connect() as conn:
+        schema = conn.execute(text("SELECT current_schema()")).scalar_one()
+    return create_utc_async_engine(
+        url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1),
+        connect_args={"server_settings": {"search_path": schema}},
+    )
+
+
+async def _boot(engine: Engine, device_id: str, config: dict, odometer: float) -> None:
+    """A WiCAN boot POST through real ingest, on the test's own database."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.schemas.livelink_ingest import WiCANPayload
+    from app.services.livelink_ingest import ingest
+    from app.services.livelink_sources.base import WicanHttpsEnvelope
+    from app.services.livelink_sources.wican import WicanModule
+
+    async_engine = _async_engine(engine)
     payload = WiCANPayload.model_validate(
         {
             "autopid_data": {"ODOMETER": odometer},
@@ -1616,6 +1625,74 @@ def test_torque_backfills_before_the_switch_go_by_their_days_top(engine, capsys)
     assert float(km[ids["km"]]) == 56900.0
     assert float(km[ids["mixed"]]) == 57000.0
     assert float(km[ids["no_day"]]) == 91500.0
+
+
+def test_an_open_session_across_the_switch_heals_when_it_closes(engine):
+    """Parked (a): a Torque drive still open at repair time, its end stamped at
+    the 13:00 refresh and a reading since, matches no row, so the repair
+    leaves it and doesn't name it. Its readings are repaired, though, and the
+    contact-loss close recomputes its odometers from them."""
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.services.session_service import SessionService
+
+    last_seen = datetime(2026, 7, 1, 14)
+    with Session(engine) as s:
+        _vehicle(s, TQVIN)
+        _phone(s, last_seen=last_seen)
+        _rows(
+            s,
+            [
+                (datetime(2026, 7, 1, 9), 57000.0),
+                (SWITCH, _up(57010.0)),
+                (datetime(2026, 7, 1, 13), _up(57030.0)),
+                (last_seen, _up(57040.0)),
+            ],
+        )
+        session = DriveSession(
+            vin=TQVIN,
+            device_id=TQ,
+            started_at=datetime(2026, 7, 1, 8),
+            start_odometer=57000.0,
+            end_odometer=_up(57030.0),
+            distance_km=_up(57030.0) - 57000.0,
+            external_session_id="tq-open",
+        )
+        s.add(session)
+        s.flush()
+        s.scalars(
+            select(LiveLinkDevice).where(LiveLinkDevice.device_id == TQ)
+        ).one().current_session_id = session.id
+        s.commit()
+        session_id = session.id
+
+    plan = _plan(engine, TQ, "km", key=TQKEY)
+    assert plan.boundary == SWITCH
+    assert session_id not in {c.id for c in plan.sessions}
+    assert session_id not in {k[0] for k in plan.sessions_kept}
+    _apply(engine, TQ, "km", key=TQKEY)
+
+    async def close() -> list[DriveSession]:
+        async_engine = _async_engine(engine)
+        try:
+            async with async_sessionmaker(async_engine, expire_on_commit=False)() as db:
+                closed = await SessionService(db).check_session_timeouts(
+                    gap_minutes=20, now=last_seen + timedelta(minutes=10)
+                )
+                await db.commit()
+                return closed
+        finally:
+            await async_engine.dispose()
+
+    assert [c.id for c in asyncio.run(close())] == [session_id]
+    with Session(engine) as s:
+        healed = s.get(DriveSession, session_id)
+        assert healed.ended_at == last_seen
+        assert float(healed.start_odometer) == pytest.approx(57000.0)
+        assert float(healed.end_odometer) == pytest.approx(57040.0)
+        assert float(healed.distance_km) == pytest.approx(40.0)
 
 
 def test_torque_refuses_with_no_surviving_rows(engine):
