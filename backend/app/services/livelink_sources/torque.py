@@ -66,12 +66,12 @@ class TorqueModule(BaseSourceModule):
             Capability.ODOMETER,
         }
     )
-    #: Exactly what the old Torque writer did: newer-only latest updates so a
-    #: backfilled row never clobbers a fresher live one, and no storage-interval
-    #: check because it never performed one.
+    #: Newer-only latest updates so a backfilled row never clobbers a fresher
+    #: live one. The storage interval applies like it does for every other
+    #: source; the old Torque writer just never checked it (G5b-12).
     storage_policy = StoragePolicy(
         latest="if_newer",
-        apply_storage_interval=False,
+        apply_storage_interval=True,
         sync_odometer=False,
         observe_movement=False,
     )
