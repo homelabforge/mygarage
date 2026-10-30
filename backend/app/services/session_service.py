@@ -62,6 +62,12 @@ logger = logging.getLogger(__name__)
 SPEED_PARAM_KEYS = speed_param_key_candidates()
 RPM_PARAM_KEYS = rpm_param_key_candidates()
 
+# The rest of the aggregate keys. The generic alias goes first: it's what
+# Torque's map targets (TORQUE_OBD_PID_MAP), the PID-prefixed ones are WiCAN's.
+COOLANT_PARAM_KEYS = ["COOLANT_TMP", "05-EngineCoolantTemp", "05-ENGINECOOLANTTEMP"]
+THROTTLE_PARAM_KEYS = ["THROTTLE", "11-ThrottlePosition", "11-THROTTLEPOSITION"]
+FUEL_LEVEL_PARAM_KEYS = ["FUEL", "2F-FuelTankLevel", "2F-FUELTANKLEVEL"]
+
 #: Below this speed the vehicle is not moving, in km/h. Hoisted out of
 #: `_calculate_driving_insights`, where it was a local, so the movement
 #: predicate can share it: "moving" must mean one thing in this subsystem, and
@@ -1867,8 +1873,8 @@ class SessionService:
         # Deliberately do NOT set start_odometer here. _get_current_odometer() is VIN-scoped,
         # not device-scoped, so on a vehicle with BOTH a WiCAN dongle and a Torque source it
         # would attribute the co-located WiCAN device's odometer to this Torque trip. Torque
-        # has no odometer PID at all -> leave start_odometer None so end_session's odometer-
-        # delta gate never fires, forcing distance to come from the GPS breadcrumb fallback.
+        # only records an odometer under a key the device declares (TORQUE_ODOMETER), and the
+        # distance falls back to the GPS breadcrumb when there's none.
         session = DriveSession(
             vin=device.vin,
             device_id=device.device_id,
@@ -2112,12 +2118,13 @@ class SessionService:
                 session.distance_km = travelled[best].distance_km
                 return
 
-        # No distance source in the window at all. A Torque trip never has
-        # one -- the app reports no odometer and no distance PID -- so its
-        # distance comes from the GPS breadcrumb. This lives here rather than in `end_session` so every
-        # caller gets the same policy: computed only in `end_session`, a
-        # Torque session's distance stayed frozen at whatever the breadcrumb
-        # held on close while its speed and RPM were repaired around it.
+        # No distance source in the window at all. A Torque trip only has one
+        # when the device declares its odometer key (TORQUE_ODOMETER); without
+        # it the distance comes from the GPS breadcrumb. This lives here rather
+        # than in `end_session` so every caller gets the same policy: computed
+        # only in `end_session`, a Torque session's distance stayed frozen at
+        # whatever the breadcrumb held on close while its speed and RPM were
+        # repaired around it.
         from app.services.location_service import LocationService  # local import avoids cycle
 
         points = await LocationService(self.db).get_trip_points(session.vin, session.id)
@@ -2173,17 +2180,9 @@ class SessionService:
         aggregate_mappings = {
             "speed": (SPEED_PARAM_KEYS, "avg_speed", "max_speed"),
             "rpm": (RPM_PARAM_KEYS, "avg_rpm", "max_rpm"),
-            "coolant": (
-                ["COOLANT_TMP", "05-EngineCoolantTemp", "05-ENGINECOOLANTTEMP"],
-                "avg_coolant_temp",
-                "max_coolant_temp",
-            ),
-            "throttle": (
-                ["THROTTLE", "11-ThrottlePosition", "11-THROTTLEPOSITION"],
-                "avg_throttle",
-                "max_throttle",
-            ),
-            "fuel": (["FUEL", "2F-FuelTankLevel", "2F-FUELTANKLEVEL"], "avg_fuel_level", None),
+            "coolant": (COOLANT_PARAM_KEYS, "avg_coolant_temp", "max_coolant_temp"),
+            "throttle": (THROTTLE_PARAM_KEYS, "avg_throttle", "max_throttle"),
+            "fuel": (FUEL_LEVEL_PARAM_KEYS, "avg_fuel_level", None),
         }
 
         for _, (param_keys, avg_attr, max_attr) in aggregate_mappings.items():

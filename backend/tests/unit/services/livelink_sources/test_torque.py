@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.livelink_sources.base import (
     Capability,
@@ -12,6 +13,7 @@ from app.services.livelink_sources.base import (
     Reading,
 )
 from app.services.livelink_sources.torque import TorqueModule
+from app.services.telemetry_service import TelemetryService
 
 M = TorqueModule()
 
@@ -131,3 +133,25 @@ async def test_readings_carry_torques_default_unit_and_name():
         Reading("KFF1238", 14.1, unit="V", display_name="OBD adapter voltage"),
         Reading("K33", 100.0),
     ]
+
+
+@pytest.mark.asyncio
+async def test_a_declared_unit_that_disagrees_leaves_the_static_unit(
+    db_session: AsyncSession,
+) -> None:
+    """TQ-L6: the value is stored in the static unit, so a unit-less row gets that
+    one too, not whatever the phone declared. A key with no static unit keeps
+    the declared one."""
+    batch = await M.parse(
+        HttpEnvelope(token="t", params={"defaultUnit05": "°F", "defaultUnit33": "kPa"})
+    )
+    assert batch is not None
+    svc = TelemetryService(db_session)
+    try:
+        param = await svc.auto_register_parameter("COOLANT_TMP")
+        param.unit = None
+        await svc.fill_declared_units(batch.declared_units)
+        assert param.unit == "°C"
+    finally:
+        await db_session.rollback()
+    assert batch.declared_units == {"COOLANT_TMP": "°C", "K33": "kPa"}

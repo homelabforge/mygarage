@@ -130,7 +130,12 @@ class TorqueModule(BaseSourceModule):
                 )
                 for key, value in reading.obd.items()
             ],
-            declared_units=reading.default_units,
+            # The static unit wins here too, so a unit-less row gets the unit
+            # its values are actually stored in (TQ-L6).
+            declared_units={
+                key: TORQUE_DEFAULT_UNITS.get(key, unit)
+                for key, unit in reading.default_units.items()
+            },
             # `_ingest` returns OK! and does nothing at all for an unlinked
             # device, so Torque never touched status for one.
             requires_link=True,
