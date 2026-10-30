@@ -56,11 +56,12 @@ function expectTable(table: Record<'en' | 'de', Table>): void {
 afterEach(() => setActiveLocale('en'))
 
 describe('formatDuration with Intl.DurationFormat', () => {
-  it('runs on an engine that has it, so this block is not quietly the fallback', () => {
-    expect(typeof Intl.DurationFormat).toBe('function')
+  beforeEach(() => {
+    // Without it this block would quietly test the fallback.
+    expect(typeof Intl.DurationFormat, 'engine has Intl.DurationFormat').toBe('function')
   })
 
-  it('keeps the tabs shapes, zero units shown, in en and de', () => {
+  it("keeps the tabs' shapes, zero units shown, in en and de", () => {
     expectTable(DURATION_FORMAT)
   })
 
@@ -86,13 +87,10 @@ describe('formatDuration without Intl.DurationFormat (older browsers)', () => {
   beforeEach(() => {
     saved = Object.getOwnPropertyDescriptor(Intl, 'DurationFormat')
     Reflect.deleteProperty(Intl, 'DurationFormat')
+    expect(typeof Intl.DurationFormat, 'Intl.DurationFormat deleted').toBe('undefined')
   })
   afterEach(() => {
     if (saved) Object.defineProperty(Intl, 'DurationFormat', saved)
-  })
-
-  it('really has it deleted, so this block is the fallback', () => {
-    expect(typeof Intl.DurationFormat).toBe('undefined')
   })
 
   it('keeps the same shapes through per-unit NumberFormat, in en and de', () => {

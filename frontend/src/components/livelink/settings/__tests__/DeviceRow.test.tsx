@@ -8,10 +8,22 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import type { DeviceFirmwareStatus, LiveLinkDevice } from '@/types/livelink'
 import type { SourceInfo } from '@/types/livelinkTopicMap'
 import type { Vehicle } from '@/types/vehicle'
+
+// A spy t, so a test can see what a key was interpolated with. Stable
+// identity across renders, like the global mock's.
+const i18n = vi.hoisted(() => ({
+  t: vi.fn((key: string): string => key),
+  i18n: { language: 'en', changeLanguage: (): Promise<void> => Promise.resolve() },
+}))
+vi.mock('react-i18next', () => ({
+  useTranslation: () => i18n,
+  Trans: ({ children }: { children: ReactNode }): ReactNode => children,
+  initReactI18next: { type: '3rdParty', init: (): void => {} },
+}))
 
 const getDeviceParamKeys = vi.fn()
 vi.mock('@/services/livelinkService', () => ({
@@ -312,6 +324,10 @@ describe('DeviceRow Torque odometer unit', () => {
     expect(screen.getByDisplayValue('modal.livelink.odometerUnitMi')).toBeDisabled()
     expect(screen.getByText('modal.livelink.odometerUnitTorqueKm')).toBeInTheDocument()
     expect(screen.getByText('modal.livelink.odometerUnitTorqueMiRepair')).toBeInTheDocument()
+    // The command in the hint names this device.
+    expect(i18n.t).toHaveBeenCalledWith('modal.livelink.odometerUnitTorqueMiRepair', {
+      deviceId: device.device_id,
+    })
   })
 
   it('leaves the unit open for any other Torque key, a custom PID can be miles', () => {
