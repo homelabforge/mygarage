@@ -91,8 +91,8 @@ def _refuse_torque_odometer_in_miles(device: LiveLinkDevice, changes: dict[str, 
     if in_pair:
         message += (
             " This device has been reading it as miles, so what it stored since it was"
-            " set that way is 1.609x high. Repair them with `python tools/repair_wican_odometer_unit.py"
-            f" --device-id {device.device_id} --key TORQUE_ODOMETER --to km` (a dry run"
+            " set that way is 1.609x high. Repair it with python tools/repair_wican_odometer_unit.py"
+            f" --device-id {device.device_id} --key TORQUE_ODOMETER --to km (a dry run"
             " unless you add --apply), which also clears the unit."
         )
     else:

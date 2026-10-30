@@ -70,7 +70,8 @@ async def recompute_pending_sessions(db: AsyncSession) -> int:
     if row is None:
         return 0
     try:
-        ids = [int(i) for i in json.loads(row.value or "[]")]
+        # A hand-edited duplicate would count twice in "no longer closed or gone".
+        ids = list(dict.fromkeys(int(i) for i in json.loads(row.value or "[]")))
     except TypeError, ValueError:
         logger.warning("Dropping an unreadable %s row", PENDING_KEY)
         ids = []

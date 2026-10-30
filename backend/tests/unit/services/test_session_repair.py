@@ -169,6 +169,28 @@ async def test_an_open_trip_on_the_list_is_left_for_its_close(
 
 
 @pytest.mark.asyncio
+async def test_a_duplicate_id_on_the_list_counts_once(
+    db_session, make_closed_drive_session, caplog
+):
+    """A hand-edited list can repeat an id. The trip is still one trip, not
+    one done and one gone. Red on 5af0f60c, which said "1 no longer closed or gone"."""
+    trip = await _retained_trip(db_session, make_closed_drive_session, "13")
+    await _list(db_session, [trip.id, trip.id])
+
+    with caplog.at_level(logging.INFO, logger=session_repair.logger.name):
+        assert await recompute_pending_sessions(db_session) == 1
+
+    assert [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == session_repair.logger.name and r.levelno == logging.INFO
+    ] == [
+        "Recomputed 1 older Torque trip(s) after migration 130; left 0 that may have lost "
+        "readings to pruning; 0 no longer closed or gone"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_the_closing_line_counts_the_trips_no_longer_closed_or_gone(
     db_session, make_closed_drive_session, caplog
 ):

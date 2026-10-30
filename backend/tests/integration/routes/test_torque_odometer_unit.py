@@ -218,6 +218,9 @@ async def test_a_device_already_in_it_cant_leave_through_the_api(
     assert TORQUE_SAYS in detail
     assert _repair_command(device_id) in detail
     assert USE_KM not in detail
+    # The toast shows it as plain text, so no markdown backticks.
+    assert "`" not in detail
+    assert "Repair it with" in detail
     assert await _saved(db_session, device_id) == ("mi", "TORQUE_ODOMETER")
 
 
