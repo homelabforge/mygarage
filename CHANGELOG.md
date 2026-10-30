@@ -45,10 +45,12 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 
 Migration 137 closes any duplicate active DTC rows a vehicle has for one code, keeping the newest, before it adds the index that allows one active row per code. The closed rows stay in the history with a note saying why. It isn't FATAL.
 
+Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `mi` with `TORQUE_ODOMETER` as its odometer has stored that odometer 1.609x high since the switch. Migration 139 logs a WARNING naming each such device. Back up first, then run `python tools/repair_wican_odometer_unit.py --device-id <id> --key TORQUE_ODOMETER --to km` inside the container, with MyGarage stopped or in maintenance mode. It's a dry run until you add `--apply`, and it rescales the readings, odometer records, trips and daily summaries from the switch on and clears the unit.
+
 ### Added
 - LiveLink offline alerts cover sensors with no status topic, such as a Mopeka gateway: a live reading marks the sensor online, and it alerts once when it goes quiet
 - LiveLink device responses carry `online`, and the device list's status reads it
-- `tools/repair_wican_odometer_unit.py` repairs a WiCAN odometer read in the wrong unit, either way (`--to km` or `--to mi`), and the 409 on a unit change names it
+- `tools/repair_wican_odometer_unit.py` repairs a WiCAN odometer read in the wrong unit, either way (`--to km` or `--to mi`), or a Torque odometer read as miles (`--key TORQUE_ODOMETER --to km`), and the 409 on a unit change names it. Repaired readings, latest values and trip odometers keep their fraction, and the daily summaries are rescaled too
 - The vehicle JSON backup (schema 9) also carries financing, tax, toll tags and toll transactions, warranties, and spot rentals with their bills, and writes the whole vehicle record, exterior and interior colours included. A restore reads the new sections back; it never overwrites the vehicle record
 - Imports report warnings beside errors, for rows that came in but not whole: a fuel station or driver this instance doesn't have (kept as text), a toll whose tag didn't import, or an old reminder that kept its date but not its mileage
 - The JSON import's message lists its errors and warnings, not only counts, and the fuel and odometer CSV imports list their warnings beside their errors. Each list shows the first five and how many more
@@ -102,6 +104,9 @@ Migration 137 closes any duplicate active DTC rows a vehicle has for one code, k
 - A service CSV whose rows of one visit disagree on the date, shop, odometer, fees or another visit column refuses that visit, naming the column and two of the rows, instead of taking the first row's values. A sheet with one Notes column instead of Item Notes and Visit Notes can still have a different note on each row
 - The JSON import is rate limited like the other imports
 - The import message lists the new sections, reusing the app's translated list titles where there is one, and its reminders line reads Reminders instead of Maintenance (from reminders)
+- Shared LiveLink parameters get readable names, such as "Coolant temperature", "Engine RPM" and "Odometer (Torque)", instead of their key title-cased. Migration 139 (not FATAL) renames the ones still on their old automatic name, Torque's "Kff1238"-style ones included, and never touches a name you set
+- Torque's two L/100km economy parameters read "(L/100km)", like their unit
+- Durations in LiveLink (trips, sessions and the live session timer) follow the selected language
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
@@ -192,6 +197,8 @@ Migration 137 closes any duplicate active DTC rows a vehicle has for one code, k
 - A vehicle keeps one active row per DTC code: a device report that races another report or an import updates the row that got there first, and an import that brings a second active copy skips it and says so
 - A DTC import never adds a second active copy of a code, even where migration 137 couldn't build its index
 - An old (v2) backup's reminder is only skipped as a copy of a reminder you made, never of a maintenance rule's, a tire's or a brake's
+- A Torque parameter's storage interval is honoured, as a WiCAN's is, so one with an interval set stores fewer history rows from now on
+- A Torque device can no longer read `TORQUE_ODOMETER` as miles: the API refuses odometer unit `mi` with it, and Device settings disables the unit while it's the odometer, with a hint saying why
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)
@@ -207,6 +214,7 @@ Migration 137 closes any duplicate active DTC rows a vehicle has for one code, k
 - A secret setting's default value is logged as `<secret>` when it is seeded
 - LiveLink ingest only takes a device of its own kind: a WiCAN upload or topic naming a sensor or a Torque phone, or a Torque token sent to the WiCAN endpoint, is refused, and a new topic map naming a device that isn't generic MQTT answers 422
 - An SD pull checks the device address is still private when it connects, not only when it was saved, and skips it if not
+- Map markers are served by MyGarage itself, so maps no longer contact cdnjs.cloudflare.com, and it's out of the Content-Security-Policy
 
 ## [3.9.0] - 2026-10-18
 
