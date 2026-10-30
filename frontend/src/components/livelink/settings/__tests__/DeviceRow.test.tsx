@@ -286,3 +286,44 @@ describe('DeviceRow refused settings', () => {
     await waitFor(() => expect(param).toHaveValue('ODO'))
   })
 })
+
+describe('DeviceRow Torque odometer unit', () => {
+  // Torque sends TORQUE_ODOMETER in km, always. Read as miles it lands 1.609x
+  // high, so the server refuses that pair and the select doesn't offer it.
+  const torqueRow = (overrides: Partial<LiveLinkDevice>): void => {
+    renderRow(undefined, {
+      device: { ...device, kind: 'torque', odometer_param_key: 'TORQUE_ODOMETER', ...overrides },
+      source: TORQUE,
+      showFirmware: false,
+    })
+    fireEvent.click(screen.getByTitle('modal.livelink.deviceSettings'))
+  }
+
+  it('locks the unit and says why when the odometer is TORQUE_ODOMETER', () => {
+    torqueRow({ odometer_unit: null })
+    expect(screen.getByDisplayValue('modal.livelink.odometerUnitAuto')).toBeDisabled()
+    expect(screen.getByText('modal.livelink.odometerUnitTorqueKm')).toBeInTheDocument()
+    // Nothing was stored as miles, so there's nothing to repair.
+    expect(screen.queryByText('modal.livelink.odometerUnitTorqueMiRepair')).not.toBeInTheDocument()
+  })
+
+  it('points a device already on miles at the repair', () => {
+    torqueRow({ odometer_unit: 'mi' })
+    expect(screen.getByDisplayValue('modal.livelink.odometerUnitMi')).toBeDisabled()
+    expect(screen.getByText('modal.livelink.odometerUnitTorqueKm')).toBeInTheDocument()
+    expect(screen.getByText('modal.livelink.odometerUnitTorqueMiRepair')).toBeInTheDocument()
+  })
+
+  it('leaves the unit open for any other Torque key, a custom PID can be miles', () => {
+    torqueRow({ odometer_param_key: 'ODO', odometer_unit: 'mi' })
+    expect(screen.getByDisplayValue('modal.livelink.odometerUnitMi')).toBeEnabled()
+    expect(screen.queryByText('modal.livelink.odometerUnitTorqueKm')).not.toBeInTheDocument()
+  })
+
+  it('leaves the unit open for a WiCAN, whatever key it names', () => {
+    renderRow(undefined, { device: { ...device, odometer_param_key: 'TORQUE_ODOMETER' } })
+    fireEvent.click(screen.getByTitle('modal.livelink.deviceSettings'))
+    expect(screen.getByDisplayValue('modal.livelink.odometerUnitAuto')).toBeEnabled()
+    expect(screen.queryByText('modal.livelink.odometerUnitTorqueKm')).not.toBeInTheDocument()
+  })
+})

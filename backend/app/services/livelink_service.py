@@ -55,6 +55,51 @@ def enqueue_sd_backfill(device_id: str) -> None:
     task.add_done_callback(_sd_backfill_tasks.discard)
 
 
+def _stored_odometer_unit(requested: str) -> str | None:
+    """The column value for a requested unit: 'auto' clears the override."""
+    return None if requested == "auto" else requested
+
+
+def _stored_odometer_param_key(requested: str) -> str | None:
+    """The column value for a requested key, normalised the way stored keys are; "" clears it."""
+    return requested.upper().replace(" ", "_") or None
+
+
+def _refuse_torque_odometer_in_miles(device: LiveLinkDevice, changes: dict[str, Any]) -> None:
+    """Refuse a Torque device into, or out of, `mi` with TORQUE_ODOMETER (O-T6).
+
+    Torque sends that total in km, always, so `mi` stores every reading 1.609x
+    high. Leaving the pair through the API is refused too: the inflated history
+    stays behind either way, and the repair tool fixes it and clears the unit.
+    A request that keeps the pair as it is (a rename) goes through.
+
+    Runs before the history guards, so this message wins over their generic one.
+    """
+    if device.kind != "torque":
+        return
+    unit = changes.get("odometer_unit")
+    key = changes.get("odometer_param_key")
+    after_unit = device.odometer_unit if unit is None else _stored_odometer_unit(unit)
+    after_key = device.odometer_param_key if key is None else _stored_odometer_param_key(key)
+    in_pair = device.odometer_unit == "mi" and device.odometer_param_key == "TORQUE_ODOMETER"
+    if in_pair == (after_unit == "mi" and after_key == "TORQUE_ODOMETER"):
+        return
+
+    message = "Torque sends TORQUE_ODOMETER in km, so a Torque device can't read it as miles."
+    # Only a device already in the pair has inflated history. On `mi` with
+    # another key, its TORQUE_ODOMETER rows went in undeclared, so as km.
+    if in_pair:
+        message += (
+            " This device has been reading it as miles, so what it stored since it was"
+            " set that way is 1.609x high. Repair them with `python tools/repair_wican_odometer_unit.py"
+            f" --device-id {device.device_id} --key TORQUE_ODOMETER --to km` (a dry run"
+            " unless you add --apply), which also clears the unit."
+        )
+    else:
+        message += " Use auto or km as the odometer unit with this parameter."
+    raise ValueError(message)
+
+
 class LiveLinkService:
     """Service for LiveLink token management and device operations."""
 
@@ -534,6 +579,8 @@ class LiveLinkService:
         if not device:
             return None
 
+        _refuse_torque_odometer_in_miles(device, changes)
+
         if "label" in changes:
             # An emptied name box is no name. Stored as blanks it beat the
             # device id fallback, so the sensor showed up nameless.
@@ -549,7 +596,7 @@ class LiveLinkService:
             device.enabled = changes["enabled"]
         odometer_unit = changes.get("odometer_unit")
         if odometer_unit is not None:
-            resolved = None if odometer_unit == "auto" else odometer_unit
+            resolved = _stored_odometer_unit(odometer_unit)
             if resolved != device.odometer_unit and await self.device_has_odometer_history(device):
                 raise ValueError(
                     "Odometer readings have already been recorded under this device's "
@@ -569,7 +616,7 @@ class LiveLinkService:
 
         odometer_param_key = changes.get("odometer_param_key")
         if odometer_param_key is not None:
-            resolved_key = odometer_param_key.upper().replace(" ", "_") or None
+            resolved_key = _stored_odometer_param_key(odometer_param_key)
             # Same reasoning as the unit guard above: changing which parameter
             # IS the odometer mid-stream splits the history between two keys.
             # The predicate reads the CURRENT declaration, or it falls back to
@@ -667,6 +714,9 @@ class LiveLinkService:
         ):
             return True
 
+        # No key or kind filter here, on purpose. The repair tool's Torque record
+        # branch counts on this refusing a declaration whenever any livelink
+        # record landed on the VIN since the device arrived.
         record = select(OdometerRecord.id).where(
             OdometerRecord.vin == device.vin, OdometerRecord.source == "livelink"
         )

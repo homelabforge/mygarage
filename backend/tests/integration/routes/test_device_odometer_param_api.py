@@ -37,9 +37,10 @@ async def device(db_session, test_user):
 
 @pytest.mark.asyncio
 async def test_the_selection_round_trips(client, auth_headers, db_session, device):
+    # km, not mi: a Torque device can't read TORQUE_ODOMETER as miles (O-T6).
     resp = await client.put(
         f"{URL}/{device}",
-        json={"odometer_param_key": "TORQUE_ODOMETER", "odometer_unit": "mi"},
+        json={"odometer_param_key": "TORQUE_ODOMETER", "odometer_unit": "km"},
         headers=auth_headers,
     )
     assert resp.status_code == 200

@@ -119,6 +119,10 @@ export default function DeviceRow({
   // wire protocol; no Capability names them. A Torque source's token IS its
   // upload URL, so offering to regenerate it here would break the phone.
   const wicanWire = device.kind === 'wican'
+  // Torque sends TORQUE_ODOMETER in km, always; read as miles every reading
+  // lands 1.609x high. The server refuses that pair both ways, so the unit is
+  // locked while it's the saved key.
+  const torqueKmOdometer = device.kind === 'torque' && device.odometer_param_key === 'TORQUE_ODOMETER'
 
   useEffect(() => {
     if (!choosesOdometerParam) return
@@ -364,15 +368,29 @@ export default function DeviceRow({
                 <Select
                   value={odometerUnit}
                   onChange={(e) => void changeOdometerUnit(e.target.value as 'km' | 'mi' | 'auto')}
+                  disabled={torqueKmOdometer}
                   options={[
                     { value: 'auto', label: t('modal.livelink.odometerUnitAuto') },
                     { value: 'km', label: t('modal.livelink.odometerUnitKm') },
                     { value: 'mi', label: t('modal.livelink.odometerUnitMi') },
                   ]}
                 />
-                <p className="mt-1 text-[11px] text-garage-text-muted max-w-56">
-                  {t('modal.livelink.odometerUnitHelp')}
-                </p>
+                {torqueKmOdometer ? (
+                  <>
+                    <p className="mt-1 text-[11px] text-garage-text-muted max-w-56">
+                      {t('modal.livelink.odometerUnitTorqueKm')}
+                    </p>
+                    {savedOdometerUnit === 'mi' && (
+                      <p className="mt-1 text-[11px] text-yellow-500 max-w-56 break-words">
+                        {t('modal.livelink.odometerUnitTorqueMiRepair', { deviceId: device.device_id })}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="mt-1 text-[11px] text-garage-text-muted max-w-56">
+                    {t('modal.livelink.odometerUnitHelp')}
+                  </p>
+                )}
               </div>
             )}
             {choosesOdometerParam && (

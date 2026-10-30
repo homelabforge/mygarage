@@ -4,6 +4,9 @@ Torque records an odometer only from a key the device declares. Its raw rows
 carry `TORQUE_ODOMETER` long before that, which is what the parameter picker
 offers. Counting those rows as odometer history 409'd the very PUT that
 declares it, with no way out: the latest row never prunes.
+
+It declares with `km`: `mi` with this key is refused on its own grounds
+(test_torque_odometer_unit.py).
 """
 
 import pytest
@@ -43,12 +46,12 @@ async def test_a_torque_device_declares_its_odometer_after_sending_it(
         response = await client.put(
             "/api/livelink/devices/torqdecl0001",
             headers=auth_headers,
-            json={"odometer_param_key": "TORQUE_ODOMETER", "odometer_unit": "mi"},
+            json={"odometer_param_key": "TORQUE_ODOMETER", "odometer_unit": "km"},
         )
 
         assert response.status_code == 200, response.text
         body = response.json()
-        assert (body["odometer_param_key"], body["odometer_unit"]) == ("TORQUE_ODOMETER", "mi")
+        assert (body["odometer_param_key"], body["odometer_unit"]) == ("TORQUE_ODOMETER", "km")
     finally:
         await db_session.rollback()
         await db_session.execute(
