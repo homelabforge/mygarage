@@ -2,6 +2,7 @@
 
 import json
 import logging
+import traceback
 from pathlib import Path
 
 import pytest
@@ -39,6 +40,9 @@ XDAY = "2026-07-20 00:00:00"
 #: Whole, and only Torque sent KC that day.
 Y1 = "2026-07-25 08:00:00"
 YDAY = "2026-07-25 00:00:00"
+#: Pruned, with one duplicate received just before midnight and one at it.
+M1, M2 = "2026-09-10 09:00:00", "2026-09-10 09:05:00"
+MDAY = "2026-09-10 00:00:00"
 _TQ = "tq_0000a130"  # a Torque source on V1
 _GONE = "tq_0000dead"  # a deleted one: only its trip is left, on V2
 _WICAN = "aabbccdd0130"  # a WiCAN on V1 that happens to send a key named KC
@@ -75,7 +79,8 @@ def _make_tables(engine) -> None:
             f"CREATE TABLE livelink_topic_maps (id {pk}, device_id VARCHAR(20) NOT NULL, param_key VARCHAR(100))",
             "CREATE TABLE settings (key VARCHAR(50) PRIMARY KEY, value TEXT, "
             "category VARCHAR(50) NOT NULL DEFAULT 'general', description TEXT, "
-            "encrypted BOOLEAN NOT NULL DEFAULT FALSE)",
+            f"encrypted BOOLEAN NOT NULL DEFAULT FALSE, created_at {ts} NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+            f"updated_at {ts} NOT NULL DEFAULT CURRENT_TIMESTAMP)",
             f"CREATE TABLE livelink_parameters (id {pk}, param_key VARCHAR(100) NOT NULL UNIQUE, "
             "display_name VARCHAR(100), unit VARCHAR(20), param_class VARCHAR(50), category VARCHAR(50), "
             f"icon VARCHAR(50), warning_min {num}, warning_max {num}, critical_min {num}, "
@@ -469,9 +474,9 @@ def test_130_is_idempotent(engine_for_migration):
 @pytest.mark.parametrize(
     "error",
     [
-        OperationalError("UPDATE telemetry_daily_summary", {}, Exception("boom")),
+        lambda: OperationalError("UPDATE telemetry_daily_summary", {}, Exception("boom")),
         # What SQLite's DateTime result processor raises on an oddly formatted date.
-        ValueError("Couldn't parse datetime string: '01/10/2026 10:00'"),
+        lambda: ValueError("Couldn't parse datetime string: '01/10/2026 10:00'"),
     ],
     ids=["sqlalchemy", "value"],
 )
@@ -487,15 +492,20 @@ def test_130_a_failure_moves_nothing_and_does_not_raise(
     mod = _load()
 
     def _boom(*_args, **_kwargs):
-        raise error
+        raise error()
 
     monkeypatch.setattr(mod, "_move_summaries", _boom)
     with caplog.at_level(logging.ERROR):
         mod.upgrade(engine)
     assert (_telemetry(engine), _latest(engine)) == before
-    assert any(
-        r.levelno == logging.ERROR and r.getMessage().startswith("130:") for r in caplog.records
-    )
+    errors = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.ERROR and r.getMessage().startswith("130:")
+    ]
+    assert len(errors) == 1
+    # One raise in the traceback: a shared instance drags the other dialect's raise along.
+    assert [f.name for f in traceback.extract_tb(errors[0].exc_info[2])].count("_boom") == 1
 
 
 def test_130_without_a_torque_source_changes_nothing(engine_for_migration):
@@ -528,7 +538,9 @@ def test_130_carries_what_someone_set_and_drops_raw_rows_nothing_names(
     with caplog.at_level(logging.INFO):
         registry = _registry(_migrated(engine))
     assert registry == {
-        # Still named by the WiCAN's raw row: kept as it was, alert line and all.
+        # Kept: the WiCAN's KC readings, latest values and summaries still name it
+        # (_still_used). Shared, so nothing is carried off it and it stays as it
+        # was, alert line and all.
         "KC": ("Tacho", None, None, "drivetrain", "tachometer", None, None, 6000.0, False, False),
         # New: frozen defaults. KC is shared, so nothing on its row follows.
         "ENGINE_RPM": (
@@ -661,3 +673,112 @@ def test_130_a_second_run_lists_nothing_new(engine_for_migration):
         conn.execute(text("DELETE FROM settings"))
     _load().upgrade(engine)
     assert _listed(engine) is None
+
+
+@pytest.mark.parametrize(("settings", "listed"), [(True, 2), (False, 0)], ids=["settings", "none"])
+def test_130_logs_the_trips_it_actually_listed(engine_for_migration, caplog, settings, listed):
+    """With no settings table there's nowhere to list them, so the closing line says 0."""
+    _dialect, engine, _url = engine_for_migration
+    _make_tables(engine)
+    if not settings:
+        with engine.begin() as conn:
+            conn.execute(text("DROP TABLE settings"))
+    _seed(engine)
+    with caplog.at_level(logging.INFO):
+        _load().upgrade(engine)
+    assert [
+        r.getMessage().split("; ")[1]
+        for r in caplog.records
+        if r.getMessage().startswith("130: moved Torque keys")
+    ] == [f"{listed} trip(s) listed to recompute"]
+
+
+def test_130_a_duplicate_received_at_midnight_was_not_in_the_days_summary(engine_for_migration):
+    """SQLite's CURRENT_TIMESTAMP default writes received_at with no fraction, so a
+    reading at exactly the next midnight must still count as after the day ended."""
+    _dialect, engine, _url = engine_for_migration
+    _make_tables(engine)
+    with engine.begin() as conn:
+        _rows(conn, "livelink_devices", ("device_id", "vin", "kind"), [(_TQ, V1, "torque")])
+        _rows(conn, "vehicles", ("vin",), [(V1,)])
+        _rows(
+            conn,
+            "vehicle_telemetry",
+            ("vin", "device_id", "param_key", "value", "timestamp", "received_at"),
+            [
+                (V1, _TQ, "KD", 60.0, M1, "2026-09-10 23:59:59"),
+                (V1, _TQ, "SPEED", 60.0, M1, "2026-09-10 23:59:59"),
+                (V1, _TQ, "KD", 40.0, M2, "2026-09-11 00:00:00"),
+                (V1, _TQ, "SPEED", 40.0, M2, "2026-09-11 00:00:00"),
+            ],
+        )
+        # Ten readings summarised; pruning has left the two duplicates.
+        _rows(
+            conn,
+            "telemetry_daily_summary",
+            ("vin", "param_key", "date", "min_value", "max_value", "avg_value", "sample_count"),
+            [(V1, "KD", MDAY, 40.0, 60.0, 50.0, 10)],
+        )
+    _load().upgrade(engine)
+    # Only the 60 comes off: (500 - 60) / 9.
+    assert _summaries(engine)[(V1, "SPEED", "2026-09-10")] == (40.0, 60.0, 440.0 / 9, 9)
+
+
+#: One `_carry` sub-predicate each, the ones the main seed never decides: the raw
+#: row's (name, category, icon), the target's (None when 130 makes it), and what
+#: the target ends up with.
+_CARRY_CASES = [
+    pytest.param("K0", (None, "other", None), None, ("K00", "other", None), id="old-name-null"),
+    pytest.param(
+        "K1",
+        ("Boost", "other", None),
+        (None, "other", None),
+        ("Boost", "other", None),
+        id="target-name-null",
+    ),
+    pytest.param("K2", ("K2", None, None), None, ("K02", "other", None), id="old-category-null"),
+    pytest.param(
+        "K3",
+        ("K3", "drivetrain", None),
+        ("K03", None, None),
+        ("K03", "drivetrain", None),
+        id="target-category-null",
+    ),
+    # INTAKE_TEMP's own default is 'temperature', so only the 'other' entry lets this land.
+    pytest.param(
+        "KF",
+        ("Kf", "drivetrain", None),
+        ("Intake Temp", "other", None),
+        ("Intake Temp", "drivetrain", None),
+        id="target-category-other",
+    ),
+    pytest.param("K6", ("K6", "other", ""), None, ("K06", "other", None), id="old-icon-empty"),
+]
+
+
+@pytest.mark.parametrize(("raw", "old", "target", "expected"), _CARRY_CASES)
+def test_130_carries_only_what_was_set_onto_what_was_not(
+    engine_for_migration, raw, old, target, expected
+):
+    """D11: a raw row with nothing set carries nothing, and a target with nothing
+    set (NULL, or the 'other' fallback for a category) takes what was."""
+    _dialect, engine, _url = engine_for_migration
+    new = _load()._MOVES[raw]
+    _make_tables(engine)
+    cols = ("param_key", "display_name", "category", "icon")
+    with engine.begin() as conn:
+        _rows(conn, "livelink_devices", ("device_id", "vin", "kind"), [(_TQ, V1, "torque")])
+        _rows(conn, "vehicles", ("vin",), [(V1,)])
+        _rows(
+            conn,
+            "vehicle_telemetry",
+            ("vin", "device_id", "param_key", "value", "timestamp", "received_at"),
+            [(V1, _TQ, raw, 1.0, T1, T1)],
+        )
+        _rows(
+            conn, "livelink_parameters", cols, [(raw, *old), *([(new, *target)] if target else [])]
+        )
+    _load().upgrade(engine)
+    registry = _registry(engine)
+    assert raw not in registry  # moved and retired, so _carry ran on it
+    assert (registry[new][0], *registry[new][3:5]) == expected
