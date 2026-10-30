@@ -66,12 +66,11 @@ class TorqueModule(BaseSourceModule):
             Capability.ODOMETER,
         }
     )
-    #: Exactly what the old Torque writer did: newer-only latest updates so a
-    #: backfilled row never clobbers a fresher live one, and no storage-interval
-    #: check because it never performed one.
+    #: Newer-only latest updates so a backfilled row never clobbers a fresher
+    #: live one. The storage interval applies like it does for every other
+    #: source; the old Torque writer just never checked it (G5b-12).
     storage_policy = StoragePolicy(
         latest="if_newer",
-        apply_storage_interval=False,
         sync_odometer=False,
         observe_movement=False,
     )
@@ -130,7 +129,12 @@ class TorqueModule(BaseSourceModule):
                 )
                 for key, value in reading.obd.items()
             ],
-            declared_units=reading.default_units,
+            # The static unit wins here too, so a unit-less row gets the unit
+            # its values are actually stored in (TQ-L6).
+            declared_units={
+                key: TORQUE_DEFAULT_UNITS.get(key, unit)
+                for key, unit in reading.default_units.items()
+            },
             # `_ingest` returns OK! and does nothing at all for an unlinked
             # device, so Torque never touched status for one.
             requires_link=True,

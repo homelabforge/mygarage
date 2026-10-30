@@ -1,9 +1,17 @@
+import re
+from types import SimpleNamespace
+from typing import cast
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import QueryParams
 
+from app.models.drive_session import DriveSession
 from app.services.torque_pid_map import (
     TORQUE_DEFAULT_UNITS,
     TORQUE_OBD_PID_MAP,
     TORQUE_PID_NAMES,
+    _storage_key,
     parse_torque_query,
     torque_unit,
 )
@@ -109,9 +117,50 @@ def test_every_one_digit_pid_lands_on_its_padded_key():
 
 
 def test_extended_pids_keep_their_storage_keys():
-    """R1-M1: a new key would orphan a setting saved on the old one."""
+    """A new key would orphan a setting saved on the old one."""
     r = parse_torque_query({"kff1238": "14.1", "kff1202": "-9.5", "kff1271": "3.79"})
     assert r.obd == {"KFF1238": 14.1, "KFF1202": -9.5, "KFF1271": 3.79}
+
+
+def test_storage_key_lowercases_what_it_is_given():
+    """TQ-L1: an uppercase key lands where its lowercase spelling does."""
+    assert _storage_key("KC") == "ENGINE_RPM"
+    assert _storage_key("KFF120C") == "TORQUE_ODOMETER"
+    assert _storage_key("KFF1238") == "KFF1238"
+
+
+async def test_the_aggregator_reads_the_key_each_common_pid_lands_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G1-D1: the session stats only see a Torque value if its key is in the list
+    the aggregator queries. The stub hands each column back the keys it asked for,
+    so this only works while the aggregator passes the stats values through to
+    the columns unchanged."""
+    from app.services.session_service import SessionService, SessionWindow
+
+    async def keys_asked_for(
+        self: SessionService,
+        vin: str,
+        device_id: str | None,
+        param_keys: list[str],
+        window: object,
+    ) -> dict[str, object]:
+        return {"count": 1, "avg": list(param_keys), "max": list(param_keys)}
+
+    monkeypatch.setattr(SessionService, "_get_param_stats_multi", keys_asked_for)
+    session = SimpleNamespace(vin="VIN", device_id="torque-1")
+    await SessionService(cast(AsyncSession, None))._calculate_session_aggregates(
+        cast(DriveSession, session), cast(SessionWindow, None)
+    )
+    columns = {
+        "k05": "avg_coolant_temp",
+        "k11": "avg_throttle",
+        "k2f": "avg_fuel_level",
+        "k0d": "avg_speed",
+        "k0c": "avg_rpm",
+    }
+    for pid, column in columns.items():
+        assert TORQUE_OBD_PID_MAP[pid] in getattr(session, column), pid
 
 
 def test_the_odometer_is_the_only_mapped_extended_pid():
@@ -158,6 +207,17 @@ def test_the_extended_pids_have_one_readable_name_each():
     assert TORQUE_PID_NAMES["KFF1238"] == "OBD adapter voltage"
     assert TORQUE_PID_NAMES["KFF1202"] == "Turbo boost"
     assert len(TORQUE_PID_NAMES) == len(set(TORQUE_PID_NAMES.values())) == 21
+
+
+def test_a_unit_in_a_name_is_spelled_like_the_unit():
+    """TQ-L4: "(L/100 km)" next to a unit of "L/100km" reads as two units."""
+    in_names = {
+        key: match.group(1)
+        for key, name in TORQUE_PID_NAMES.items()
+        if (match := re.search(r"\(([^)]+)\)$", name))
+    }
+    assert {"KFF1201", "KFF1207", "KFF1208"} <= set(in_names)
+    assert in_names == {key: TORQUE_DEFAULT_UNITS[key] for key in in_names}
 
 
 #: Part of a real session-start request, bytes as the phone sent them (Torque

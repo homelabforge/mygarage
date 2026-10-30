@@ -46,7 +46,7 @@ TORQUE_OBD_PID_MAP: dict[str, str] = {
 }
 
 # Readable names for Torque's own PIDs, by storage key. Names only: the key
-# stays KFF1238, so a setting saved on it keeps matching (R1-M1). The
+# stays KFF1238, so a setting saved on it keeps matching. The
 # dashboard classifies by key and unit (classifyTelemetryParam in
 # frontend/src/utils/telemetryUnits.ts), never by this name.
 TORQUE_PID_NAMES: dict[str, str] = {
@@ -56,8 +56,8 @@ TORQUE_PID_NAMES: dict[str, str] = {
     "KFF1204": "Trip distance",
     "KFF1205": "Trip economy (mpg)",
     "KFF1206": "Trip economy (km/L)",
-    "KFF1207": "Instant economy (L/100 km)",
-    "KFF1208": "Trip economy (L/100 km)",
+    "KFF1207": "Instant economy (L/100km)",
+    "KFF1208": "Trip economy (L/100km)",
     "KFF1220": "Acceleration X",
     "KFF1221": "Acceleration Y",
     "KFF1222": "Acceleration Z",
@@ -188,8 +188,8 @@ def _padded_pid(key: str) -> str:
 
 
 def _storage_key(torque_key: str) -> str:
-    """The param_key a lowercase `k<hex>` key is stored under, mapped or not."""
-    key = _padded_pid(torque_key)
+    """The param_key a `k<hex>` key is stored under, mapped or not."""
+    key = _padded_pid(torque_key.lower())
     return TORQUE_OBD_PID_MAP.get(key) or canonical_param_key(key)
 
 

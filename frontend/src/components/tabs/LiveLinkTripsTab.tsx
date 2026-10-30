@@ -15,6 +15,7 @@ import type { Trip, TripList, TripPoint } from '@/types/trips'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { useUnitFormat } from '@/hooks/useUnitFormat'
 import { formatAPITimestamp, formatTime } from '@/utils/parseAPITimestamp'
+import { formatDuration } from '@/utils/durationFormat'
 import { Card, Toggle, Mono, EmptyState } from '../ui'
 
 // Lazy-load map component — keeps Leaflet's ~150KB out of the main bundle
@@ -107,22 +108,10 @@ export default function LiveLinkTripsTab({ vin }: LiveLinkTripsTabProps) {
     }
   }
 
-  const formatDuration = (seconds: number | null | undefined): string => {
-    if (seconds == null) return '--'
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    if (hours > 0) return `${hours}h ${minutes}m`
-    return `${minutes}m`
-  }
-
-  // ★ `Trip.distance_km` is `DriveSession.distance_km` verbatim
-  // (`location_service.py::get_trips` selects that column), so it carries the
-  // custom-PID ambiguity `LiveLinkSessionsTab` documents: the odometer delta
-   // `Trip.distance_km` is `DriveSession.distance_km` verbatim, and that column
-  // is canonical kilometres now: devices declare an `odometer_unit`
-  // (migration 096) and the backend normalises on ingest, so the three
-  // consumers of this column no longer hold three different beliefs about it.
-  // They all convert it as a distance.
+  // `Trip.distance_km` is `DriveSession.distance_km` verbatim
+  // (`location_service.py::get_trips`), and it's canonical km now: devices
+  // declare an `odometer_unit` (migration 096) and the backend converts on
+  // ingest, so it formats as a plain distance like the Sessions tab.
   const formatDistance = (km: number | null | undefined): string =>
     km == null ? '--' : u.distance.format(km)
 
@@ -178,7 +167,6 @@ export default function LiveLinkTripsTab({ vin }: LiveLinkTripsTabProps) {
             trip={trip}
             isSelected={selectedTripId === trip.session_id}
             onSelect={() => toggleSelected(trip.session_id)}
-            formatDuration={formatDuration}
             formatDistance={formatDistance}
           />
         ))}
@@ -209,13 +197,11 @@ function TripCard({
   trip,
   isSelected,
   onSelect,
-  formatDuration,
   formatDistance,
 }: {
   trip: Trip
   isSelected: boolean
   onSelect: () => void
-  formatDuration: (s: number | null | undefined) => string
   formatDistance: (km: number | null | undefined) => string
 }) {
   const { t } = useTranslation('vehicles')

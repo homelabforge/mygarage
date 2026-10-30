@@ -24,6 +24,7 @@ import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { convertTelemetryValue, getParamDisplayName } from '@/utils/telemetryUnits'
 import type { UnitFormat } from '@/utils/unitFormat'
 import { formatTime } from '@/utils/parseAPITimestamp'
+import { formatDuration } from '@/utils/durationFormat'
 import { tankContent } from '@/utils/sensorReadings'
 import TankCard from '../livelink/TankCard'
 import { Card, Mono, EmptyState } from '../ui'
@@ -116,16 +117,6 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
     return t('livelink.statusVehicleParked')
   }
 
-  const formatDuration = (seconds: number | null | undefined) => {
-    if (seconds == null) return '--'
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const secs = seconds % 60
-    if (hours > 0) return `${hours}h ${minutes}m`
-    if (minutes > 0) return `${minutes}m ${secs}s`
-    return `${secs}s`
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -195,7 +186,7 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
             <div className="flex items-center gap-1 text-success">
               <Activity aria-hidden="true" className="w-4 h-4" />
               <span className="text-sm">
-                {t('livelink.session')}: {formatDuration(status.session_duration_seconds)}
+                {t('livelink.session')}: {formatDuration(status.session_duration_seconds, { seconds: true })}
               </span>
             </div>
           )}

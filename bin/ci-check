@@ -115,9 +115,16 @@ if [[ "$do_playwright" -eq 1 ]]; then
 fi
 
 build_image() {
-  if [[ "$rebuild" -eq 1 ]] || ! docker image inspect "$TEST_IMAGE" >/dev/null 2>&1; then
-    echo "==> building $TEST_IMAGE (lockfile-driven via uv sync)"
-    docker build -t "$TEST_IMAGE" -f backend/Dockerfile.test backend
+  # The compose PG stack builds the same tag without node, and an image built
+  # for another .nvmrc major is stale, so the label decides, not existence.
+  local node_label
+  node_label="$(docker image inspect --format \
+    '{{ index .Config.Labels "org.homelabforge.mygarage-test.node-major" }}' \
+    "$TEST_IMAGE" 2>/dev/null || true)"
+  if [[ "$rebuild" -eq 1 || "$node_label" != "$NODE_MAJOR" ]]; then
+    echo "==> building $TEST_IMAGE (lockfile-driven via uv sync, node $NODE_MAJOR for pyright)"
+    docker build -t "$TEST_IMAGE" -f backend/Dockerfile.test --target ci-check \
+      --build-arg "NODE_MAJOR=$NODE_MAJOR" backend
   fi
 }
 
@@ -197,7 +204,14 @@ if [[ "$do_playwright" -eq 1 ]]; then
   echo "==> uv sync (host venv for Playwright backend)"
   ( cd backend && uv sync --frozen --all-extras )
   pushd frontend >/dev/null
-  echo "==> playwright install"; bunx playwright install chromium --with-deps
+  # --with-deps runs apt through sudo, and a password prompt kills an agent's
+  # run. Without it, missing libs still fail: Chromium won't launch and e2e goes red.
+  if sudo -n true 2>/dev/null; then
+    echo "==> playwright install (with system deps)"; bunx playwright install chromium --with-deps
+  else
+    echo "==> playwright install (no passwordless sudo, so no system deps)"
+    bunx playwright install chromium
+  fi
   echo "==> bun run e2e"
   if (( ${#EXTRA_PLAYWRIGHT_ENV[@]} )); then
     env "${EXTRA_PLAYWRIGHT_ENV[@]}" bun run e2e

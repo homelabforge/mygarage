@@ -15,6 +15,9 @@ It will NOT touch a day that already has any odometer record — a manual or
 fuel-sourced entry is more authoritative than a reconstruction, and this is
 exactly the kind of script that should never overwrite a human's number.
 
+It refuses a Torque phone reading TORQUE_ODOMETER as miles: Torque sends it in
+km, so its records would come out 1.609x high. Repair that phone first.
+
 Usage (dry run is the default; nothing is written without --apply):
 
     python tools/backfill_livelink_odometer.py --db /data/mygarage.db
@@ -37,6 +40,7 @@ sys.path.insert(0, ".")
 
 from app.utils.odometer_units import (  # noqa: E402
     ODOMETER_UNIT_KM,
+    ODOMETER_UNIT_MI,
     WICAN_DEVICE_KIND,
     is_recorded_odometer_key,
     odometer_value_to_km,
@@ -49,6 +53,10 @@ from tools._tool_db import (  # noqa: E402
     device_key_units,
     migrated_odometer_mi_devices,
     print_unreadable_note,
+)
+from tools.repair_wican_odometer_unit import (  # noqa: E402
+    TORQUE_DEVICE_KIND,
+    TORQUE_ODOMETER_KEY,
 )
 
 #: Below this, a "mi" device's stored telemetry already sits in the same range
@@ -99,6 +107,37 @@ def main() -> int:
         skip_odometer_mi = migrated_odometer_mi_devices(conn)
         # The keys live ingest records from: the scan, or the device's declared key.
         declared = declared_odometer_keys(conn)
+
+        # Torque sends TORQUE_ODOMETER in km, so a phone on mi with it declared
+        # would get records 1.609x high (O-T6). The repair fixes its history
+        # and clears the unit; then this reads it right.
+        torque_in_miles = sorted(
+            row.device_id
+            for row in conn.execute(
+                text(
+                    "SELECT DISTINCT device_id FROM vehicle_telemetry WHERE param_key = :k"
+                    + (" AND vin = :v" if args.vin else "")
+                ),
+                {"k": TORQUE_ODOMETER_KEY, "v": args.vin},
+            )
+            if row.device_id in devices
+            and devices[row.device_id][1:] == (ODOMETER_UNIT_MI, TORQUE_DEVICE_KIND)
+            and declared.get(row.device_id) == TORQUE_ODOMETER_KEY
+        )
+        if torque_in_miles:
+            print(
+                "✗ Torque sends TORQUE_ODOMETER in km, but these Torque devices read it as\n"
+                "  miles, so this tool would write their odometer records 1.609x high:"
+            )
+            for device_id in torque_in_miles:
+                print(f"    {device_id}")
+            print("\n  Repair each one first, then run this again:")
+            for device_id in torque_in_miles:
+                print(
+                    f"    python tools/repair_wican_odometer_unit.py --device-id {device_id} "
+                    f"--key {TORQUE_ODOMETER_KEY} --to km"
+                )
+            return 2
 
         # Refuse if the telemetry has already been converted. This reads
         # `value` as the device reported it and applies the device's declared

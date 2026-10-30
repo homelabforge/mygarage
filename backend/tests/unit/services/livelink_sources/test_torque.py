@@ -1,9 +1,15 @@
-"""Torque query-string parsing, including the device-clock clamp."""
+"""Torque query-string parsing, including the device-clock clamp, plus an upload
+through ingest to storage."""
 
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
+from app.services.livelink_ingest import ingest
+from app.services.livelink_service import LiveLinkService
 from app.services.livelink_sources.base import (
     Capability,
     ExplicitSession,
@@ -12,6 +18,7 @@ from app.services.livelink_sources.base import (
     Reading,
 )
 from app.services.livelink_sources.torque import TorqueModule
+from app.services.telemetry_service import TelemetryService
 
 M = TorqueModule()
 
@@ -42,9 +49,10 @@ def test_names_its_own_pids_as_its_vocabulary():
     assert not {"SPEED", "COOLANT_TMP"} & M.own_param_keys
 
 
-def test_storage_policy_is_newer_only_with_no_interval_odometer_or_movement():
+def test_storage_policy_is_newer_only_with_no_odometer_or_movement():
+    """The storage interval isn't a policy field: every source honours it, Torque
+    included since G5b-12 (see the upload test at the bottom)."""
     assert M.storage_policy.latest == "if_newer"
-    assert M.storage_policy.apply_storage_interval is False
     assert M.storage_policy.sync_odometer is False
     assert M.storage_policy.observe_movement is False
 
@@ -131,3 +139,76 @@ async def test_readings_carry_torques_default_unit_and_name():
         Reading("KFF1238", 14.1, unit="V", display_name="OBD adapter voltage"),
         Reading("K33", 100.0),
     ]
+
+
+@pytest.mark.asyncio
+async def test_a_declared_unit_that_disagrees_leaves_the_static_unit(
+    db_session: AsyncSession,
+) -> None:
+    """TQ-L6: the value is stored in the static unit, so a unit-less row gets that
+    one too, not whatever the phone declared. A key with no static unit keeps
+    the declared one."""
+    batch = await M.parse(
+        HttpEnvelope(token="t", params={"defaultUnit05": "°F", "defaultUnit33": "kPa"})
+    )
+    assert batch is not None
+    svc = TelemetryService(db_session)
+    try:
+        param = await svc.auto_register_parameter("COOLANT_TMP")
+        param.unit = None
+        await svc.fill_declared_units(batch.declared_units)
+        assert param.unit == "°C"
+    finally:
+        await db_session.rollback()
+    assert batch.declared_units == {"COOLANT_TMP": "°C", "K33": "kPa"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("livelink_enabled")
+async def test_an_upload_honours_the_parameter_storage_interval(
+    db_session: AsyncSession, make_livelink_vehicle
+) -> None:
+    """G5b-12: two frames 5 s apart under a 60 s interval keep one history row.
+    The latest value still follows the second frame; only history thins."""
+    token = "tq-interval-token-g5b12"
+    vin, _ = await make_livelink_vehicle(
+        "tqint", "01", kind="torque", device_token_hash=LiveLinkService.hash_token(token)
+    )
+    svc = TelemetryService(db_session)
+    param = await svc.auto_register_parameter("KFF7E01")
+    param.storage_interval_seconds = 60
+    await db_session.commit()
+
+    t0 = datetime.now(UTC) - timedelta(minutes=10)
+    for offset, value in ((0, "1.0"), (5, "2.0")):
+        ms = int((t0 + timedelta(seconds=offset)).timestamp() * 1000)
+        outcome = await ingest(
+            M,
+            HttpEnvelope(
+                token=token, params={"session": "g5b12", "time": str(ms), "kff7e01": value}
+            ),
+            db_session,
+        )
+        await db_session.commit()
+        assert outcome.device is not None, "the token must resolve, or nothing was tested"
+
+    history = (
+        (
+            await db_session.execute(
+                select(VehicleTelemetry.value).where(
+                    VehicleTelemetry.vin == vin, VehicleTelemetry.param_key == "KFF7E01"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert history == [1.0]
+    latest = (
+        await db_session.execute(
+            select(VehicleTelemetryLatest.value).where(
+                VehicleTelemetryLatest.vin == vin, VehicleTelemetryLatest.param_key == "KFF7E01"
+            )
+        )
+    ).scalar_one()
+    assert latest == 2.0

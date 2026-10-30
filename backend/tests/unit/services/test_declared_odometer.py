@@ -22,7 +22,7 @@ from app.utils.datetime_utils import utc_now
 from app.utils.odometer_units import is_odometer_param_key
 
 P = "declodo"
-TORQUE_POLICY = StoragePolicy(latest="if_newer", apply_storage_interval=False)
+TORQUE_POLICY = TorqueModule.storage_policy
 
 
 async def _records(db, vin: str):

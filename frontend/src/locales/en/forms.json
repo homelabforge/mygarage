@@ -575,6 +575,8 @@
       "odometerUnitKm": "Kilometers",
       "odometerUnitMi": "Miles",
       "odometerUnitHelp": "Standard A6 odometer PIDs report kilometers. A custom autopid usually reports whatever the dash shows. Set this if recorded mileage looks wrong.",
+      "odometerUnitTorqueKm": "Torque sends this total in km.",
+      "odometerUnitTorqueMiRepair": "This device has been reading it as miles, so what it stored since it was set that way is 1.609x high. Repair it by running python tools/repair_wican_odometer_unit.py --device-id {{deviceId}} --key TORQUE_ODOMETER --to km in the container (a dry run until you add --apply). That also clears the unit.",
       "sessionGap": "Stop before a new drive",
       "sessionGapDesc": "How long a vehicle can sit still, while still connected, before the next movement counts as a separate drive. A fuel stop or a charge stays one drive; a longer stop becomes two.",
       "boundaryMode": "How drives are detected",

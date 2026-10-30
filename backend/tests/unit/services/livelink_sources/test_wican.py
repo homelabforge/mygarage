@@ -23,7 +23,6 @@ def test_storage_policy_matches_todays_wican_behavior():
     assert M.storage_policy.latest == "always"
     assert M.storage_policy.sync_odometer is True
     assert M.storage_policy.observe_movement is True
-    assert M.storage_policy.apply_storage_interval is True
 
 
 @pytest.mark.asyncio

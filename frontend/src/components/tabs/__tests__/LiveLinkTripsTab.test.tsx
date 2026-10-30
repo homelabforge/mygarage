@@ -5,6 +5,7 @@ import { render, screen, waitFor } from '../../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import type { Trip, TripList, TripPointsResponse } from '../../../types/trips'
 import vehiclesEn from '../../../locales/en/vehicles.json'
+import { setActiveLocale } from '../../../constants/i18n'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Harness note (mirrors the merged LiveLink Sessions/Charts precedent —
@@ -153,6 +154,17 @@ describe('LiveLinkTripsTab', () => {
     render(<LiveLinkTripsTab vin="V1" />)
     expect(await screen.findByText('12 mi')).toBeInTheDocument()
     expect(screen.queryByText('(unknown unit)')).not.toBeInTheDocument()
+  })
+
+  it("writes the trip duration in the reader's language", async () => {
+    // It used to hardcode `h`/`m`, so a German reader still got `30m`.
+    setActiveLocale('de')
+    try {
+      render(<LiveLinkTripsTab vin="V1" />)
+      expect(await screen.findByText('30 Min.')).toBeInTheDocument()
+    } finally {
+      setActiveLocale('en')
+    }
   })
 
   it('renders the absent marker for a trip with no recorded distance', async () => {

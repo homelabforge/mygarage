@@ -136,6 +136,26 @@ class TestSecurityHeadersMiddleware:
         assert "script-src 'self' 'sha256-AAA=' 'sha256-BBB='; " in csp
 
     @pytest.mark.asyncio
+    async def test_csp_does_not_allow_cdnjs(self, middleware):
+        # The marker icons ship with the frontend now, and they were the only
+        # thing cdnjs was ever in here for.
+        result = await call_asgi(middleware, method="GET", path="/")
+
+        csp = result["headers"]["content-security-policy"]
+        assert "cdnjs" not in csp
+        img_src = next(d for d in csp.split("; ") if d.startswith("img-src "))
+        assert img_src.split() == [
+            "img-src",
+            "'self'",
+            "data:",
+            "blob:",
+            "https://tile.openstreetmap.org",
+            "https://a.tile.openstreetmap.org",
+            "https://b.tile.openstreetmap.org",
+            "https://c.tile.openstreetmap.org",
+        ]
+
+    @pytest.mark.asyncio
     async def test_adds_security_headers(self, middleware):
         result = await call_asgi(middleware, method="GET", path="/")
 

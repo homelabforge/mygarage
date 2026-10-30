@@ -46,7 +46,6 @@ async def test_modules_declare_no_subscriptions_by_default():
 def test_default_storage_policy_is_the_safe_one():
     p = StoragePolicy()
     assert p.latest == "always"
-    assert p.apply_storage_interval is True
     assert p.sync_odometer is False
     assert p.observe_movement is False
 

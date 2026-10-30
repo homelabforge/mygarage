@@ -70,7 +70,8 @@ async def recompute_pending_sessions(db: AsyncSession) -> int:
     if row is None:
         return 0
     try:
-        ids = [int(i) for i in json.loads(row.value or "[]")]
+        # A hand-edited duplicate would count twice in "no longer closed or gone".
+        ids = list(dict.fromkeys(int(i) for i in json.loads(row.value or "[]")))
     except TypeError, ValueError:
         logger.warning("Dropping an unreadable %s row", PENDING_KEY)
         ids = []
@@ -127,9 +128,12 @@ async def recompute_pending_sessions(db: AsyncSession) -> int:
             done += 1
     await db.delete(row)
     await db.commit()
+    # Open or deleted trips never come back from the SELECT, so they're neither done nor skipped.
     logger.info(
-        "Recomputed %d older Torque trip(s) after migration 130; left %d that may have lost readings to pruning",
+        "Recomputed %d older Torque trip(s) after migration 130; left %d that may have lost readings to pruning; "
+        "%d no longer closed or gone",
         done,
         skipped,
+        len(ids) - done - skipped,
     )
     return done

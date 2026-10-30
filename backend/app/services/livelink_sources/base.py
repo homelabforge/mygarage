@@ -160,9 +160,9 @@ SessionSignal = InferSession | StatusTransition | ExplicitSession
 class StoragePolicy:
     """How a source's readings are persisted.
 
-    These four fields are not preferences. Each one names a real, pre-existing
-    behavioral difference between the WiCAN and Torque paths, made explicit so
-    the port cannot silently merge them:
+    These three fields are not preferences. Each one started as a real,
+    pre-existing behavioral difference between the WiCAN and Torque paths,
+    made explicit so the port could not silently merge them:
 
     `latest`: WiCAN's 'always' overwrites vehicle_telemetry_latest unless the
     reading is older than the stored one (`_upsert_latest_value`; an equal
@@ -171,14 +171,12 @@ class StoragePolicy:
     strictly newer (`_update_latest_if_newer`), so a backfilled row never
     clobbers a fresher live one.
 
-    `apply_storage_interval`: WiCAN honours `storage_interval_seconds`;
-    the old Torque writer never checked it. Torque therefore passes False to
-    preserve today's behavior. That Torque ignores storage intervals is a
-    pre-existing bug, deliberately NOT fixed here (see Follow-ups).
+    `storage_interval_seconds` isn't one of them: it thins the history rows
+    for every source. The old Torque writer never checked it, which was a
+    bug, fixed in G5b-12.
     """
 
     latest: str = "always"  # 'always' | 'if_newer'
-    apply_storage_interval: bool = True
     sync_odometer: bool = False
     observe_movement: bool = False
 

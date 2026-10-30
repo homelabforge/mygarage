@@ -218,7 +218,6 @@ class WicanModule(BaseSourceModule):
     #: movement observation on, storage intervals honoured.
     storage_policy = StoragePolicy(
         latest="always",
-        apply_storage_interval=True,
         sync_odometer=True,
         observe_movement=True,
     )

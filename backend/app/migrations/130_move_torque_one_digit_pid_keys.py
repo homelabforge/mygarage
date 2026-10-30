@@ -294,7 +294,10 @@ _Stats = tuple[float | None, float | None, float, int]
 
 @dataclass(frozen=True)
 class _Duplicates:
-    """The readings D8 drops from one raw-key summary's day (vehicle, key, UTC day)."""
+    """What one raw-key summary day (vehicle, key, UTC day) loses to the raw move.
+
+    Those are its raw readings the new key also has on file at the same moment.
+    """
 
     #: Only the ones received before the day ended: the daily job builds a day
     #: once, the day after, so a later one was never in its summary.
@@ -338,6 +341,19 @@ def _day_window(day: datetime) -> dict[str, datetime]:
 def _typed_day() -> tuple[BindParameter[datetime], BindParameter[datetime]]:
     """Day bounds bound as DateTime, so SQLite compares them in its stored format."""
     return bindparam("start", type_=DateTime), bindparam("end", type_=DateTime)
+
+
+def _received_end(conn: Connection, day: datetime) -> BindParameter[Any]:
+    """The day's end for received_at, which SQLite's server default writes with no fraction.
+
+    A DateTime bind renders `.000000`, which sorts after a bare `00:00:00`, so a
+    reading at exactly midnight landed inside the day. Second-precision text
+    sorts right against both forms; PG compares real timestamps.
+    """
+    end = day + timedelta(days=1)
+    if conn.dialect.name == "sqlite":
+        return bindparam("received_end", end.strftime("%Y-%m-%d %H:%M:%S"))
+    return bindparam("received_end", end, type_=DateTime)
 
 
 def _raw_count(conn: Connection, vin: str, key: str, day: datetime) -> int:
@@ -390,14 +406,16 @@ def _find_duplicates(
                 continue
             seen, dropped, total = conn.execute(
                 text(
-                    "SELECT COUNT(*), COUNT(CASE WHEN r.received_at < :end THEN 1 END), "
-                    "COALESCE(SUM(CASE WHEN r.received_at < :end THEN r.value END), 0) "
+                    "SELECT COUNT(*), COUNT(CASE WHEN r.received_at < :received_end THEN 1 END), "
+                    "COALESCE(SUM(CASE WHEN r.received_at < :received_end THEN r.value END), 0) "
                     "FROM vehicle_telemetry r "
                     "WHERE r.vin = :vin AND r.device_id IN :ids AND r.param_key = :raw "
                     "AND r.timestamp >= :start AND r.timestamp < :end "
                     "AND EXISTS (SELECT 1 FROM vehicle_telemetry t WHERE t.device_id = r.device_id "
                     "AND t.param_key = :new AND t.timestamp = r.timestamp)"
-                ).bindparams(bindparam("ids", expanding=True), *_typed_day()),
+                ).bindparams(
+                    bindparam("ids", expanding=True), *_typed_day(), _received_end(conn, day)
+                ),
                 {"vin": vin, "ids": ids, "raw": raw, "new": new, **_day_window(day)},
             ).one()
             if not seen:
@@ -820,12 +838,14 @@ def _move(engine: Engine) -> None:
             moved |= _move_odometer_keys(conn)
         if "livelink_parameters" in tables:
             _move_registry(conn, columns, moved, {raw for _vin, raw in shared})
-        if trips and "settings" in tables:
-            _list_trips(conn, trips)
+        # No settings table, nowhere to list them, so the log below says 0.
+        listed = trips if "settings" in tables else []
+        if listed:
+            _list_trips(conn, listed)
     logger.info(
         "130: moved Torque keys %s; %d trip(s) listed to recompute",
         ", ".join(sorted(moved)) or "none",
-        len(trips),
+        len(listed),
     )
 
 

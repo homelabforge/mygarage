@@ -42,10 +42,17 @@ class TestOdometerUnitOverrideGuard:
         )
         await db_session.flush()
 
-        with pytest.raises(ValueError, match="already"):
+        with pytest.raises(ValueError, match="already") as refused:
             await LiveLinkService(db_session).update_device(
                 device.device_id, {"odometer_unit": "km"}
             )
+        # The owner runs these in the container, where the tools sit in /app/tools
+        # and there's no backend/ to prefix.
+        message = str(refused.value)
+        assert "backend/" not in message
+        assert "python tools/normalize_telemetry_odometer_units.py" in message
+        assert "tools/fix_session_odometer_units.py" in message
+        assert "python tools/repair_wican_odometer_unit.py" in message
 
     async def test_changing_the_unit_before_any_odometer_reading_is_allowed(
         self, db_session, make_livelink_vehicle
