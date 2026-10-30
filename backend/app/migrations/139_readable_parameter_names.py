@@ -119,7 +119,8 @@ _SHIPPED: dict[str, str] = {
     "KFF1208": "Trip economy (L/100 km)",
 }
 
-_TOOL = "backend/tools/repair_wican_odometer_unit.py"
+#: The container form, as the tool's own usage text gives it (prod runs from /app).
+_TOOL = "python tools/repair_wican_odometer_unit.py"
 
 
 def _get_fallback_engine() -> Engine:

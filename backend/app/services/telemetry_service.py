@@ -402,14 +402,14 @@ class TelemetryService:
         Auto means no name, the old title case or the readable one; anything
         else is a name someone set and stays. One rule for every ingest path.
         """
+        key: str = param.param_key
+        current: str | None = param.display_name
+        readable = READABLE_PARAM_NAMES.get(key)
         # WiCAN never names a reading and Torque only its KFF ones, so without
         # the fallback a row on "Coolant Tmp" would never move.
-        name = name or READABLE_PARAM_NAMES.get(param.param_key)
-        if name and param.display_name in (
-            None,
-            _title_case(param.param_key),
-            READABLE_PARAM_NAMES.get(param.param_key),
-        ):
+        name = name or readable
+        # Skip a row already on it, so a frame doesn't dirty every row it carries.
+        if name and current != name and current in (None, _title_case(key), readable):
             param.display_name = name
 
     def _is_odometer_param(self, param_key: str, declared: str | None = None) -> bool:

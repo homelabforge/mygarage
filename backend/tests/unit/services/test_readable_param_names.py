@@ -91,6 +91,17 @@ async def test_a_row_on_the_readable_name_still_takes_a_source_name(db_session, 
     assert param.display_name == "Coolant (sensor 2)"
 
 
+@pytest.mark.asyncio
+async def test_a_row_already_on_its_name_is_left_alone(db_session, no_coolant_row):
+    """A WiCAN frame runs the rename on every key it carries; one already named isn't touched."""
+    await _seed(db_session, "Coolant temperature")
+    param = await TelemetryService(db_session).get_parameter(KEY)
+    assert param is not None
+    TelemetryService._adopt_readable_name(param)
+    # without the != check the same name is set again and the row goes dirty
+    assert param not in db_session.dirty
+
+
 def test_a_key_with_no_readable_name_keeps_the_title_case() -> None:
     assert TelemetryService._format_display_name("KFF9999_ZZ") == "Kff9999 Zz"
     assert TelemetryService._format_display_name("ENGINE_RPM") == "Engine RPM"

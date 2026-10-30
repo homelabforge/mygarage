@@ -9,6 +9,7 @@ columns 139 reads.
 import importlib.util
 import logging
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from sqlalchemy import Engine, create_engine, text
@@ -41,10 +42,11 @@ D2 = {
 }
 
 
-def _load(name: str = _NAME):
+def _load(name: str = _NAME) -> ModuleType:
     """Load a migration module by file, as the runner does."""
     path = Path(_m.__file__).parent / f"{name}.py"
     spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -97,7 +99,9 @@ def _names(engine: Engine) -> dict[str, str | None]:
     return {k: n for k, n in rows}
 
 
-def _add_device(engine: Engine, device_id: str, kind: str, unit: str | None, key: str | None):
+def _add_device(
+    engine: Engine, device_id: str, kind: str, unit: str | None, key: str | None
+) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -108,7 +112,7 @@ def _add_device(engine: Engine, device_id: str, kind: str, unit: str | None, key
         )
 
 
-def _devices(engine: Engine) -> list[tuple]:
+def _devices(engine: Engine) -> list[tuple[str, str, str | None, str | None]]:
     with engine.connect() as conn:
         rows = conn.execute(
             text(
@@ -116,7 +120,7 @@ def _devices(engine: Engine) -> list[tuple]:
                 " FROM livelink_devices ORDER BY device_id"
             )
         ).all()
-    return [tuple(r) for r in rows]
+    return [(r[0], r[1], r[2], r[3]) for r in rows]
 
 
 # --- the frozen tables ------------------------------------------------------
@@ -317,8 +321,7 @@ def test_a_torque_device_on_miles_gets_a_warning_and_nothing_else(engine_for_mig
     assert len(warnings) == 1
     assert "tq-mi" in warnings[0]
     assert (
-        "backend/tools/repair_wican_odometer_unit.py"
-        " --device-id tq-mi --key TORQUE_ODOMETER --to km"
+        "python tools/repair_wican_odometer_unit.py --device-id tq-mi --key TORQUE_ODOMETER --to km"
     ) in warnings[0]
     assert _devices(engine) == before
 
