@@ -1440,7 +1440,7 @@
       "path": "src/components/maps/LeafletMap.tsx",
       "disposition": "audited",
       "digest": "a17065e90eb1061c455c7bc28116e1bc889b3799f7cb426b9a0ff4be0158c4f3",
-      "reason": "takes metres; the component deliberately cannot know the client's distance unit 2026-10-30 (b8 T7): the default-marker fix moved to leafletIcons.ts; the radius path is untouched.",
+      "reason": "takes metres; the component deliberately cannot know the client's distance unit. 2026-10-30 (b8 T7): the default-marker fix moved to leafletIcons.ts; the radius path is untouched.",
       "tests": [
         "components/maps/__tests__/LeafletMap.radius.test.tsx"
       ]

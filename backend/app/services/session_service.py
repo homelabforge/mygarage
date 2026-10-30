@@ -62,8 +62,9 @@ logger = logging.getLogger(__name__)
 SPEED_PARAM_KEYS = speed_param_key_candidates()
 RPM_PARAM_KEYS = rpm_param_key_candidates()
 
-# The rest of the aggregate keys. The generic alias goes first: it's what
-# Torque's map targets (TORQUE_OBD_PID_MAP), the PID-prefixed ones are WiCAN's.
+# The rest of the aggregate keys, matched with `in_`, so order doesn't matter.
+# The generic alias is what Torque's map targets (TORQUE_OBD_PID_MAP); the
+# PID-prefixed ones are WiCAN's.
 COOLANT_PARAM_KEYS = ["COOLANT_TMP", "05-EngineCoolantTemp", "05-ENGINECOOLANTTEMP"]
 THROTTLE_PARAM_KEYS = ["THROTTLE", "11-ThrottlePosition", "11-THROTTLEPOSITION"]
 FUEL_LEVEL_PARAM_KEYS = ["FUEL", "2F-FuelTankLevel", "2F-FUELTANKLEVEL"]

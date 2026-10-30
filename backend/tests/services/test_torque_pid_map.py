@@ -117,7 +117,7 @@ def test_every_one_digit_pid_lands_on_its_padded_key():
 
 
 def test_extended_pids_keep_their_storage_keys():
-    """R1-M1: a new key would orphan a setting saved on the old one."""
+    """A new key would orphan a setting saved on the old one."""
     r = parse_torque_query({"kff1238": "14.1", "kff1202": "-9.5", "kff1271": "3.79"})
     assert r.obd == {"KFF1238": 14.1, "KFF1202": -9.5, "KFF1271": 3.79}
 
@@ -133,7 +133,9 @@ async def test_the_aggregator_reads_the_key_each_common_pid_lands_on(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """G1-D1: the session stats only see a Torque value if its key is in the list
-    the aggregator queries. The stub hands each column back the keys it asked for."""
+    the aggregator queries. The stub hands each column back the keys it asked for,
+    so this only works while the aggregator passes the stats values through to
+    the columns unchanged."""
     from app.services.session_service import SessionService, SessionWindow
 
     async def keys_asked_for(
