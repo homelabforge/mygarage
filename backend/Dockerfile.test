@@ -6,13 +6,18 @@
 # inside a Python 3.14 container (the host runs 3.13). This image provides
 # that runtime + all dev deps + libmagic for file-type detection paths.
 #
-# Build:
-#   docker build -t mygarage-test:local -f Dockerfile.test .
+# Build: bin/ci-check builds the ci-check stage (node for pyright, .nvmrc's
+# major); the compose PG stack builds the plain last stage.
 #
 # Run via the bin/ci-check wrapper at the repo root.
 # ==============================================================================
 
-FROM python:3.14-slim
+# Node for pyright, used by the ci-check stage at the bottom only. bin/ci-check
+# passes .nvmrc's major; the default is only there so this line parses.
+ARG NODE_MAJOR=24
+FROM node:${NODE_MAJOR}-slim AS node
+
+FROM python:3.14-slim AS test
 
 # docker-cli: cheap to include for parity with sibling repos
 # libmagic1 + file: required by file-type detection paths in tests
@@ -42,3 +47,13 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --all-extras --no-install-project
 
 CMD ["sh", "-c", "PYTHONPATH=/app pytest"]
+
+# bin/ci-check builds this one: the test image plus node, so pyright runs on
+# it instead of fetching one from nodejs.org every run, which broke the gate
+# twice on 2026-10-30. The compose stack builds the last stage and skips it.
+FROM test AS ci-check
+ARG NODE_MAJOR
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+LABEL org.homelabforge.mygarage-test.node-major=$NODE_MAJOR
+
+FROM test
