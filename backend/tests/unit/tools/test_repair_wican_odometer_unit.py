@@ -1572,6 +1572,52 @@ def test_torque_places_the_switch_at_the_first_record(engine, capsys):
     assert sums[date(2026, 7, 3)] == pytest.approx((57200.0, 57220.0, 57210.0, 2))
 
 
+def test_torque_backfills_before_the_switch_go_by_their_days_top(engine, capsys):
+    """Parked (b): backfill ran after the owner set mi but before the phone's
+    first frame wrote a record, so its records predate B and a created_at rule
+    skips them. Backfill writes round(day top x factor), so a record that
+    matches its day's top x1.609 was read as miles and is scaled; one that
+    matches the top as is stays quietly; one that matches neither (the
+    switch day's summary mixes units) or has no day left is named."""
+    from tools.repair_wican_odometer_unit import _report
+
+    ids = _record_case(engine)
+    early = RECORD_SWITCH - timedelta(hours=2)
+    with Session(engine) as s:
+        _summary(s, TQVIN, date(2026, 6, 29), [56900.0], 1, key=TQKEY)
+        backfilled = "Backfilled from LiveLink telemetry"
+        ids["miles"] = _record(s, date(2026, 6, 30), _up(56950.0), backfilled, early).id
+        ids["km"] = _record(s, date(2026, 6, 29), 56900.0, backfilled, early).id
+        ids["mixed"] = _record(s, date(2026, 7, 1), 57000.0, backfilled, early).id
+        ids["no_day"] = _record(s, date(2026, 6, 28), 91500.0, backfilled, early).id
+        s.commit()
+
+    plan = _plan(engine, TQ, "km", key=TQKEY)
+
+    assert plan.boundary == RECORD_SWITCH
+    assert (ids["miles"], round(_up(56950.0)), 56950.0) in plan.records
+    planned = {i for i, _old, _new in plan.records}
+    assert not planned & {ids["km"], ids["mixed"], ids["no_day"]}
+    assert plan.early_backfills == [ids["miles"]]
+    assert sorted(plan.unproven_backfills) == sorted([ids["mixed"], ids["no_day"]])
+    _report(plan)
+    out = capsys.readouterr().out
+    assert (
+        f"record {ids['miles']}: {round(_up(56950.0)):,} -> 56,950 km, backfilled before the "
+        "switch from its day's top read as miles"
+    ) in out
+    assert f"record {ids['mixed']}" in out and f"record {ids['no_day']}" in out
+    assert f"record {ids['km']}" not in out
+
+    _apply(engine, TQ, "km", key=TQKEY)
+    with engine.connect() as conn:
+        km = dict(conn.execute(text("SELECT id, odometer_km FROM odometer_records")).all())
+    assert float(km[ids["miles"]]) == 56950.0
+    assert float(km[ids["km"]]) == 56900.0
+    assert float(km[ids["mixed"]]) == 57000.0
+    assert float(km[ids["no_day"]]) == 91500.0
+
+
 def test_torque_refuses_with_no_surviving_rows(engine):
     """F3-4: a record alone can't be checked against anything."""
     from tools.repair_wican_odometer_unit import RepairRefusedError

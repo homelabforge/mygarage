@@ -442,6 +442,54 @@ def test_backfill_never_records_from_an_undeclared_torque_key(tmp_path, monkeypa
     assert "VINOTHER" not in capsys.readouterr().out
 
 
+def _seed_torque_in_miles(path: str) -> None:
+    """A Torque phone declared on TORQUE_ODOMETER with `mi` (O-T6's pair) on
+    VINTORQUE, and a WiCAN on VINLEGACY, after the first boot."""
+    _seed(path, with_units=True, legacy=True)
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "INSERT INTO livelink_devices VALUES "
+        "('tq_phone01', 'VINTORQUE', 'mi', 'torque', 'TORQUE_ODOMETER', '2026-08-01 00:00:00')"
+    )
+    conn.executemany(
+        "INSERT INTO vehicle_telemetry VALUES ('VINTORQUE', 'tq_phone01', 'TORQUE_ODOMETER', ?, ?)",
+        [(56950.0, "2026-09-01 10:00:00"), (57000.0, "2026-09-02 10:00:00")],
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_backfill_refuses_a_torque_phone_reading_its_odometer_as_miles(
+    tmp_path, monkeypatch, capsys
+):
+    """Parked (b), at the source: Torque sends TORQUE_ODOMETER in km, so on
+    `mi` backfill would write that phone's records 1.609x high. It refuses and
+    names the repair. Red on 873922b3: it planned 91,652 km for 56,950."""
+    path = str(tmp_path / "mygarage.db")
+    _seed_torque_in_miles(path)
+
+    assert _run("tools.backfill_livelink_odometer", path, monkeypatch) == 2
+
+    out = capsys.readouterr().out
+    assert "tq_phone01" in out and "91,652" not in out
+    assert (
+        "python tools/repair_wican_odometer_unit.py --device-id tq_phone01 "
+        "--key TORQUE_ODOMETER --to km"
+    ) in out
+
+
+def test_backfill_vin_leaves_out_a_torque_phone_on_another_vehicle(tmp_path, monkeypatch, capsys):
+    """--vin reads only that vehicle's rows, so a phone in the pair elsewhere
+    doesn't block it."""
+    path = str(tmp_path / "mygarage.db")
+    _seed_torque_in_miles(path)
+
+    assert _run("tools.backfill_livelink_odometer", path, monkeypatch, "--vin", "VINLEGACY") == 0
+
+    out = capsys.readouterr().out
+    assert "tq_phone01" not in out and "VINLEGACY" in out
+
+
 def test_normalize_leaves_an_undeclared_generic_key_alone(tmp_path, monkeypatch, capsys):
     """Generic MQTT converts only a declared key, so an undeclared `TOTAL_ODO`
     was never stored converted and isn't the tool's to convert. Red on

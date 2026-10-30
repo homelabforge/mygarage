@@ -199,6 +199,11 @@ class RepairPlan:
     sessions_kept: list[tuple[int, datetime, datetime | None]] = field(default_factory=list)
     #: Backfilled records still above their day's readings after the scale.
     flagged_records: list[int] = field(default_factory=list)
+    #: Backfilled records from before the switch that match their day's top
+    #: read as miles, so they're in `records` too.
+    early_backfills: list[int] = field(default_factory=list)
+    #: Backfilled records from before the switch that nothing left can place.
+    unproven_backfills: list[int] = field(default_factory=list)
     #: The latest value, when it predates B and so stays: (value, timestamp).
     stale_latest: tuple[float, datetime] | None = None
     #: Report lines on how B was placed.
@@ -886,7 +891,53 @@ def _plan_torque(
             and new > top + _RECORD_SLACK_KM
         ):
             plan.flagged_records.append(record.id)
+    _plan_early_backfills(conn, plan, records, rows, boundary)
     return plan
+
+
+def _plan_early_backfills(
+    conn: Connection,
+    plan: RepairPlan,
+    records: list[_Record],
+    rows: list[_Raw],
+    boundary: datetime,
+) -> None:
+    """Backfilled records written before B, by their day's top (parked (b)).
+
+    Backfill run after the owner set mi but before the phone's first frame
+    lands before B, and it read the km rows as miles. It writes round(day's
+    top x factor), so the day's stored top says which: a match times 1.609 was
+    read as miles and is scaled, a match as is stays. Anything else is named.
+    """
+    tops: dict[date, float] = {}
+    for r in rows:
+        tops[r.at.date()] = max(tops.get(r.at.date(), r.value), r.value)
+    # The summary wins: it's the whole day, where pruning may have taken some rows.
+    for row in conn.execute(
+        text(
+            "SELECT date, max_value FROM telemetry_daily_summary WHERE vin = :v AND param_key = :k"
+        ),
+        {"v": plan.vin, "k": plan.key},
+    ):
+        top = _maybe_float(row.max_value)
+        if top is not None:
+            tops[_at(row.date).date()] = top
+    for record in records:
+        if record.created_at >= boundary or not record.notes.startswith("Backfilled"):
+            continue
+        top = tops.get(record.day)
+        as_miles = top is not None and _near(record.km, _record_km(top, ODOMETER_UNIT_MI))
+        as_km = top is not None and _near(record.km, round(top))
+        if as_miles and not as_km:
+            plan.records.append((record.id, record.km, _record_km(record.km, plan.to)))
+            plan.early_backfills.append(record.id)
+        elif not as_km:
+            plan.unproven_backfills.append(record.id)
+
+
+def _near(record_km: float, expected: float) -> bool:
+    """Whether a whole-km record is the one backfill would write for ``expected``."""
+    return abs(record_km - expected) <= _RECORD_SLACK_KM
 
 
 def _day_tops(conn: Connection, plan: RepairPlan, rows: list[_Raw]) -> dict[date, float]:
@@ -1228,7 +1279,14 @@ def _report(plan: RepairPlan) -> None:
                 ", still above its day's readings: backfill likely converted it twice, so it "
                 "stays 1.609x high. Fix it by hand."
             )
+        if record_id in plan.early_backfills:
+            line += ", backfilled before the switch from its day's top read as miles"
         print(line)
+    for record_id in plan.unproven_backfills:
+        print(
+            f"  odometer record {record_id}: backfilled before the switch, and what's left of "
+            "its day can't say whether it was read as miles, so it stays. Check it by hand."
+        )
     if plan.sessions:
         moved = sum(1 for s in plan.sessions if s.distance is not None)
         print(
