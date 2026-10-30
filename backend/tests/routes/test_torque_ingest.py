@@ -527,7 +527,7 @@ async def test_readings_register_with_their_units_and_names(
         )
     ).scalars()
     assert {p.param_key: (p.unit, p.display_name) for p in rows} == {
-        "INTAKE_PRESSURE": ("kPa", "Intake Pressure"),
+        "INTAKE_PRESSURE": ("kPa", "Intake manifold pressure"),
         "KFF1238": ("V", "OBD adapter voltage"),
     }
 

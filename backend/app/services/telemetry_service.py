@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.exc import StaleDataError
 
+from app.constants.param_names import READABLE_PARAM_NAMES
 from app.database import is_sqlite
 from app.services.livelink_sources.base import Reading, StoragePolicy
 from app.utils.datetime_utils import utc_now
@@ -137,6 +138,11 @@ _DECLARED_ODOMETER_WARNED: dict[str, date] = {}
 def _delegates_to_store_telemetry(policy: StoragePolicy) -> bool:
     """Whether `store_readings` hands this policy's batch to `store_telemetry`."""
     return policy.sync_odometer or policy.observe_movement
+
+
+def _title_case(param_key: str) -> str:
+    """The name a new row got before the readable table, and still gets for any other key."""
+    return param_key.replace("_", " ").title()
 
 
 def normalises_odometer(policy: StoragePolicy, device: LiveLinkDevice | None) -> bool:
@@ -289,6 +295,9 @@ class TelemetryService:
         A source's `display_name` names a new row, and an existing one still on
         its auto name; a name someone set stays. It is cut to the column's
         width: PostgreSQL refuses a longer one where SQLite stores it (TQ-L2).
+        With no source name, a shared key falls back to its readable one
+        (`_format_display_name` for a new row, `_adopt_readable_name` for an
+        existing one).
         """
         if display_name is not None:
             display_name = display_name[:DISPLAY_NAME_MAX_LENGTH]
@@ -306,11 +315,7 @@ class TelemetryService:
             # Update metadata if provided and not already set
             if unit and not existing.unit:
                 existing.unit = unit
-            if display_name and existing.display_name in (
-                None,
-                self._format_display_name(param_key),
-            ):
-                existing.display_name = display_name
+            self._adopt_readable_name(existing, display_name)
             if not existing.param_class and resolved_class:
                 existing.param_class = resolved_class
                 # Only recompute category when it's unset or still the
@@ -387,13 +392,25 @@ class TelemetryService:
 
     @staticmethod
     def _format_display_name(param_key: str) -> str:
-        """Format a parameter key into a display name.
+        """Format a parameter key into a display name: its readable one, else the title case."""
+        return READABLE_PARAM_NAMES.get(param_key) or _title_case(param_key)
 
-        Also the test for "still the auto name" when a source names a reading
-        (auto_register_parameter), so the two can't drift.
+    @staticmethod
+    def _adopt_readable_name(param: LiveLinkParameter, name: str | None = None) -> None:
+        """Give a row still on its auto name `name`, or its key's readable name.
+
+        Auto means no name, the old title case or the readable one; anything
+        else is a name someone set and stays. One rule for every ingest path.
         """
-        # Replace underscores with spaces and title case
-        return param_key.replace("_", " ").title()
+        # WiCAN never names a reading and Torque only its KFF ones, so without
+        # the fallback a row on "Coolant Tmp" would never move.
+        name = name or READABLE_PARAM_NAMES.get(param.param_key)
+        if name and param.display_name in (
+            None,
+            _title_case(param.param_key),
+            READABLE_PARAM_NAMES.get(param.param_key),
+        ):
+            param.display_name = name
 
     def _is_odometer_param(self, param_key: str, declared: str | None = None) -> bool:
         """Check if a parameter key represents an odometer reading.
@@ -718,6 +735,10 @@ class TelemetryService:
                     unit = ODOMETER_UNIT_KM
                 param = await self.auto_register_parameter(param_key, unit, param_class)
                 parameters[param_key] = param
+            else:
+                # Registered keys skip auto_register_parameter here, so the
+                # rename runs on the rows we already hold (F6-1).
+                self._adopt_readable_name(parameters[param_key])
         for param_key in normalised & autopid_data.keys():
             await self._label_odometer_km(parameters.get(param_key))
 
