@@ -69,6 +69,7 @@ so no reading lands halfway through.
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from bisect import bisect_left, bisect_right
 from collections.abc import Collection
@@ -220,6 +221,11 @@ def _reading(value: float, to: str) -> float:
 def _record_km(value: float, to: str) -> float:
     """An odometer record, rescaled to whole km the way ingest's ``int(round(...))`` does."""
     return float(round(float(_scale(value, to))))
+
+
+def _same(a: float, b: float) -> bool:
+    """Whether two stored floats are the same reading, give or take float noise."""
+    return math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-6)
 
 
 def _as_datetime(value: object) -> datetime | None:
@@ -559,9 +565,11 @@ def _plan_summaries(
     A summary holds the vehicle's whole day, any device, and outlives the raw
     rows. Days after B's are scaled (min, max and avg scale linearly). B's own
     day can hold readings from before B, so it's rebuilt from its raw rows
-    when all of them survive, scaling only those this repair scales.
-    Otherwise it's scaled when ``pruned_day_scales`` says it's all this
-    device's, and left alone and reported when not.
+    when all of them survive, scaling only those this repair scales. A
+    matching count isn't enough: Torque takes past timestamps, so replays can
+    refill a pruned day. The rows have to give back the stored min, max and
+    avg too. Otherwise it's scaled when ``pruned_day_scales`` says it's all
+    this device's, and left alone and reported when not.
     """
     scaled = dict(zip(plan.raw_ids, (new for _old, new in plan.raw), strict=True))
     b_day = plan.boundary.date() if plan.boundary is not None else None
@@ -580,12 +588,9 @@ def _plan_summaries(
             _maybe_float(row.max_value),
             _maybe_float(row.avg_value),
         )
-        values = (
-            [Decimal(str(scaled.get(r.id, r.value))) for r in rows if r.at.date() == day]
-            if day == b_day
-            else []
-        )
-        if day == b_day and row.sample_count and len(values) == row.sample_count:
+        on_day = [r for r in rows if r.at.date() == day] if day == b_day else []
+        if day == b_day and _backs(on_day, row.sample_count, old):
+            values = [Decimal(str(scaled.get(r.id, r.value))) for r in on_day]
             mean = sum(values, Decimal(0)) / len(values)
             new: Aggregate = (float(min(values)), float(max(values)), float(mean))
             plan.summaries.append(SummaryChange(row.id, day, "rebuilt", old, new))
@@ -594,6 +599,16 @@ def _plan_summaries(
             plan.summaries.append(SummaryChange(row.id, day, "scaled", old, (lo, hi, avg)))
         else:
             plan.summaries_left.append(day)
+
+
+def _backs(rows: list[_Raw], count: int | None, stored: Aggregate) -> bool:
+    """Whether ``rows`` are the readings a summary was built from (final review B)."""
+    lo, hi, avg = stored
+    if not rows or len(rows) != count or lo is None or hi is None or avg is None:
+        return False
+    values = [r.value for r in rows]
+    mean = float(sum((Decimal(str(v)) for v in values), Decimal(0)) / len(values))
+    return _same(min(values), lo) and _same(max(values), hi) and _same(mean, avg)
 
 
 def _maybe_float(value: Any) -> float | None:
@@ -807,7 +822,12 @@ def _plan_torque(
     since = _window_start(conn, device_id, vin, key, device.created_at)
     rows = _raw_rows(conn, vin, key)
     mine = [r for r in rows if r.device_id == device_id]
-    records = _torque_records(conn, vin, key, since)
+    # A slow phone clock can put the window start before the phone existed,
+    # and a record from then is another phone's (F-1). Rows and sessions keep
+    # the window start; a WiCAN keeps its MAC id, so that path doesn't need this.
+    created = _as_datetime(device.created_at)
+    arrived = max((at for at in (since, created) if at is not None), default=None)
+    records = _torque_records(conn, vin, key, arrived)
     plan = RepairPlan(
         device_id=device_id, vin=vin, key=key, to=to, unit_action=("clear_device_unit", None)
     )
@@ -846,32 +866,60 @@ def _plan_torque(
         else:
             plan.stale_latest = (float(latest.value), at)
 
-    # Ingest writes this key's records only under the declaration, so all of
-    # them are inflated. Backfill converts with the device's mi too, so one
-    # built from a post-switch row was converted twice and stays high (F3-5).
-    scaled = dict(zip(plan.raw_ids, (new for _old, new in plan.raw), strict=True))
-    day_top: dict[date, float] = {}
-    for r in rows:
-        value = scaled.get(r.id, r.value)
-        day_top[r.at.date()] = max(day_top.get(r.at.date(), value), value)
+    _plan_torque_sessions(conn, plan, mine, boundary, from_record)
+    _plan_summaries(conn, plan, rows, pruned_day_scales=False)
+
+    # Ingest writes this key's records only under the declaration, so those
+    # from the switch on are inflated. Backfill converts with the device's mi
+    # too, so one built from a post-switch row was converted twice and stays
+    # high (F3-5).
+    tops = _day_tops(conn, plan, rows)
     for record in records:
+        if record.created_at < boundary:
+            continue
         new = _record_km(record.km, to)
         plan.records.append((record.id, record.km, new))
-        top = day_top.get(record.day)
+        top = tops.get(record.day)
         if (
             record.notes.startswith("Backfilled")
             and top is not None
             and new > top + _RECORD_SLACK_KM
         ):
             plan.flagged_records.append(record.id)
-
-    _plan_torque_sessions(conn, plan, mine, boundary, from_record)
-    _plan_summaries(conn, plan, rows, pruned_day_scales=False)
     return plan
+
+
+def _day_tops(conn: Connection, plan: RepairPlan, rows: list[_Raw]) -> dict[date, float]:
+    """Each day's top reading for the key once the plan is applied.
+
+    From the raw rows where any survive, else from the day's summary as the
+    plan leaves it: scaled after the switch, as is before it (final review 10).
+    """
+    changed = {c.id: c.new[1] for c in plan.summaries}
+    tops: dict[date, float] = {}
+    for row in conn.execute(
+        text(
+            "SELECT id, date, max_value FROM telemetry_daily_summary "
+            "WHERE vin = :v AND param_key = :k"
+        ),
+        {"v": plan.vin, "k": plan.key},
+    ):
+        top = changed[row.id] if row.id in changed else _maybe_float(row.max_value)
+        if top is not None:
+            tops[_at(row.date).date()] = top
+    scaled = dict(zip(plan.raw_ids, (new for _old, new in plan.raw), strict=True))
+    from_rows: dict[date, float] = {}
+    for r in rows:
+        value = scaled.get(r.id, r.value)
+        from_rows[r.at.date()] = max(from_rows.get(r.at.date(), value), value)
+    return tops | from_rows
 
 
 def _torque_records(conn: Connection, vin: str, key: str, since: datetime | None) -> list[_Record]:
     """The vehicle's `livelink` records naming ``key``, written since ``since``, oldest first.
+
+    ``since`` is when the phone arrived here: the later of the window start
+    and its `created_at`.
 
     By `created_at`, not `date`: a re-added phone's new id would otherwise take
     the old id's record dated the re-add day (F2-5).
@@ -983,6 +1031,8 @@ def _place_switch(
             f"  earliest surviving raw row: {_fmt(earliest.at)}, {earliest.value:,.0f}",
             f"  gap: {earliest.at - first.created_at}. The days between are scaled on the "
             "record's server timestamp alone.",
+            "  nothing before the switch time is touched; if the unit was set earlier, pass "
+            "--switch-at",
         ]
         return first.created_at, True
     raise RepairRefusedError(
@@ -1008,14 +1058,16 @@ def _plan_torque_sessions(
     boundary: datetime,
     from_record: bool,
 ) -> None:
-    """Each session's odometer columns, by the rows inside it (F2-2).
+    """Each session's odometer columns, by the rows they came from (F2-2).
 
     A Torque session's start and end odometers are the low and high of the
-    key's rows inside it, not its edge frames, so each column follows the
-    earliest or latest row in the window. With no rows left, its edges say,
-    unless it spans B: then either column may be either unit and a mixed
-    pair recomputes a negative distance, so it's kept whole. B from a record
-    is only good to the day, so a no-row session touching that day is too.
+    key's rows inside it, not its edge frames, so each column follows the row
+    that still carries its value: that row's time against B says which unit
+    it's in (final review A). When a column has no such row, its source was
+    pruned or replaced, so the session goes by its edges like one with no
+    rows: kept whole when it spans B, since either column may be either unit
+    and a mixed pair recomputes a negative distance. B from a record is only
+    good to the day, so one touching that day is kept too.
     """
     times = [r.at for r in mine]
     for row in conn.execute(
@@ -1031,21 +1083,11 @@ def _plan_torque_sessions(
         started = _at(row.started_at)
         ended = _as_datetime(row.ended_at)
         inside = mine[bisect_left(times, started) : bisect_right(times, ended or datetime.max)]
-        # Pruning goes by age, so it can cut a session's head. A session that
-        # started before B with no row of it left from before B may have had
-        # its km low in rows since pruned: kept whole like a no-row one. A row
-        # older than the session proves the head is all there.
-        head_gone = (
-            bool(inside)
-            and started < boundary <= inside[0].at
-            and inside[0].at > started
-            and not (mine and mine[0].at < started)
-        )
-        if head_gone:
-            plan.sessions_kept.append((row.id, started, ended))
-            continue
-        if inside:
-            scale_start, scale_end = inside[0].at >= boundary, inside[-1].at >= boundary
+        low = _source_row(inside, start, low=True)
+        high = _source_row(inside, end, low=False)
+        if inside and (start is None or low) and (end is None or high):
+            scale_start = low is not None and low.at >= boundary
+            scale_end = high is not None and high.at >= boundary
         else:
             last = ended or started
             touches = from_record and boundary.date() in (started.date(), last.date())
@@ -1065,6 +1107,19 @@ def _plan_torque_sessions(
             new_end = end_change[1] if end_change else end
             moved = (float(distance), float(Decimal(str(new_end)) - Decimal(str(new_start))))
         plan.sessions.append(SessionChange(row.id, start_change, end_change, moved))
+
+
+def _source_row(inside: list[_Raw], stored: Any, *, low: bool) -> _Raw | None:
+    """The surviving row a session's stored start (``low``) or end came from.
+
+    Only the window's low or high row can be it, and only while it still
+    carries that value. An older row proves nothing: Torque takes past
+    timestamps, so it may be a replay that landed after the pruning.
+    """
+    if stored is None or not inside:
+        return None
+    pick = min(inside, key=lambda r: r.value) if low else max(inside, key=lambda r: r.value)
+    return pick if _same(pick.value, float(stored)) else None
 
 
 def apply_repair(conn: Connection, plan: RepairPlan) -> None:
@@ -1195,7 +1250,10 @@ def _report(plan: RepairPlan) -> None:
         )
         which = "the switch day" if action == "clear_device_unit" else "the window-start day"
         for day in plan.summaries_left:
-            print(f"    {day}: {which}, its raw rows are gone and it may mix readings, so it stays")
+            print(
+                f"    {day}: {which}, its surviving raw rows don't add up to it and it may mix "
+                "readings, so it stays"
+            )
 
 
 def _switch_at(value: str) -> datetime:

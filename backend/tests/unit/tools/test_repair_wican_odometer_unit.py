@@ -21,6 +21,7 @@ import uuid
 from collections.abc import Generator
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from typing import TypedDict
 
 import pytest
 from sqlalchemy import Engine, create_engine, select, text
@@ -208,7 +209,15 @@ def _seed(
         s.commit()
 
 
-def _snapshot(engine: Engine, device_id: str, vin: str) -> dict[str, object]:
+class _Snapshot(TypedDict):
+    raw: list[float]
+    latest: float | None
+    records: list[tuple[str, float]]
+    sessions: list[tuple[float | None, ...]]
+    units: list[tuple[object, ...]]
+
+
+def _snapshot(engine: Engine, device_id: str, vin: str) -> _Snapshot:
     with Session(engine) as s:
         raw = s.scalars(
             select(VehicleTelemetry.value)
@@ -1739,21 +1748,16 @@ def test_a_spanning_session_with_its_head_pruned_is_kept_whole_under_switch_at(e
     assert [k[0] for k in plan.sessions_kept] == [session_id]
 
 
-def test_a_spanning_session_follows_its_rows_when_an_older_row_survives(engine):
-    """Review fix 1's limit: a surviving row older than the session proves its
-    head wasn't pruned, so under `--switch-at` the per-row rule still applies
-    (start from an inflated first row after an odometer-less edge frame)."""
+def test_a_spanning_session_follows_the_row_its_start_came_from(engine):
+    """Final review A: the stored start is the 12:30 row's value, so that row
+    is where it came from, and it's after the switch: scaled, under
+    `--switch-at`, from an inflated first row after an odometer-less edge
+    frame. No older row needed. Red on 5af0f60c, which kept it whole because
+    no row older than the session survived."""
     with Session(engine) as s:
         _vehicle(s, TQVIN)
         _phone(s)
-        _rows(
-            s,
-            [
-                (datetime(2026, 7, 1, 9), 57000.0),
-                (datetime(2026, 7, 1, 12, 30), 96561.0),
-                (datetime(2026, 7, 1, 13), 96600.0),
-            ],
-        )
+        _rows(s, [(datetime(2026, 7, 1, 12, 30), 96561.0), (datetime(2026, 7, 1, 13), 96600.0)])
         _session(s, datetime(2026, 7, 1, 11), datetime(2026, 7, 1, 13), 96561.0, 96600.0)
         s.commit()
 
@@ -1798,3 +1802,257 @@ def test_the_report_names_the_left_day_in_the_owners_words(engine, capsys):
     out = capsys.readouterr().out
     assert "2026-07-01: the switch day" in out
     assert "B's" not in out
+
+
+# --- Final review (codex R1-H1/H2, Fable F-1/F-2, F3-5) ---------------------------
+
+
+@pytest.mark.parametrize(
+    ("rows", "switch_at"),
+    [
+        # codex's shape: no step (x1.694), so the owner passes --switch-at.
+        ([(datetime(2026, 7, 1, 12, 30), 96561.0), (datetime(2026, 7, 1, 13), 96600.0)], SWITCH),
+        # The same with a step at 12:30 off the replayed row.
+        (
+            [
+                (datetime(2026, 7, 1, 12, 30), _up(57020.0)),
+                (datetime(2026, 7, 1, 13), _up(57030.0)),
+            ],
+            None,
+        ),
+    ],
+)
+def test_an_older_replayed_row_does_not_prove_a_pruned_head(engine, rows, switch_at):
+    """Final review A (codex R1-H1): Torque takes past timestamps, so a 09:00
+    reading replayed after the session's 11:30 km row was pruned says nothing
+    about that session. Its stored 57,000 matches no row inside it, so it's
+    kept whole. Red on 5af0f60c, which divided it into 35,418 and wrote a
+    21,612 km distance."""
+    session_id = _pruned_head(engine, rows, record=False)
+    with Session(engine) as s:
+        _rows(s, [(datetime(2026, 7, 1, 9), 57000.0)])
+        s.commit()
+
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=switch_at)
+
+    assert plan.sessions == []
+    assert [k[0] for k in plan.sessions_kept] == [session_id]
+    _apply(engine, TQ, "km", key=TQKEY, switch_at=switch_at)
+    assert _snapshot(engine, TQ, TQVIN)["sessions"] == [
+        (57000.0, _up(57030.0), _up(57030.0) - 57000.0)
+    ]
+
+
+def test_a_step_case_spanning_session_still_follows_its_rows(engine):
+    """Final review A's limit: the stored start is the 11:30 km row and the
+    end the 13:00 inflated one, so the start stays, the end is scaled and the
+    distance is recomputed. A fix that kept every spanning session whole
+    would leave the end 1.609x high."""
+    with Session(engine) as s:
+        _vehicle(s, TQVIN)
+        _phone(s)
+        _rows(
+            s,
+            [
+                (datetime(2026, 7, 1, 11, 30), 57000.0),
+                (SWITCH, _up(57010.0)),
+                (datetime(2026, 7, 1, 13), _up(57030.0)),
+            ],
+        )
+        _session(s, datetime(2026, 7, 1, 11), datetime(2026, 7, 1, 13), 57000.0, _up(57030.0))
+        s.commit()
+
+    plan = _plan(engine, TQ, "km", key=TQKEY)
+
+    assert plan.boundary == SWITCH
+    assert plan.sessions_kept == []
+    _apply(engine, TQ, "km", key=TQKEY)
+    assert _snapshot(engine, TQ, TQVIN)["sessions"] == [pytest.approx((57000.0, 57030.0, 30.0))]
+
+
+@pytest.mark.parametrize(
+    "replayed",
+    [
+        # codex's shape: 08:00 and 09:00 pruned, two older readings replayed.
+        [(datetime(2026, 7, 1, 6), 56820.0), (datetime(2026, 7, 1, 7), 56830.0), *HISTORY[3:5]],
+        # The same two pruned, replays with the same sum: only the min is off.
+        [(datetime(2026, 7, 1, 8, 10), 56980.0), (datetime(2026, 7, 1, 8, 50), 57010.0)]
+        + HISTORY[3:5],
+        # 12:00 and 13:00 pruned, replays with the same sum: only the max is off.
+        [
+            *HISTORY[1:3],
+            (datetime(2026, 7, 1, 12, 10), _up(57010.0) - 5),
+            (datetime(2026, 7, 1, 12, 50), _up(57030.0) + 5),
+        ],
+        # 09:00 pruned, an 08:30 replay inside the range: only the avg is off.
+        [HISTORY[1], (datetime(2026, 7, 1, 8, 30), 56995.0), *HISTORY[3:5]],
+    ],
+    ids=["codex", "min", "max", "avg"],
+)
+def test_a_switch_day_summary_its_rows_no_longer_back_is_left(engine, capsys, replayed):
+    """Final review B (codex R1-H2): rows were pruned and replays refilled the
+    day, so it still counts 4 rows but they aren't the ones it was built
+    from. Left and named; the day after is still scaled. Red on 5af0f60c,
+    which rebuilt it (codex's shape: avg 56,922.5)."""
+    from tools.repair_wican_odometer_unit import _report
+
+    _torque_history(engine, [HISTORY[0], *replayed, *HISTORY[5:]], records=False, sessions=False)
+    original = [v for at, v in HISTORY if at.date() == date(2026, 7, 1)]
+    with Session(engine) as s:
+        day = s.scalars(
+            select(TelemetryDailySummary).where(
+                TelemetryDailySummary.vin == TQVIN,
+                TelemetryDailySummary.date == datetime(2026, 7, 1),
+            )
+        ).one()
+        day.min_value, day.max_value = min(original), max(original)
+        day.avg_value = sum(original) / len(original)
+        s.commit()
+    before = _summaries(engine, TQVIN, TQKEY)[date(2026, 7, 1)]
+
+    plan = _plan(engine, TQ, "km", key=TQKEY)
+
+    assert plan.boundary is not None and plan.boundary.date() == date(2026, 7, 1)
+    assert plan.summaries_left == [date(2026, 7, 1)]
+    _report(plan)
+    assert "2026-07-01: the switch day" in capsys.readouterr().out
+    _apply(engine, TQ, "km", key=TQKEY)
+    sums = _summaries(engine, TQVIN, TQKEY)
+    assert sums[date(2026, 7, 1)] == before
+    assert sums[date(2026, 7, 2)] == pytest.approx((57080.0, 57100.0, 57090.0, 2))
+
+
+#: The phone arrived on Jul 1; its clock ran behind, so the first thing it
+#: left here is stamped before that.
+ARRIVED = datetime(2026, 7, 1)
+
+
+def _foreign_record(s: Session) -> int:
+    """A deleted phone's true-km record from before this one arrived."""
+    return _record(
+        s, date(2026, 6, 29), 56995.0, "Auto-recorded from LiveLink", datetime(2026, 6, 29, 10)
+    ).id
+
+
+def test_a_foreign_record_from_before_the_phone_arrived_is_left(engine):
+    """Final review C (Fable F-1): a skewed first row puts the window start on
+    Jun 28, before the phone's `created_at`, and a deleted phone's 56,995 km
+    record from Jun 29 sits in between. It isn't this phone's and isn't
+    inflated. Red on 5af0f60c, which made it 35,415."""
+    with Session(engine) as s:
+        _vehicle(s, TQVIN)
+        _phone(s, created_at=ARRIVED)
+        _rows(
+            s,
+            [
+                (datetime(2026, 6, 28, 9), 56990.0),
+                (datetime(2026, 7, 1, 9), 57000.0),
+                (SWITCH, _up(57010.0)),
+                (datetime(2026, 7, 1, 13), _up(57030.0)),
+            ],
+        )
+        foreign = _foreign_record(s)
+        own = _record(s, date(2026, 7, 1), _up(57030.0), "Auto-updated from LiveLink", SWITCH).id
+        s.commit()
+
+    plan = _plan(engine, TQ, "km", key=TQKEY)
+
+    assert plan.boundary == SWITCH
+    assert [(i, new) for i, _old, new in plan.records] == [(own, 57030.0)]
+    _apply(engine, TQ, "km", key=TQKEY)
+    with Session(engine) as s:
+        assert float(s.get_one(OdometerRecord, foreign).odometer_km) == 56995.0
+
+
+def test_a_foreign_record_from_before_the_phone_arrived_cannot_place_the_switch(engine):
+    """Final review C: a session stamped Jun 28 by the phone's slow clock
+    puts the window start before its `created_at`, and the km rows are
+    pruned. The deleted phone's Jun 29 record isn't the first one this phone
+    wrote, so the switch is this phone's own Jul 1 record and Jun 30 stays
+    km. Red on 5af0f60c, which placed it on Jun 29 and scaled Jun 30."""
+    with Session(engine) as s:
+        _vehicle(s, TQVIN)
+        _phone(s, created_at=ARRIVED)
+        _session(s, datetime(2026, 6, 28, 9), datetime(2026, 6, 28, 9, 30), None, None)
+        _rows(
+            s,
+            [(datetime(2026, 7, 3, 8), _up(57200.0)), (datetime(2026, 7, 3, 9), _up(57220.0))],
+        )
+        _summary(s, TQVIN, date(2026, 6, 30), [56950.0], 1, key=TQKEY)
+        foreign = _foreign_record(s)
+        _record(s, date(2026, 7, 1), _up(57030.0), "Auto-updated from LiveLink", RECORD_SWITCH)
+        s.commit()
+
+    plan = _plan(engine, TQ, "km", key=TQKEY)
+
+    assert plan.boundary == RECORD_SWITCH
+    assert foreign not in [i for i, _old, _new in plan.records]
+    assert date(2026, 6, 30) not in [c.day for c in plan.summaries]
+
+
+def test_a_record_written_before_switch_at_is_left(engine):
+    """Final review C: the rescale set also needs `created_at >= B`. Under a
+    later `--switch-at` the Jul 1 record predates the switch the owner named,
+    so it's left like the rows before it; Jul 2's is scaled. Red on
+    5af0f60c, which scaled every record since the window start."""
+    _torque_history(engine)
+    switch_at = HISTORY[-2][0]
+
+    plan = _plan(engine, TQ, "km", key=TQKEY, switch_at=switch_at)
+
+    assert [new for _i, _old, new in plan.records] == [57100.0]
+
+
+def test_the_record_case_says_nothing_before_the_switch_is_touched(engine, capsys):
+    """Final review D (Fable F-2): a switch from the first record can be
+    late, and the days before it are silently left. The report says so and
+    points at --switch-at; the step case doesn't need it. Red on 5af0f60c."""
+    from tools.repair_wican_odometer_unit import _report
+
+    _record_case(engine)
+    _report(_plan(engine, TQ, "km", key=TQKEY))
+    out = capsys.readouterr().out
+    assert "nothing before the switch time is touched" in out
+    assert "if the unit was set earlier, pass --switch-at" in out
+
+
+def test_the_step_case_report_has_no_record_case_caveat(engine, capsys):
+    from tools.repair_wican_odometer_unit import _report
+
+    _torque_history(engine)
+    _report(_plan(engine, TQ, "km", key=TQKEY))
+    assert "nothing before the switch time is touched" not in capsys.readouterr().out
+
+
+def test_a_double_converted_record_on_a_pruned_day_is_flagged_by_its_summary(engine, capsys):
+    """Final review 10 (F3-5): Jul 2's raw rows are gone, so the record's day
+    top comes from that day's summary, scaled as the plan scales it. One
+    built from a km row on pruned Jun 30, whose summary stays km, isn't
+    flagged. Red on 5af0f60c, which needed raw rows to flag anything."""
+    from tools.repair_wican_odometer_unit import _report
+
+    _record_case(engine)
+    with Session(engine) as s:
+        good = _record(
+            s,
+            date(2026, 6, 30),
+            _up(56950.0),
+            "Backfilled from LiveLink telemetry",
+            datetime(2026, 7, 3, 10),
+        ).id
+        twice = _record(
+            s,
+            date(2026, 7, 2),
+            _up(_up(57150.0)),
+            "Backfilled from LiveLink telemetry",
+            datetime(2026, 7, 3, 10),
+        ).id
+        s.commit()
+
+    plan = _plan(engine, TQ, "km", key=TQKEY)
+
+    assert plan.flagged_records == [twice]
+    assert (good, round(_up(56950.0)), 56950.0) in plan.records
+    _report(plan)
+    out = capsys.readouterr().out
+    assert f"record {twice}: " in out and "converted it twice" in out
