@@ -65,6 +65,17 @@ if [[ ! "$NODE_MAJOR" =~ ^[0-9]+$ ]]; then
   exit 3
 fi
 
+# The backend image has no node, so pyright fetches its own through nodeenv,
+# which takes nodejs.org's newest by default. On 2026-10-30 that was
+# 27.0.0-alpha, which nodeenv can't parse, and pyright died. Hand it the
+# host's node when it's on the .nvmrc major (nodeenv wants an exact version).
+if command -v node >/dev/null 2>&1; then
+  pyright_node="$(node -p 'process.versions.node')"
+  if [[ "${pyright_node%%.*}" == "$NODE_MAJOR" ]]; then
+    BACKEND_ENV+=("PYRIGHT_PYTHON_NODE_VERSION=$pyright_node")
+  fi
+fi
+
 do_backend=1; do_frontend=1; do_freshness=1; do_playwright=0; do_docker_build=0
 do_tripwire=$HAS_TRIPWIRE; rebuild=0; skipped=()
 
