@@ -46,6 +46,7 @@ A speed a device declares in mph (in a WiCAN HTTPS config or a topic map's unit)
 Migration 137 closes any duplicate active DTC rows a vehicle has for one code, keeping the newest, before it adds the index that allows one active row per code. The closed rows stay in the history with a note saying why. It isn't FATAL.
 
 ### Added
+- South African Rand (ZAR) currency
 - LiveLink offline alerts cover sensors with no status topic, such as a Mopeka gateway: a live reading marks the sensor online, and it alerts once when it goes quiet
 - LiveLink device responses carry `online`, and the device list's status reads it
 - `tools/repair_wican_odometer_unit.py` repairs a WiCAN odometer read in the wrong unit, either way (`--to km` or `--to mi`), and the 409 on a unit change names it
