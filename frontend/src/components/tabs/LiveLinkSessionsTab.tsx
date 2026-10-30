@@ -23,6 +23,7 @@ import { useUnitFormat } from '@/hooks/useUnitFormat'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { formatAPITimestamp, formatTime } from '@/utils/parseAPITimestamp'
 import { formatAtPrecision } from '@/utils/unitFormat'
+import { formatDuration } from '@/utils/durationFormat'
 
 /** RPM is a whole number, matching the LiveLink gauge's own classification. */
 const RPM_PRECISION = 0
@@ -92,14 +93,6 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
   useEffect(() => {
     fetchSessions()
   }, [fetchSessions])
-
-  const formatDuration = (seconds: number | null | undefined) => {
-    if (seconds == null) return '--'
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    if (hours > 0) return `${hours}h ${minutes}m`
-    return `${minutes}m`
-  }
 
   // ★ `distance_km`, `start_odometer` and `end_odometer` are canonical
   // kilometres, and the unverified marker these used to carry has been retired.
@@ -195,7 +188,6 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
           session={session}
           isExpanded={expandedSession === session.id}
           onToggle={() => toggleExpanded(session.id)}
-          formatDuration={formatDuration}
           formatDistance={formatDistance}
           formatSpeed={formatSpeed}
           formatTemp={formatTemp}
@@ -210,7 +202,6 @@ function SessionCard({
   session,
   isExpanded,
   onToggle,
-  formatDuration,
   formatDistance,
   formatSpeed,
   formatTemp,
@@ -218,7 +209,6 @@ function SessionCard({
   session: DriveSession
   isExpanded: boolean
   onToggle: () => void
-  formatDuration: (s: number | null | undefined) => string
   formatDistance: (value: number | null | undefined) => string
   formatSpeed: (kmh: number | null | undefined) => string
   formatTemp: (c: number | null | undefined) => string

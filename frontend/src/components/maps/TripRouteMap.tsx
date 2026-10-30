@@ -1,24 +1,16 @@
 /**
  * Trip route map — draws a GPS breadcrumb polyline for a selected trip (Task 15).
  *
- * Reuses LeafletMap.tsx's CSS import + default-icon fix. Lazy-loaded by the
+ * Shares the default-icon fix in leafletIcons.ts. Lazy-loaded by the
  * caller (React.lazy + Suspense) to keep Leaflet's ~150KB out of the main bundle.
  */
 import { useEffect, type ReactElement } from 'react'
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
-import L, { type LatLngBoundsExpression, type LatLngTuple } from 'leaflet'
+import type { LatLngBoundsExpression, LatLngTuple } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import './leafletIcons'
 import { useTranslation } from 'react-i18next'
 import type { TripPoint } from '../../types/trips'
-
-// Fix default icon issue with Leaflet + React
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-})
 
 interface Props {
   points: TripPoint[]

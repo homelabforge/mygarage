@@ -63,7 +63,8 @@ vi.mock('@/hooks/useUnitPreference', () => ({
   }),
 }))
 vi.mock('@/hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '12h' }) }))
-vi.mock('@/constants/i18n', () => ({ getActiveLocale: () => 'en-US' }))
+let locale = 'en-US'
+vi.mock('@/constants/i18n', () => ({ getActiveLocale: () => locale }))
 vi.mock('@/utils/parseAPITimestamp', () => ({ formatAPITimestamp: () => 'Sun, Jul 26', formatTime: () => '12:00' }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -87,6 +88,7 @@ const list = (over: Partial<DriveSessionListResponse> = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  locale = 'en-US'
   units = presetUnitsFor('imperial', 'us')
   getSessions.mockResolvedValue(list())
 })
@@ -188,6 +190,18 @@ describe('LiveLinkSessionsTab', () => {
     expect(screen.getByText('livelink.sessions.duration')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button'))
     expect(screen.queryByText('livelink.sessions.duration')).not.toBeInTheDocument()
+  })
+
+  it("writes the row, duration tile and idle tile in the reader's language", async () => {
+    // These used to hardcode `h`/`m`, so a German reader still got `1h 0m`.
+    locale = 'de-DE'
+    getSessions.mockResolvedValue(list({ sessions: [{ ...endedSession, idle_seconds: 300 }] }))
+    render(<LiveLinkSessionsTab vin="V1" />)
+    expect(await screen.findByText('1h, 0 Min.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button'))
+    // The row plus the expanded duration tile.
+    expect(screen.getAllByText('1h, 0 Min.')).toHaveLength(2)
+    expect(screen.getByText('5 Min.')).toBeInTheDocument()
   })
 
   it('renders the odometer pair in the reader\'s units and coolant through the adapter', async () => {

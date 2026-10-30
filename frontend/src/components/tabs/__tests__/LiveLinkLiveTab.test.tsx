@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, cleanup } from '../../../__tests__/test-utils'
 import type { VehicleLiveLinkStatus } from '../../../types/livelink'
 import { presetUnitsFor } from '../../../types/units'
+import { setActiveLocale } from '../../../constants/i18n'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Timer strategy (harness note — deviates from the brief's single fake-timer
@@ -204,6 +205,19 @@ describe('LiveLinkLiveTab — status mapping + gauge warning (SDQ-C)', () => {
     // The warning marker (lucide AlertTriangle → svg.lucide-triangle-alert) renders for exactly the one
     // in_warning gauge — a structural conditional, not a colour assertion.
     expect(container.querySelectorAll('svg.lucide-triangle-alert')).toHaveLength(1)
+  })
+
+  it("writes the session duration in the reader's language, seconds included", async () => {
+    // It used to hardcode `m`/`s`. 120 s is the minutes-and-seconds shape, zero
+    // seconds shown.
+    getVehicleStatus.mockResolvedValue(okStatus({ session_duration_seconds: 120 }))
+    setActiveLocale('de')
+    try {
+      render(<LiveLinkLiveTab vin="V1" />)
+      expect(await screen.findByText('livelink.session: 2 Min., 0 Sek.')).toBeInTheDocument()
+    } finally {
+      setActiveLocale('en')
+    }
   })
 
   it('shows the error EmptyState when the fetch fails (fails if the error branch is dropped)', async () => {
