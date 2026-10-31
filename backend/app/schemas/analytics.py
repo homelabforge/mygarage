@@ -96,11 +96,12 @@ class HoursEconomyTrend(BaseModel):
     of engine operation).
 
     The hours mirror of :class:`FuelEconomyTrend`. Every figure, the two
-    averages included, comes from the tanks the trend plots, towing tanks too,
-    as ``average_l_per_100km`` does on the distance side. The vehicle card and
-    dashboard averages leave hauling out, so they can read lower. All are
-    ``None`` for a vehicle with no ``engine_hours``-bearing fuel records
-    (pure-distance vehicle).
+    averages included, comes from the tanks the trend plots, towing tanks too.
+    Unlike the distance side, which drops implausible tanks before plotting and
+    averaging, there's no plausibility filter here: every scored tank counts.
+    The vehicle card and dashboard averages leave hauling out, so they can
+    differ. All are ``None`` for a vehicle with no ``engine_hours``-bearing fuel
+    records (pure-distance vehicle).
     """
 
     average_l_per_hr: Decimal | None = None

@@ -6,13 +6,14 @@ seasonal analytics, and period comparison endpoints.
 """
 
 import uuid
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import date
 from decimal import Decimal
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import (
@@ -26,6 +27,7 @@ from app.models import (
 from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.user import User
 from app.services.auth import create_access_token
+from tests._users import TEST_PASSWORD_HASH
 
 
 @pytest_asyncio.fixture
@@ -722,13 +724,6 @@ class TestAnalyticsDefConsistency:
         await db_session.commit()
 
 
-# Copied from tests/conftest.py so these owners skip the argon2 work.
-_PASSWORD_HASH = (
-    "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$"
-    "hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI"
-)
-
-
 async def _seed(test_sessionmaker: async_sessionmaker[AsyncSession], *rows: object) -> None:
     """Write through a session of its own, so the route reads them cold."""
     async with test_sessionmaker() as session:
@@ -736,41 +731,69 @@ async def _seed(test_sessionmaker: async_sessionmaker[AsyncSession], *rows: obje
         await session.commit()
 
 
-async def _isolated_owner(
-    test_sessionmaker: async_sessionmaker[AsyncSession], *, vehicle_type: str = "Car"
-) -> tuple[str, dict[str, str]]:
-    """A fresh non-admin owner with one vehicle, so the garage is only theirs.
+OwnerFactory = Callable[..., Awaitable[tuple[str, dict[str, str]]]]
+
+
+@pytest_asyncio.fixture
+async def isolated_owner(
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+) -> AsyncGenerator[OwnerFactory]:
+    """Makes fresh non-admin owners with one vehicle each, so the garage is only
+    theirs, and deletes everything they made afterwards.
 
     The admin test user sees every vehicle in the shared database, and other
-    modules leave records all over the calendar.
+    modules leave records all over the calendar. Deleting the vehicle cascades
+    its records; a policy is the household's, so it goes by hand.
     """
-    suffix = uuid.uuid4().hex[:12]
-    # "ANZRO" + 12 hex chars = 17, and hex never has I, O or Q.
-    vin = f"ANZRO{suffix.upper()}"
+    vins: list[str] = []
+    user_ids: list[int] = []
+
+    async def make(*, vehicle_type: str = "Car") -> tuple[str, dict[str, str]]:
+        suffix = uuid.uuid4().hex[:12]
+        # "ANZRO" + 12 hex chars = 17, and hex never has I, O or Q.
+        vin = f"ANZRO{suffix.upper()}"
+        async with test_sessionmaker() as session:
+            user = User(
+                username=f"anz_{suffix}",
+                email=f"anz_{suffix}@example.com",
+                hashed_password=TEST_PASSWORD_HASH,
+                is_active=True,
+                is_admin=False,
+            )
+            session.add(user)
+            await session.flush()
+            user_ids.append(user.id)
+            session.add(
+                Vehicle(
+                    vin=vin,
+                    user_id=user.id,
+                    nickname=f"Analytics {suffix}",
+                    vehicle_type=vehicle_type,
+                    year=2020,
+                    make="Ford",
+                    model="F-150",
+                )
+            )
+            await session.commit()
+            vins.append(vin)
+            token = create_access_token(data={"sub": str(user.id), "username": user.username})
+        return vin, {"Authorization": f"Bearer {token}"}
+
+    yield make
+
     async with test_sessionmaker() as session:
-        user = User(
-            username=f"anz_{suffix}",
-            email=f"anz_{suffix}@example.com",
-            hashed_password=_PASSWORD_HASH,
-            is_active=True,
-            is_admin=False,
-        )
-        session.add(user)
-        await session.flush()
-        session.add(
-            Vehicle(
-                vin=vin,
-                user_id=user.id,
-                nickname=f"Analytics {suffix}",
-                vehicle_type=vehicle_type,
-                year=2020,
-                make="Ford",
-                model="F-150",
+        await session.execute(
+            delete(InsurancePolicy).where(
+                InsurancePolicy.id.in_(
+                    select(InsurancePolicyVehicle.policy_id).where(
+                        InsurancePolicyVehicle.vin.in_(vins)
+                    )
+                )
             )
         )
+        await session.execute(delete(Vehicle).where(Vehicle.vin.in_(vins)))
+        await session.execute(delete(User).where(User.id.in_(user_ids)))
         await session.commit()
-        token = create_access_token(data={"sub": str(user.id), "username": user.username})
-    return vin, {"Authorization": f"Bearer {token}"}
 
 
 def _fuel(vin: str, on: date, cost: str) -> FuelRecord:
@@ -785,9 +808,9 @@ class TestZeroCostRecordsCount:
     """A recorded $0 is a real record; only a missing cost is skipped (R1)."""
 
     async def test_a_zero_spot_rental_billing_counts_in_average_and_trend(
-        self, client: AsyncClient, test_sessionmaker
+        self, client: AsyncClient, test_sessionmaker, isolated_owner
     ):
-        vin, headers = await _isolated_owner(test_sessionmaker, vehicle_type="FifthWheel")
+        vin, headers = await isolated_owner(vehicle_type="FifthWheel")
         rental = SpotRental(vin=vin, check_in_date=date(2026, 1, 1))
         rental.billings.extend(
             [
@@ -808,9 +831,9 @@ class TestZeroCostRecordsCount:
         ]
 
     async def test_a_zero_cost_line_counts_in_the_service_type_breakdown(
-        self, client: AsyncClient, test_sessionmaker
+        self, client: AsyncClient, test_sessionmaker, isolated_owner
     ):
-        vin, headers = await _isolated_owner(test_sessionmaker)
+        vin, headers = await isolated_owner()
         visits = []
         for on, cost in ((date(2026, 1, 10), "50.00"), (date(2026, 4, 10), "0.00")):
             visit = ServiceVisit(vin=vin, date=on)
@@ -857,9 +880,9 @@ class TestGarageMonthlyTrendWindow:
         monkeypatch.setattr("app.routes.analytics.household_today", lambda: _GARAGE_TODAY)
 
     async def test_the_trend_is_the_twelve_months_ending_this_month(
-        self, client: AsyncClient, test_sessionmaker
+        self, client: AsyncClient, test_sessionmaker, isolated_owner
     ):
-        vin, headers = await _isolated_owner(test_sessionmaker)
+        vin, headers = await isolated_owner()
         await _seed(
             test_sessionmaker,
             _fuel(vin, date(2026, 9, 10), "70.00"),  # next month: a typo, say
@@ -879,9 +902,9 @@ class TestGarageMonthlyTrendWindow:
         assert Decimal(row["total_fuel"]) == Decimal("140.00")
 
     async def test_a_quiet_garage_still_gets_every_month(
-        self, client: AsyncClient, test_sessionmaker
+        self, client: AsyncClient, test_sessionmaker, isolated_owner
     ):
-        vin, headers = await _isolated_owner(test_sessionmaker)
+        vin, headers = await isolated_owner()
         await _seed(test_sessionmaker, _fuel(vin, date(2026, 3, 10), "25.00"))
 
         trends = (await client.get("/api/analytics/garage", headers=headers)).json()[
@@ -897,9 +920,9 @@ class TestGarageMonthlyTrendWindow:
             assert all(Decimal(t[f]) == 0 for f in others)
 
     async def test_the_monthly_total_leaves_insurance_out(
-        self, client: AsyncClient, test_sessionmaker
+        self, client: AsyncClient, test_sessionmaker, isolated_owner
     ):
-        vin, headers = await _isolated_owner(test_sessionmaker)
+        vin, headers = await isolated_owner()
         policy = InsurancePolicy(
             provider="Progressive",
             policy_number=f"P-{vin}",
@@ -911,17 +934,10 @@ class TestGarageMonthlyTrendWindow:
         policy.vehicle_links.append(InsurancePolicyVehicle(vin=vin, policy_type="Full Coverage"))
         await _seed(test_sessionmaker, policy, _fuel(vin, date(2026, 8, 5), "40.00"))
 
-        try:
-            trends = (await client.get("/api/analytics/garage", headers=headers)).json()[
-                "monthly_trends"
-            ]
-            august = next(t for t in trends if t["month"] == "Aug 2026")
+        trends = (await client.get("/api/analytics/garage", headers=headers)).json()[
+            "monthly_trends"
+        ]
+        august = next(t for t in trends if t["month"] == "Aug 2026")
 
-            assert Decimal(august["insurance"]) > 0
-            assert Decimal(august["total"]) == Decimal("40.00")
-        finally:
-            async with test_sessionmaker() as session:
-                await session.execute(
-                    delete(InsurancePolicy).where(InsurancePolicy.id == policy.id)
-                )
-                await session.commit()
+        assert Decimal(august["insurance"]) > 0
+        assert Decimal(august["total"]) == Decimal("40.00")

@@ -958,6 +958,62 @@ class TestCalculatePropaneCosts:
         assert freq["min_days"] == 14  # Jan 1 → Jan 15
         assert freq["max_days"] == 30  # Jan 15 → Feb 14
 
+    @staticmethod
+    def _bottle(id: int, on: date, cost: Decimal | None) -> SimpleNamespace:
+        return _make_fuel_record(
+            id=id,
+            date=on,
+            liters=None,
+            propane_liters=Decimal("20.00"),
+            tank_size_kg=Decimal("9"),
+            cost=cost,
+        )
+
+    def test_a_free_refill_still_counts_its_propane(self):
+        """A $0 bottle refill (a swap promo, say) still put propane in the tank (R1)."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), Decimal("30.00")),
+            self._bottle(2, date(2024, 2, 10), Decimal("0.00")),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["total_spent"] == Decimal("30.00")
+        assert result["total_liters"] == Decimal("40.00")
+        assert result["avg_price_per_liter"] == Decimal("0.75")
+        assert [(m["year"], m["month"]) for m in result["monthly_trend"]] == [
+            (2024, 1),
+            (2024, 2),
+        ]
+        assert result["tank_breakdown"]["9"]["refill_count"] == 2
+        assert result["refill_frequency"]["9"]["min_days"] == 31
+        assert len(result["tank_timeline"]) == 2
+
+    def test_free_refills_average_zero_not_unknown(self):
+        """Every refill free: the price per litre is 0.00, not missing."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), Decimal("0.00")),
+            self._bottle(2, date(2024, 2, 10), Decimal("0.00")),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["total_liters"] == Decimal("40.00")
+        assert result["avg_price_per_liter"] == Decimal("0.00")
+
+    def test_a_refill_with_no_cost_still_stays_out(self):
+        """Guard: a missing cost isn't a price, so its litres don't land either."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), Decimal("30.00")),
+            self._bottle(2, date(2024, 2, 10), None),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["total_liters"] == Decimal("20.00")
+        assert len(result["monthly_trend"]) == 1
+        assert result["tank_breakdown"]["9"]["refill_count"] == 1
+
 
 def _make_line_item(**kwargs):
     """Create a mock ServiceLineItem-like object with sensible defaults."""

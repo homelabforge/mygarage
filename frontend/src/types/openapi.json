@@ -9929,7 +9929,7 @@
         "type": "object"
       },
       "HoursEconomyTrend": {
-        "description": "Engine-hours fuel economy trend (canonical L/hr + cost/hr; lower L/hr\nis better, mirroring the L/100km convention \u2014 less fuel burned per hour\nof engine operation).\n\nThe hours mirror of :class:`FuelEconomyTrend`. Every figure, the two\naverages included, comes from the tanks the trend plots, towing tanks too,\nas ``average_l_per_100km`` does on the distance side. The vehicle card and\ndashboard averages leave hauling out, so they can read lower. All are\n``None`` for a vehicle with no ``engine_hours``-bearing fuel records\n(pure-distance vehicle).",
+        "description": "Engine-hours fuel economy trend (canonical L/hr + cost/hr; lower L/hr\nis better, mirroring the L/100km convention \u2014 less fuel burned per hour\nof engine operation).\n\nThe hours mirror of :class:`FuelEconomyTrend`. Every figure, the two\naverages included, comes from the tanks the trend plots, towing tanks too.\nUnlike the distance side, which drops implausible tanks before plotting and\naveraging, there's no plausibility filter here: every scored tank counts.\nThe vehicle card and dashboard averages leave hauling out, so they can\ndiffer. All are ``None`` for a vehicle with no ``engine_hours``-bearing fuel\nrecords (pure-distance vehicle).",
         "properties": {
           "average_cost_per_hr": {
             "anyOf": [

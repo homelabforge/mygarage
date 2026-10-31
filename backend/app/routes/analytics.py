@@ -495,9 +495,11 @@ async def get_hours_economy_trend(db: AsyncSession, vin: str) -> HoursEconomyTre
 
     The hours mirror of :func:`get_fuel_economy_trend`. Every figure here,
     the averages included, comes from the same tanks the chart plots, towing
-    tanks too, as the distance trend's average does. The vehicle card and
-    dashboard averages leave hauling out; that's their call, not this chart's.
-    Null/empty for a pure-distance vehicle (no ``engine_hours`` fill-ups).
+    tanks too. The distance trend also averages what it plots, but it drops
+    implausible tanks first; hours has no plausibility filter, so it plots and
+    averages every scored tank. The vehicle card and dashboard averages leave
+    hauling out. Null/empty for a pure-distance vehicle (no ``engine_hours``
+    fill-ups).
     """
     # Same tanks as the points. The flag is part of the cache key, so this
     # doesn't share an entry with the card's hauling-free average.
@@ -1001,6 +1003,17 @@ async def get_vehicle_analytics(
     )
 
 
+def _empty_garage_month() -> dict[str, Decimal]:
+    """One garage trend month with nothing in it yet."""
+    return {
+        "service": Decimal("0.00"),
+        "fuel": Decimal("0.00"),
+        "def": Decimal("0.00"),
+        "insurance": Decimal("0.00"),
+        "financing": Decimal("0.00"),
+    }
+
+
 @router.get("/garage", response_model=GarageAnalytics)
 async def get_garage_analytics(
     db: AsyncSession = Depends(get_db),
@@ -1054,15 +1067,7 @@ async def get_garage_analytics(
     vehicle_costs = []
 
     # Track monthly trends across garage
-    monthly_data: dict[tuple[int, int], dict[str, Any]] = defaultdict(
-        lambda: {
-            "service": Decimal("0.00"),
-            "fuel": Decimal("0.00"),
-            "def": Decimal("0.00"),
-            "insurance": Decimal("0.00"),
-            "financing": Decimal("0.00"),
-        }
-    )
+    monthly_data: dict[tuple[int, int], dict[str, Decimal]] = defaultdict(_empty_garage_month)
 
     # Insurance is a household record: a policy's premium divides among ALL the
     # vehicles it covers, so the shares are computed over every link, and only
@@ -1215,14 +1220,13 @@ async def get_garage_analytics(
                 key = (visit.date.year, visit.date.month)
                 monthly_data[key]["service"] += cost
 
-        # Both lists already dropped the records with no cost.
         for record in fuel_records:
-            if record.date:
+            if record.date and record.cost is not None:
                 key = (record.date.year, record.date.month)
                 monthly_data[key]["fuel"] += record.cost
 
         for record in def_records:
-            if record.date:
+            if record.date and record.cost is not None:
                 key = (record.date.year, record.date.month)
                 monthly_data[key]["def"] += record.cost
 
@@ -1258,7 +1262,7 @@ async def get_garage_analytics(
     for back in range(11, -1, -1):
         year, month_index = divmod(today.year * 12 + today.month - 1 - back, 12)
         month = month_index + 1
-        data = monthly_data[(year, month)]  # defaultdict: an empty month reads as zeros
+        data = monthly_data.get((year, month), _empty_garage_month())
         monthly_trends.append(
             GarageMonthlyTrend(
                 month=f"{calendar.month_abbr[month]} {year}",

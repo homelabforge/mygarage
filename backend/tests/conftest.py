@@ -40,6 +40,7 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.utils.pg_session import create_utc_async_engine
 from tests._shard import apply_shard
+from tests._users import TEST_PASSWORD_HASH
 
 
 def skip_test(reason: str) -> NoReturn:
@@ -372,10 +373,6 @@ async def test_user(db_session: AsyncSession) -> dict[str, object]:
     """
     from sqlalchemy import or_
 
-    # Pre-computed hash for "testpassword123" using argon2id with same settings as auth.py
-    # This avoids calling hash_password() which requires threads (fails in PID-limited containers)
-    test_password_hash = "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI"
-
     # Try to get existing test user (check both username and email for conflicts)
     result = await db_session.execute(
         select(User).where(or_(User.username == "testuser", User.email == "testuser@example.com"))
@@ -387,7 +384,7 @@ async def test_user(db_session: AsyncSession) -> dict[str, object]:
         user = User(
             username="testuser",
             email="testuser@example.com",
-            hashed_password=test_password_hash,
+            hashed_password=TEST_PASSWORD_HASH,
             is_active=True,
             is_admin=True,
         )
@@ -562,7 +559,7 @@ async def non_admin_user(db_session: AsyncSession) -> dict[str, object]:
         user = User(
             username="nonadminuser",
             email="nonadminuser@example.com",
-            hashed_password="$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI",
+            hashed_password=TEST_PASSWORD_HASH,
             is_active=True,
             is_admin=False,
         )
