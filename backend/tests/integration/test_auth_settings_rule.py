@@ -14,6 +14,7 @@ Lives in `tests/integration/` so the PG sidecar runs it too.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -403,8 +404,22 @@ class TestRestoreSafetyFile:
 
     @pytest.mark.parametrize(
         "content",
-        ['{"version": "2.1", "type": "settings"}', '{"settings": {"theme": "dark"}}', "{not json"],
-        ids=["missing-settings", "settings-not-a-list", "not-json"],
+        [
+            '{"version": "2.1", "type": "settings"}',
+            '{"settings": {"theme": "dark"}}',
+            "{not json",
+            "5",
+            "null",
+            '"settings"',
+        ],
+        ids=[
+            "missing-settings",
+            "settings-not-a-list",
+            "not-json",
+            "top-level-number",
+            "top-level-null",
+            "top-level-string",
+        ],
     )
     async def test_a_malformed_file_is_a_400_and_leaves_no_safety_copy(
         self, client, auth_headers, backup_dir, content
@@ -562,7 +577,10 @@ class TestTheLockSerialises:
                 await first.rollback()
                 await asyncio.wait({waiter}, timeout=40)
                 if not waiter.done():
+                    # Let the cancel land before second is touched.
                     waiter.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await waiter
                 elif not waiter.cancelled():
                     waiter.exception()
                 await second.rollback()

@@ -451,6 +451,9 @@ class BackupService:
         with open(backup_path) as f:
             backup_data = json.load(f)
 
+        if not isinstance(backup_data, dict):
+            raise ValueError("Invalid backup file structure: not a JSON object")
+
         if "settings" not in backup_data:
             raise ValueError("Invalid backup file structure: missing 'settings' key")
 
