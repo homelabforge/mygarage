@@ -4,6 +4,8 @@ import { render, screen, fireEvent, within, waitFor, act } from '../../__tests__
 import type { Supply } from '../../types/supplies'
 import { presetUnitsFor, type UnitSet } from '../../types/units'
 import { setActiveLocale } from '../../constants/i18n'
+import i18next from 'i18next'
+import commonEn from '../../locales/en/common.json'
 
 // Mock the supplies query hooks so this stays a unit test — no real network
 // calls needed. The api layer itself is already mocked globally (setup.ts
@@ -75,8 +77,12 @@ vi.mock('../../contexts/AuthContext', () => ({
 // tell qt from fl oz, and a `{ value, unit }` call shows both for the list cell.
 // Everything else is the bare key, and t stays one stable function for the same
 // reason setup.ts hoists its own.
+// A test that needs the shipped English sets `realT` and gets a real i18next
+// instead.
+const i18nMock = vi.hoisted(() => ({ realT: null as ((key: string, options?: object) => string) | null }))
 vi.mock('react-i18next', () => {
   const t = (key: string, options?: { unit?: string; value?: string }): string => {
+    if (i18nMock.realT) return i18nMock.realT(key, options)
     if (options?.value !== undefined) return `${key} (${options.value} / ${options.unit})`
     return options?.unit !== undefined ? `${key} (${options.unit})` : key
   }
@@ -712,6 +718,29 @@ describe('Supplies page: the list avg cost cell names its unit', () => {
     renderList([counted])
 
     expect(avgCostCell('Oil Filter')).toBe('$12.50')
+  })
+
+  // The mock above would pass with any template, so this one reads the real en value.
+  it('the shipped English reads $5.00/qt and $6.00/qt (UK)', async () => {
+    const english = i18next.createInstance()
+    await english.init({
+      lng: 'en',
+      ns: ['common'],
+      defaultNS: 'common',
+      resources: { en: { common: commonEn } },
+      interpolation: { escapeValue: false },
+    })
+    i18nMock.realT = english.t as unknown as (key: string, options?: object) => string
+    try {
+      useSuppliesMock.mockReturnValue({ data: { supplies: [quarts, ukQuarts], total: 2 }, isLoading: false, error: null })
+      render(<Supplies />)
+      fireEvent.click(screen.getByRole('button', { name: commonEn.supplies.listView }))
+
+      expect(avgCostCell('Quart Oil')).toBe('$5.00/qt')
+      expect(avgCostCell('UK Quart Oil')).toBe('$6.00/qt (UK)')
+    } finally {
+      i18nMock.realT = null
+    }
   })
 
   // Guard: main already shows a bare dash here. Mutation: drop the cost check in

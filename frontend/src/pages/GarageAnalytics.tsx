@@ -486,7 +486,7 @@ export default function GarageAnalytics() {
           <h2 className="text-xl font-bold mb-4 text-garage-text">{t('garage.runningCostsByVehicle')}</h2>
           {barData.length > 0 ? (
             <>
-              {/* Bar list — name + inline total, width relative to the top spender */}
+              {/* Bar list: name + inline total, width relative to the top spender */}
               <div className="space-y-3">
                 {barData.map((vehicle) => (
                   <div key={vehicle.name}>
