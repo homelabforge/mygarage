@@ -128,8 +128,16 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
   const trendRows = (() => {
     const byDate = new Map<string, Record<string, number | string>>()
     for (const tire of trending) {
+      /* Two readings on one day: the highest id is the newest, and it wins.
+         Picked outright, since the API lists newest first and "last one
+         wins" plotted the oldest. */
+      const newestPerDay = new Map<string, TireReading>()
       for (const reading of tire.readings ?? []) {
         if (reading.tread_depth_mm == null) continue
+        const held = newestPerDay.get(reading.recorded_at)
+        if (held == null || reading.id > held.id) newestPerDay.set(reading.recorded_at, reading)
+      }
+      for (const reading of newestPerDay.values()) {
         const row = byDate.get(reading.recorded_at) ?? { date: reading.recorded_at }
         const converted = u.tread.toDisplay(num(reading.tread_depth_mm))
         if (converted != null) row[seriesKey(tire)] = converted

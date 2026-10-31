@@ -403,6 +403,27 @@ describe('TireAnalyticsSection tread trend', () => {
     const series = screen.getAllByTestId('series').map((el) => el.textContent)
     expect(series).toEqual(['FL - Plots'])
   })
+
+  it.each([
+    ['newest first', [2, 1]],
+    ['oldest first', [1, 2]],
+  ])('plots the newest of two same-day readings, listed %s', async (_, order) => {
+    // The API lists readings newest first now, so overwriting the day's slot
+    // as we go plotted the OLDEST one. Highest id wins whatever the order.
+    // In32: 5.5 mm = 6.93, the stale 6.0 mm would be 7.56.
+    const sameDay: Record<number, ReturnType<typeof reading>> = {
+      1: { ...reading(3, '6.00'), id: 1 },
+      2: { ...reading(3, '5.50'), id: 2 },
+    }
+    respond({
+      tires: [tire({ readings: [reading(1, '8.00'), ...order.map((id) => sameDay[id])] })],
+    })
+    await show()
+
+    const key = chart.lines[0].dataKey
+    const march = chart.data.find((row) => row.date === '2026-03-01')
+    expect(Number(march?.[key]).toFixed(2)).toBe('6.93')
+  })
 })
 
 describe('TireAnalyticsSection trend series (G4-22)', () => {
@@ -508,6 +529,42 @@ describe('TireAnalyticsSection trend series (G4-22)', () => {
     await show()
 
     expect(chart.lines.map((line) => line.name)).toEqual(['FL - Michelin', 'FR - Michelin'])
+  })
+
+  it('only counts a clash among the tires that actually plot', async () => {
+    // guard: the twin with one reading draws no line, so it can't push the
+    // trending tire onto a #2, even with the lower id.
+    respond({
+      tires: [
+        tire({
+          id: 1,
+          position: null,
+          brand: 'Blizzak',
+          readings: [{ ...reading(1, '8.00'), id: 11, tire_id: 1, position: null }],
+        }),
+        stored(2, ['8.00', '7.00'], { dot_code: null }),
+      ],
+    })
+    await show()
+
+    expect(chart.lines.map((line) => line.name)).toEqual(['vehicle.tires.inStorage - Blizzak'])
+  })
+
+  it('treats a whitespace-only DOT code as missing', async () => {
+    // guard: ' ' trims to nothing, so the pair falls back to numbering rather
+    // than a blank "(DOT  )".
+    respond({
+      tires: [
+        stored(1, ['8.00', '7.00'], { dot_code: ' ' }),
+        stored(2, ['7.00', '6.00'], { dot_code: 'B2 4523' }),
+      ],
+    })
+    await show()
+
+    expect(chart.lines.map((line) => line.name)).toEqual([
+      'vehicle.tires.inStorage - Blizzak',
+      'vehicle.tires.inStorage - Blizzak #2',
+    ])
   })
 })
 
