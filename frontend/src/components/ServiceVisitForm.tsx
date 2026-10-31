@@ -320,7 +320,7 @@ export default function ServiceVisitForm({
         item.triggered_by_inspection_id === ref ? { ...item, triggered_by_inspection_id: undefined } : item
       )
 
-  const handleLineItemChange = (index: number, field: keyof ServiceVisitFormLineItem, value: unknown) => {
+  const handleLineItemChange = (index: number, field: keyof ServiceVisitFormLineItem, value: unknown): void => {
     setFormData((prev) => {
       const changed = prev.line_items.map((item, i) => (i === index ? { ...item, [field]: value } : item))
       const target = prev.line_items[index]

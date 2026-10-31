@@ -93,6 +93,22 @@ async def _visit_count(maker: async_sessionmaker[AsyncSession], vin: str) -> int
         ).scalar_one()
 
 
+async def _reading_counts(maker: async_sessionmaker[AsyncSession], vin: str) -> tuple[int, int]:
+    """How many odometer and hours rows the vehicle has, read in a fresh session."""
+    async with maker() as read:
+        odo = (
+            await read.execute(
+                select(func.count()).select_from(OdometerRecord).where(OdometerRecord.vin == vin)
+            )
+        ).scalar_one()
+        hours = (
+            await read.execute(
+                select(func.count()).select_from(HoursRecord).where(HoursRecord.vin == vin)
+            )
+        ).scalar_one()
+    return odo, hours
+
+
 async def _visit_row(maker: async_sessionmaker[AsyncSession], visit_id: int) -> ServiceVisit | None:
     async with maker() as read:
         return await read.get(ServiceVisit, visit_id)
@@ -126,6 +142,8 @@ class TestAFailedReconcileFailsTheWrite:
         with pytest.raises(RuntimeError):
             await ServiceVisitService(db_session).create_service_visit(vin, _visit_data(), None)
         await db_session.rollback()
+        # No reading either. Mutation: commit=True on the odometer sync goes red here.
+        assert await _reading_counts(test_sessionmaker, vin) == (0, 0)
         # main: the visit committed before the reconcile and stays
         assert await _visit_count(test_sessionmaker, vin) == 0
 
@@ -222,6 +240,9 @@ class TestAFailedSyncFailsTheWrite:
         with pytest.raises(RuntimeError):
             await ServiceVisitService(db_session).create_service_visit(vin, _visit_data(), None)
         await db_session.rollback()
+        # The odometer sync ran before the hours one blew up, and it goes too.
+        # Mutation: commit=True on the odometer sync goes red here.
+        assert await _reading_counts(test_sessionmaker, vin) == (0, 0)
         # main: the sync failure was logged and the visit stayed
         assert await _visit_count(test_sessionmaker, vin) == 0
 
@@ -334,8 +355,14 @@ class TestNormalCreateGuard:
         db_session: AsyncSession,
         test_sessionmaker: async_sessionmaker[AsyncSession],
         vin: str,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Guard, passes on main too: odometer row, hours row and the completed reminder."""
+        """Guard: odometer row, hours row and the completed reminder, all in one commit.
+
+        The commit count is a guard on this branch only (main committed the
+        visit and its readings separately). Mutation: a commit after
+        persist_visit_rows makes it two and this goes red.
+        """
         service = ServiceVisitService(db_session)
         older = await service.create_service_visit(
             vin,
@@ -365,7 +392,18 @@ class TestNormalCreateGuard:
             ).scalar_one()
         assert before.line_item_id == older.line_items[0].id
 
+        commits = 0
+        real_commit = db_session.commit
+
+        async def counting_commit() -> None:
+            nonlocal commits
+            commits += 1
+            await real_commit()
+
+        monkeypatch.setattr(db_session, "commit", counting_commit)
         visit = await service.create_service_visit(vin, _visit_data(), None)
+        monkeypatch.setattr(db_session, "commit", real_commit)
+        assert commits == 1
         visit_id, item_id = visit.id, visit.line_items[0].id
 
         async with test_sessionmaker() as read:

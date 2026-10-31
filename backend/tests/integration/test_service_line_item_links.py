@@ -24,28 +24,31 @@ async def test_repair_points_at_its_inspection_and_inspection_lists_its_repairs(
 ) -> None:
     """A repair's link is the inspection itself; the inspection's is a list of repairs."""
     vin = str(test_vehicle["vin"])
-    visit = ServiceVisit(vin=vin, date=dt.date(2026, 3, 1))
-    db_session.add(visit)
-    await db_session.flush()
-    inspection = ServiceLineItem(
-        visit_id=visit.id,
-        description="Brake inspection",
-        is_inspection=True,
-        inspection_result="needs_attention",
-        inspection_severity="yellow",
-    )
-    db_session.add(inspection)
-    await db_session.flush()
-    repair = ServiceLineItem(
-        visit_id=visit.id,
-        description="Front pads",
-        triggered_by_inspection_id=inspection.id,
-    )
-    db_session.add(repair)
-    await db_session.commit()
-    visit_id, inspection_id, repair_id = visit.id, inspection.id, repair.id
-
+    visit_id: int | None = None
     try:
+        visit = ServiceVisit(vin=vin, date=dt.date(2026, 3, 1))
+        db_session.add(visit)
+        await db_session.flush()
+        visit_id = visit.id
+        inspection = ServiceLineItem(
+            visit_id=visit.id,
+            description="Brake inspection",
+            is_inspection=True,
+            inspection_result="needs_attention",
+            inspection_severity="yellow",
+        )
+        db_session.add(inspection)
+        await db_session.flush()
+        repair = ServiceLineItem(
+            visit_id=visit.id,
+            description="Front pads",
+            triggered_by_inspection_id=inspection.id,
+        )
+        db_session.add(repair)
+        # Inside the try, so a failed commit still gets cleaned up below.
+        await db_session.commit()
+        inspection_id, repair_id = inspection.id, repair.id
+
         # Fresh session so nothing comes out of the writer's identity map.
         async with test_sessionmaker() as read:
             rows = (
@@ -67,5 +70,7 @@ async def test_repair_points_at_its_inspection_and_inspection_lists_its_repairs(
             assert loaded_inspection.triggered_by_inspection is None
             assert loaded_repair.triggered_repairs == []
     finally:
-        await db_session.delete(await db_session.get(ServiceVisit, visit_id))
-        await db_session.commit()
+        await db_session.rollback()
+        if visit_id is not None and (row := await db_session.get(ServiceVisit, visit_id)):
+            await db_session.delete(row)
+            await db_session.commit()

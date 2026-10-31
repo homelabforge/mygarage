@@ -303,10 +303,10 @@ describe('ServiceVisitForm: a repair link follows its inspection', () => {
     await renderEdit()
 
     fireEvent.click(screen.getByRole('button', { name: 'service.addItem' }))
-    const description = screen.getAllByRole('textbox').filter(
-      (el) => (el as HTMLInputElement).value === '' && el.tagName === 'INPUT'
-    )
-    fireEvent.change(description[0], { target: { value: 'Tire inspection' } })
+    // The added row is index 1; its description is the text input under that row's label.
+    const description = screen.getAllByText('lineItemEditor.misc.descriptionLabel')[1].parentElement?.querySelector('input[type="text"]')
+    if (!description) throw new Error('added row description not found')
+    fireEvent.change(description, { target: { value: 'Tire inspection' } })
     fireEvent.click(document.getElementById('inspection-1') as HTMLInputElement)
     fireEvent.click(screen.getByRole('button', { name: 'inspectionResult.resultFailed' }))
     fireEvent.click(screen.getByRole('button', { name: 'service.addRepairForInspection' }))
@@ -318,5 +318,18 @@ describe('ServiceVisitForm: a repair link follows its inspection', () => {
     expect(items.map((li) => li.description)).toEqual(['Oil change', 'Repair: Tire inspection'])
     // main: the repair still names the removed inspection's temp id
     expect(items[1]).toHaveProperty('triggered_by_inspection_id', null)
+  })
+
+  // Coverage for the saved-id side of withoutLinksTo. Mutation: pass only
+  // `removed.tempId` in handleRemoveLineItem and this goes red (602 keeps 601).
+  it('clears the repair link when its saved inspection is removed', async () => {
+    await renderEdit(inspectionVisit)
+
+    fireEvent.click(screen.getAllByTitle('lineItemEditor.misc.removeLineItem')[0])
+
+    const items = lineItems(await submittedBody())
+    expect(items).toHaveLength(1)
+    expect(items[0]).toHaveProperty('id', 602)
+    expect(items[0]).toHaveProperty('triggered_by_inspection_id', null)
   })
 })
