@@ -86,6 +86,28 @@ def is_lock_contention(exc: DBAPIError) -> bool:
     return any(fragment in message for fragment in _SQLITE_CONTENTION_MESSAGES)
 
 
+async def sqlite_begin_immediate(db: AsyncSession, contract: str) -> None:
+    """`BEGIN IMMEDIATE` on the session's connection, or a RuntimeError if the call is misplaced.
+
+    Shared by the vehicle lock and the sign-in settings lock. A driver
+    connection already inside a transaction means the caller broke its lock's
+    contract, so that raises `contract` instead of letting the driver's "cannot
+    start a transaction within a transaction" surface as a 503. Contention is
+    left to the caller, which knows what sentence to show.
+
+    Raises:
+        RuntimeError: The connection is already in a transaction, or has no
+            driver connection at all.
+    """
+    raw = await (await db.connection()).get_raw_connection()
+    driver = raw.driver_connection
+    if driver is None:
+        raise RuntimeError("SQLite lock: the pooled connection has no driver connection")
+    if driver.in_transaction:
+        raise RuntimeError(contract)
+    await db.execute(text("BEGIN IMMEDIATE"))
+
+
 async def lock_vehicle_for_write(db: AsyncSession, vin: str) -> None:
     """Take the vehicle's write lock for the rest of this transaction.
 
@@ -113,10 +135,7 @@ async def lock_vehicle_for_write(db: AsyncSession, vin: str) -> None:
     dialect = db.get_bind().dialect.name
     try:
         if dialect == "sqlite":
-            raw = await (await db.connection()).get_raw_connection()
-            if raw.driver_connection.in_transaction:
-                raise RuntimeError(LOCK_CONTRACT)
-            await db.execute(text("BEGIN IMMEDIATE"))
+            await sqlite_begin_immediate(db, LOCK_CONTRACT)
         else:
             await db.execute(
                 text("SELECT vin FROM vehicles WHERE vin = :vin FOR NO KEY UPDATE"),

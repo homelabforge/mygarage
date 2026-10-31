@@ -16,12 +16,13 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, Response
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 
 from app.models.settings import Setting
 
@@ -189,7 +190,11 @@ _TAKE_SSO_AWAY = [
     ("batch", "oidc_enabled", "false"),
     ("batch", "oidc_enabled", "off"),
     ("put", "oidc_issuer_url", ""),
+    ("put", "oidc_issuer_url", "   "),
     ("batch", "oidc_issuer_url", "   "),
+    # Login rstrips the slash, so "/" is no issuer at all.
+    ("put", "oidc_issuer_url", "/"),
+    ("batch", "oidc_issuer_url", "/"),
     ("put", "oidc_client_id", "  "),
     ("batch", "oidc_client_id", ""),
     ("delete", "oidc_enabled", None),
@@ -385,6 +390,72 @@ class TestSettingsRestore:
         assert await stored(test_sessionmaker, "ntfy_topic") == "light"
 
 
+class _FrozenClock(datetime):
+    """Every `now()` lands in the same second, as two quick restores do."""
+
+    @classmethod
+    def now(cls, tz=None):  # type: ignore[override]
+        return cls(2026, 10, 31, 12, 0, 0)
+
+
+class TestRestoreSafetyFile:
+    """The safety copy is only left behind when a restore actually ran."""
+
+    @pytest.mark.parametrize(
+        "content",
+        ['{"version": "2.1", "type": "settings"}', '{"settings": {"theme": "dark"}}', "{not json"],
+        ids=["missing-settings", "settings-not-a-list", "not-json"],
+    )
+    async def test_a_malformed_file_is_a_400_and_leaves_no_safety_copy(
+        self, client, auth_headers, backup_dir, content
+    ):
+        name = "mygarage-settings-malformed.json"
+        (backup_dir / name).write_text(content)
+
+        response = await client.post(f"/api/backup/restore/{name}", headers=auth_headers)
+
+        assert response.status_code == 400, response.text
+        assert sorted(p.name for p in backup_dir.iterdir()) == [name]
+
+    async def test_two_restores_in_one_second_keep_two_safety_copies(
+        self, client, auth_headers, seed, backup_dir, monkeypatch
+    ):
+        from app.services import backup_service as backup_module
+
+        monkeypatch.setattr(backup_module, "datetime", _FrozenClock)
+        await seed(ntfy_topic="dark")
+        name = _backup_file(backup_dir, "mygarage-settings-topic.json", {"ntfy_topic": "light"})
+
+        first = await client.post(f"/api/backup/restore/{name}", headers=auth_headers)
+        second = await client.post(f"/api/backup/restore/{name}", headers=auth_headers)
+
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        copies = {r.json()["details"]["safety_backup"] for r in (first, second)}
+        assert len(copies) == 2
+        assert all((backup_dir / copy).exists() for copy in copies)
+
+    async def test_a_refused_restore_keeps_the_safety_copy_of_one_made_the_same_second(
+        self, client, auth_headers, seed, backup_dir, monkeypatch
+    ):
+        """The refusal deletes its own stray, never the earlier restore's copy."""
+        from app.services import backup_service as backup_module
+
+        monkeypatch.setattr(backup_module, "datetime", _FrozenClock)
+        await seed(auth_mode="local", oidc_enabled="false", ntfy_topic="dark")
+        good = _backup_file(backup_dir, "mygarage-settings-ok.json", {"ntfy_topic": "light"})
+        bad = _backup_file(
+            backup_dir, "mygarage-settings-sso.json", {"auth_mode": "oidc", "oidc_enabled": "false"}
+        )
+
+        first = await client.post(f"/api/backup/restore/{good}", headers=auth_headers)
+        refused = await client.post(f"/api/backup/restore/{bad}", headers=auth_headers)
+
+        assert first.status_code == 200, first.text
+        assert refused.status_code == 409, refused.text
+        assert (backup_dir / first.json()["details"]["safety_backup"]).exists()
+
+
 @pytest.fixture
 def lock_spy(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """Record every writer's calls to the lock and the check, in order, then run the real ones."""
@@ -486,9 +557,40 @@ class TestTheLockSerialises:
                 await first.commit()
                 await asyncio.wait_for(waiter, timeout=10)
             finally:
-                # First lets go before anything waits on second, or a failure hangs here.
+                # First lets go before second is touched, or a failure hangs here. The
+                # waiter is only drained, so a failure above surfaces as itself.
                 await first.rollback()
-                await asyncio.wait_for(asyncio.shield(waiter), timeout=40)
+                await asyncio.wait({waiter}, timeout=40)
+                if not waiter.done():
+                    waiter.cancel()
+                elif not waiter.cancelled():
+                    waiter.exception()
                 await second.rollback()
 
         assert events == ["first committed", "second locked"]
+
+    async def test_it_refuses_to_nest_inside_an_open_transaction(self, test_sessionmaker):
+        """Guard: a misplaced call is a programming error, not a 503.
+
+        Mutation: drop the `in_transaction` check in `sqlite_begin_immediate` and this goes red.
+        """
+        from app.services.auth_settings import AUTH_LOCK_CONTRACT, lock_auth_settings
+
+        async with test_sessionmaker() as db:
+            if db.get_bind().dialect.name != "sqlite":
+                pytest.skip("the nesting guard exists for SQLite's BEGIN IMMEDIATE only")
+            await db.execute(text("BEGIN IMMEDIATE"))
+            try:
+                with pytest.raises(RuntimeError, match=AUTH_LOCK_CONTRACT):
+                    await lock_auth_settings(db)
+            finally:
+                await db.rollback()
+
+    async def test_it_succeeds_after_a_plain_read(self, test_sessionmaker):
+        """Guard: the admin check reads settings first, and that mustn't trip the guard."""
+        from app.services.auth_settings import lock_auth_settings
+
+        async with test_sessionmaker() as db:
+            await db.execute(select(Setting.key).limit(1))
+            await lock_auth_settings(db)
+            await db.rollback()

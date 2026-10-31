@@ -10,6 +10,7 @@ import sqlite3
 import subprocess
 import tarfile
 import tempfile
+import uuid
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
@@ -446,6 +447,16 @@ class BackupService:
         if not backup_path.exists():
             raise FileNotFoundError(f"Backup file not found: {backup_path.name}")
 
+        # Read and checked before the safety backup, so a bad file leaves no stray copy.
+        with open(backup_path) as f:
+            backup_data = json.load(f)
+
+        if "settings" not in backup_data:
+            raise ValueError("Invalid backup file structure: missing 'settings' key")
+
+        if not isinstance(backup_data["settings"], list):
+            raise ValueError("Invalid backup file format: 'settings' must be a list")
+
         # Before the safety backup's read, so it copies what the restore replaces.
         await lock_auth_settings(db)
 
@@ -453,8 +464,10 @@ class BackupService:
         safety_filename = None
         safety_path: Path | None = None
         if create_safety:
+            # The suffix keeps two restores in one second apart, so a refused one
+            # can only ever delete its own copy.
             timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-            safety_filename = f"mygarage-settings-safety-{timestamp}.json"
+            safety_filename = f"mygarage-settings-safety-{timestamp}-{uuid.uuid4().hex[:8]}.json"
 
             # Get current settings for safety backup
             current_settings = await SettingsService.get_all(db)
@@ -467,21 +480,10 @@ class BackupService:
             }
 
             safety_path = self.backup_dir / safety_filename
-            with open(safety_path, "w") as f:
+            with open(safety_path, "x") as f:
                 json.dump(safety_data, f, indent=2)
 
             logger.info("Created safety backup: %s", safety_filename)
-
-        # Read and validate backup file
-        with open(backup_path) as f:
-            backup_data = json.load(f)
-
-        # Validate backup structure
-        if "settings" not in backup_data:
-            raise ValueError("Invalid backup file structure: missing 'settings' key")
-
-        if not isinstance(backup_data["settings"], list):
-            raise ValueError("Invalid backup file format: 'settings' must be a list")
 
         # Restore settings
         restored_count = 0

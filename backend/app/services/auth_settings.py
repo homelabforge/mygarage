@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
 from app.services.settings_service import parse_bool
-from app.services.vehicle_lock import is_lock_contention
+from app.services.vehicle_lock import is_lock_contention, sqlite_begin_immediate
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +78,7 @@ async def lock_auth_settings(db: AsyncSession) -> None:
     dialect = db.get_bind().dialect.name
     try:
         if dialect == "sqlite":
-            raw = await (await db.connection()).get_raw_connection()
-            if raw.driver_connection.in_transaction:
-                raise RuntimeError(AUTH_LOCK_CONTRACT)
-            await db.execute(text("BEGIN IMMEDIATE"))
+            await sqlite_begin_immediate(db, AUTH_LOCK_CONTRACT)
         else:
             await db.execute(
                 text("SELECT pg_advisory_xact_lock(CAST(:key AS BIGINT))"),
@@ -95,10 +92,13 @@ async def lock_auth_settings(db: AsyncSession) -> None:
 
 
 def _sso_usable(values: Mapping[str, str | None]) -> bool:
-    """Whether SSO is on and has a non-blank issuer URL and client ID."""
+    """Whether SSO is on and has a non-blank issuer URL and client ID.
+
+    The issuer is read as login reads it, trailing slash dropped, so "/" is blank.
+    """
     return (
         parse_bool(values.get("oidc_enabled"), default=False)
-        and bool((values.get("oidc_issuer_url") or "").strip())
+        and bool((values.get("oidc_issuer_url") or "").strip().rstrip("/"))
         and bool((values.get("oidc_client_id") or "").strip())
     )
 

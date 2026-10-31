@@ -84,11 +84,14 @@ def _to_response(setting: Setting) -> SettingResponse:
     configured", and the placeholder for a secret that can't be decrypted,
     which reads as None but is still configured (D3a). `model_validate` reads
     the `unreadable` flag from the row's own property.
+
+    `encrypted` comes from the key too, on every row: the column drifts, and a
+    row the create route made reads its TEXT 'false' default back as true.
     """
     response = SettingResponse.model_validate(setting)
-    if setting.key in SENSITIVE_SETTING_KEYS:
+    response.encrypted = setting.key in SENSITIVE_SETTING_KEYS
+    if response.encrypted:
         response.value = _stored_secret_mask(setting)
-        response.encrypted = True
     return response
 
 

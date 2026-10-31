@@ -1501,3 +1501,40 @@ class TestPublicFeatureFlags:
         served = {s["key"]: s["value"] for s in response.json()["settings"]}
         for key, value in _PUBLIC_FLAGS.items():
             assert served.get(key) == value, key
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestEncryptedFlagFollowsTheKey:
+    """`encrypted` in a response says whether the key is a secret, as the code treats it.
+
+    The column is drift (seeded rows only; the create route's server default is
+    the TEXT 'false', which SQLite reads back truthy), so a new auth_mode row
+    answered `"encrypted": true`.
+    """
+
+    @pytest.mark.parametrize(
+        ("key", "expected"),
+        [("ntfy_topic", False), ("auth_mode", False), ("email_smtp_password", True)],
+    )
+    async def test_create_get_and_list_agree(
+        self, client: AsyncClient, auth_headers, db_session, keep_rows, key, expected
+    ):
+        await keep_rows(key)
+        await _delete_setting(db_session, key)
+        value = "local" if key == "auth_mode" else "something"
+
+        created = await client.post(
+            "/api/settings", headers=auth_headers, json={"key": key, "value": value}
+        )
+        assert created.status_code == 201, created.text
+        assert created.json()["encrypted"] is expected
+
+        one = await client.get(f"/api/settings/{key}", headers=auth_headers)
+        assert one.status_code == 200, one.text
+        assert one.json()["encrypted"] is expected
+
+        listed = await client.get("/api/settings", headers=auth_headers)
+        assert listed.status_code == 200, listed.text
+        flags = {s["key"]: s["encrypted"] for s in listed.json()["settings"]}
+        assert flags[key] is expected
