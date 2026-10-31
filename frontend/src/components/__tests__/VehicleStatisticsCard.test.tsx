@@ -351,10 +351,10 @@ describe('VehicleStatisticsCard', () => {
     )
 
     expect(
-      screen.getByText('vehicleStatisticsCardExtra.averageFuelEconomy (gal/hr)'),
+      screen.getByText('vehicleStatisticsCardExtra.averageFuelEconomy (gal (UK)/hr)'),
     ).toBeInTheDocument()
-    expect(screen.getByText('1.00 gal/hr')).toBeInTheDocument()
-    expect(screen.queryByText('1.20 gal/hr')).not.toBeInTheDocument()
+    expect(screen.getByText('1.00 gal (UK)/hr')).toBeInTheDocument()
+    expect(screen.queryByText('1.20 gal (UK)/hr')).not.toBeInTheDocument()
   })
 
   it('★ the "Last 3 tanks:" line reads the same token as the average above it', () => {

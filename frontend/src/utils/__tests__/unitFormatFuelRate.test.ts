@@ -45,12 +45,12 @@ describe('fuelRateLabel', () => {
     expect(fuelRateLabel(IMPERIAL)).toBe('gal/hr')
   })
 
-  it('★ says gal/hr for BOTH gallon flavours, where GPH named neither', () => {
+  it('★ names the UK gallon in the rate, where GPH named neither', () => {
     // The retired `getFuelRateUnit` answered the three characters 'GPH' to a
-    // US-gallon and a UK-gallon account for two different numbers. 'gal' is
-    // what the volume adapter labels every other gallon in the app with, and
-    // what `unit_derived.format_fuel_rate` prints in a PDF.
-    expect(fuelRateLabel(UK_IMPERIAL)).toBe('gal/hr')
+    // US-gallon and a UK-gallon account for two different numbers. The rate
+    // reads the volume adapter's label, same as `unit_derived.format_fuel_rate`
+    // in a PDF, and since D3 that label says which gallon.
+    expect(fuelRateLabel(UK_IMPERIAL)).toBe('gal (UK)/hr')
     expect(fuelRateLabel(UK_IMPERIAL)).not.toBe('GPH')
   })
 })
@@ -72,13 +72,13 @@ describe('formatFuelRate', () => {
     // following the INSTANCE setting, so a `gal_uk` account on a US-default
     // instance read 4.54609 L/hr as 1.20 GPH beside a volume column that had
     // already converted it as one imperial gallon.
-    expect(formatFuelRate(UK_IMPERIAL, 4.54609)).toBe('1.00 gal/hr')
+    expect(formatFuelRate(UK_IMPERIAL, 4.54609)).toBe('1.00 gal (UK)/hr')
     expect(formatFuelRate(IMPERIAL, 4.54609)).toBe('1.20 gal/hr')
   })
 
   it('appends the counterpart under show-both, in the D4b gallon flavour', () => {
     expect(formatFuelRate(METRIC, 3.785411784, true)).toBe('3.79 L/hr (1.00 gal/hr)')
-    expect(formatFuelRate(METRIC_UK_PAIR, 4.54609, true)).toBe('4.55 L/hr (1.00 gal/hr)')
+    expect(formatFuelRate(METRIC_UK_PAIR, 4.54609, true)).toBe('4.55 L/hr (1.00 gal (UK)/hr)')
     expect(formatFuelRate(IMPERIAL, 3.785411784, true)).toBe('1.00 gal/hr (3.79 L/hr)')
   })
 
@@ -127,7 +127,7 @@ describe('consumption, through the resolved token', () => {
     // `formatFuelEconomy` read the same instance-wide static the fuel rate
     // did, so this account saw 25.0 beside a 10.00 gal volume column: a figure
     // that did not divide into its own row.
-    expect(makeUnitFormat(UK_IMPERIAL).consumption.formatPrimary(9.4160546)).toBe('30.0 MPG')
+    expect(makeUnitFormat(UK_IMPERIAL).consumption.formatPrimary(9.4160546)).toBe('30.0 MPG (UK)')
   })
 
   it('★ a litres-and-MPG set reads MPG, which no binary system could express', () => {
@@ -155,7 +155,7 @@ describe('consumption, through the resolved token', () => {
       '9.42 L/100km (25.0 MPG)',
     )
     expect(makeUnitFormat(METRIC_UK_PAIR, true).consumption.format(9.4160546)).toBe(
-      '9.42 L/100km (30.0 MPG)',
+      '9.42 L/100km (30.0 MPG (UK))',
     )
   })
 

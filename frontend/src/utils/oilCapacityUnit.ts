@@ -61,7 +61,8 @@ const OIL_UNIT_BY_VOLUME: Readonly<
 > = {
   L: { label: 'L', litres: 1 },
   gal_us: { label: 'qt', litres: UnitConverter.US_GALLONS_TO_LITERS / QUARTS_PER_GALLON },
-  gal_uk: { label: 'qt', litres: UnitConverter.UK_GALLONS_TO_LITERS / QUARTS_PER_GALLON },
+  // The imperial quart is 20% bigger, so it says so.
+  gal_uk: { label: 'qt (UK)', litres: UnitConverter.UK_GALLONS_TO_LITERS / QUARTS_PER_GALLON },
 }
 
 /** Twelve significant digits, matching `unitAdapters.normalise`. */

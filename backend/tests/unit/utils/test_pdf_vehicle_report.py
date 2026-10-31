@@ -532,6 +532,12 @@ class TestUsageEfficiencySection:
 
 IMPERIAL_CTX = RenderContext(units=IMPERIAL_PRESET, show_both=False)
 METRIC_BOTH_CTX = RenderContext(units=METRIC_PRESET, show_both=True)
+UK_CTX = RenderContext(
+    units=IMPERIAL_PRESET.model_copy(
+        update={"volume": "gal_uk", "consumption": "mpg_uk", "secondary_gallon": "uk"}
+    ),
+    show_both=False,
+)
 
 
 def _make_unit_bearing_data() -> dict[str, Any]:
@@ -672,6 +678,26 @@ class TestRenderContextDrivesUnits:
         assert "L/hr" not in text
         assert "12,000" not in text
         assert "50,000" not in text
+
+    def test_uk_reader_sees_uk_gallons_and_uk_mpg(self) -> None:
+        """D3: a UK reader's economy and fuel rate say (UK). 282.48... / 9.4 =
+        30.05 -> "30.1 MPG (UK)"; 1.85 / 4.54609 = 0.407 -> "0.41 gal (UK)/hr"."""
+        data = _make_unit_bearing_data()
+
+        text = _normalized_text(generate_vehicle_analytics_pdf(data, render_context=UK_CTX).read())
+
+        assert "30.1 MPG (UK)" in text
+        assert "0.41 gal (UK)/hr" in text
+
+    def test_us_reader_gets_no_uk_tag(self) -> None:
+        """Guard: the US labels stay bare."""
+        data = _make_unit_bearing_data()
+
+        text = _normalized_text(
+            generate_vehicle_analytics_pdf(data, render_context=IMPERIAL_CTX).read()
+        )
+
+        assert "(UK)" not in text
 
     def test_show_both_appends_the_counterpart_to_each_figure(self) -> None:
         data = _make_unit_bearing_data()

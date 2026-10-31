@@ -351,14 +351,14 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
     render(<FuelRecordList {...DEFAULT_PROPS} />)
 
     // 4.5 / 4.54609 = 0.99 on the card; 3.2 / 4.54609 = 0.70 in the row.
-    expect(await screen.findByText('0.99 gal/hr')).toBeInTheDocument()
-    expect(within(table()).getByText('0.70 gal/hr')).toBeInTheDocument()
+    expect(await screen.findByText('0.99 gal (UK)/hr')).toBeInTheDocument()
+    expect(within(table()).getByText('0.70 gal (UK)/hr')).toBeInTheDocument()
     // The card's LABEL too, through the local i18n mock's `{{unit}}`: a label
     // that lost the `/hr` and read a bare `gal` would otherwise survive, since
     // the value beside it is unchanged.
-    expect(screen.getByText('fuelList.avgFuelRate (gal/hr)')).toBeInTheDocument()
+    expect(screen.getByText('fuelList.avgFuelRate (gal (UK)/hr)')).toBeInTheDocument()
     // What the instance-wide US gallon would have answered for the same rows.
-    expect(screen.queryByText('1.19 gal/hr')).not.toBeInTheDocument()
+    expect(screen.queryByText('1.19 gal (UK)/hr')).not.toBeInTheDocument()
     expect(screen.queryByText('1.19 GPH')).not.toBeInTheDocument()
   })
 
@@ -514,13 +514,13 @@ describe('FuelRecordList — one gallon per page, taken from the user', () => {
 
     const t = table()
     // 47.318 L is 10.41 imperial gallons; 12.50 US ones.
-    expect(within(t).getByRole('columnheader', { name: 'fuelList.volumeUnit (gal)' })).toBeInTheDocument()
-    expect(within(t).getByText('10.41 gal')).toBeInTheDocument()
+    expect(within(t).getByRole('columnheader', { name: 'fuelList.volumeUnit (gal (UK))' })).toBeInTheDocument()
+    expect(within(t).getByText('10.41 gal (UK)')).toBeInTheDocument()
     // $0.925/L is $4.21/imperial gal, $3.50/US gal.
     expect(within(t).getByText('$4.21')).toBeInTheDocument()
     // Summary cards, OUTSIDE the table, on the same gallon.
-    expect(screen.getByText('fuelList.volumeTotal (10.4 gal)')).toBeInTheDocument()
-    expect(screen.getByText('fuelList.avgCostPerVolume (gal)')).toBeInTheDocument()
+    expect(screen.getByText('fuelList.volumeTotal (10.4 gal (UK))')).toBeInTheDocument()
+    expect(screen.getByText('fuelList.avgCostPerVolume (gal (UK))')).toBeInTheDocument()
     expect(screen.getByText('$4.20')).toBeInTheDocument()
     expect(UnitConverter.getGallonStandard()).toBe('us')
   })

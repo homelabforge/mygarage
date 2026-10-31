@@ -313,12 +313,12 @@ describe('FuelRecordForm — the gallon comes from the user, not the instance', 
     render(<FuelRecordForm {...DEFAULT_PROPS} />)
     await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
     const options = Array.from(field('price_basis').querySelectorAll('option')).map((o) => o.textContent)
-    expect(options).toContain('fuel.priceBasisPerVolume (gal)')
+    expect(options).toContain('fuel.priceBasisPerVolume (gal (UK))')
     expect(options).toContain('fuel.priceBasisPerWeight (lb)')
     // The same set with kilograms flips only the mass label, proving the two
     // denominators are read independently rather than from one collapsed answer.
     expect(UnitFormatter.getMassUnit({ ...UK_IMPERIAL_UNITS, mass: 'kg' })).toBe('kg')
-    expect(UnitFormatter.getVolumeUnit({ ...UK_IMPERIAL_UNITS, mass: 'kg' })).toBe('gal')
+    expect(UnitFormatter.getVolumeUnit({ ...UK_IMPERIAL_UNITS, mass: 'kg' })).toBe('gal (UK)')
   })
 
   it('the price field\'s own denominator follows the basis, not the volume unit', async () => {

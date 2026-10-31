@@ -120,7 +120,7 @@ class TestSecondaryGallon:
     def test_uk_secondary_gallon(self) -> None:
         ctx = _ctx(show_both=True, volume="L", secondary_gallon="uk")
         result = format_quantity(Decimal("40"), ctx, "volume")
-        assert result == "40.00 L (8.80 gal)"
+        assert result == "40.00 L (8.80 gal (UK))"
 
     def test_the_two_flavours_actually_differ(self) -> None:
         """Two settings that happen to agree would prove nothing (same
@@ -193,13 +193,13 @@ class TestForcedVolumePair:
 
     def test_litre_primary_uk_secondary(self) -> None:
         ctx = _ctx(volume="L", secondary_gallon="uk")
-        assert format_forced_volume_pair(Decimal("2.5"), ctx) == "2.50 L / 0.55 gal"
+        assert format_forced_volume_pair(Decimal("2.5"), ctx) == "2.50 L / 0.55 gal (UK)"
 
     def test_gal_uk_primary_wins_over_us_secondary(self) -> None:
         """Conflict direction 1: a UK-gallon primary beats a US
         `secondary_gallon`, because the primary states its own flavour."""
         ctx = _ctx(volume="gal_uk", secondary_gallon="us")
-        assert format_forced_volume_pair(Decimal("2.5"), ctx) == "2.50 L / 0.55 gal"
+        assert format_forced_volume_pair(Decimal("2.5"), ctx) == "2.50 L / 0.55 gal (UK)"
 
     def test_gal_us_primary_wins_over_uk_secondary(self) -> None:
         """Conflict direction 2: the reverse pairing. Testing only the

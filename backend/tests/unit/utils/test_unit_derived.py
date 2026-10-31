@@ -496,7 +496,7 @@ class TestHandComputedGoldens:
 
         cost per volume, canonical 0.32 per litre
           gal_us  0.32 * 3.785411784 = 1.21133177088  -> "$1.21/gal"
-          gal_uk  0.32 * 4.54609     = 1.4547488       -> "$1.45/gal"
+          gal_uk  0.32 * 4.54609     = 1.4547488       -> "$1.45/gal (UK)"
           L       0.32 * 1           = 0.32            -> "$0.32/L"
 
         cost per distance, canonical 0.012 per km (the primary drops its
@@ -508,7 +508,7 @@ class TestHandComputedGoldens:
           (8.5 / 1000 = 0.0085 L per canonical km)
           L      /1,000 km  0.0085 / 1           * 1        * 1000 =  8.500...  -> "8.50"
           gal_us /1,000 mi  0.0085 / 3.785411784 * 1.609344 * 1000 =  3.6137... -> "3.61"
-          gal_uk /1,000 mi  0.0085 / 4.54609     * 1.609344 * 1000 =  3.0091... -> "3.01"
+          gal_uk /1,000 mi  0.0085 / 4.54609     * 1.609344 * 1000 =  3.0091... -> "3.01" (labelled "gal (UK)")
 
     The first three of these ($1.21/gal, $19.31 per 1,000 mi, and the fuel-rate
     pair 0.66/0.55 gal/hr that `test_unit_formatting.py` already carries) are
@@ -526,7 +526,7 @@ class TestHandComputedGoldens:
         them -- which is exactly why a golden is needed here and a
         label-shaped assertion would not do."""
         actual = format_cost_per_volume(Decimal("0.32"), _ctx(_UK_GALLONS, False), "USD", "en-US")
-        assert actual == "$1.45/gal"
+        assert actual == "$1.45/gal (UK)"
 
     def test_cost_per_volume_show_both_us(self) -> None:
         actual = format_cost_per_volume(Decimal("0.32"), _ctx(_US_IMPERIAL, True), "USD", "en-US")
@@ -534,7 +534,7 @@ class TestHandComputedGoldens:
 
     def test_cost_per_volume_show_both_uk(self) -> None:
         actual = format_cost_per_volume(Decimal("0.32"), _ctx(_UK_GALLONS, True), "USD", "en-US")
-        assert actual == "$1.45/gal ($0.32/L)"
+        assert actual == "$1.45/gal (UK) ($0.32/L)"
 
     def test_cost_per_volume_counterpart_takes_us_from_secondary_gallon(self) -> None:
         """D4b on the COUNTERPART side: a litre primary states no flavour, so
@@ -550,7 +550,7 @@ class TestHandComputedGoldens:
         actual = format_cost_per_volume(
             Decimal("0.32"), _ctx(_METRIC_UK_SECONDARY, True), "USD", "en-US"
         )
-        assert actual == "$0.32/L ($1.45/gal)"
+        assert actual == "$0.32/L ($1.45/gal (UK))"
 
     def test_cost_per_distance_imperial(self) -> None:
         actual = format_cost_per_distance(
@@ -585,11 +585,11 @@ class TestHandComputedGoldens:
 
     def test_volume_per_distance_uk_gallons_per_1000_miles(self) -> None:
         actual = format_volume_per_1000_distance(Decimal("8.5"), _ctx(_UK_GALLONS, False))
-        assert actual == "3.01 gal/1,000 mi"
+        assert actual == "3.01 gal (UK)/1,000 mi"
 
     def test_volume_per_distance_show_both_uk(self) -> None:
         actual = format_volume_per_1000_distance(Decimal("8.5"), _ctx(_UK_GALLONS, True))
-        assert actual == "3.01 gal/1,000 mi (8.50 L/1,000 km)"
+        assert actual == "3.01 gal (UK)/1,000 mi (8.50 L/1,000 km)"
 
     def test_volume_per_distance_counterpart_takes_us_from_secondary_gallon(self) -> None:
         """Metric primary, so the whole conversion happens in the
@@ -599,4 +599,4 @@ class TestHandComputedGoldens:
 
     def test_volume_per_distance_counterpart_takes_uk_from_secondary_gallon(self) -> None:
         actual = format_volume_per_1000_distance(Decimal("8.5"), _ctx(_METRIC_UK_SECONDARY, True))
-        assert actual == "8.50 L/1,000 km (3.01 gal/1,000 mi)"
+        assert actual == "8.50 L/1,000 km (3.01 gal (UK)/1,000 mi)"

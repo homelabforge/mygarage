@@ -534,7 +534,9 @@ describe('what the units gate is silent about (plan 3b task 8, fix round 1)', ()
       'src/utils/publicUnitDefaults.ts::token-branch x2',
       'src/utils/supplyUnits.ts::compare x1',
       'src/utils/unitPrefsStore.ts::compare x2',
-      'src/utils/units.ts::token-branch x5',
+      // Was x5. getVolumeUnit and formatVolumeShort read the shared volume
+      // label table now (D3, UK labels), so their two token branches are gone.
+      'src/utils/units.ts::token-branch x3',
     ])
   })
 

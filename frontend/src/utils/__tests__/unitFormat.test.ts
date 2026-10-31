@@ -15,6 +15,7 @@ import {
   formatAtPrecision,
   formatCostPerDistance,
   formatVolumePerDistance,
+  fuelRateLabel,
   makeUnitFormat,
   resolvedUnitSummary,
   seedUnitField,
@@ -29,6 +30,29 @@ const METRIC = presetUnitsFor('metric', 'us')
 const LITRES_MILES: UnitSet = { ...METRIC, distance: 'mi' }
 /** The mirror: gallons, but kilometres. */
 const GALLONS_KM: UnitSet = { ...IMPERIAL, distance: 'km' }
+
+describe('UK labels (D3)', () => {
+  // A UK gallon and UK MPG used to print plain 'gal' and 'MPG', so a UK
+  // reader couldn't tell which unit they were looking at.
+  const UK = presetUnitsFor('imperial', 'uk')
+
+  it('renders a UK account\'s volume and economy with (UK)', () => {
+    const u = makeUnitFormat(UK)
+    // 45.4609 L / 4.54609 = 10 UK gal; 282.48 / 9.4 = 30.05 UK MPG.
+    expect(u.volume.formatPrimary(45.4609)).toBe('10.00 gal (UK)')
+    expect(u.consumption.formatPrimary(9.4)).toBe('30.1 MPG (UK)')
+    expect(u.volume.label).toBe('gal (UK)')
+    expect(u.consumption.label).toBe('MPG (UK)')
+    expect(fuelRateLabel(UK)).toBe('gal (UK)/hr')
+  })
+
+  it('leaves a US account\'s labels bare (guard)', () => {
+    const u = makeUnitFormat(IMPERIAL)
+    expect(u.volume.formatPrimary(37.85411784)).toBe('10.00 gal')
+    expect(u.consumption.formatPrimary(9.4)).toBe('25.0 MPG')
+    expect(fuelRateLabel(IMPERIAL)).toBe('gal/hr')
+  })
+})
 
 describe('makeUnitFormat', () => {
   it('answers for every quantity and nothing else', () => {
@@ -84,9 +108,9 @@ describe('format', () => {
     expect(makeUnitFormat(presetUnitsFor('metric', 'us'), true).volume.format(10)).toBe(
       '10.00 L (2.64 gal)'
     )
-    // 10 L / 4.54609 = 2.1997... UK gallons
+    // 10 L / 4.54609 = 2.1997... UK gallons, and it says so (D3)
     expect(makeUnitFormat(presetUnitsFor('metric', 'uk'), true).volume.format(10)).toBe(
-      '10.00 L (2.20 gal)'
+      '10.00 L (2.20 gal (UK))'
     )
   })
 
@@ -177,7 +201,7 @@ describe('volume per distance', () => {
     // 4.54609 L is one IMPERIAL gallon; per 1,000 km is 1.609344 per 1,000 mi.
     const uk = presetUnitsFor('imperial', 'uk')
     expect(formatVolumePerDistance(uk, 4.54609)).toBe('1.6')
-    expect(volumePerDistanceLabel(uk)).toBe('gal/1,000 mi')
+    expect(volumePerDistanceLabel(uk)).toBe('gal (UK)/1,000 mi')
     // The three expectations `unitsSummaryHelpers.test.ts` held before these
     // functions moved, carried over unchanged so the move cannot lose them.
     // 4.7 / 3.785411784 x 1.609344 = 1.998; 4.7 / 4.54609 x 1.609344 = 1.664.

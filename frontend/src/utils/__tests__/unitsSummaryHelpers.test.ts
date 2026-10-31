@@ -17,6 +17,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { makeUnitSet } from '@/__tests__/factories'
 import { UnitConverter, UnitFormatter } from '../units'
+import { adapterFor } from '../unitAdapters'
 
 const METRIC = makeUnitSet()
 const US = makeUnitSet({ volume: 'gal_us', secondary_gallon: 'us' })
@@ -50,38 +51,51 @@ describe('UnitFormatter summary card helpers', () => {
       // 47.317625 L is 12.50 US gallons and 10.41 imperial ones.
       expect(UnitFormatter.formatVolume(47.317625, METRIC)).toBe('47.32 L')
       expect(UnitFormatter.formatVolume(47.317625, US)).toBe('12.50 gal')
-      expect(UnitFormatter.formatVolume(47.317625, UK)).toBe('10.41 gal')
+      expect(UnitFormatter.formatVolume(47.317625, UK)).toBe('10.41 gal (UK)')
     })
 
     it('pairs a litre primary with the set\'s secondary gallon (D4b), not the global', () => {
       const metricUk = makeUnitSet({ secondary_gallon: 'uk' })
       expect(UnitFormatter.formatVolume(47.317625, METRIC, true)).toBe('47.32 L (12.50 gal)')
-      expect(UnitFormatter.formatVolume(47.317625, metricUk, true)).toBe('47.32 L (10.41 gal)')
-      expect(UnitFormatter.formatVolume(47.317625, UK, true)).toBe('10.41 gal (47.32 L)')
+      expect(UnitFormatter.formatVolume(47.317625, metricUk, true)).toBe('47.32 L (10.41 gal (UK))')
+      expect(UnitFormatter.formatVolume(47.317625, UK, true)).toBe('10.41 gal (UK) (47.32 L)')
     })
 
     it('renders N/A for an absent value in every set', () => {
       expect(UnitFormatter.formatVolume(null, UK)).toBe('N/A')
       expect(UnitFormatter.formatVolume(undefined, UK)).toBe('N/A')
       // Not N/A, and not the US answer: the guard precedes the conversion.
-      expect(UnitFormatter.formatVolume(45.4609, UK)).toBe('10.00 gal')
+      expect(UnitFormatter.formatVolume(45.4609, UK)).toBe('10.00 gal (UK)')
     })
   })
 
   describe('getVolumeUnit', () => {
     it('labels from the resolved volume token', () => {
       expect(UnitFormatter.getVolumeUnit(METRIC)).toBe('L')
+      // Guard: the US gallon keeps its bare label.
       expect(UnitFormatter.getVolumeUnit(US)).toBe('gal')
-      expect(UnitFormatter.getVolumeUnit(UK)).toBe('gal')
+    })
+
+    it('says which gallon a UK reader is looking at (D3)', () => {
+      expect(UnitFormatter.getVolumeUnit(UK)).toBe('gal (UK)')
+    })
+
+    it.each([METRIC, US, UK])('matches the volume adapter label (%#)', (units) => {
+      // Both used to carry their own literals, which is how the UK gallon
+      // ended up plain 'gal' in both places at once.
+      const label = adapterFor(units, 'volume').label
+      expect(UnitFormatter.getVolumeUnit(units)).toBe(label)
+      expect(UnitFormatter.formatVolumeShort(10, units).endsWith(` ${label}`)).toBe(true)
     })
   })
 
   describe('formatVolumeShort / formatVolumeTotal', () => {
     it('converts the total on the resolved token, at one decimal', () => {
       expect(UnitFormatter.formatVolumeShort(47.3, METRIC)).toBe('47.3 L')
+      // Guard: the US gallon keeps its bare label.
       expect(UnitFormatter.formatVolumeShort(47.317625, US)).toBe('12.5 gal')
-      // 47.317625 / 4.54609 = 10.408 -> 10.4
-      expect(UnitFormatter.formatVolumeShort(47.317625, UK)).toBe('10.4 gal')
+      // 47.317625 / 4.54609 = 10.408 -> 10.4, and D3 says which gallon.
+      expect(UnitFormatter.formatVolumeShort(47.317625, UK)).toBe('10.4 gal (UK)')
     })
 
     // ★ `formatVolumeTotal` WAS COVERED HERE, with a case named 'appends

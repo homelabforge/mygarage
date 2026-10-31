@@ -30,7 +30,7 @@ grammar table (which has carried arithmetic errors through six rounds):
     2.50 L / 3.785411784 (``US_GALLONS_TO_LITERS``) = 0.66043...
         -> ``gal_us`` adapter precision 2 -> "0.66 gal"
     2.50 L / 4.54609 (``UK_GALLONS_TO_LITERS``) = 0.54992...
-        -> ``gal_uk`` adapter precision 2 -> "0.55 gal"
+        -> ``gal_uk`` adapter precision 2 -> "0.55 gal (UK)"
 
 No database: the dispatcher is handed a ``RenderContext`` by its caller and
 resolves nothing itself (the scheduled job owns that, and
@@ -196,7 +196,7 @@ class TestDefForcedVolumePair:
 
         assert message == (
             f"DEF level for My Truck ({_VIN}) is at 25.0% "
-            "(2.50 L / 0.55 gal remaining), as of 2026-06-15."
+            "(2.50 L / 0.55 gal (UK) remaining), as of 2026-06-15."
         )
 
     async def test_gal_uk_primary_beats_a_us_secondary_gallon(
@@ -210,7 +210,7 @@ class TestDefForcedVolumePair:
 
         assert message == (
             f"DEF level for My Truck ({_VIN}) is at 25.0% "
-            "(2.50 L / 0.55 gal remaining), as of 2026-06-15."
+            "(2.50 L / 0.55 gal (UK) remaining), as of 2026-06-15."
         )
 
     async def test_gal_us_primary_beats_a_uk_secondary_gallon(
@@ -242,5 +242,5 @@ class TestDefForcedVolumePair:
 
         message = await self._dispatch_def(dispatcher, ctx)
 
-        assert "0.55 gal" in message
+        assert "0.55 gal (UK)" in message
         assert "0.66" not in message

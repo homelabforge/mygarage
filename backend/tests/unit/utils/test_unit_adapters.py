@@ -19,11 +19,11 @@ EXPECTED: dict[str, tuple[str, int, str | None]] = {
     "ft": ("ft", 2, "0.3048"),
     "L": ("L", 2, "1"),
     "gal_us": ("gal", 2, "3.785411784"),
-    "gal_uk": ("gal", 2, "4.54609"),
+    "gal_uk": ("gal (UK)", 2, "4.54609"),
     "l_100km": ("L/100km", 2, "1"),
     "km_l": ("km/L", 2, "100"),
     "mpg_us": ("MPG", 1, "235.2145833333333333333333333"),
-    "mpg_uk": ("MPG", 1, "282.4809363318221585938121371"),
+    "mpg_uk": ("MPG (UK)", 1, "282.4809363318221585938121371"),
     "kpa": ("kPa", 0, "1"),
     "bar": ("bar", 2, "100"),
     "psi": ("PSI", 1, "6.894757293168361336722673445"),
@@ -235,3 +235,21 @@ class TestAdapterFor:
         at render time instead of here."""
         with pytest.raises(KeyError):
             adapter_for(METRIC_PRESET, "hours")
+
+
+class TestUkLabelsNameThemselves:
+    """D3: a UK gallon used to print plain `gal` and UK MPG plain `MPG`, so a
+    UK reader couldn't tell which unit a figure was in. The US labels stay put."""
+
+    def test_uk_volume_renders_with_uk(self) -> None:
+        # 45.4609 L / 4.54609 = 10 UK gallons.
+        assert ADAPTERS["gal_uk"].format(Decimal("45.4609")) == "10.00 gal (UK)"
+
+    def test_uk_economy_renders_with_uk(self) -> None:
+        # 282.48... / 9.4 = 30.05 UK MPG.
+        assert ADAPTERS["mpg_uk"].format(Decimal("9.4")) == "30.1 MPG (UK)"
+
+    def test_us_labels_unchanged(self) -> None:
+        """Guard: the US side keeps its bare labels."""
+        assert ADAPTERS["gal_us"].format(Decimal("37.85411784")) == "10.00 gal"
+        assert ADAPTERS["mpg_us"].format(Decimal("9.4")) == "25.0 MPG"

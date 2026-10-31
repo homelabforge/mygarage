@@ -904,7 +904,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     renderVehicleEdit(dieselWithCapacity)
 
     // 19 L is 4.18 imperial gallons; it would read 5.02 on US ones.
-    const capacity = (await screen.findByLabelText('edit.defTankCapacity (gal)')) as HTMLInputElement
+    const capacity = (await screen.findByLabelText('edit.defTankCapacity (gal (UK))')) as HTMLInputElement
     expect(capacity.value).toBe('4.18')
 
     fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }))
@@ -940,7 +940,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
     renderVehicleEdit(dieselWithCapacity)
-    const capacity = (await screen.findByLabelText('edit.defTankCapacity (gal)')) as HTMLInputElement
+    const capacity = (await screen.findByLabelText('edit.defTankCapacity (gal (UK))')) as HTMLInputElement
     expect(capacity.value).toBe('4.18')
 
     fireEvent.change(capacity, { target: { value: '5.00' } })
@@ -982,7 +982,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     const view = render(
       drawerEl({ open: true, vin: dieselWithCapacity.vin, vehicle: dieselWithCapacity, onClose: vi.fn(), onUpdated: vi.fn() })
     )
-    const first = (await screen.findByLabelText('edit.defTankCapacity (gal)')) as HTMLInputElement
+    const first = (await screen.findByLabelText('edit.defTankCapacity (gal (UK))')) as HTMLInputElement
     expect(first.value).toBe('4.18')
 
     // Close and reopen the SAME mounted drawer, which is what re-seeds it. A
@@ -995,11 +995,11 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
       drawerEl({ open: true, vin: cleared.vin, vehicle: cleared, onClose: vi.fn(), onUpdated: vi.fn() })
     )
     await waitFor(() =>
-      expect(screen.queryByLabelText('edit.defTankCapacity (gal)')).toBeNull()
+      expect(screen.queryByLabelText('edit.defTankCapacity (gal (UK))')).toBeNull()
     )
 
     fireEvent.click(screen.getByLabelText('edit.enableDefTracking'))
-    const reopened = (await screen.findByLabelText('edit.defTankCapacity (gal)')) as HTMLInputElement
+    const reopened = (await screen.findByLabelText('edit.defTankCapacity (gal (UK))')) as HTMLInputElement
     expect(reopened.value).toBe('')
 
     fireEvent.change(reopened, { target: { value: '4.18' } })
@@ -1021,7 +1021,7 @@ describe('VehicleEditDrawer — the DEF tank capacity is the eighth gallon write
     unitPrefMock.units = UK_IMPERIAL_UNITS
 
     renderVehicleEdit(dieselWithCapacity)
-    const uk = (await screen.findByLabelText('edit.defTankCapacity (gal)')) as HTMLInputElement
+    const uk = (await screen.findByLabelText('edit.defTankCapacity (gal (UK))')) as HTMLInputElement
     expect(uk.placeholder).toBe('4.2')
     // The collapsed answer agrees with the US one here, which is what made this
     // invisible: both gallons read 'imperial'.

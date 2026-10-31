@@ -177,12 +177,13 @@ ADAPTERS: Mapping[str, UnitAdapter] = {
     # Volume
     "L": LinearUnitAdapter("L", "L", 2, Decimal("1")),
     "gal_us": LinearUnitAdapter("gal_us", "gal", 2, UnitConverter.US_GALLONS_TO_LITERS),
-    "gal_uk": LinearUnitAdapter("gal_uk", "gal", 2, UnitConverter.UK_GALLONS_TO_LITERS),
+    # UK labels say so, or a UK reader can't tell which gallon they're looking at.
+    "gal_uk": LinearUnitAdapter("gal_uk", "gal (UK)", 2, UnitConverter.UK_GALLONS_TO_LITERS),
     # Consumption
     "l_100km": LinearUnitAdapter("l_100km", "L/100km", 2, Decimal("1")),
     "km_l": InverseUnitAdapter("km_l", "km/L", 2, _KM_L_NUMERATOR),
     "mpg_us": InverseUnitAdapter("mpg_us", "MPG", 1, UnitConverter.US_MPG_TO_L100KM_NUMERATOR),
-    "mpg_uk": InverseUnitAdapter("mpg_uk", "MPG", 1, UnitConverter.UK_MPG_TO_L100KM_NUMERATOR),
+    "mpg_uk": InverseUnitAdapter("mpg_uk", "MPG (UK)", 1, UnitConverter.UK_MPG_TO_L100KM_NUMERATOR),
     # Pressure
     "kpa": LinearUnitAdapter("kpa", "kPa", 0, Decimal("1")),
     "bar": LinearUnitAdapter("bar", "bar", 2, _BAR_TO_KPA),

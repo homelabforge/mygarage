@@ -9,6 +9,7 @@ import {
   toCanonical,
   toDisplay,
   unitCostToDisplay,
+  unitLabel,
   type SupplyUnit,
   type SupplyVolumeUnit,
 } from '../supplyUnits'
@@ -107,4 +108,22 @@ describe('formatSupplyAmount', () => {
 it('formatSupplyQuantity adds the label, and none for count', () => {
   expect(formatSupplyQuantity(0.003, 'L', 'en-US')).toBe('0.003 L')
   expect(formatSupplyQuantity(4, 'count', 'en-US')).toBe('4')
+})
+
+// D3: the UK supply units say so. The US and metric ones keep their labels.
+it.each([
+  ['qt_uk', 'qt (UK)'], ['fl_oz_uk', 'fl oz (UK)'], ['gal_uk', 'gal (UK)'],
+] as [SupplyUnit, string][])('unitLabel(%s) is %s', (unit, label) => {
+  expect(unitLabel(unit)).toBe(label)
+})
+
+it.each([
+  ['qt_us', 'qt'], ['fl_oz_us', 'fl oz'], ['gal_us', 'gal'], ['L', 'L'], ['mL', 'mL'], ['count', ''],
+] as [SupplyUnit, string][])('unitLabel(%s) stays %s (guard)', (unit, label) => {
+  expect(unitLabel(unit)).toBe(label)
+})
+
+it('formatSupplyQuantity names a UK quart', () => {
+  // 1.1365225 L is one UK quart.
+  expect(formatSupplyQuantity(1.1365225, 'qt_uk', 'en-US')).toBe('1.00 qt (UK)')
 })
