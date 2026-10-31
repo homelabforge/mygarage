@@ -6,13 +6,26 @@ seasonal analytics, and period comparison endpoints.
 """
 
 import uuid
+from datetime import date
+from decimal import Decimal
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models import Vehicle
+from app.models import (
+    FuelRecord,
+    ServiceLineItem,
+    ServiceVisit,
+    SpotRental,
+    SpotRentalBilling,
+    Vehicle,
+)
+from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
+from app.models.user import User
+from app.services.auth import create_access_token
 
 
 @pytest_asyncio.fixture
@@ -426,8 +439,10 @@ class TestGarageFinancingRollup:
         assert float(after["total_cost"]) == pytest.approx(parts)
 
     async def test_monthly_trends_include_financing(
-        self, client: AsyncClient, auth_headers, financing_vehicle
+        self, client: AsyncClient, auth_headers, financing_vehicle, monkeypatch
     ):
+        # The trend only covers the 12 months up to today, so park today in June 2040.
+        monkeypatch.setattr("app.routes.analytics.household_today", lambda: date(2040, 6, 25))
         vin = financing_vehicle["vin"]
         await _add_financing(client, auth_headers, vin, "2040-06-01", 400.00, "loan_payment")
         await _add_financing(client, auth_headers, vin, "2040-06-20", 100.00, "upfront_fee")
@@ -641,11 +656,6 @@ class TestAnalyticsDefConsistency:
     async def test_def_rate_matches_def_endpoint_verdict(
         self, client: AsyncClient, auth_headers, test_vehicle, db_session
     ):
-        from datetime import date
-        from decimal import Decimal
-
-        from sqlalchemy import delete
-
         from app.models.def_record import DEFRecord
 
         vin = test_vehicle["vin"]
@@ -710,3 +720,208 @@ class TestAnalyticsDefConsistency:
 
         await db_session.execute(delete(DEFRecord).where(DEFRecord.vin == vin))
         await db_session.commit()
+
+
+# Copied from tests/conftest.py so these owners skip the argon2 work.
+_PASSWORD_HASH = (
+    "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$"
+    "hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI"
+)
+
+
+async def _seed(test_sessionmaker: async_sessionmaker[AsyncSession], *rows: object) -> None:
+    """Write through a session of its own, so the route reads them cold."""
+    async with test_sessionmaker() as session:
+        session.add_all(rows)
+        await session.commit()
+
+
+async def _isolated_owner(
+    test_sessionmaker: async_sessionmaker[AsyncSession], *, vehicle_type: str = "Car"
+) -> tuple[str, dict[str, str]]:
+    """A fresh non-admin owner with one vehicle, so the garage is only theirs.
+
+    The admin test user sees every vehicle in the shared database, and other
+    modules leave records all over the calendar.
+    """
+    suffix = uuid.uuid4().hex[:12]
+    # "ANZRO" + 12 hex chars = 17, and hex never has I, O or Q.
+    vin = f"ANZRO{suffix.upper()}"
+    async with test_sessionmaker() as session:
+        user = User(
+            username=f"anz_{suffix}",
+            email=f"anz_{suffix}@example.com",
+            hashed_password=_PASSWORD_HASH,
+            is_active=True,
+            is_admin=False,
+        )
+        session.add(user)
+        await session.flush()
+        session.add(
+            Vehicle(
+                vin=vin,
+                user_id=user.id,
+                nickname=f"Analytics {suffix}",
+                vehicle_type=vehicle_type,
+                year=2020,
+                make="Ford",
+                model="F-150",
+            )
+        )
+        await session.commit()
+        token = create_access_token(data={"sub": str(user.id), "username": user.username})
+    return vin, {"Authorization": f"Bearer {token}"}
+
+
+def _fuel(vin: str, on: date, cost: str) -> FuelRecord:
+    return FuelRecord(
+        vin=vin, date=on, liters=Decimal("40.000"), cost=Decimal(cost), is_full_tank=True
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestZeroCostRecordsCount:
+    """A recorded $0 is a real record; only a missing cost is skipped (R1)."""
+
+    async def test_a_zero_spot_rental_billing_counts_in_average_and_trend(
+        self, client: AsyncClient, test_sessionmaker
+    ):
+        vin, headers = await _isolated_owner(test_sessionmaker, vehicle_type="FifthWheel")
+        rental = SpotRental(vin=vin, check_in_date=date(2026, 1, 1))
+        rental.billings.extend(
+            [
+                SpotRentalBilling(billing_date=date(2026, 1, 5), total=Decimal("100.00")),
+                SpotRentalBilling(billing_date=date(2026, 2, 5), total=Decimal("0.00")),
+            ]
+        )
+        await _seed(test_sessionmaker, rental)
+
+        response = await client.get(f"/api/analytics/vehicles/{vin}", headers=headers)
+        assert response.status_code == 200, response.text
+        spot = response.json()["spot_rental_analysis"]
+
+        assert Decimal(str(spot["monthly_average"])) == Decimal("50.00")
+        assert [(m["year"], m["month"]) for m in spot["monthly_trend"]] == [
+            (2026, 1),
+            (2026, 2),
+        ]
+
+    async def test_a_zero_cost_line_counts_in_the_service_type_breakdown(
+        self, client: AsyncClient, test_sessionmaker
+    ):
+        vin, headers = await _isolated_owner(test_sessionmaker)
+        visits = []
+        for on, cost in ((date(2026, 1, 10), "50.00"), (date(2026, 4, 10), "0.00")):
+            visit = ServiceVisit(vin=vin, date=on)
+            visit.line_items.append(ServiceLineItem(description="Oil change", cost=Decimal(cost)))
+            visits.append(visit)
+        await _seed(test_sessionmaker, *visits)
+
+        response = await client.get(f"/api/analytics/vehicles/{vin}", headers=headers)
+        assert response.status_code == 200, response.text
+        rows = response.json()["cost_analysis"]["service_type_breakdown"]
+
+        oil = next(r for r in rows if r["service_type"] == "Oil change")
+        assert oil["count"] == 2
+        assert oil["last_service_date"] == "2026-04-10"
+        assert Decimal(str(oil["total_cost"])) == Decimal("50.00")
+        assert Decimal(str(oil["average_cost"])) == Decimal("25.00")
+
+
+# Today for the garage window tests, so a month boundary can't flake them.
+_GARAGE_TODAY = date(2026, 8, 15)
+_GARAGE_WINDOW = [
+    "Sep 2025",
+    "Oct 2025",
+    "Nov 2025",
+    "Dec 2025",
+    "Jan 2026",
+    "Feb 2026",
+    "Mar 2026",
+    "Apr 2026",
+    "May 2026",
+    "Jun 2026",
+    "Jul 2026",
+    "Aug 2026",
+]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestGarageMonthlyTrendWindow:
+    """The garage trend is the 12 calendar months ending this month (D1)."""
+
+    @pytest.fixture(autouse=True)
+    def _pin_today(self, monkeypatch):
+        monkeypatch.setattr("app.routes.analytics.household_today", lambda: _GARAGE_TODAY)
+
+    async def test_the_trend_is_the_twelve_months_ending_this_month(
+        self, client: AsyncClient, test_sessionmaker
+    ):
+        vin, headers = await _isolated_owner(test_sessionmaker)
+        await _seed(
+            test_sessionmaker,
+            _fuel(vin, date(2026, 9, 10), "70.00"),  # next month: a typo, say
+            _fuel(vin, date(2025, 7, 10), "30.00"),  # 13 months back
+            _fuel(vin, date(2026, 8, 5), "40.00"),  # this month
+        )
+
+        data = (await client.get("/api/analytics/garage", headers=headers)).json()
+        trends = data["monthly_trends"]
+
+        assert [t["month"] for t in trends] == _GARAGE_WINDOW
+        assert Decimal(trends[-1]["fuel"]) == Decimal("40.00")
+        assert all(Decimal(t["fuel"]) == 0 for t in trends[:-1])
+        # Out of the chart, still in the money.
+        assert Decimal(data["total_costs"]["total_fuel"]) == Decimal("140.00")
+        row = next(v for v in data["cost_by_vehicle"] if v["vin"] == vin)
+        assert Decimal(row["total_fuel"]) == Decimal("140.00")
+
+    async def test_a_quiet_garage_still_gets_every_month(
+        self, client: AsyncClient, test_sessionmaker
+    ):
+        vin, headers = await _isolated_owner(test_sessionmaker)
+        await _seed(test_sessionmaker, _fuel(vin, date(2026, 3, 10), "25.00"))
+
+        trends = (await client.get("/api/analytics/garage", headers=headers)).json()[
+            "monthly_trends"
+        ]
+
+        assert [t["month"] for t in trends] == _GARAGE_WINDOW
+        others = ("service", "def_cost", "insurance", "financing")
+        for t in trends:
+            expected = Decimal("25.00") if t["month"] == "Mar 2026" else Decimal(0)
+            assert Decimal(t["fuel"]) == expected
+            assert Decimal(t["total"]) == expected
+            assert all(Decimal(t[f]) == 0 for f in others)
+
+    async def test_the_monthly_total_leaves_insurance_out(
+        self, client: AsyncClient, test_sessionmaker
+    ):
+        vin, headers = await _isolated_owner(test_sessionmaker)
+        policy = InsurancePolicy(
+            provider="Progressive",
+            policy_number=f"P-{vin}",
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            premium_amount=Decimal("100.00"),
+            premium_frequency="Monthly",
+        )
+        policy.vehicle_links.append(InsurancePolicyVehicle(vin=vin, policy_type="Full Coverage"))
+        await _seed(test_sessionmaker, policy, _fuel(vin, date(2026, 8, 5), "40.00"))
+
+        try:
+            trends = (await client.get("/api/analytics/garage", headers=headers)).json()[
+                "monthly_trends"
+            ]
+            august = next(t for t in trends if t["month"] == "Aug 2026")
+
+            assert Decimal(august["insurance"]) > 0
+            assert Decimal(august["total"]) == Decimal("40.00")
+        finally:
+            async with test_sessionmaker() as session:
+                await session.execute(
+                    delete(InsurancePolicy).where(InsurancePolicy.id == policy.id)
+                )
+                await session.commit()

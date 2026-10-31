@@ -46,7 +46,8 @@ async def calculate_spot_rental_costs(db: Any, vin: str) -> dict[str, Any]:
     # Convert to DataFrame for analysis
     data = []
     for billing in all_billings:
-        if billing.billing_date and billing.total:
+        # A $0 billing is still a billing; only a missing total stays out.
+        if billing.billing_date and billing.total is not None:
             data.append(
                 {
                     "date": pd.Timestamp(billing.billing_date),

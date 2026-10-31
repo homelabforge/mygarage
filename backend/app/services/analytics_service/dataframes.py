@@ -55,10 +55,10 @@ def visits_to_dataframe(
             }
         )
 
-    # Convert fuel records
+    # A recorded $0 counts (a free fill-up is still a fill-up); a missing cost doesn't.
     fuel_data = []
     for record in fuel_records:
-        if record.date and record.cost:
+        if record.date and record.cost is not None:
             fuel_data.append(
                 {
                     "date": pd.Timestamp(record.date),
@@ -75,7 +75,7 @@ def visits_to_dataframe(
     def_data = []
     if def_records:
         for record in def_records:
-            if record.date and record.cost:
+            if record.date and record.cost is not None:
                 def_data.append(
                     {
                         "date": pd.Timestamp(record.date),
@@ -91,7 +91,7 @@ def visits_to_dataframe(
     spot_rental_data = []
     if spot_rental_billings:
         for record in spot_rental_billings:
-            if record.billing_date and record.total:
+            if record.billing_date and record.total is not None:
                 spot_rental_data.append(
                     {
                         "date": pd.Timestamp(record.billing_date),
@@ -108,7 +108,7 @@ def visits_to_dataframe(
     financing_data = []
     if financing_records:
         for record in financing_records:
-            if record.date and record.amount:
+            if record.date and record.amount is not None:
                 financing_data.append(
                     {
                         "date": pd.Timestamp(record.date),

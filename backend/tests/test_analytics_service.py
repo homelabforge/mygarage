@@ -1231,3 +1231,64 @@ class TestFinancingInDataframeAndMonthlyAggregation:
         assert rolling["rolling_3m"] == Decimal("0.00")
         assert analytics_service.calculate_trend_direction(monthly["total_cost"]) == "stable"
         assert list(monthly["financing_cost"]) == [100.0, 200.0, 300.0]
+
+
+@pytest.mark.unit
+@pytest.mark.analytics
+class TestZeroCostRecordsCount:
+    """A recorded $0 counts in its month; a missing cost doesn't (R1)."""
+
+    @staticmethod
+    def _january(df: pd.DataFrame) -> pd.Series:
+        monthly = analytics_service.calculate_monthly_aggregation(df)
+        return monthly[(monthly["year"] == 2024) & (monthly["month"] == 1)].iloc[0]
+
+    def test_a_free_fill_up_counts_in_fuel_count(self):
+        fuel = [
+            _make_fuel_record(id=1, date=date(2024, 1, 5), cost=Decimal("40.00")),
+            _make_fuel_record(id=2, date=date(2024, 1, 20), cost=Decimal("0.00")),
+        ]
+
+        jan = self._january(analytics_service.visits_to_dataframe([], fuel))
+
+        assert jan["fuel_count"] == 2
+        assert jan["fuel_cost"] == 40.0
+
+    def test_a_zero_cost_def_purchase_counts_in_def_count(self):
+        fuel = [_make_fuel_record(date=date(2024, 1, 5), cost=Decimal("40.00"))]
+        def_records = [_make_def_record(date=date(2024, 1, 12), cost=Decimal("0.00"))]
+
+        jan = self._january(analytics_service.visits_to_dataframe([], fuel, def_records))
+
+        assert jan["def_count"] == 1
+        assert jan["def_cost"] == 0.0
+
+    def test_a_zero_financing_record_counts_in_financing_count(self):
+        fuel = [_make_fuel_record(date=date(2024, 1, 5), cost=Decimal("40.00"))]
+        financing = [_make_financing_record(date=date(2024, 1, 1), amount=Decimal("0.00"))]
+
+        jan = self._january(
+            analytics_service.visits_to_dataframe([], fuel, financing_records=financing)
+        )
+
+        assert jan["financing_count"] == 1
+        assert jan["financing_cost"] == 0.0
+
+    def test_a_missing_cost_still_does_not_count(self):
+        """Guard: None isn't a recorded price, so it stays out."""
+        fuel = [
+            _make_fuel_record(id=1, date=date(2024, 1, 5), cost=Decimal("40.00")),
+            _make_fuel_record(id=2, date=date(2024, 1, 20), cost=None),
+        ]
+        def_records = [_make_def_record(date=date(2024, 1, 12), cost=None)]
+        financing = [_make_financing_record(date=date(2024, 1, 1), amount=None)]
+
+        jan = self._january(
+            analytics_service.visits_to_dataframe(
+                [], fuel, def_records, financing_records=financing
+            )
+        )
+
+        assert jan["fuel_count"] == 1
+        assert jan["def_count"] == 0
+        assert jan["financing_count"] == 0

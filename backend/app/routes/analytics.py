@@ -86,26 +86,6 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-def calculate_trend(values: list[float]) -> str:
-    """Calculate trend from list of values (improving/declining/stable)."""
-    if len(values) < 3:
-        return "stable"
-
-    # Compare first half to second half
-    mid = len(values) // 2
-    first_half = sum(values[:mid]) / mid
-    second_half = sum(values[mid:]) / (len(values) - mid)
-
-    diff_percent = ((second_half - first_half) / first_half) * 100 if first_half > 0 else 0
-
-    if diff_percent > 5:
-        return "improving"
-    elif diff_percent < -5:
-        return "declining"
-    else:
-        return "stable"
-
-
 def _load_service_visits_query(vin: str):
     """Build a ServiceVisit query with line_items (+ supply usages) + vendor eager-loaded.
 
@@ -290,15 +270,17 @@ async def get_cost_analysis(
 
     # Calculate totals — use visit-level calculated_total_cost for financial accuracy
     total_service_cost = sum(
-        (v.calculated_total_cost for v in service_visits if v.calculated_total_cost),
+        (v.calculated_total_cost for v in service_visits if v.calculated_total_cost is not None),
         Decimal("0.00"),
     )
-    total_fuel_cost = sum((r.cost for r in fuel_records if r.cost), Decimal("0.00"))
-    total_def_cost = sum((r.cost for r in def_records if r.cost), Decimal("0.00"))
+    total_fuel_cost = sum((r.cost for r in fuel_records if r.cost is not None), Decimal("0.00"))
+    total_def_cost = sum((r.cost for r in def_records if r.cost is not None), Decimal("0.00"))
     total_spot_rental_cost = sum(
-        (r.total for r in spot_rental_billings if r.total), Decimal("0.00")
+        (r.total for r in spot_rental_billings if r.total is not None), Decimal("0.00")
     )
-    total_financing_cost = sum((r.amount for r in financing_records if r.amount), Decimal("0.00"))
+    total_financing_cost = sum(
+        (r.amount for r in financing_records if r.amount is not None), Decimal("0.00")
+    )
     total_cost = total_service_cost + total_fuel_cost + total_def_cost + total_spot_rental_cost
 
     # Use pandas for monthly aggregation (one row per visit)
@@ -368,9 +350,10 @@ async def get_cost_analysis(
         }
     )
 
+    # A $0 line (warranty, freebie) still counts and still moves the last date.
     for visit in service_visits:
         for item in visit.line_items:
-            if item.description and item.cost:
+            if item.description and item.cost is not None:
                 service_type_data[item.description]["total"] += item.cost
                 service_type_data[item.description]["count"] += 1
                 if (
@@ -510,19 +493,17 @@ async def get_fuel_economy_trend(db: AsyncSession, vin: str) -> FuelEconomyTrend
 async def get_hours_economy_trend(db: AsyncSession, vin: str) -> HoursEconomyTrend:
     """Calculate engine-hours fuel economy trend (L/hr + cost/hr) using pandas.
 
-    The hours mirror of :func:`get_fuel_economy_trend`. ``average_l_per_hr``
-    / ``average_cost_per_hr`` come from the canonical DB-backed
-    :func:`calculate_average_hours_economy` (``exclude_hauling=True``) rather
-    than the trend's own mean — that is where ``average_l_per_100km`` lives
-    on the distance side (:class:`FuelEconomyTrend`), so the two hours
-    averages live in the equivalent place here.
-    ``best``/``worst``/``recent``/``trend`` come from the trend's own
-    full-tank-endpoint pass (``exclude_hauling=False``), matching the
-    distance trend's internal convention. Naturally null/empty for a
-    pure-distance vehicle (no ``engine_hours``-bearing fuel records) — no
-    explicit branch needed, same as the dashboard's hours figures.
+    The hours mirror of :func:`get_fuel_economy_trend`. Every figure here,
+    the averages included, comes from the same tanks the chart plots, towing
+    tanks too, as the distance trend's average does. The vehicle card and
+    dashboard averages leave hauling out; that's their call, not this chart's.
+    Null/empty for a pure-distance vehicle (no ``engine_hours`` fill-ups).
     """
-    average_l_per_hr, average_cost_per_hr = await calculate_average_hours_economy(db, vin)
+    # Same tanks as the points. The flag is part of the cache key, so this
+    # doesn't share an entry with the card's hauling-free average.
+    average_l_per_hr, average_cost_per_hr = await calculate_average_hours_economy(
+        db, vin, exclude_hauling=False
+    )
 
     # Get all fuel records
     result = await db.execute(
@@ -1140,12 +1121,12 @@ async def get_garage_analytics(
         total_insurance += vehicle_insurance
 
         for tax_record in vehicle.tax_records:
-            if tax_record.amount:
+            if tax_record.amount is not None:
                 total_taxes += tax_record.amount
 
         vehicle_financing = Decimal("0.00")
         for financing_record in vehicle.financing_records:
-            if financing_record.amount:
+            if financing_record.amount is not None:
                 vehicle_financing += financing_record.amount
                 if financing_record.date:
                     key = (financing_record.date.year, financing_record.date.month)
@@ -1168,7 +1149,7 @@ async def get_garage_analytics(
 
         for visit in service_visits:
             cost = visit.calculated_total_cost
-            if cost:
+            if cost is not None:
                 category = visit.service_category or "Maintenance"
                 if category == "Maintenance":
                     vehicle_maintenance += cost
@@ -1183,12 +1164,12 @@ async def get_garage_analytics(
                 else:
                     vehicle_maintenance += cost
 
-        vehicle_fuel = sum((r.cost for r in fuel_records if r.cost), Decimal("0.00"))
+        vehicle_fuel = sum((r.cost for r in fuel_records), Decimal("0.00"))
 
         def_records = [r for r in vehicle.def_records if r.cost is not None]
         def_records.sort(key=lambda r: r.date)
 
-        vehicle_def = sum((r.cost for r in def_records if r.cost), Decimal("0.00"))
+        vehicle_def = sum((r.cost for r in def_records), Decimal("0.00"))
 
         vehicle_total = (
             vehicle_maintenance
@@ -1230,17 +1211,18 @@ async def get_garage_analytics(
         # Add to monthly trends — service uses visit.calculated_total_cost
         for visit in service_visits:
             cost = visit.calculated_total_cost
-            if visit.date and cost:
+            if visit.date and cost is not None:
                 key = (visit.date.year, visit.date.month)
                 monthly_data[key]["service"] += cost
 
+        # Both lists already dropped the records with no cost.
         for record in fuel_records:
-            if record.date and record.cost:
+            if record.date:
                 key = (record.date.year, record.date.month)
                 monthly_data[key]["fuel"] += record.cost
 
         for record in def_records:
-            if record.date and record.cost:
+            if record.date:
                 key = (record.date.year, record.date.month)
                 monthly_data[key]["def"] += record.cost
 
@@ -1270,21 +1252,23 @@ async def get_garage_analytics(
     if total_financing > 0:
         cost_breakdown.append(GarageCostByCategory(category="Financing", amount=total_financing))
 
-    # Create monthly trends (last 12 months)
+    # The 12 calendar months ending this month, oldest first, quiet ones as zeros.
+    # A future-dated record still counts in the totals above, just not here.
     monthly_trends = []
-    sorted_months = sorted(monthly_data.items())[-12:]
-
-    for (year, month), data in sorted_months:
-        month_name = f"{calendar.month_abbr[month]} {year}"
+    for back in range(11, -1, -1):
+        year, month_index = divmod(today.year * 12 + today.month - 1 - back, 12)
+        month = month_index + 1
+        data = monthly_data[(year, month)]  # defaultdict: an empty month reads as zeros
         monthly_trends.append(
             GarageMonthlyTrend(
-                month=month_name,
+                month=f"{calendar.month_abbr[month]} {year}",
                 service=data["service"],
                 fuel=data["fuel"],
                 def_cost=data["def"],
                 insurance=data["insurance"],
                 financing=data["financing"],
-                total=(data["service"] + data["fuel"] + data["def"] + data["insurance"]),
+                # Running costs only, what the page and its CSV call Total.
+                total=data["service"] + data["fuel"] + data["def"],
             )
         )
 

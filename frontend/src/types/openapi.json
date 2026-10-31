@@ -9929,7 +9929,7 @@
         "type": "object"
       },
       "HoursEconomyTrend": {
-        "description": "Engine-hours fuel economy trend (canonical L/hr + cost/hr; lower L/hr\nis better, mirroring the L/100km convention \u2014 less fuel burned per hour\nof engine operation).\n\nThe hours mirror of :class:`FuelEconomyTrend`. ``average_l_per_hr`` /\n``average_cost_per_hr`` are the canonical vehicle-level averages from\n:func:`app.services.fuel_service.calculate_average_hours_economy`\n(``exclude_hauling=True``) \u2014 this is where ``average_l_per_100km`` lives\non the distance side, so the two hours averages live in the equivalent\nplace here. ``best``/``worst``/``recent``/``trend`` come from the trend's\nown full-tank-endpoint pass (``exclude_hauling=False``), matching the\ndistance trend's internal convention. All are ``None`` for a vehicle with\nno ``engine_hours``-bearing fuel records (pure-distance vehicle).",
+        "description": "Engine-hours fuel economy trend (canonical L/hr + cost/hr; lower L/hr\nis better, mirroring the L/100km convention \u2014 less fuel burned per hour\nof engine operation).\n\nThe hours mirror of :class:`FuelEconomyTrend`. Every figure, the two\naverages included, comes from the tanks the trend plots, towing tanks too,\nas ``average_l_per_100km`` does on the distance side. The vehicle card and\ndashboard averages leave hauling out, so they can read lower. All are\n``None`` for a vehicle with no ``engine_hours``-bearing fuel records\n(pure-distance vehicle).",
         "properties": {
           "average_cost_per_hr": {
             "anyOf": [
