@@ -204,6 +204,10 @@ class TestAnalytics:
             await client.get(f"/api/analytics/vehicles/{vin}/tires", headers=auth_headers)
         ).json()
         assert summary["has_usage_record"] is True
+        readiness = summary["readiness"]
+        # These count hours on an hours vehicle, so the names say usage now (D3).
+        assert {"can_report_usage", "needs_reading_usage"} <= readiness.keys()
+        assert not {"can_report_distance", "needs_reading_odometer"} & readiness.keys()
         # Both readings carry the hour meter, so nothing is missing on this axis.
-        assert summary["readiness"]["needs_reading_odometer"] == 0
-        assert summary["readiness"]["can_trend"] == 1
+        assert readiness["needs_reading_usage"] == 0
+        assert readiness["can_trend"] == 1

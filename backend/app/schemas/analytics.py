@@ -496,8 +496,9 @@ class TireReadiness(BaseModel):
     #: at-or-below-minimum safety case).
     can_project: int = 0
     #: `distance_status` is `complete`. A partial history counts as a prompt,
-    #: not as an answer, even though it does report its measurable part.
-    can_report_distance: int = 0
+    #: not as an answer, even though it does report its measurable part. On an
+    #: hours vehicle that's hours on the tire, hence usage.
+    can_report_usage: int = 0
     #: Below `min_tread_mm` today. Surfaced as an action rather than a chart.
     under_minimum: int = 0
 
@@ -506,8 +507,9 @@ class TireReadiness(BaseModel):
     #: needs no second reading to answer the question, and counting it here
     #: too would double it against `can_project`). One reading is a point.
     needs_second_reading: int = 0
-    #: Two readings, but one of the newest pair carries no odometer.
-    needs_reading_odometer: int = 0
+    #: Two readings, but one of the newest pair carries no odometer (no hour
+    #: meter on an hours vehicle).
+    needs_reading_usage: int = 0
     #: `min_tread_mm` is null, so nothing can be projected against it. There is
     #: no 2.0 fallback: that is a column default applied at insert.
     needs_minimum_tread: int = 0

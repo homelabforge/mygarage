@@ -151,7 +151,7 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
     }
     const candidates: [number, string][] = [
       [readiness?.needs_second_reading ?? 0, 'actionSecondReading'],
-      [readiness?.needs_reading_odometer ?? 0, 'actionReadingOdometer'],
+      [readiness?.needs_reading_usage ?? 0, 'actionReadingOdometer'],
       [readiness?.needs_minimum_tread ?? 0, 'actionMinimumTread'],
       [readiness?.needs_mount_odometer ?? 0, 'actionMountOdometer'],
     ]
@@ -259,8 +259,8 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
             <li>{t('vehicle.tires.canProject', { count: readiness?.can_project ?? 0 })}</li>
             <li>
               {onHours
-                ? t('vehicle.tires.canReportHours', { count: readiness?.can_report_distance ?? 0 })
-                : t('vehicle.tires.canReportDistance', { count: readiness?.can_report_distance ?? 0 })}
+                ? t('vehicle.tires.canReportHours', { count: readiness?.can_report_usage ?? 0 })
+                : t('vehicle.tires.canReportDistance', { count: readiness?.can_report_usage ?? 0 })}
             </li>
           </ul>
           <p className="mt-2 text-sm text-garage-text">

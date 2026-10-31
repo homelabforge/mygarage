@@ -116,7 +116,7 @@ class TestTheCapabilityCounts:
             tire(2, distance_status="incomplete"),
         ]
         result = tire_readiness(tires)
-        assert result.can_report_distance == 1
+        assert result.can_report_usage == 1
         assert result.needs_mount_odometer == 1
 
 
@@ -140,7 +140,7 @@ class TestThePromptsAreIndependent:
             ]
         )
         assert result.needs_minimum_tread == 1
-        assert result.needs_reading_odometer == 1
+        assert result.needs_reading_usage == 1
 
     def test_distance_does_not_ask_for_reading_odometers(self):
         """Distance reads period bounds and the vehicle odometer, never a
@@ -155,7 +155,7 @@ class TestThePromptsAreIndependent:
                 )
             ]
         )
-        assert result.needs_reading_odometer == 0
+        assert result.needs_reading_usage == 0
         assert result.needs_mount_odometer == 1
 
     def test_only_the_newest_pair_of_odometers_matters(self):
@@ -168,13 +168,13 @@ class TestThePromptsAreIndependent:
             [tire(readings=[reading(3), reading(2), reading(1, odometer=None)])]
         )
         assert result.can_trend == 1
-        assert result.needs_reading_odometer == 0
+        assert result.needs_reading_usage == 0
 
     def test_a_missing_odometer_on_the_newest_pair_does_count(self):
         result = tire_readiness(
             [tire(readings=[reading(3, odometer=None), reading(2), reading(1)])]
         )
-        assert result.needs_reading_odometer == 1
+        assert result.needs_reading_usage == 1
 
     def test_the_older_of_the_pair_counts_too(self):
         """Both sides, because the figure is a DIFFERENCE.
@@ -186,7 +186,7 @@ class TestThePromptsAreIndependent:
         result = tire_readiness(
             [tire(readings=[reading(3), reading(2, odometer=None), reading(1)])]
         )
-        assert result.needs_reading_odometer == 1
+        assert result.needs_reading_usage == 1
 
 
 class TestWhatAMountOdometerCannotFix:

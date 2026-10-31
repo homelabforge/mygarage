@@ -152,4 +152,4 @@ class TestAnalyticsReadiness:
         readings = [*tied, newest] if lowest_id_first else [newest, *tied[::-1]]
         result = tire_readiness([_response_tire(readings)])
         assert result.can_trend == 1
-        assert result.needs_reading_odometer == 0
+        assert result.needs_reading_usage == 0

@@ -17087,10 +17087,10 @@ export interface components {
              */
             can_project: number;
             /**
-             * Can Report Distance
+             * Can Report Usage
              * @default 0
              */
-            can_report_distance: number;
+            can_report_usage: number;
             /**
              * Can Trend
              * @default 0
@@ -17107,10 +17107,10 @@ export interface components {
              */
             needs_mount_odometer: number;
             /**
-             * Needs Reading Odometer
+             * Needs Reading Usage
              * @default 0
              */
-            needs_reading_odometer: number;
+            needs_reading_usage: number;
             /**
              * Needs Second Reading
              * @default 0

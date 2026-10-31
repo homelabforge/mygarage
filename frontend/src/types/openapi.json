@@ -22996,9 +22996,9 @@
             "title": "Can Project",
             "type": "integer"
           },
-          "can_report_distance": {
+          "can_report_usage": {
             "default": 0,
-            "title": "Can Report Distance",
+            "title": "Can Report Usage",
             "type": "integer"
           },
           "can_trend": {
@@ -23016,9 +23016,9 @@
             "title": "Needs Mount Odometer",
             "type": "integer"
           },
-          "needs_reading_odometer": {
+          "needs_reading_usage": {
             "default": 0,
-            "title": "Needs Reading Odometer",
+            "title": "Needs Reading Usage",
             "type": "integer"
           },
           "needs_second_reading": {

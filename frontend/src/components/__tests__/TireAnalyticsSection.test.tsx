@@ -69,10 +69,10 @@ const EMPTY_READINESS = {
   total: 0,
   can_trend: 0,
   can_project: 0,
-  can_report_distance: 0,
+  can_report_usage: 0,
   under_minimum: 0,
   needs_second_reading: 0,
-  needs_reading_odometer: 0,
+  needs_reading_usage: 0,
   needs_minimum_tread: 0,
   needs_mount_odometer: 0,
 }
@@ -415,7 +415,7 @@ describe('TireAnalyticsSection on the hour meter (#217)', () => {
   it('asks for the hour meter, not the odometer, in the next action and the table', async () => {
     apiGet.mockResolvedValue({
       data: {
-        readiness: { ...EMPTY_READINESS, total: 1, needs_reading_odometer: 1 },
+        readiness: { ...EMPTY_READINESS, total: 1, needs_reading_usage: 1 },
         usage_axis: 'hours',
         has_usage_record: true,
         has_odometer_record: false,
@@ -437,7 +437,7 @@ describe('TireAnalyticsSection on the hour meter (#217)', () => {
   it('counts the tires that can report hours, and distance on a distance vehicle', async () => {
     const summary = (axis: string) => ({
       data: {
-        readiness: { ...EMPTY_READINESS, total: 1, can_report_distance: 1 },
+        readiness: { ...EMPTY_READINESS, total: 1, can_report_usage: 1 },
         usage_axis: axis,
         has_usage_record: true,
         has_odometer_record: true,
