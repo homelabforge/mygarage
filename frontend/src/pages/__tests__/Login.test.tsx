@@ -183,6 +183,15 @@ describe('Login Page: SSO error from the redirect', () => {
     expect(await screen.findByText(sentence)).toBeInTheDocument()
   })
 
+  it('the banner is an alert, so a screen reader reads it out', async () => {
+    mockOidcConfig({ enabled: true, provider_name: 'Rauthy' })
+    visit('?sso_error=failed')
+    render(<Login />)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(SSO_SENTENCES.failed)
+  })
+
   it('an unknown code shows the generic sentence, never its own text', async () => {
     mockOidcConfig({ enabled: true, provider_name: 'Rauthy' })
     visit('?sso_error=Call%20555')

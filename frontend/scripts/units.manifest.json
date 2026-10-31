@@ -2846,7 +2846,7 @@
     {
       "path": "src/pages/Login.tsx",
       "disposition": "no unit behaviour",
-      "digest": "994b801e4245841c2a03c7b23bbd2dcb1a0e40c8a00cbc330f3a0bbbd5cb61c0",
+      "digest": "96baf215bda17d2c8083fb2ae152a67ee2a28ccdc8cfb683d5afeab11f8a3399",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-30 (Plan C): the login page shows an SSO error sentence from a closed set of codes. No unit behaviour. 2026-10-01 (Plan D, D4): adds rate_limited to the closed set of SSO error codes. No unit behaviour."
     },
     {
