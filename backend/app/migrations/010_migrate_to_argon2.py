@@ -79,7 +79,6 @@ def upgrade(engine=None):
                 print(f"\n  → {bcrypt} user(s) need a password reset: bcrypt sign-in was removed")
             else:
                 print("\n  ✓ All passwords migrated to Argon2")
-                print("  Note: You can remove 'bcrypt' from pyproject.toml dependencies")
         else:
             print("✓ No users found - migration tracking complete")
 
