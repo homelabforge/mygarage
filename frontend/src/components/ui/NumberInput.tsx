@@ -19,6 +19,9 @@ interface NumberInputProps extends Omit<ComponentProps<typeof Input>, 'type' | '
   ambiguityHint?: string
 }
 
+/** How often a visible hint checks the form hasn't overwritten the field. Exported for tests. */
+export const OVERWRITE_CHECK_MS = 250
+
 /**
  * The value the user's text was read as, but only when that's the 1000x
  * reading: one separator and three digits after it, and this locale writes its
@@ -116,7 +119,7 @@ export default function NumberInput({
 
   // Forms write fields too (reset, a recalculated cost), and RHF's setValue
   // fires no event and often no render here. So while a hint is up, check the
-  // box still holds what was typed: now, and every 250ms.
+  // box still holds what was typed: now, and every OVERWRITE_CHECK_MS.
   useLayoutEffect(() => {
     const input = inputRef.current
     if (reading === null || input === null) return
@@ -124,7 +127,7 @@ export default function NumberInput({
       if (input.value !== typed) setTyped(null)
     }
     dropIfOverwritten()
-    const timer = window.setInterval(dropIfOverwritten, 250)
+    const timer = window.setInterval(dropIfOverwritten, OVERWRITE_CHECK_MS)
     return () => window.clearInterval(timer)
   })
 

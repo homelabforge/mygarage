@@ -33,6 +33,7 @@ vi.mock('../../hooks/useCurrencySymbol', () => ({ useCurrencySymbol: () => '$' }
 import { UK_IMPERIAL_UNITS } from '../../__tests__/factories'
 import { UnitConverter } from '../../utils/units'
 import DEFRecordForm from '../DEFRecordForm'
+import { OVERWRITE_CHECK_MS } from '../ui/NumberInput'
 
 const DEFAULT_PROPS = { vin: 'TEST12345678901234', onClose: vi.fn(), onSuccess: vi.fn() }
 const defForm = () => document.getElementById('def-record-form') as HTMLFormElement
@@ -282,6 +283,9 @@ describe('DEFRecordForm: the NumberInput ambiguity hint reaches a registerDecima
     fireEvent.change(document.getElementById('price_per_unit') as HTMLInputElement, { target: { value: '2' } })
     await waitFor(() => expect(cost.value).toBe('10'))
     // setValue fires no event and no render here, so NumberInput notices on its next check.
-    await waitFor(() => expect(screen.queryByText('numberInput.readAs')).toBeNull())
+    // The timeout follows the interval, so slowing the check can't make this flaky.
+    await waitFor(() => expect(screen.queryByText('numberInput.readAs')).toBeNull(), {
+      timeout: OVERWRITE_CHECK_MS * 4,
+    })
   })
 })

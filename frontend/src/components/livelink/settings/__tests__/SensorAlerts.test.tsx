@@ -215,4 +215,28 @@ describe('SensorAlerts', () => {
     expect(field('Battery: Low').value).toBe('17')
     expect(save()).toBeDisabled()
   })
+
+  it("puts NumberInput's read-as hint outside the field's label and its narrow box", () => {
+    renderAlerts()
+    type('Level: Low', '1,234')
+
+    // This file's i18n mock only knows settings, so the common hint reads as its key.
+    const hint = screen.getByText('numberInput.readAs')
+    const input = field('Level: Low')
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(hint.id)
+    // Inside a <label> it joins the label's text, and inside the 5rem box it wraps to nothing.
+    expect(hint.closest('label')).toBeNull()
+    expect(hint.closest('.w-20')).toBeNull()
+  })
+
+  it('labels each field with its line name alone, and keeps the hint out of the name', () => {
+    // The wrapping label used to pull in the unit suffix and the hint too. The name half is a
+    // guard (aria-label already won it); the labels half fails if the label wraps again or loses htmlFor.
+    renderAlerts()
+    type('Level: Low', '1,234')
+
+    const input = field('Level: Low')
+    expect(Array.from(input.labels ?? []).map((l) => l.textContent)).toEqual(['Low'])
+    expect(screen.queryByRole('textbox', { name: /numberInput\.readAs/ })).toBeNull()
+  })
 })
