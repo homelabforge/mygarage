@@ -433,12 +433,17 @@ async def upload_backup(
         if backup_type == "settings":
             import json
 
+            # ValueError, not JSONDecodeError: non-UTF-8 bytes and an int past
+            # 4300 digits raise its other subclasses.
             try:
                 backup_data = json.loads(content)
-                if "settings" not in backup_data or not isinstance(backup_data["settings"], list):
-                    raise HTTPException(status_code=400, detail="Invalid backup file structure")
-            except json.JSONDecodeError:
+            except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid JSON file")
+            # The shape the restore checks for, so a bad file never lands in the list.
+            if not isinstance(backup_data, dict) or not isinstance(
+                backup_data.get("settings"), list
+            ):
+                raise HTTPException(status_code=400, detail="Invalid backup file structure")
 
         # Write to backup directory
         with open(backup_path, "wb") as f:
