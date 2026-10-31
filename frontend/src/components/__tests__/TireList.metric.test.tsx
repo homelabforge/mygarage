@@ -67,8 +67,9 @@ const METRIC: UnitSet = {
 
 const h = vi.hoisted(() => ({ units: null as unknown }))
 
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     // `system` stays 'metric' in every case below, including the custom one:
     // spec D8 derives it from VOLUME, which is litres throughout. A component
     // reading `system` instead of the resolved set cannot tell these apart.
@@ -76,8 +77,12 @@ vi.mock('../../hooks/useUnitPreference', () => ({
     showBoth: false,
     gallonStandard: 'us',
     units: h.units,
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 import TireList from '../TireList'
 
