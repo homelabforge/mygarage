@@ -18,6 +18,7 @@ import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { canonicalFromUnitField, seedUnitField } from '../../utils/unitFormat'
 import { num } from '../../utils/wireNumber'
+import { withUnitSession } from '../../contexts/UnitSession'
 import MountEventFields, { type OdometerFieldValue } from '../tires/MountEventFields'
 import { Button, Chip, Drawer, Field, Input, Toggle } from '../ui'
 import { formatMm } from './useBrakeText'
@@ -57,7 +58,7 @@ interface MeasurementEditorProps {
  * job wrote keeps the job's date and odometer; change those on the job.
  * Render with `key={measurement.id}` so it seeds once per measurement.
  */
-export function MeasurementEditor({
+function MeasurementEditorForm({
   vin,
   overview,
   measurement,
@@ -199,7 +200,7 @@ interface JobEditorProps {
  * Correct one corner's brake job. The new-pads figure it wrote moves with
  * its date and odometer, and goes if the pads come off the job.
  */
-export function JobEditor({ vin, overview, job, open, onClose }: JobEditorProps): ReactElement {
+function JobEditorForm({ vin, overview, job, open, onClose }: JobEditorProps): ReactElement {
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
   const update = useUpdateBrakeJob(vin)
@@ -307,3 +308,7 @@ export function JobEditor({ vin, overview, job, open, onClose }: JobEditorProps)
     </Drawer>
   )
 }
+
+// Both pin their units for as long as they're open (R4).
+export const MeasurementEditor = withUnitSession(MeasurementEditorForm)
+export const JobEditor = withUnitSession(JobEditorForm)

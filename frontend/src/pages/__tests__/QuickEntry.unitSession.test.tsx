@@ -7,10 +7,13 @@
  * `useUnitPreference` runs here (only `AuthContext` is mocked), and the
  * odometer form is replaced by a probe that records the unit on EVERY render,
  * so a capture that flips after the first frame is caught too.
+ *
+ * The real forms pin themselves now (R4), so the probe wraps itself the same
+ * way and Quick Entry only hands down a live, keyed scope.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { METRIC_UNITS } from '../../__tests__/factories'
 
 const h = vi.hoisted(() => ({
@@ -36,8 +39,9 @@ vi.mock('../../contexts/AuthContext', () => ({
 }))
 vi.mock('../../components/OdometerRecordForm', async () => {
   const { useUnitPreference } = await import('../../hooks/useUnitPreference')
+  const { withUnitSession } = await import('../../contexts/UnitSession')
   return {
-    default: function OdometerProbe({ onClose }: { onClose: () => void }) {
+    default: withUnitSession(function OdometerProbe({ onClose }: { onClose: () => void }) {
       const unit = useUnitPreference().units.distance
       h.seen.push(unit)
       return (
@@ -46,7 +50,7 @@ vi.mock('../../components/OdometerRecordForm', async () => {
           <button onClick={onClose}>close-form</button>
         </div>
       )
-    },
+    }),
   }
 })
 vi.mock('../../components/FuelRecordForm', () => ({ default: () => <div>form:fuel</div> }))
@@ -58,8 +62,9 @@ vi.mock('../../components/HoursRecordForm', () => ({ default: () => <div>form:ho
 import QuickEntry from '../QuickEntry'
 
 const VIN = 'VIN00000000000001'
-const vehicle = (distance_unit: 'km' | 'mi' | null) => ({
-  vin: VIN,
+const VIN2 = 'VIN00000000000002'
+const vehicle = (distance_unit: 'km' | 'mi' | null, vin = VIN) => ({
+  vin,
   nickname: 'Test',
   year: 2023,
   make: 'Make',
@@ -73,9 +78,16 @@ const vehicle = (distance_unit: 'km' | 'mi' | null) => ({
   distance_unit,
 })
 
-const page = (url: string) => (
+/** A button that follows a deep link, the way a PWA shortcut would. */
+function GoTo({ to }: { to: string }) {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate(to)}>go</button>
+}
+
+const page = (url: string, next?: string) => (
   <MemoryRouter initialEntries={[url]}>
     <QuickEntry />
+    {next && <GoTo to={next} />}
   </MemoryRouter>
 )
 
@@ -107,6 +119,17 @@ describe('a Quick Entry form keeps the unit it opened with', () => {
     // Close it and open the odometer entry again: now in km.
     fireEvent.click(screen.getByText('close-form'))
     fireEvent.click(screen.getByText('quickEntry.mileage'))
+    expect(screen.getByText('form:odometer:km')).toBeInTheDocument()
+  })
+
+  it('guard: a deep link that swaps the vehicle under an open form remounts it in the new unit', () => {
+    // The key on Quick Entry's scope is what does this. The probe pins itself,
+    // so without the key it would keep the first vehicle's miles.
+    h.vehicles = [vehicle('mi'), vehicle('km', VIN2)]
+    render(page(`/quick-entry?action=odometer&vin=${VIN}`, `/quick-entry?action=odometer&vin=${VIN2}`))
+    expect(screen.getByText('form:odometer:mi')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('go'))
     expect(screen.getByText('form:odometer:km')).toBeInTheDocument()
   })
 })

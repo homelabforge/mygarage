@@ -12,6 +12,7 @@ import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { canonicalFromUnitField } from '../../utils/unitFormat'
 import { Button, Chip, Drawer, Field, Input } from '../ui'
 import MountEventFields, { EMPTY_ODOMETER, type OdometerFieldValue } from './MountEventFields'
+import { withUnitSession } from '../../contexts/UnitSession'
 
 interface AddPastPeriodDrawerProps {
   vin: string
@@ -37,7 +38,7 @@ interface AddPastPeriodDrawerProps {
  * opens from the history drawer and a modal opened from a drawer is inert
  * in this app.
  */
-export default function AddPastPeriodDrawer({
+function AddPastPeriodDrawer({
   vin,
   tire,
   open,
@@ -174,3 +175,6 @@ export default function AddPastPeriodDrawer({
     </Drawer>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(AddPastPeriodDrawer)

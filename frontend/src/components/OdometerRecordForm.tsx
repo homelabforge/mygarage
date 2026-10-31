@@ -13,6 +13,7 @@ import { readNumber } from '../utils/decimalSafe'
 import { formatDateForInput } from '../utils/dateUtils'
 import { useFormSubmit } from '../hooks/useFormSubmit'
 import { Button, Field, Input, NumberInput, Textarea, registerDecimal } from './ui'
+import { withUnitSession } from '../contexts/UnitSession'
 
 interface OdometerRecordFormProps {
   vin: string
@@ -21,7 +22,7 @@ interface OdometerRecordFormProps {
   onSuccess: () => void
 }
 
-export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: OdometerRecordFormProps) {
+function OdometerRecordForm({ vin, record, onClose, onSuccess }: OdometerRecordFormProps) {
   const { t } = useTranslation('forms')
   const isEdit = !!record
   const createMutation = useCreateOdometerRecord(vin)
@@ -139,3 +140,6 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
     </FormModalWrapper>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(OdometerRecordForm)

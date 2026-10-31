@@ -49,6 +49,7 @@ import TimeInput24, { normalizeTime, formatTimeForInput } from './common/TimeInp
 import { useTimeFormat } from '../hooks/useTimeFormat'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { withUnitSession } from '../contexts/UnitSession'
 
 const MORE_DETAILS_KEY = 'fuel_form:more_details_expanded'
 
@@ -114,7 +115,7 @@ interface FuelRecordFormProps {
   onSuccess: () => void
 }
 
-export default function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps) {
+function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps) {
   const { t } = useTranslation('forms')
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
@@ -1594,3 +1595,6 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     </FormModalWrapper>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(FuelRecordForm)

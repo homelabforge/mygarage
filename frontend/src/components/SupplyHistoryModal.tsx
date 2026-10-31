@@ -39,6 +39,7 @@ import { getActiveLocale } from '@/constants/i18n'
 import { applyServerErrors } from '@/hooks/useApiFormErrors'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { moneyError } from '@/schemas/shared'
+import { withUnitSession } from '@/contexts/UnitSession'
 
 type SupplyLedgerEntry = components['schemas']['SupplyLedgerEntry']
 
@@ -64,7 +65,7 @@ function formatSignedQuantity(raw: string, unit: SupplyUnit): string {
   return `${sign}${magnitude}${label ? ` ${label}` : ''}`
 }
 
-export default function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModalProps) {
+function SupplyHistoryModal({ supply, onClose, initialForm }: SupplyHistoryModalProps) {
   const { t } = useTranslation('common')
   const { system } = useUnitPreference()
   // Resolve once; everything below reads the token, never `system`.
@@ -729,3 +730,6 @@ function AdjustmentForm({
     </form>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(SupplyHistoryModal)

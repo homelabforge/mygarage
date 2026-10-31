@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
+import { useMemo, useRef, useState, useEffect, useCallback, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -22,6 +22,7 @@ import { applyServerErrors } from '../../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { usePublicSettings } from '../../hooks/usePublicSettings'
 import { isSettingOn } from '../../utils/settingSwitch'
+import { UnitSession } from '../../contexts/UnitSession'
 
 /** Vehicles with no engine, VIN-decoded drivetrain, or DEF system. */
 const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
@@ -92,7 +93,7 @@ interface VehicleEditDrawerProps {
  * unregistered key short-circuits to `undefined`, JSON.stringify drops it, and
  * the backend's `exclude_unset=True` leaves the column untouched.
  */
-export default function VehicleEditDrawer({
+function VehicleEditForm({
   open,
   onClose,
   vin,
@@ -673,5 +674,18 @@ export default function VehicleEditDrawer({
       </form>
       )}
     </FormModalWrapper>
+  )
+}
+
+/**
+ * The drawer stays mounted while closed, so each open takes a fresh pin (R4).
+ * Account set only: it edits the vehicle's own odometer unit and converts no
+ * distance, and VehicleDetail's scope already remounts it on a unit change.
+ */
+export default function VehicleEditDrawer(props: VehicleEditDrawerProps): ReactElement {
+  return (
+    <UnitSession open={props.open} accountOnly>
+      <VehicleEditForm {...props} />
+    </UnitSession>
   )
 }

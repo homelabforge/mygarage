@@ -20,6 +20,7 @@ import { canonicalFromUnitField } from '../../utils/unitFormat'
 import MountEventFields, { EMPTY_ODOMETER, type OdometerFieldValue } from '../tires/MountEventFields'
 import { Button, Chip, Drawer, Field, Input, Textarea, Toggle } from '../ui'
 import { useBrakeText } from './useBrakeText'
+import { withUnitSession } from '../../contexts/UnitSession'
 
 interface BrakeJobDrawerProps {
   vin: string
@@ -40,7 +41,7 @@ const AXLE_CORNERS: Record<BrakeAxleName, BrakePosition[]> = {
  * New pads start the corner's wear estimate over, from the new thickness when
  * it's filled in. Remount it (with a `key`) to start the form over.
  */
-export default function BrakeJobDrawer({
+function BrakeJobDrawer({
   vin,
   overview,
   open,
@@ -243,3 +244,6 @@ export default function BrakeJobDrawer({
     </Drawer>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(BrakeJobDrawer)

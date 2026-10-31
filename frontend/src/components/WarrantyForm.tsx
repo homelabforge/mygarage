@@ -13,6 +13,7 @@ import { useFormSubmit } from '../hooks/useFormSubmit'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
 import { readNumber } from '../utils/decimalSafe'
+import { withUnitSession } from '../contexts/UnitSession'
 
 interface WarrantyFormProps {
   vin: string
@@ -21,7 +22,7 @@ interface WarrantyFormProps {
   onSuccess: () => void
 }
 
-export default function WarrantyForm({ vin, record, onClose, onSuccess }: WarrantyFormProps) {
+function WarrantyForm({ vin, record, onClose, onSuccess }: WarrantyFormProps) {
   const { t } = useTranslation('forms')
   const isEdit = !!record
   const createMutation = useCreateWarrantyRecord(vin)
@@ -174,3 +175,6 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
     </FormModalWrapper>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(WarrantyForm)

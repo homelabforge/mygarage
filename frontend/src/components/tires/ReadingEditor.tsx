@@ -15,6 +15,7 @@ import { num } from '../../utils/wireNumber'
 import { Button, Drawer, Field, Input } from '../ui'
 import MountEventFields, { type OdometerFieldValue } from './MountEventFields'
 import TreadField from './TreadField'
+import { withUnitSession } from '../../contexts/UnitSession'
 
 interface ReadingEditorProps {
   vin: string
@@ -46,7 +47,7 @@ interface EditorState {
  * one is deliberate; only the vehicle's own axes render, as in Log Reading.
  * Render with `key={reading.id}` so it seeds once per reading.
  */
-export default function ReadingEditor({
+function ReadingEditor({
   vin,
   tire,
   reading,
@@ -190,3 +191,6 @@ export default function ReadingEditor({
     </Drawer>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(ReadingEditor)
