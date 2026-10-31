@@ -2292,7 +2292,19 @@ class TireService:
         await self.db.flush()
         self.refuse_contradictions(tire, before, {period.id}, axes)
 
-        # Captured axes only: a junk odometer on an hours vehicle must not grow a row.
+        # An axis the vehicle stopped tracking only moves rows this period already
+        # owns there, date only (D5). A junk figure never grows a new row.
+        for axis in (DISTANCE, HOURS):
+            if axes.tracks(axis.kind):
+                continue
+            if period.mounted_on != old_dates[0]:
+                await self._follow_untracked_date(
+                    vin, ODOMETER_SOURCE_TIRE_MOUNT, period.id, period.mounted_on, axis
+                )
+            if period.dismounted_on != old_dates[1]:
+                await self._follow_untracked_date(
+                    vin, ODOMETER_SOURCE_TIRE_DISMOUNT, period.id, period.dismounted_on, axis
+                )
         for axis in axes.captured:
             old_mount, old_dismount = old[axis.kind]
             if (period.mounted_on, axis.mounted(period)) != old_mount:
@@ -2400,6 +2412,38 @@ class TireService:
             await self.db.delete(owned)
             await self.db.flush()
             await republish_day_backer(self.db, vin, old_day, axis)
+
+    async def _follow_untracked_date(
+        self,
+        vin: str,
+        source_type: str,
+        period_id: int,
+        when: dt.date | None,
+        axis: UsageAxis,
+    ) -> None:
+        """Move a period event's row on an axis the vehicle no longer tracks (D5).
+
+        Only a row this period's marker already owns, and only its date: the
+        figure stays as stored, since the user may have corrected it on the row
+        (codex R1-F2), and a figure on this axis can't be sent anyway
+        (`refuse_untracked`). A cleared date deletes it, as `_follow_period_event`
+        does, because the row's date can't be null. No row, nothing happens.
+
+        Then the old day's backer, on this axis like the captured follower, so a
+        reading that stood behind the row isn't stranded (S2-02, ruling 3).
+        """
+        owned = await _owned_usage_record(
+            self.db, vin, axis, auto_sync_marker(source_type, period_id)
+        )
+        if owned is None or owned.date == when:
+            return
+        old_day = owned.date
+        if when is None:
+            await self.db.delete(owned)
+        else:
+            owned.date = when
+        await self.db.flush()
+        await republish_day_backer(self.db, vin, old_day, axis)
 
     async def restore_tire(self, vin: str, tire_id: int, current_user: User | None) -> TireResponse:
         """Un-retire a tire. It goes back to storage with its whole history.
