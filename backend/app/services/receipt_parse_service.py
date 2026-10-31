@@ -76,8 +76,9 @@ _COST_COL = _column_type("cost")
 _KWH_COL = _column_type("kwh")
 
 # Plain decimals only. Decimal() also takes "1_000", "1e3" and "NaN", and none
-# of those is how a receipt prints a number.
-_PLAIN_DECIMAL = re.compile(r"-?[0-9]+(?:\.[0-9]+)?")
+# of those is how a receipt prints a number. Fifteen whole digits is more than
+# any column holds, and a million-digit one would overflow the mi/gal maths.
+_PLAIN_DECIMAL = re.compile(r"-?[0-9]{1,15}(?:\.[0-9]+)?")
 
 
 def _number(value: Any) -> Decimal | None:
@@ -144,7 +145,10 @@ def _positive(value: Decimal | None) -> Decimal | None:
 
 def _non_negative(value: Decimal | None) -> Decimal | None:
     """Null below zero. Zero stays, since a free charge is a real receipt."""
-    return value if value is not None and value >= 0 else None
+    if value is None or value < 0:
+        return None
+    # "-0.00" passes the check above, and a free charge isn't negative.
+    return value.copy_abs() if value.is_zero() else value
 
 
 def _build_draft(raw: dict[str, Any]) -> dict[str, Any]:

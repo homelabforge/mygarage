@@ -1,6 +1,8 @@
 """Integration tests for opt-in LLM fuel receipt parse."""
 
 import json
+import math
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -362,11 +364,13 @@ class TestReceiptParse:
                 "odometer_unit": "km",
                 "volume": 1e30,
                 "volume_unit": "L",
-                "price_per_unit": 10**400,
+                # Ten whole digits against NUMERIC(13, 4), finite on purpose: 10**400
+                # goes inf and serializes as null on its own. Mutation: skip _stored
+                # for price only and this goes red.
+                "price_per_unit": 1234567890,
                 "price_volume_unit": "L",
                 "cost": 1e30,
-                # Six whole digits against NUMERIC(8, 3). 10**400 would go inf
-                # and serialize as null on its own, proving nothing.
+                # Six whole digits against NUMERIC(8, 3).
                 "kwh": 123456,
             },
         )
@@ -375,6 +379,53 @@ class TestReceiptParse:
         assert draft["price_per_unit"] is None
         assert draft["cost"] is None
         assert draft["kwh"] is None
+
+    @pytest.mark.parametrize(
+        ("number_key", "unit_key", "unit", "draft_key"),
+        [
+            ("odometer", "odometer_unit", "mi", "odometer_km"),
+            ("price_per_unit", "price_volume_unit", "gal", "price_per_unit"),
+        ],
+        ids=["odometer-mi", "price-per-gal"],
+    )
+    async def test_a_number_too_long_to_convert_is_null_not_a_500(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        test_vehicle,
+        db_session,
+        number_key: str,
+        unit_key: str,
+        unit: str,
+        draft_key: str,
+    ):
+        # A million digits is past Decimal's exponent limit, so the mi and gal
+        # conversions used to overflow into a 500 before any width check.
+        draft, _ = await _parse_with_llm(
+            client,
+            auth_headers,
+            test_vehicle["vin"],
+            db_session,
+            {number_key: "9" * 1_000_010, unit_key: unit, "cost": "12"},
+        )
+        assert draft[draft_key] is None
+        assert draft["cost"] == 12.0
+
+    async def test_negative_zero_cost_and_kwh_come_back_as_plain_zero(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        # "-0.00" passed the >= 0 check and came back as -0.0.
+        draft, _ = await _parse_with_llm(
+            client,
+            auth_headers,
+            test_vehicle["vin"],
+            db_session,
+            {"cost": "-0.00", "kwh": -0.0},
+        )
+        assert draft["cost"] == 0.0
+        assert draft["kwh"] == 0.0
+        assert math.copysign(1.0, draft["cost"]) == 1.0
+        assert math.copysign(1.0, draft["kwh"]) == 1.0
 
     async def test_largest_value_that_fits_survives(
         self, client: AsyncClient, auth_headers, test_vehicle, db_session
@@ -542,3 +593,12 @@ class TestReceiptParse:
                 headers=auth_headers,
             )
         assert response.status_code == 413
+
+
+def test_number_caps_whole_digits() -> None:
+    """The cap itself. Fifteen whole digits is more than any column holds, sixteen is refused."""
+    from app.services.receipt_parse_service import _number
+
+    assert _number("1" * 15) == Decimal("1" * 15)
+    assert _number("-" + "1" * 15 + ".5") == Decimal("-" + "1" * 15 + ".5")
+    assert _number("1" * 16) is None
