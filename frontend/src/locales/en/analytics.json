@@ -369,6 +369,8 @@
       "noHoursRecord": "This vehicle has no hour meter reading, so any tire still fitted has no upper bound for its hours. Log one and these figures fill in.",
       "trendTitle": "Tread over time",
       "trendEmpty": "No tire has two tread readings yet, so there is nothing to plot.",
+      "trendSeriesDot": "{{label}} (DOT {{dot}})",
+      "trendSeriesNumbered": "{{label}} #{{n}}",
       "tableTitle": "Per tire",
       "colTire": "Tire",
       "colTread": "Tread",

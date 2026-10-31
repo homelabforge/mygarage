@@ -123,6 +123,10 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
   const trending = live.filter(
     (tire) => (tire.readings ?? []).filter((r: TireReading) => r.tread_depth_mm != null).length >= 2
   )
+  /* Series are keyed by tire id, not by label. A stored set of four identical
+     tires shares one label, and keyed that way they all wrote into one column
+     and drew as one line (G4-22). */
+  const seriesKey = (tire: Tire): string => `tire-${tire.id}`
   const trendRows = (() => {
     const byDate = new Map<string, Record<string, number | string>>()
     for (const tire of trending) {
@@ -130,11 +134,37 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
         if (reading.tread_depth_mm == null) continue
         const row = byDate.get(reading.recorded_at) ?? { date: reading.recorded_at }
         const converted = u.tread.toDisplay(num(reading.tread_depth_mm))
-        if (converted != null) row[label(tire)] = converted
+        if (converted != null) row[seriesKey(tire)] = converted
         byDate.set(reading.recorded_at, row)
       }
     }
     return [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)))
+  })()
+  /* Legend text, keyed by tire id. A unique label stays as is. Tires that
+     share one get their DOT code if that tells them all apart, otherwise the
+     lowest id keeps the plain label and the rest get #2, #3 in id order. */
+  const legend = (() => {
+    const byLabel = new Map<string, Tire[]>()
+    for (const tire of trending) {
+      const text = label(tire)
+      byLabel.set(text, [...(byLabel.get(text) ?? []), tire])
+    }
+    const names = new Map<number, string>()
+    for (const [text, group] of byLabel) {
+      const ordered = [...group].sort((a, b) => a.id - b.id)
+      const dots = ordered.map((tire) => tire.dot_code?.trim() ?? '')
+      const byDot = ordered.length > 1 && dots.every(Boolean) && new Set(dots).size === dots.length
+      ordered.forEach((tire, index) => {
+        if (byDot) {
+          names.set(tire.id, t('vehicle.tires.trendSeriesDot', { label: text, dot: dots[index] }))
+        } else if (index === 0) {
+          names.set(tire.id, text)
+        } else {
+          names.set(tire.id, t('vehicle.tires.trendSeriesNumbered', { label: text, n: index + 1 }))
+        }
+      })
+    }
+    return names
   })()
 
   /**
@@ -151,7 +181,7 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
     }
     const candidates: [number, string][] = [
       [readiness?.needs_second_reading ?? 0, 'actionSecondReading'],
-      [readiness?.needs_reading_usage ?? 0, 'actionReadingOdometer'],
+      [readiness?.needs_reading_usage ?? 0, 'actionReadingUsage'],
       [readiness?.needs_minimum_tread ?? 0, 'actionMinimumTread'],
       [readiness?.needs_mount_odometer ?? 0, 'actionMountOdometer'],
     ]
@@ -163,7 +193,7 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
     switch (best[1]) {
       case 'actionSecondReading':
         return t('vehicle.tires.actionSecondReading', { count: best[0] })
-      case 'actionReadingOdometer':
+      case 'actionReadingUsage':
         return onHours
           ? t('vehicle.tires.actionReadingHours', { count: best[0] })
           : t('vehicle.tires.actionReadingOdometer', { count: best[0] })
@@ -298,7 +328,8 @@ export default function TireAnalyticsSection({ vin }: TireAnalyticsSectionProps)
                 <Line
                   key={tire.id}
                   type="monotone"
-                  dataKey={label(tire)}
+                  dataKey={seriesKey(tire)}
+                  name={legend.get(tire.id)}
                   stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
                   connectNulls
                 />
