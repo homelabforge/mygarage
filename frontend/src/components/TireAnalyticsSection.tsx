@@ -36,6 +36,7 @@ import type { components } from '@/types/api.generated'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatHours } from '../utils/hoursFormat'
+import { num } from '../utils/wireNumber'
 
 type TireAnalytics = components['schemas']['TireAnalyticsSummary']
 type TireReadiness = components['schemas']['TireReadiness']
@@ -78,9 +79,6 @@ export function useTireAnalytics(vin: string) {
 
   return { data }
 }
-
-const num = (v: number | string | null | undefined): number | null =>
-  v === null || v === undefined || v === '' ? null : Number(v)
 
 interface TireAnalyticsSectionProps {
   vin: string

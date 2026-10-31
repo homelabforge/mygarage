@@ -32,6 +32,7 @@ import {
 import { canonicalFromTreadField } from '../utils/treadEntry'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { formatHours, hoursFromField } from '../utils/hoursFormat'
+import { num } from '../utils/wireNumber'
 import {
   Button,
   IconButton,
@@ -272,10 +273,6 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
    * Cost of joining: the projection reads "~621 mi" where it read "~621.37 mi",
    * because distance's declared precision is whole units. */
   const u = useUnitFormat()
-
-  /** Tire API fields are `number | string | null`; the unit utils take `number | null`. */
-  const num = (v: number | string | null | undefined): number | null =>
-    v === null || v === undefined || v === '' ? null : Number(v)
 
   /** A figure on the tire's own axis: hours on an hours-only vehicle, else the reader's distance unit. */
   const usageText = (tire: Tire, value: number | string): string =>

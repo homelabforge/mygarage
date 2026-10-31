@@ -16,6 +16,7 @@ import type {
 import { formatDateForDisplay } from '../../utils/dateUtils'
 import { formatHours } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
+import { num } from '../../utils/wireNumber'
 import { Badge, Button, Drawer, EmptyState, ListRow } from '../ui'
 
 interface TireHistoryDrawerProps {
@@ -89,8 +90,6 @@ export default function TireHistoryDrawer({
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
   const removeReading = useDeleteTireReading(vin)
-  const num = (v: number | string | null | undefined): number | null =>
-    v === null || v === undefined || v === '' ? null : Number(v)
 
   /* `mount_periods` arrives oldest first: TireService sorts by (mounted_on,
      id) before building the response, and `installed_date` is derived from

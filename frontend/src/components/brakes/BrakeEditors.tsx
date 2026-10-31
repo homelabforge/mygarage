@@ -17,9 +17,10 @@ import { formatDateForDisplay } from '../../utils/dateUtils'
 import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { canonicalFromUnitField, seedUnitField } from '../../utils/unitFormat'
+import { num } from '../../utils/wireNumber'
 import MountEventFields, { type OdometerFieldValue } from '../tires/MountEventFields'
 import { Button, Chip, Drawer, Field, Input, Toggle } from '../ui'
-import { formatMm, num } from './useBrakeText'
+import { formatMm } from './useBrakeText'
 
 type Figure = 'inner_pad_mm' | 'outer_pad_mm' | 'rotor_mm' | 'shoe_mm' | 'drum_mm'
 
@@ -28,7 +29,11 @@ const FIGURES: Record<BrakeType, Figure[]> = {
   drum: ['shoe_mm', 'drum_mm'],
 }
 
-const typed = (v: number | string | null | undefined): string => (v == null ? '' : String(Number(v)))
+// Built on num so a blank figure seeds a blank field, not '0'.
+const typed = (v: number | string | null | undefined): string => {
+  const n = num(v)
+  return n == null ? '' : String(n)
+}
 
 const mm = (text: string): number | null => {
   const trimmed = text.trim()
