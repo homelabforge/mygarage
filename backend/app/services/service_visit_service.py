@@ -52,6 +52,23 @@ _KEPT_WHEN_OMITTED = (
 )
 
 
+def drop_stray_links(items: Sequence[ServiceLineItem]) -> None:
+    """Null every link that doesn't name another inspection in ``items`` (S1d-04, D1).
+
+    ``items`` is the visit's whole item list as it'll be saved. A link to an
+    item that's not an inspection is dropped rather than refused. Missing and
+    self targets go too, for rows from before the API refused them.
+    """
+    by_id = {item.id: item for item in items}
+    for item in items:
+        ref = item.triggered_by_inspection_id
+        if ref is None:
+            continue
+        target = by_id.get(ref)
+        if target is None or target is item or not target.is_inspection:
+            item.triggered_by_inspection_id = None
+
+
 def service_visit_full_load_options():
     """Loader options for building a full ServiceVisitResponse: line_items →
     supply_usages → supply (needed for SupplyUsageResponse.supply_name) + vendor.
@@ -359,6 +376,9 @@ class ServiceVisitService:
                     self.db, vin, line_item, visit, item_data.reminder
                 )
 
+        # A link has to land on an inspection; anything else just goes.
+        drop_stray_links([line_item for _data, line_item in created_items])
+
         # Pass 3: sync supply usages for each created line item
         for item_data, line_item in created_items:
             if item_data.supplies_used:
@@ -536,6 +556,15 @@ class ServiceVisitService:
                         linked.triggered_by_inspection_id = temp_id_map.get(ref)
                     else:
                         linked.triggered_by_inspection_id = ref if ref in submitted_ids else None
+
+                # Over every item the visit keeps, so unticking an inspection
+                # drops the links to it even from repairs that didn't send one.
+                # Not visit.line_items: that still holds the deleted rows and
+                # never got the new ones.
+                drop_stray_links(
+                    [existing[i] for i in submitted_ids if i in existing]
+                    + [li for _, li in new_items]
+                )
 
                 for item_data, line_item in new_items:
                     await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
@@ -798,6 +827,8 @@ class ServiceVisitService:
             )
             self.db.add(line_item)
             await self.db.flush()
+            # A link to an item that isn't an inspection just goes.
+            drop_stray_links([*visit.line_items, line_item])
 
             if item_data.reminder:
                 await maintenance_service.create_reminder_for_line_item(

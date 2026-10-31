@@ -543,6 +543,41 @@ async def test_a_line_item_link_outside_its_visit_is_a_row_error(
     assert await _visits(test_sessionmaker, vin) == []
 
 
+async def test_a_line_item_link_to_an_item_that_isnt_an_inspection_imports_without_it(
+    client: AsyncClient, auth_headers, test_user, db_session: AsyncSession, test_sessionmaker
+):
+    """The link is dropped, not refused (S1d-04, D1): the visit imports clean."""
+    vin = await _vehicle(db_session, test_user["id"], "B10SVCJSONSTRAY01")
+    data = await _post_json(
+        client,
+        auth_headers,
+        vin,
+        {
+            "export_version": "9",
+            "units": "metric",
+            "service_visits": [
+                {
+                    "date": "2026-07-06",
+                    "odometer_km": 9100.0,
+                    "line_items": [
+                        {"description": "Wipers", "cost": 20.0},
+                        {"description": "Pads", "cost": 100.0, "triggered_by_inspection": 0},
+                    ],
+                }
+            ],
+        },
+    )
+    assert data["service_records"]["success_count"] == 1, data
+    assert data["service_records"]["error_count"] == 0, data
+    assert data["errors"] == []
+    (visit,) = await _visits(test_sessionmaker, vin)
+    # main: the pads point at the wipers
+    assert [(i.description, i.triggered_by_inspection_id) for i in visit.line_items] == [
+        ("Wipers", None),
+        ("Pads", None),
+    ]
+
+
 _CATEGORY_WORDS = "Maintenance, Inspection, Collision, Upgrades, Detailing"
 
 
