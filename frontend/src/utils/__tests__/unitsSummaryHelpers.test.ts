@@ -80,9 +80,10 @@ describe('UnitFormatter summary card helpers', () => {
       expect(UnitFormatter.getVolumeUnit(UK)).toBe('gal (UK)')
     })
 
-    it.each([METRIC, US, UK])('matches the volume adapter label (%#)', (units) => {
-      // Both used to carry their own literals, which is how the UK gallon
-      // ended up plain 'gal' in both places at once.
+    it.each([METRIC, US, UK])('guard: matches the volume adapter label (%#)', (units) => {
+      // Guard, not a defect test: on main both sides said 'gal' for UK, so it
+      // passed there. It's here to catch a literal creeping back into
+      // getVolumeUnit; putting 'gal' back for the gallons fails the UK case.
       const label = adapterFor(units, 'volume').label
       expect(UnitFormatter.getVolumeUnit(units)).toBe(label)
       expect(UnitFormatter.formatVolumeShort(10, units).endsWith(` ${label}`)).toBe(true)

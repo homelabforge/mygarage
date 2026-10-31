@@ -354,7 +354,8 @@ describe('VehicleStatisticsCard', () => {
       screen.getByText('vehicleStatisticsCardExtra.averageFuelEconomy (gal (UK)/hr)'),
     ).toBeInTheDocument()
     expect(screen.getByText('1.00 gal (UK)/hr')).toBeInTheDocument()
-    expect(screen.queryByText('1.20 gal (UK)/hr')).not.toBeInTheDocument()
+    // What the US gallon would have printed: 4.54609 / 3.785411784 = 1.20.
+    expect(screen.queryByText('1.20 gal/hr')).not.toBeInTheDocument()
   })
 
   it('★ the "Last 3 tanks:" line reads the same token as the average above it', () => {

@@ -358,7 +358,8 @@ describe('FuelRecordList — hours usage tracking (Task 13)', () => {
     // the value beside it is unchanged.
     expect(screen.getByText('fuelList.avgFuelRate (gal (UK)/hr)')).toBeInTheDocument()
     // What the instance-wide US gallon would have answered for the same rows.
-    expect(screen.queryByText('1.19 gal (UK)/hr')).not.toBeInTheDocument()
+    // 4.5 / 3.785411784 = 1.19, printed by the US adapter.
+    expect(screen.queryByText('1.19 gal/hr')).not.toBeInTheDocument()
     expect(screen.queryByText('1.19 GPH')).not.toBeInTheDocument()
   })
 
