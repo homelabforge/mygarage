@@ -47,13 +47,13 @@ def _tread_bearing(tire: TireResponse) -> list[TireReadingResponse]:
     """Readings that carry a tread depth, newest first.
 
     Same selection `project_wear` makes (`tire_service.py`): sorted by
-    `recorded_at` descending, then filtered to those with a tread. Kept in step
-    by a test that seeds a tire missing only its reading odometers and asserts
-    both this count and `wear_status` agree about it.
+    `(recorded_at, id)` descending, then filtered to those with a tread. Kept in
+    step by a test that seeds a tire missing only its reading odometers and
+    asserts both this count and `wear_status` agree about it.
     """
     return sorted(
         [r for r in (tire.readings or []) if r.tread_depth_mm is not None],
-        key=lambda r: r.recorded_at,
+        key=lambda r: (r.recorded_at, r.id or 0),
         reverse=True,
     )
 

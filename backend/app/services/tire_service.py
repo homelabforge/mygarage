@@ -713,9 +713,10 @@ def project_wear(
         the old function maps to a named member, so a caller can say WHICH
         input is missing instead of rendering one message for five states.
     """
+    # Same-day ties go to the higher id, like the tire's own tread does.
     candidates = sorted(
         [r for r in (readings if readings is not None else tire.readings or [])],
-        key=lambda r: r.recorded_at,
+        key=lambda r: (r.recorded_at, r.id or 0),
         reverse=True,
     )
     min_tread = tire.min_tread_mm
@@ -1173,7 +1174,7 @@ class TireService:
     ) -> TireResponse:
         readings = sorted(
             list(tire.readings or []),
-            key=lambda r: r.recorded_at,
+            key=lambda r: (r.recorded_at, r.id or 0),
             reverse=True,
         )
         axis = axes.primary
