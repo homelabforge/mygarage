@@ -205,8 +205,9 @@ class TireReading(Base):
     # A SNAPSHOT of where the tire was when the reading was taken, not a live
     # pointer. Nullable since 097: a stored tire can still be measured.
     position: Mapped[str | None] = mapped_column(String(10))
-    # Unused. Nothing wrote it after 097's backfill, so migration 140 cleared it,
-    # and readings match a period by date and position instead (D2). It stays
+    # Unused. No live writer set it after 097's backfill (the JSON backup import
+    # put it back until batch 9), so migration 140 cleared it, and readings
+    # match a period by date and position instead (D2). It stays
     # because SQLite can't drop an indexed FK column and our migrations don't drop.
     mount_period_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("tire_mount_periods.id", ondelete="SET NULL")

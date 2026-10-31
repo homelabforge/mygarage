@@ -853,7 +853,7 @@ def project_wear(
        it is now withheld (`UNVERIFIED_MOUNT_HISTORY`) rather than published
        with an "estimate" badge.
 
-    2. It **sorts its own readings**. `_sync_low_tread_reminder` passed them
+    2. It **sorts its own readings**. `sync_low_tread_reminder` passed them
        unsorted, so `readings[0]` was the OLDEST, `tread_delta` came out
        negative, and the low-tread projection has been silently missing from
        every reminder. Selection moved inside so this surface and the reminder
@@ -2824,7 +2824,8 @@ class TireService:
                 vin, reading.recorded_at, now, ODOMETER_SOURCE_TIRE, tire.id, axis
             )
 
-        # The tire's setattrs above came after the only flush; `_reload_and_sync` flushes them first.
+        # A withdraw above may have flushed the tire's setattrs already, or not;
+        # `_reload_and_sync` flushes first either way.
         return await self._reload_and_sync(tire.id, vin, axes)
 
     async def _withdraw_reading_usage(
@@ -2889,8 +2890,8 @@ class TireService:
             return
         await self.db.delete(record)
         await self.db.flush()
-        # The reading is still in the database here (a delete goes on the
-        # caller's commit, and an edited reading is still there), hence the exclude.
+        # The reading is still in the database here (a deleted one only goes at
+        # `_reload_and_sync`'s flush, and an edited one stays), hence the exclude.
         await republish_day_backer(self.db, vin, day, axis, exclude_reading_id=reading_id)
 
     async def _sync_low_tread_reminder(self, tire: Tire) -> None:
