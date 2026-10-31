@@ -256,3 +256,32 @@ describe('DEFRecordForm — the gallon comes from the user, not the instance', (
     expect(payload.price_per_unit).toBe(1.31981548979)
   })
 })
+
+describe('DEFRecordForm: the NumberInput ambiguity hint reaches a registerDecimal field', () => {
+  // The global i18n mock hands back the bare key, so the hint reads as its key here.
+  const hintFor = (id: string): HTMLElement | null => {
+    const input = document.getElementById(id) as HTMLInputElement
+    const ids = (input.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean)
+    return ids.map(d => document.getElementById(d)).find(el => el?.textContent === 'numberInput.readAs') ?? null
+  }
+
+  it('en "1,234" in the volume shows the hint, linked by aria-describedby, with no change to the form', () => {
+    render(<DEFRecordForm {...DEFAULT_PROPS} />)
+    expect(screen.queryByText('numberInput.readAs')).toBeNull()
+    fireEvent.change(document.getElementById('liters') as HTMLInputElement, { target: { value: '1,234' } })
+    const hint = screen.getByText('numberInput.readAs')
+    expect(hintFor('liters')).toBe(hint)
+  })
+
+  it('a cost the form recalculates drops the hint for the text the user typed there', async () => {
+    render(<DEFRecordForm {...DEFAULT_PROPS} />)
+    const cost = document.getElementById('cost') as HTMLInputElement
+    fireEvent.change(cost, { target: { value: '1,234' } })
+    expect(hintFor('cost')).not.toBeNull()
+    fireEvent.change(document.getElementById('liters') as HTMLInputElement, { target: { value: '5' } })
+    fireEvent.change(document.getElementById('price_per_unit') as HTMLInputElement, { target: { value: '2' } })
+    await waitFor(() => expect(cost.value).toBe('10'))
+    // setValue fires no event and no render here, so NumberInput notices on its next check.
+    await waitFor(() => expect(screen.queryByText('numberInput.readAs')).toBeNull())
+  })
+})

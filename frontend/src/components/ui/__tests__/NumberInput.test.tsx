@@ -1,11 +1,30 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { render } from '../../../__tests__/test-utils'
 import { setActiveLocale } from '@/constants/i18n'
 import { INVALID_NUMBER } from '@/schemas/shared'
 import NumberInput, { registerDecimal } from '../NumberInput'
+
+// The global mock hands back bare keys. This one reads the shipped en strings so the
+// hint tests can pin the actual words and the formatted value in them.
+vi.mock('react-i18next', async () => {
+  const en = (await import('@/locales/en/common.json')).default as Record<string, unknown>
+  const lookup = (key: string): unknown =>
+    key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], en)
+  const t = (key: string, opts?: Record<string, unknown>): string => {
+    const text = lookup(key)
+    if (typeof text !== 'string') return key
+    return text.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(opts?.[name]))
+  }
+  const i18n = { language: 'en', changeLanguage: () => Promise.resolve() }
+  return {
+    useTranslation: () => ({ t, i18n }),
+    initReactI18next: { type: '3rdParty', init: () => {} },
+  }
+})
 
 interface Values { amount: number | typeof INVALID_NUMBER | undefined }
 const onSubmit = vi.fn()
@@ -105,5 +124,244 @@ describe('NumberInput', () => {
   it('does not set aria-describedby when there is no hint', () => {
     render(<NumberInput id="amount" />)
     expect(screen.getByRole('textbox')).not.toHaveAttribute('aria-describedby')
+  })
+})
+
+describe('NumberInput ambiguity hint (D4)', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  /** The hint paragraph, found by the id the input points at, so "no hint" can't pass by finding nothing. */
+  const hintOf = (input: HTMLElement): HTMLElement | null => {
+    const ids = (input.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean)
+    const hint = ids.map(id => document.getElementById(id)).find(el => el?.textContent?.startsWith('Read as'))
+    return hint ?? null
+  }
+
+  it('en: "1,234" took the grouping reading, so it says so and wires aria-describedby to it', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const input = screen.getByLabelText('Amount')
+    await user.type(input, '1,234')
+    const hint = screen.getByText('Read as 1,234')
+    expect(hint.id).not.toBe('')
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(hint.id)
+    expect(hintOf(input)).toBe(hint)
+  })
+
+  it('en: "10.123" took the decimal reading, so nothing shows (guard)', async () => {
+    // Guard: passes on main. Mutation: hint on every ambiguous shape (D4 option b).
+    const user = userEvent.setup()
+    render(<Harness />)
+    const input = screen.getByLabelText('Amount')
+    await user.type(input, '10.123')
+    expect(input).toHaveValue('10.123')
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+    expect(input).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('en: "0.000" stays quiet too, since it is the decimal reading even though both readings are 0 (guard)', async () => {
+    // Guard: passes on main. Mutation: compare the value to the digits instead of checking the separator.
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.type(screen.getByLabelText('Amount'), '0.000')
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+  })
+
+  it('en: "0,000" is the grouping reading but zero either way, so it stays quiet (guard)', async () => {
+    // Guard: passes on main. Mutation: drop the zero check in groupingReading.
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.type(screen.getByLabelText('Amount'), '0,000')
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+  })
+
+  it('de: "1.234" took the grouping reading, shown with German grouping', async () => {
+    setActiveLocale('de')
+    const user = userEvent.setup()
+    render(<Harness />)
+    const input = screen.getByLabelText('Amount')
+    await user.type(input, '1.234')
+    const hint = screen.getByText('Read as 1.234')
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(hint.id)
+  })
+
+  it('de: "1,234" is the decimal reading there, so nothing shows (guard)', async () => {
+    // Guard: passes on main. Mutation: hint on every ambiguous shape (D4 option b).
+    setActiveLocale('de')
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.type(screen.getByLabelText('Amount'), '1,234')
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+  })
+
+  it('clearing the field removes the hint and leaves no empty hint element behind', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const input = screen.getByLabelText('Amount')
+    await user.type(input, '1,234')
+    expect(screen.getByText('Read as 1,234')).toBeInTheDocument()
+    await user.clear(input)
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+    expect(document.querySelector('[id$="-ambiguity"]')).toBeNull()
+    expect(input).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('still submits the grouping reading through registerDecimal with the hint showing', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.type(screen.getByLabelText('Amount'), '1,234')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByText('Read as 1,234')).toBeInTheDocument()
+    expect(onSubmit).toHaveBeenCalledWith({ amount: 1234 })
+  })
+
+  it('an edit-mode numeric default shows nothing until the user types (guard)', async () => {
+    // Guard: passes on main, where nothing ever showed. Mutation: seed the text from the DOM value at mount.
+    // de reads the box's "1.234" as grouping, so keying off the box instead of the typing would speak up.
+    setActiveLocale('de')
+    function EditHarness(): React.JSX.Element {
+      const { register } = useForm<Values>({ defaultValues: { amount: 1.234 } })
+      return (
+        <>
+          <label htmlFor="amount">Amount</label>
+          <NumberInput id="amount" {...registerDecimal(register, 'amount')} />
+        </>
+      )
+    }
+    render(<EditHarness />)
+    const input = screen.getByLabelText('Amount')
+    expect(input).toHaveValue('1.234')
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+  })
+
+  it('merges with an aria-describedby the caller already passes', async () => {
+    const user = userEvent.setup()
+    function Described(): React.JSX.Element {
+      const { register } = useForm<Values>()
+      return (
+        <>
+          <label htmlFor="amount">Amount</label>
+          <p id="amount-error">bad</p>
+          <NumberInput id="amount" aria-describedby="amount-error" {...registerDecimal(register, 'amount')} />
+        </>
+      )
+    }
+    render(<Described />)
+    const input = screen.getByLabelText('Amount')
+    expect(input).toHaveAttribute('aria-describedby', 'amount-error')
+    await user.type(input, '1,234')
+    const hint = screen.getByText('Read as 1,234')
+    expect(input).toHaveAttribute('aria-describedby', `amount-error ${hint.id}`)
+  })
+
+  it('gets a hint id even when the caller passes no id', async () => {
+    const user = userEvent.setup()
+    function NoId(): React.JSX.Element {
+      const { register } = useForm<Values>()
+      return <NumberInput aria-label="Amount" {...registerDecimal(register, 'amount')} />
+    }
+    render(<NoId />)
+    const input = screen.getByLabelText('Amount')
+    await user.type(input, '1,234')
+    const hint = screen.getByText('Read as 1,234')
+    expect(hint.id).not.toBe('')
+    expect(input).toHaveAttribute('aria-describedby', hint.id)
+  })
+
+  it('a controlled caller gets the hint and still receives every change event', async () => {
+    const user = userEvent.setup()
+    const seen = vi.fn()
+    function Controlled(): React.JSX.Element {
+      const [text, setText] = useState('')
+      return (
+        <>
+          <label htmlFor="ctl">Amount</label>
+          <NumberInput
+            id="ctl"
+            value={text}
+            onChange={e => {
+              seen(e.target.value)
+              setText(e.target.value)
+            }}
+          />
+        </>
+      )
+    }
+    render(<Controlled />)
+    const input = screen.getByLabelText('Amount')
+    await user.type(input, '1,234')
+    expect(seen).toHaveBeenLastCalledWith('1,234')
+    expect(seen).toHaveBeenCalledTimes(5)
+    expect(input).toHaveValue('1,234')
+    expect(screen.getByText('Read as 1,234')).toBeInTheDocument()
+  })
+
+  it('a controlled caller whose value is rewritten drops the hint for the text it did not type', async () => {
+    const user = userEvent.setup()
+    function Rewritten(): React.JSX.Element {
+      const [text, setText] = useState('')
+      return (
+        <>
+          <label htmlFor="ctl">Amount</label>
+          <NumberInput id="ctl" value={text} onChange={e => setText(e.target.value)} />
+          <button type="button" onClick={() => setText('2,345')}>Fill</button>
+        </>
+      )
+    }
+    render(<Rewritten />)
+    await user.type(screen.getByLabelText('Amount'), '1,234')
+    expect(screen.getByText('Read as 1,234')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Fill' }))
+    expect(screen.getByLabelText('Amount')).toHaveValue('2,345')
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+  })
+
+  it('a controlled prefill shows nothing until the user types (guard)', () => {
+    // Guard: passes on main. Mutation: derive from any string `value`, typed or not.
+    render(<NumberInput id="ctl" aria-label="Amount" value="1,234" onChange={() => {}} />)
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+  })
+
+  it('an explicit ambiguityHint still wins over the computed one (guard)', async () => {
+    // Guard: passes on main, where only the prop could show. Mutation: prefer the computed hint.
+    const user = userEvent.setup()
+    function Explicit(): React.JSX.Element {
+      const { register } = useForm<Values>()
+      return (
+        <>
+          <label htmlFor="amount">Amount</label>
+          <NumberInput id="amount" ambiguityHint="Custom reading" {...registerDecimal(register, 'amount')} />
+        </>
+      )
+    }
+    render(<Explicit />)
+    await user.type(screen.getByLabelText('Amount'), '1,234')
+    expect(screen.getByText('Custom reading')).toBeInTheDocument()
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+  })
+
+  it('keeps RHF ref and onBlur wired: blur marks it touched, a failed submit focuses it (guard)', async () => {
+    // Guard: passes on main. Mutation: drop `ref` or `onBlur` on the way to Input.
+    const user = userEvent.setup()
+    const touched = vi.fn()
+    function Wired(): React.JSX.Element {
+      const { register, handleSubmit, formState } = useForm<Values>()
+      touched(!!formState.touchedFields.amount)
+      return (
+        <form onSubmit={handleSubmit(v => onSubmit(v))}>
+          <label htmlFor="amount">Amount</label>
+          <NumberInput id="amount" {...registerDecimal(register, 'amount', { required: 'needed' })} />
+          <button type="submit">Save</button>
+        </form>
+      )
+    }
+    render(<Wired />)
+    const input = screen.getByLabelText('Amount')
+    await user.click(input)
+    await user.tab()
+    expect(touched).toHaveBeenLastCalledWith(true)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(input).toHaveFocus()
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 })
