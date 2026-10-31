@@ -32,6 +32,12 @@ from app.schemas.settings import (
     UploadStorageDirs,
 )
 from app.services.auth import get_current_admin_user
+from app.services.auth_settings import (
+    AUTH_KEYS,
+    AuthSettingsConflictError,
+    ensure_sso_mode_usable,
+    lock_auth_settings,
+)
 from app.services.file_upload_service import (
     ATTACHMENT_UPLOAD_CONFIG,
     DOCUMENT_UPLOAD_CONFIG,
@@ -153,6 +159,18 @@ def _reject_unwritable_key(key: str) -> None:
             status_code=422,
             detail=f"Setting '{key}' cannot be written through this API",
         )
+
+
+async def _refuse_unusable_sso(db: AsyncSession, pending: dict[str, str | None]) -> None:
+    """409 when these writes would leave sign-in set to SSO without usable SSO (S1c-01).
+
+    Only for a request that took `lock_auth_settings`; `pending` holds the
+    values the route is about to write, None for a row it deletes.
+    """
+    try:
+        await ensure_sso_mode_usable(db, pending)
+    except AuthSettingsConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.detail) from exc
 
 
 def _reject_unwritable_value(key: str, value: str | None) -> None:
@@ -781,6 +799,9 @@ async def create_setting(
 ):
     """Create a new setting (admin only)."""
     _reject_unwritable_key(setting.key)
+    auth_key = setting.key in AUTH_KEYS
+    if auth_key:
+        await lock_auth_settings(db)
     # Check if setting already exists
     result = await db.execute(select(Setting).where(Setting.key == setting.key))
     existing = result.scalar_one_or_none()
@@ -790,6 +811,8 @@ async def create_setting(
 
     value = canonical_setting_value(setting.key, setting.value)
     _reject_unwritable_value(setting.key, value)
+    if auth_key:
+        await _refuse_unusable_sso(db, {setting.key: value})
 
     # Create new setting
     db_setting = Setting(
@@ -816,6 +839,8 @@ async def update_setting(
 ):
     """Update a setting (admin only)."""
     _reject_unwritable_key(key)
+    if key in AUTH_KEYS:
+        await lock_auth_settings(db)
     result = await db.execute(select(Setting).where(Setting.key == key))
     setting = result.scalar_one_or_none()
 
@@ -841,6 +866,8 @@ async def update_setting(
         if resolved is not KEEP_STORED:
             resolved = canonical_setting_value(key, resolved)
             _reject_unwritable_value(key, resolved)
+            if key in AUTH_KEYS:
+                await _refuse_unusable_sso(db, {key: resolved})
             update_data["value"] = resolved
 
     for field, value in update_data.items():
@@ -870,6 +897,11 @@ async def batch_update_settings(
             "This exposes your application to unauthorized access. Use with caution!"
         )
 
+    # Before the first read, and only when a sign-in key is in it (R8).
+    auth_batch = not AUTH_KEYS.isdisjoint(batch.settings)
+    if auth_batch:
+        await lock_auth_settings(db)
+
     # Resolve and validate EVERY key before mutating any row. A rejection raised
     # halfway through the apply loop would leave the earlier keys mutated on a
     # session the request never commits, which is a partial batch reported as a
@@ -891,6 +923,9 @@ async def batch_update_settings(
         resolved = canonical_setting_value(key, resolved)
         _reject_unwritable_value(key, resolved)
         resolved_writes.append((key, resolved, setting))
+
+    if auth_batch:
+        await _refuse_unusable_sso(db, {key: value for key, value, _ in resolved_writes})
 
     written: dict[str, Setting] = {}
     for key, resolved, setting in resolved_writes:
@@ -931,11 +966,16 @@ async def delete_setting(
     current_user: User | None = Depends(get_current_admin_user),
 ):
     """Delete a setting (admin only)."""
+    if key in AUTH_KEYS:
+        await lock_auth_settings(db)
     result = await db.execute(select(Setting).where(Setting.key == key))
     setting = result.scalar_one_or_none()
 
     if not setting:
         raise HTTPException(status_code=404, detail=f"Setting '{key}' not found")
+
+    if key in AUTH_KEYS:
+        await _refuse_unusable_sso(db, {key: None})
 
     await db.delete(setting)
     await db.commit()

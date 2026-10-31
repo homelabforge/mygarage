@@ -32,6 +32,11 @@ from app.models.csrf_token import CSRFToken
 from app.models.user import User
 from app.services import oidc as oidc_service
 from app.services.auth import create_access_token, get_current_admin_user
+from app.services.auth_settings import (
+    AuthSettingsConflictError,
+    ensure_sso_mode_usable,
+    lock_auth_settings,
+)
 from app.services.oidc.config import (
     OIDC_CLIENT_SECRET_KEY,
     checked_redirect_uri,
@@ -321,9 +326,13 @@ async def put_oidc_admin_config(
       - issuer_url has trailing slash + whitespace stripped before persisting
       - `redirect_uri` left out preserves the stored value; sent, it's stripped and
         must be an absolute http(s) URL or blank, else a 422 and nothing is written
+      - client_id is stripped before persisting
+      - 409, and nothing written, when sign-in is set to SSO and this would turn SSO
+        off or blank its issuer URL or client ID
     """
     # current_user is None only when auth_mode == "none" (auth disabled), which
     # this endpoint allows — see the GET above for why gating it deadlocks bootstrap.
+    await lock_auth_settings(db)
 
     # Left out, the stored pin stays, so an older client can't wipe it. Checked
     # here, not on the model: the GET builds that model from what's stored.
@@ -340,14 +349,25 @@ async def put_oidc_admin_config(
 
     # §5.4(1): normalize issuer URL.
     issuer_url = payload.issuer_url.strip().rstrip("/")
+    client_id = payload.client_id.strip()
+    enabled = "true" if payload.enabled else "false"
+
+    # Checked against exactly what's written, under the lock taken above.
+    try:
+        await ensure_sso_mode_usable(
+            db,
+            {"oidc_enabled": enabled, "oidc_issuer_url": issuer_url, "oidc_client_id": client_id},
+        )
+    except AuthSettingsConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.detail) from exc
 
     await oidc_service.write_oidc_config(
         db,
         {
-            "enabled": "true" if payload.enabled else "false",
+            "enabled": enabled,
             "provider_name": payload.provider_name,
             "issuer_url": issuer_url,
-            "client_id": payload.client_id,
+            "client_id": client_id,
             **secret_update,
             "scopes": payload.scopes.strip(),
             "auto_create_users": "true" if payload.auto_create_users else "false",

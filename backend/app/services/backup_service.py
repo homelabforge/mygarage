@@ -20,6 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
 from app.services import restore_staging
+from app.services.auth_settings import (
+    AUTH_KEYS,
+    AuthSettingsConflictError,
+    ensure_sso_mode_usable,
+    lock_auth_settings,
+)
 from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.oidc.tokens import MASKED_SECRET_PLACEHOLDER
 from app.services.setting_rules import canonical_setting_value, check_setting_value
@@ -40,6 +46,11 @@ logger = logging.getLogger(__name__)
 #: ciphertext; 2.0 (3.9.0 and older) carried plaintext. The restore takes both,
 #: and tells them apart per value, not by this field.
 SETTINGS_BACKUP_VERSION = "2.1"
+
+RESTORE_SSO_REFUSED_DETAIL = (
+    "This backup would leave sign-in set to SSO with SSO off or missing its issuer URL "
+    "or client ID, so nothing was restored."
+)
 
 #: What the restore did with one secret setting from the file.
 type _SecretRestore = Literal["restored", "placeholder", "skipped"]
@@ -420,6 +431,14 @@ class BackupService:
         Secret settings are restored per value, whatever the file's version or
         `encrypted` flag says; see `_restore_secret`. Call the backup preflight
         (`ensure_secrets_encrypted`) first, so the safety backup holds no plaintext.
+
+        Takes the sign-in settings lock before its first read, so `db` must not be
+        inside a transaction. When the file touched a sign-in key and the result
+        would be SSO mode without usable SSO, it rolls back, deletes the safety
+        backup it wrote, and raises.
+
+        Raises:
+            AuthSettingsConflictError: The restore would leave SSO mode unusable.
         """
         # A name in the backup folder, as download and delete take it: `../` can't reach past it.
         backup_path = self.validate_filename(filename)
@@ -427,8 +446,12 @@ class BackupService:
         if not backup_path.exists():
             raise FileNotFoundError(f"Backup file not found: {backup_path.name}")
 
+        # Before the safety backup's read, so it copies what the restore replaces.
+        await lock_auth_settings(db)
+
         # Create safety backup first if requested
         safety_filename = None
+        safety_path: Path | None = None
         if create_safety:
             timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
             safety_filename = f"mygarage-settings-safety-{timestamp}.json"
@@ -463,6 +486,7 @@ class BackupService:
         # Restore settings
         restored_count = 0
         skipped_secret_keys: list[str] = []
+        touched_sign_in = False
         for setting_data in backup_data["settings"]:
             try:
                 key = setting_data.get("key")
@@ -583,10 +607,35 @@ class BackupService:
                     encrypted=setting_data.get("encrypted"),
                 )
                 restored_count += 1
+                touched_sign_in = touched_sign_in or key in AUTH_KEYS
 
             except Exception as e:
                 logger.error("Error restoring setting %s: %s", setting_data.get("key"), e)
                 # Continue with other settings
+
+        # Only when the file touched a sign-in key: an instance already in a bad
+        # state still restores a file that leaves those alone (F1-1).
+        if touched_sign_in:
+            await db.flush()
+            try:
+                await ensure_sso_mode_usable(db, {})
+            except AuthSettingsConflictError as exc:
+                await db.rollback()
+                # Nothing changed, so the safety copy is a stray (R12).
+                if safety_path is not None:
+                    try:
+                        safety_path.unlink(missing_ok=True)
+                    except OSError as unlink_error:
+                        logger.warning(
+                            "Couldn't remove the unused safety backup %s: %s",
+                            safety_filename,
+                            unlink_error,
+                        )
+                logger.warning(
+                    "Refused settings restore from %s: it would leave SSO mode unusable",
+                    sanitize_for_log(filename),
+                )
+                raise AuthSettingsConflictError(RESTORE_SSO_REFUSED_DETAIL) from exc
 
         await db.commit()
 

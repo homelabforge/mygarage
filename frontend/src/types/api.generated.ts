@@ -576,6 +576,9 @@ export interface paths {
          *       - issuer_url has trailing slash + whitespace stripped before persisting
          *       - `redirect_uri` left out preserves the stored value; sent, it's stripped and
          *         must be an absolute http(s) URL or blank, else a 422 and nothing is written
+         *       - client_id is stripped before persisting
+         *       - 409, and nothing written, when sign-in is set to SSO and this would turn SSO
+         *         off or blank its issuer URL or client ID
          */
         put: operations["put_oidc_admin_config_api_auth_oidc_config_admin_put"];
         post?: never;
@@ -1059,6 +1062,9 @@ export interface paths {
          *     Either way a safety backup comes first. A full restore is SQLite only and finishes when MyGarage
          *     restarts. 503 while a secret setting is still stored as plaintext and can't be encrypted first,
          *     since the safety backup would copy it.
+         *
+         *     409 when a settings backup would leave sign-in set to SSO without usable SSO; nothing is
+         *     restored then.
          *
          *     A settings restore that skipped secret keys (ciphertext no key in the keyring opens, or
          *     plaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names

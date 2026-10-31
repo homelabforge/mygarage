@@ -35012,7 +35012,7 @@
         ]
       },
       "put": {
-        "description": "Update the admin OIDC configuration (admin-only).\n\nEnforces the \u00a75.4 wire contract:\n  - empty `client_secret` (or the masked placeholder) preserves the stored value\n  - issuer_url has trailing slash + whitespace stripped before persisting\n  - `redirect_uri` left out preserves the stored value; sent, it's stripped and\n    must be an absolute http(s) URL or blank, else a 422 and nothing is written",
+        "description": "Update the admin OIDC configuration (admin-only).\n\nEnforces the \u00a75.4 wire contract:\n  - empty `client_secret` (or the masked placeholder) preserves the stored value\n  - issuer_url has trailing slash + whitespace stripped before persisting\n  - `redirect_uri` left out preserves the stored value; sent, it's stripped and\n    must be an absolute http(s) URL or blank, else a 422 and nothing is written\n  - client_id is stripped before persisting\n  - 409, and nothing written, when sign-in is set to SSO and this would turn SSO\n    off or blank its issuer URL or client ID",
         "operationId": "put_oidc_admin_config_api_auth_oidc_config_admin_put",
         "requestBody": {
           "content": {
@@ -35856,7 +35856,7 @@
     },
     "/api/backup/restore/{filename}": {
       "post": {
-        "description": "Restore a settings backup now, or stage a full backup for the next start.\n\nEither way a safety backup comes first. A full restore is SQLite only and finishes when MyGarage\nrestarts. 503 while a secret setting is still stored as plaintext and can't be encrypted first,\nsince the safety backup would copy it.\n\nA settings restore that skipped secret keys (ciphertext no key in the keyring opens, or\nplaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names\nthem in `warning`; those keys keep their current values.\n\nArgs:\n    filename: Name of the backup file to restore from\n    db: Database session\n\nReturns:\n    Success message with details about restore operation",
+        "description": "Restore a settings backup now, or stage a full backup for the next start.\n\nEither way a safety backup comes first. A full restore is SQLite only and finishes when MyGarage\nrestarts. 503 while a secret setting is still stored as plaintext and can't be encrypted first,\nsince the safety backup would copy it.\n\n409 when a settings backup would leave sign-in set to SSO without usable SSO; nothing is\nrestored then.\n\nA settings restore that skipped secret keys (ciphertext no key in the keyring opens, or\nplaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names\nthem in `warning`; those keys keep their current values.\n\nArgs:\n    filename: Name of the backup file to restore from\n    db: Database session\n\nReturns:\n    Success message with details about restore operation",
         "operationId": "restore_backup_api_backup_restore__filename__post",
         "parameters": [
           {
