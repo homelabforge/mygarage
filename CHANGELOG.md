@@ -107,7 +107,8 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Shared LiveLink parameters get readable names, such as "Coolant temperature", "Engine RPM" and "Odometer (Torque)", instead of their key title-cased. Migration 139 (not FATAL) renames the ones still on their old automatic name, Torque's "Kff1238"-style ones included, and never touches a name you set
 - Torque's two L/100km economy parameters read "(L/100km)", like their unit
 - Durations in LiveLink (trips, sessions and the live session timer) follow the selected language
-- **BREAKING (API):** `GET /api/analytics/vehicles/{vin}/tires` renames the readiness counts `can_report_distance` to `can_report_usage` and `needs_reading_odometer` to `needs_reading_usage`, since they count hours on an hours vehicle
+- Fitting a tire set again the same day with a lower odometer or hour meter no longer lowers that day's reading. To fix a mistyped fit, Edit the mount period of every tire in the set; the day drops only once the last one is edited
+- **BREAKING (API):** `GET /api/analytics/vehicles/{vin}/tires` renames the readiness counts `can_report_distance` to `can_report_usage` and `needs_reading_odometer` to `needs_reading_usage`
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
@@ -159,7 +160,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - A fuel or DEF price typed per gallon comes back as typed: a UK 6.000/gal no longer reads 6.001, a US 3.999/gal no longer 3.997
 - A tire reading dated after the tire's retirement is refused, and so is a retire dated before the tire's newest reading
 - Deleting a tire reading no longer takes the odometer or hour meter of a same-day retire or dismount of that tire with it
-- Deleting a tire or a tire reading keeps the odometer or hour meter another tire's reading or mount recorded that day, instead of leaving the day without it
+- Deleting a tire or moving a mount period's date keeps the odometer or hour meter another tire or mount period recorded that day, instead of leaving the day without it, and deleting a tire reading falls back to a same-day mount or dismount figure
 - The tread chart in Analytics draws one line per tire, so a stored set of identical tires no longer draws as one; tires with the same label get their DOT code, or #2, #3
 - Two readings of a tire on one day are ordered by entry everywhere, so the wear projection no longer reads the older one as the newest
 - A tire can only have one pending low-tread reminder. Migration 140 (not FATAL) marks any extra ones done, keeping the oldest
