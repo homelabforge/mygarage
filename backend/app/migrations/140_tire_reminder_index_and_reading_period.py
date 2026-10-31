@@ -7,12 +7,18 @@ sync did, then builds the index so a racing duplicate can't land again. Only
 rows the index covers are touched: a reminder a person wrote, or one from a
 rule, has no source and no tire, and is left alone.
 
-``tire_readings.mount_period_id`` is cleared too. Nothing has written it since
-097's backfill, so old readings had one and new ones didn't; readings are
-matched to periods by date and position everywhere it counts. The column stays.
+``tire_readings.mount_period_id`` is cleared too. No live writer set it after
+097's backfill; only the JSON backup import put it back, until this batch. So
+some readings had one and most didn't, and readings are matched to periods by
+date and position everywhere it counts. The column stays.
 
-Not FATAL: the dedupe makes the build safe, and without the index the app runs
-as it did before.
+Not FATAL, so the app still boots, but a failed dedupe or index build raises:
+the runner logs it, leaves 140 unstamped and runs it again next boot, and any
+migration after 140 waits until it lands. The sync doesn't collapse duplicates
+any more, so until 140 lands any old duplicate reminders stay pending, and a
+stamped-but-failed 140 would leave them that way for good. Clearing the
+periods runs first and only logs a failure: it's idempotent, and it shouldn't
+hold up the retry.
 """
 
 from __future__ import annotations
@@ -101,17 +107,16 @@ def _clear_reading_periods(engine: Engine) -> None:
 
 
 def upgrade(engine: Engine | None = None) -> None:
-    """Both steps, each on its own. A failure is logged so the migrations after it still run."""
+    """Clear the periods (a failure is logged), then dedupe and index (a failure raises)."""
     if engine is None:
         engine = _get_fallback_engine()
-    try:
-        _dedupe_and_index(engine)
-    except SQLAlchemyError as e:
-        logger.error("140: duplicate tire reminders not collapsed, no index: %s", e, exc_info=True)
     try:
         _clear_reading_periods(engine)
     except SQLAlchemyError as e:
         logger.error("140: reading mount periods not cleared, they stay: %s", e, exc_info=True)
+    # No catch here: raising leaves 140 unstamped, so a retry next boot can still
+    # close the old duplicates.
+    _dedupe_and_index(engine)
 
 
 def downgrade() -> None:  # pragma: no cover

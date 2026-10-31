@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 import app.migrations as _m
+from app.migrations.runner import MigrationRunner
 from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading
@@ -128,8 +129,8 @@ def _bystanders(engine: Engine, ids: dict[str, int]) -> list[int]:
 
 
 def test_the_migration_is_not_fatal():
-    # guard: passes once the file exists. It kills a 140 marked FATAL; the
-    # dedupe makes the index build safe, and the app runs fine without it.
+    # guard: passes once the file exists. It kills a 140 marked FATAL; a failed
+    # 140 raises and retries next boot, and the app runs fine meanwhile.
     assert not getattr(_load(), "FATAL", False)
 
 
@@ -252,17 +253,88 @@ def test_missing_table_or_columns_are_skipped(caplog: pytest.LogCaptureFixture) 
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
-def test_a_failure_is_logged_not_raised(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A non-FATAL failure that raises stops every migration after it, so 140 logs it instead."""
+def test_a_failed_dedupe_raises_after_the_periods_clear(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The dedupe's failure reaches the runner, so 140 isn't stamped (F-1). The clear still ran."""
     mod = _load()
+    cleared: list[Engine] = []
 
     def boom(_engine: Engine) -> None:
         raise OperationalError("UPDATE vehicle_reminders", {}, Exception("database is locked"))
 
     monkeypatch.setattr(mod, "_dedupe_and_index", boom)
+    monkeypatch.setattr(mod, "_clear_reading_periods", cleared.append)
+    with pytest.raises(OperationalError):
+        mod.upgrade(create_engine("sqlite://"))
+    assert len(cleared) == 1
+
+
+def test_a_failed_clear_is_logged_not_raised(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # guard: the clear's catch is unchanged. A failure there leaves old period
+    # ids behind, and nothing reads them, so it isn't worth a retry.
+    mod = _load()
+    deduped: list[Engine] = []
+
+    def boom(_engine: Engine) -> None:
+        raise OperationalError("UPDATE tire_readings", {}, Exception("database is locked"))
+
     monkeypatch.setattr(mod, "_clear_reading_periods", boom)
+    monkeypatch.setattr(mod, "_dedupe_and_index", deduped.append)
     mod.upgrade(create_engine("sqlite://"))
-    assert "140: duplicate tire reminders not collapsed" in caplog.text
     assert "140: reading mount periods not cleared" in caplog.text
+    assert len(deduped) == 1
+
+
+def _stamp_all_but_140(runner: MigrationRunner, engine: Engine) -> None:
+    runner._ensure_migration_tracking_table()
+    with engine.begin() as conn:
+        for stem, _path in runner._discover_migrations():
+            if stem != _NAME:
+                conn.execute(
+                    text("INSERT INTO schema_migrations (migration_name) VALUES (:n)"),
+                    {"n": stem},
+                )
+
+
+def _stamped(engine: Engine) -> bool:
+    with engine.connect() as conn:
+        names = conn.execute(text("SELECT migration_name FROM schema_migrations")).scalars()
+        return _NAME in set(names)
+
+
+@pytest.mark.parametrize("engine_for_migration", ["sqlite", "pg"], indirect=True)
+def test_a_failed_140_is_left_unstamped_and_the_next_boot_applies_it(engine_for_migration):
+    """Through the runner, which loads its own copy, so the failure comes from the
+    database: another table already holds an index by the name 140 builds."""
+    _dialect, engine, url = engine_for_migration
+    _build(engine, "pre")
+    ids = _parents(engine)
+    keeper, extra = (_remind(engine, source="low_tread", tire_id=ids["a"]) for _ in "ab")
+    with engine.begin() as conn:
+        conn.execute(text(f"CREATE INDEX {_INDEX} ON tire_readings (recorded_at)"))
+    runner = MigrationRunner(url, Path(_m.__file__).parent)
+    _stamp_all_but_140(runner, engine)
+
+    try:
+        with pytest.raises(Exception) as failed:
+            runner.run_pending_migrations()
+    finally:
+        runner.engine.dispose()
+
+    # main: 140 swallowed the error, so the runner stamped it and nothing retries
+    assert getattr(failed.value, "__migration_fatal__", None) is False
+    assert not _stamped(engine)
+    assert _statuses(engine) == {keeper: "pending", extra: "pending"}
+
+    with engine.begin() as conn:
+        conn.execute(text(f"DROP INDEX {_INDEX}"))
+    runner = MigrationRunner(url, Path(_m.__file__).parent)
+    try:
+        runner.run_pending_migrations()
+    finally:
+        runner.engine.dispose()
+
+    assert _stamped(engine)
+    assert _statuses(engine) == {keeper: "pending", extra: "done"}
+    assert _INDEX in _indexes(engine)
