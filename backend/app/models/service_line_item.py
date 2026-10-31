@@ -56,11 +56,18 @@ class ServiceLineItem(Base):
 
     # Relationships
     visit: Mapped[ServiceVisit] = relationship("ServiceVisit", back_populates="line_items")
-    triggered_repairs: Mapped[list[ServiceLineItem]] = relationship(
+    # The inspection a repair came from, and the repairs an inspection set off.
+    # Deleting an inspection nulls its repairs' link through triggered_repairs.
+    triggered_by_inspection: Mapped[ServiceLineItem | None] = relationship(
         "ServiceLineItem",
         foreign_keys=[triggered_by_inspection_id],
         remote_side=[id],
-        backref="triggered_by_inspection",
+        back_populates="triggered_repairs",
+    )
+    triggered_repairs: Mapped[list[ServiceLineItem]] = relationship(
+        "ServiceLineItem",
+        foreign_keys=[triggered_by_inspection_id],
+        back_populates="triggered_by_inspection",
     )
     supply_usages: Mapped[list[SupplyUsage]] = relationship(
         "SupplyUsage",
