@@ -3,19 +3,23 @@
 Add past period and the period editor both took a period that ran past
 `retired_on`, which describes a tire on the car after it was thrown away.
 Retire took a date before the tire's last dismount, which made the same thing.
+
+D1 (TR L-6) does the same for readings: none dated after the retirement, and
+no retire dated before the newest reading.
 """
 
 from __future__ import annotations
 
 import uuid
 from datetime import date
+from decimal import Decimal
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import delete, func, select
 
 from app.models.odometer import OdometerRecord
-from app.models.tire import Tire, TireMountPeriod
+from app.models.tire import Tire, TireMountPeriod, TireReading
 from app.models.vehicle import Vehicle
 
 
@@ -272,3 +276,130 @@ class TestRetireAfterHistory:
         )
         assert gone.status_code == 200, gone.text
         assert gone.json()["retired_on"] == "2026-03-10"
+
+
+async def _log(client, auth_headers, vin: str, tire_id: int, day: str):
+    return await client.post(
+        f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+        headers=auth_headers,
+        json={"recorded_at": day, "tread_depth_mm": "5.0"},
+    )
+
+
+async def _reading_days(db_session, tire_id: int) -> list[date]:
+    return list(
+        (
+            await db_session.execute(
+                select(TireReading.recorded_at)
+                .where(TireReading.tire_id == tire_id)
+                .order_by(TireReading.recorded_at)
+            )
+        ).scalars()
+    )
+
+
+@pytest.mark.asyncio
+class TestRetiredReadings:
+    async def test_a_reading_cannot_be_dated_after_retirement(
+        self, client, auth_headers, db_session, retired
+    ):
+        vin, tire = retired
+        refused = await _log(client, auth_headers, vin, tire["id"], "2026-03-02")
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"] == (
+            "This tire was retired on 2026-03-01. A reading can't be dated after that."
+        )
+        assert await _reading_days(db_session, tire["id"]) == []
+
+    async def test_a_reading_on_the_retirement_day_saves(
+        self, client, auth_headers, db_session, retired
+    ):
+        # guard: the last measurement, taken the day it came off, was always fine.
+        vin, tire = retired
+        logged = await _log(client, auth_headers, vin, tire["id"], "2026-03-01")
+        assert logged.status_code == 201, logged.text
+        assert await _reading_days(db_session, tire["id"]) == [date(2026, 3, 1)]
+
+    async def test_an_edit_cannot_move_a_reading_past_retirement(
+        self, client, auth_headers, db_session, retired
+    ):
+        vin, tire = retired
+        logged = await _log(client, auth_headers, vin, tire["id"], "2026-02-01")
+        assert logged.status_code == 201, logged.text
+        reading_id = logged.json()["readings"][0]["id"]
+        refused = await client.put(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/readings/{reading_id}",
+            headers=auth_headers,
+            json={"recorded_at": "2026-03-05"},
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"] == (
+            "This tire was retired on 2026-03-01. A reading can't be dated after that."
+        )
+        assert await _reading_days(db_session, tire["id"]) == [date(2026, 2, 1)]
+
+    async def test_a_reading_already_past_retirement_still_takes_a_notes_fix(
+        self, client, auth_headers, db_session, retired
+    ):
+        """Junk from before D1 shouldn't trap anyone. The editor sends the date back unchanged."""
+        # guard: nothing refused this before D1, and the unchanged date must keep it that way.
+        vin, tire = retired
+        reading = TireReading(
+            tire_id=tire["id"],
+            vin=vin,
+            recorded_at=date(2026, 3, 10),
+            tread_depth_mm=Decimal("5.0"),
+        )
+        db_session.add(reading)
+        await db_session.commit()
+        saved = await client.put(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/readings/{reading.id}",
+            headers=auth_headers,
+            json={"recorded_at": "2026-03-10", "tread_depth_mm": "4.0", "notes": "Wrong tire"},
+        )
+        assert saved.status_code == 200, saved.text
+        echoed = next(r for r in saved.json()["readings"] if r["id"] == reading.id)
+        assert echoed["notes"] == "Wrong tire"
+        assert echoed["recorded_at"] == "2026-03-10"
+
+    async def test_a_tire_cannot_retire_before_its_newest_reading(
+        self, client, auth_headers, db_session, vehicle
+    ):
+        made = await client.post(
+            f"/api/vehicles/{vehicle}/tires", headers=auth_headers, json={"vin": vehicle}
+        )
+        assert made.status_code == 201, made.text
+        tire_id = made.json()["id"]
+        for day in ("2026-02-01", "2026-04-01"):
+            logged = await _log(client, auth_headers, vehicle, tire_id, day)
+            assert logged.status_code == 201, logged.text
+        refused = await client.post(
+            f"/api/vehicles/{vehicle}/tires/{tire_id}/retire",
+            headers=auth_headers,
+            json={"dismounted_on": "2026-03-15"},
+        )
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"] == (
+            "This tire has a reading on 2026-04-01, so it can't be retired before that."
+        )
+        retired_on = (
+            await db_session.execute(select(Tire.retired_on).where(Tire.id == tire_id))
+        ).scalar_one()
+        assert retired_on is None
+
+    async def test_a_tire_may_retire_on_its_newest_reading(self, client, auth_headers, vehicle):
+        # guard: the same day is the last measurement, not a contradiction.
+        made = await client.post(
+            f"/api/vehicles/{vehicle}/tires", headers=auth_headers, json={"vin": vehicle}
+        )
+        assert made.status_code == 201, made.text
+        tire_id = made.json()["id"]
+        logged = await _log(client, auth_headers, vehicle, tire_id, "2026-04-01")
+        assert logged.status_code == 201, logged.text
+        gone = await client.post(
+            f"/api/vehicles/{vehicle}/tires/{tire_id}/retire",
+            headers=auth_headers,
+            json={"dismounted_on": "2026-04-01"},
+        )
+        assert gone.status_code == 200, gone.text
+        assert gone.json()["retired_on"] == "2026-04-01"

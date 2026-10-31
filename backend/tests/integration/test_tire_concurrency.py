@@ -367,7 +367,8 @@ class TestEveryWriterTakesTheLock:
         )
         await db_session.commit()
         base = f"/api/vehicles/{vin}/tires"
-        # A stored tire and a reading, through the unlocked create and log.
+        # A stored tire through the unlocked create, then a reading. Logging one
+        # locks too now, so it can't race a retire (D1).
         made = await client.post(base, headers=auth_headers, json={"vin": vin, "brand": "R"})
         assert made.status_code == 201, made.text
         tire_id = made.json()["id"]
@@ -377,7 +378,7 @@ class TestEveryWriterTakesTheLock:
             json={"recorded_at": "2026-02-01", "tread_depth_mm": "7.0"},
         )
         assert logged.status_code == 201, logged.text
-        assert lock_calls == []
+        assert lock_calls == [vin]
 
         edited = await client.put(
             f"{base}/{tire_id}/readings/{logged.json()['readings'][0]['id']}",
@@ -386,6 +387,6 @@ class TestEveryWriterTakesTheLock:
         )
 
         assert edited.status_code == 200, edited.text
-        assert lock_calls == [vin]
+        assert lock_calls == [vin, vin]
         await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
         await db_session.commit()

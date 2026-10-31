@@ -7313,8 +7313,8 @@ export interface paths {
          *
          *     Absent keys stay; null clears one, except the date. 404 when the reading
          *     isn't this tire's, 409 when the change makes a mount period newly contradict
-         *     it, 422 when it would measure nothing or carries a figure the vehicle doesn't
-         *     track. Returns the whole tire.
+         *     it or moves its date past the tire's retirement, 422 when it would measure
+         *     nothing or carries a figure the vehicle doesn't track. Returns the whole tire.
          */
         put: operations["update_tire_reading_api_vehicles__vin__tires__tire_id__readings__reading_id__put"];
         post?: never;

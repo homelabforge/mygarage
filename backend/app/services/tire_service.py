@@ -286,6 +286,18 @@ def past_retirement(retired_on: dt.date) -> str:
     return f"This tire was retired on {retired_on.isoformat()}. A mount period can't run past that."
 
 
+def reading_past_retirement(retired_on: dt.date) -> str:
+    """The 409 for a reading dated after the tire's retirement (D1)."""
+    return (
+        f"This tire was retired on {retired_on.isoformat()}. A reading can't be dated after that."
+    )
+
+
+def retired_before_reading(day: dt.date) -> str:
+    """The 409 for a retire dated before the tire's newest reading (D1)."""
+    return f"This tire has a reading on {day.isoformat()}, so it can't be retired before that."
+
+
 def retired_before_history(last_day: dt.date) -> str:
     """The 409 for a retire dated before the tire's last known period date (G4-71)."""
     return (
@@ -1869,6 +1881,10 @@ class TireService:
         last_day = last_known_day(tire.mount_periods or [])
         if last_day is not None and last_day > retired_on:
             raise HTTPException(status_code=409, detail=retired_before_history(last_day))
+        # Same rule for readings, or Retire would make the state add_reading refuses.
+        newest_day = max((r.recorded_at for r in tire.readings or []), default=None)
+        if newest_day is not None and newest_day > retired_on:
+            raise HTTPException(status_code=409, detail=retired_before_reading(newest_day))
 
         closed_period: TireMountPeriod | None = None
         if tire.position is not None:
@@ -2283,6 +2299,8 @@ class TireService:
         vin = vin.upper().strip()
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            # Locked so a reading can't slip in past a retire that's committing right now.
+            await lock_vehicle_for_write(self.db, vin)
             axes = await self.request_axes(current_user, vin)
             refuse_untracked(axes, odometers=(data.odometer_km,), hours=(data.engine_hours,))
             result = await self.db.execute(
@@ -2293,6 +2311,11 @@ class TireService:
             tire = result.scalar_one_or_none()
             if not tire:
                 raise HTTPException(status_code=404, detail="Tire not found")
+            # The retire day itself is fine, that's the last measurement.
+            if tire.retired_on is not None and data.recorded_at > tire.retired_on:
+                raise HTTPException(
+                    status_code=409, detail=reading_past_retirement(tire.retired_on)
+                )
 
             reading = TireReading(
                 tire_id=tire.id,
@@ -2375,11 +2398,12 @@ class TireService:
         A reading with a wrong value is corrected in place by `update_reading`;
         the writers that check the mount history name the reading either way.
 
-        No vehicle write lock, for the reason `add_reading` takes none: it
-        writes no position, retirement or period row, which is what the lock
-        serialises. And a delete is safer still than an add: the history rules
-        only compare periods against readings that exist, so removing a
-        reading can remove a contradiction but never create one.
+        No vehicle write lock: it writes no position, retirement or period
+        row, which is what the lock serialises. `add_reading` takes it only
+        because a new reading is checked against `retired_on`; a delete can't
+        break that rule. And the history rules only compare periods against
+        readings that exist, so removing a reading can remove a contradiction
+        but never create one.
 
         Undoes what `add_reading` left behind, and only that: the tread and
         pressure it may have copied onto the tire, the vehicle odometer record
@@ -2483,7 +2507,8 @@ class TireService:
         pressure, the rows the reading published on each axis the vehicle tracks,
         and the low-tread reminder follow the corrected values. A change that makes
         a mount period newly contradict the reading is a 409; one it already
-        contradicted never blocks it.
+        contradicted never blocks it. Same deal with the retirement: moving the
+        date past it is a 409, a date that was already past it stays.
         """
         from app.services.auth import get_vehicle_or_403
 
@@ -2514,6 +2539,12 @@ class TireService:
             (axis.kind, period.id)
             for axis, period in reading_contradictions(periods, reading, axes.captured)
         }
+
+        # Only a date that moves gets checked, so a reading already past the
+        # retirement still takes a notes fix.
+        new_day = fields.get("recorded_at", old_day)
+        if tire.retired_on is not None and new_day != old_day and new_day > tire.retired_on:
+            raise HTTPException(status_code=409, detail=reading_past_retirement(tire.retired_on))
 
         for key, value in fields.items():
             setattr(reading, key, value)
