@@ -210,7 +210,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - A Torque device can no longer read `TORQUE_ODOMETER` as miles: the API refuses odometer unit `mi` with it, and Device settings disables the unit while it's the odometer, with a hint saying why
 - Saving or deleting a service visit, or adding or deleting one of its items, is all or nothing: the odometer and hours readings and reminder updates it makes commit with it, and if one fails the whole change fails
 - Sign-in can only be set to SSO while SSO is on with an issuer URL and client ID, and SSO can't be turned off or lose either while sign-in uses it: the settings API, the SSO config and a settings restore all answer 409
-- A refused or malformed settings restore no longer leaves a stray safety backup, a file that isn't a JSON object answers 400 instead of 500, and settings safety backups made in the same second no longer collide
+- A refused or malformed settings restore no longer leaves a stray safety backup, restoring or uploading a file that isn't a settings JSON object answers 400 instead of 500, and settings safety backups made in the same second no longer collide
 - The settings API's `encrypted` flag says whether the key is a secret, for every key. Before, some plain settings read true
 - The receipt parser reads the units printed on the receipt and converts gallons, miles and price per gallon itself, and leaves a value blank when its unit is unclear
 - The receipt parser leaves a zero or negative odometer, volume or price, a negative cost or kWh, a value too large to store, and a per-kWh price blank, and a field of the wrong type or an overlong number no longer fails with a 500
