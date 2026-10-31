@@ -336,10 +336,11 @@ class TestPublishing:
             None,
         ) in rows
 
-    async def test_a_set_fit_again_lower_the_same_day_corrects_its_row(
+    async def test_a_set_fit_again_lower_the_same_day_lowers_only_its_row(
         self, client, auth_headers, db_session, make_vehicle
     ):
-        # A refit is one event, so a lower figure is a correction, not a stale reading (#224).
+        # The refit lowers the set's row, but the period still says 20.0 and that's
+        # republished behind it (S2-02). The period editor is where a fit gets corrected.
         vin = await make_vehicle("hours")
         tire = (await _create_and_mount(client, auth_headers, vin)).json()
         tire_set = (
@@ -370,9 +371,10 @@ class TestPublishing:
         assert [(r[1], r[3]) for r in rows] == [
             (Decimal("10.0"), "tire_dismount"),
             (Decimal("15.0"), "tire_set"),
+            (Decimal("20.0"), "tire_mount"),
         ]
         assert rows[1][2] == auto_sync_marker("tire_set", tire_set["id"])
-        assert await latest_engine_hours_and_date(db_session, vin) == (Decimal("15.0"), DAY)
+        assert await latest_engine_hours_and_date(db_session, vin) == (Decimal("20.0"), DAY)
 
     async def test_a_reading_publishes_under_the_tire(
         self, client, auth_headers, db_session, make_vehicle

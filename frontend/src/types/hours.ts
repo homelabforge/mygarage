@@ -26,5 +26,7 @@ export type HoursSource =
   | 'tire'
   | 'tire_mount'
   | 'tire_dismount'
+  | 'tire_retire'
+  | 'tire_lone_dismount'
   | 'tire_rotation'
   | 'tire_set'

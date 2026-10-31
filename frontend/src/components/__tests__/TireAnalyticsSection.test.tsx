@@ -24,20 +24,47 @@ vi.mock('@/services/api', () => ({ default: { get: (...args: unknown[]) => apiGe
 
 /* Recharts renders nothing under jsdom: `ResponsiveContainer` measures its
  * parent, which has zero width, so the real chart produces an empty legend and
- * no series. Mocked down to the one thing worth asserting -- WHICH tires get a
- * series -- because a tire that draws no line still costs a legend entry. */
+ * no series. Mocked down to what's worth asserting: WHICH tires get a series,
+ * what each one is keyed and named by, and the rows the chart was handed. */
+const chart = vi.hoisted(() => ({
+  data: [] as Record<string, unknown>[],
+  lines: [] as { dataKey: string; name: string }[],
+}))
 vi.mock('recharts', () => {
   const passthrough = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>
   return {
     ResponsiveContainer: passthrough,
-    LineChart: passthrough,
+    LineChart: ({ data, children }: { data: Record<string, unknown>[]; children?: React.ReactNode }) => {
+      chart.data = data
+      chart.lines = []
+      return <div>{children}</div>
+    },
     CartesianGrid: () => null,
     XAxis: () => null,
     YAxis: () => null,
     Tooltip: () => null,
     Legend: () => null,
-    Line: ({ dataKey }: { dataKey: string }) => <div data-testid="series">{dataKey}</div>,
+    // Recharts falls back to the dataKey for the legend when there's no name.
+    Line: ({ dataKey, name }: { dataKey: string; name?: string }) => {
+      chart.lines.push({ dataKey, name: name ?? dataKey })
+      return <div data-testid="series">{name ?? dataKey}</div>
+    },
   }
+})
+
+/* The global mock returns the bare key, which would hide the DOT code and the
+ * number. So the legend keys render their real English template here, and
+ * everything else stays a bare key like every other test expects. */
+vi.mock('react-i18next', async () => {
+  const en = (await import('../../locales/en/analytics.json')).default
+  const tires = en.vehicle.tires as Record<string, string>
+  const t = (key: string, opts?: Record<string, unknown>): string => {
+    const leaf = key.replace('vehicle.tires.', '')
+    if (!leaf.startsWith('trendSeries') || !(leaf in tires)) return key
+    return tires[leaf].replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(opts?.[name]))
+  }
+  const i18n = { language: 'en', changeLanguage: () => Promise.resolve() }
+  return { useTranslation: () => ({ t, i18n }) }
 })
 
 vi.mock('../../hooks/useUnitPreference', () => ({
@@ -69,10 +96,10 @@ const EMPTY_READINESS = {
   total: 0,
   can_trend: 0,
   can_project: 0,
-  can_report_distance: 0,
+  can_report_usage: 0,
   under_minimum: 0,
   needs_second_reading: 0,
-  needs_reading_odometer: 0,
+  needs_reading_usage: 0,
   needs_minimum_tread: 0,
   needs_mount_odometer: 0,
 }
@@ -376,6 +403,169 @@ describe('TireAnalyticsSection tread trend', () => {
     const series = screen.getAllByTestId('series').map((el) => el.textContent)
     expect(series).toEqual(['FL - Plots'])
   })
+
+  it.each([
+    ['newest first', [2, 1]],
+    ['oldest first', [1, 2]],
+  ])('plots the newest of two same-day readings, listed %s', async (_, order) => {
+    // The API lists readings newest first now, so overwriting the day's slot
+    // as we go plotted the OLDEST one. Highest id wins whatever the order.
+    // In32: 5.5 mm = 6.93, the stale 6.0 mm would be 7.56.
+    const sameDay: Record<number, ReturnType<typeof reading>> = {
+      1: { ...reading(3, '6.00'), id: 1 },
+      2: { ...reading(3, '5.50'), id: 2 },
+    }
+    respond({
+      tires: [tire({ readings: [reading(1, '8.00'), ...order.map((id) => sameDay[id])] })],
+    })
+    await show()
+
+    const key = chart.lines[0].dataKey
+    const march = chart.data.find((row) => row.date === '2026-03-01')
+    expect(Number(march?.[key]).toFixed(2)).toBe('6.93')
+  })
+})
+
+describe('TireAnalyticsSection trend series (G4-22)', () => {
+  afterEach(() => vi.restoreAllMocks())
+  beforeEach(() => respond())
+
+  /** A stored tire: no position, so its label is "In storage - brand". */
+  const stored = (id: number, treads: [string, string], over: Record<string, unknown> = {}) =>
+    tire({
+      id,
+      position: null,
+      brand: 'Blizzak',
+      readings: [
+        { ...reading(1, treads[0]), id: id * 10 + 1, tire_id: id, position: null },
+        { ...reading(2, treads[1]), id: id * 10 + 2, tire_id: id, position: null },
+      ],
+      ...over,
+    })
+
+  it('draws four lines for a stored set of four identical tires', async () => {
+    // Keyed by label, all four wrote into ONE column, so the set drew as one
+    // line carrying whichever tire's tread landed last. Keyed by id, each line
+    // reads its own values (imperial, so in32: 8 mm = 10.08, 7 mm = 8.82).
+    respond({
+      tires: [
+        stored(1, ['8.00', '7.00']),
+        stored(2, ['7.00', '6.00']),
+        stored(3, ['6.00', '5.00']),
+        stored(4, ['5.00', '4.00']),
+      ],
+    })
+    await show()
+
+    expect(chart.lines).toHaveLength(4)
+    const keys = chart.lines.map((line) => line.dataKey)
+    expect(new Set(keys).size).toBe(4)
+
+    const [jan, feb] = chart.data
+    expect(jan.date).toBe('2026-01-01')
+    expect(feb.date).toBe('2026-02-01')
+    const at = (row: Record<string, unknown>) => keys.map((key) => Number(row[key]).toFixed(2))
+    expect(at(jan)).toEqual(['10.08', '8.82', '7.56', '6.30'])
+    expect(at(feb)).toEqual(['8.82', '7.56', '6.30', '5.04'])
+  })
+
+  it('tells clashing tires apart by DOT code when every one has a distinct code', async () => {
+    respond({
+      tires: [
+        stored(2, ['7.00', '6.00'], { dot_code: 'B2 4523' }),
+        stored(1, ['8.00', '7.00'], { dot_code: 'A1 0123' }),
+      ],
+    })
+    await show()
+
+    expect(chart.lines.map((line) => line.name)).toEqual([
+      'vehicle.tires.inStorage - Blizzak (DOT B2 4523)',
+      'vehicle.tires.inStorage - Blizzak (DOT A1 0123)',
+    ])
+  })
+
+  it('numbers clashing tires by id when a DOT code is missing', async () => {
+    // Out of id order on purpose: the plain label goes to the lowest id, not
+    // to whichever tire the API happened to list first.
+    respond({
+      tires: [
+        stored(3, ['6.00', '5.00'], { dot_code: 'A' }),
+        stored(1, ['8.00', '7.00'], { dot_code: null }),
+        stored(2, ['7.00', '6.00'], { dot_code: 'B' }),
+      ],
+    })
+    await show()
+
+    expect(chart.lines.map((line) => line.name)).toEqual([
+      'vehicle.tires.inStorage - Blizzak #3',
+      'vehicle.tires.inStorage - Blizzak',
+      'vehicle.tires.inStorage - Blizzak #2',
+    ])
+  })
+
+  it('numbers clashing tires when two share a DOT code', async () => {
+    respond({
+      tires: [
+        stored(1, ['8.00', '7.00'], { dot_code: 'SAME' }),
+        stored(2, ['7.00', '6.00'], { dot_code: 'SAME' }),
+      ],
+    })
+    await show()
+
+    expect(chart.lines.map((line) => line.name)).toEqual([
+      'vehicle.tires.inStorage - Blizzak',
+      'vehicle.tires.inStorage - Blizzak #2',
+    ])
+  })
+
+  it('leaves unique labels alone, DOT code or not', async () => {
+    // guard: today's legend text for the common case, where nothing clashes.
+    respond({
+      tires: [
+        tire({ id: 1, position: 'FL', dot_code: 'X1', readings: [reading(1, '8.00'), reading(2, '7.00')] }),
+        tire({ id: 2, position: 'FR', dot_code: 'X2', readings: [reading(1, '8.00'), reading(2, '7.00')] }),
+      ],
+    })
+    await show()
+
+    expect(chart.lines.map((line) => line.name)).toEqual(['FL - Michelin', 'FR - Michelin'])
+  })
+
+  it('only counts a clash among the tires that actually plot', async () => {
+    // guard: the twin with one reading draws no line, so it can't push the
+    // trending tire onto a #2, even with the lower id.
+    respond({
+      tires: [
+        tire({
+          id: 1,
+          position: null,
+          brand: 'Blizzak',
+          readings: [{ ...reading(1, '8.00'), id: 11, tire_id: 1, position: null }],
+        }),
+        stored(2, ['8.00', '7.00'], { dot_code: null }),
+      ],
+    })
+    await show()
+
+    expect(chart.lines.map((line) => line.name)).toEqual(['vehicle.tires.inStorage - Blizzak'])
+  })
+
+  it('treats a whitespace-only DOT code as missing', async () => {
+    // guard: ' ' trims to nothing, so the pair falls back to numbering rather
+    // than a blank "(DOT  )".
+    respond({
+      tires: [
+        stored(1, ['8.00', '7.00'], { dot_code: ' ' }),
+        stored(2, ['7.00', '6.00'], { dot_code: 'B2 4523' }),
+      ],
+    })
+    await show()
+
+    expect(chart.lines.map((line) => line.name)).toEqual([
+      'vehicle.tires.inStorage - Blizzak',
+      'vehicle.tires.inStorage - Blizzak #2',
+    ])
+  })
 })
 
 describe('TireAnalyticsSection on the hour meter (#217)', () => {
@@ -415,7 +605,7 @@ describe('TireAnalyticsSection on the hour meter (#217)', () => {
   it('asks for the hour meter, not the odometer, in the next action and the table', async () => {
     apiGet.mockResolvedValue({
       data: {
-        readiness: { ...EMPTY_READINESS, total: 1, needs_reading_odometer: 1 },
+        readiness: { ...EMPTY_READINESS, total: 1, needs_reading_usage: 1 },
         usage_axis: 'hours',
         has_usage_record: true,
         has_odometer_record: false,
@@ -437,7 +627,7 @@ describe('TireAnalyticsSection on the hour meter (#217)', () => {
   it('counts the tires that can report hours, and distance on a distance vehicle', async () => {
     const summary = (axis: string) => ({
       data: {
-        readiness: { ...EMPTY_READINESS, total: 1, can_report_distance: 1 },
+        readiness: { ...EMPTY_READINESS, total: 1, can_report_usage: 1 },
         usage_axis: axis,
         has_usage_record: true,
         has_odometer_record: true,

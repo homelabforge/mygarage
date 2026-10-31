@@ -27,7 +27,8 @@ _SYNC_MARKER = re.compile(r"\[AUTO-SYNC from [^\]]*\]")
 
 #: The odometer sources a reading keeps through a move. The rest (fuel,
 #: service_visit, def, the legacy service, and tire, tire_rotation, tire_set,
-#: tire_mount, tire_dismount) name a record on the instance that wrote them.
+#: tire_mount, tire_dismount, tire_retire, tire_lone_dismount) name a record on
+#: the instance that wrote them.
 _PORTABLE_ODOMETER_SOURCES = frozenset({"manual", "livelink", "webhook"})
 
 

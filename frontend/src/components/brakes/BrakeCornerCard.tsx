@@ -6,7 +6,8 @@ import ClickableCard from '../ClickableCard'
 import { Button, Chip, ProgressMeter, type ProgressMeterTone } from '../ui'
 import type { BrakeAxle, BrakeCorner, BrakeOverview } from '../../types/brake'
 import { formatDateForDisplay } from '../../utils/dateUtils'
-import { formatMm, num, useBrakeText } from './useBrakeText'
+import { num } from '../../utils/wireNumber'
+import { formatMm, useBrakeText } from './useBrakeText'
 
 interface BrakeCornerCardProps {
   corner: BrakeCorner

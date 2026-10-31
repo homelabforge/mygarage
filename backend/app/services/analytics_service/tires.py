@@ -47,13 +47,13 @@ def _tread_bearing(tire: TireResponse) -> list[TireReadingResponse]:
     """Readings that carry a tread depth, newest first.
 
     Same selection `project_wear` makes (`tire_service.py`): sorted by
-    `recorded_at` descending, then filtered to those with a tread. Kept in step
-    by a test that seeds a tire missing only its reading odometers and asserts
-    both this count and `wear_status` agree about it.
+    `(recorded_at, id)` descending, then filtered to those with a tread. Kept in
+    step by a test that seeds a tire missing only its reading odometers and
+    asserts both this count and `wear_status` agree about it.
     """
     return sorted(
         [r for r in (tire.readings or []) if r.tread_depth_mm is not None],
-        key=lambda r: r.recorded_at,
+        key=lambda r: (r.recorded_at, r.id or 0),
         reverse=True,
     )
 
@@ -77,7 +77,7 @@ def tire_readiness(tires: Sequence[TireResponse], axis: str = "distance") -> Tir
 
     can_trend = 0
     needs_second_reading = 0
-    needs_reading_odometer = 0
+    needs_reading_usage = 0
     for tire in live:
         readings = _tread_bearing(tire)
         if len(readings) < 2:
@@ -97,16 +97,16 @@ def tire_readiness(tires: Sequence[TireResponse], axis: str = "distance") -> Tir
         # the two whose odometers matter. A third, older reading without one
         # costs nothing.
         if _axis_value(readings[0], axis) is None or _axis_value(readings[1], axis) is None:
-            needs_reading_odometer += 1
+            needs_reading_usage += 1
 
     return TireReadiness(
         total=len(live),
         can_trend=can_trend,
         can_project=sum(1 for t in live if t.wear_status in _WEAR_HAS_FIGURE),
-        can_report_distance=sum(1 for t in live if t.distance_status == DistanceStatus.COMPLETE),
+        can_report_usage=sum(1 for t in live if t.distance_status == DistanceStatus.COMPLETE),
         under_minimum=sum(1 for t in live if t.below_threshold),
         needs_second_reading=needs_second_reading,
-        needs_reading_odometer=needs_reading_odometer,
+        needs_reading_usage=needs_reading_usage,
         needs_minimum_tread=sum(1 for t in live if t.min_tread_mm is None),
         needs_mount_odometer=sum(1 for t in live if t.distance_status in _DISTANCE_NEEDS_ODOMETER),
     )

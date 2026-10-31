@@ -7313,8 +7313,8 @@ export interface paths {
          *
          *     Absent keys stay; null clears one, except the date. 404 when the reading
          *     isn't this tire's, 409 when the change makes a mount period newly contradict
-         *     it, 422 when it would measure nothing or carries a figure the vehicle doesn't
-         *     track. Returns the whole tire.
+         *     it or moves its date past the tire's retirement, 422 when it would measure
+         *     nothing or carries a figure the vehicle doesn't track. Returns the whole tire.
          */
         put: operations["update_tire_reading_api_vehicles__vin__tires__tire_id__readings__reading_id__put"];
         post?: never;
@@ -17087,10 +17087,10 @@ export interface components {
              */
             can_project: number;
             /**
-             * Can Report Distance
+             * Can Report Usage
              * @default 0
              */
-            can_report_distance: number;
+            can_report_usage: number;
             /**
              * Can Trend
              * @default 0
@@ -17107,10 +17107,10 @@ export interface components {
              */
             needs_mount_odometer: number;
             /**
-             * Needs Reading Odometer
+             * Needs Reading Usage
              * @default 0
              */
-            needs_reading_odometer: number;
+            needs_reading_usage: number;
             /**
              * Needs Second Reading
              * @default 0
@@ -17170,8 +17170,6 @@ export interface components {
             engine_hours?: string | null;
             /** Id */
             id: number;
-            /** Mount Period Id */
-            mount_period_id?: number | null;
             /** Notes */
             notes: string | null;
             /** Odometer Km */

@@ -4,12 +4,9 @@ import { getActiveLocale } from '../../constants/i18n'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../../utils/dateUtils'
 import { formatHours } from '../../utils/hoursFormat'
+import { num } from '../../utils/wireNumber'
 import type { BrakeCorner, BrakeOverview, BrakePosition, BrakeType } from '../../types/brake'
 import type { Tone } from '../ui'
-
-/** API decimals arrive as strings; the formatters take numbers. */
-export const num = (v: number | string | null | undefined): number | null =>
-  v === null || v === undefined || v === '' ? null : Number(v)
 
 /**
  * A brake figure in millimetres. Brakes are millimetres only for now (#202):

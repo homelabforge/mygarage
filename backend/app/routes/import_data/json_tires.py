@@ -2,7 +2,8 @@
 
 Read whole before anything is written, so a bad row refuses the family and
 leaves the vehicle as it was (N-4). Links travel as places in the file: a
-tire's `set_index`, a reading's `mount_period_index`.
+tire's `set_index`. An old file's `mount_period_index` on a reading is skipped,
+unchecked, since the column it filled is retired (D2).
 """
 
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false, reportUnusedClass=false
@@ -52,12 +53,12 @@ _POSITIONS: tuple[str, ...] = get_args(TirePosition)
 
 @dataclass(frozen=True)
 class ParsedTire:
-    """One tire as unsaved rows, each reading with its period's index in `periods`."""
+    """One tire as unsaved rows: the tire, its periods and its readings."""
 
     tire: Tire
     set_index: int | None
     periods: list[TireMountPeriod]
-    readings: list[tuple[TireReading, int | None]]
+    readings: list[TireReading]
 
 
 @dataclass(frozen=True)
@@ -121,10 +122,8 @@ def _period_from_json(tire_index: int, index: int, raw: Any) -> TireMountPeriod:
         raise _RowError(f"Tire {tire_index}, mount period {index}: {e.reason}") from e
 
 
-def _reading_from_json(
-    vin: str, tire_index: int, index: int, raw: Any, period_count: int
-) -> tuple[TireReading, int | None]:
-    """One reading as an unsaved row, with the index of the period it falls in."""
+def _reading_from_json(vin: str, tire_index: int, index: int, raw: Any) -> TireReading:
+    """One reading as an unsaved row."""
     try:
         row = as_object(raw)
         recorded_at = _json_row_date(row, "recorded_at")
@@ -143,10 +142,8 @@ def _reading_from_json(
         within_figure_bounds(HoursFigure, engine_hours=engine_hours)
         if tread_depth_mm is None and pressure_kpa is None:
             raise _RowError("a reading needs a tread depth, a pressure, or both")
-        period_index = file_index(
-            row, "mount_period_index", period_count, what="a mount period of this tire"
-        )
-        reading = TireReading(
+        # mount_period_index never gets read: old backups carry it, junk or not (D2).
+        return TireReading(
             vin=vin,
             position=position,
             recorded_at=recorded_at,
@@ -156,7 +153,6 @@ def _reading_from_json(
             pressure_kpa=pressure_kpa,
             notes=_json_text(row, "notes"),
         )
-        return reading, period_index
     except _RowError as e:
         raise _RowError(f"Tire {tire_index}, reading {index}: {e.reason}") from e
 
@@ -218,9 +214,7 @@ def _tire_from_json(vin: str, index: int, raw: Any, set_count: int) -> ParsedTir
         raise _RowError(f"Tire {index}: {e.reason}") from e
 
     periods = [_period_from_json(index, k, p) for k, p in enumerate(raw_periods)]
-    readings = [
-        _reading_from_json(vin, index, m, r, len(periods)) for m, r in enumerate(raw_readings)
-    ]
+    readings = [_reading_from_json(vin, index, m, r) for m, r in enumerate(raw_readings)]
     try:
         _check_mount_state(tire, periods)
     except _RowError as e:
@@ -260,13 +254,9 @@ async def write_tires(db: AsyncSession, plan: TirePlan) -> None:
             period.tire_id = parsed.tire.id
         db.add_all(parsed.periods)
         await db.flush()
-        for reading, period_index in parsed.readings:
+        for reading in parsed.readings:
             reading.tire_id = parsed.tire.id
-            # A reading with no period stays without one (N-6).
-            reading.mount_period_id = (
-                parsed.periods[period_index].id if period_index is not None else None
-            )
-        db.add_all([reading for reading, _ in parsed.readings])
+        db.add_all(parsed.readings)
         await db.flush()
 
 

@@ -19,10 +19,12 @@ from app.models import OdometerRecord
 from app.utils.odometer_tolerance import odometer_below
 
 #: The start of every marker a tire event writes: `tire` (readings),
-#: `tire_mount`, `tire_dismount`, `tire_rotation` and `tire_set` all begin
-#: with it. Each belongs to the tire event that wrote it (the period editor
-#: moves and `delete_tire` removes the mount and dismount ones), so no other
-#: source may take one over.
+#: `tire_mount`, `tire_dismount`, `tire_retire`, `tire_lone_dismount`,
+#: `tire_rotation` and `tire_set` all begin with it. Each belongs to the tire
+#: event that wrote it (the period editor moves the mount and dismount ones,
+#: a second retire moves the retire one, and `delete_tire` removes the tire's
+#: own: its readings', retire and lone-dismount markers, plus the mount and
+#: dismount markers of each of its periods), so no other source may take one over.
 TIRE_MARKER_PREFIX = "[AUTO-SYNC from tire"
 
 #: Sources that own exactly ONE odometer row per source record: their marker

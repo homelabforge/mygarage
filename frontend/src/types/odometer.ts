@@ -33,7 +33,8 @@ export type NearestOdometer = components['schemas']['NearestOdometerResponse']
 //
 // 'tire_mount' and 'tire_dismount' are per-period markers written by mount,
 // dismount and retire since v3.4.0, so the period editor can move the record
-// it owns.
+// it owns. 'tire_retire' and 'tire_lone_dismount' are per-tire markers for a
+// retire or dismount with no period to close.
 export type OdometerSource =
   | 'manual'
   | 'livelink'
@@ -45,5 +46,7 @@ export type OdometerSource =
   | 'tire'
   | 'tire_mount'
   | 'tire_dismount'
+  | 'tire_retire'
+  | 'tire_lone_dismount'
   | 'tire_rotation'
   | 'tire_set'

@@ -430,13 +430,14 @@ class TestFittingASet:
         assert len(periods) == 1, periods
         assert periods[0]["dismounted_on"] is None
 
-    async def test_fitting_it_again_lower_the_same_day_corrects_the_reading(
+    async def test_fitting_it_again_lower_the_same_day_lowers_only_its_row(
         self, client: AsyncClient, auth_headers, vehicle, db_session
     ):
-        """A refit is one event, so a lower figure is the user fixing a typo (#224).
+        """A refit lower the same day lowers the set's own row and nothing else (S2-02).
 
-        The second fit moves nothing and only publishes. The period editor
-        can't reach the set's row, so a refit is how the user fixes it.
+        The second fit moves nothing, so the tire's period still says 50,200,
+        and that bound gets published once the set's row drops below it. The
+        fit's figure is corrected through the period editor instead (F5-2).
         """
         winter = await _set(client, auth_headers, vehicle, "Winter")
         tire = await _mount(
@@ -463,17 +464,31 @@ class TestFittingASet:
                 json={"mounted_on": TODAY.isoformat(), "odometer_km": km},
             )
             assert fitted.status_code == 200, fitted.text
+        listed = next(t for t in fitted.json()["tires"] if t["id"] == tire["id"])
+        period_id = next(p["id"] for p in listed["mount_periods"] if p["dismounted_on"] is None)
+        mount_marker = auto_sync_marker("tire_mount", period_id)
 
-        rows = (
-            await db_session.execute(
+        async def today() -> set[tuple[Decimal, str | None]]:
+            db_session.expire_all()
+            rows = await db_session.execute(
                 select(OdometerRecord.odometer_km, OdometerRecord.notes).where(
                     OdometerRecord.vin == vehicle, OdometerRecord.date == TODAY
                 )
             )
-        ).all()
-        assert [tuple(row) for row in rows] == [
-            (Decimal("50100"), auto_sync_marker(ODOMETER_SOURCE_SET, winter["id"]))
-        ]
+            return {(row[0], row[1]) for row in rows.all()}
+
+        set_marker = auto_sync_marker(ODOMETER_SOURCE_SET, winter["id"])
+        assert await today() == {(Decimal("50100"), set_marker), (Decimal("50200"), mount_marker)}
+        assert await latest_odometer_km_and_date(db_session, vehicle) == (Decimal("50200"), TODAY)
+
+        corrected = await client.put(
+            f"/api/vehicles/{vehicle}/tires/{tire['id']}/mount-periods/{period_id}",
+            headers=auth_headers,
+            json={"mounted_odometer_km": "50100"},
+        )
+        assert corrected.status_code == 200, corrected.text
+        # The set's row already reads 50,100, so the corrected bound needs no row of its own.
+        assert await today() == {(Decimal("50100"), set_marker)}
         assert await latest_odometer_km_and_date(db_session, vehicle) == (Decimal("50100"), TODAY)
 
     async def test_the_most_recently_recorded_corner_wins(

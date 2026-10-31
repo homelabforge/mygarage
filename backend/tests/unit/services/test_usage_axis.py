@@ -60,10 +60,11 @@ def test_a_zero_carries_the_column_scale():
     assert str(HOURS.zero) == "0.0"
 
 
-def test_the_distance_codes_are_the_ones_on_the_wire_today():
-    assert DISTANCE.reversed_code == tire_history.REVERSED_ODOMETER
-    assert DISTANCE.overlapping_code == tire_history.OVERLAPPING_ODOMETER
-    assert DISTANCE.contradicts_code == tire_history.CONTRADICTS_READING
+def test_the_distance_codes_on_the_wire():
+    # guard: these go out in the API as history_faults codes, so a rename has to fail here.
+    assert DISTANCE.reversed_code == "reversed_odometer"
+    assert DISTANCE.overlapping_code == "overlapping_odometer"
+    assert DISTANCE.contradicts_code == "contradicts_reading"
 
 
 def test_the_hours_codes_are_their_own():

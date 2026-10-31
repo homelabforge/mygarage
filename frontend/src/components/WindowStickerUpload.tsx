@@ -15,6 +15,7 @@ import { useUnitFormat } from '../hooks/useUnitFormat'
 import { usePublicSettings } from '../hooks/usePublicSettings'
 import { isSettingOn } from '../utils/settingSwitch'
 import { seedUnitField, unitFieldUnchanged, type UnitFieldOrigin } from '../utils/unitFormat'
+import { num } from '../utils/wireNumber'
 import type { components } from '../types/api.generated'
 
 type StickerData = components['schemas']['WindowStickerResponse']
@@ -55,9 +56,6 @@ type ReviewField = TextField | MoneyField | EconomyField
 // them lands inline. A key listed here without an alert would swallow its
 // error: it counts as attached, which suppresses the banner.
 const WINDOW_STICKER_KNOWN_FIELDS: readonly ReviewField[] = [...MONEY_FIELDS, ...ECONOMY_FIELDS, ...TEXT_KEYS]
-
-const toNumber = (value: string | number | null | undefined): number | null =>
-  value == null || value === '' ? null : Number(value)
 
 interface WindowStickerUploadProps {
   vin: string
@@ -172,7 +170,7 @@ export default function WindowStickerUpload({
 
       const data = response.data as StickerData
       const origins = Object.fromEntries(
-        ECONOMY_FIELDS.map((key) => [key, seedUnitField(toNumber(data[key]), u.consumption)])
+        ECONOMY_FIELDS.map((key) => [key, seedUnitField(num(data[key]), u.consumption)])
       ) as Record<EconomyField, UnitFieldOrigin>
       const seeded = {} as Record<ReviewField, string>
       for (const key of TEXT_KEYS) seeded[key] = data[key] ?? ''
@@ -227,7 +225,7 @@ export default function WindowStickerUpload({
       }
       const parsed = parseDecimalInput(typed[key], getActiveLocale())
       const value = parsed.kind === 'value' ? parsed.value : null
-      if (value !== toNumber(stored[key])) changes[key] = value
+      if (value !== num(stored[key])) changes[key] = value
     }
     for (const key of ECONOMY_FIELDS) {
       // Compared as a quantity: 7.84 L/100 km shows as 30.0 mpg, and 30.0 mpg

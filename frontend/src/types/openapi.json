@@ -22996,9 +22996,9 @@
             "title": "Can Project",
             "type": "integer"
           },
-          "can_report_distance": {
+          "can_report_usage": {
             "default": 0,
-            "title": "Can Report Distance",
+            "title": "Can Report Usage",
             "type": "integer"
           },
           "can_trend": {
@@ -23016,9 +23016,9 @@
             "title": "Needs Mount Odometer",
             "type": "integer"
           },
-          "needs_reading_odometer": {
+          "needs_reading_usage": {
             "default": 0,
-            "title": "Needs Reading Odometer",
+            "title": "Needs Reading Usage",
             "type": "integer"
           },
           "needs_second_reading": {
@@ -23157,17 +23157,6 @@
           "id": {
             "title": "Id",
             "type": "integer"
-          },
-          "mount_period_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mount Period Id"
           },
           "notes": {
             "anyOf": [
@@ -53008,7 +52997,7 @@
         ]
       },
       "put": {
-        "description": "Correct one reading's date, tread, pressure, odometer, hour meter or notes.\n\nAbsent keys stay; null clears one, except the date. 404 when the reading\nisn't this tire's, 409 when the change makes a mount period newly contradict\nit, 422 when it would measure nothing or carries a figure the vehicle doesn't\ntrack. Returns the whole tire.",
+        "description": "Correct one reading's date, tread, pressure, odometer, hour meter or notes.\n\nAbsent keys stay; null clears one, except the date. 404 when the reading\nisn't this tire's, 409 when the change makes a mount period newly contradict\nit or moves its date past the tire's retirement, 422 when it would measure\nnothing or carries a figure the vehicle doesn't track. Returns the whole tire.",
         "operationId": "update_tire_reading_api_vehicles__vin__tires__tire_id__readings__reading_id__put",
         "parameters": [
           {

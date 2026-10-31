@@ -21,6 +21,8 @@ from app.services.tire_service import project_wear
 
 class _Reading:
     def __init__(self, recorded_at, odometer_km, tread_depth_mm):
+        # Unsaved, like a reading that hasn't been flushed yet. The sort ties on id.
+        self.id = None
         self.recorded_at = recorded_at
         self.odometer_km = odometer_km
         self.tread_depth_mm = tread_depth_mm

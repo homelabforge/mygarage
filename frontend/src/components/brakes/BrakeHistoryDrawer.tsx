@@ -9,8 +9,9 @@ import type { BrakeCorner, BrakeJob, BrakeMeasurement, BrakeOverview } from '../
 import { formatDateForDisplay } from '../../utils/dateUtils'
 import { formatHours } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
+import { num } from '../../utils/wireNumber'
 import { Badge, Button, Drawer, EmptyState } from '../ui'
-import { formatMm, num, useBrakeText } from './useBrakeText'
+import { formatMm, useBrakeText } from './useBrakeText'
 
 interface BrakeHistoryDrawerProps {
   vin: string

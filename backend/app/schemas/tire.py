@@ -271,7 +271,6 @@ class TireReadingResponse(BaseModel):
     vin: str
     # Nullable since 097: a reading can be taken on a stored tire.
     position: str | None = None
-    mount_period_id: int | None = None
     recorded_at: date_type
     odometer_km: Decimal | None
     engine_hours: Decimal | None = None

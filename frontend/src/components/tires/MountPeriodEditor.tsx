@@ -9,6 +9,7 @@ import type { MountedPosition, Tire, TireMountPeriod, TirePosition } from '../..
 import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { canonicalFromUnitField, seedUnitField } from '../../utils/unitFormat'
+import { num } from '../../utils/wireNumber'
 import { Button, Drawer, Field, Input } from '../ui'
 import MountEventFields, { type OdometerFieldValue } from './MountEventFields'
 
@@ -60,8 +61,6 @@ export default function MountPeriodEditor({
   const u = useUnitFormat()
   const update = useUpdateMountPeriod(vin)
   const closed = period.dismounted_on != null
-  const num = (v: number | string | null | undefined): number | null =>
-    v === null || v === undefined || v === '' ? null : Number(v)
 
   const [form, setForm] = useState<EditorState>(() => {
     const mount = seedUnitField(num(period.mounted_odometer_km), u.distance)

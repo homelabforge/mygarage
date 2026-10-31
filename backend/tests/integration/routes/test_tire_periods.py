@@ -753,7 +753,8 @@ class TestMountPeriodEditor:
     ):
         """A reading at the odometer the mount already recorded that day
         publishes nothing: the record stays the period's own, so the editor
-        moves it, and the reading's odometer stays on the reading."""
+        moves it. Once it's moved off the day, the reading still stands, so it
+        gets published in the mount's old place (S2-02)."""
         base = f"/api/vehicles/{vehicle}/tires"
         made = await client.post(
             f"{base}/create-and-mount",
@@ -786,7 +787,12 @@ class TestMountPeriodEditor:
         )
         assert moved.status_code == 200, moved.text
         assert [(r.date, r.odometer_km, r.notes) for r in await _records(db_session, vehicle)] == [
-            (date_type(2026, 1, 12), Decimal("10050"), mount_marker)
+            (
+                date_type(2026, 1, 10),
+                Decimal("10000"),
+                auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id),
+            ),
+            (date_type(2026, 1, 12), Decimal("10050"), mount_marker),
         ]
 
     async def test_a_legacy_tire_marked_record_is_never_moved(

@@ -18,6 +18,8 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 import uuid
+from datetime import date
+from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
@@ -29,10 +31,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 import app.services.tire_service as tire_service_module
 import app.services.tire_set_service as tire_set_service_module
 from app.database import configure_sqlite_engine
+from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.schemas.tire import TireMountRequest
+from app.schemas.tire import TireMountRequest, TireReadingCreate
 from app.services.tire_service import TireService
 from app.services.vehicle_lock import LOCK_BUSY_DETAIL, LOCK_CONTRACT, lock_vehicle_for_write
 
@@ -140,6 +143,61 @@ class TestCornerRace:
             ).scalar()
         assert at_fl == 1
         assert open_at_fl == 1
+
+
+class TestLowTreadRace:
+    async def test_two_racing_readings_raise_one_low_tread_reminder(
+        self, db_session, test_sessionmaker, monkeypatch
+    ):
+        """Two worn readings at once leave one pending reminder and no 500.
+
+        The sync used to run after the write's commit, outside the lock, so both
+        read "no reminder yet" and both raised one. With the unique index that's
+        an IntegrityError, so the sync has to run under the lock instead.
+        """
+        vin, user, tire_id, _other = await _seed(db_session)
+        await _mount(test_sessionmaker, user, vin, tire_id)
+
+        # Hold each sync between its look for a reminder and its insert, so
+        # without the lock both look before either writes.
+        real = tire_service_module.start_readings
+
+        async def slow(db, vin_):
+            await asyncio.sleep(1.0)
+            return await real(db, vin_)
+
+        monkeypatch.setattr(tire_service_module, "start_readings", slow)
+
+        async def worn(day: int):
+            async with test_sessionmaker() as db:
+                return await TireService(db).add_reading(
+                    vin,
+                    tire_id,
+                    TireReadingCreate(
+                        recorded_at=date(2026, 3, day), tread_depth_mm=Decimal("1.5")
+                    ),
+                    user,
+                )
+
+        try:
+            results = await asyncio.gather(worn(1), worn(2), return_exceptions=True)
+
+            assert [r for r in results if isinstance(r, BaseException)] == []
+            async with test_sessionmaker() as db:
+                pending = (
+                    await db.execute(
+                        select(func.count(Reminder.id)).where(
+                            Reminder.tire_id == tire_id,
+                            Reminder.source == "low_tread",
+                            Reminder.status == "pending",
+                        )
+                    )
+                ).scalar()
+            assert pending == 1
+        finally:
+            await db_session.execute(delete(Reminder).where(Reminder.vin == vin))
+            await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+            await db_session.commit()
 
 
 class TestLockHelper:
@@ -355,7 +413,8 @@ class TestEveryWriterTakesTheLock:
         r = await client.delete(f"{base}/{stored}", headers=h)
         assert r.status_code == 204, r.text
 
-        assert lock_calls == [vin] * 10, lock_calls
+        # 11: the edit (`PUT`) at step 5 locks too, now its reminder sync runs under it.
+        assert lock_calls == [vin] * 11, lock_calls
 
     async def test_a_reading_edit_locks_once(
         self, client: AsyncClient, auth_headers, db_session, test_user, lock_calls
@@ -367,7 +426,8 @@ class TestEveryWriterTakesTheLock:
         )
         await db_session.commit()
         base = f"/api/vehicles/{vin}/tires"
-        # A stored tire and a reading, through the unlocked create and log.
+        # A stored tire through the unlocked create, then a reading. Logging one
+        # locks too now, so it can't race a retire (D1).
         made = await client.post(base, headers=auth_headers, json={"vin": vin, "brand": "R"})
         assert made.status_code == 201, made.text
         tire_id = made.json()["id"]
@@ -377,7 +437,7 @@ class TestEveryWriterTakesTheLock:
             json={"recorded_at": "2026-02-01", "tread_depth_mm": "7.0"},
         )
         assert logged.status_code == 201, logged.text
-        assert lock_calls == []
+        assert lock_calls == [vin]
 
         edited = await client.put(
             f"{base}/{tire_id}/readings/{logged.json()['readings'][0]['id']}",
@@ -386,6 +446,37 @@ class TestEveryWriterTakesTheLock:
         )
 
         assert edited.status_code == 200, edited.text
+        assert lock_calls == [vin, vin]
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+        await db_session.commit()
+
+    async def test_a_reading_delete_locks_once(
+        self, client: AsyncClient, auth_headers, db_session, test_user, lock_calls
+    ):
+        """It syncs the low-tread reminder, which has to happen under the lock."""
+        vin = f"LOCKD{uuid.uuid4().hex[:8].upper()}"
+        db_session.add(
+            Vehicle(vin=vin, user_id=test_user["id"], nickname="Lock", vehicle_type="Car")
+        )
+        await db_session.commit()
+        base = f"/api/vehicles/{vin}/tires"
+        made = await client.post(base, headers=auth_headers, json={"vin": vin, "brand": "D"})
+        assert made.status_code == 201, made.text
+        tire_id = made.json()["id"]
+        logged = await client.post(
+            f"{base}/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-02-01", "tread_depth_mm": "7.0"},
+        )
+        assert logged.status_code == 201, logged.text
         assert lock_calls == [vin]
+
+        deleted = await client.delete(
+            f"{base}/{tire_id}/readings/{logged.json()['readings'][0]['id']}",
+            headers=auth_headers,
+        )
+
+        assert deleted.status_code == 204, deleted.text
+        assert lock_calls == [vin, vin]
         await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
         await db_session.commit()

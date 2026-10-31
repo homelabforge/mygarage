@@ -11,6 +11,7 @@ import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { canonicalFromTreadField } from '../../utils/treadEntry'
 import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../../utils/unitFormat'
+import { num } from '../../utils/wireNumber'
 import { Button, Drawer, Field, Input } from '../ui'
 import MountEventFields, { type OdometerFieldValue } from './MountEventFields'
 import TreadField from './TreadField'
@@ -58,8 +59,6 @@ export default function ReadingEditor({
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
   const update = useUpdateTireReading(vin)
-  const num = (v: number | string | null | undefined): number | null =>
-    v === null || v === undefined || v === '' ? null : Number(v)
 
   const [form, setForm] = useState<EditorState>(() => {
     const odometer = seedUnitField(num(reading.odometer_km), u.distance)

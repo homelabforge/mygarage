@@ -30,10 +30,11 @@ from app.services.usage_axis import distance_formatter as distance_formatter
 from app.services.usage_axis import format_km as format_km
 
 REVERSED_DATES = "reversed_dates"
-REVERSED_ODOMETER = "reversed_odometer"
 OVERLAPPING_DATES = "overlapping_dates"
-OVERLAPPING_ODOMETER = "overlapping_odometer"
-CONTRADICTS_READING = "contradicts_reading"
+# The distance codes live on the axis now. These names stay so callers don't break.
+REVERSED_ODOMETER = DISTANCE.reversed_code
+OVERLAPPING_ODOMETER = DISTANCE.overlapping_code
+CONTRADICTS_READING = DISTANCE.contradicts_code
 
 
 @dataclass(frozen=True)
