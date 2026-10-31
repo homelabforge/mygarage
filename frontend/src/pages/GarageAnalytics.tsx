@@ -37,9 +37,9 @@ const monthlyTrendTotal = (trend: GarageAnalytics['monthly_trends'][number]) =>
   parseFloat(trend.service) + parseFloat(trend.fuel) + parseFloat(trend.def_cost)
 
 // The API always sends the last 12 months, zeros and all, so a row count can't
-// tell a quiet garage apart. Any running cost in the window is what counts.
-const hasRunningCosts = (trends: GarageAnalytics['monthly_trends']): boolean =>
-  trends.some((trend) => monthlyTrendTotal(trend) > 0)
+// tell a quiet garage apart. Anything the chart plots counts, financing too.
+const hasTrend = (trends: GarageAnalytics['monthly_trends']): boolean =>
+  trends.some((trend) => monthlyTrendTotal(trend) > 0 || parseFloat(trend.financing) > 0)
 
 export default function GarageAnalytics() {
   const { t } = useTranslation('analytics')
@@ -97,7 +97,7 @@ export default function GarageAnalytics() {
     rows.push('')
 
     // Monthly Trends
-    if (hasRunningCosts(analytics.monthly_trends)) {
+    if (hasTrend(analytics.monthly_trends)) {
       rows.push('Monthly Spending Trends')
       rows.push('Month,Service,Fuel,DEF,Financing,Total')
       analytics.monthly_trends.forEach((trend) => {
@@ -587,7 +587,7 @@ export default function GarageAnalytics() {
       </div>
 
       {/* Monthly Spending Trend */}
-      {runningCostMonths.length > 0 && (
+      {hasTrend(monthly_trends) && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <h2 className="text-xl font-bold mb-4 text-garage-text">{t('garage.monthlySpendingTrend')}</h2>
           <ResponsiveContainer width="100%" height={300}>

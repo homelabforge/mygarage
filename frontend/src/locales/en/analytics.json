@@ -68,9 +68,9 @@
       "financingLabel": "Financing:",
       "financingDesc": "Total lease payments, loan payments, and upfront financing fees (shown when any vehicle has financing records).",
       "insuranceLabel": "Insurance:",
-      "insuranceDesc": "Combined insurance costs for all vehicles.",
+      "insuranceDesc": "Combined insurance costs for all vehicles (shown when any vehicle has insurance costs).",
       "taxesLabel": "Taxes:",
-      "taxesDesc": "Total registration and tax expenses."
+      "taxesDesc": "Total registration and tax expenses (shown when any vehicle has tax or registration records)."
     },
     "categoryBreakdown": {
       "title": "Cost Breakdown by Category",

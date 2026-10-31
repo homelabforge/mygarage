@@ -270,6 +270,19 @@ describe('GarageAnalytics: trend rows in the CSV export', () => {
     expect(csv).not.toContain('M01 2026')
   })
 
+  it('keeps the trend rows for a financing-only window', async () => {
+    const csv = await exportCsv({
+      ...GARAGE,
+      monthly_trends: months.map((month) =>
+        month === 'M04 2026' ? { ...zeroMonth(month), financing: '450.00' } : zeroMonth(month)
+      ),
+    })
+    expect(csv).toContain('Monthly Spending Trends')
+    expect(csv).toContain('M01 2026,0.00,0.00,0.00,0.00,0.00')
+    // Total is running costs only, so the lease payment leaves it at zero.
+    expect(csv).toContain('M04 2026,0.00,0.00,0.00,450.00,0.00')
+  })
+
   it('keeps all 12 rows, zeros included, when one month has running costs (guard)', async () => {
     const csv = await exportCsv({
       ...GARAGE,

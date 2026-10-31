@@ -265,6 +265,7 @@ describe('GarageAnalytics: optional cost cards show only when they carry money',
     // The core three still show.
     expect(screen.getByText('garage.cards.garageValue')).toBeInTheDocument()
     expect(screen.getByText('garage.cards.maintenance')).toBeInTheDocument()
+    expect(screen.getByText('garage.cards.fuel')).toBeInTheDocument()
   })
 
   it('shows the core three at $0 too (guard)', async () => {
@@ -331,6 +332,28 @@ describe('GarageAnalytics: fixed 12-month trend window', () => {
     await screen.findByText('$13,200.00')
     expect(screen.queryByText('garage.monthlySpendingTrend')).not.toBeInTheDocument()
     expect(captured.barCharts).toHaveLength(0)
+  })
+
+  it('shows the trend bars for a financing-only window, with no average lines', async () => {
+    mockedGet.mockResolvedValue({
+      data: {
+        ...GARAGE,
+        monthly_trends: TWELVE_MONTHS.map((month) =>
+          month === 'Mar 2026' || month === 'Apr 2026'
+            ? { ...zeroMonth(month), financing: '450.00' }
+            : zeroMonth(month)
+        ),
+      },
+    })
+    render(<GarageAnalytics />)
+    await screen.findByText('$13,200.00')
+    expect(screen.getByText('garage.monthlySpendingTrend')).toBeInTheDocument()
+    const trend = captured.barCharts.at(-1) as Array<{ Financing: number; avg3: number | null }>
+    expect(trend).toHaveLength(12)
+    expect(trend[4].Financing).toBe(450)
+    // Financing isn't a running cost, so the averages have nothing to run over.
+    expect(trend.every((row) => row.avg3 === null)).toBe(true)
+    expect(screen.queryAllByTestId('trend-line')).toHaveLength(0)
   })
 
   it('shows the trend chart when one month carries running costs (guard)', async () => {
