@@ -14,6 +14,7 @@ correct source, and the stored setting is only a fallback.
 
 import time
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 from joserfc import jwt
@@ -80,7 +81,7 @@ def _make_id_token(key: RSAKey, issuer: str) -> str:
 async def _verify(key: RSAKey, token_issuer: str, metadata: dict, config: dict) -> dict | None:
     jwks = KeySet([key]).as_dict(private=False)
     with (
-        patch("app.services.oidc.tokens.validate_oidc_url", return_value=None),
+        patch("app.services.oidc.tokens.validate_oidc_url", side_effect=urlparse),
         patch(
             "app.services.oidc.tokens.httpx.AsyncClient",
             lambda *a, **kw: _FakeAsyncClient(jwks),

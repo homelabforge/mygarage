@@ -443,14 +443,14 @@ async def oidc_login(
         logger.error("Cannot connect to OIDC provider")
         return _to_login(request, SSOError.FAILED)
     except JoseError as e:
-        logger.error("OIDC JWT error creating authorization URL: %s", e)
+        logger.error("OIDC JWT error creating authorization URL: %s", sanitize_for_log(e))
         return _to_login(request, SSOError.FAILED)
     except (ValueError, KeyError) as e:
-        logger.error("OIDC configuration error: %s", e)
+        logger.error("OIDC configuration error: %s", sanitize_for_log(e))
         return _to_login(request, SSOError.FAILED)
 
     _warn_if_redirect_uri_blank(config)
-    logger.info("Redirecting to OIDC provider for authentication (state: %s)", state)
+    logger.info("Redirecting to OIDC provider for authentication (state: %s...)", state[:16])
     return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
 
 
@@ -479,7 +479,11 @@ async def oidc_callback(
         Redirect to the frontend: the OIDC success page with the auth cookie set,
         the link account page, or the login page
     """
-    logger.info("Received OIDC callback (state: %s)", sanitize_for_log(state))
+    # The state is a live login secret, so only its prefix goes in. No state on a cancel.
+    logger.info(
+        "Received OIDC callback (state: %s)",
+        f"{sanitize_for_log(state[:16])}..." if state else None,
+    )
 
     # The IdP sends ?error= and no code when the person cancels or it refuses.
     if error or not code or not state:

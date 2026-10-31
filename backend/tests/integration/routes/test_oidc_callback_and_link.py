@@ -41,6 +41,7 @@ import httpx
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient, Response
+from joserfc.errors import JoseError
 from sqlalchemy import delete, event, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -248,7 +249,7 @@ def _idp_over_http(answers: dict[str, tuple[int, bytes]]) -> Generator[None]:
     """A valid state, then the real provider services over a mock transport.
 
     Each URL gets its canned status and body, anything else a 404. URL
-    validation is skipped, since the example hosts don't resolve. Discovery
+    validation is skipped, since the example hosts don't resolve. Every service
     fetches what the validator returns, so its stand-in still parses.
     """
 
@@ -264,7 +265,7 @@ def _idp_over_http(answers: dict[str, tuple[int, bytes]]) -> Generator[None]:
             return_value=dict(_STATE),
         ),
         patch("app.services.oidc.config.validate_oidc_url", side_effect=urlparse),
-        patch("app.services.oidc.tokens.validate_oidc_url"),
+        patch("app.services.oidc.tokens.validate_oidc_url", side_effect=urlparse),
         # One httpx module serves both service modules, so this covers all of them.
         patch(
             "app.services.oidc.config.httpx.AsyncClient",
@@ -676,6 +677,92 @@ class TestCallbackFailure:
         assert parse_qs(location.query) == {"sso_error": ["cancelled"]}
 
 
+class TestSSOLogs:
+    """The login start and the callback log through real requests, not just the helpers."""
+
+    @pytest_asyncio.fixture(autouse=True)
+    async def _sso_on(self, _oidc_rows: None, db_session: AsyncSession) -> None:
+        await _set_oidc(
+            db_session, enabled="true", issuer_url="https://idp.example", client_id="mygarage"
+        )
+
+    @pytest.mark.parametrize(
+        "error",
+        [JoseError("bad key\nforged line"), ValueError("bad key\nforged line")],
+        ids=["jose", "config"],
+    )
+    async def test_a_login_start_error_is_logged_escaped(
+        self, client: AsyncClient, caplog: pytest.LogCaptureFixture, error: Exception
+    ):
+        caplog.set_level(logging.ERROR, logger="app.routes.oidc")
+
+        with (
+            patch(
+                "app.services.oidc.get_provider_metadata",
+                new_callable=AsyncMock,
+                return_value=dict(_METADATA),
+            ),
+            patch(
+                "app.services.oidc.create_authorization_url",
+                new_callable=AsyncMock,
+                side_effect=error,
+            ),
+        ):
+            response = await client.get("/api/auth/oidc/login", follow_redirects=False)
+
+        assert_sent_to_login(response, "failed")
+        errors = [
+            r.getMessage()
+            for r in caplog.records
+            if r.name == "app.routes.oidc" and r.levelno >= logging.ERROR
+        ]
+        assert len(errors) == 1, errors
+        assert "bad key\\nforged line" in errors[0]
+        assert "\n" not in errors[0]
+
+    async def test_the_whole_state_never_reaches_the_log(
+        self,
+        client: AsyncClient,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        caplog: pytest.LogCaptureFixture,
+    ):
+        """It's a live login secret for 10 minutes, so only its first 16 characters go in."""
+        caplog.set_level(logging.DEBUG, logger="app")
+
+        with patch(
+            "app.services.oidc.get_provider_metadata",
+            new_callable=AsyncMock,
+            return_value=dict(_METADATA),
+        ):
+            start = await client.get("/api/auth/oidc/login", follow_redirects=False)
+
+        assert start.status_code == 302, start.text
+        state = parse_qs(urlsplit(start.headers["location"]).query)["state"][0]
+        assert await _stored_state(test_sessionmaker, state) is not None
+
+        response = await client.get(
+            "/api/auth/oidc/callback",
+            params={"error": "access_denied", "state": state},
+            follow_redirects=False,
+        )
+
+        assert_sent_to_login(response, "cancelled")
+        records = [r for r in caplog.records if r.name.startswith("app")]
+        leaked = [r.getMessage() for r in records if state in r.getMessage()]
+        assert leaked == []
+
+        # The prefix still goes in, so one sign-in can be followed through the log.
+        def logged(text: str) -> logging.LogRecord:
+            found = [r for r in records if text in r.getMessage()]
+            assert len(found) == 1, (text, [r.getMessage() for r in records])
+            assert f"{state[:16]}..." in found[0].getMessage()
+            return found[0]
+
+        logged("Redirecting to OIDC provider")
+        logged("Received OIDC callback")
+        assert logged("Created OIDC authorization URL").levelno == logging.DEBUG
+
+
 class TestCallbackProviderFailureThatRaises:
     """Provider answers the services used to let escape as a 500."""
 
@@ -913,6 +1000,9 @@ class TestLinkAudit:
         assert row.details == {"provider": "Rauthy", "oidc_subject": claims["sub"]}
         assert row.success == 1
         assert row.ip_address == "127.0.0.1"
+        # Ties the row to the account it linked, so the audit view can filter on it.
+        assert row.resource_type == "user"
+        assert row.resource_id == str(target.id)
 
     async def test_a_wrong_password_is_audited_with_the_reason_in_a_dict(
         self,

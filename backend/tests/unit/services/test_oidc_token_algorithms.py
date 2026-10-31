@@ -9,6 +9,7 @@ that moves to the new name has to keep working.
 import time
 import warnings
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 from joserfc import jwt
@@ -75,7 +76,7 @@ def _token(key: OKPKey, alg: str) -> str:
 async def _verify(key: OKPKey, alg: str) -> tuple[dict | None, list[str]]:
     jwks = KeySet([key]).as_dict(private=False)
     with (
-        patch("app.services.oidc.tokens.validate_oidc_url", return_value=None),
+        patch("app.services.oidc.tokens.validate_oidc_url", side_effect=urlparse),
         patch(
             "app.services.oidc.tokens.httpx.AsyncClient", lambda *a, **kw: _FakeAsyncClient(jwks)
         ),
