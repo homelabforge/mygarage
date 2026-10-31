@@ -264,26 +264,6 @@ class TestTheOwnedReminderFollowsTheTire:
         assert len(rows) == 1
         assert rows[0].title == "Tire tread low (FL)"
 
-    async def test_duplicate_owned_reminders_reconcile_to_one(self, db_session, vin):
-        tire = await _tire(db_session, vin, position="FL", tread="1.5")
-        for _ in range(2):
-            db_session.add(
-                Reminder(
-                    vin=vin,
-                    tire_id=tire.id,
-                    source="low_tread",
-                    title="Tire tread low (FL)",
-                    reminder_type="date",
-                    due_date=date(2026, 12, 1),
-                    status="pending",
-                )
-            )
-        await db_session.commit()
-
-        await _sync(db_session, tire)
-
-        assert len(await _pending(db_session, vin)) == 1
-
 
 class TestStoredTires:
     """D3a: a stored tire has no live low-tread reminder."""

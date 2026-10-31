@@ -202,4 +202,16 @@ class Reminder(Base):
             sqlite_where=text("status = 'pending'"),
             postgresql_where=text("status = 'pending'"),
         ),
+        # One live low-tread reminder per tire (migration 140). Manual and rule
+        # reminders have no source or tire, so they're never caught by it.
+        Index(
+            "uq_reminder_source_tire_live",
+            "source",
+            "tire_id",
+            unique=True,
+            sqlite_where=text("source IS NOT NULL AND tire_id IS NOT NULL AND status = 'pending'"),
+            postgresql_where=text(
+                "source IS NOT NULL AND tire_id IS NOT NULL AND status = 'pending'"
+            ),
+        ),
     )

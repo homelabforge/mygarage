@@ -276,6 +276,61 @@ class TestTireRoutes:
         )
         assert result.scalar_one().status == "done"
 
+    async def test_a_backdated_worn_first_reading_is_due_on_its_own_date(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """guard: the sync has to see the reading the same request just added.
+
+        A reload that keeps the stale readings list (F1-2) dates it today instead,
+        and one that runs before the flush drops the tread entirely (F2-3).
+        """
+        vin = test_vehicle["vin"]
+        created = await client.post(
+            f"/api/vehicles/{vin}/tires/create-and-mount",
+            headers=auth_headers,
+            json={"vin": vin, "position": "FL", "tread_depth_mm": "6.0", "min_tread_mm": "2.0"},
+        )
+        assert created.status_code == 201, created.text
+        tire_id = created.json()["id"]
+
+        logged = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-01-15", "tread_depth_mm": "1.5"},
+        )
+
+        assert logged.status_code == 201, logged.text
+        reminders = await client.get(f"/api/vehicles/{vin}/reminders", headers=auth_headers)
+        [low] = [r for r in reminders.json() if r["tire_id"] == tire_id]
+        assert (low["status"], low["due_date"]) == ("pending", "2026-01-15")
+        assert Decimal(low["tread_depth_mm"]) == Decimal("1.5")
+
+    async def test_an_edited_worn_tread_raises_the_reminder(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """guard: Edit Tire's tread only lands through a setattr, so it has to flush before the reload (F2-3)."""
+        vin = test_vehicle["vin"]
+        created = await client.post(
+            f"/api/vehicles/{vin}/tires/create-and-mount",
+            headers=auth_headers,
+            json={"vin": vin, "position": "RL", "tread_depth_mm": "6.0", "min_tread_mm": "2.0"},
+        )
+        assert created.status_code == 201, created.text
+        tire_id = created.json()["id"]
+
+        edited = await client.put(
+            f"/api/vehicles/{vin}/tires/{tire_id}",
+            headers=auth_headers,
+            json={"tread_depth_mm": "1.5"},
+        )
+
+        assert edited.status_code == 200, edited.text
+        assert edited.json()["below_threshold"] is True
+        reminders = await client.get(f"/api/vehicles/{vin}/reminders", headers=auth_headers)
+        [low] = [r for r in reminders.json() if r["tire_id"] == tire_id]
+        assert low["status"] == "pending"
+        assert Decimal(low["tread_depth_mm"]) == Decimal("1.5")
+
     async def test_upsert_does_not_wipe_unspecified_fields(
         self, client: AsyncClient, auth_headers, test_vehicle
     ):

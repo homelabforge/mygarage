@@ -1053,10 +1053,9 @@ async def sync_low_tread_reminder(db: AsyncSession, tire: Tire) -> bool:
     notifications scheduler, and HA bridge all see low tread without a
     separate notification channel.
 
-    Never commits, so a mover can run it inside its own transaction and a
-    later failure takes these writes with the rest. Returns whether it
-    changed anything; `TireService._sync_low_tread_reminder` commits on that.
-    `tire.readings` must be loaded.
+    Never commits, so a writer runs it inside its own transaction, under the
+    vehicle lock, and a later failure takes these writes with the rest.
+    Returns whether it changed anything. `tire.readings` must be loaded.
 
     D3a: the reminder lives only while the tire is mounted. Off the vehicle
     a pending one is closed (done on the retire date for a retired tire,
@@ -1087,10 +1086,10 @@ async def sync_low_tread_reminder(db: AsyncSession, tire: Tire) -> bool:
         below = tread <= limit
     # Identity is the TIRE, not the title. Titles are arbitrary user
     # input, so matching on one adopts a reminder a human wrote and
-    # completes it on their behalf. `scalars().all()` rather than
-    # `scalar_one_or_none()`: rows created before this fix can leave more
-    # than one pending row per tire, and raising on that would make the
-    # bug unfixable from inside the app.
+    # completes it on their behalf. `uq_reminder_source_tire_live` keeps it
+    # to one pending row, but 140 isn't FATAL: one that failed leaves the
+    # old duplicates and no index, and `scalar_one_or_none()` would 500
+    # every sync of that tire. So read them all and work on the first.
     owned = (
         (
             await db.execute(
@@ -1123,13 +1122,7 @@ async def sync_low_tread_reminder(db: AsyncSession, tire: Tire) -> bool:
         return bool(owned)
 
     existing = owned[0] if owned else None
-    # A pre-fix row could have left more than one pending reminder on the
-    # same tire (matched by title back then, not by identity). Collapse
-    # every extra one now rather than leaving it to keep firing.
     dirty = False
-    for duplicate in owned[1:]:
-        duplicate.status = "done"
-        dirty = True
 
     # C10 predates some rows still pending on an upgraded instance. A
     # reminder created by a pre-C10 release carries `reminder_type="both"`
@@ -1531,7 +1524,10 @@ class TireService:
                 .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
             )
             tire = result.scalar_one()
-            return await self._reload_and_sync(tire.id, vin, axes)
+            # After the commit and unlocked, which is fine: it's stored, so the
+            # sync can't raise a reminder for it (D3a).
+            await self._sync_low_tread_reminder(tire)
+            return await self._reload_response(tire.id, vin, axes)
         except HTTPException:
             raise
         except OperationalError as e:
@@ -1627,7 +1623,6 @@ class TireService:
             odometer_km=data.mounted_odometer_km,
             engine_hours=data.mounted_hours,
         )
-        await self.db.commit()
         # The reminder title names the position, so mounting changes it.
         return await self._reload_and_sync(tire.id, vin, axes)
 
@@ -1775,7 +1770,6 @@ class TireService:
             odometer_km=data.mounted_odometer_km,
             engine_hours=data.mounted_hours,
         )
-        await self.db.commit()
         return await self._reload_and_sync(tire.id, vin, axes)
 
     async def rotate_tires(
@@ -1941,7 +1935,7 @@ class TireService:
         return {p.id for p in tire.mount_periods or [] if p.dismounted_on is None}
 
     async def _reload_and_sync(self, tire_id: int, vin: str, axes: VehicleAxes) -> TireResponse:
-        """Reload, run the low-tread reminder sync, and serialise.
+        """Flush, reload, run the low-tread reminder sync, commit once, and serialise.
 
         The sync has to happen on every path that can change a tire's tread or
         its mounted state, not only on the reading path. A tire entered with a
@@ -1949,15 +1943,30 @@ class TireService:
         warned about, and the previous `upsert_tire` did sync it -- so the
         create/mount split had to carry that behaviour across rather than drop
         it silently.
+
+        It ends the caller's write: the sync runs in the same transaction, under
+        the vehicle lock the caller took before its first read. Two syncs racing
+        outside it both raised a reminder, which `uq_reminder_source_tire_live`
+        turns into a 500.
+
+        Flushed first, since request sessions don't autoflush and the reload
+        would throw away the tire's pending tread. `populate_existing` because
+        the tire is already in the identity map: a plain re-select keeps its
+        stale readings, and a bare refresh expires them unloaded, so
+        `project_wear` raises MissingGreenlet. It also reads the readings back
+        at the columns' scale, so an echo says 170.00 and not 170.
         """
+        await self.db.flush()
         tire = (
             await self.db.execute(
                 select(Tire)
                 .where(Tire.id == tire_id)
                 .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
+                .execution_options(populate_existing=True)
             )
         ).scalar_one()
-        await self._sync_low_tread_reminder(tire)
+        await sync_low_tread_reminder(self.db, tire)
+        await self.db.commit()
         return await self._reload_response(tire_id, vin, axes)
 
     async def _reload_response(self, tire_id: int, vin: str, axes: VehicleAxes) -> TireResponse:
@@ -1987,6 +1996,8 @@ class TireService:
         vin = vin.upper().strip()
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            # Locked for the reminder sync at the end, like every writer that runs one.
+            await lock_vehicle_for_write(self.db, vin)
             axes = await self.request_axes(current_user, vin)
             result = await self.db.execute(
                 select(Tire)
@@ -2014,25 +2025,10 @@ class TireService:
                 if key == "storage_location":
                     value = normalise_storage_location(value)
                 setattr(tire, key, value)
-            await self.db.commit()
-            # Named, not a bare refresh: the only thing this call needs is
-            # `updated_at`, the server-side onupdate the commit just produced
-            # (expire_on_commit=False leaves everything else already
-            # current). A bare `db.refresh(tire)` expires every attribute,
-            # `readings`/`mount_periods` included, and this request still
-            # needs both below -- under an async session an expired
-            # relationship cannot lazy-load on a synchronous touch, it raises
-            # MissingGreenlet instead.
-            await self.db.refresh(tire, attribute_names=["updated_at"])
-            await self._sync_low_tread_reminder(tire)
-            # WITH the odometer. Without it every edit answered as though the
-            # vehicle had never had a reading, so a PUT that only changed a
-            # brand came back reporting the tire's distance as unknown. The
-            # wrong figure never rendered because the client refetches, which
-            # is exactly why it survived.
-            return self._to_response(
-                tire, axes, current_odometer=await self._current_usage(vin, axes.primary)
-            )
+            # Answers WITH the odometer. Without it every edit answered as though
+            # the vehicle had never had a reading, so a PUT that only changed a
+            # brand came back reporting the tire's distance as unknown.
+            return await self._reload_and_sync(tire.id, vin, axes)
         except HTTPException:
             raise
         except OperationalError as e:
@@ -2464,7 +2460,6 @@ class TireService:
         if tire.retired_on is None:
             raise HTTPException(status_code=409, detail="This tire is not retired.")
         tire.retired_on = None
-        await self.db.commit()
         return await self._reload_and_sync(tire.id, vin, axes)
 
     async def delete_tire(self, vin: str, tire_id: int, current_user: User | None) -> None:
@@ -2604,7 +2599,7 @@ class TireService:
             # pressure-only reading (#152: a slow leak, no tread gauge) would
             # otherwise null the parent tire's tread, and an unknown tread is
             # not a measurement of a healthy one: `below_threshold` would drop
-            # to False and `_sync_low_tread_reminder` would mark a live
+            # to False and `sync_low_tread_reminder` would mark a live
             # low-tread reminder done. Logging a pressure would have silently
             # dismissed the warning that the tire is worn out.
             # Per measure, so a later pressure-only reading doesn't hold back a
@@ -2629,16 +2624,6 @@ class TireService:
                 odometer_km=data.odometer_km,
                 engine_hours=data.engine_hours,
             )
-            await self.db.commit()
-            # Read back at the columns' scale, so the echo says 170.00 and not 170.
-            await self.db.refresh(reading)
-            await self.db.refresh(tire)
-            result = await self.db.execute(
-                select(Tire)
-                .where(Tire.id == tire_id)
-                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
-            )
-            tire = result.scalar_one()
             return await self._reload_and_sync(tire.id, vin, axes)
         except HTTPException:
             raise
@@ -2655,12 +2640,10 @@ class TireService:
         A reading with a wrong value is corrected in place by `update_reading`;
         the writers that check the mount history name the reading either way.
 
-        No vehicle write lock: it writes no position, retirement or period
-        row, which is what the lock serialises. `add_reading` takes it only
-        because a new reading is checked against `retired_on`; a delete can't
-        break that rule. And the history rules only compare periods against
-        readings that exist, so removing a reading can remove a contradiction
-        but never create one.
+        Under the vehicle write lock, for the low-tread reminder sync at the
+        end: two syncs racing outside it would both raise one. Not for the
+        history rules, which only compare periods against readings that exist,
+        so removing a reading can remove a contradiction but never create one.
 
         Undoes what `add_reading` left behind, and only that: the tread and
         pressure it may have copied onto the tire, the vehicle odometer record
@@ -2672,6 +2655,7 @@ class TireService:
         vin = vin.upper().strip()
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            await lock_vehicle_for_write(self.db, vin)
             axes = await self.request_axes(current_user, vin)
             tire = (
                 await self.db.execute(
@@ -2702,7 +2686,7 @@ class TireService:
             # null: the only dated measurement on file was the one being
             # withdrawn, and an Add Tire value it replaced carries no date that
             # would make it true now. An unknown tread is what
-            # `_sync_low_tread_reminder` treats as unknown, never as healthy.
+            # `sync_low_tread_reminder` treats as unknown, never as healthy.
             # A value that differs was set by the user or by a newer reading,
             # and is left alone.
             if _same_measure(tire.tread_depth_mm, reading.tread_depth_mm):
@@ -2726,13 +2710,9 @@ class TireService:
                     axis,
                 )
 
-            # Removed from the loaded collection, not just `db.delete`d: the
-            # reload below finds this tire in the identity map with `readings`
-            # already loaded, and would otherwise hand the reminder sync a
-            # collection that still holds the deleted row. `delete-orphan`
-            # issues the DELETE on commit.
+            # Taken out of the collection, and `delete-orphan` issues the DELETE
+            # at the flush, before the sync's reload.
             tire.readings.remove(reading)
-            await self.db.commit()
             # The response is discarded: the route answers 204, and the sync is
             # the point. It completes a low-tread reminder once the tire's
             # tread is measured healthy again, and leaves one pending when the
@@ -2844,10 +2824,7 @@ class TireService:
                 vin, reading.recorded_at, now, ODOMETER_SOURCE_TIRE, tire.id, axis
             )
 
-        await self.db.commit()
-        # Read back at the columns' scale, so the echo says 170.00 and not 170.
-        # Tire.readings cascades refresh, so this reloads the reading too.
-        await self.db.refresh(tire)
+        # The tire's setattrs above came after the only flush; `_reload_and_sync` flushes them first.
         return await self._reload_and_sync(tire.id, vin, axes)
 
     async def _withdraw_reading_usage(
@@ -2917,6 +2894,11 @@ class TireService:
         await republish_day_backer(self.db, vin, day, axis, exclude_reading_id=reading_id)
 
     async def _sync_low_tread_reminder(self, tire: Tire) -> None:
-        """Run `sync_low_tread_reminder` and commit when it changed anything."""
+        """Run `sync_low_tread_reminder` and commit when it changed anything.
+
+        Only `create_tire` uses it, after its commit: a stored tire gets no
+        reminder, so there's nothing to race. Every other writer syncs in
+        `_reload_and_sync`, under its lock.
+        """
         if await sync_low_tread_reminder(self.db, tire):
             await self.db.commit()
