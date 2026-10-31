@@ -607,9 +607,10 @@ class TestRenderContextDrivesUnits:
         assert "7,456 mi" in text
         assert "Avg 621 mi/mo" in text
         assert "9.40 L/100km" in text
-        assert "COST PER 100 KM" in text
-        assert "$42.00" in text
-        assert "1,000 mi" not in text.replace("Avg 621 mi/mo", "")
+        assert "COST PER 100 KM $42.00" in text
+        # The label is uppercased, so the vehicle's scale would show as MI.
+        assert "1,000 MI" not in text
+        assert "1,000 mi" not in text
 
     def test_without_a_rate_context_the_rate_follows_the_render_context(self) -> None:
         """The parameter is what decides it: omitted, the cell reads the
@@ -621,8 +622,7 @@ class TestRenderContextDrivesUnits:
             generate_vehicle_analytics_pdf(data, render_context=vehicle_ctx).read()
         )
 
-        assert "COST PER 1,000 MI" in text
-        assert "$675.92" in text
+        assert "COST PER 1,000 MI $675.92" in text
 
     def test_metric_context_renders_metric_figures(self) -> None:
         data = _make_unit_bearing_data()
@@ -637,8 +637,7 @@ class TestRenderContextDrivesUnits:
         assert "Avg 1,000 km/mo" in text
         assert "9.40 L/100km" in text
         assert "1.85 L/hr" in text
-        assert "COST PER 100 KM" in text
-        assert "$42.00" in text
+        assert "COST PER 100 KM $42.00" in text
         assert "50,000 km" in text
 
     def test_imperial_context_renders_imperial_figures(self) -> None:
@@ -654,8 +653,7 @@ class TestRenderContextDrivesUnits:
         assert "Avg 621 mi/mo" in text
         assert "25.0 MPG" in text
         assert "0.49 gal/hr" in text
-        assert "COST PER 1,000 MI" in text
-        assert "$675.92" in text
+        assert "COST PER 1,000 MI $675.92" in text
         assert "31,069 mi" in text
 
     def test_imperial_context_leaks_no_metric_figure(self) -> None:
@@ -692,7 +690,7 @@ class TestRenderContextDrivesUnits:
         assert "9.40 L/100km (25.0 MPG)" in text
         assert "1.85 L/hr (0.49 gal/hr)" in text
         # The counterpart keeps its scale, nothing else on the card names it.
-        assert "$42.00 ($675.92/1,000 mi)" in text
+        assert "COST PER 100 KM $42.00 ($675.92/1,000 mi)" in text
         assert "50,000 km (31,069 mi)" in text
 
     def test_hours_stay_dimensionless_under_an_imperial_context(self) -> None:

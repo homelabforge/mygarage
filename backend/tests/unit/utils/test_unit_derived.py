@@ -367,7 +367,7 @@ class TestCostPerDistance:
         # show-both doesn't change it: the counterpart carries its own.
         assert cost_per_distance_unit_label(_ctx(units, True)) == expected
 
-    def test_mile_reader_show_both_reads_like_the_screen(self) -> None:
+    def test_mile_reader_show_both_uses_the_brief_figures(self) -> None:
         """The brief's own figures: 0.42/km is 42.00 per 100 km and
         0.42 * 1.609344 * 1000 = 675.9245 per 1,000 mi."""
         ctx = _ctx(_US_IMPERIAL, True)

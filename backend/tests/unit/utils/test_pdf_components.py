@@ -111,8 +111,7 @@ class TestValuesThatOverflowAreShrunk:
     @pytest.mark.parametrize(
         "value",
         [
-            "$42.00/100 km",  # a cost with its scale, as a show-both counterpart prints
-            "$675.92/1,000 mi",  # same, the mile side
+            "0.49 gal/hr",  # fuel rate, imperial
             "12,000 km (7,456 mi)",  # distance under show-both
             "$1,234,568",  # a large garage value, which used to split
             # Fuel Economy, metric. 144pt against a 111.4pt card: this card
@@ -135,14 +134,14 @@ class TestValuesThatOverflowAreShrunk:
         assert stringWidth(value, kpi_value_style.fontName, size) == pytest.approx(_FOUR_CARD_WIDTH)
 
     def test_leading_shrinks_in_proportion_to_the_font(self, kpi_value_style) -> None:
-        size, leading = _fit_kpi_value_font("$42.00/100 km", kpi_value_style, _FOUR_CARD_WIDTH)
+        size, leading = _fit_kpi_value_font("0.49 gal/hr", kpi_value_style, _FOUR_CARD_WIDTH)
 
         assert leading / size == pytest.approx(kpi_value_style.leading / kpi_value_style.fontSize)
 
     def test_a_wider_card_shrinks_the_same_value_less(self, kpi_value_style) -> None:
         """Scaling follows the card, not a fixed table: the two-card hours
         summary has nearly twice the room of the four-card row."""
-        value = "$675.92 ($42.00/100 km)"
+        value = "$42.00 ($675.92/1,000 mi)"
 
         four_card, _ = _fit_kpi_value_font(value, kpi_value_style, _FOUR_CARD_WIDTH)
         two_card, _ = _fit_kpi_value_font(value, kpi_value_style, _TWO_CARD_WIDTH)
@@ -162,10 +161,11 @@ class TestTheFloor:
     def test_a_value_too_long_for_the_floor_clamps_rather_than_shrinking_further(
         self, kpi_value_style
     ) -> None:
-        """The show-both cost-per-distance value in a four-card row. Exact
-        fitting would demand about 8.1pt, under the floor, so it clamps
-        at the floor and is allowed to overflow and wrap instead."""
-        value = "$675.92 ($42.00/100 km)"
+        """A km reader's show-both cost per distance, the widest value a card
+        prints, in a four-card row. Exact fitting would demand about 7.4pt,
+        under the floor, so it clamps at the floor and is allowed to
+        overflow and wrap instead."""
+        value = "$42.00 ($675.92/1,000 mi)"
         unclamped = (
             kpi_value_style.fontSize
             * _FOUR_CARD_WIDTH
@@ -186,7 +186,7 @@ class TestTheFloor:
         """The honest half of the contract: once the floor binds, the value
         does NOT fit on one line. It wraps, at a space where the value has
         one. The docstring must not promise otherwise."""
-        value = "$675.92 ($42.00/100 km)"
+        value = "$42.00 ($675.92/1,000 mi)"
 
         size, _leading = _fit_kpi_value_font(value, kpi_value_style, _FOUR_CARD_WIDTH)
 
