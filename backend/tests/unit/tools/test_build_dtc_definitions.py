@@ -146,6 +146,16 @@ def test_derive_category_and_subcategory(
         ("Fuel Pump Module Failure", "critical", 4),
         ("Cylinder Deactivation Disabled", "critical", 4),
         ("Communication Fault - Forced Engine Shutdown", "critical", 4),
+        # S1d-06: a shutdown CIRCUIT is a wire fault on the PTO's shutdown input,
+        # not the engine shutting down (P251D/E/F).
+        ("PTO Engine Shutdown Circuit/Open", "warning", 2),
+        ("PTO Engine Shutdown Circuit Low", "warning", 2),
+        ("PTO Engine Shutdown Circuit High", "warning", 2),
+        ("Engine Shut Down Circuit Low", "warning", 2),
+        # guards: a shutdown not followed by "Circuit" stays critical, spelled
+        # either way (U3001 is a real one).
+        ("Control Module Improper Shutdown Performance", "critical", 4),
+        ("Engine Shut Down Request", "critical", 4),
         # A part named "Disable" is not a disabled system.
         ("Starter Disable Circuit/Open", "warning", 2),
         ("TCS Disable Switch", "warning", 2),

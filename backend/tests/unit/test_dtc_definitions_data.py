@@ -237,3 +237,23 @@ def test_the_shift_is_gone(descriptions: dict[str, str]) -> None:
     assert not _says(descriptions["P0300"], r"cylinder 12 contribution")
     assert not _says(descriptions["P0420"], r"secondary air")
     assert not _says(descriptions["P0700"], r"fuel level")
+
+
+# code: (description, severity, level). S1d-06: the PTO shutdown circuit codes
+# are wire faults, not a forced shutdown; P23A9 and U3001 are real shutdowns.
+SEVERITY_ANCHORS: dict[str, tuple[str, str, int]] = {
+    "P251D": ("PTO Engine Shutdown Circuit/Open", "warning", 2),
+    "P251E": ("PTO Engine Shutdown Circuit Low", "warning", 2),
+    "P251F": ("PTO Engine Shutdown Circuit High", "warning", 2),
+    "P23A9": ("Communication Fault - Forced Engine Shutdown", "critical", 4),
+    "U3001": ("Control Module Improper Shutdown Performance", "critical", 4),
+}
+
+
+@pytest.mark.parametrize(("code", "expected"), sorted(SEVERITY_ANCHORS.items()))
+def test_severity_anchors(
+    entries: list[dict[str, object]], code: str, expected: tuple[str, str, int]
+) -> None:
+    by_code = {e["code"]: e for e in entries}
+    e = by_code[code]
+    assert (e["description"], e["severity"], e["estimated_severity_level"]) == expected
