@@ -12,6 +12,14 @@ from app.models.fuel import FuelRecord
 from app.models.settings import Setting
 
 
+@pytest.fixture(autouse=True)
+def _reset_parse_limiter() -> None:
+    """The parse route allows 20 a minute and this file makes more calls than that."""
+    from app.routes.fuel import limiter as fuel_limiter
+
+    fuel_limiter.reset()
+
+
 async def set_settings(db_session, settings_dict: dict[str, str]) -> None:
     for key, value in settings_dict.items():
         result = await db_session.execute(select(Setting).where(Setting.key == key))
@@ -276,25 +284,142 @@ class TestReceiptParse:
         assert draft["date"] is None
         assert draft["notes"] == "pump 4"
 
-    async def test_number_past_decimal_range_is_null(
+    async def test_unit_from_the_wrong_family_nulls_that_value(
         self, client: AsyncClient, auth_headers, test_vehicle, db_session
     ):
-        # Guard on the new conversion: dropping the ArithmeticError catch in
-        # _converted turns this into a decimal.Overflow 500.
+        # Known spellings, wrong field: km isn't a volume, L isn't a distance.
         draft, _ = await _parse_with_llm(
             client,
             auth_headers,
             test_vehicle["vin"],
             db_session,
             {
-                "volume": "9e999999",
-                "volume_unit": "gal",
                 "odometer": 1000,
+                "odometer_unit": "L",
+                "volume": 40,
+                "volume_unit": "km",
+                "price_per_unit": 1.5,
+                "price_volume_unit": "mi",
+                "cost": 60,
+            },
+        )
+        assert draft["odometer_km"] is None
+        assert draft["liters"] is None
+        assert draft["price_per_unit"] is None
+        assert draft["cost"] == 60.0
+
+    async def test_zero_or_negative_measurements_are_null(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        draft, _ = await _parse_with_llm(
+            client,
+            auth_headers,
+            test_vehicle["vin"],
+            db_session,
+            {
+                "odometer": 0,
                 "odometer_unit": "km",
+                "volume": -5,
+                "volume_unit": "gal",
+                # Rounds to 0.0000 at the column's scale, so it's a zero too.
+                "price_per_unit": 0.00001,
+                "price_volume_unit": "L",
+                "cost": -10,
+                "kwh": -3,
+            },
+        )
+        assert draft["odometer_km"] is None
+        assert draft["liters"] is None
+        assert draft["price_per_unit"] is None
+        assert draft["cost"] is None
+        assert draft["kwh"] is None
+
+    async def test_zero_cost_and_kwh_survive(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        # A free charge is a real receipt, so zero stays zero.
+        draft, _ = await _parse_with_llm(
+            client,
+            auth_headers,
+            test_vehicle["vin"],
+            db_session,
+            {"cost": 0, "kwh": 0},
+        )
+        assert draft["cost"] == 0.0
+        assert draft["kwh"] == 0.0
+
+    async def test_value_too_big_for_its_column_is_null(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        draft, _ = await _parse_with_llm(
+            client,
+            auth_headers,
+            test_vehicle["vin"],
+            db_session,
+            {
+                # Nine whole digits: fine for Decimal, too wide for NUMERIC(10, 2).
+                "odometer": 123456789,
+                "odometer_unit": "km",
+                "volume": 1e30,
+                "volume_unit": "L",
+                "price_per_unit": 10**400,
+                "price_volume_unit": "L",
+                "cost": 1e30,
+                # Six whole digits against NUMERIC(8, 3). 10**400 would go inf
+                # and serialize as null on its own, proving nothing.
+                "kwh": 123456,
+            },
+        )
+        assert draft["odometer_km"] is None
+        assert draft["liters"] is None
+        assert draft["price_per_unit"] is None
+        assert draft["cost"] is None
+        assert draft["kwh"] is None
+
+    async def test_largest_value_that_fits_survives(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        # Guard on the bound's edge: an off-by-one in the precision check nulls these.
+        draft, _ = await _parse_with_llm(
+            client,
+            auth_headers,
+            test_vehicle["vin"],
+            db_session,
+            {
+                "odometer": "99999999.99",
+                "odometer_unit": "km",
+                "cost": "9999999999.99",
+                "kwh": "99999.999",
+            },
+        )
+        assert draft["odometer_km"] == 99999999.99
+        assert draft["cost"] == 9999999999.99
+        assert draft["kwh"] == 99999.999
+
+    async def test_number_strings_must_be_plain_decimals(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        draft, _ = await _parse_with_llm(
+            client,
+            auth_headers,
+            test_vehicle["vin"],
+            db_session,
+            {
+                "volume": "1_000",
+                "volume_unit": "L",
+                "odometer": "1e3",
+                "odometer_unit": "km",
+                "price_per_unit": "9e999999",
+                "price_volume_unit": "gal",
+                "cost": "12",
+                "kwh": "12.5",
             },
         )
         assert draft["liters"] is None
-        assert draft["odometer_km"] == 1000.0
+        assert draft["odometer_km"] is None
+        assert draft["price_per_unit"] is None
+        assert draft["cost"] == 12.0
+        assert draft["kwh"] == 12.5
 
     async def test_numeric_strings_are_numbers(
         self, client: AsyncClient, auth_headers, test_vehicle, db_session

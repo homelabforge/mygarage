@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from decimal import Decimal, InvalidOperation
+import re
+from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -71,26 +72,27 @@ def _column_type(name: str) -> ScaledNumeric:
 _ODOMETER_COL = _column_type("odometer_km")
 _LITERS_COL = _column_type("liters")
 _PRICE_COL = _column_type("price_per_unit")
+_COST_COL = _column_type("cost")
+_KWH_COL = _column_type("kwh")
+
+# Plain decimals only. Decimal() also takes "1_000", "1e3" and "NaN", and none
+# of those is how a receipt prints a number.
+_PLAIN_DECIMAL = re.compile(r"-?[0-9]+(?:\.[0-9]+)?")
 
 
 def _number(value: Any) -> Decimal | None:
-    """An int, float or numeric string as a finite Decimal; anything else is None."""
+    """An int, float or plain decimal string as a finite Decimal; anything else is None."""
     # bool is an int subclass, and Decimal(True) is 1. True is not 1 litre.
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
         return Decimal(value)
     if isinstance(value, float):
-        text = repr(value)
-    elif isinstance(value, str):
-        text = value.strip()
-    else:
-        return None
-    try:
-        number = Decimal(text)
-    except InvalidOperation:
-        return None
-    return number if number.is_finite() else None
+        number = Decimal(repr(value))
+        return number if number.is_finite() else None
+    if isinstance(value, str) and _PLAIN_DECIMAL.fullmatch(text := value.strip()):
+        return Decimal(text)
+    return None
 
 
 def _unit(value: Any, allowed: tuple[str, ...]) -> str | None:
@@ -101,43 +103,65 @@ def _unit(value: Any, allowed: tuple[str, ...]) -> str | None:
     return unit if unit in allowed else None
 
 
-def _converted(
-    value: Any, unit: Any, allowed: tuple[str, ...], *, per_unit: bool = False
-) -> Decimal | None:
-    """The value in canonical metric, or None when the number or unit is unusable.
-
-    `per_unit` is for a price: per gallon divides where a volume multiplies.
-    """
+def _converted(value: Any, unit: Any, allowed: tuple[str, ...]) -> Decimal | None:
+    """The value in canonical metric, or None when the number or unit is unusable."""
     number = _number(value)
     canonical_unit = _unit(unit, allowed)
     if number is None or canonical_unit is None:
         return None
-    try:
-        if per_unit and canonical_unit == "gal":
-            return number / UnitConverter.US_GALLONS_TO_LITERS
-        return UnitConverter.to_canonical_decimal(number, canonical_unit)
-    except ArithmeticError:
-        # A number past Decimal's exponent range overflows here. Null, not a 500.
+    return UnitConverter.to_canonical_decimal(number, canonical_unit)
+
+
+def _price_per_liter(value: Any, unit: Any) -> Decimal | None:
+    """A per-litre or per-US-gallon price as a per-litre price."""
+    number = _number(value)
+    canonical_unit = _unit(unit, ("L", "gal"))
+    if number is None or canonical_unit is None:
         return None
+    if canonical_unit == "gal":
+        return number / UnitConverter.US_GALLONS_TO_LITERS
+    return number
+
+
+def _stored(col: ScaledNumeric, value: Decimal | None) -> Decimal | None:
+    """The value as the column would store it, or None if it won't fit.
+
+    rounded() hands back a number too long to round untouched, and that one
+    fails the width check too.
+    """
+    if value is None:
+        return None
+    rounded: Decimal = col.rounded(value)
+    if rounded.adjusted() >= col.precision - col.scale:
+        return None
+    return rounded
+
+
+def _positive(value: Decimal | None) -> Decimal | None:
+    """Null for zero or below. A receipt never prints a zero odometer, volume or price."""
+    return value if value is not None and value > 0 else None
+
+
+def _non_negative(value: Decimal | None) -> Decimal | None:
+    """Null below zero. Zero stays, since a free charge is a real receipt."""
+    return value if value is not None and value >= 0 else None
 
 
 def _build_draft(raw: dict[str, Any]) -> dict[str, Any]:
     """Turn the LLM's as-printed reply into the canonical draft."""
     odometer = _converted(raw.get("odometer"), raw.get("odometer_unit"), ("km", "mi"))
     liters = _converted(raw.get("volume"), raw.get("volume_unit"), ("L", "gal"))
-    price = _converted(
-        raw.get("price_per_unit"), raw.get("price_volume_unit"), ("L", "gal"), per_unit=True
-    )
+    price = _price_per_liter(raw.get("price_per_unit"), raw.get("price_volume_unit"))
     # A number where text belongs used to fail the response model with a 500.
     draft: dict[str, Any] = {
         key: value if isinstance(value := raw.get(key), str) else None for key in _TEXT_KEYS
     }
     draft.update(
-        odometer_km=_ODOMETER_COL.rounded(odometer),
-        liters=_LITERS_COL.rounded(liters),
-        price_per_unit=_PRICE_COL.rounded(price),
-        kwh=_number(raw.get("kwh")),
-        cost=_number(raw.get("cost")),
+        odometer_km=_positive(_stored(_ODOMETER_COL, odometer)),
+        liters=_positive(_stored(_LITERS_COL, liters)),
+        price_per_unit=_positive(_stored(_PRICE_COL, price)),
+        kwh=_stored(_KWH_COL, _non_negative(_number(raw.get("kwh")))),
+        cost=_stored(_COST_COL, _non_negative(_number(raw.get("cost")))),
     )
     return draft
 
