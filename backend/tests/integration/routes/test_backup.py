@@ -291,6 +291,40 @@ class TestBackupRoutes:
         assert response.status_code == 400
         assert "Invalid backup file structure" in response.json()["detail"]
 
+    @pytest.mark.parametrize(
+        ("content", "detail"),
+        [
+            (b"5", "Invalid backup file structure"),
+            (b"null", "Invalid backup file structure"),
+            (b'"settings"', "Invalid backup file structure"),
+            (b'{"settings": [], "note": "\xff"}', "Invalid JSON file"),
+            (b'{"settings": [], "n": ' + b"9" * 4301 + b"}", "Invalid JSON file"),
+        ],
+        ids=["top-level-number", "top-level-null", "top-level-string", "not-utf8", "huge-int"],
+    )
+    async def test_upload_unreadable_settings_file_is_a_400_and_writes_nothing(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        content: bytes,
+        detail: str,
+    ):
+        # These used to get past the JSONDecodeError catch or the "in" check and 500.
+        from app.routes import backup as backup_routes
+
+        monkeypatch.setattr(backup_routes, "BACKUP_DIR", tmp_path)
+        response = await client.post(
+            "/api/backup/upload",
+            headers=auth_headers,
+            files={"file": ("test-backup.json", BytesIO(content), "application/json")},
+        )
+
+        assert response.status_code == 400, response.text
+        assert response.json()["detail"] == detail
+        assert list(tmp_path.iterdir()) == []
+
     @requires_write_access
     async def test_upload_invalid_file_type(self, client: AsyncClient, auth_headers):
         """Test uploading unsupported file type."""

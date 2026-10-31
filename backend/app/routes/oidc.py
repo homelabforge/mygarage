@@ -32,6 +32,11 @@ from app.models.csrf_token import CSRFToken
 from app.models.user import User
 from app.services import oidc as oidc_service
 from app.services.auth import create_access_token, get_current_admin_user
+from app.services.auth_settings import (
+    AuthSettingsConflictError,
+    ensure_sso_mode_usable,
+    lock_auth_settings,
+)
 from app.services.oidc.config import (
     OIDC_CLIENT_SECRET_KEY,
     checked_redirect_uri,
@@ -321,9 +326,13 @@ async def put_oidc_admin_config(
       - issuer_url has trailing slash + whitespace stripped before persisting
       - `redirect_uri` left out preserves the stored value; sent, it's stripped and
         must be an absolute http(s) URL or blank, else a 422 and nothing is written
+      - client_id is stripped before persisting
+      - 409, and nothing written, when sign-in is set to SSO and this would turn SSO
+        off or blank its issuer URL or client ID
     """
     # current_user is None only when auth_mode == "none" (auth disabled), which
     # this endpoint allows — see the GET above for why gating it deadlocks bootstrap.
+    await lock_auth_settings(db)
 
     # Left out, the stored pin stays, so an older client can't wipe it. Checked
     # here, not on the model: the GET builds that model from what's stored.
@@ -340,14 +349,25 @@ async def put_oidc_admin_config(
 
     # §5.4(1): normalize issuer URL.
     issuer_url = payload.issuer_url.strip().rstrip("/")
+    client_id = payload.client_id.strip()
+    enabled = "true" if payload.enabled else "false"
+
+    # Checked against exactly what's written, under the lock taken above.
+    try:
+        await ensure_sso_mode_usable(
+            db,
+            {"oidc_enabled": enabled, "oidc_issuer_url": issuer_url, "oidc_client_id": client_id},
+        )
+    except AuthSettingsConflictError as exc:
+        raise HTTPException(status_code=409, detail=exc.detail) from exc
 
     await oidc_service.write_oidc_config(
         db,
         {
-            "enabled": "true" if payload.enabled else "false",
+            "enabled": enabled,
             "provider_name": payload.provider_name,
             "issuer_url": issuer_url,
-            "client_id": payload.client_id,
+            "client_id": client_id,
             **secret_update,
             "scopes": payload.scopes.strip(),
             "auto_create_users": "true" if payload.auto_create_users else "false",
@@ -423,14 +443,14 @@ async def oidc_login(
         logger.error("Cannot connect to OIDC provider")
         return _to_login(request, SSOError.FAILED)
     except JoseError as e:
-        logger.error("OIDC JWT error creating authorization URL: %s", e)
+        logger.error("OIDC JWT error creating authorization URL: %s", sanitize_for_log(e))
         return _to_login(request, SSOError.FAILED)
     except (ValueError, KeyError) as e:
-        logger.error("OIDC configuration error: %s", e)
+        logger.error("OIDC configuration error: %s", sanitize_for_log(e))
         return _to_login(request, SSOError.FAILED)
 
     _warn_if_redirect_uri_blank(config)
-    logger.info("Redirecting to OIDC provider for authentication (state: %s)", state)
+    logger.info("Redirecting to OIDC provider for authentication (state: %s...)", state[:16])
     return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
 
 
@@ -459,7 +479,11 @@ async def oidc_callback(
         Redirect to the frontend: the OIDC success page with the auth cookie set,
         the link account page, or the login page
     """
-    logger.info("Received OIDC callback (state: %s)", sanitize_for_log(state))
+    # The state is a live login secret, so only its prefix goes in. A cancel can come with no state.
+    logger.info(
+        "Received OIDC callback (state: %s)",
+        f"{sanitize_for_log(state[:16])}..." if state else None,
+    )
 
     # The IdP sends ?error= and no code when the person cancels or it refuses.
     if error or not code or not state:

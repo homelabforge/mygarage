@@ -164,7 +164,7 @@ export default function Login() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Error Message */}
         {bannerError && (
-          <div className="p-4 bg-danger-500/10 border border-danger-500 rounded-lg flex items-start gap-2">
+          <div role="alert" className="p-4 bg-danger-500/10 border border-danger-500 rounded-lg flex items-start gap-2">
             <AlertCircle className="w-5 h-5 text-danger-500 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-danger-500">{bannerError}</div>
           </div>

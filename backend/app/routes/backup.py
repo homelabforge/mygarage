@@ -13,6 +13,7 @@ from app.config import settings
 from app.database import engine, get_db, is_sqlite, sqlite_database_path
 from app.models.user import User
 from app.services.auth import get_current_admin_user
+from app.services.auth_settings import AuthSettingsConflictError
 from app.services.backup_service import BackupService
 from app.services.restore_staging import RestoreInProgressError
 from app.services.settings_secrets import ensure_secrets_encrypted
@@ -269,6 +270,9 @@ async def restore_backup(
     restarts. 503 while a secret setting is still stored as plaintext and can't be encrypted first,
     since the safety backup would copy it.
 
+    409 when a settings backup would leave sign-in set to SSO without usable SSO; nothing is
+    restored then.
+
     A settings restore that skipped secret keys (ciphertext no key in the keyring opens, or
     plaintext with no keyring to encrypt it) lists them in `details.skipped_secret_keys` and names
     them in `warning`; those keys keep their current values.
@@ -329,6 +333,8 @@ async def restore_backup(
         raise
     except RestoreInProgressError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    except AuthSettingsConflictError as e:
+        raise HTTPException(status_code=409, detail=e.detail)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
@@ -427,12 +433,17 @@ async def upload_backup(
         if backup_type == "settings":
             import json
 
+            # ValueError, not JSONDecodeError: non-UTF-8 bytes and an int past
+            # 4300 digits raise its other subclasses.
             try:
                 backup_data = json.loads(content)
-                if "settings" not in backup_data or not isinstance(backup_data["settings"], list):
-                    raise HTTPException(status_code=400, detail="Invalid backup file structure")
-            except json.JSONDecodeError:
+            except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid JSON file")
+            # The shape the restore checks for, so a bad file never lands in the list.
+            if not isinstance(backup_data, dict) or not isinstance(
+                backup_data.get("settings"), list
+            ):
+                raise HTTPException(status_code=400, detail="Invalid backup file structure")
 
         # Write to backup directory
         with open(backup_path, "wb") as f:

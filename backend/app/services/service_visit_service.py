@@ -52,6 +52,23 @@ _KEPT_WHEN_OMITTED = (
 )
 
 
+def drop_stray_links(items: Sequence[ServiceLineItem]) -> None:
+    """Null every link that doesn't name another inspection in ``items`` (S1d-04, D1).
+
+    ``items`` is the visit's whole item list as it'll be saved. A link to an
+    item that's not an inspection is dropped rather than refused. Missing and
+    self targets go too, for rows from before the API refused them.
+    """
+    by_id = {item.id: item for item in items}
+    for item in items:
+        ref = item.triggered_by_inspection_id
+        if ref is None:
+            continue
+        target = by_id.get(ref)
+        if target is None or target is item or not target.is_inspection:
+            item.triggered_by_inspection_id = None
+
+
 def service_visit_full_load_options():
     """Loader options for building a full ServiceVisitResponse: line_items →
     supply_usages → supply (needed for SupplyUsageResponse.supply_name) + vendor.
@@ -206,61 +223,16 @@ class ServiceVisitService:
             # rule: serialise with every other rule writer before the first read.
             await lock_vehicle_for_write(self.db, vin)
 
-            visit, _items = await self.persist_visit_rows(vin, visit_data)
+            # The visit, its odometer/hours sync and the reminder reconcile all
+            # land in one commit (G5a-07), so a failed sync or reconcile takes
+            # the visit down with it instead of leaving it half-done.
+            visit, _items = await self.persist_visit_rows(vin, visit_data, sync_readings=True)
+            await maintenance_service.reconcile_vehicle_unlocked(self.db, vin)
+            visit_id = visit.id
 
             await self.db.commit()
-            await self.db.refresh(visit)
 
-            logger.info("Created service visit %s for %s", visit.id, sanitize_for_log(vin))
-
-            # Auto-sync odometer + engine-hours, composed into one transaction:
-            # commit=False on each sync call, single commit closes it out
-            # (mirrors fuel_service.add_fuel_record's pattern). Best-effort,
-            # like the odometer-only sync this replaces: on failure, log and
-            # continue rather than fail the whole request. Deliberately does
-            # NOT roll back on failure -- Session.rollback() expires every
-            # object in the identity map, not just `visit`, which would also
-            # expire `current_user` (loaded earlier by the auth layer on this
-            # same session) and crash the get_service_visit reload right
-            # below with an async lazy-load (MissingGreenlet). visit_id is
-            # captured as a plain int so nothing here depends on `visit`
-            # staying unexpired either way.
-            visit_id = visit.id
-            if visit.date:
-                try:
-                    if visit.odometer_km:
-                        await sync_odometer_from_record(
-                            db=self.db,
-                            vin=vin,
-                            date=visit.date,
-                            odometer_km=visit.odometer_km,
-                            source_type="service_visit",
-                            source_id=visit_id,
-                            commit=False,
-                        )
-                    await sync_hours_from_record(
-                        db=self.db,
-                        vin=vin,
-                        date=visit.date,
-                        engine_hours=visit.engine_hours,
-                        source_type="service_visit",
-                        source_id=visit_id,
-                        commit=False,
-                    )
-                    await self.db.commit()
-                except Exception as e:
-                    logger.warning(
-                        "Failed to auto-sync odometer/hours for visit %s: %s",
-                        visit_id,
-                        sanitize_for_log(e),
-                    )
-
-            # Maintenance lifecycle: a typed line item may be the newest service
-            # of a rule's type, which completes that rule's pending reminder and
-            # starts the next cycle. Runs after the sync commit so "current"
-            # readings include this visit. Own lock, own commit, logs on failure.
-            await maintenance_service.reconcile_vehicle(self.db, vin)
-
+            logger.info("Created service visit %s for %s", visit_id, sanitize_for_log(vin))
             await invalidate_cache_for_vehicle(vin)
 
             # Reload with relationships
@@ -294,8 +266,8 @@ class ServiceVisitService:
         with ``maintenance_service.complete_reminder`` so a completion can
         persist the visit and close the reminder in ONE transaction under the
         vehicle lock. With ``sync_readings`` the odometer/hours sync is
-        composed in as well (``commit=False``); ``create_service_visit`` keeps
-        its own best-effort sync after its commit instead.
+        composed in as well (``commit=False``). Both callers pass it, so a
+        failed sync fails the whole write.
 
         Every line item gets a ``maintenance_type``: the one given, else the
         classifier's (which declines rather than guesses).
@@ -358,6 +330,9 @@ class ServiceVisitService:
                 await maintenance_service.create_reminder_for_line_item(
                     self.db, vin, line_item, visit, item_data.reminder
                 )
+
+        # A link has to land on an inspection; anything else just goes.
+        drop_stray_links([line_item for _data, line_item in created_items])
 
         # Pass 3: sync supply usages for each created line item
         for item_data, line_item in created_items:
@@ -537,6 +512,15 @@ class ServiceVisitService:
                     else:
                         linked.triggered_by_inspection_id = ref if ref in submitted_ids else None
 
+                # Over every item the visit keeps, so unticking an inspection
+                # drops the links to it even from repairs that didn't send one.
+                # Not visit.line_items: that still holds the deleted rows and
+                # never got the new ones.
+                drop_stray_links(
+                    [existing[i] for i in submitted_ids if i in existing]
+                    + [li for _, li in new_items]
+                )
+
                 for item_data, line_item in new_items:
                     await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
                     if item_data.reminder:
@@ -552,60 +536,42 @@ class ServiceVisitService:
             await self.db.flush()
             await self._recompute_visit_total(visit_id)
 
-            await self.db.commit()
-            await self.db.refresh(visit)
-
-            logger.info("Updated service visit %s for %s", visit_id, sanitize_for_log(vin))
-
-            # Auto-sync odometer + engine-hours, composed into one transaction:
-            # commit=False on each sync call, single commit closes it out
-            # (mirrors fuel_service.update_fuel_record's pattern). Hours sync
-            # runs unconditionally (not gated on a non-null reading) so
-            # clearing engine_hours to None deletes the synced row.
-            # Best-effort, like the odometer-only sync this replaces: on
-            # failure, log and continue rather than fail the whole request.
-            # Deliberately does NOT roll back on failure -- see the matching
-            # comment in create_service_visit (Session.rollback() would
-            # expire `current_user` too, crashing the reload right below).
+            # Odometer + engine-hours sync, then the reminder reconcile, in the
+            # same transaction as the edit (G5a-07). Hours sync runs even when
+            # the reading is gone so clearing engine_hours deletes its row.
             if visit.date:
-                try:
-                    if visit.odometer_km:
-                        await sync_odometer_from_record(
-                            db=self.db,
-                            vin=vin,
-                            date=visit.date,
-                            odometer_km=visit.odometer_km,
-                            source_type="service_visit",
-                            source_id=visit_id,
-                            commit=False,
-                            operation="update",
-                        )
-                    elif not visit.odometer_km:
-                        # Cleared on edit (or set to 0, which a create never
-                        # syncs): take the reading it synced with it, the way
-                        # the hours sync below deletes its row.
-                        await remove_synced_odometer(self.db, vin, "service_visit", visit_id)
-                    await sync_hours_from_record(
+                if visit.odometer_km:
+                    await sync_odometer_from_record(
                         db=self.db,
                         vin=vin,
                         date=visit.date,
-                        engine_hours=visit.engine_hours,
+                        odometer_km=visit.odometer_km,
                         source_type="service_visit",
                         source_id=visit_id,
                         commit=False,
+                        operation="update",
                     )
-                    await self.db.commit()
-                except Exception as e:
-                    logger.warning(
-                        "Failed to auto-sync odometer/hours for visit %s: %s",
-                        sanitize_for_log(visit_id),
-                        sanitize_for_log(e),
-                    )
+                else:
+                    # Cleared on edit (or set to 0, which a create never
+                    # syncs): take the reading it synced with it, the way
+                    # the hours sync below deletes its row.
+                    await remove_synced_odometer(self.db, vin, "service_visit", visit_id)
+                await sync_hours_from_record(
+                    db=self.db,
+                    vin=vin,
+                    date=visit.date,
+                    engine_hours=visit.engine_hours,
+                    source_type="service_visit",
+                    source_id=visit_id,
+                    commit=False,
+                )
 
-            # Maintenance lifecycle: an edited date, odometer or line item type
-            # moves anchors. Own lock, own commit, logs on failure.
-            await maintenance_service.reconcile_vehicle(self.db, vin)
+            # An edited date, odometer or line item type moves anchors.
+            await maintenance_service.reconcile_vehicle_unlocked(self.db, vin)
 
+            await self.db.commit()
+
+            logger.info("Updated service visit %s for %s", visit_id, sanitize_for_log(vin))
             await invalidate_cache_for_vehicle(vin)
 
             # Reload with the FULL eager chain (line_items -> supply_usages -> supply,
@@ -687,6 +653,9 @@ class ServiceVisitService:
 
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            # The reconcile below rewrites reminders: serialise with every
+            # other rule writer before the first read.
+            await lock_vehicle_for_write(self.db, vin)
             visit = await self.get_service_visit(vin, visit_id, current_user)
 
             # Phase 4b: delete the auto-synced odometer row(s) for this visit
@@ -714,15 +683,19 @@ class ServiceVisitService:
             await remove_synced_hours(self.db, "service_visit", visit_id, commit=False)
 
             await self.db.delete(visit)
+            # Sessions don't autoflush and the reconcile reads history first,
+            # so the delete has to be in the database before it runs.
+            await self.db.flush()
+            # The deleted visit may have anchored a reminder (the FK is SET
+            # NULL; the snapshot stays). Reconcile so a rule whose newest
+            # service just vanished still has exactly one pending reminder.
+            # Same commit as the delete (G5a-07).
+            await maintenance_service.reconcile_vehicle_unlocked(self.db, vin)
             await self.db.commit()
 
             logger.info(
                 "Deleted service visit %s for %s", sanitize_for_log(visit_id), sanitize_for_log(vin)
             )
-            # The deleted visit may have anchored a reminder (the FK is SET
-            # NULL; the snapshot stays). Reconcile so a rule whose newest
-            # service just vanished still has exactly one pending reminder.
-            await maintenance_service.reconcile_vehicle(self.db, vin)
             await invalidate_cache_for_vehicle(vin)
 
         except HTTPException:
@@ -798,6 +771,8 @@ class ServiceVisitService:
             )
             self.db.add(line_item)
             await self.db.flush()
+            # A link to an item that isn't an inspection just goes.
+            drop_stray_links([*visit.line_items, line_item])
 
             if item_data.reminder:
                 await maintenance_service.create_reminder_for_line_item(
@@ -810,8 +785,9 @@ class ServiceVisitService:
             # Recompute total_cost (denormalized cache)
             await self._recompute_visit_total(visit.id)
 
+            # Same commit as the item (G5a-07).
+            await maintenance_service.reconcile_vehicle_unlocked(self.db, vin)
             await self.db.commit()
-            await maintenance_service.reconcile_vehicle(self.db, vin)
 
             # Reload with supply usages + supply + owning visit eager-loaded so the
             # response can carry supply_usages (to_usage_response reads usage.supply.name
@@ -873,6 +849,9 @@ class ServiceVisitService:
 
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            # The reconcile below rewrites reminders: serialise with every
+            # other rule writer before the first read.
+            await lock_vehicle_for_write(self.db, vin)
             await self.get_service_visit(vin, visit_id, current_user)
 
             result = await self.db.execute(
@@ -886,13 +865,15 @@ class ServiceVisitService:
                 raise HTTPException(status_code=404, detail=f"Line item {line_item_id} not found")
 
             await self.db.delete(line_item)
+            # Flushed before the reconcile reads history: sessions don't autoflush.
             await self.db.flush()
 
             # Recompute total_cost (denormalized cache)
             await self._recompute_visit_total(visit_id)
 
+            # Same commit as the delete (G5a-07).
+            await maintenance_service.reconcile_vehicle_unlocked(self.db, vin)
             await self.db.commit()
-            await maintenance_service.reconcile_vehicle(self.db, vin)
 
             logger.info(
                 "Deleted line item %s from visit %s for %s",

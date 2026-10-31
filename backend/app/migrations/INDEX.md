@@ -150,3 +150,5 @@ migrations must swallow their own operational errors.
 | `138_clear_dangling_fuel_drivers` | Clear a fill-up's driver when it names a user that no longer exists (B3-1). |
 | `139_readable_parameter_names` | Give LiveLink parameters still on their auto name the readable one (O-T7, P2A-2). |
 | `140_tire_reminder_index_and_reading_period` | One live low-tread reminder per tire, by index, and clear the readings' unused period (G3a-17, D2). |
+| `141_pto_shutdown_circuit_severity` | Move the PTO engine shutdown circuit codes off critical (S1d-06, R1). |
+| `142_null_stray_inspection_links` | Clear repair links that don't name an inspection on the same visit (S1d-04, D1). |

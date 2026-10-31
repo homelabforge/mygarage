@@ -398,6 +398,12 @@ class SessionService:
         # Same derivation the repair paths use, so a session summarised on close
         # and one recomputed months later cannot disagree about how it was made.
         await self.refresh_aggregates(session)
+        # And once more behind the commit, under the session's refresh lock. A
+        # queued job that read this drive before a reopen could otherwise land
+        # after this close with the narrower figures.
+        from app.services.telemetry_service import queue_session_refresh  # local: avoids a cycle
+
+        queue_session_refresh(self.db, session.id)
 
         # Clear device's current session unless it is being retained for the
         # reopen window. `ecu_status` is deliberately not written -- see

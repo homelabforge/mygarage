@@ -812,11 +812,13 @@ async def reconcile_vehicle_unlocked(db: AsyncSession, vin: str) -> None:
 
 
 async def reconcile_vehicle(db: AsyncSession, vin: str) -> None:
-    """The hook every service-visit write calls: lock, reconcile, commit.
+    """Lock, reconcile, commit, for the reconcile route and the two imports.
 
-    Runs after the visit's own commits. A failure here is logged and does
-    not fail the request that already persisted the visit; the next hook or
-    `POST .../reminders/reconcile` repairs from the same state.
+    Service-visit writes don't come through here: they call
+    `reconcile_vehicle_unlocked` inside their own transaction. An import runs
+    this after its rows are committed, so a failure is logged and the import
+    stands; the next write or `POST .../reminders/reconcile` repairs from the
+    same state.
     """
     try:
         await lock_vehicle_for_write(db, vin)

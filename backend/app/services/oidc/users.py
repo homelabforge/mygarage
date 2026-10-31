@@ -224,7 +224,7 @@ async def create_authorization_url(
     # Construct URL
     auth_url = f"{auth_endpoint}?{urlencode(params)}"
 
-    logger.info("Created OIDC authorization URL for state: %s", state)
+    logger.debug("Created OIDC authorization URL for state: %s...", state[:16])
     return auth_url, state
 
 

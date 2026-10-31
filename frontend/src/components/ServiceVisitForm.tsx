@@ -312,11 +312,25 @@ export default function ServiceVisitForm({
     setFieldErrors((prev) => withoutFieldError(prev, field))
   }
 
-  const handleLineItemChange = (index: number, field: keyof ServiceVisitFormLineItem, value: unknown) => {
-    setFormData((prev) => ({
-      ...prev,
-      line_items: prev.line_items.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
-    }))
+  // A repair can only link to an inspection, so links to `ref` go with it.
+  const withoutLinksTo = (items: ServiceVisitFormLineItem[], ref: number | undefined): ServiceVisitFormLineItem[] =>
+    ref === undefined
+      ? items
+      : items.map((item) =>
+        item.triggered_by_inspection_id === ref ? { ...item, triggered_by_inspection_id: undefined } : item
+      )
+
+  const handleLineItemChange = (index: number, field: keyof ServiceVisitFormLineItem, value: unknown): void => {
+    setFormData((prev) => {
+      const changed = prev.line_items.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+      const target = prev.line_items[index]
+      // Unticked, it's not an inspection any more, so its repairs lose the link.
+      const unticked = field === 'is_inspection' && !value
+      return {
+        ...prev,
+        line_items: unticked ? withoutLinksTo(changed, target.id ?? target.tempId) : changed,
+      }
+    })
   }
 
   const handleAddLineItem = () => {
@@ -332,10 +346,17 @@ export default function ServiceVisitForm({
       toast.error(t('service.atLeastOneLineItem'))
       return
     }
-    setFormData((prev) => ({
-      ...prev,
-      line_items: prev.line_items.filter((_, i) => i !== index),
-    }))
+    // Links to a removed item go too, or a save sends a temp id that names nothing.
+    setFormData((prev) => {
+      const removed = prev.line_items[index]
+      return {
+        ...prev,
+        line_items: withoutLinksTo(
+          prev.line_items.filter((_, i) => i !== index),
+          removed.id ?? removed.tempId
+        ),
+      }
+    })
   }
 
   const handleAddRepairFromInspection = (inspectionIndex: number) => {

@@ -100,9 +100,10 @@ async def exchange_code_for_tokens(
 
     # SECURITY: Validate token endpoint URL against SSRF attacks
     try:
-        validate_oidc_url(token_endpoint)
+        validated_token_endpoint = validate_oidc_url(token_endpoint)
     except (SSRFProtectionError, ValueError) as e:
-        logger.error("SSRF protection blocked token endpoint: %s - %s", token_endpoint, str(e))
+        # Don't log the full URL - it could contain secrets in query params
+        logger.error("SSRF protection blocked token endpoint: %s", str(e))
         return None
 
     # Prepare token request
@@ -121,9 +122,10 @@ async def exchange_code_for_tokens(
         async with httpx.AsyncClient() as client:
             logger.info("Exchanging authorization code for tokens")
 
+            # Fetch the URL it parsed, not the raw string, so the two can't drift.
             # codeql[py/partial-ssrf] - URL validated by validate_oidc_url above
             response = await client.post(
-                token_endpoint,
+                validated_token_endpoint.geturl(),
                 data=data,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 timeout=10.0,
@@ -184,15 +186,17 @@ async def verify_id_token(
 
         # SECURITY: Validate JWKS URI against SSRF attacks
         try:
-            validate_oidc_url(jwks_uri)
+            validated_jwks_uri = validate_oidc_url(jwks_uri)
         except (SSRFProtectionError, ValueError) as e:
-            logger.error("SSRF protection blocked JWKS URI: %s - %s", jwks_uri, str(e))
+            # Don't log the full URL - it could contain secrets in query params
+            logger.error("SSRF protection blocked JWKS URI: %s", str(e))
             return None
 
         # Fetch JWKS
         async with httpx.AsyncClient() as client:
+            # Fetch the URL it parsed, not the raw string, so the two can't drift.
             # codeql[py/partial-ssrf] - URL validated by validate_oidc_url above
-            response = await client.get(jwks_uri, timeout=10.0)
+            response = await client.get(validated_jwks_uri.geturl(), timeout=10.0)
             response.raise_for_status()
             jwks = provider_json(response, "JWKS")
         if jwks is None:
@@ -275,20 +279,18 @@ async def get_userinfo(
 
     # SECURITY: Validate userinfo endpoint URL against SSRF attacks
     try:
-        validate_oidc_url(userinfo_endpoint)
+        validated_userinfo_endpoint = validate_oidc_url(userinfo_endpoint)
     except (SSRFProtectionError, ValueError) as e:
-        logger.error(
-            "SSRF protection blocked userinfo endpoint: %s - %s",
-            userinfo_endpoint,
-            str(e),
-        )
+        # Don't log the full URL - it could contain secrets in query params
+        logger.error("SSRF protection blocked userinfo endpoint: %s", str(e))
         return None
 
     try:
         async with httpx.AsyncClient() as client:
+            # Fetch the URL it parsed, not the raw string, so the two can't drift.
             # codeql[py/partial-ssrf] - URL validated by validate_oidc_url above
             response = await client.get(
-                userinfo_endpoint,
+                validated_userinfo_endpoint.geturl(),
                 headers={"Authorization": f"Bearer {access_token}"},
                 timeout=10.0,
             )
@@ -305,7 +307,10 @@ async def get_userinfo(
         logger.warning("Cannot connect to userinfo endpoint (non-critical): %s", str(e))
         return None  # Intentional fallback
     except httpx.HTTPStatusError as e:
-        logger.warning("Userinfo endpoint returned error (non-critical): %s", str(e))
+        # str(e) carries the URL, so just the status
+        logger.warning(
+            "Userinfo endpoint returned status %s (non-critical)", e.response.status_code
+        )
         return None  # Intentional fallback
     except httpx.HTTPError as e:
         logger.warning("Userinfo request failed (non-critical): %s", type(e).__name__)

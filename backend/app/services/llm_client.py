@@ -32,7 +32,8 @@ def extract_json_object(text: str) -> dict[str, Any]:
         data = json.loads(text)
         if isinstance(data, dict):
             return data
-    except json.JSONDecodeError:
+    except ValueError:
+        # JSONDecodeError is a ValueError, and so is an int past 4300 digits.
         pass
     match = re.search(r"\{[\s\S]*\}", text)
     if not match:
@@ -42,7 +43,7 @@ def extract_json_object(text: str) -> dict[str, Any]:
         )
     try:
         data = json.loads(match.group(0))
-    except json.JSONDecodeError as err:
+    except ValueError as err:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="LLM response JSON was invalid",

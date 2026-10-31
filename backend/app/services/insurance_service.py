@@ -213,7 +213,14 @@ class InsuranceService:
         try:
             if self.db.get_bind().dialect.name == "sqlite":
                 raw = await (await self.db.connection()).get_raw_connection()
-                if not raw.driver_connection.in_transaction:
+                driver = raw.driver_connection
+                if driver is None:
+                    raise RuntimeError(
+                        "SQLite lock: the pooled connection has no driver connection"
+                    )
+                # Not sqlite_begin_immediate: an import already holding the vehicle
+                # lock lands here inside its transaction, and that's fine.
+                if not driver.in_transaction:
                     await self.db.execute(text("BEGIN IMMEDIATE"))
             elif policy_id is not None:
                 await self.db.execute(

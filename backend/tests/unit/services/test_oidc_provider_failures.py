@@ -32,19 +32,31 @@ _METADATA = {
 type _Answer = Callable[[httpx.Request], httpx.Response]
 
 
+def _client_over(answer: _Answer) -> Callable[..., httpx.AsyncClient]:
+    """A stand-in for httpx.AsyncClient whose clients all get this answer.
+
+    Grabs the real class now, before the patch swaps it out.
+    """
+    real_client = httpx.AsyncClient
+    transport = httpx.MockTransport(answer)
+
+    def make(*_args: object, **_kwargs: object) -> httpx.AsyncClient:
+        return real_client(transport=transport)
+
+    return make
+
+
 @contextmanager
 def _provider(answer: _Answer) -> Generator[None]:
     """Every provider request gets this answer.
 
-    URL validation is skipped, since the example host doesn't resolve. Discovery
-    fetches what the validator returns, so its stand-in still parses.
+    URL validation is skipped, since the example host doesn't resolve. Every
+    service fetches what the validator returns, so its stand-in still parses.
     """
-    real_client = httpx.AsyncClient
-    transport = httpx.MockTransport(answer)
     with (
         patch("app.services.oidc.config.validate_oidc_url", side_effect=urlparse),
-        patch("app.services.oidc.tokens.validate_oidc_url"),
-        patch.object(httpx, "AsyncClient", lambda *_a, **_kw: real_client(transport=transport)),
+        patch("app.services.oidc.tokens.validate_oidc_url", side_effect=urlparse),
+        patch.object(httpx, "AsyncClient", _client_over(answer)),
     ):
         yield
 
@@ -84,6 +96,17 @@ _SERVICES: dict[str, Callable[[], Awaitable[object]]] = {
     "token-exchange": _token_exchange,
     "jwks": _jwks,
     "userinfo": _userinfo,
+}
+
+# The token, JWKS and userinfo calls, keyed by the metadata field each one fetches.
+_ENDPOINT_CALLS: dict[str, Callable[[dict[str, str]], Awaitable[object]]] = {
+    "token_endpoint": lambda metadata: exchange_code_for_tokens(
+        "code", {"client_id": "mygarage"}, metadata, "https://app.example/cb"
+    ),
+    "jwks_uri": lambda metadata: verify_id_token(
+        "id-token", {"client_id": "mygarage"}, metadata, "n"
+    ),
+    "userinfo_endpoint": lambda metadata: get_userinfo("access-token", metadata),
 }
 
 _UNUSABLE: dict[str, _Answer] = {
@@ -136,28 +159,6 @@ async def test_a_jwks_that_cant_be_used_is_none_and_logged_once(
     assert len(_oidc_warnings(caplog)) == 1, _oidc_warnings(caplog)
 
 
-@pytest.mark.parametrize(
-    "endpoint",
-    ["token_endpoint", "jwks_uri", "userinfo_endpoint"],
-    ids=["token", "jwks", "userinfo"],
-)
-async def test_a_discovered_endpoint_on_a_blocked_address_is_none(
-    endpoint: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Discovery can point an endpoint anywhere; a private one is refused, not a 500."""
-    monkeypatch.delenv("MYGARAGE_TRUSTED_HOSTS", raising=False)
-    metadata = {**_METADATA, endpoint: "http://127.0.0.1:9000/oidc"}
-    calls = {
-        "token_endpoint": lambda: exchange_code_for_tokens(
-            "code", {"client_id": "mygarage"}, metadata, "https://app.example/cb"
-        ),
-        "jwks_uri": lambda: verify_id_token("id-token", {"client_id": "mygarage"}, metadata, "n"),
-        "userinfo_endpoint": lambda: get_userinfo("access-token", metadata),
-    }
-
-    assert await calls[endpoint]() is None
-
-
 @pytest.mark.parametrize("service", list(_SERVICES.values()), ids=list(_SERVICES))
 async def test_an_error_that_isnt_the_providers_still_raises(
     service: Callable[[], Awaitable[object]],
@@ -180,3 +181,68 @@ async def test_a_key_set_error_that_isnt_the_jwks_shape_still_raises() -> None:
         pytest.raises(RuntimeError, match="not a shape problem"),
     ):
         await _jwks()
+
+
+@pytest.mark.parametrize("endpoint", list(_ENDPOINT_CALLS), ids=["token", "jwks", "userinfo"])
+async def test_each_endpoint_fetch_goes_to_the_url_the_validator_parsed(endpoint: str) -> None:
+    """The request goes where validate_oidc_url said, not to the raw string it was handed."""
+    parsed = "https://validated.example/elsewhere"
+    seen: list[str] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(503)
+
+    with (
+        patch(
+            "app.services.oidc.tokens.validate_oidc_url",
+            side_effect=lambda _url: urlparse(parsed),
+        ),
+        patch.object(httpx, "AsyncClient", _client_over(answer)),
+    ):
+        assert await _ENDPOINT_CALLS[endpoint](_METADATA) is None
+
+    assert seen == [parsed]
+
+
+@pytest.mark.parametrize("endpoint", list(_ENDPOINT_CALLS), ids=["token", "jwks", "userinfo"])
+async def test_a_discovered_endpoint_on_a_blocked_address_is_none_and_its_url_isnt_logged(
+    endpoint: str, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Discovery can point an endpoint anywhere; a private one is refused, not a 500.
+
+    The URL can carry secrets in its query, so the block logs only why.
+    """
+    monkeypatch.delenv("MYGARAGE_TRUSTED_HOSTS", raising=False)
+    caplog.set_level(logging.ERROR, logger="app.services.oidc")
+    blocked = "http://127.0.0.1:9000/secret-path?token=hunter2"
+
+    assert await _ENDPOINT_CALLS[endpoint]({**_METADATA, endpoint: blocked}) is None
+
+    messages = [r.getMessage() for r in caplog.records if r.name.startswith("app.services.oidc")]
+    assert len(messages) == 1, messages
+    assert "SSRF protection blocked" in messages[0]
+    # The validator's reason stays in.
+    assert "Blocked private IP address" in messages[0]
+    for piece in ("http://", "secret-path", "hunter2", ":9000"):
+        assert piece not in messages[0], messages[0]
+
+
+@pytest.mark.parametrize("service", list(_SERVICES.values()), ids=list(_SERVICES))
+async def test_an_error_status_is_logged_without_the_providers_url(
+    service: Callable[[], Awaitable[object]], caplog: pytest.LogCaptureFixture
+) -> None:
+    """HTTPStatusError's own text carries the URL, so only the status goes in.
+
+    Discovery and userinfo logged str(e). The token exchange and JWKS already
+    logged the status, so those two are guards.
+    """
+    caplog.set_level(logging.DEBUG, logger="app.services.oidc")
+
+    with _provider(_body(404, b"not here")):
+        assert await service() is None
+
+    messages = [r.getMessage() for r in caplog.records if r.name.startswith("app.services.oidc")]
+    assert any("404" in m for m in messages), messages
+    for message in messages:
+        assert "idp.example" not in message, message

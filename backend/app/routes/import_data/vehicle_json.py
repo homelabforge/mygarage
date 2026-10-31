@@ -151,6 +151,7 @@ from app.services.brake_service import BrakeService
 from app.services.fuel_side_effects import invalidate_cache_for_vehicle
 from app.services.insurance_service import InsuranceService
 from app.services.reminder_service import start_readings
+from app.services.service_visit_service import drop_stray_links
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.csv_units import (
     DISTANCE,
@@ -620,6 +621,8 @@ async def import_vehicle_json(
                 for line_item, (_columns, link) in zip(written, items, strict=True):
                     if link is not None:
                         line_item.triggered_by_inspection_id = written[link].id
+                # A link to an item that isn't an inspection just goes, no error.
+                drop_stray_links(written)
                 # What each item used, its supply found or added in this savepoint.
                 for position, (line_item, item_usages) in enumerate(
                     zip(written, usages, strict=True)

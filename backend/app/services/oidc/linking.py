@@ -286,6 +286,8 @@ async def validate_and_consume_pending_link(
             user_id=user.id,
             username=user.username,
             action="oidc_account_linked",
+            resource_type="user",
+            resource_id=str(user.id),
             details={"provider": user.oidc_provider, "oidc_subject": user.oidc_subject},
             ip_address=ip_address,
             user_agent=user_agent,
