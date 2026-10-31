@@ -31,7 +31,7 @@ const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4'
 
 // Running-cost total for one month: service, fuel and DEF. Financing has its
 // own bar/legend entry but is excluded here, same as it's excluded from
-// total_cost/cost-per-distance elsewhere — a lease payment isn't a cost of
+// total_cost/cost-per-distance elsewhere. A lease payment isn't a cost of
 // driving the vehicle.
 const monthlyTrendTotal = (trend: GarageAnalytics['monthly_trends'][number]) =>
   parseFloat(trend.service) + parseFloat(trend.fuel) + parseFloat(trend.def_cost)

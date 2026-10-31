@@ -72,11 +72,14 @@ vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: { currency_code: currencyMock.code } }),
 }))
 // Local i18n mock: a `{ unit }` call shows its unit so the avg-cost label can
-// tell qt from fl oz. Everything else is the bare key, and t stays one stable
-// function for the same reason setup.ts hoists its own.
+// tell qt from fl oz, and a `{ value, unit }` call shows both for the list cell.
+// Everything else is the bare key, and t stays one stable function for the same
+// reason setup.ts hoists its own.
 vi.mock('react-i18next', () => {
-  const t = (key: string, options?: { unit?: string }): string =>
-    options?.unit !== undefined ? `${key} (${options.unit})` : key
+  const t = (key: string, options?: { unit?: string; value?: string }): string => {
+    if (options?.value !== undefined) return `${key} (${options.value} / ${options.unit})`
+    return options?.unit !== undefined ? `${key} (${options.unit})` : key
+  }
   const i18n = { language: 'en', changeLanguage: () => Promise.resolve() }
   return {
     useTranslation: () => ({ t, i18n }),
@@ -653,7 +656,9 @@ describe('Supplies page: each supply shows its own unit', () => {
     expect(screen.queryByText('$0.01')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'supplies.listView' }))
-    expect(within(screen.getByRole('table')).getByText('$0.0053')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('table')).getByText('supplies.avgCostValuePerUnit ($0.0053 / mL)'),
+    ).toBeInTheDocument()
   })
 
   it('a legacy supply with no unit still follows the imperial pick to qt', () => {
@@ -668,6 +673,53 @@ describe('Supplies page: each supply shows its own unit', () => {
     // 10.5 L is 11.095 US qt.
     expect(screen.getByText('11.10 qt')).toBeInTheDocument()
     expect(screen.getByText('supplies.avgCostPerUnit (qt)')).toBeInTheDocument()
+  })
+})
+
+describe('Supplies page: the list avg cost cell names its unit', () => {
+  // The list has one header for every row, so each cell says what it's per.
+  // Prices are per litre on the wire: $25 for 5 US qt, $5.25/L, and $6 per UK qt.
+  const ukQuartLitres = 4.54609 / 4
+  const quarts = { ...mockSupply, id: 31, name: 'Quart Oil', volume_unit: 'qt_us', avg_unit_cost: String(25 / 4.732) } as Supply
+  const millis = { ...mockSupply, id: 32, name: 'Milli Additive', volume_unit: 'mL', avg_unit_cost: '5.25' } as Supply
+  const ukQuarts = { ...mockSupply, id: 33, name: 'UK Quart Oil', volume_unit: 'qt_uk', avg_unit_cost: String(6 / ukQuartLitres) } as Supply
+  const counted = { ...mockSupply, id: 34, name: 'Oil Filter', unit_type: 'count', volume_unit: null, on_hand: '4', avg_unit_cost: '12.5' } as Supply
+  const unpriced = { ...mockSupply, id: 35, name: 'Free Coolant', volume_unit: 'qt_us', avg_unit_cost: null } as Supply
+
+  const avgCostCell = (name: string): string | null => {
+    const row = within(screen.getByRole('table')).getByText(name).closest('tr') as HTMLElement
+    // name, category, vehicle, on hand, avg cost, actions
+    return within(row).getAllByRole('cell')[4].textContent
+  }
+
+  const renderList = (supplies: Supply[]): void => {
+    useSuppliesMock.mockReturnValue({ data: { supplies, total: supplies.length }, isLoading: false, error: null })
+    render(<Supplies />)
+    fireEvent.click(screen.getByRole('button', { name: 'supplies.listView' }))
+  }
+
+  it('a qt supply, a mL supply and a UK quart supply each name their own unit', () => {
+    renderList([quarts, millis, ukQuarts])
+
+    expect(avgCostCell('Quart Oil')).toBe('supplies.avgCostValuePerUnit ($5.00 / qt)')
+    expect(avgCostCell('Milli Additive')).toBe('supplies.avgCostValuePerUnit ($0.0053 / mL)')
+    expect(avgCostCell('UK Quart Oil')).toBe('supplies.avgCostValuePerUnit ($6.00 / qt (UK))')
+  })
+
+  // Guard: main shows every cell plain. Mutation: drop the label check in
+  // avgCostCell and this grows a dangling "/".
+  it('a counted supply shows the plain price, no unit', () => {
+    renderList([counted])
+
+    expect(avgCostCell('Oil Filter')).toBe('$12.50')
+  })
+
+  // Guard: main already shows a bare dash here. Mutation: drop the cost check in
+  // avgCostCell and this reads "-/qt".
+  it('a supply with no cost yet keeps the bare dash', () => {
+    renderList([unpriced])
+
+    expect(avgCostCell('Free Coolant')).toBe('-')
   })
 })
 
