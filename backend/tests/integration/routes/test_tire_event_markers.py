@@ -53,6 +53,10 @@ class Axis:
     def column(self) -> str:
         return "engine_hours" if self.model is HoursRecord else "odometer_km"
 
+    @property
+    def route(self) -> str:
+        return "hours" if self.model is HoursRecord else "odometer"
+
 
 DISTANCE = Axis(
     "distance", "odometer_km", "mounted_odometer_km", "dismounted_odometer_km", "odometer_km",
@@ -211,6 +215,18 @@ async def _hand_set(db_session, ax: Axis, vin: str, notes: str, value: Decimal) 
     await db_session.commit()
 
 
+async def _hand_move(client: AsyncClient, headers, db_session, ax: Axis, vin, notes, day) -> None:
+    """Move a tire-owned row to another date through the odometer or hours edit route."""
+    model = ax.model
+    row_id = (
+        await db_session.execute(select(model.id).where(model.vin == vin, model.notes == notes))
+    ).scalar_one()
+    moved = await client.put(
+        f"/api/vehicles/{vin}/{ax.route}/{row_id}", headers=headers, json={"date": day.isoformat()}
+    )
+    assert moved.status_code == 200, moved.text
+
+
 async def _event_tire(db_session, client, headers, vin: str, event: str) -> int:
     """A tire whose `event` (retire or dismount) has no period to close."""
     if event == "retire":
@@ -332,6 +348,36 @@ class TestTheDayBacker:
 
         mount = _mark("tire_mount", b["mount_periods"][0]["id"])
         assert _on(await _rows(db_session, ax, vin), D1) == [(X, mount)]
+
+    async def test_a_withdrawn_reading_falls_back_to_a_dismount_bound(
+        self, client, auth_headers, db_session, ax, vin
+    ):
+        # guard: the dismount half of the bound lookup, its date, figure and marker.
+        a = (await _create_mount(client, auth_headers, ax, vin, "FL", E))["id"]
+        reading_id = await _reading(client, auth_headers, ax, vin, a, D1, X)
+        b = await _create_mount(client, auth_headers, ax, vin, "FR", E)
+        await _off(client, auth_headers, ax, vin, b["id"], "dismount", D1, X)
+
+        await _delete_reading(client, auth_headers, vin, a, reading_id)
+
+        dismount = _mark("tire_dismount", b["mount_periods"][0]["id"])
+        assert _on(await _rows(db_session, ax, vin), D1) == [(X, dismount)]
+
+    async def test_a_bound_whose_row_was_moved_by_hand_stays_moved(
+        self, client, auth_headers, db_session, ax, vin
+    ):
+        t = await _create_mount(client, auth_headers, ax, vin, "FL", D1, X)
+        mount = _mark("tire_mount", t["mount_periods"][0]["id"])
+        await _hand_move(client, auth_headers, db_session, ax, vin, mount, D0)
+        u = await _stored(client, auth_headers, vin)
+        reading_id = await _reading(client, auth_headers, ax, vin, u, D1, X - 10)
+
+        # Withdrawing U's row runs the backer on D1, where T's mount bound still sits.
+        await _delete_reading(client, auth_headers, vin, u, reading_id)
+
+        rows = await _rows(db_session, ax, vin)
+        assert [(d, v) for d, v, n, _ in rows if n == mount] == [(D0, X)]
+        assert _on(rows, D1) == []
 
     async def test_a_lower_set_refit_republishes_the_reading_behind_it(
         self, client, auth_headers, db_session, ax, vin

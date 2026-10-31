@@ -306,9 +306,13 @@ async def republish_day_backer(
     below a figure still on file.
 
     Candidates are this vehicle's readings and mount-period bounds on `day` and
-    `axis`. Only one with NO row of its own marker on the day qualifies: one
-    that has a row is already published, and that row may hold a user's
-    correction a republish would overwrite (Fable F3-1). Highest figure wins;
+    `axis`. Only one with NO row of its own marker qualifies: one that has a
+    row is already published, and that row may hold a user's correction a
+    republish would overwrite (Fable F3-1). For a reading that's a row on the
+    day, since the tire marker owns one per date. For a bound it's a row on
+    any date, since its marker owns one row and the user may have moved it
+    (an outright deleted one still comes back, it looks just like a
+    suppressed bound). Highest figure wins;
     on a tie a reading beats a bound, then the newest id. It goes through
     `_publish_tire_usage` under its owner's marker (a reading's tire, a bound's
     period), so a day that already reads at or above it gets nothing.
@@ -350,6 +354,7 @@ async def republish_day_backer(
             axis.dismounted,
         ),
     )
+    found: dict[str, tuple[Decimal, bool, int, str, int]] = {}
     for source_type, on, column, read in bounds:
         periods = (
             select(TireMountPeriod)
@@ -360,9 +365,23 @@ async def republish_day_backer(
             periods = periods.where(TireMountPeriod.tire_id != exclude_tire_id)
         for period in (await db.execute(periods)).scalars():
             value = read(period)
-            marker = auto_sync_marker(source_type, period.id)
-            if value is not None and marker not in holders:
-                candidates.append((value, False, period.id, source_type, period.id))
+            if value is not None:
+                marker = auto_sync_marker(source_type, period.id)
+                found[marker] = (value, False, period.id, source_type, period.id)
+    # A bound's marker owns one row at most, so a row on ANY date counts: the
+    # user may have moved it to another day, and republishing would undo that.
+    if found:
+        model = HoursRecord if axis.is_hours else OdometerRecord
+        owned = set(
+            (
+                await db.execute(
+                    select(model.notes).where(model.vin == vin, model.notes.in_(list(found)))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        candidates.extend(entry for marker, entry in found.items() if marker not in owned)
 
     if not candidates:
         return
