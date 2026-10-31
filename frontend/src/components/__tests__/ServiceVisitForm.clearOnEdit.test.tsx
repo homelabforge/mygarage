@@ -151,6 +151,11 @@ const inspectionVisit = {
 
 const input = (id: string) => document.getElementById(id) as HTMLInputElement
 
+const found = (el: Element | null | undefined): Element => {
+  if (!el) throw new Error('control not found')
+  return el
+}
+
 async function renderEdit(v: ServiceVisit = visit): Promise<void> {
   // Dual tracking, so both the odometer and the engine-hours inputs mount.
   mockedApiGet.mockResolvedValue({ data: { usage_unit: 'distance', secondary_usage_enabled: true } })
@@ -218,11 +223,6 @@ describe('ServiceVisitForm: clearing a line item field on edit', () => {
 
   const lineItems = (body: Record<string, unknown>): Record<string, unknown>[] =>
     body.line_items as Record<string, unknown>[]
-
-  const found = (el: Element | null | undefined): Element => {
-    if (!el) throw new Error('control not found')
-    return el
-  }
 
   it('sends null for each line-item field the user cleared', async () => {
     await renderEdit(inspectionVisit)
@@ -304,8 +304,7 @@ describe('ServiceVisitForm: a repair link follows its inspection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'service.addItem' }))
     // The added row is index 1; its description is the text input under that row's label.
-    const description = screen.getAllByText('lineItemEditor.misc.descriptionLabel')[1].parentElement?.querySelector('input[type="text"]')
-    if (!description) throw new Error('added row description not found')
+    const description = found(screen.getAllByText('lineItemEditor.misc.descriptionLabel')[1].parentElement?.querySelector('input[type="text"]'))
     fireEvent.change(description, { target: { value: 'Tire inspection' } })
     fireEvent.click(document.getElementById('inspection-1') as HTMLInputElement)
     fireEvent.click(screen.getByRole('button', { name: 'inspectionResult.resultFailed' }))

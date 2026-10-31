@@ -2,7 +2,7 @@
 
 P251D/E/F read "PTO Engine Shutdown Circuit ..." and the shutdown rule took
 them for a forced shutdown. The shipped file has the new tier now; 141 moves
-the definitions and the vehicle DTCs that copied the old one.
+the definitions and every vehicle DTC of those codes still at critical.
 """
 
 import importlib.util
