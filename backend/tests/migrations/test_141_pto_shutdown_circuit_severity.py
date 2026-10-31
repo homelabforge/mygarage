@@ -168,7 +168,10 @@ def test_a_second_run_changes_nothing(engine_for_migration, caplog: pytest.LogCa
 def test_missing_tables_are_skipped(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO)
     engine = create_engine("sqlite://")
-    _upgrade(engine)
+    try:
+        _upgrade(engine)
+    finally:
+        engine.dispose()
     assert "141: vehicle_dtcs missing" in caplog.text
     assert "141: dtc_definitions missing" in caplog.text
 

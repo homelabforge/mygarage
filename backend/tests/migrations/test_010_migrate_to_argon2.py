@@ -39,7 +39,11 @@ def test_an_all_argon2_report_doesnt_mention_bcrypt_in_pyproject(
     db_file = tmp_path / "m010.db"
     _setup_db(db_file, [_ARGON2, _ARGON2])
 
-    _load_migration().upgrade(create_engine(f"sqlite:///{db_file}"))
+    engine = create_engine(f"sqlite:///{db_file}")
+    try:
+        _load_migration().upgrade(engine)
+    finally:
+        engine.dispose()
 
     out = capsys.readouterr().out
     assert "All passwords migrated to Argon2" in out

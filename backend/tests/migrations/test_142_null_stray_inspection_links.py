@@ -149,7 +149,10 @@ def test_a_second_run_changes_nothing(engine_for_migration, caplog: pytest.LogCa
 def test_a_missing_table_is_skipped(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO)
     engine = create_engine("sqlite://")
-    _upgrade(engine)
+    try:
+        _upgrade(engine)
+    finally:
+        engine.dispose()
     assert "142: service_line_items missing" in caplog.text
 
 

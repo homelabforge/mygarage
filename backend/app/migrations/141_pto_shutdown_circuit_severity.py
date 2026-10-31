@@ -3,8 +3,8 @@
 P251D/E/F ("PTO Engine Shutdown Circuit/Open", "... Low", "... High") are a
 wiring fault on the PTO's shutdown input, but the generator's shutdown rule
 read them as a forced engine shutdown and shipped them critical/4. The file
-says warning/2 now; this moves the stored definitions to match, and the
-vehicle DTCs still on the critical they copied at ingest.
+says warning/2 now; this moves the stored definitions to match, and every
+vehicle DTC of those codes still at critical.
 
 ``upgrade(conn)``: both UPDATEs and the stamp commit together. Not FATAL: a
 failure leaves three codes one tier too loud, and 141 retries next boot.
@@ -23,8 +23,9 @@ CODES = ("P251D", "P251E", "P251F")
 NEW_SEVERITY = "warning"
 NEW_LEVEL = 2
 
-# Ingest copies the definition's severity, so 'critical' here is the copy.
-# Anything else was set some other way and stays.
+# Every vehicle DTC with one of these codes still at critical moves, a hand-set
+# critical included: nothing records where a severity came from. Any other
+# severity stays.
 _MOVE_VEHICLE_DTCS = text(
     "UPDATE vehicle_dtcs SET severity = :new WHERE code IN :codes AND severity = 'critical'"
 ).bindparams(bindparam("codes", expanding=True))
@@ -35,7 +36,7 @@ _MOVE_DEFINITIONS = text(
 
 
 def upgrade(conn: Connection) -> None:
-    """Move P251D/E/F and their copied vehicle DTCs to the new tier, on the runner's connection."""
+    """Move P251D/E/F and the vehicle DTCs still critical under them, on the runner's connection."""
     inspector = inspect(conn)
     if inspector.has_table("vehicle_dtcs"):
         moved = conn.execute(
