@@ -107,11 +107,13 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Shared LiveLink parameters get readable names, such as "Coolant temperature", "Engine RPM" and "Odometer (Torque)", instead of their key title-cased. Migration 139 (not FATAL) renames the ones still on their old automatic name, Torque's "Kff1238"-style ones included, and never touches a name you set
 - Torque's two L/100km economy parameters read "(L/100km)", like their unit
 - Durations in LiveLink (trips, sessions and the live session timer) follow the selected language
+- **BREAKING (API):** `GET /api/analytics/vehicles/{vin}/tires` renames the readiness counts `can_report_distance` to `can_report_usage` and `needs_reading_odometer` to `needs_reading_usage`, since they count hours on an hours vehicle
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
 - The `MYGARAGE_RECALL_CHECK_INTERVAL_DAYS` environment variable, which nothing read. The interval is the Recall Check Interval setting
 - `duplicate_of` on the reminder API response. `GET /api/vehicles/{vin}/reminders/duplicates` returns the same groups, and is what the app reads
+- `mount_period_id` on tire readings in the API, which only older readings carried
 
 ### Fixed
 - DTCs from a WiCAN are recorded over MQTT as well as HTTPS, and only codes shaped like a DTC are kept
@@ -155,6 +157,12 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Auto-fill from last drive on the fuel form reads the fill-up time in the household's zone, so it finds the drive that just ended instead of missing it (west of UTC) or offering one that ended after the fill-up (east of UTC)
 - Backup and database times in Settings > Backup no longer read hours off when the container has a timezone set
 - A fuel or DEF price typed per gallon comes back as typed: a UK 6.000/gal no longer reads 6.001, a US 3.999/gal no longer 3.997
+- A tire reading dated after the tire's retirement is refused, and so is a retire dated before the tire's newest reading
+- Deleting a tire reading no longer takes the odometer or hour meter of a same-day retire or dismount of that tire with it
+- Deleting a tire or a tire reading keeps the odometer or hour meter another tire's reading or mount recorded that day, instead of leaving the day without it
+- The tread chart in Analytics draws one line per tire, so a stored set of identical tires no longer draws as one; tires with the same label get their DOT code, or #2, #3
+- Two readings of a tire on one day are ordered by entry everywhere, so the wear projection no longer reads the older one as the newest
+- A tire can only have one pending low-tread reminder. Migration 140 (not FATAL) marks any extra ones done, keeping the oldest
 - An outside temperature typed in Fahrenheit comes back as typed (72.2 F no longer reads 72.1)
 - OBC and window sticker fuel economy keep four places in L/100km, so a typed MPG comes back as typed (a 58 MPG sticker no longer reads 57.9)
 - A propane tank size and a trailer's dimensions and GVWR keep a third decimal place, so a value typed in pounds or feet comes back as typed
