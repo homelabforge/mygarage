@@ -27,9 +27,14 @@ vi.mock('../../hooks/queries/useSupplies', () => ({
 // Same mock pattern as Supplies.test.tsx — these hooks need AuthProvider
 // otherwise, and it's not under test here.
 const unitMock = vi.hoisted(() => ({ system: 'metric' as 'metric' | 'imperial' }))
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: unitMock.system, showBoth: false }),
-}))
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({ system: unitMock.system, showBoth: false })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 // The REAL currency hook runs, so a rate option has to survive it. Only the
 // signed-in user is faked, and the rate-digits test flips them to yen.
 const currencyMock = vi.hoisted(() => ({ code: 'USD' }))

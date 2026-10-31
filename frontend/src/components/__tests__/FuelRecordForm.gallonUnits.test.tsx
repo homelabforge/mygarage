@@ -44,12 +44,15 @@ const unitPrefMock = vi.hoisted(() => ({
 }))
 vi.mock('../../hooks/useUnitPreference', async () => {
   const { IMPERIAL_UNITS: IMP, METRIC_UNITS } = await import('@/__tests__/factories')
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
+    system: unitPrefMock.system,
+    showBoth: unitPrefMock.showBoth,
+    units: unitPrefMock.units ?? (unitPrefMock.system === 'imperial' ? IMP : METRIC_UNITS),
+  })
   return {
-    useUnitPreference: () => ({
-      system: unitPrefMock.system,
-      showBoth: unitPrefMock.showBoth,
-      units: unitPrefMock.units ?? (unitPrefMock.system === 'imperial' ? IMP : METRIC_UNITS),
-    }),
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
   }
 })
 

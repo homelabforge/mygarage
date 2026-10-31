@@ -43,13 +43,16 @@ vi.mock('../../hooks/useCurrencySymbol', () => ({ useCurrencySymbol: () => '$' }
 let units: import('@/types/units').UnitSet
 vi.mock('../../hooks/useUnitPreference', async () => {
   const { binarySystemFor } = await import('@/types/units')
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
+    system: binarySystemFor(units.volume),
+    showBoth: false,
+    units,
+    gallonStandard: units.secondary_gallon,
+  })
   return {
-    useUnitPreference: () => ({
-      system: binarySystemFor(units.volume),
-      showBoth: false,
-      units,
-      gallonStandard: units.secondary_gallon,
-    }),
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
   }
 })
 

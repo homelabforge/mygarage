@@ -53,14 +53,19 @@ const unitMock = vi.hoisted(() => ({
   units: null as UnitSet | null,
   gallonStandard: 'us' as 'us' | 'uk',
 }))
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: unitMock.system,
     units: unitMock.units,
     gallonStandard: unitMock.gallonStandard,
     showBoth: false,
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 // Sets the whole account in one go so system, set and gallon flavour can't disagree.
 const setAccount = (system: 'metric' | 'imperial', flavour: 'us' | 'uk' = 'us'): void => {
   unitMock.system = system

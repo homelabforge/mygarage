@@ -58,14 +58,19 @@ vi.mock('../../services/api', () => ({
 }))
 
 const unitPrefMock = vi.hoisted(() => ({ units: null as unknown as UnitSet }))
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: binarySystemFor(unitPrefMock.units.volume),
     showBoth: false,
     units: unitPrefMock.units,
     gallonStandard: unitPrefMock.units.secondary_gallon,
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 const langMock = vi.hoisted(() => ({ code: 'en' }))
 

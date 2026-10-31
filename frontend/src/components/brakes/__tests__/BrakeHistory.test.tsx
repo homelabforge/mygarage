@@ -21,8 +21,9 @@ vi.mock('../../../hooks/queries/useHoursRecords', () => ({
   useNearestHours: () => ({ data: undefined, isSuccess: false }),
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
-vi.mock('../../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: 'metric',
     showBoth: false,
     gallonStandard: 'us',
@@ -39,8 +40,12 @@ vi.mock('../../../hooks/useUnitPreference', () => ({
       tread: 'mm',
       secondary_gallon: 'us',
     },
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 import BrakeHistoryDrawer from '../BrakeHistoryDrawer'
 import { JobEditor, MeasurementEditor } from '../BrakeEditors'

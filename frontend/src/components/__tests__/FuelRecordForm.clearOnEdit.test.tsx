@@ -28,8 +28,11 @@ vi.mock('../../services/api', () => ({
 }))
 vi.mock('../../hooks/useUnitPreference', async () => {
   const { METRIC_UNITS } = await import('@/__tests__/factories')
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({ system: 'metric', showBoth: false, units: METRIC_UNITS })
   return {
-    useUnitPreference: () => ({ system: 'metric', showBoth: false, units: METRIC_UNITS }),
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
   }
 })
 vi.mock('../../contexts/AuthContext', () => ({

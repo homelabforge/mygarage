@@ -23,14 +23,17 @@ const unitPrefMock = vi.hoisted(() => ({
 }))
 vi.mock('../../hooks/useUnitPreference', async () => {
   const { IMPERIAL_UNITS, METRIC_UNITS } = await import('@/__tests__/factories')
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
+    system: unitPrefMock.system,
+    showBoth: unitPrefMock.showBoth,
+    units:
+      unitPrefMock.units ??
+      (unitPrefMock.system === 'imperial' ? IMPERIAL_UNITS : METRIC_UNITS),
+  })
   return {
-    useUnitPreference: () => ({
-      system: unitPrefMock.system,
-      showBoth: unitPrefMock.showBoth,
-      units:
-        unitPrefMock.units ??
-        (unitPrefMock.system === 'imperial' ? IMPERIAL_UNITS : METRIC_UNITS),
-    }),
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
   }
 })
 // LOCAL i18n mock (B5) — overrides the global setup mock FOR THIS FILE ONLY. For a `{ unit }`
