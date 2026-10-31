@@ -4,6 +4,7 @@ import asyncio
 import logging
 import math
 import time
+import weakref
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
@@ -179,6 +180,11 @@ class _RefreshDue:
 #: queueing leaves nothing behind to suppress the next one (E-3).
 _REFRESH_DUE: dict[int, _RefreshDue] = {}
 
+#: Session id -> the lock its refreshes take, read through commit. Two side by
+#: side let the older one, stuck on SQLite's write lock, commit last and put
+#: back figures from a narrower window. Weak, so a lock goes when its jobs do.
+_REFRESH_LOCKS: weakref.WeakValueDictionary[int, asyncio.Lock] = weakref.WeakValueDictionary()
+
 
 def queue_session_refresh(db: AsyncSession, session_id: int) -> None:
     """Recompute a closed session's aggregates once ``db`` commits, debounced per session."""
@@ -199,9 +205,15 @@ async def _refresh_session_debounced(session_id: int, db: AsyncSession) -> None:
         return
     due = _RefreshDue(first=now, deadline=now + SESSION_REFRESH_DEBOUNCE_SECONDS)
     _REFRESH_DUE[session_id] = due
+    lock = _REFRESH_LOCKS.get(session_id)
+    if lock is None:
+        lock = _REFRESH_LOCKS[session_id] = asyncio.Lock()
     try:
         while (remaining := due.deadline - time.monotonic()) > 0:
             await asyncio.sleep(remaining)
+        # Still registered while it waits, so a frame landing meanwhile folds
+        # into this run: it reads after the lock, which is after that commit.
+        await lock.acquire()
     except asyncio.CancelledError:
         # Shutdown mid-sleep (`post_commit.shutdown`): refresh once now rather
         # than lose the drain's last seconds to a restart (E-12). The runner
@@ -210,8 +222,13 @@ async def _refresh_session_debounced(session_id: int, db: AsyncSession) -> None:
         await _refresh_session_now(db, session_id)
         await db.commit()
         raise
-    _REFRESH_DUE.pop(session_id, None)
-    await _refresh_session_now(db, session_id)
+    try:
+        _REFRESH_DUE.pop(session_id, None)
+        await _refresh_session_now(db, session_id)
+        # Committed under the lock, or the next one could read before this lands.
+        await db.commit()
+    finally:
+        lock.release()
 
 
 async def _refresh_session_now(db: AsyncSession, session_id: int) -> None:

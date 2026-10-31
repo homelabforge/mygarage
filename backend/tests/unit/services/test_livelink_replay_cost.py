@@ -327,6 +327,75 @@ async def test_a_refresh_whose_session_was_merged_away_logs_no_error(
     assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == []
 
 
+async def test_a_slow_refresh_cannot_land_after_a_newer_one(
+    db_session: AsyncSession,
+    make_closed_drive_session,
+    test_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two refreshes of one session used to run side by side. The older one read
+    the window first, sat on the write lock, then committed last and put back
+    the old figures; the replayed day's drive read 0.0 km about one gate in six.
+    Red on 4b6eee12 (max_speed came back 50, the stale job's)."""
+    now = _now()
+    vin, device_id, session = await make_closed_drive_session(
+        "t4cost",
+        "7",
+        started_at=now - timedelta(minutes=10),
+        ended_at=now - timedelta(minutes=5),
+        duration_seconds=300,
+    )
+    db_session.add(
+        VehicleTelemetry(
+            vin=vin,
+            device_id=device_id,
+            param_key="SPEED",
+            value=50.0,
+            timestamp=session.started_at + timedelta(minutes=1),
+            received_at=now,
+        )
+    )
+    await db_session.commit()
+    session_id = session.id
+
+    # The first refresh computes, then stalls before it writes, the way one
+    # waiting on SQLite's write lock does.
+    stalled = asyncio.Event()
+    release = asyncio.Event()
+    original_refresh = SessionService.refresh_aggregates
+
+    async def first_one_stalls(self: SessionService, target: DriveSession, **kwargs: Any) -> None:
+        await original_refresh(self, target, **kwargs)
+        if not stalled.is_set():
+            stalled.set()
+            await release.wait()
+
+    monkeypatch.setattr(SessionService, "refresh_aggregates", first_one_stalls)
+
+    queue_session_refresh(db_session, session_id)
+    await db_session.commit()
+    await asyncio.wait_for(stalled.wait(), timeout=5)
+    older = set(post_commit._tasks)  # noqa: SLF001 - telling the two jobs apart
+
+    telemetry = TelemetryService(db_session)
+    await telemetry.store_telemetry(
+        vin, device_id, {"SPEED": 90.0}, {}, timestamp=session.started_at + timedelta(minutes=2)
+    )
+    await db_session.commit()
+    newer = set(post_commit._tasks) - older  # noqa: SLF001
+    assert newer, "the 90 km/h frame queued no refresh"
+    # Unserialized, the newer job finishes right here. Serialized, it's waiting
+    # on the stalled one, so this only bounds how long that takes to show.
+    await asyncio.wait(newer, timeout=1.0)
+    release.set()
+    await post_commit.drain()
+
+    async with test_sessionmaker() as fresh:
+        stored = await fresh.get(DriveSession, session_id)
+        assert stored is not None
+        assert stored.max_speed == 90.0
+
+
 async def test_a_shutdown_mid_debounce_still_refreshes_once(
     db_session: AsyncSession, make_closed_drive_session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
