@@ -352,7 +352,7 @@ class TestTheDayBacker:
     async def test_a_withdrawn_reading_falls_back_to_a_dismount_bound(
         self, client, auth_headers, db_session, ax, vin
     ):
-        # guard: the dismount half of the bound lookup, its date, figure and marker.
+        # The dismount half of the bound lookup: its date, figure and marker.
         a = (await _create_mount(client, auth_headers, ax, vin, "FL", E))["id"]
         reading_id = await _reading(client, auth_headers, ax, vin, a, D1, X)
         b = await _create_mount(client, auth_headers, ax, vin, "FR", E)
@@ -366,6 +366,7 @@ class TestTheDayBacker:
     async def test_a_bound_whose_row_was_moved_by_hand_stays_moved(
         self, client, auth_headers, db_session, ax, vin
     ):
+        # guard: green on main too. The backer leaves a hand-moved bound where it was.
         t = await _create_mount(client, auth_headers, ax, vin, "FL", D1, X)
         mount = _mark("tire_mount", t["mount_periods"][0]["id"])
         await _hand_move(client, auth_headers, db_session, ax, vin, mount, D0)

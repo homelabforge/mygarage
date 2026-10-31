@@ -338,6 +338,22 @@ class TestRetiredReadings:
         )
         assert await _reading_days(db_session, tire["id"]) == [date(2026, 2, 1)]
 
+    async def test_an_edit_may_move_a_reading_onto_the_retirement_day(
+        self, client, auth_headers, db_session, retired
+    ):
+        # guard: pins the strict > in update_reading. The day it came off is fair game.
+        vin, tire = retired
+        logged = await _log(client, auth_headers, vin, tire["id"], "2026-02-01")
+        assert logged.status_code == 201, logged.text
+        reading_id = logged.json()["readings"][0]["id"]
+        saved = await client.put(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/readings/{reading_id}",
+            headers=auth_headers,
+            json={"recorded_at": "2026-03-01"},
+        )
+        assert saved.status_code == 200, saved.text
+        assert await _reading_days(db_session, tire["id"]) == [date(2026, 3, 1)]
+
     async def test_a_reading_already_past_retirement_still_takes_a_notes_fix(
         self, client, auth_headers, db_session, retired
     ):

@@ -228,6 +228,7 @@ async def test_the_export_writes_indices_not_ids(
     assert mounted["set_index"] == 0
     assert [p["position"] for p in mounted["mount_periods"]] == ["FR", "FL"]
     # D2: the reading's period stays home, even on a row that still has one.
+    assert len(mounted["readings"]) == 3
     assert [r for r in mounted["readings"] if "mount_period_index" in r] == []
     assert backup["tires"][1]["set_index"] is None
 
