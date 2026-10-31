@@ -7,6 +7,11 @@ commit and debounced per session instead (D-7). These tests measure the drain
 (statements the observer issues per frame, refreshes per drain) and pin the
 debounce's edges: a rolled-back transaction leaves nothing behind (E-3), and a
 shutdown mid-sleep still refreshes once (E-12).
+
+They also guard the serialization: a session's queued refreshes take one lock
+through commit, so a slow, older one can't land after a newer one. SD backfill
+and `end_session` refresh inline without the lock, so each queues a follow-up
+that does take it and lands last.
 """
 
 from __future__ import annotations
@@ -16,7 +21,7 @@ import logging
 import math
 import time
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from sqlalchemy import delete, event, select
@@ -26,6 +31,7 @@ from app.models.drive_session import DriveSession
 from app.models.vehicle_telemetry import VehicleTelemetry
 from app.services import post_commit
 from app.services import telemetry_service as telemetry_module
+from app.services.sd_log_parser import SdRow
 from app.services.session_boundaries import BOUNDARY_ALGORITHM_MOVEMENT
 from app.services.session_service import SessionService
 from app.services.telemetry_service import TelemetryService, queue_session_refresh
@@ -327,20 +333,31 @@ async def test_a_refresh_whose_session_was_merged_away_logs_no_error(
     assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == []
 
 
-async def test_a_slow_refresh_cannot_land_after_a_newer_one(
-    db_session: AsyncSession,
-    make_closed_drive_session,
-    test_sessionmaker,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Two refreshes of one session used to run side by side. The older one read
-    the window first, sat on the write lock, then committed last and put back
-    the old figures; the replayed day's drive read 0.0 km about one gate in six.
-    Red on 4b6eee12 (max_speed came back 50, the stale job's)."""
+def _stall_first_refresh(monkeypatch: pytest.MonkeyPatch) -> tuple[asyncio.Event, asyncio.Event]:
+    """The first refresh computes, then stalls before it writes, the way one
+    waiting on SQLite's write lock does. Returns (stalled, release)."""
+    stalled = asyncio.Event()
+    release = asyncio.Event()
+    original_refresh = SessionService.refresh_aggregates
+
+    async def first_one_stalls(self: SessionService, target: DriveSession, **kwargs: Any) -> None:
+        await original_refresh(self, target, **kwargs)
+        if not stalled.is_set():
+            stalled.set()
+            await release.wait()
+
+    monkeypatch.setattr(SessionService, "refresh_aggregates", first_one_stalls)
+    return stalled, release
+
+
+async def _closed_drive_at_50(
+    db_session: AsyncSession, make_closed_drive_session, suffix: str
+) -> tuple[str, str, DriveSession]:
+    """A closed drive holding one 50 km/h reading, committed."""
     now = _now()
     vin, device_id, session = await make_closed_drive_session(
         "t4cost",
-        "7",
+        suffix,
         started_at=now - timedelta(minutes=10),
         ended_at=now - timedelta(minutes=5),
         duration_seconds=300,
@@ -356,21 +373,36 @@ async def test_a_slow_refresh_cannot_land_after_a_newer_one(
         )
     )
     await db_session.commit()
+    return vin, device_id, session
+
+
+async def test_a_slow_refresh_cannot_land_after_a_newer_one(
+    db_session: AsyncSession,
+    make_closed_drive_session,
+    test_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two refreshes of one session used to run side by side. The older one read
+    the window first, sat on the write lock, then committed last and put back
+    the old figures; the replayed day's drive read 0.0 km about one gate in six.
+    Red on 4b6eee12 (max_speed came back 50, the stale job's)."""
+    vin, device_id, session = await _closed_drive_at_50(db_session, make_closed_drive_session, "7")
     session_id = session.id
 
-    # The first refresh computes, then stalls before it writes, the way one
-    # waiting on SQLite's write lock does.
-    stalled = asyncio.Event()
-    release = asyncio.Event()
-    original_refresh = SessionService.refresh_aggregates
+    # Tells us when the newer job is waiting on the stalled one. On a build
+    # without the lock nothing reads it, hence raising=False.
+    parked = asyncio.Event()
 
-    async def first_one_stalls(self: SessionService, target: DriveSession, **kwargs: Any) -> None:
-        await original_refresh(self, target, **kwargs)
-        if not stalled.is_set():
-            stalled.set()
-            await release.wait()
+    class _ProbeLock(asyncio.Lock):
+        async def acquire(self) -> Literal[True]:
+            if self.locked():
+                parked.set()
+            return await super().acquire()
 
-    monkeypatch.setattr(SessionService, "refresh_aggregates", first_one_stalls)
+    monkeypatch.setattr(
+        telemetry_module, "_REFRESH_LOCKS", {session_id: _ProbeLock()}, raising=False
+    )
+    stalled, release = _stall_first_refresh(monkeypatch)
 
     queue_session_refresh(db_session, session_id)
     await db_session.commit()
@@ -384,9 +416,13 @@ async def test_a_slow_refresh_cannot_land_after_a_newer_one(
     await db_session.commit()
     newer = set(post_commit._tasks) - older  # noqa: SLF001
     assert newer, "the 90 km/h frame queued no refresh"
-    # Unserialized, the newer job finishes right here. Serialized, it's waiting
-    # on the stalled one, so this only bounds how long that takes to show.
-    await asyncio.wait(newer, timeout=1.0)
+    # Unserialized, the newer job finishes; serialized, it parks on the lock.
+    parked_wait = asyncio.ensure_future(parked.wait())
+    done, _ = await asyncio.wait(
+        {*newer, parked_wait}, return_when=asyncio.FIRST_COMPLETED, timeout=5
+    )
+    parked_wait.cancel()
+    assert done, "the newer refresh neither finished nor waited on the lock"
     release.set()
     await post_commit.drain()
 
@@ -394,6 +430,67 @@ async def test_a_slow_refresh_cannot_land_after_a_newer_one(
         stored = await fresh.get(DriveSession, session_id)
         assert stored is not None
         assert stored.max_speed == 90.0
+
+
+async def test_an_sd_pull_cannot_be_overwritten_by_a_slower_queued_refresh(
+    db_session: AsyncSession,
+    make_closed_drive_session,
+    test_sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SD backfill refreshes inline, without the lock, and lands the same moment
+    a reconnecting WiCAN replays over MQTT. A queued job that read before the
+    pull could commit after it and put the old figures back. Red on 3f3b8e62
+    (max_speed came back 50)."""
+    vin, device_id, session = await _closed_drive_at_50(db_session, make_closed_drive_session, "8")
+    session_id = session.id
+    stalled, release = _stall_first_refresh(monkeypatch)
+
+    queue_session_refresh(db_session, session_id)
+    await db_session.commit()
+    await asyncio.wait_for(stalled.wait(), timeout=5)
+
+    await TelemetryService(db_session).bulk_backfill(
+        vin,
+        device_id,
+        [SdRow(param_key="SPEED", value=85.0, timestamp=session.started_at + timedelta(minutes=2))],
+    )
+    release.set()
+    await post_commit.drain()
+
+    async with test_sessionmaker() as fresh:
+        stored = await fresh.get(DriveSession, session_id)
+        assert stored is not None
+        assert stored.max_speed == 85.0
+
+
+async def test_closing_a_session_queues_a_refresh_behind_the_commit(
+    db_session: AsyncSession, make_livelink_vehicle, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Guard: `end_session` refreshes inline and again behind the commit, under
+    the lock, so a queued job that read the drive before a reopen can't land
+    after the close. Mutation: drop the queue call in `end_session` and this
+    goes red (no refresh job runs)."""
+    _vin, device = await make_livelink_vehicle("t4cost", "9")
+    refreshed: list[int] = []
+    original_now = telemetry_module._refresh_session_now  # noqa: SLF001 - the job under test
+
+    async def recorded(db: AsyncSession, session_id: int) -> None:
+        refreshed.append(session_id)
+        await original_now(db, session_id)
+
+    monkeypatch.setattr(telemetry_module, "_refresh_session_now", recorded)
+    service = SessionService(db_session)
+    now = _now()
+    session = await service.start_session(device, now - timedelta(minutes=10))
+    await db_session.commit()
+
+    closed = await service.end_session(device, now - timedelta(minutes=5))
+    assert closed is not None
+    await db_session.commit()
+    await post_commit.drain()
+
+    assert refreshed == [session.id]
 
 
 async def test_a_shutdown_mid_debounce_still_refreshes_once(

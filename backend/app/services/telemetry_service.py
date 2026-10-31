@@ -215,9 +215,11 @@ async def _refresh_session_debounced(session_id: int, db: AsyncSession) -> None:
         # into this run: it reads after the lock, which is after that commit.
         await lock.acquire()
     except asyncio.CancelledError:
-        # Shutdown mid-sleep (`post_commit.shutdown`): refresh once now rather
-        # than lose the drain's last seconds to a restart (E-12). The runner
-        # won't commit after a cancellation, so commit here.
+        # Shutdown mid-sleep or mid-wait on the lock (`post_commit.shutdown`):
+        # refresh once now rather than lose the drain's last seconds to a
+        # restart (E-12). No lock here, but ingest has stopped, so nothing can
+        # widen the window under it. The runner won't commit after a
+        # cancellation, so commit here.
         _REFRESH_DUE.pop(session_id, None)
         await _refresh_session_now(db, session_id)
         await db.commit()
@@ -1356,6 +1358,11 @@ class TelemetryService:
         SD backfill's refresh, once per batch. A single reading's goes through
         the debounced queue instead (`_refresh_closed_session`). Does not
         commit: callers own the transaction.
+
+        Each one also gets a queued refresh behind the commit. The inline one
+        doesn't take the session lock (it would wait on the lock while holding
+        SQLite's), so a queued job could land after it with older figures. The
+        follow-up reads under the lock after this commits, so it lands last.
         """
         from app.services.session_service import SessionService  # local import avoids cycle
 
@@ -1366,6 +1373,7 @@ class TelemetryService:
         session_service = SessionService(self.db)
         for session in sessions:
             await session_service.refresh_aggregates(session)
+            queue_session_refresh(self.db, session.id)
 
         logger.debug(
             "Refreshed %d closed session(s) for %s over %s..%s",
