@@ -479,7 +479,7 @@ async def oidc_callback(
         Redirect to the frontend: the OIDC success page with the auth cookie set,
         the link account page, or the login page
     """
-    # The state is a live login secret, so only its prefix goes in. No state on a cancel.
+    # The state is a live login secret, so only its prefix goes in. A cancel can come with no state.
     logger.info(
         "Received OIDC callback (state: %s)",
         f"{sanitize_for_log(state[:16])}..." if state else None,

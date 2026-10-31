@@ -205,7 +205,8 @@ async def get_provider_metadata(issuer_url: str) -> dict[str, Any] | None:
         logger.error("Cannot connect to OIDC provider: %s", str(e))
         return None  # Intentional fallback: allow graceful degradation
     except httpx.HTTPStatusError as e:
-        logger.error("OIDC provider returned error: %s", str(e))
+        # str(e) carries the URL, so just the status
+        logger.error("OIDC metadata request failed with status %s", e.response.status_code)
         return None  # Intentional fallback
     except httpx.HTTPError as e:
         logger.error("OIDC metadata request failed: %s", type(e).__name__)

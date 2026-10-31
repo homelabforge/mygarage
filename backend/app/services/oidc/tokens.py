@@ -307,7 +307,10 @@ async def get_userinfo(
         logger.warning("Cannot connect to userinfo endpoint (non-critical): %s", str(e))
         return None  # Intentional fallback
     except httpx.HTTPStatusError as e:
-        logger.warning("Userinfo endpoint returned error (non-critical): %s", str(e))
+        # str(e) carries the URL, so just the status
+        logger.warning(
+            "Userinfo endpoint returned status %s (non-critical)", e.response.status_code
+        )
         return None  # Intentional fallback
     except httpx.HTTPError as e:
         logger.warning("Userinfo request failed (non-critical): %s", type(e).__name__)

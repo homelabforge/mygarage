@@ -32,6 +32,20 @@ _METADATA = {
 type _Answer = Callable[[httpx.Request], httpx.Response]
 
 
+def _client_over(answer: _Answer) -> Callable[..., httpx.AsyncClient]:
+    """A stand-in for httpx.AsyncClient whose clients all get this answer.
+
+    Grabs the real class now, before the patch swaps it out.
+    """
+    real_client = httpx.AsyncClient
+    transport = httpx.MockTransport(answer)
+
+    def make(*_args: object, **_kwargs: object) -> httpx.AsyncClient:
+        return real_client(transport=transport)
+
+    return make
+
+
 @contextmanager
 def _provider(answer: _Answer) -> Generator[None]:
     """Every provider request gets this answer.
@@ -39,12 +53,10 @@ def _provider(answer: _Answer) -> Generator[None]:
     URL validation is skipped, since the example host doesn't resolve. Every
     service fetches what the validator returns, so its stand-in still parses.
     """
-    real_client = httpx.AsyncClient
-    transport = httpx.MockTransport(answer)
     with (
         patch("app.services.oidc.config.validate_oidc_url", side_effect=urlparse),
         patch("app.services.oidc.tokens.validate_oidc_url", side_effect=urlparse),
-        patch.object(httpx, "AsyncClient", lambda *_a, **_kw: real_client(transport=transport)),
+        patch.object(httpx, "AsyncClient", _client_over(answer)),
     ):
         yield
 
@@ -181,14 +193,12 @@ async def test_each_endpoint_fetch_goes_to_the_url_the_validator_parsed(endpoint
         seen.append(str(request.url))
         return httpx.Response(503)
 
-    real_client = httpx.AsyncClient
-    transport = httpx.MockTransport(answer)
     with (
         patch(
             "app.services.oidc.tokens.validate_oidc_url",
             side_effect=lambda _url: urlparse(parsed),
         ),
-        patch.object(httpx, "AsyncClient", lambda *_a, **_kw: real_client(transport=transport)),
+        patch.object(httpx, "AsyncClient", _client_over(answer)),
     ):
         assert await _ENDPOINT_CALLS[endpoint](_METADATA) is None
 
@@ -216,3 +226,23 @@ async def test_a_discovered_endpoint_on_a_blocked_address_is_none_and_its_url_is
     assert "Blocked private IP address" in messages[0]
     for piece in ("http://", "secret-path", "hunter2", ":9000"):
         assert piece not in messages[0], messages[0]
+
+
+@pytest.mark.parametrize("service", list(_SERVICES.values()), ids=list(_SERVICES))
+async def test_an_error_status_is_logged_without_the_providers_url(
+    service: Callable[[], Awaitable[object]], caplog: pytest.LogCaptureFixture
+) -> None:
+    """HTTPStatusError's own text carries the URL, so only the status goes in.
+
+    Discovery and userinfo logged str(e). The token exchange and JWKS already
+    logged the status, so those two are guards.
+    """
+    caplog.set_level(logging.DEBUG, logger="app.services.oidc")
+
+    with _provider(_body(404, b"not here")):
+        assert await service() is None
+
+    messages = [r.getMessage() for r in caplog.records if r.name.startswith("app.services.oidc")]
+    assert any("404" in m for m in messages), messages
+    for message in messages:
+        assert "idp.example" not in message, message
