@@ -17170,8 +17170,6 @@ export interface components {
             engine_hours?: string | null;
             /** Id */
             id: number;
-            /** Mount Period Id */
-            mount_period_id?: number | null;
             /** Notes */
             notes: string | null;
             /** Odometer Km */

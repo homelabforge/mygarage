@@ -580,9 +580,8 @@ SECTIONS = [
                 "notes",
             }
         ),
-        # The tire is the parent; the period travels as its place in the tire's periods.
+        # The tire is the parent. The period link is unused since 140, so it stays home (D2).
         exclude=_ALWAYS | {"tire_id", "mount_period_id"},
-        portable=frozenset({"mount_period_index"}),
     ),
     JsonSection(
         "brake_axles",

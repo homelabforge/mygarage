@@ -69,7 +69,8 @@ async def _seed(db_session: AsyncSession, vin: str) -> None:
     await db_session.flush()
     db_session.add_all(
         [
-            # An old reading with no period (N-6), one in the closed period, one in the open one.
+            # An old reading with no period (N-6), then two that still point at one,
+            # like rows from before 140 cleared the column (D2).
             TireReading(
                 tire_id=mounted.id,
                 vin=vin,
@@ -118,7 +119,7 @@ def _columns(row: Any, skip: set[str]) -> dict[str, Any]:
 
 
 async def _tires(db_session: AsyncSession, vin: str) -> list[dict[str, Any]]:
-    """The vehicle's tires as portable content: ids out, links as names and indices."""
+    """The vehicle's tires as portable content: ids out, the set as its name."""
     db_session.expire_all()
     tires = (
         (await db_session.execute(select(Tire).where(Tire.vin == vin).order_by(Tire.id)))
@@ -138,7 +139,6 @@ async def _tires(db_session: AsyncSession, vin: str) -> list[dict[str, Any]]:
             .scalars()
             .all()
         )
-        index = {p.id: i for i, p in enumerate(periods)}
         readings = (
             (
                 await db_session.execute(
@@ -159,7 +159,6 @@ async def _tires(db_session: AsyncSession, vin: str) -> list[dict[str, Any]]:
                 "readings": [
                     {
                         **_columns(r, _READING_SKIP),
-                        "period": index.get(r.mount_period_id),
                         "vin_matches": r.vin == vin,
                     }
                     for r in readings
@@ -228,14 +227,15 @@ async def test_the_export_writes_indices_not_ids(
     mounted = backup["tires"][0]
     assert mounted["set_index"] == 0
     assert [p["position"] for p in mounted["mount_periods"]] == ["FR", "FL"]
-    assert [r["mount_period_index"] for r in mounted["readings"]] == [None, 0, 1]
+    # D2: the reading's period stays home, even on a row that still has one.
+    assert [r for r in mounted["readings"] if "mount_period_index" in r] == []
     assert backup["tires"][1]["set_index"] is None
 
 
 async def test_the_export_orders_periods_by_id_not_by_date(
     client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
 ):
-    # The relationship sorts periods by mounted_on; an index has to mean the same row every time (S2).
+    # guard: the relationship sorts periods by mounted_on; by id the file reads the same every export (S2).
     vin = await new_vehicle()
     tire = Tire(vin=vin)
     db_session.add(tire)
@@ -256,22 +256,69 @@ async def test_the_export_orders_periods_by_id_not_by_date(
         dismounted_on=date(2025, 2, 1),
     )
     db_session.add(earlier_mount)
-    await db_session.flush()
-    db_session.add(
-        TireReading(
-            tire_id=tire.id,
-            vin=vin,
-            position="FR",
-            mount_period_id=earlier_mount.id,
-            recorded_at=date(2025, 1, 15),
-            tread_depth_mm=Decimal("7"),
-        )
-    )
     await db_session.commit()
 
     [row] = (await export_json(client, auth_headers, vin))["tires"]
     assert [p["position"] for p in row["mount_periods"]] == ["RL", "FR"]
-    assert [r["mount_period_index"] for r in row["readings"]] == [1]
+
+
+# -- D2 / G4-20: a reading's mount period is retired ----------------------------
+
+
+async def test_an_old_backup_with_reading_periods_still_loads(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # Old files carry mount_period_index. Nothing checks it, so even junk loads.
+    vin = await new_vehicle()
+    payload = {
+        **V9,
+        "tire_sets": _ONE_SET,
+        "tires": [
+            _mounted(
+                "FL",
+                readings=[
+                    {"recorded_at": "2026-02-01", "pressure_kpa": 200, "mount_period_index": 0},
+                    {"recorded_at": "2026-03-01", "pressure_kpa": 210, "mount_period_index": 5},
+                    {"recorded_at": "2026-04-01", "pressure_kpa": 220, "mount_period_index": "x"},
+                ],
+            ),
+            # A stored tire has no periods at all.
+            {
+                "position": None,
+                "readings": [
+                    {"recorded_at": "2026-02-01", "pressure_kpa": 200, "mount_period_index": 0}
+                ],
+            },
+        ],
+    }
+    data = await import_json(client, auth_headers, vin, payload)
+
+    # main: refused, a period index past the tire's periods.
+    assert data["errors"] == []
+    assert data["tires"]["success_count"] == 2
+    db_session.expire_all()
+    readings = (
+        (await db_session.execute(select(TireReading).where(TireReading.vin == vin)))
+        .scalars()
+        .all()
+    )
+    assert len(readings) == 4
+    assert [r.mount_period_id for r in readings] == [None] * 4
+
+
+async def test_a_reading_answers_without_its_period(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    vin = await new_vehicle()
+    await _seed(db_session, vin)
+
+    response = await client.get(f"/api/vehicles/{vin}/tires", headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    readings = [r for t in response.json()["tires"] for r in t["readings"]]
+    assert len(readings) == 3
+    # main: the two seeded readings that still point at a period send its id.
+    assert [r for r in readings if "mount_period_id" in r] == []
 
 
 # -- N-2: a mounted tire below its minimum raises the reminder at import ---------
@@ -287,6 +334,7 @@ async def test_a_mounted_tire_below_its_minimum_raises_one_reminder(
             _mounted(
                 "FL",
                 tread_depth_mm=1.5,
+                # An old file still sends the period; the import skips it (D2).
                 readings=[
                     {"recorded_at": "2026-06-01", "tread_depth_mm": 1.5, "mount_period_index": 0}
                 ],
@@ -306,7 +354,12 @@ async def test_a_mounted_tire_below_its_minimum_raises_one_reminder(
         await db_session.execute(select(Tire).where(Tire.vin == vin, Tire.position == "FL"))
     ).scalar_one()
     assert rows[0].tire_id == stored_fl.id
-    assert fl["readings"][0]["period"] == 0
+    assert len(fl["readings"]) == 1
+    # The period the file sent doesn't land (D2).
+    stored_reading = (
+        await db_session.execute(select(TireReading).where(TireReading.tire_id == stored_fl.id))
+    ).scalar_one()
+    assert stored_reading.mount_period_id is None
 
 
 async def test_a_null_minimum_stays_null_and_raises_nothing(
@@ -494,20 +547,6 @@ _REFUSED = [
         "Tire 0: set_index must be the index of a tire set in this file",
         _ONE_SET,
         id="set-index-true",
-    ),
-    pytest.param(
-        [
-            _mounted("FL"),
-            {
-                "position": None,
-                "readings": [
-                    {"recorded_at": "2026-02-01", "pressure_kpa": 200, "mount_period_index": 0}
-                ],
-            },
-        ],
-        "Tire 1, reading 0: mount_period_index must be the index of a mount period of this tire",
-        _ONE_SET,
-        id="period-index-of-another-tire",
     ),
     pytest.param(
         [_mounted("FL", readings=[{"recorded_at": "2026-02-01", "odometer_km": 100}])],

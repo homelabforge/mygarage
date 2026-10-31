@@ -23158,17 +23158,6 @@
             "title": "Id",
             "type": "integer"
           },
-          "mount_period_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mount Period Id"
-          },
           "notes": {
             "anyOf": [
               {

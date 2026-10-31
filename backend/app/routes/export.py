@@ -302,7 +302,7 @@ _TIRE_SET_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 _TIRE_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"set_id"}
 #: The tire is the parent.
 _MOUNT_PERIOD_JSON_EXCLUDE = frozenset({"id", "tire_id", "created_at"})
-#: The tire is the parent; the period travels as its place in the tire's periods.
+#: The tire is the parent. The period link is unused since 140, so it stays home (D2).
 _TIRE_READING_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"tire_id", "mount_period_id"}
 _BRAKE_AXLE_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 _BRAKE_JOB_JSON_EXCLUDE = _ALWAYS_EXCLUDED
@@ -373,28 +373,18 @@ def _rule_reminder_json(
 
 
 def _tire_json(tire: Tire, set_index: dict[int, int]) -> dict[str, Any]:
-    """A tire with its periods and readings; every link is a place in this file (R6).
+    """A tire with its periods and readings; its set travels as a place in this file (R6).
 
-    Periods and readings go out by id, so an index means the same row on every
-    export. The relationship sorts periods by `mounted_on`, which ties (S2).
+    Periods and readings go out by id, so every export of the same rows reads the
+    same. The relationship sorts periods by `mounted_on`, which ties (S2).
     """
     periods: list[TireMountPeriod] = sorted(tire.mount_periods, key=lambda p: p.id)
     readings: list[TireReading] = sorted(tire.readings, key=lambda r: r.id)
-    period_index = {period.id: index for index, period in enumerate(periods)}
     return {
         **_json_columns(tire, _TIRE_JSON_EXCLUDE),
         "set_index": set_index.get(tire.set_id) if tire.set_id is not None else None,
         "mount_periods": [_json_columns(p, _MOUNT_PERIOD_JSON_EXCLUDE) for p in periods],
-        # A reading taken before its tire had periods has none (N-6).
-        "readings": [
-            {
-                **_json_columns(r, _TIRE_READING_JSON_EXCLUDE),
-                "mount_period_index": period_index.get(r.mount_period_id)
-                if r.mount_period_id is not None
-                else None,
-            }
-            for r in readings
-        ],
+        "readings": [_json_columns(r, _TIRE_READING_JSON_EXCLUDE) for r in readings],
     }
 
 
