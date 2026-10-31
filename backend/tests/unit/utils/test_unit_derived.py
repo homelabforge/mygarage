@@ -5,7 +5,8 @@ builds on top of `unit_formatting.py`'s simple-quantity/rate grammar.
 Task 3 (`test_unit_formatting.py`) owns simple-quantity, rate, label, null,
 reciprocal-zero and forced-pair coverage; duplicating those here would test
 code this module does not touch. This file is scoped to the four derived
-formatters plus their three presentation-scale constants.
+formatters, their three presentation-scale constants, and the
+cost-per-distance unit label.
 
 Every expected string below is computed in THIS file from the real
 adapter/counterpart machinery (`app.utils.unit_adapters.adapter_for`,
@@ -34,6 +35,7 @@ from app.utils.unit_derived import (
     PER_100_KM,
     PER_1000_KM,
     PER_1000_MI,
+    cost_per_distance_unit_label,
     format_cost_per_distance,
     format_cost_per_volume,
     format_fuel_rate,
@@ -126,21 +128,26 @@ _EXPECTED_COST_PER_DISTANCE_SCALE = {"km": Decimal("100"), "mi": Decimal("1000")
 def _expected_cost_per_distance(
     cost_per_km: Decimal, units: UnitSet, symbol: str, *, show_both: bool
 ) -> str:
-    """D4c: cost per distance flips distance and its presentation scale together."""
+    """D4c: cost per distance flips distance and its presentation scale together.
 
-    def side(adapter: UnitAdapter) -> str:
+    D5: the primary is plain money (its scale lives in the label), the
+    counterpart keeps its own scale.
+    """
+
+    def side(adapter: UnitAdapter, *, with_scale: bool) -> str:
         factor = adapter.to_canonical(Decimal("1"))
         assert factor is not None
         scale = _EXPECTED_COST_PER_DISTANCE_SCALE[adapter.unit]
         value = cost_per_km * factor * scale
-        return f"{symbol}{value:,.2f}/{scale:,.0f} {adapter.label}"
+        figure = f"{symbol}{value:,.2f}"
+        return f"{figure}/{scale:,.0f} {adapter.label}" if with_scale else figure
 
-    primary = side(adapter_for(units, "distance"))
+    primary = side(adapter_for(units, "distance"), with_scale=False)
     if not show_both:
         return primary
     counterpart = counterpart_for(units, "distance")
     assert counterpart is not None
-    return f"{primary} ({side(counterpart)})"
+    return f"{primary} ({side(counterpart, with_scale=True)})"
 
 
 # Volume-per-distance's own scale convention, reproduced independently of
@@ -320,7 +327,7 @@ class TestCostPerDistance:
 
     def test_zero_is_a_real_value_not_na(self) -> None:
         result = format_cost_per_distance(Decimal("0"), _ctx(_METRIC, False), "USD", "en-US")
-        assert result == "$0.00/100 km"
+        assert result == "$0.00"
         assert result != "N/A"
 
     def test_currency_code_is_resolved_to_its_symbol_not_embedded_literally(self) -> None:
@@ -343,6 +350,31 @@ class TestCostPerDistance:
         us = format_cost_per_distance(Decimal("0.012"), _ctx(_US_IMPERIAL, False), "USD", "en-US")
         uk = format_cost_per_distance(Decimal("0.012"), _ctx(_UK_GALLONS, False), "USD", "en-US")
         assert us == uk
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("metric", "100 km"),
+            ("mixed_gal_us_km", "100 km"),
+            ("us_imperial", "1,000 mi"),
+            ("uk_gallons", "1,000 mi"),
+        ],
+    )
+    def test_unit_label_names_the_readers_scale(self, name: str, expected: str) -> None:
+        """D5: the label carries the primary's scale, read off distance only."""
+        units = _ALL_FIXTURES[name]
+        assert cost_per_distance_unit_label(_ctx(units, False)) == expected
+        # show-both doesn't change it: the counterpart carries its own.
+        assert cost_per_distance_unit_label(_ctx(units, True)) == expected
+
+    def test_mile_reader_show_both_reads_like_the_screen(self) -> None:
+        """The brief's own figures: 0.42/km is 42.00 per 100 km and
+        0.42 * 1.609344 * 1000 = 675.9245 per 1,000 mi."""
+        ctx = _ctx(_US_IMPERIAL, True)
+        assert cost_per_distance_unit_label(ctx) == "1,000 mi"
+        assert format_cost_per_distance(Decimal("0.42"), ctx, "USD", "en-US") == (
+            "$675.92 ($42.00/100 km)"
+        )
 
 
 class TestVolumePerDistance:
@@ -467,9 +499,10 @@ class TestHandComputedGoldens:
           gal_uk  0.32 * 4.54609     = 1.4547488       -> "$1.45/gal"
           L       0.32 * 1           = 0.32            -> "$0.32/L"
 
-        cost per distance, canonical 0.012 per km
-          mi      0.012 * 1.609344 * 1000 = 19.312128 -> "$19.31/1,000 mi"
-          km      0.012 * 1        *  100 =  1.2       -> "$1.20/100 km"
+        cost per distance, canonical 0.012 per km (the primary drops its
+        scale, D5; a counterpart keeps it)
+          mi      0.012 * 1.609344 * 1000 = 19.312128 -> "$19.31", "$19.31/1,000 mi"
+          km      0.012 * 1        *  100 =  1.2       -> "$1.20", "$1.20/100 km"
 
         volume per distance, canonical 8.5 L per 1,000 km
           (8.5 / 1000 = 0.0085 L per canonical km)
@@ -477,7 +510,7 @@ class TestHandComputedGoldens:
           gal_us /1,000 mi  0.0085 / 3.785411784 * 1.609344 * 1000 =  3.6137... -> "3.61"
           gal_uk /1,000 mi  0.0085 / 4.54609     * 1.609344 * 1000 =  3.0091... -> "3.01"
 
-    The first three of these ($1.21/gal, $19.31/1,000 mi, and the fuel-rate
+    The first three of these ($1.21/gal, $19.31 per 1,000 mi, and the fuel-rate
     pair 0.66/0.55 gal/hr that `test_unit_formatting.py` already carries) are
     the illustrative rows the plan asked to be spot-checked by hand; none of
     them appeared anywhere in this file before.
@@ -523,14 +556,14 @@ class TestHandComputedGoldens:
         actual = format_cost_per_distance(
             Decimal("0.012"), _ctx(_US_IMPERIAL, False), "USD", "en-US"
         )
-        assert actual == "$19.31/1,000 mi"
+        assert actual == "$19.31"
 
     def test_cost_per_distance_metric(self) -> None:
         """The identity side, pinned as a literal so the imperial golden
         above has a partner that fixes the scale convention too (100 km, not
         1,000 km)."""
         actual = format_cost_per_distance(Decimal("0.012"), _ctx(_METRIC, False), "USD", "en-US")
-        assert actual == "$1.20/100 km"
+        assert actual == "$1.20"
 
     def test_cost_per_distance_show_both_imperial(self) -> None:
         """D4c: distance and scale flip together, so the counterpart is
@@ -538,11 +571,11 @@ class TestHandComputedGoldens:
         actual = format_cost_per_distance(
             Decimal("0.012"), _ctx(_US_IMPERIAL, True), "USD", "en-US"
         )
-        assert actual == "$19.31/1,000 mi ($1.20/100 km)"
+        assert actual == "$19.31 ($1.20/100 km)"
 
     def test_cost_per_distance_show_both_metric(self) -> None:
         actual = format_cost_per_distance(Decimal("0.012"), _ctx(_METRIC, True), "USD", "en-US")
-        assert actual == "$1.20/100 km ($19.31/1,000 mi)"
+        assert actual == "$1.20 ($19.31/1,000 mi)"
 
     def test_volume_per_distance_us_gallons_per_1000_miles(self) -> None:
         """Both sides non-identity at once: the US gallon divides the

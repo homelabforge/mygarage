@@ -17,8 +17,10 @@ flips is not the same for all four derived quantities (D4c):
   wrapper rather than a reimplementation.
 - **Cost per volume** flips volume only.
 - **Cost per distance** flips distance AND its presentation scale
-  together: a km reader always gets `"/100 km"`, a mile reader always gets
-  `"/1,000 mi"`, never a mismatched pairing between the two.
+  together: a km reader is always quoted per 100 km, a mile reader per
+  1,000 mi, never a mismatched pairing between the two. The primary's
+  scale goes in the label (`cost_per_distance_unit_label`), the
+  counterpart's stays on its value.
 - **Volume per distance** flips BOTH numerator and denominator, composing
   each counterpart's adapter independently -- not "flip one side, hold the
   other".
@@ -147,7 +149,15 @@ def format_cost_per_volume(
     return f"{primary} ({counterpart})"
 
 
-def _format_cost_per_distance_side(cost_per_km: Decimal, adapter: UnitAdapter, symbol: str) -> str:
+def _cost_per_distance_scale_label(adapter: UnitAdapter) -> str:
+    """The denominator one side is quoted against: "100 km" or "1,000 mi"."""
+    scale = _COST_PER_DISTANCE_SCALE[adapter.unit]
+    return f"{scale:,.0f} {adapter.label}"
+
+
+def _format_cost_per_distance_side(
+    cost_per_km: Decimal, adapter: UnitAdapter, symbol: str, *, with_scale: bool
+) -> str:
     """One side of a cost-per-distance representation, scaled per D4c.
 
     Composes two independent operations on `cost_per_km`:
@@ -157,13 +167,29 @@ def _format_cost_per_distance_side(cost_per_km: Decimal, adapter: UnitAdapter, s
     presentation scale (`_COST_PER_DISTANCE_SCALE`) re-expands that from
     "per 1 [km|mi]" to "per 100 km" or "per 1,000 mi" so the printed number
     is a normal magnitude instead of a fraction of a cent.
+
+    `with_scale` appends the "/100 km" denominator. The primary leaves it
+    off because its label already says it; a counterpart keeps it.
     """
     factor = adapter.to_canonical(Decimal("1"))
     if factor is None:
         return "N/A"
     scale = _COST_PER_DISTANCE_SCALE[adapter.unit]
     cost_per_scale = cost_per_km * factor * scale
-    return f"{symbol}{cost_per_scale:,.{_CURRENCY_PRECISION}f}/{scale:,.0f} {adapter.label}"
+    figure = f"{symbol}{cost_per_scale:,.{_CURRENCY_PRECISION}f}"
+    if not with_scale:
+        return figure
+    return f"{figure}/{_cost_per_distance_scale_label(adapter)}"
+
+
+def cost_per_distance_unit_label(ctx: RenderContext) -> str:
+    """The denominator `format_cost_per_distance`'s primary figure is quoted against.
+
+    "100 km" for a km reader, "1,000 mi" for a mile reader. Callers put it in
+    the label ("Cost Per 100 km"), the way the screen does. It reads the same
+    adapter and scale table as the value, so the two can't disagree.
+    """
+    return _cost_per_distance_scale_label(adapter_for(ctx.units, "distance"))
 
 
 def format_cost_per_distance(
@@ -175,21 +201,26 @@ def format_cost_per_distance(
     """Render a cost-per-distance rate (canonical currency units per km).
 
     D4c: flips distance and its presentation scale together -- a km reader
-    always gets `"/100 km"`, a mile reader always gets `"/1,000 mi"`, never
-    a mismatched pairing. Returns `"N/A"` for a `None` input, with no
+    is quoted per 100 km, a mile reader per 1,000 mi, never a mismatched
+    pairing. The primary is the plain currency figure ("$42.00"); its scale
+    belongs in the label, from `cost_per_distance_unit_label`. A show-both
+    counterpart keeps its own scale, since no label names it:
+    "$675.92 ($42.00/100 km)". Returns `"N/A"` for a `None` input, with no
     counterpart.
     """
     if cost_per_km is None:
         return "N/A"
     symbol = get_currency_symbol(currency_code, locale)
     primary_adapter = adapter_for(ctx.units, "distance")
-    primary = _format_cost_per_distance_side(cost_per_km, primary_adapter, symbol)
+    primary = _format_cost_per_distance_side(cost_per_km, primary_adapter, symbol, with_scale=False)
     if not ctx.show_both:
         return primary
     counterpart_adapter = counterpart_for(ctx.units, "distance")
     if counterpart_adapter is None:
         return primary
-    counterpart = _format_cost_per_distance_side(cost_per_km, counterpart_adapter, symbol)
+    counterpart = _format_cost_per_distance_side(
+        cost_per_km, counterpart_adapter, symbol, with_scale=True
+    )
     return f"{primary} ({counterpart})"
 
 

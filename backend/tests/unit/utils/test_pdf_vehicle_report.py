@@ -261,10 +261,8 @@ class TestGenerateVehicleAnalyticsPdf:
         buf = generate_vehicle_analytics_pdf(data, render_context=METRIC_CTX)
         text = _extract_text(buf.read())
         assert "TOTAL COST" in text
-        # Renamed from "Cost Per km": the value now names its own
-        # denominator ("$42.00/100 km" / "$675.92/1,000 mi"), so a label
-        # hardcoding km would contradict it for an imperial reader.
-        assert "COST PER DISTANCE" in text
+        # The label carries the reader's scale, like the screen does.
+        assert "COST PER 100 KM" in text
         assert "AVG MONTHLY" in text
         assert "PROJECTED 12-MO" in text
 
@@ -588,8 +586,9 @@ class TestRenderContextDrivesUnits:
                     applied to EACH side, never to a composed string
         consumption 235.2145833... / 9.4 = 25.0228 -> "25.0 MPG" (precision 1)
         fuel rate   1.85 / 3.785411784 = 0.4887 -> "0.49 gal/hr" (precision 2)
-        cost/dist   0.42 * 1 * 100 = 42.00 -> "$42.00/100 km";
-                    0.42 * 1.609344 * 1000 = 675.9245 -> "$675.92/1,000 mi"
+        cost/dist   0.42 * 1 * 100 = 42.00 -> "$42.00" under "Cost Per 100 km";
+                    0.42 * 1.609344 * 1000 = 675.9245 -> "$675.92" under
+                    "Cost Per 1,000 mi"; a counterpart keeps its scale
         reminder    50,000 / 1.609344 = 31,068.5596 -> "31,069 mi"
     """
 
@@ -608,7 +607,8 @@ class TestRenderContextDrivesUnits:
         assert "7,456 mi" in text
         assert "Avg 621 mi/mo" in text
         assert "9.40 L/100km" in text
-        assert "$42.00/100 km" in text
+        assert "COST PER 100 KM" in text
+        assert "$42.00" in text
         assert "1,000 mi" not in text.replace("Avg 621 mi/mo", "")
 
     def test_without_a_rate_context_the_rate_follows_the_render_context(self) -> None:
@@ -621,7 +621,8 @@ class TestRenderContextDrivesUnits:
             generate_vehicle_analytics_pdf(data, render_context=vehicle_ctx).read()
         )
 
-        assert "$675.92/1,000 mi" in text
+        assert "COST PER 1,000 MI" in text
+        assert "$675.92" in text
 
     def test_metric_context_renders_metric_figures(self) -> None:
         data = _make_unit_bearing_data()
@@ -636,7 +637,8 @@ class TestRenderContextDrivesUnits:
         assert "Avg 1,000 km/mo" in text
         assert "9.40 L/100km" in text
         assert "1.85 L/hr" in text
-        assert "$42.00/100 km" in text
+        assert "COST PER 100 KM" in text
+        assert "$42.00" in text
         assert "50,000 km" in text
 
     def test_imperial_context_renders_imperial_figures(self) -> None:
@@ -652,7 +654,8 @@ class TestRenderContextDrivesUnits:
         assert "Avg 621 mi/mo" in text
         assert "25.0 MPG" in text
         assert "0.49 gal/hr" in text
-        assert "$675.92/1,000 mi" in text
+        assert "COST PER 1,000 MI" in text
+        assert "$675.92" in text
         assert "31,069 mi" in text
 
     def test_imperial_context_leaks_no_metric_figure(self) -> None:
@@ -688,7 +691,8 @@ class TestRenderContextDrivesUnits:
         assert "Avg 1,000 km/mo (621 mi/mo)" in text
         assert "9.40 L/100km (25.0 MPG)" in text
         assert "1.85 L/hr (0.49 gal/hr)" in text
-        assert "$42.00/100 km ($675.92/1,000 mi)" in text
+        # The counterpart keeps its scale, nothing else on the card names it.
+        assert "$42.00 ($675.92/1,000 mi)" in text
         assert "50,000 km (31,069 mi)" in text
 
     def test_hours_stay_dimensionless_under_an_imperial_context(self) -> None:
@@ -774,18 +778,17 @@ class TestRenderContextDrivesUnits:
         assert ", min " not in text
         assert "1.50 mm" not in text
 
-    def test_cost_per_distance_card_label_names_no_unit(self) -> None:
-        """The label must not hardcode a unit: D4c gives a km reader
-        "/100 km" and a mile reader "/1,000 mi", so "Cost Per km" would
-        contradict the value underneath it for every imperial reader."""
+    def test_cost_per_distance_label_reaches_the_page(self) -> None:
+        """The card tests below read the dict; this one checks a mile
+        reader's scale actually prints."""
         data = _make_unit_bearing_data()
 
         text = _normalized_text(
             generate_vehicle_analytics_pdf(data, render_context=IMPERIAL_CTX).read()
         )
 
-        assert "COST PER DISTANCE" in text
-        assert "COST PER KM" not in text
+        assert "COST PER 1,000 MI" in text
+        assert "COST PER DISTANCE" not in text
 
     def test_null_figures_render_na_with_no_counterpart(self) -> None:
         """A null primary short-circuits before the counterpart: "N/A",
@@ -799,6 +802,80 @@ class TestRenderContextDrivesUnits:
 
         assert "N/A (N/A)" not in text
         assert "FUEL ECONOMY N/A" in text
+
+
+MILE_BOTH_CTX = RenderContext(units=IMPERIAL_PRESET, show_both=True)
+
+
+class TestCostPerDistanceCard:
+    """The headline cost-per-distance card reads like the screen: the scale is
+    in the label, the value is plain money (D5). Reads the card dict the
+    report hands `make_kpi_row`, not the PDF text.
+
+    Same 0.42/km fixture as above: 42.00 per 100 km, 675.92 per 1,000 mi.
+    """
+
+    @staticmethod
+    def _card(
+        monkeypatch: pytest.MonkeyPatch,
+        data: dict[str, Any],
+        render_context: RenderContext,
+        rate_context: RenderContext | None = None,
+    ) -> dict[str, Any]:
+        rows: list[list[dict[str, Any]]] = []
+        real_row = pdf_vehicle_report.make_kpi_row
+
+        def spy(cards: list[dict[str, Any]]) -> Any:
+            rows.append(cards)
+            return real_row(cards)
+
+        monkeypatch.setattr(pdf_vehicle_report, "make_kpi_row", spy)
+        generate_vehicle_analytics_pdf(
+            data, render_context=render_context, rate_context=rate_context
+        )
+        # The headline row is drawn first; the cost card sits second in it.
+        return rows[0][1]
+
+    def test_km_reader(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        card = self._card(monkeypatch, _make_unit_bearing_data(), METRIC_CTX)
+        assert card["label"] == "Cost Per 100 km"
+        assert card["value"] == "$42.00"
+
+    def test_mile_reader(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        card = self._card(monkeypatch, _make_unit_bearing_data(), IMPERIAL_CTX)
+        assert card["label"] == "Cost Per 1,000 mi"
+        assert card["value"] == "$675.92"
+
+    def test_mile_reader_show_both_keeps_the_counterpart_scale(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        card = self._card(monkeypatch, _make_unit_bearing_data(), MILE_BOTH_CTX)
+        assert card["label"] == "Cost Per 1,000 mi"
+        assert card["value"] == "$675.92 ($42.00/100 km)"
+
+    def test_label_follows_the_rate_context(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """#172: a mi vehicle on a km account keeps the rate on the account,
+        so the label has to come from the same context as the value."""
+        vehicle_ctx = RenderContext(units=apply_vehicle_units(METRIC_PRESET, "mi"), show_both=False)
+        card = self._card(
+            monkeypatch, _make_unit_bearing_data(), vehicle_ctx, rate_context=METRIC_CTX
+        )
+        assert card["label"] == "Cost Per 100 km"
+        assert card["value"] == "$42.00"
+
+    def test_zero_rate_prints_zero_not_na(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """R8: a $0 rate is a real figure. Main read it as falsy and printed N/A."""
+        data = _make_unit_bearing_data()
+        data["cost_analysis"]["cost_per_km"] = Decimal("0")
+        card = self._card(monkeypatch, data, METRIC_CTX)
+        assert card["value"] == "$0.00"
+
+    def test_missing_rate_is_still_na(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Guard (passes on main): no distance, no rate, so N/A stays."""
+        data = _make_unit_bearing_data()
+        data["cost_analysis"]["cost_per_km"] = None
+        card = self._card(monkeypatch, data, METRIC_BOTH_CTX)
+        assert card["value"] == "N/A"
 
 
 class TestMonthlySpendingChartSkipsFinancingOnlyMonths:

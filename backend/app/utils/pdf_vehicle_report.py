@@ -57,7 +57,11 @@ from app.utils.pdf_styles import (
     register_fonts,
 )
 from app.utils.render_context import RenderContext
-from app.utils.unit_derived import format_cost_per_distance, format_fuel_rate
+from app.utils.unit_derived import (
+    cost_per_distance_unit_label,
+    format_cost_per_distance,
+    format_fuel_rate,
+)
 from app.utils.unit_formatting import format_quantity, format_rate
 
 logger = logging.getLogger(__name__)
@@ -473,16 +477,10 @@ def generate_vehicle_analytics_pdf(
             "color": "blue",
         },
         {
-            # Not "Cost Per km": the value string names its own denominator
-            # (D4c pairs a km reader with "/100 km" and a mile reader with
-            # "/1,000 mi"), so a label hardcoding one unit would contradict
-            # the number underneath it for every imperial reader.
-            "label": "Cost Per Distance",
-            "value": (
-                format_cost_per_distance(cost_per_km, rate_ctx, currency_code, locale)
-                if cost_per_km
-                else "N/A"
-            ),
+            # Same as the screen: the scale is in the label, the value is just
+            # money. A $0 rate prints $0.00, only a missing one is N/A.
+            "label": f"Cost Per {cost_per_distance_unit_label(rate_ctx)}",
+            "value": format_cost_per_distance(cost_per_km, rate_ctx, currency_code, locale),
             "sub_html": _trend_badge_html(trend_dir),
             "color": "green",
         },

@@ -111,8 +111,8 @@ class TestValuesThatOverflowAreShrunk:
     @pytest.mark.parametrize(
         "value",
         [
-            "$42.00/100 km",  # cost per distance, metric
-            "$675.92/1,000 mi",  # cost per distance, imperial
+            "$42.00/100 km",  # a cost with its scale, as a show-both counterpart prints
+            "$675.92/1,000 mi",  # same, the mile side
             "12,000 km (7,456 mi)",  # distance under show-both
             "$1,234,568",  # a large garage value, which used to split
             # Fuel Economy, metric. 144pt against a 111.4pt card: this card
@@ -142,7 +142,7 @@ class TestValuesThatOverflowAreShrunk:
     def test_a_wider_card_shrinks_the_same_value_less(self, kpi_value_style) -> None:
         """Scaling follows the card, not a fixed table: the two-card hours
         summary has nearly twice the room of the four-card row."""
-        value = "$675.92/1,000 mi ($42.00/100 km)"
+        value = "$675.92 ($42.00/100 km)"
 
         four_card, _ = _fit_kpi_value_font(value, kpi_value_style, _FOUR_CARD_WIDTH)
         two_card, _ = _fit_kpi_value_font(value, kpi_value_style, _TWO_CARD_WIDTH)
@@ -163,9 +163,9 @@ class TestTheFloor:
         self, kpi_value_style
     ) -> None:
         """The show-both cost-per-distance value in a four-card row. Exact
-        fitting would demand about 5.8pt, which is unreadable, so it clamps
+        fitting would demand about 8.1pt, under the floor, so it clamps
         at the floor and is allowed to overflow and wrap instead."""
-        value = "$675.92/1,000 mi ($42.00/100 km)"
+        value = "$675.92 ($42.00/100 km)"
         unclamped = (
             kpi_value_style.fontSize
             * _FOUR_CARD_WIDTH
@@ -186,7 +186,7 @@ class TestTheFloor:
         """The honest half of the contract: once the floor binds, the value
         does NOT fit on one line. It wraps, at a space where the value has
         one. The docstring must not promise otherwise."""
-        value = "$675.92/1,000 mi ($42.00/100 km)"
+        value = "$675.92 ($42.00/100 km)"
 
         size, _leading = _fit_kpi_value_font(value, kpi_value_style, _FOUR_CARD_WIDTH)
 
