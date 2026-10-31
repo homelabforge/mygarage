@@ -274,3 +274,49 @@ describe('ServiceVisitForm: clearing a line item field on edit', () => {
     })
   })
 })
+
+// A repair can only point at an inspection (S1d-04). The form drops the link
+// when its inspection stops being one, or goes away, so a save never carries
+// a link the backend would drop or a temp id it would refuse.
+describe('ServiceVisitForm: a repair link follows its inspection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedApiPut.mockResolvedValue({ data: {} })
+  })
+
+  const lineItems = (body: Record<string, unknown>): Record<string, unknown>[] =>
+    body.line_items as Record<string, unknown>[]
+
+  it('clears the repair link when its inspection is unticked', async () => {
+    await renderEdit(inspectionVisit)
+
+    fireEvent.click(document.getElementById('inspection-0') as HTMLInputElement)
+
+    const [inspection, repair] = lineItems(await submittedBody())
+    expect(inspection).toHaveProperty('is_inspection', false)
+    expect(repair).toHaveProperty('id', 602)
+    // main: still 601
+    expect(repair).toHaveProperty('triggered_by_inspection_id', null)
+  })
+
+  it('carries no dangling temp id after an unsaved inspection is removed', async () => {
+    await renderEdit()
+
+    fireEvent.click(screen.getByRole('button', { name: 'service.addItem' }))
+    const description = screen.getAllByRole('textbox').filter(
+      (el) => (el as HTMLInputElement).value === '' && el.tagName === 'INPUT'
+    )
+    fireEvent.change(description[0], { target: { value: 'Tire inspection' } })
+    fireEvent.click(document.getElementById('inspection-1') as HTMLInputElement)
+    fireEvent.click(screen.getByRole('button', { name: 'inspectionResult.resultFailed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'service.addRepairForInspection' }))
+    expect(screen.getByDisplayValue('Repair: Tire inspection')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByTitle('lineItemEditor.misc.removeLineItem')[1])
+
+    const items = lineItems(await submittedBody())
+    expect(items.map((li) => li.description)).toEqual(['Oil change', 'Repair: Tire inspection'])
+    // main: the repair still names the removed inspection's temp id
+    expect(items[1]).toHaveProperty('triggered_by_inspection_id', null)
+  })
+})
