@@ -95,6 +95,12 @@ ODOMETER_SOURCE_SET = "tire_set"
 ODOMETER_SOURCE_TIRE_MOUNT = "tire_mount"
 ODOMETER_SOURCE_TIRE_DISMOUNT = "tire_dismount"
 
+#: Per-event markers for a retire or dismount with no period to close, keyed by
+#: the tire. Their figure lives nowhere but the row, so a reading's withdraw
+#: must never find it under the tire marker (S2-01). One row per marker per axis.
+ODOMETER_SOURCE_TIRE_RETIRE = "tire_retire"
+ODOMETER_SOURCE_TIRE_LONE_DISMOUNT = "tire_lone_dismount"
+
 
 async def publish_tire_odometer(
     db: AsyncSession,
@@ -117,8 +123,11 @@ async def publish_tire_odometer(
        it: every reading of the tire that day shares that marker, so the
        record keeps the highest (#224) and only a reading delete or edit
        lowers it (`_withdraw_reading_usage`). A set fit or rotation
-       published again lower is taken as a correction and lowers its record;
-       the period editor moves a period's record itself.
+       published again lower the same day lowers its own record, the row and
+       not the day: a reading or period bound that stood behind the old
+       figure is published again (`republish_day_backer`). A fit's figure on
+       the periods is corrected through the period editor, which moves a
+       period's record itself.
     2. Otherwise, when another record on the day (manual, a service visit's,
        a fuel-up's, LiveLink's, another tire event's) reads at or above the
        figure, within the same-reading tolerance, nothing is published: the
@@ -223,23 +232,142 @@ async def _publish_tire_usage(
     """The one door behind both tire publishers: `publish_tire_odometer`'s rules, on `axis`.
 
     Only the tire's own marker holds back a lower figure, since it stands for
-    every event of that tire on the day. A set fit or rotation published lower
-    the same day is taken as a correction and goes through.
+    every event of that tire on the day. Any other marker published lower the
+    same day lowers its own row and only that: whatever stood behind the old
+    figure is published again afterwards (`republish_day_backer`), so the day
+    never reads below a tire figure still on file (Fable F4-1). A fit's figure
+    is corrected through the period editor.
     """
     if value is None:
         return
+    marker = auto_sync_marker(source_type, source_id)
+    same_day = await _same_day_usage(db, vin, axis, when)
+    own = next((record for record in same_day if record.notes == marker), None)
     if source_type == ODOMETER_SOURCE_TIRE:
-        marker = auto_sync_marker(source_type, source_id)
-        same_day = await _same_day_usage(db, vin, axis, when)
-        own = next((record for record in same_day if record.notes == marker), None)
         if own is not None and axis.below(value, _usage_value(own)):
             return
+        lowers = False
+    else:
+        # Read before the publish, since the publish rewrites it in place.
+        lowers = own is not None and value < _usage_value(own)
     if axis.is_hours:
         await publish_marked_hours(db, vin, when, value, source_type, source_id)
     else:
         await sync_odometer_from_record(
             db, vin, when, value, source_type, source_id, commit=False, claim_other_records=False
         )
+    if lowers:
+        await republish_day_backer(db, vin, when, axis)
+
+
+def _event_record(
+    vin: str, axis: UsageAxis, when: dt.date, value: Decimal, source_type: str, source_id: int
+) -> OdometerRecord | HoursRecord:
+    """A per-event row, built to go straight in: never suppressed, FKs null (S2-01).
+
+    `source` is set by hand because `HoursRecord` defaults it to manual.
+    """
+    marker = auto_sync_marker(source_type, source_id)
+    if axis.is_hours:
+        return HoursRecord(
+            vin=vin,
+            date=when,
+            engine_hours=value,
+            notes=marker,
+            source=source_type,
+            fuel_record_id=None,
+            service_visit_id=None,
+        )
+    return OdometerRecord(
+        vin=vin,
+        date=when,
+        odometer_km=value,
+        notes=marker,
+        source=source_type,
+        fuel_record_id=None,
+    )
+
+
+async def republish_day_backer(
+    db: AsyncSession,
+    vin: str,
+    day: dt.date,
+    axis: UsageAxis,
+    *,
+    exclude_tire_id: int | None = None,
+    exclude_reading_id: int | None = None,
+) -> None:
+    """Publish the highest tire figure left on `day` that has no row of its own (S2-02).
+
+    Runs after a tire row leaves the day or drops in place: a withdrawn
+    reading, a deleted tire, a follower moving or deleting its row, a set fit
+    lowering its own. Another tire's reading or a period bound may have stood
+    behind that row and published nothing, and without this the day would read
+    below a figure still on file.
+
+    Candidates are this vehicle's readings and mount-period bounds on `day` and
+    `axis`. Only one with NO row of its own marker on the day qualifies: one
+    that has a row is already published, and that row may hold a user's
+    correction a republish would overwrite (Fable F3-1). Highest figure wins;
+    on a tie a reading beats a bound, then the newest id. It goes through
+    `_publish_tire_usage` under its owner's marker (a reading's tire, a bound's
+    period), so a day that already reads at or above it gets nothing.
+
+    Flush the change that freed the day before calling: the lookups are SQL.
+    """
+    holders = {record.notes for record in await _same_day_usage(db, vin, axis, day)}
+    # (figure, is a reading, id, source type, source id)
+    candidates: list[tuple[Decimal, bool, int, str, int]] = []
+
+    figure = TireReading.engine_hours if axis.is_hours else TireReading.odometer_km
+    readings = select(TireReading).where(
+        TireReading.vin == vin, TireReading.recorded_at == day, figure.is_not(None)
+    )
+    if exclude_reading_id is not None:
+        readings = readings.where(TireReading.id != exclude_reading_id)
+    if exclude_tire_id is not None:
+        readings = readings.where(TireReading.tire_id != exclude_tire_id)
+    for reading in (await db.execute(readings)).scalars():
+        value = axis.reading(reading)
+        marker = auto_sync_marker(ODOMETER_SOURCE_TIRE, reading.tire_id)
+        if value is not None and marker not in holders:
+            candidates.append((value, True, reading.id, ODOMETER_SOURCE_TIRE, reading.tire_id))
+
+    # A period has no vin of its own, so it comes through its tire.
+    bounds = (
+        (
+            ODOMETER_SOURCE_TIRE_MOUNT,
+            TireMountPeriod.mounted_on,
+            TireMountPeriod.mounted_hours if axis.is_hours else TireMountPeriod.mounted_odometer_km,
+            axis.mounted,
+        ),
+        (
+            ODOMETER_SOURCE_TIRE_DISMOUNT,
+            TireMountPeriod.dismounted_on,
+            TireMountPeriod.dismounted_hours
+            if axis.is_hours
+            else TireMountPeriod.dismounted_odometer_km,
+            axis.dismounted,
+        ),
+    )
+    for source_type, on, column, read in bounds:
+        periods = (
+            select(TireMountPeriod)
+            .join(Tire, Tire.id == TireMountPeriod.tire_id)
+            .where(Tire.vin == vin, on == day, column.is_not(None))
+        )
+        if exclude_tire_id is not None:
+            periods = periods.where(TireMountPeriod.tire_id != exclude_tire_id)
+        for period in (await db.execute(periods)).scalars():
+            value = read(period)
+            marker = auto_sync_marker(source_type, period.id)
+            if value is not None and marker not in holders:
+                candidates.append((value, False, period.id, source_type, period.id))
+
+    if not candidates:
+        return
+    value, _, _, source_type, source_id = max(candidates, key=lambda c: (c[0], c[1], c[2]))
+    await _publish_tire_usage(db, vin, day, value, source_type, source_id, axis)
 
 
 def normalise_storage_location(value: str | None) -> str | None:
@@ -1128,6 +1256,52 @@ class TireService:
         await publish_tire_odometer(self.db, vin, when, odometer_km, source_type, source_id)
         await publish_tire_hours(self.db, vin, when, engine_hours, source_type, source_id)
 
+    async def _follow_lone_event(
+        self,
+        vin: str,
+        source_type: str,
+        tire_id: int,
+        when: dt.date,
+        *,
+        odometer_km: Decimal | None,
+        engine_hours: Decimal | None,
+    ) -> None:
+        """`_follow_event` on both axes, for a retire or dismount with no period."""
+        await self._follow_event(vin, source_type, tire_id, when, odometer_km, DISTANCE)
+        await self._follow_event(vin, source_type, tire_id, when, engine_hours, HOURS)
+
+    async def _follow_event(
+        self,
+        vin: str,
+        source_type: str,
+        tire_id: int,
+        when: dt.date,
+        value: Decimal | None,
+        axis: UsageAxis,
+    ) -> None:
+        """Write or move the one row a per-event marker owns on `axis` (S2-01).
+
+        The event's figure lives nowhere but this row, so it's never suppressed
+        (codex R1-H2): it goes straight in even when another row on the day
+        already reads at or above it, never through `publish_tire_odometer`'s
+        rule 2. A later event under the same marker moves the row, date and
+        figure, then republishes whatever stood behind it on the old day. No
+        figure on this axis leaves an earlier row alone.
+        """
+        if value is None:
+            return
+        owned = await _owned_usage_record(
+            self.db, vin, axis, auto_sync_marker(source_type, tire_id)
+        )
+        if owned is None:
+            self.db.add(_event_record(vin, axis, when, value, source_type, tire_id))
+            await self.db.flush()
+            return
+        old_day = owned.date
+        _move_usage_record(owned, when, value)
+        await self.db.flush()
+        await republish_day_backer(self.db, vin, old_day, axis)
+
     async def request_distance_formatter(
         self, current_user: User | None, vin: str
     ) -> DistanceFormatter:
@@ -1486,7 +1660,8 @@ class TireService:
         self.refuse_contradictions(tire, before, {open_period.id} if open_period else set(), axes)
         # Published even when there is no open period to close: the user still
         # read that number off the dashboard. Owned by the period when there is
-        # one, so the editor can move it later; by the tire otherwise.
+        # one, so the editor can move it later; by its own event marker
+        # otherwise, so a reading's withdraw can't take it (S2-01).
         if open_period is not None:
             await self._publish_event(
                 vin,
@@ -1497,11 +1672,11 @@ class TireService:
                 engine_hours=data.dismounted_hours,
             )
         else:
-            await self._publish_event(
+            await self._follow_lone_event(
                 vin,
-                dismounted_on,
-                ODOMETER_SOURCE_TIRE,
+                ODOMETER_SOURCE_TIRE_LONE_DISMOUNT,
                 tire.id,
+                dismounted_on,
                 odometer_km=data.dismounted_odometer_km,
                 engine_hours=data.dismounted_hours,
             )
@@ -1928,11 +2103,12 @@ class TireService:
                 engine_hours=data.dismounted_hours,
             )
         else:
-            await self._publish_event(
+            # A retire after a restore moves the first one's row, it doesn't add one.
+            await self._follow_lone_event(
                 vin,
-                retired_on,
-                ODOMETER_SOURCE_TIRE,
+                ODOMETER_SOURCE_TIRE_RETIRE,
                 tire.id,
+                retired_on,
                 odometer_km=data.dismounted_odometer_km,
                 engine_hours=data.dismounted_hours,
             )
@@ -2169,11 +2345,16 @@ class TireService:
         cleans these up marker-exact.
 
         Per axis (#217): an hours row follows its period the way the odometer row does.
+
+        Every move or delete, same day or not, then republishes the old day's
+        backer (`republish_day_backer`), since another tire's reading or bound
+        may have stood behind the row (Fable F1-6, F2-2).
         """
         marker = auto_sync_marker(source_type, period_id)
         owned = await _owned_usage_record(self.db, vin, axis, marker)
         if when is not None and value is not None:
             if owned is not None:
+                old_day = owned.date
                 others = [
                     record
                     for record in await _same_day_usage(self.db, vin, axis, when)
@@ -2192,11 +2373,14 @@ class TireService:
                 else:
                     _move_usage_record(owned, when, value)
                     await self.db.flush()
+                await republish_day_backer(self.db, vin, old_day, axis)
             else:
                 await self._publish_usage(vin, when, value, source_type, period_id, axis)
         elif owned is not None:
+            old_day = owned.date
             await self.db.delete(owned)
             await self.db.flush()
+            await republish_day_backer(self.db, vin, old_day, axis)
 
     async def restore_tire(self, vin: str, tire_id: int, current_user: User | None) -> TireResponse:
         """Un-retire a tire. It goes back to storage with its whole history.
@@ -2264,26 +2448,36 @@ class TireService:
         # entered with a typo'd odometer and then deleted would otherwise leave
         # the typo behind as the vehicle's latest reading, where it poisons
         # every mileage reminder the vehicle has. Marker-exact, so a manual row
-        # is never touched: the tire-level marker its readings carry, and the
-        # per-period markers its mounts and dismounts carry. A tire event
+        # is never touched: the tire-level marker its readings carry, the
+        # per-event markers a retire or dismount with no period carries, and
+        # the per-period markers its mounts and dismounts carry. A tire event
         # never takes over another record (`publish_tire_odometer`), so a row
         # carrying one of these markers is one this tire created; the
         # exception is a tire-marked row written before v3.4.0, when a tire
         # publish could re-mark a same-day automatic record as its own.
         # Collected before the cascade removes the periods.
-        markers = [auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id)]
+        markers = [
+            auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id),
+            auto_sync_marker(ODOMETER_SOURCE_TIRE_RETIRE, tire_id),
+            auto_sync_marker(ODOMETER_SOURCE_TIRE_LONE_DISMOUNT, tire_id),
+        ]
         for period in tire.mount_periods or []:
             markers.append(auto_sync_marker(ODOMETER_SOURCE_TIRE_MOUNT, period.id))
             markers.append(auto_sync_marker(ODOMETER_SOURCE_TIRE_DISMOUNT, period.id))
-        await self.db.execute(
-            delete(OdometerRecord)
-            .where(OdometerRecord.vin == vin)
-            .where(OdometerRecord.notes.in_(markers))
-        )
-        # The hour meter rows carry the same markers (#217).
-        await self.db.execute(
-            delete(HoursRecord).where(HoursRecord.vin == vin).where(HoursRecord.notes.in_(markers))
-        )
+        # The days each row stood on, per axis, so another tire's figure that
+        # stood behind one gets published again once it's gone (S2-02). The
+        # hour meter rows carry the same markers (#217).
+        freed: list[tuple[UsageAxis, set[dt.date]]] = []
+        for axis, model in ((DISTANCE, OdometerRecord), (HOURS, HoursRecord)):
+            owned = (model.vin == vin, model.notes.in_(markers))
+            found = (await self.db.execute(select(model.date).where(*owned))).scalars().all()
+            await self.db.execute(delete(model).where(*owned))
+            freed.append((axis, set(found)))
+        await self.db.flush()
+        # On each row's own axis, tracked or not, the same as the followers.
+        for axis, days in freed:
+            for day in sorted(days):
+                await republish_day_backer(self.db, vin, day, axis, exclude_tire_id=tire_id)
         await self.db.delete(tire)
         await self.db.commit()
 
@@ -2625,13 +2819,16 @@ class TireService:
         published nothing.
         Removing it alone would drop the vehicle's latest odometer back to an
         older day and make every mounted tire's distance confidently too low.
-        So when a record is deleted, the highest remaining reading of this
-        VEHICLE on that date on this axis (the newest on a tie) is published
-        again, under its own tire's marker, so the day never reads below a
-        reading still on file (#224); a lower same-day reading of the same
-        tire is covered the same way. The delete is flushed first: request
-        sessions do not autoflush, and the publish looks for a same-day row by
-        SQL, where an unflushed delete would still show it this one.
+        So when a record is deleted, the day's backer is published again
+        (`republish_day_backer`): the highest remaining tire figure of this
+        VEHICLE on that date on this axis, a reading's or a period bound's,
+        under its owner's marker, so the day never reads below a figure still
+        on file (#224, S2-02); a lower same-day reading of the same tire is
+        covered the same way. A no-period retire or dismount has its own
+        marker, so it's never this record (S2-01). The delete is flushed
+        first: request sessions do not autoflush, and the backer looks for
+        same-day rows by SQL, where an unflushed delete would still show it
+        this one.
 
         Takes the day and figure rather than the reading, so an edit can
         withdraw what it published after the reading changed.
@@ -2652,31 +2849,9 @@ class TireService:
             return
         await self.db.delete(record)
         await self.db.flush()
-        column = TireReading.engine_hours if axis.is_hours else TireReading.odometer_km
         # The reading is still in the database here (a delete goes on the
-        # caller's commit, and an edited reading is still there), hence the id filter.
-        backer = (
-            await self.db.execute(
-                select(TireReading)
-                .where(
-                    TireReading.vin == vin,
-                    TireReading.recorded_at == day,
-                    column.is_not(None),
-                    TireReading.id != reading_id,
-                )
-                .order_by(column.desc(), TireReading.id.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        if backer is not None:
-            await self._publish_usage(
-                vin,
-                backer.recorded_at,
-                axis.reading(backer),
-                ODOMETER_SOURCE_TIRE,
-                backer.tire_id,
-                axis,
-            )
+        # caller's commit, and an edited reading is still there), hence the exclude.
+        await republish_day_backer(self.db, vin, day, axis, exclude_reading_id=reading_id)
 
     async def _sync_low_tread_reminder(self, tire: Tire) -> None:
         """Run `sync_low_tread_reminder` and commit when it changed anything."""
