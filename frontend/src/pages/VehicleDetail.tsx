@@ -888,16 +888,9 @@ export default function VehicleDetail() {
   )
 
   // Every tab, drawer and record form reads the vehicle's odometer unit
-  // through this scope (#172). Keyed on the unit: a sidecar save can land
-  // AFTER its drawer was dismissed (the drawers do not block closing
-  // mid-save), and if it changes the unit while a record form is open, that
-  // form would read typed miles as kilometres. A unit change remounts
-  // everything below instead, closing any open form: a lost draft in a rare
-  // race, never a silently wrong reading. A save that keeps the unit remounts
-  // nothing.
-  return (
-    <VehicleUnitScope key={vehicle.distance_unit ?? 'account'} distanceUnit={vehicle.distance_unit}>
-      {page}
-    </VehicleUnitScope>
-  )
+  // through this scope (#172). It's live: a unit change repaints the page in
+  // place. Open forms and drawers pin the unit they opened with (R4), so a
+  // late sidecar save can't make one read typed miles as km, and nobody loses
+  // a draft to a remount.
+  return <VehicleUnitScope distanceUnit={vehicle.distance_unit}>{page}</VehicleUnitScope>
 }

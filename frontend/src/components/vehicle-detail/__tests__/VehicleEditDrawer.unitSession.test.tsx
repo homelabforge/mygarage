@@ -104,6 +104,8 @@ describe('VehicleEditDrawer holds the account units while open', () => {
 
     flipToMetric()
 
+    // Neither relabelled nor reseeded: the seeded 10 gal is still there.
+    expect(capacity().value).toBe('10')
     expect(capacityLabel()).toMatch(/\(gal\)/)
     expect(await accountDefault()).toBe('edit.distanceUnitAccountDefault (mi)')
     fireEvent.change(capacity(), { target: { value: '5' } })

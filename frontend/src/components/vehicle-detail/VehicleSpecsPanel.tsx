@@ -17,6 +17,7 @@ import {
   type UnitFormat,
 } from '../../utils/unitFormat'
 import { useUnitFormat, useOilCapacityFormat } from '../../hooks/useUnitFormat'
+import { withUnitSession } from '../../contexts/UnitSession'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
 
 interface VehicleSpecsPanelProps {
@@ -118,17 +119,12 @@ export default function VehicleSpecsPanel({
   editRequestKey = 0,
 }: VehicleSpecsPanelProps) {
   const { t } = useTranslation('vehicles')
+  // Live, for the card. The editor below pins its own copy while it's open.
   const u = useUnitFormat()
   // Oil capacity is quarts where fuel is gallons; `u.volume` is the fuel
   // adapter and asking it for oil stored 3.785x over. See utils/oilCapacityUnit.ts.
   const oilFormat = useOilCapacityFormat()
   const [open, setOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<SpecForm>(() => seedForm(vehicle, u, oilFormat))
-
-  useEffect(() => {
-    if (open) setForm(seedForm(vehicle, u, oilFormat))
-  }, [open, vehicle, u, oilFormat])
 
   useEffect(() => {
     if (editRequestKey > 0) setOpen(true)
@@ -145,68 +141,6 @@ export default function VehicleSpecsPanel({
       vehicle.transmission_fluid_type ||
       vehicle.maintenance_specs_notes,
   )
-
-  /** `origins` is excluded from the key type so a field write cannot replace it. */
-  const setField = (key: Exclude<keyof SpecForm, 'origins'>, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: value }))
-  }
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      const locale = getActiveLocale()
-
-      const oil = readUnitField(
-        form.oil_capacity,
-        form.origins.oil_capacity_liters,
-        oilFormat,
-        locale
-      )
-      if (!oil.ok) {
-        toast.error(t('detail.specs.oilCapacityInvalid'))
-        setSaving(false)
-        return
-      }
-
-      const torque = readUnitField(
-        form.lug_nut_torque,
-        form.origins.lug_nut_torque_nm,
-        u.torque,
-        locale
-      )
-      if (!torque.ok) {
-        toast.error(t('detail.specs.lugTorqueInvalid'))
-        setSaving(false)
-        return
-      }
-
-      const payload: VehicleUpdate = {
-        oil_viscosity: emptyToNull(form.oil_viscosity),
-        oil_capacity_liters: oil.value,
-        oil_filter_part_number: emptyToNull(form.oil_filter_part_number),
-        fuel_filter_part_number: emptyToNull(form.fuel_filter_part_number),
-        lug_nut_torque_nm: torque.value,
-        coolant_type: emptyToNull(form.coolant_type),
-        brake_fluid_type: emptyToNull(form.brake_fluid_type),
-        transmission_fluid_type: emptyToNull(form.transmission_fluid_type),
-        maintenance_specs_notes: emptyToNull(form.maintenance_specs_notes),
-      }
-
-      const updated = await vehicleService.update(vin, payload)
-      onUpdated(updated)
-      setOpen(false)
-      toast.success(t('detail.specs.saveSuccess'))
-    } catch {
-      toast.error(t('detail.specs.saveError'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  /* One interpolated key per field, carrying the resolved unit, replacing the
-   * pair of hardcoded 'gal'/'L' strings and the binary getTorqueUnit call. */
-  const oilCapacityLabel = t('detail.specs.oilCapacityWithUnit', { unit: oilFormat.label })
-  const lugTorqueLabel = t('detail.specs.lugTorqueWithUnit', { unit: u.torque.label })
 
   return (
     <>
@@ -278,97 +212,200 @@ export default function VehicleSpecsPanel({
         )}
       </EditableCard>
 
-      <FormModalWrapper
-        title={t('detail.specs.title')}
-        icon={Droplets}
+      <SpecsEditor
+        vin={vin}
+        vehicle={vehicle}
+        open={open}
         onClose={() => setOpen(false)}
-        isOpen={open}
-        width="md"
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>
-              {t('common:cancel')}
-            </Button>
-            <Button variant="primary" onClick={handleSave} loading={saving}>
-              {t('common:save')}
-            </Button>
-          </div>
-        }
-      >
-        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-          <Field id="spec_oil_viscosity" label={t('detail.specs.oilViscosity')}>
-            <Input
-              id="spec_oil_viscosity"
-              value={form.oil_viscosity}
-              onChange={(e) => setField('oil_viscosity', e.target.value)}
-              placeholder="5W-30"
-            />
-          </Field>
-          <Field id="spec_oil_capacity" label={oilCapacityLabel}>
-            <NumberInput
-              id="spec_oil_capacity"
-              value={form.oil_capacity}
-              onChange={(e) => setField('oil_capacity', e.target.value)}
-            />
-          </Field>
-          <Field id="spec_oil_filter" label={t('detail.specs.oilFilter')}>
-            <Input
-              id="spec_oil_filter"
-              value={form.oil_filter_part_number}
-              onChange={(e) => setField('oil_filter_part_number', e.target.value)}
-            />
-          </Field>
-          <Field id="spec_fuel_filter" label={t('detail.specs.fuelFilter')}>
-            <Input
-              id="spec_fuel_filter"
-              value={form.fuel_filter_part_number}
-              onChange={(e) => setField('fuel_filter_part_number', e.target.value)}
-            />
-          </Field>
-          <Field id="spec_lug_torque" label={lugTorqueLabel}>
-            <NumberInput
-              id="spec_lug_torque"
-              value={form.lug_nut_torque}
-              onChange={(e) => setField('lug_nut_torque', e.target.value)}
-            />
-          </Field>
-          <Field id="spec_coolant" label={t('detail.specs.coolant')}>
-            <Input
-              id="spec_coolant"
-              value={form.coolant_type}
-              onChange={(e) => setField('coolant_type', e.target.value)}
-            />
-          </Field>
-          <Field id="spec_brake_fluid" label={t('detail.specs.brakeFluid')}>
-            <Input
-              id="spec_brake_fluid"
-              value={form.brake_fluid_type}
-              onChange={(e) => setField('brake_fluid_type', e.target.value)}
-            />
-          </Field>
-          <Field id="spec_trans_fluid" label={t('detail.specs.transFluid')}>
-            <Input
-              id="spec_trans_fluid"
-              value={form.transmission_fluid_type}
-              onChange={(e) => setField('transmission_fluid_type', e.target.value)}
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field id="spec_notes" label={t('detail.specs.notes')}>
-              <Textarea
-                id="spec_notes"
-                value={form.maintenance_specs_notes}
-                onChange={(e) => setField('maintenance_specs_notes', e.target.value)}
-                rows={3}
-              />
-            </Field>
-          </div>
-          <p className="sm:col-span-2 text-xs text-text-mute flex items-start gap-2">
-            <Wrench className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
-            {t('detail.specs.hint')}
-          </p>
-        </div>
-      </FormModalWrapper>
+        onUpdated={onUpdated}
+      />
     </>
   )
 }
+
+interface SpecsEditorProps {
+  vin: string
+  vehicle: Vehicle
+  open: boolean
+  onClose: () => void
+  onUpdated: (vehicle: Vehicle) => void
+}
+
+/**
+ * The specs edit form. Its own component so it can hold the units it opened
+ * with (R4) while the card behind it stays live.
+ */
+const SpecsEditor = withUnitSession(function SpecsEditor({
+  vin,
+  vehicle,
+  open,
+  onClose,
+  onUpdated,
+}: SpecsEditorProps) {
+  const { t } = useTranslation('vehicles')
+  const u = useUnitFormat()
+  const oilFormat = useOilCapacityFormat()
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<SpecForm>(() => seedForm(vehicle, u, oilFormat))
+
+  // The pin only moves on an open, so a units change mid-edit keeps the draft.
+  useEffect(() => {
+    if (open) setForm(seedForm(vehicle, u, oilFormat))
+  }, [open, vehicle, u, oilFormat])
+
+  /** `origins` is excluded from the key type so a field write cannot replace it. */
+  const setField = (key: Exclude<keyof SpecForm, 'origins'>, value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const locale = getActiveLocale()
+
+      const oil = readUnitField(
+        form.oil_capacity,
+        form.origins.oil_capacity_liters,
+        oilFormat,
+        locale
+      )
+      if (!oil.ok) {
+        toast.error(t('detail.specs.oilCapacityInvalid'))
+        setSaving(false)
+        return
+      }
+
+      const torque = readUnitField(
+        form.lug_nut_torque,
+        form.origins.lug_nut_torque_nm,
+        u.torque,
+        locale
+      )
+      if (!torque.ok) {
+        toast.error(t('detail.specs.lugTorqueInvalid'))
+        setSaving(false)
+        return
+      }
+
+      const payload: VehicleUpdate = {
+        oil_viscosity: emptyToNull(form.oil_viscosity),
+        oil_capacity_liters: oil.value,
+        oil_filter_part_number: emptyToNull(form.oil_filter_part_number),
+        fuel_filter_part_number: emptyToNull(form.fuel_filter_part_number),
+        lug_nut_torque_nm: torque.value,
+        coolant_type: emptyToNull(form.coolant_type),
+        brake_fluid_type: emptyToNull(form.brake_fluid_type),
+        transmission_fluid_type: emptyToNull(form.transmission_fluid_type),
+        maintenance_specs_notes: emptyToNull(form.maintenance_specs_notes),
+      }
+
+      const updated = await vehicleService.update(vin, payload)
+      onUpdated(updated)
+      onClose()
+      toast.success(t('detail.specs.saveSuccess'))
+    } catch {
+      toast.error(t('detail.specs.saveError'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /* One interpolated key per field, carrying the resolved unit, replacing the
+   * pair of hardcoded 'gal'/'L' strings and the binary getTorqueUnit call. */
+  const oilCapacityLabel = t('detail.specs.oilCapacityWithUnit', { unit: oilFormat.label })
+  const lugTorqueLabel = t('detail.specs.lugTorqueWithUnit', { unit: u.torque.label })
+
+  return (
+    <FormModalWrapper
+      title={t('detail.specs.title')}
+      icon={Droplets}
+      onClose={onClose}
+      isOpen={open}
+      width="md"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            {t('common:cancel')}
+          </Button>
+          <Button variant="primary" onClick={handleSave} loading={saving}>
+            {t('common:save')}
+          </Button>
+        </div>
+      }
+    >
+      <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+        <Field id="spec_oil_viscosity" label={t('detail.specs.oilViscosity')}>
+          <Input
+            id="spec_oil_viscosity"
+            value={form.oil_viscosity}
+            onChange={(e) => setField('oil_viscosity', e.target.value)}
+            placeholder="5W-30"
+          />
+        </Field>
+        <Field id="spec_oil_capacity" label={oilCapacityLabel}>
+          <NumberInput
+            id="spec_oil_capacity"
+            value={form.oil_capacity}
+            onChange={(e) => setField('oil_capacity', e.target.value)}
+          />
+        </Field>
+        <Field id="spec_oil_filter" label={t('detail.specs.oilFilter')}>
+          <Input
+            id="spec_oil_filter"
+            value={form.oil_filter_part_number}
+            onChange={(e) => setField('oil_filter_part_number', e.target.value)}
+          />
+        </Field>
+        <Field id="spec_fuel_filter" label={t('detail.specs.fuelFilter')}>
+          <Input
+            id="spec_fuel_filter"
+            value={form.fuel_filter_part_number}
+            onChange={(e) => setField('fuel_filter_part_number', e.target.value)}
+          />
+        </Field>
+        <Field id="spec_lug_torque" label={lugTorqueLabel}>
+          <NumberInput
+            id="spec_lug_torque"
+            value={form.lug_nut_torque}
+            onChange={(e) => setField('lug_nut_torque', e.target.value)}
+          />
+        </Field>
+        <Field id="spec_coolant" label={t('detail.specs.coolant')}>
+          <Input
+            id="spec_coolant"
+            value={form.coolant_type}
+            onChange={(e) => setField('coolant_type', e.target.value)}
+          />
+        </Field>
+        <Field id="spec_brake_fluid" label={t('detail.specs.brakeFluid')}>
+          <Input
+            id="spec_brake_fluid"
+            value={form.brake_fluid_type}
+            onChange={(e) => setField('brake_fluid_type', e.target.value)}
+          />
+        </Field>
+        <Field id="spec_trans_fluid" label={t('detail.specs.transFluid')}>
+          <Input
+            id="spec_trans_fluid"
+            value={form.transmission_fluid_type}
+            onChange={(e) => setField('transmission_fluid_type', e.target.value)}
+          />
+        </Field>
+        <div className="sm:col-span-2">
+          <Field id="spec_notes" label={t('detail.specs.notes')}>
+            <Textarea
+              id="spec_notes"
+              value={form.maintenance_specs_notes}
+              onChange={(e) => setField('maintenance_specs_notes', e.target.value)}
+              rows={3}
+            />
+          </Field>
+        </div>
+        <p className="sm:col-span-2 text-xs text-text-mute flex items-start gap-2">
+          <Wrench className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
+          {t('detail.specs.hint')}
+        </p>
+      </div>
+    </FormModalWrapper>
+  )
+})

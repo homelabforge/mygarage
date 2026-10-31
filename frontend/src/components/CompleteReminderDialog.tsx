@@ -26,6 +26,7 @@ import { parseOptionalDecimal } from '../utils/decimalInput'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { moneyTextError } from '../schemas/shared'
 import type { Reminder, ReminderCompleteRequest } from '../types/reminder'
+import { withUnitSession } from '../contexts/UnitSession'
 
 type Mode = ReminderCompleteRequest['mode']
 
@@ -40,7 +41,7 @@ interface CompleteReminderDialogProps {
   onSuccess: () => void
 }
 
-export default function CompleteReminderDialog({
+function CompleteReminderDialog({
   vin,
   reminder,
   currentMileage,
@@ -316,3 +317,6 @@ export default function CompleteReminderDialog({
     </FormModalWrapper>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(CompleteReminderDialog)

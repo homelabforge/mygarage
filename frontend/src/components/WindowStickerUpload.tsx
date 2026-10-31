@@ -17,6 +17,7 @@ import { isSettingOn } from '../utils/settingSwitch'
 import { seedUnitField, unitFieldUnchanged, type UnitFieldOrigin } from '../utils/unitFormat'
 import { num } from '../utils/wireNumber'
 import type { components } from '../types/api.generated'
+import { withUnitSession } from '../contexts/UnitSession'
 
 type StickerData = components['schemas']['WindowStickerResponse']
 
@@ -68,7 +69,7 @@ interface WindowStickerUploadProps {
   onClose: (uploaded: boolean) => void
 }
 
-export default function WindowStickerUpload({
+function WindowStickerUpload({
   vin,
   hasExistingSticker = false,
   onSuccess,
@@ -669,3 +670,6 @@ export default function WindowStickerUpload({
     </Drawer>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(WindowStickerUpload)

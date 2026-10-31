@@ -53,11 +53,14 @@ export function UnitSession({
 /**
  * Wrap a form so it pins its own units, whoever renders it. The form's hooks
  * run inside the wrapper, which is why this can't just be a tag in its JSX.
+ * A form with a boolean `open` prop re-pins on each open, so a drawer that
+ * stays mounted while closed doesn't keep the page-load units forever.
  */
 export function withUnitSession<P extends object>(Form: ComponentType<P>): (props: P) => ReactElement {
   function Pinned(props: P): ReactElement {
+    const { open } = props as { open?: unknown }
     return (
-      <UnitSession>
+      <UnitSession open={typeof open === 'boolean' ? open : true}>
         <Form {...props} />
       </UnitSession>
     )
