@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 # Enable test mode BEFORE importing app (disables CSRF validation in middleware)
@@ -41,13 +42,17 @@ from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 from app.main import limiter as main_limiter
+from app.models.def_record import DEFRecord
 from app.models.financing import FinancingRecord
 from app.models.fuel import FuelRecord
 from app.models.hours import HoursRecord
 from app.models.odometer import OdometerRecord
+from app.models.reminder import Reminder
 from app.models.service_visit import ServiceVisit
+from app.models.tax import TaxRecord
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.warranty import WarrantyRecord
 from app.routes.analytics import limiter as analytics_limiter
 from app.routes.auth import limiter as auth_limiter
 from app.routes.export import limiter as export_limiter
@@ -118,9 +123,20 @@ async def test_sessionmaker(test_engine):
     )
 
 
-#: Dated records the leak guard checks. A row on any of these a year out lands
-#: in every later test's "latest reading" and trend window.
-FAR_FUTURE_GUARDED = (FinancingRecord, FuelRecord, HoursRecord, OdometerRecord, ServiceVisit)
+#: Dated records the leak guard checks, each with the column that dates it. A
+#: row on any of these a year out lands in every later test's "latest reading",
+#: trend window, active warranty or due count.
+FAR_FUTURE_GUARDED: tuple[tuple[type[Base], str], ...] = (
+    (DEFRecord, "date"),
+    (FinancingRecord, "date"),
+    (FuelRecord, "date"),
+    (HoursRecord, "date"),
+    (OdometerRecord, "date"),
+    (Reminder, "due_date"),
+    (ServiceVisit, "date"),
+    (TaxRecord, "date"),
+    (WarrantyRecord, "end_date"),
+)
 
 
 def far_future_horizon() -> date:
@@ -133,48 +149,64 @@ def far_future_horizon() -> date:
     return datetime.now(UTC).date() + timedelta(days=365)
 
 
-async def far_future_survivors(engine: AsyncEngine) -> list[str]:
-    """One line per guarded row dated past the horizon: table, id, VIN and date."""
-    horizon = far_future_horizon()
+async def far_future_survivors(engine: AsyncEngine, horizon: date | None = None) -> list[str]:
+    """One line per guarded row dated past the horizon: table, id, VIN and date.
+
+    The horizon defaults to `far_future_horizon()`; a caller that has already
+    read it passes it in, so a run crossing UTC midnight can't move it between.
+    """
+    horizon = horizon or far_future_horizon()
     found: list[str] = []
     async with engine.connect() as conn:
-        for model in FAR_FUTURE_GUARDED:
+        for model, column_name in FAR_FUTURE_GUARDED:
+            column = getattr(model, column_name)
             rows = await conn.execute(
-                select(model.id, model.vin, model.date)
-                .where(model.date > horizon)
-                .order_by(model.vin, model.date, model.id)
+                select(model.id, model.vin, column.label("dated"))
+                .where(column > horizon)
+                .order_by(model.vin, column, model.id)
             )
             found += [
-                f"{model.__tablename__} id={row.id} vin={row.vin} date={row.date}" for row in rows
+                f"{model.__tablename__} id={row.id} vin={row.vin} {column_name}={row.dated}"
+                for row in rows
             ]
     return found
+
+
+async def finish_test_db(engine: AsyncEngine) -> None:
+    """Session end: fail on any far-future survivor (R5), dropping the tables either way.
+
+    The drop sits in a finally, so a guard query that blows up still leaves a
+    clean database behind.
+    """
+    horizon = far_future_horizon()
+    try:
+        survivors = await far_future_survivors(engine, horizon)
+    finally:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    if survivors:
+        # This lands on whichever test ran last, so say it isn't that one's fault.
+        pytest.fail(
+            f"{len(survivors)} row(s) dated after {horizon} outlived their "
+            "tests (checked at session end; the last test isn't necessarily the culprit). "
+            "Find the test that writes this VIN and give its vehicle a teardown:\n"
+            + "\n".join(f"  {line}" for line in survivors),
+            pytrace=False,
+        )
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def init_test_db(test_engine):
     """Initialize test database schema.
 
-    At the end it fails the run if any far-future row survived its test's
-    teardown (R5), then drops the tables either way.
+    At the end `finish_test_db` fails the run if any far-future row survived
+    its test's teardown (R5), then drops the tables either way.
     """
     async with test_engine.begin() as conn:
         # Create all tables from SQLAlchemy models
         await conn.run_sync(Base.metadata.create_all)
     yield
-    try:
-        survivors = await far_future_survivors(test_engine)
-    finally:
-        async with test_engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-    if survivors:
-        # This lands on whichever test ran last, so say it isn't that one's fault.
-        pytest.fail(
-            f"{len(survivors)} row(s) dated after {far_future_horizon()} outlived their "
-            "tests (checked at session end; the last test isn't necessarily the culprit). "
-            "Find the test that writes this VIN and give its vehicle a teardown:\n"
-            + "\n".join(f"  {line}" for line in survivors),
-            pytrace=False,
-        )
+    await finish_test_db(test_engine)
 
 
 @pytest.fixture(autouse=True)
@@ -549,6 +581,38 @@ async def test_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -
         "make": vehicle.make,
         "model": vehicle.model,
     }
+
+
+@pytest_asyncio.fixture
+async def own_vehicle(
+    request: pytest.FixtureRequest, db_session: AsyncSession, test_user: dict[str, object]
+) -> AsyncGenerator[Vehicle]:
+    """A fresh vehicle, deleted afterwards with every record on it. What a test
+    writes here would otherwise land in the test user's garage-wide totals.
+
+    `@pytest.mark.own_vehicle(fuel_type="diesel", ...)` on a test, class or
+    module overrides any of its columns.
+    """
+    marker = request.node.get_closest_marker("own_vehicle")
+    fields: dict[str, object] = {
+        "nickname": "Legacy Money",
+        "vehicle_type": "Car",
+        "year": 2015,
+        "make": "Honda",
+        "model": "Fit",
+        **(marker.kwargs if marker is not None else {}),
+    }
+    vehicle = Vehicle(vin="LEG" + uuid.uuid4().hex[:14].upper(), user_id=test_user["id"], **fields)
+    db_session.add(vehicle)
+    await db_session.commit()
+    vin = vehicle.vin
+    yield vehicle
+    # A failed read rolls the session back, so look the vehicle up again.
+    await db_session.rollback()
+    stored = await db_session.get(Vehicle, vin)
+    if stored is not None:
+        await db_session.delete(stored)
+        await db_session.commit()
 
 
 @pytest.fixture
