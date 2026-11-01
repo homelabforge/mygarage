@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '../../../__tests__/test-utils'
+import { render, screen, fireEvent, within } from '../../../__tests__/test-utils'
 
 const h = vi.hoisted(() => ({ authMode: 'local' }))
 
@@ -27,6 +27,15 @@ function setup(overrides: Partial<ComponentProps<typeof VehicleActionsToolbar>> 
   return props
 }
 
+// Phone and desktop each render the routine actions and CSS picks one; jsdom
+// sees both, so desktop checks skip the phone group.
+const phoneRow = (): HTMLElement => screen.getByRole('group', { name: 'detail.hero.quickActions' })
+function desktopAction(name: string): HTMLElement {
+  const desktop = screen.getAllByRole('button', { name }).filter((el) => !phoneRow().contains(el))
+  expect(desktop).toHaveLength(1)
+  return desktop[0]
+}
+
 describe('VehicleActionsToolbar', () => {
   it('renders every required title attribute (G6/B8)', () => {
     setup()
@@ -41,9 +50,9 @@ describe('VehicleActionsToolbar', () => {
 
   it('fires the tab-switch and equipment callbacks on click (SDQ-1/2)', () => {
     const props = setup()
-    fireEvent.click(screen.getByRole('button', { name: 'detail.hero.logService' }))
-    fireEvent.click(screen.getByRole('button', { name: 'detail.hero.addFuel' }))
-    fireEvent.click(screen.getByRole('button', { name: 'detail.hero.reminder' }))
+    fireEvent.click(desktopAction('detail.hero.logService'))
+    fireEvent.click(desktopAction('detail.hero.addFuel'))
+    fireEvent.click(desktopAction('detail.hero.reminder'))
     fireEvent.click(screen.getByRole('button', { name: 'detail.hero.standard' }))
     fireEvent.click(screen.getByRole('button', { name: 'detail.hero.optional' }))
     expect(props.onLogService).toHaveBeenCalledTimes(1)
@@ -51,6 +60,31 @@ describe('VehicleActionsToolbar', () => {
     expect(props.onReminder).toHaveBeenCalledTimes(1)
     expect(props.onEditEquipment).toHaveBeenCalledWith('standard')
     expect(props.onEditEquipment).toHaveBeenCalledWith('optional')
+  })
+
+  // G2c-53 (D2): phones get the same three one-tap actions beside Actions,
+  // away from Remove, calling the same callbacks as the desktop row.
+  it('gives phones a one-tap Log Service / Add Fuel / Reminder row (G2c-53)', () => {
+    const props = setup()
+    const row = within(phoneRow())
+    fireEvent.click(row.getByRole('button', { name: 'detail.hero.logService' }))
+    fireEvent.click(row.getByRole('button', { name: 'detail.hero.addFuel' }))
+    fireEvent.click(row.getByRole('button', { name: 'detail.hero.reminder' }))
+    expect(props.onLogService).toHaveBeenCalledTimes(1)
+    expect(props.onAddFuel).toHaveBeenCalledTimes(1)
+    expect(props.onReminder).toHaveBeenCalledTimes(1)
+    // Phone only, and the Actions trigger sits in the same strip.
+    const strip = phoneRow().parentElement as HTMLElement
+    expect(strip).toHaveClass('md:hidden')
+    expect(within(strip).getByRole('button', { name: 'detail.actions' })).toBeInTheDocument()
+    expect(within(strip).queryByRole('button', { name: 'detail.remove' })).not.toBeInTheDocument()
+  })
+
+  it('leaves Add Fuel out of the phone row when showFuelAction is false (G2c-53)', () => {
+    setup({ showFuelAction: false })
+    const row = within(phoneRow())
+    expect(row.getByRole('button', { name: 'detail.hero.logService' })).toBeInTheDocument()
+    expect(row.queryByRole('button', { name: 'detail.hero.addFuel' })).not.toBeInTheDocument()
   })
 
   it('hides Add Fuel when showFuelAction is false', () => {

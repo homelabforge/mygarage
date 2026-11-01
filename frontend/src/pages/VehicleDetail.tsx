@@ -95,7 +95,17 @@ export type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | 't
 export type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'fuel' | 'tracking' | 'financial' | 'livelink'
 export type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'hours' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'financing' | 'spotrentals' | 'suppliesused' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts' | 'trips' | 'tires' | 'brakes'
 
+/**
+ * The route's element. Keyed by vin so switching vehicles mounts a fresh page:
+ * a late load, LiveLink answer or sidecar save for the old vehicle lands on an
+ * unmounted page and goes nowhere, and tabs and drawers start over (G2c-54).
+ */
 export default function VehicleDetail() {
+  const { vin } = useParams<{ vin: string }>()
+  return <VehicleDetailPage key={vin} />
+}
+
+function VehicleDetailPage() {
   const { t } = useTranslation('vehicles')
   const { vin } = useParams<{ vin: string }>()
   const navigate = useNavigate()
