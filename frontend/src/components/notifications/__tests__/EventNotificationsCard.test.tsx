@@ -11,6 +11,7 @@ describe('EventNotificationsCard — DEF-low event (Task 17)', () => {
         settings={{ notify_def_low: 'true' }}
         onSettingChange={noop}
         onTextChange={noop}
+        onNumberValidity={noop}
         saving={false}
         hasEnabledService
       />,
@@ -29,6 +30,7 @@ describe('EventNotificationsCard — DEF-low event (Task 17)', () => {
         settings={{}}
         onSettingChange={noop}
         onTextChange={noop}
+        onNumberValidity={noop}
         saving={false}
         hasEnabledService
       />,
@@ -54,6 +56,7 @@ describe('EventNotificationsCard — DEF-low event (Task 17)', () => {
         settings={{ notify_def_low: 'true', notify_def_low_threshold_percent: '10' }}
         onSettingChange={noop}
         onTextChange={noop}
+        onNumberValidity={noop}
         saving={false}
         hasEnabledService
       />,
@@ -73,6 +76,7 @@ describe('EventNotificationsCard — DEF-low event (Task 17)', () => {
         settings={{ notify_def_low: 'false' }}
         onSettingChange={onSettingChange}
         onTextChange={noop}
+        onNumberValidity={noop}
         saving={false}
         hasEnabledService
       />,
@@ -90,12 +94,15 @@ describe('EventNotificationsCard — DEF-low event (Task 17)', () => {
         settings={{ notify_def_low: 'true', notify_def_low_threshold_percent: '25' }}
         onSettingChange={noop}
         onTextChange={onTextChange}
+        onNumberValidity={noop}
         saving={false}
         hasEnabledService
       />,
     )
 
-    fireEvent.change(screen.getByDisplayValue('25'), { target: { value: '15' } })
+    const percent = screen.getByDisplayValue('25')
+    fireEvent.change(percent, { target: { value: '15' } })
+    fireEvent.blur(percent)
 
     expect(onTextChange).toHaveBeenCalledWith('notify_def_low_threshold_percent', '15')
   })
@@ -110,6 +117,7 @@ describe('EventNotificationsCard: Service due has no lead-time fields (D1c)', ()
         settings={{ notify_service_due: 'true', notify_service_days: '30', notify_service_miles: '500' }}
         onSettingChange={noop}
         onTextChange={noop}
+        onNumberValidity={noop}
         saving={false}
         hasEnabledService
       />,

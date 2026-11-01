@@ -8,6 +8,8 @@ interface EmailConfigProps {
   settings: Record<string, unknown>;
   onSettingChange: (key: string, value: boolean) => void;
   onTextChange: (key: string, value: string) => void;
+  /** Passed to each number box, so the tab can refuse a save while one is wrong. */
+  onNumberValidity: (id: string, valid: boolean) => void;
   onTest: () => void;
   testing: boolean;
   saving: boolean;
@@ -17,6 +19,7 @@ export function EmailConfig({
   settings,
   onSettingChange,
   onTextChange,
+  onNumberValidity,
   onTest,
   testing,
   saving,
@@ -73,6 +76,7 @@ export function EmailConfig({
               id="email_smtp_port"
               value={String(settings.email_smtp_port ?? '587')}
               onCommit={(value) => onTextChange('email_smtp_port', value)}
+              onValidityChange={onNumberValidity}
               disabled={saving || !isEnabled}
               min={1}
               max={65535}

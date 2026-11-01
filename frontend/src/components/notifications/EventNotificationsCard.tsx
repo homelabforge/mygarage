@@ -9,6 +9,8 @@ interface EventNotificationsCardProps {
   settings: Record<string, unknown>;
   onSettingChange: (key: string, value: boolean) => void;
   onTextChange: (key: string, value: string) => void;
+  /** Passed to each number box, so the tab can refuse a save while one is wrong. */
+  onNumberValidity: (id: string, valid: boolean) => void;
   saving: boolean;
   hasEnabledService: boolean;
 }
@@ -43,6 +45,7 @@ export function EventNotificationsCard({
   settings,
   onSettingChange,
   onTextChange,
+  onNumberValidity,
   saving,
   hasEnabledService,
 }: EventNotificationsCardProps) {
@@ -201,6 +204,7 @@ export function EventNotificationsCard({
                             id={`event-${field.key}`}
                             value={String(settings[field.key] ?? field.default)}
                             onCommit={(value) => onTextChange(field.key, value)}
+                            onValidityChange={onNumberValidity}
                             disabled={saving || !isSettingOn(String(settings[event.key] ?? ''))}
                             min={field.min}
                             max={field.max}
@@ -250,6 +254,7 @@ export function EventNotificationsCard({
                   id="notification_retry_attempts"
                   value={String(settings.notification_retry_attempts ?? '3')}
                   onCommit={(value) => onTextChange('notification_retry_attempts', value)}
+                  onValidityChange={onNumberValidity}
                   disabled={saving}
                   min={1}
                   max={10}
@@ -268,6 +273,7 @@ export function EventNotificationsCard({
                   id="notification_retry_delay"
                   value={String(settings.notification_retry_delay ?? '2.0')}
                   onCommit={(value) => onTextChange('notification_retry_delay', value)}
+                  onValidityChange={onNumberValidity}
                   disabled={saving}
                   min={0.5}
                   max={30}

@@ -12,6 +12,9 @@ interface SettingsContextType {
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
 
+/** A save handler throws this to say why it won't save. Its message is the toast. */
+export class SaveRefusedError extends Error {}
+
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation('settings')
   const [currentTabId, setCurrentTabId] = useState<string | null>(null)
@@ -39,8 +42,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     try {
       await handler()
       toast.success(t('settingsContext.saveSuccess'), { id: toastId })
-    } catch {
-      toast.error(t('settingsContext.saveError'), { id: toastId })
+    } catch (error) {
+      const text = error instanceof SaveRefusedError ? error.message : t('settingsContext.saveError')
+      toast.error(text, { id: toastId })
     } finally {
       isSavingRef.current = false
     }

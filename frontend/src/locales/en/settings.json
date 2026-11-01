@@ -433,7 +433,8 @@
   "notifications": {
     "loading": "Loading notification settings...",
     "loadError": "Failed to load notification settings",
-    "testFailed": "Failed to send test notification via {{service}}"
+    "testFailed": "Failed to send test notification via {{service}}",
+    "fixNumbers": "Not saved: a number setting is out of range. Fix it and your changes save."
   },
   "ntfy": {
     "enable": "Enable ntfy notifications",
