@@ -1001,23 +1001,6 @@ MODELS = {
 VINS = {fixture_id: f"CORPUS{index:011d}" for index, fixture_id in enumerate(CORPUS)}
 
 
-@pytest.fixture(autouse=True)
-def _reset_import_rate_limit():
-    """Clear the shared import limiter between tests.
-
-    `routes/import_data.py` has one module-level 20/minute limiter across
-    every import endpoint, and this file posts far more than that. Mirrors
-    the precedent in `test_import_data.py` and `test_import_csv_v6_units.py`.
-    """
-    from app.routes.import_data import limiter as import_limiter
-
-    storage = import_limiter._storage
-    storage.storage.clear()
-    storage.expirations.clear()
-    if hasattr(storage, "events"):
-        storage.events.clear()
-
-
 @asynccontextmanager
 async def _vehicle(db_session: AsyncSession, user_id: object, vin: str) -> AsyncIterator[str]:
     """A throwaway diesel vehicle, torn down in `finally`.

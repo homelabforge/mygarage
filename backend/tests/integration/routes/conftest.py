@@ -282,18 +282,7 @@ async def client_via(client: AsyncClient) -> AsyncIterator[Callable[[str], Async
         await via.aclose()
 
 
-# --- Import rate limits and throwaway vehicles --------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _reset_import_limiter() -> None:
-    """Each test starts with the import routes' 20 a minute and the export's
-    5 a minute unspent (K6). The new JSON modules export more than 5 times."""
-    from app.routes.export import limiter as export_limiter
-    from app.routes.import_data import limiter as import_limiter
-
-    import_limiter.reset()
-    export_limiter.reset()
+# --- Throwaway vehicles --------------------------------------------------------
 
 
 @pytest_asyncio.fixture

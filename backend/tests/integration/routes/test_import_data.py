@@ -15,30 +15,6 @@ from httpx import AsyncClient, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-@pytest.fixture(autouse=True)
-def _reset_import_rate_limit():
-    """Reset import (and export, for round-trip tests) limiter storage before each test.
-
-    ``routes/import_data.py`` defines a single module-level ``Limiter``
-    shared by every import endpoint (20/minute). This file's test count has
-    grown enough (Phase 9 added fuel/service/hours engine_hours coverage,
-    including export->import round-trip tests that also call ``routes/export.py``'s
-    stricter 5/minute limiter) that cumulative calls across tests can approach
-    either budget and cause intermittent 429s unrelated to the behavior under
-    test. Mirrors the precedent in ``test_auth.py``'s
-    ``TestCookieSecureFlag._reset_rate_limits``.
-    """
-    from app.routes.export import limiter as export_limiter
-    from app.routes.import_data import limiter as import_limiter
-
-    for lim in (import_limiter, export_limiter):
-        storage = lim._storage
-        storage.storage.clear()
-        storage.expirations.clear()
-        if hasattr(storage, "events"):
-            storage.events.clear()
-
-
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestImportRoutes:

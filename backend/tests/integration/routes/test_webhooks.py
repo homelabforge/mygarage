@@ -35,13 +35,9 @@ async def _reset_webhook_settings(db_session):
     The suite shares one database with no per-test rollback, so leaving these
     set changes the behaviour of every test that runs afterwards. Cleared before
     as well as after, so a prior failure cannot leak into the next test either.
-    The rate limit is reset too: every request here comes from one address, so
-    enough tests would otherwise run the module into its own 429.
     """
-    from app.routes.webhooks import limiter
 
     async def _clear():
-        limiter.reset()
         for key in ("webhook_ingest_token",):
             result = await db_session.execute(select(Setting).where(Setting.key == key))
             setting = result.scalar_one_or_none()
@@ -352,16 +348,6 @@ class TestWebhookIngest:
 @pytest.mark.asyncio
 class TestEvFuelAndThirdPartyImport:
     """EV charge-session create + Fuelio/Tesla CSV import endpoints."""
-
-    @pytest.fixture(autouse=True)
-    def _reset_import_rate_limit(self):
-        from app.routes.import_data import limiter as import_limiter
-
-        storage = import_limiter._storage
-        storage.storage.clear()
-        storage.expirations.clear()
-        if hasattr(storage, "events"):
-            storage.events.clear()
 
     async def test_create_ev_charge_session(self, client: AsyncClient, auth_headers, test_vehicle):
         response = await client.post(

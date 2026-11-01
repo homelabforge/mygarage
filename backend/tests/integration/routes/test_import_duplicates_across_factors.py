@@ -66,25 +66,6 @@ def converted_today(miles: str) -> Decimal:
     return Decimal(miles) * MILE_KM
 
 
-@pytest.fixture(autouse=True)
-def _reset_import_rate_limit():
-    """Clear the shared import and export limiter storage between tests.
-
-    Every import endpoint shares one module-level limiter, and the export
-    round trip below also spends the export limiter. Mirrors
-    `test_import_data.py`.
-    """
-    from app.routes.export import limiter as export_limiter
-    from app.routes.import_data import limiter as import_limiter
-
-    for lim in (import_limiter, export_limiter):
-        storage = lim._storage
-        storage.storage.clear()
-        storage.expirations.clear()
-        if hasattr(storage, "events"):
-            storage.events.clear()
-
-
 @asynccontextmanager
 async def _vehicle(db_session: AsyncSession, user_id: object, vin: str) -> AsyncIterator[str]:
     """A committed diesel vehicle, with every row this file writes removed after."""

@@ -12,7 +12,6 @@ Raw values are read with `text()`, which has no column type, so they're what the
 database holds: a float on SQLite, a Decimal on PG.
 """
 
-from collections.abc import Iterator
 from datetime import date, timedelta
 from decimal import Decimal
 from io import BytesIO
@@ -52,19 +51,6 @@ async def _raw(db: AsyncSession, column: str, record_id: int) -> Any:
         text(f"SELECT {column} FROM fuel_records WHERE id = :id"), {"id": record_id}
     )
     return _exact(result.scalar_one())
-
-
-@pytest.fixture(autouse=True)
-def _reset_import_rate_limit() -> Iterator[None]:
-    """The import endpoints share one limiter; start each test with it empty."""
-    from app.routes.import_data import limiter
-
-    storage = limiter._storage
-    storage.storage.clear()
-    storage.expirations.clear()
-    if hasattr(storage, "events"):
-        storage.events.clear()
-    yield
 
 
 # --- What gets stored ---------------------------------------------------------

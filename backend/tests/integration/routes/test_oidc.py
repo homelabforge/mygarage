@@ -9,7 +9,6 @@ JSON.
 """
 
 import logging
-from collections.abc import Iterator
 from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlsplit
 
@@ -21,7 +20,6 @@ from sqlalchemy import delete, select
 
 from app.models.settings import Setting
 from app.routes import oidc as oidc_routes
-from app.routes.oidc import limiter as oidc_route_limiter
 from tests.integration._oidc_refusals import assert_sent_to_login
 
 
@@ -76,14 +74,6 @@ async def clean_oidc_settings(db_session):
     await clear_oidc_settings(db_session)
     yield
     await clear_oidc_settings(db_session)
-
-
-@pytest.fixture(autouse=True)
-def _fresh_sso_limits() -> Iterator[None]:
-    """The SSO routes allow 5 a minute per address, and this file starts SSO more often."""
-    oidc_route_limiter.reset()
-    yield
-    oidc_route_limiter.reset()
 
 
 @pytest.mark.integration

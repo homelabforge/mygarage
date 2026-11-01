@@ -639,14 +639,6 @@ SECTIONS = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def _reset_limits() -> None:
-    """The export limiter is 5 a minute and this module exports once per section."""
-    from app.routes.export import limiter as export_limiter
-
-    export_limiter.reset()
-
-
 @pytest_asyncio.fixture
 async def seeded(db_session: AsyncSession, test_user) -> str:
     """One row in every section, written once for the whole module."""

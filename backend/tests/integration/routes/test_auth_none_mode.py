@@ -15,7 +15,7 @@ in the dependency, so those service checks get called directly.
 """
 
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 
 import pytest
@@ -30,7 +30,6 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_share import VehicleShare
 from app.models.vehicle_transfer import VehicleTransfer
-from app.routes.auth import limiter as auth_limiter
 from app.schemas.family import FamilyMemberUpdateRequest
 from app.services.auth import create_access_token, verify_password
 from app.services.family_dashboard_service import FamilyDashboardService
@@ -121,14 +120,6 @@ async def multi_user_on(db_session: AsyncSession) -> AsyncIterator[None]:
     await db_session.commit()
 
 
-@pytest.fixture
-def fresh_auth_limits() -> Iterator[None]:
-    """The password reset route is 5/minute per IP, and test_auth.py spends some of it."""
-    auth_limiter.reset()
-    yield
-    auth_limiter.reset()
-
-
 async def _share_id(sessionmaker: async_sessionmaker[AsyncSession], user_id: int) -> int | None:
     """The committed share on the authz vehicle for `user_id`, read over a second session."""
     async with sessionmaker() as fresh:
@@ -200,7 +191,6 @@ class TestAdminUserRoutesWithAuthOff:
         db_session: AsyncSession,
         test_sessionmaker: async_sessionmaker[AsyncSession],
         made_users: list[str],
-        fresh_auth_limits: None,
         set_auth_mode: Callable[[str], Awaitable[None]],
     ) -> None:
         user_id = (await _user(db_session, made_users)).id

@@ -19,7 +19,7 @@ tested in their jobs' own suites under ``tests/unit/tasks/``.
 """
 
 import uuid
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -33,7 +33,6 @@ from app.models.audit_log import AuditLog
 from app.models.settings import Setting
 from app.models.user import User
 from app.routes.external_vehicles import _family_friends_enabled
-from app.routes.oidc import limiter as oidc_route_limiter
 from app.services.livelink_service import LiveLinkService
 from app.services.mqtt_subscriber import MQTTSubscriber
 from app.services.oidc import create_or_update_user_from_oidc
@@ -71,14 +70,6 @@ async def made_users(db_session: AsyncSession) -> AsyncIterator[list[str]]:
     )
     await db_session.execute(delete(User).where(User.username.in_(names)))
     await db_session.commit()
-
-
-@pytest.fixture
-def _fresh_sso_limits() -> Iterator[None]:
-    """The SSO start route allows 5 a minute per address, and other files spend it."""
-    oidc_route_limiter.reset()
-    yield
-    oidc_route_limiter.reset()
 
 
 # --------------------------------------------------------------------------- LiveLink
@@ -288,7 +279,7 @@ async def test_the_admin_oidc_config_shows_auto_create_split(
 
 
 async def test_oidc_login_reads_a_stored_one_as_enabled(
-    client: AsyncClient, db_session: AsyncSession, keep_rows: Keep, _fresh_sso_limits: None
+    client: AsyncClient, db_session: AsyncSession, keep_rows: Keep
 ) -> None:
     await seed_rows(
         db_session,

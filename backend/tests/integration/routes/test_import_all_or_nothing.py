@@ -217,18 +217,6 @@ async def _committed_rows(sessionmaker: async_sessionmaker[AsyncSession], vin: s
         return await _rows_for(fresh, vin)
 
 
-@pytest.fixture(autouse=True)
-def _reset_import_rate_limit():
-    """Clear the shared import limiter; one test here posts to every import route."""
-    from app.routes.import_data import limiter
-
-    storage = limiter._storage
-    storage.storage.clear()
-    storage.expirations.clear()
-    if hasattr(storage, "events"):
-        storage.events.clear()
-
-
 @pytest_asyncio.fixture
 async def vin(db_session: AsyncSession, test_user, test_sessionmaker) -> AsyncIterator[str]:
     """A committed diesel vehicle of the test user's, and every row imported into it removed."""

@@ -14,14 +14,6 @@ from app.models.fuel import FuelRecord
 from app.models.settings import Setting
 
 
-@pytest.fixture(autouse=True)
-def _reset_parse_limiter() -> None:
-    """The parse route allows 20 a minute and this file makes more calls than that."""
-    from app.routes.fuel import limiter as fuel_limiter
-
-    fuel_limiter.reset()
-
-
 async def set_settings(db_session, settings_dict: dict[str, str]) -> None:
     for key, value in settings_dict.items():
         result = await db_session.execute(select(Setting).where(Setting.key == key))

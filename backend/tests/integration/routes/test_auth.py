@@ -429,21 +429,7 @@ class TestCookieSecureFlag:
 
     Regression tests for GitHub issue #35: Local auth login fails over HTTP
     because the Secure flag causes browsers to silently drop the cookie.
-
-    These tests run with rate limiting disabled to avoid interference from
-    earlier test classes that exhaust the auth rate limit.
     """
-
-    @pytest.fixture(autouse=True)
-    def _reset_rate_limits(self):
-        """Reset auth route's rate limiter storage to avoid 429s from earlier tests."""
-        from app.routes.auth import limiter as auth_limiter
-
-        storage = auth_limiter._storage
-        storage.storage.clear()
-        storage.expirations.clear()
-        if hasattr(storage, "events"):
-            storage.events.clear()
 
     @pytest.fixture(autouse=True)
     async def _ensure_local_auth(self, db_session):

@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures for MyGarage backend tests."""
 
+import logging
 import os
 import shutil
 import tempfile
@@ -27,6 +28,7 @@ from typing import NoReturn
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from slowapi import Limiter
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
@@ -34,10 +36,20 @@ from sqlalchemy.pool import NullPool
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
+from app.main import limiter as main_limiter
 from app.models.fuel import FuelRecord
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.routes.analytics import limiter as analytics_limiter
+from app.routes.auth import limiter as auth_limiter
+from app.routes.export import limiter as export_limiter
+from app.routes.fuel import limiter as fuel_limiter
+from app.routes.garage_assistant import limiter as garage_assistant_limiter
+from app.routes.import_data._common import limiter as import_limiter
+from app.routes.oidc import limiter as oidc_limiter
+from app.routes.webhooks import limiter as webhooks_limiter
+from app.services.widget_auth import widget_limiter
 from app.utils.pg_session import create_utc_async_engine
 from tests._shard import apply_shard
 from tests._users import TEST_PASSWORD_HASH
@@ -165,6 +177,41 @@ def _forget_rate_baselines() -> None:
     from app.services.telemetry_validator import forget_accepted_readings
 
     forget_accepted_readings()
+
+
+#: Every module-level slowapi Limiter in app/, by where it lives.
+#: tests/unit/test_limiter_reset_inventory.py fails if a new one isn't here.
+APP_LIMITERS: dict[str, Limiter] = {
+    "app.main.limiter": main_limiter,
+    "app.routes.analytics.limiter": analytics_limiter,
+    "app.routes.auth.limiter": auth_limiter,
+    "app.routes.export.limiter": export_limiter,
+    "app.routes.fuel.limiter": fuel_limiter,
+    "app.routes.garage_assistant.limiter": garage_assistant_limiter,
+    "app.routes.import_data._common.limiter": import_limiter,
+    "app.routes.oidc.limiter": oidc_limiter,
+    "app.routes.webhooks.limiter": webhooks_limiter,
+    "app.services.widget_auth.widget_limiter": widget_limiter,
+}
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> None:
+    """Start every test with every rate limit unspent.
+
+    The limiters are module globals keyed on the client address, and the whole
+    suite comes from 127.0.0.1, so one file's requests could 429 the next file.
+    """
+    # Each reset logs an INFO line, and ten a test would bury the live log.
+    # A storage that can't reset still gets its WARNING through.
+    slowapi_log = logging.getLogger("slowapi")
+    level = slowapi_log.level
+    slowapi_log.setLevel(logging.WARNING)
+    try:
+        for limiter in APP_LIMITERS.values():
+            limiter.reset()
+    finally:
+        slowapi_log.setLevel(level)
 
 
 @pytest_asyncio.fixture

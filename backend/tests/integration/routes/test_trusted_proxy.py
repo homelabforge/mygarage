@@ -11,7 +11,7 @@ and never an untrusted peer's forwarding headers.
 
 import secrets
 import uuid
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable
 
 import pytest
 import pytest_asyncio
@@ -23,8 +23,6 @@ from app.config import settings
 from app.models.audit_log import AuditLog
 from app.models.csrf_token import CSRFToken
 from app.models.user import User
-from app.routes.auth import limiter as auth_limiter
-from app.routes.oidc import limiter as oidc_limiter
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -33,16 +31,6 @@ PROXY = "10.0.0.2"
 CLIENT_A = "198.51.100.7"
 CLIENT_B = "198.51.100.8"
 LIMIT = int(settings.rate_limit_auth.split("/")[0])
-
-
-@pytest.fixture(autouse=True)
-def _fresh_limits() -> Iterator[None]:
-    """Login and link-account allow 5 a minute per client, and these tests spend that on purpose."""
-    auth_limiter.reset()
-    oidc_limiter.reset()
-    yield
-    auth_limiter.reset()
-    oidc_limiter.reset()
 
 
 @pytest_asyncio.fixture
