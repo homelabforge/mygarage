@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { toast } from 'sonner'
 import { render } from '../../../__tests__/test-utils'
+import { registeredFieldNames, validationError, whereA422Lands, dropQueuedOnces } from '../../../__tests__/serverErrors'
 import type { InsurancePDFParseResponse, InsurancePolicy } from '../../../types/insurance'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -40,6 +41,9 @@ vi.mock('../../InsurancePDFUpload', () => ({
 import PolicyForm from '../PolicyForm'
 
 beforeEach(() => vi.clearAllMocks())
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(createMutateAsync, updateMutateAsync, replaceMutateAsync))
 
 const RAM = 'RAMVIN00000000001'
 const MIRAGE = 'MIRAGEVIN00000002'
@@ -522,14 +526,9 @@ describe('PolicyForm — code-review regressions', () => {
 })
 
 describe('PolicyForm: a rejected submit (G1b-69)', () => {
-  const premiumRejected = {
-    isAxiosError: true,
-    message: 'Request failed with status code 422',
-    response: {
-      status: 422,
-      data: { detail: [{ type: 'decimal_parsing', loc: ['body', 'premium_amount'], msg: 'Input should be a valid decimal' }] },
-    },
-  }
+  const premiumRejected = validationError({ premium_amount: 'Input should be a valid decimal' })
+  // The policy form's failures toast; a stand-in element lets the shared guard read it.
+  const banner = (): HTMLElement | null => (vi.mocked(toast.error).mock.calls.length > 0 ? document.body : null)
 
   it('toasts on a non-422 failure instead of staying silent', async () => {
     createMutateAsync.mockRejectedValueOnce(new Error('Network Error'))
@@ -566,5 +565,40 @@ describe('PolicyForm: a rejected submit (G1b-69)', () => {
 
     await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
     expect(createMutateAsync.mock.calls[0][0]).toMatchObject({ premium_amount: 1234.5 })
+  })
+
+  // Named controls that aren't payload fields go here. None today.
+  const UI_ONLY: string[] = []
+  // Coverage checkboxes have no inline error, so they stay out of knownFields
+  // and a 422 on one toasts.
+  const BANNER_ROUTED = /^vehicles\.\d+\.coverages\.\d+\.included$/
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show up under that field, or toast for a checkbox.
+  // Mutants: drop a name from knownFields (it toasts), or drop a field's error
+  // (it goes silent).
+  it('guard: a 422 on each field shows under it, or toasts for a coverage checkbox', async () => {
+    const user = userEvent.setup()
+    render(<PolicyForm mode="create" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await fillPolicy(user)
+    await addVehicle(user, RAM, 'Full Coverage', 0)
+    const form = document.getElementById('insurance-form') as HTMLFormElement
+    const names = registeredFieldNames(form, UI_ONLY)
+    // An empty sweep would pass, so pin a few names it must contain.
+    expect(names).toEqual(expect.arrayContaining(['provider', 'premium_amount', 'premium_frequency']))
+
+    // A vehicle row's own inputs have to be in the sweep too, or it proves nothing about them.
+    expect(names).toEqual(
+      expect.arrayContaining(['notes', 'vehicles.0.policy_type', 'vehicles.0.premium_share', 'vehicles.0.deductible'])
+    )
+
+    const wrong: string[] = []
+    for (const name of names) {
+      vi.mocked(toast.error).mockClear()
+      const want = BANNER_ROUTED.test(name) ? 'banner' : 'field'
+      const got = await whereA422Lands(form, createMutateAsync, name, `bad ${name}`, banner)
+      if (got !== want) wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

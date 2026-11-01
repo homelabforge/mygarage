@@ -4,7 +4,7 @@ import { cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
 import commonEn from '../../locales/en/common.json'
-import { validationError } from '../../__tests__/serverErrors'
+import { registeredFieldNames, validationError, whereA422Lands } from '../../__tests__/serverErrors'
 
 // The SSO sentences resolve against the real English bundle, so these tests read
 // what a person sees and a typo in common.json fails here. Every other key stays
@@ -264,5 +264,29 @@ describe('Login Page: a rejected sign-in', () => {
       expect(username.parentElement).toHaveTextContent('String should have at most 100 characters')
     )
     expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show up under that field. Mutants: drop a name from
+  // knownFields (it goes to the banner), or drop a field's error (it goes silent).
+  it('guard: a 422 on each field shows under it', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    await signIn()
+    await waitFor(() => expect(loginMock).toHaveBeenCalledTimes(1))
+    const form = screen.getByPlaceholderText(USERNAME_PLACEHOLDER).closest('form') as HTMLFormElement
+    const names = registeredFieldNames(form, UI_ONLY)
+    // An empty sweep would pass, so pin the names it must contain.
+    expect(names).toEqual(expect.arrayContaining(['username', 'password']))
+
+    const wrong: string[] = []
+    for (const name of names) {
+      const got = await whereA422Lands(form, loginMock, name, `bad ${name}`, banner)
+      if (got !== 'field') wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

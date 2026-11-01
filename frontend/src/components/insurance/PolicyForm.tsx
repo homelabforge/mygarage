@@ -311,11 +311,22 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
       // attached.length === 0 catches a non-422 failure (network drop, 500,
       // or the allocation rule's plain-text 422): it carries no field
       // problems, so `unhandled` alone would stay empty and nothing would show.
-      const { attached: shown, unhandled } = applyServerErrors<InsuranceFormData>(
-        setFieldError,
-        err,
-        ['provider', 'policy_number', 'start_date', 'end_date', 'premium_amount', 'premium_frequency', 'notes']
+      // A covered vehicle's own inputs, by row: the payload keeps the form's
+      // row order, so the server's index is the row's. Its coverage checkboxes
+      // have nowhere to show an error and stay out, so theirs toast.
+      const rowFields = data.vehicles.flatMap(
+        (_, i) => [`vehicles.${i}.policy_type`, `vehicles.${i}.premium_share`, `vehicles.${i}.deductible`] as const
       )
+      const { attached: shown, unhandled } = applyServerErrors<InsuranceFormData>(setFieldError, err, [
+        'provider',
+        'policy_number',
+        'start_date',
+        'end_date',
+        'premium_amount',
+        'premium_frequency',
+        'notes',
+        ...rowFields,
+      ])
       if (shown.length === 0 || unhandled.length > 0) {
         toast.error(getActionErrorMessage(err, t('insurance.saveAction')))
       }
@@ -673,12 +684,13 @@ export default function PolicyForm({ mode, policy, initialVin, onClose, onSucces
             )}
           </fieldset>
 
-          <Field id="notes" label={t('common:notes')}>
+          <Field id="notes" label={t('common:notes')} error={errors.notes}>
             <Textarea
               id="notes"
               rows={2}
               {...register('notes')}
               placeholder={t('common:additionalNotes')}
+              invalid={!!errors.notes}
               disabled={isSubmitting}
             />
           </Field>
