@@ -34,8 +34,9 @@
   /* ---------------------------------------------------------------------
    * Accent. --accent/-soft/-line are written to documentElement at runtime by
    * AccentContext (see src/contexts/AccentContext.tsx). Pointing the primary
-   * ramp at them makes ~589 existing bg-primary/text-primary/border-primary
-   * sites follow the accent with no edits.
+   * ramp at them makes the bg-primary and border-primary sites follow the
+   * accent. Accent text doesn't use the ramp: it's text-(--accent-fg), which
+   * stays readable in light mode, and a guard test refuses the old class.
    *
    * Do NOT declare --color-accent-soft here: it would generate an *opaque*
    * bg-accent-soft, the opposite of every consumer. --accent-soft and
