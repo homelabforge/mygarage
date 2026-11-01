@@ -174,18 +174,19 @@ class TestImportRoutes:
         assert data["error_count"] == 1
         assert "Reading is required" in data["errors"][0]
 
-    async def test_import_warranties_csv(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_import_warranties_csv(self, client: AsyncClient, auth_headers, own_vehicle):
         """Test importing warranty records from CSV.
 
         Note: Import code may have field mapping issues. Verifying endpoint
-        handles requests properly and returns valid structure.
+        handles requests properly and returns valid structure. On its own
+        vehicle: the warranty ends in 2029, past the far-future leak guard.
         """
         csv_content = """Provider,Type,Start Date,End Date,Cost,Deductible,Notes
 Honda Care,Extended,2024-01-01,2029-01-01,1500.00,100.00,Extended warranty
 AAA,Roadside,2024-01-01,2025-01-01,150.00,0,Annual membership"""
 
         response = await client.post(
-            f"/api/import/vehicles/{test_vehicle['vin']}/warranties/csv",
+            f"/api/import/vehicles/{own_vehicle.vin}/warranties/csv",
             headers=auth_headers,
             files={"file": ("warranties.csv", BytesIO(csv_content.encode()), "text/csv")},
         )

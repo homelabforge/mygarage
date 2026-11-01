@@ -167,10 +167,14 @@ async def warranty_sent(db_session: AsyncSession, sent, monkeypatch: pytest.Monk
             return {"discord": True}
 
     monkeypatch.setattr(scheduled, "NotificationDispatcher", _WithWarranty)
-    await db_session.execute(delete(WarrantyRecord))
+    # Only this file's vehicles' warranties. A table-wide wipe here once hid
+    # other tests' leaked rows from the far-future guard in an unsharded run.
+    own = WarrantyRecord.vin.in_([RAM, MIRAGE, SOLD])
+    await db_session.execute(delete(WarrantyRecord).where(own))
     await db_session.commit()
     yield calls
-    await db_session.execute(delete(WarrantyRecord))
+    await db_session.rollback()
+    await db_session.execute(delete(WarrantyRecord).where(own))
     await db_session.commit()
 
 
@@ -189,17 +193,26 @@ async def test_yesterdays_warranty_stamp_does_not_hold_back_todays_nag(
     db_session, warranty_sent, ago, nags
 ):
     today = household_today()
-    db_session.add(
-        WarrantyRecord(
-            vin=RAM,
-            warranty_type="Powertrain",
-            start_date=today - timedelta(days=700),
-            end_date=today + timedelta(days=10),
-            last_notified_at=utc_now() - ago,
-        )
+    stamped = utc_now() - ago
+    warranty = WarrantyRecord(
+        vin=RAM,
+        warranty_type="Powertrain",
+        start_date=today - timedelta(days=700),
+        end_date=today + timedelta(days=10),
+        last_notified_at=stamped,
     )
+    db_session.add(warranty)
     await db_session.commit()
 
     await scheduled.check_expiring_documents()
 
-    assert len(warranty_sent) == nags
+    # Read off this warranty alone: the sweep also nags any other test's
+    # expiring warranty, and the table isn't emptied for this test any more.
+    ours = [
+        call
+        for call in warranty_sent
+        if call["vehicle_name"] == "Ram" and call["days_until_expiry"] == 10
+    ]
+    assert len(ours) == nags
+    await db_session.refresh(warranty)
+    assert (warranty.last_notified_at != stamped.replace(tzinfo=None)) == bool(nags)

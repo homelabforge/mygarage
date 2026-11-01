@@ -184,6 +184,123 @@ def _returns_today(fn: ast.AST, seed: Set[str] = frozenset()) -> bool:
     )
 
 
+def _wiped_tables() -> tuple[frozenset[str], frozenset[str]]:
+    """Model and table names no test may empty: the leak guard's tables, and vehicles.
+
+    Read off FAR_FUTURE_GUARDED itself, so a table the guard gains is covered here too.
+    """
+    from app.models.vehicle import Vehicle
+    from tests.conftest import FAR_FUTURE_GUARDED
+
+    models = [model for model, _ in FAR_FUTURE_GUARDED] + [Vehicle]
+    return frozenset(m.__name__ for m in models), frozenset(m.__tablename__ for m in models)
+
+
+#: Calls that narrow a delete to some rows.
+FILTERS = {"where", "filter", "filter_by"}
+RAW_DELETE = re.compile(r"\bDELETE\s+FROM\s+(\w+)([^;]*)", re.IGNORECASE)
+
+
+def _table_wide_deletes(tree: ast.Module, models: Set[str], tables: Set[str]) -> list[int]:
+    """Lines that empty a guarded table: `delete(Model)`, `sa.delete(Model)` or
+    `Model.__table__.delete()` never narrowed by `.where`, or a raw `DELETE FROM
+    table` with no WHERE. An ORM `session.delete(obj)` deletes one row and isn't one."""
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+
+    def narrowed(call: ast.Call) -> bool:
+        parent = parents.get(call)
+        return isinstance(parent, ast.Attribute) and parent.attr in FILTERS
+
+    def deletes_a_whole_model(call: ast.Call) -> bool:
+        func = call.func
+        if (
+            isinstance(func, ast.Name | ast.Attribute)
+            and (func.id if isinstance(func, ast.Name) else func.attr) == "delete"
+        ):
+            # delete(Model) or sa.delete(Model)
+            if call.args and isinstance(call.args[0], ast.Name) and call.args[0].id in models:
+                return True
+            # Model.__table__.delete()
+            owner = func.value if isinstance(func, ast.Attribute) else None
+            return (
+                isinstance(owner, ast.Attribute)
+                and owner.attr == "__table__"
+                and isinstance(owner.value, ast.Name)
+                and owner.value.id in models
+            )
+        return False
+
+    lines = [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and deletes_a_whole_model(node) and not narrowed(node)
+    ]
+    lines += [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and any(
+            match.group(1).lower() in tables and not re.search(r"\bWHERE\b", match.group(2), re.I)
+            for match in RAW_DELETE.finditer(node.value)
+        )
+    ]
+    return sorted(lines)
+
+
+def test_no_test_empties_a_guarded_table() -> None:
+    """Emptying a guarded table deletes other tests' leaks along with your own, so
+    the far-future guard never sees them (a warranty wipe hid a leak until CI
+    sharded the suite). Delete your own rows, by VIN or by id."""
+    models, tables = _wiped_tables()
+    found = [
+        f"{_rel(path)}:{line}"
+        for path in sorted(TESTS_DIR.rglob("*.py"))
+        if path != Path(__file__)
+        for line in _table_wide_deletes(_parse(path), models, tables)
+    ]
+    assert found == []
+
+
+def test_the_wipe_check_covers_the_guarded_tables_and_vehicles() -> None:
+    models, tables = _wiped_tables()
+    assert {"WarrantyRecord", "Reminder", "FuelRecord", "Vehicle"} <= models
+    assert {"warranty_records", "vehicle_reminders", "fuel_records", "vehicles"} <= tables
+
+
+WIPES = {
+    "delete(Model)": "await db.execute(delete(WarrantyRecord))\n",
+    "sa.delete(Model)": "await db.execute(sa.delete(Reminder))\n",
+    "delete(Vehicle)": "await db.execute(delete(Vehicle))\n",
+    "__table__.delete()": "await db.execute(FuelRecord.__table__.delete())\n",
+    "raw DELETE FROM": "await db.execute(text('DELETE FROM warranty_records'))\n",
+    "raw lowercase": "await db.execute(text('delete from vehicles'))\n",
+}
+NOT_WIPES = {
+    "narrowed delete": "await db.execute(delete(WarrantyRecord).where(WarrantyRecord.vin == v))\n",
+    "narrowed __table__": "await db.execute(FuelRecord.__table__.delete().where(c))\n",
+    "unguarded table": "await db.execute(delete(InsurancePolicy))\n",
+    "one ORM row": "await db.delete(vehicle)\n",
+    "raw with WHERE": "await db.execute(text('DELETE FROM vehicles WHERE vin = :vin'))\n",
+    "raw unguarded": "await db.execute(text('DELETE FROM settings'))\n",
+}
+
+
+def test_the_wipe_check_sees_every_form_and_nothing_else() -> None:
+    models, tables = _wiped_tables()
+    missed = [
+        form
+        for form, src in WIPES.items()
+        if _table_wide_deletes(ast.parse(src), models, tables) != [1]
+    ]
+    flagged = [
+        form
+        for form, src in NOT_WIPES.items()
+        if _table_wide_deletes(ast.parse(src), models, tables)
+    ]
+    assert (missed, flagged) == ([], [])
+
+
 def test_nothing_shadows_own_vehicle() -> None:
     """The tests conftest's own_vehicle deletes what it made; a local copy forgot to."""
     shadows = [
