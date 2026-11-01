@@ -32,13 +32,13 @@ export default function AuthPageLayout({
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="p-4 bg-primary/10 rounded-full">
-              <Car className="w-12 h-12 text-primary" />
+              <Car className="w-12 h-12 text-(--accent-fg)" />
             </div>
           </div>
           <h1 className="text-3xl font-bold text-garage-text mb-2">
             {/* Accent falls on "My", matching the header wordmark in shell/Logo.tsx. */}
             {/* i18n-exempt — product brand name, identical in every locale */}
-            <span className="text-primary">My</span>Garage
+            <span className="text-(--accent)">My</span>Garage
           </h1>
           <p className="text-garage-text-muted">{subtitle}</p>
           {headerExtra}

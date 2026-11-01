@@ -98,7 +98,7 @@ export default function LinkAccount() {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="p-4 bg-primary/10 rounded-full">
-              <Car className="w-12 h-12 text-primary" />
+              <Car className="w-12 h-12 text-(--accent-fg)" />
             </div>
           </div>
           <h1 className="text-3xl font-bold text-garage-text mb-2">
@@ -174,7 +174,7 @@ export default function LinkAccount() {
                 {t('linkAccountPage.forgotPassword')}{' '}
                 <a
                   href={withBase('/login')}
-                  className="text-primary hover:underline"
+                  className="text-(--accent-fg) hover:underline"
                 >
                   {t('linkAccountPage.returnToLogin')}
                 </a>

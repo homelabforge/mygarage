@@ -311,7 +311,7 @@ export default function GarageAnalytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.garageValue')}</h3>
-            <Car className="w-5 h-5 text-primary" />
+            <Car className="w-5 h-5 text-(--accent-fg)" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
             {formatCurrency(total_costs.total_garage_value, { currencyCode, locale })}
@@ -321,7 +321,7 @@ export default function GarageAnalytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.maintenance')}</h3>
-            <Wrench className="w-5 h-5 text-primary" />
+            <Wrench className="w-5 h-5 text-(--accent-fg)" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
             {formatCurrency(total_costs.total_maintenance, { currencyCode, locale })}

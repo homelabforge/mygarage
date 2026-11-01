@@ -199,7 +199,7 @@ export default function DeviceRow({
               </button>
             </div>
           ) : (
-            <button onClick={() => setEditing(true)} className="text-garage-text hover:text-primary text-sm">
+            <button onClick={() => setEditing(true)} className="text-garage-text hover:text-(--accent-fg) text-sm">
               {device.label || device.device_id.substring(0, 8) + '...'}
             </button>
           )}
@@ -288,7 +288,7 @@ export default function DeviceRow({
               href={`http://${device.sta_ip}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1 text-garage-text-muted hover:text-primary"
+              className="p-1 text-garage-text-muted hover:text-(--accent-fg)"
               title={t('modal.livelink.openDeviceUi')}
             >
               <ExternalLink className="w-4 h-4" />
@@ -306,7 +306,7 @@ export default function DeviceRow({
             ) : (
               <button
                 onClick={() => onGenerateToken(device.device_id)}
-                className="p-1 text-garage-text-muted hover:text-primary"
+                className="p-1 text-garage-text-muted hover:text-(--accent-fg)"
                 title={t('modal.livelink.generateDeviceToken')}
               >
                 <Key className="w-4 h-4" />
@@ -315,7 +315,7 @@ export default function DeviceRow({
           {(hasSd || hasOdometer) && (
             <button
               onClick={() => setShowSdConfig(!showSdConfig)}
-              className={`p-1 ${showSdConfig ? 'text-primary' : 'text-garage-text-muted hover:text-primary'}`}
+              className={`p-1 ${showSdConfig ? 'text-(--accent-fg)' : 'text-garage-text-muted hover:text-(--accent-fg)'}`}
               title={t('modal.livelink.deviceSettings')}
               aria-label={t('modal.livelink.deviceSettings')}
               aria-expanded={showSdConfig}

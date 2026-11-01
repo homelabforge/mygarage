@@ -118,7 +118,7 @@ export default function ServiceLineItemDetail({
                     to={`/supplies?supply=${usage.supply_id}`}
                     className="group flex items-center justify-between gap-3 rounded-md bg-surface-2/50 px-3 py-2 text-sm transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-primary"
                   >
-                    <span className="flex min-w-0 items-center gap-1.5 text-text group-hover:text-primary">
+                    <span className="flex min-w-0 items-center gap-1.5 text-text group-hover:text-(--accent-fg)">
                       {/* The link's name is this sentence plus the quantity and cost below,
                           not an aria-label, which would hide those two from a screen reader. */}
                       <span className="sr-only">{t('serviceList.detail.openSupply', { name: usage.supply_name })}</span>

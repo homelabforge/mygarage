@@ -130,7 +130,7 @@ export default function LineItemEditor({
 
         <div className="flex-1 flex items-center gap-2">
           {item.is_inspection ? (
-            <Clipboard className="w-4 h-4 text-primary" />
+            <Clipboard className="w-4 h-4 text-(--accent-fg)" />
           ) : (
             <Wrench className="w-4 h-4 text-garage-text-muted" />
           )}
@@ -138,7 +138,7 @@ export default function LineItemEditor({
             {item.description || t('lineItemEditor.misc.lineItem', { number: index + 1 })}
           </span>
           {item.is_inspection && (
-            <span className="px-2 py-0.5 text-xs bg-primary/20 text-primary rounded">{t('lineItemEditor.misc.inspectionBadge')}</span>
+            <span className="px-2 py-0.5 text-xs bg-primary/20 text-(--accent-fg) rounded">{t('lineItemEditor.misc.inspectionBadge')}</span>
           )}
           {item.category && (
             <span className="px-2 py-0.5 text-xs bg-garage-bg text-garage-text-muted rounded">{item.category}</span>
@@ -256,7 +256,7 @@ export default function LineItemEditor({
                 }
               }}
               disabled={disabled}
-              className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary border-garage-border rounded"
+              className="w-4 h-4 accent-(--accent-solid) focus:ring-2 focus:ring-primary border-garage-border rounded"
             />
             <label htmlFor={`inspection-${index}`} className="text-sm text-garage-text">
               {t('lineItemEditor.misc.isInspectionItem')}
@@ -345,7 +345,7 @@ export default function LineItemEditor({
                   checked={item.reminderDraft?.enabled ?? false}
                   onChange={(e) => handleReminderToggle(e.target.checked)}
                   disabled={disabled}
-                  className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary border-garage-border rounded"
+                  className="w-4 h-4 accent-(--accent-solid) focus:ring-2 focus:ring-primary border-garage-border rounded"
                 />
                 <Bell className="w-4 h-4 text-garage-text-muted" />
                 <label htmlFor={`reminder-${index}`} className="text-sm text-garage-text">

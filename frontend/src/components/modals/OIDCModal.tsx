@@ -174,7 +174,7 @@ export default function OIDCModal({ isOpen, onClose, config, onSaved }: OIDCModa
           {/* OIDC Info Box */}
           <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
             <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+              <Info className="w-5 h-5 text-(--accent-fg) flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <strong className="text-sm font-semibold text-garage-text">{t('modal.oidc.infoTitle')}</strong>
                 <div className="text-sm text-garage-text space-y-2 mt-2">
@@ -338,7 +338,7 @@ export default function OIDCModal({ isOpen, onClose, config, onSaved }: OIDCModa
                   type="checkbox"
                   checked={draft.auto_create_users}
                   onChange={(e) => edit({ auto_create_users: e.target.checked })}
-                  className="mt-1 w-4 h-4 text-primary bg-garage-surface border-garage-border rounded focus:ring-2 focus:ring-primary"
+                  className="mt-1 w-4 h-4 accent-(--accent-solid) bg-garage-surface border-garage-border rounded focus:ring-2 focus:ring-primary"
                 />
                 <div className="flex-1">
                   <label htmlFor="oidc-auto-create" className="text-xs font-medium text-garage-text cursor-pointer">
@@ -485,7 +485,7 @@ export default function OIDCModal({ isOpen, onClose, config, onSaved }: OIDCModa
           {/* Setup Instructions */}
           <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
             <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+              <Info className="w-5 h-5 text-(--accent-fg) flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h4 className="text-sm font-semibold text-garage-text mb-2">{t('modal.oidcSetupGuide')}</h4>
                 <ol className="list-decimal list-inside space-y-1.5 text-xs text-garage-text-muted">

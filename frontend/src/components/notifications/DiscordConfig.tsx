@@ -27,7 +27,7 @@ export function DiscordConfig({
   return (
     <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
       <div className="flex items-center gap-3 mb-6">
-        <MessageSquare className="w-6 h-6 text-primary" />
+        <MessageSquare className="w-6 h-6 text-(--accent-fg)" />
         <div>
           <h2 className="text-lg font-semibold text-garage-text">{t('discord.misc.title')}</h2>
           <p className="text-sm text-garage-text-muted">{t('discord.misc.subtitle')}</p>
@@ -90,7 +90,7 @@ export function DiscordConfig({
                 href="https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-(--accent-fg) hover:underline"
               >
                 {t('discord.misc.docsLink')} <ExternalLink className="w-3 h-3" />
               </a>

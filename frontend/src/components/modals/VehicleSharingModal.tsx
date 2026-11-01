@@ -160,7 +160,7 @@ export default function VehicleSharingModal({
       <p className="text-sm text-garage-text-muted -mt-1 mb-4">{vehicleNickname}</p>
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
+          <Loader2 className="w-6 h-6 text-(--accent-fg) animate-spin" />
         </div>
       ) : (
         <div className="space-y-6">

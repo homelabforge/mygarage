@@ -166,7 +166,7 @@ export function EventNotificationsCard({
   return (
     <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
       <div className="flex items-center gap-3 mb-4">
-        <Bell className="w-6 h-6 text-primary" />
+        <Bell className="w-6 h-6 text-(--accent-fg)" />
         <div>
           <h2 className="text-lg font-semibold text-garage-text">{t('events.title')}</h2>
           <p className="text-sm text-garage-text-muted">{t('events.card.subtitle')}</p>

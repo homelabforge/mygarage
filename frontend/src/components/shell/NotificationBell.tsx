@@ -127,7 +127,7 @@ export default function NotificationBell() {
               <button
                 type="button"
                 onClick={dismissAll}
-                className="text-xs text-primary hover:underline"
+                className="text-xs text-(--accent-fg) hover:underline"
               >
                 {t('notificationsDismissAll')}
               </button>
@@ -163,7 +163,7 @@ export default function NotificationBell() {
                     <Link
                       to={item.href}
                       onClick={() => setOpen(false)}
-                      className="block text-sm font-medium text-text hover:text-primary truncate"
+                      className="block text-sm font-medium text-text hover:text-(--accent-fg) truncate"
                     >
                       {item.title}
                     </Link>

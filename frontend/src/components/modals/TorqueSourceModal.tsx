@@ -153,7 +153,7 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            <Loader2 className="w-6 h-6 text-(--accent-fg) animate-spin" />
           </div>
         ) : (
           <>

@@ -155,7 +155,7 @@ export default function SettingsFilesTab(): React.ReactElement {
         {/* Upload limits and storage, read-only */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid mb-6">
           <div className="flex items-start gap-3 mb-6">
-            <HardDrive className="w-6 h-6 text-primary mt-1" />
+            <HardDrive className="w-6 h-6 text-(--accent-fg) mt-1" />
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-garage-text mb-2">{t('files.title')}</h2>
               <p className="text-sm text-garage-text-muted">
@@ -212,7 +212,7 @@ export default function SettingsFilesTab(): React.ReactElement {
                 <div className="bg-garage-bg rounded-lg p-4 space-y-3">
                   {directories.map((dir) => (
                     <div key={dir.label} className="flex items-center gap-3">
-                      <HardDrive className="w-5 h-5 text-primary" />
+                      <HardDrive className="w-5 h-5 text-(--accent-fg)" />
                       <div className="flex-1">
                         <div className="flex justify-between items-center gap-3">
                           <span className="text-sm text-garage-text-muted">{dir.label}:</span>
@@ -230,7 +230,7 @@ export default function SettingsFilesTab(): React.ReactElement {
         {/* Window Sticker */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid mb-6">
           <div className="flex items-start gap-3 mb-6">
-            <FileText className="w-6 h-6 text-primary mt-1" />
+            <FileText className="w-6 h-6 text-(--accent-fg) mt-1" />
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-garage-text mb-2">{t('files.windowSticker')}</h2>
               <p className="text-sm text-garage-text-muted">

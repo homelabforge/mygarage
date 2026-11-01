@@ -541,7 +541,7 @@ function VehicleEditForm({
                         <button
                           type="button"
                           onClick={clearDefTracking}
-                          className="cursor-pointer text-xs text-primary hover:underline"
+                          className="cursor-pointer text-xs text-(--accent-fg) hover:underline"
                         >
                           {t('edit.clearDefTankCapacity')}
                         </button>

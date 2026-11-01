@@ -155,7 +155,7 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
         <ul className="space-y-2">
           {towed.map((tr) => (
             <li key={tr.vin}>
-              <Link className="text-primary hover:underline font-medium" to={`/vehicles/${tr.vin}`}>
+              <Link className="text-(--accent-fg) hover:underline font-medium" to={`/vehicles/${tr.vin}`}>
                 {tr.nickname}
               </Link>
               <span className="text-xs text-text-mute ml-2 font-mono">{tr.vin}</span>
@@ -191,7 +191,7 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
               // Mirrors the Linked Trailers card: name is the link, VIN beside it.
               <p className="mt-1">
                 <Link
-                  className="font-medium text-primary hover:underline"
+                  className="font-medium text-(--accent-fg) hover:underline"
                   to={`/vehicles/${towVehicle.vin}`}
                 >
                   {towVehicle.nickname}

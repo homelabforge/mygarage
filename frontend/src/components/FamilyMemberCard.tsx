@@ -217,7 +217,7 @@ export default function FamilyMemberCard({
               </span>
             )}
             {showActions && user?.is_admin && (
-              <span className="px-2 py-0.5 text-xs bg-primary/20 text-primary rounded">
+              <span className="px-2 py-0.5 text-xs bg-primary/20 text-(--accent-fg) rounded">
                 {t('admin')}
               </span>
             )}

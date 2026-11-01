@@ -38,7 +38,7 @@ function SettingsContent() {
       <div className="bg-garage-surface border-b border-garage-border">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center gap-3">
-            <SettingsIcon className="w-8 h-8 text-primary" />
+            <SettingsIcon className="w-8 h-8 text-(--accent-fg)" />
             <div>
               <h1 className="text-3xl font-bold text-garage-text">{t('title')}</h1>
               <p className="text-sm text-garage-text-muted">{t('subtitle')}</p>

@@ -233,7 +233,7 @@ export default function VendorSearch({
                     setShowCreateForm(true)
                     setNewVendorName(query)
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-primary hover:bg-garage-bg flex items-center gap-2"
+                  className="w-full px-4 py-2 text-left text-sm text-(--accent-fg) hover:bg-garage-bg flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
                   {/* ``query`` is user-entered — interpolated, never a key. */}

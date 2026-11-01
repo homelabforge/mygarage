@@ -1022,7 +1022,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
           {!isEdit && llmReceiptEnabled && (
             <div className="rounded-lg border border-garage-border bg-garage-bg/40 p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
+                <Sparkles className="w-4 h-4 text-(--accent-fg)" />
                 <h4 className="text-sm font-semibold text-garage-text">{t('fuel.parseReceipt')}</h4>
               </div>
               <p className="text-xs text-garage-text-muted">{t('fuel.parseReceiptHint')}</p>

@@ -100,7 +100,7 @@ export default function Register() {
                 ? t('registerPage.successAdminRedirect')
                 : t('registerPage.successRedirect')}
             </p>
-            <Loader className="w-6 h-6 animate-spin text-primary mx-auto" />
+            <Loader className="w-6 h-6 animate-spin text-(--accent-fg) mx-auto" />
           </div>
         </div>
       </div>
@@ -124,7 +124,7 @@ export default function Register() {
       footerExtra={
         <div className="mt-6 text-center text-sm text-garage-text-muted">
           {t('register.hasAccount')}{' '}
-          <Link to="/login" className="text-primary hover:underline font-medium">
+          <Link to="/login" className="text-(--accent-fg) hover:underline font-medium">
             {t('register.loginLink')}
           </Link>
         </div>

@@ -79,7 +79,7 @@ export default function SupplyUsedPicker({
           type="button"
           onClick={handleAddRow}
           disabled={disabled || addableSupplies.length === 0}
-          className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-1 text-sm text-(--accent-fg) hover:text-(--accent-fg)/80 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-3.5 h-3.5" />
           {t('service.suppliesAddRow')}

@@ -396,7 +396,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
           {/* Header */}
           <div className="p-6 border-b border-garage-border flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
-              <Users className="w-6 h-6 text-primary" />
+              <Users className="w-6 h-6 text-(--accent-fg)" />
               <div>
                 <h2 className="text-2xl font-bold text-garage-text">{t('modal.familyManagement')}</h2>
                 <p className="text-sm text-garage-text-muted">
@@ -413,7 +413,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
           <div className="flex-1 overflow-y-auto p-6">
             {loading ? (
               <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                <Loader2 className="w-8 h-8 text-(--accent-fg) animate-spin" />
               </div>
             ) : (
               <div className="space-y-6">
@@ -422,7 +422,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                   <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-primary/20 rounded-lg">
-                        <Users className="w-5 h-5 text-primary" />
+                        <Users className="w-5 h-5 text-(--accent-fg)" />
                       </div>
                       <div>
                         <p className="text-2xl font-bold text-garage-text">{totalMembers}</p>
@@ -484,7 +484,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                         type="checkbox"
                         checked={isSettingOn(multiUserEnabled)}
                         onChange={(e) => void handleMultiUserToggle(e.target.checked)}
-                        className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
+                        className="w-4 h-4 accent-(--accent-solid) bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
                       />
                       <span className="text-sm font-medium text-garage-text">
                         {t('familyManagementModal.multiUserMode')}

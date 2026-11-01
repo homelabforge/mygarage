@@ -148,7 +148,7 @@ export default function GeneralSettingsDrawer({ open, onClose, onChanged }: Prop
         </div>
       ) : !settings || !draft ? (
         <div className="flex items-center justify-center py-12">
-          <RefreshCw aria-hidden="true" className="w-8 h-8 text-primary animate-spin" />
+          <RefreshCw aria-hidden="true" className="w-8 h-8 text-(--accent-fg) animate-spin" />
         </div>
       ) : (
         <div className="space-y-6">
@@ -164,7 +164,7 @@ export default function GeneralSettingsDrawer({ open, onClose, onChanged }: Prop
 
           <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
             <div className="flex items-center gap-2 mb-4">
-              <Database aria-hidden="true" className="w-5 h-5 text-primary" />
+              <Database aria-hidden="true" className="w-5 h-5 text-(--accent-fg)" />
               <h3 className="text-lg font-semibold text-garage-text">{t('modal.dataRetention')}</h3>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -204,7 +204,7 @@ export default function GeneralSettingsDrawer({ open, onClose, onChanged }: Prop
 
           <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
             <div className="flex items-center gap-2 mb-4">
-              <Bell aria-hidden="true" className="w-5 h-5 text-primary" />
+              <Bell aria-hidden="true" className="w-5 h-5 text-(--accent-fg)" />
               <h3 className="text-lg font-semibold text-garage-text">
                 {t('modal.livelink.alertsNotifications')}
               </h3>

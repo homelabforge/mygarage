@@ -29,7 +29,7 @@ export function TelegramConfig({
   return (
     <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
       <div className="flex items-center gap-3 mb-6">
-        <AtSign className="w-6 h-6 text-primary" />
+        <AtSign className="w-6 h-6 text-(--accent-fg)" />
         <div>
           <h2 className="text-lg font-semibold text-garage-text">{t('telegram.misc.title')}</h2>
           <p className="text-sm text-garage-text-muted">{t('telegram.misc.subtitle')}</p>
@@ -112,7 +112,7 @@ export function TelegramConfig({
                 href="https://core.telegram.org/bots"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline"
+                className="inline-flex items-center gap-1 text-(--accent-fg) hover:underline"
               >
                 {t('telegram.misc.docsLink')} <ExternalLink className="w-3 h-3" />
               </a>
@@ -124,7 +124,7 @@ export function TelegramConfig({
         <section aria-labelledby="telegram-fuel-heading" className="pt-4 border-t border-garage-border space-y-3">
           <div>
             <h3 id="telegram-fuel-heading" className="flex items-center gap-2 text-sm font-semibold text-garage-text">
-              <Fuel aria-hidden="true" className="w-4 h-4 text-primary" />
+              <Fuel aria-hidden="true" className="w-4 h-4 text-(--accent-fg)" />
               {t('telegram.fuel.title')}
             </h3>
             <p className="mt-1 text-sm text-garage-text-muted">{t('telegram.fuel.description')}</p>

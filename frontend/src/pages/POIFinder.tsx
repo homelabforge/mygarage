@@ -277,7 +277,7 @@ export default function POIFinder() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-3 bg-primary/10 rounded-full">
-            <MapPin className="w-8 h-8 text-primary" />
+            <MapPin className="w-8 h-8 text-(--accent-fg)" />
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-3xl font-bold text-garage-text">{t('poiFinder.title')}</h1>
@@ -429,7 +429,7 @@ export default function POIFinder() {
       {/* Step 2: Searching */}
       {step === 'searching' && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-12 text-center">
-          <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-(--accent-fg) animate-spin mx-auto mb-4" />
           <p className="text-lg text-garage-text">{t('poiFinder.searching')}</p>
           <p className="text-sm text-garage-text-muted mt-2">
             {t('poiFinder.searchingHint')}

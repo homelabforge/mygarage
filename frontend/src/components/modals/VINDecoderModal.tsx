@@ -32,7 +32,7 @@ export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProp
         {/* Header */}
         <div className="p-6 border-b border-garage-border flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
-            <Search className="w-6 h-6 text-primary" />
+            <Search className="w-6 h-6 text-(--accent-fg)" />
             <div>
               <h2 className="text-xl font-bold text-garage-text">{t('modal.vinDecoder')}</h2>
               <p className="text-sm text-garage-text-muted">
@@ -72,7 +72,7 @@ export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProp
                   onClick={() => setVin(example.vin)}
                   className="block w-full text-left px-4 py-2 rounded-lg bg-garage-surface border border-garage-border hover:border-primary/50 transition-colors"
                 >
-                  <div className="font-mono text-primary">{example.vin}</div>
+                  <div className="font-mono text-(--accent-fg)">{example.vin}</div>
                   <div className="text-sm text-garage-text-muted">{example.desc}</div>
                 </button>
               ))}

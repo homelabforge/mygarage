@@ -213,14 +213,14 @@ export default function Supplies() {
       <button
         type="button"
         onClick={() => setHistoryTarget({ supply, initialForm: 'purchase' })}
-        className="text-xs text-primary hover:underline"
+        className="text-xs text-(--accent-fg) hover:underline"
       >
         {t('supplies.history.logPurchase')}
       </button>
       <button
         type="button"
         onClick={() => setHistoryTarget({ supply, initialForm: 'adjustment' })}
-        className="text-xs text-primary hover:underline"
+        className="text-xs text-(--accent-fg) hover:underline"
       >
         {t('supplies.history.logAdjustment')}
       </button>
@@ -231,7 +231,7 @@ export default function Supplies() {
     <>
       <button
         onClick={() => setHistoryTarget({ supply })}
-        className="text-garage-text-muted hover:text-primary transition-colors"
+        className="text-garage-text-muted hover:text-(--accent-fg) transition-colors"
         aria-label={t('supplies.viewHistory')}
         title={t('supplies.viewHistory')}
       >
@@ -239,7 +239,7 @@ export default function Supplies() {
       </button>
       <button
         onClick={() => handleEditClick(supply)}
-        className="text-garage-text-muted hover:text-primary transition-colors"
+        className="text-garage-text-muted hover:text-(--accent-fg) transition-colors"
         aria-label={t('common:edit')}
         title={t('common:edit')}
       >
@@ -404,7 +404,7 @@ export default function Supplies() {
         {anyFilterActive && (
           <div className="flex items-center gap-3 mb-4 text-sm text-garage-text-muted">
             <span>{t('supplies.showingResults', { shown: visible.length, total: supplies.length })}</span>
-            <button type="button" onClick={clearFilters} className="text-primary hover:underline">
+            <button type="button" onClick={clearFilters} className="text-(--accent-fg) hover:underline">
               {t('supplies.clearFilters')}
             </button>
           </div>
@@ -513,7 +513,7 @@ export default function Supplies() {
 
                           <div className="space-y-2 text-sm">
                             {supply.category && (
-                              <div className="inline-block px-2 py-1 bg-primary/10 text-primary rounded text-xs">
+                              <div className="inline-block px-2 py-1 bg-primary/10 text-(--accent-fg) rounded text-xs">
                                 {supply.category}
                               </div>
                             )}

@@ -262,7 +262,7 @@ function PurchaseRow({ entry, supply, unit }: LedgerRowProps) {
               type="button"
               onClick={handleDownload}
               disabled={downloading}
-              className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-1.5 text-(--accent-fg) hover:bg-primary/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label={t('supplies.history.downloadReceipt')}
               title={t('supplies.history.downloadReceipt')}
             >
@@ -291,7 +291,7 @@ function PurchaseRow({ entry, supply, unit }: LedgerRowProps) {
             />
             <label
               htmlFor={inputId}
-              className="p-1.5 text-garage-text-muted hover:text-primary rounded transition-colors cursor-pointer"
+              className="p-1.5 text-garage-text-muted hover:text-(--accent-fg) rounded transition-colors cursor-pointer"
               aria-label={t('supplies.history.chooseReceipt')}
               title={t('supplies.history.chooseReceipt')}
             >

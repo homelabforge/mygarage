@@ -9,8 +9,14 @@ import {
   type AccentRoles,
 } from '../constants/accents'
 
-/** Surface colours the accent roles are judged against, per theme. */
+/** Surface colours the accent roles are judged against, per theme (index.css). */
 const SURFACE = { dark: '#0f1319', light: '#ffffff' } as const
+
+// Every page/card surface accent text can sit on, plus the bg-primary/20 chip
+// tint over the card surface (the darkest tint chips use).
+const LIGHT_SURFACES = ['#ffffff', '#f6f8fb', '#f1f4f9', '#eef1f6'] as const
+const DARK_SURFACES = ['#07090c', '#0f1319', '#141922', '#12161d'] as const
+const CHIP_TINT_ALPHA = 0.2
 
 /** Fixed status colours (design §4.9) — accents must stay distinguishable. */
 const STATUS = [
@@ -47,6 +53,14 @@ function contrastRatio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05)
 }
 
+/** `fg` at `alpha` over an opaque `bg`, per sRGB channel, as the browser composites it. */
+function composite(fg: string, bg: string, alpha: number): string {
+  const f = parseHex(fg)
+  const b = parseHex(bg)
+  return '#' + f.map((c, i) => Math.round(alpha * c + (1 - alpha) * b[i])
+    .toString(16).padStart(2, '0')).join('')
+}
+
 /** Crude perceptual distance in sRGB. Good enough to catch "identical". */
 function colourDistance(a: string, b: string): number {
   const [ar, ag, ab] = parseHex(a)
@@ -69,16 +83,24 @@ describe('accent roles', () => {
         .toBeGreaterThanOrEqual(4.5)
     })
 
-    it('has readable accent text on the dark surface (3:1 — large/semibold UI text)', () => {
-      const ratio = contrastRatio(roles.fgDark, SURFACE.dark)
-      expect(ratio, `${key}: fgDark ${roles.fgDark} on ${SURFACE.dark} = ${ratio.toFixed(2)}:1`)
-        .toBeGreaterThanOrEqual(3)
+    // --accent-fg is body-size text (links, stat values, chip labels), so it
+    // needs the full 4.5:1, chip tints included.
+    it.each([
+      ...DARK_SURFACES,
+      composite(roles.accent, SURFACE.dark, CHIP_TINT_ALPHA),
+    ])('has readable accent text in dark mode on %s (4.5:1)', (bg) => {
+      const ratio = contrastRatio(roles.fgDark, bg)
+      expect(ratio, `${key}: fgDark ${roles.fgDark} on ${bg} = ${ratio.toFixed(2)}:1`)
+        .toBeGreaterThanOrEqual(4.5)
     })
 
-    it('has readable accent text on the light surface (3:1)', () => {
-      const ratio = contrastRatio(roles.fgLight, SURFACE.light)
-      expect(ratio, `${key}: fgLight ${roles.fgLight} on ${SURFACE.light} = ${ratio.toFixed(2)}:1`)
-        .toBeGreaterThanOrEqual(3)
+    it.each([
+      ...LIGHT_SURFACES,
+      composite(roles.accent, SURFACE.light, CHIP_TINT_ALPHA),
+    ])('has readable accent text in light mode on %s (4.5:1)', (bg) => {
+      const ratio = contrastRatio(roles.fgLight, bg)
+      expect(ratio, `${key}: fgLight ${roles.fgLight} on ${bg} = ${ratio.toFixed(2)}:1`)
+        .toBeGreaterThanOrEqual(4.5)
     })
 
     it.each(STATUS)('stays perceptually distinct from status colour %s', (status) => {

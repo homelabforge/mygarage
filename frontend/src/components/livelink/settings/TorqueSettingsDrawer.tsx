@@ -125,7 +125,7 @@ export default function TorqueSettingsDrawer({ open, tab, onClose, onChanged }: 
         </div>
       ) : !devices ? (
         <div className="flex items-center justify-center py-12">
-          <RefreshCw aria-hidden="true" className="w-8 h-8 text-primary animate-spin" />
+          <RefreshCw aria-hidden="true" className="w-8 h-8 text-(--accent-fg) animate-spin" />
         </div>
       ) : (
         <div className="space-y-6">

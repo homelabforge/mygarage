@@ -238,13 +238,13 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
         </div>
       ) : !settings || !devices ? (
         <div className="flex items-center justify-center py-12">
-          <RefreshCw aria-hidden="true" className="w-8 h-8 text-primary animate-spin" />
+          <RefreshCw aria-hidden="true" className="w-8 h-8 text-(--accent-fg) animate-spin" />
         </div>
       ) : (
         <div className="space-y-6">
           <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
             <div className="flex items-center gap-2 mb-4">
-              <Link2 aria-hidden="true" className="w-5 h-5 text-primary" />
+              <Link2 aria-hidden="true" className="w-5 h-5 text-(--accent-fg)" />
               <h3 className="text-lg font-semibold text-garage-text">{t('modal.connection')}</h3>
             </div>
             <div className="space-y-4">
@@ -351,7 +351,7 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
 
           <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
             <div className="flex items-center gap-2 mb-4">
-              <Cpu aria-hidden="true" className="w-5 h-5 text-primary" />
+              <Cpu aria-hidden="true" className="w-5 h-5 text-(--accent-fg)" />
               <h3 className="text-lg font-semibold text-garage-text">{t('modal.devices')}</h3>
             </div>
             <NoMovementSignalNotice devices={devices} />
@@ -373,7 +373,7 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
 
           <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
             <div className="flex items-center gap-2 mb-4">
-              <Settings aria-hidden="true" className="w-5 h-5 text-primary" />
+              <Settings aria-hidden="true" className="w-5 h-5 text-(--accent-fg)" />
               <h3 className="text-lg font-semibold text-garage-text">{t('modal.livelink.firmwareUpdates')}</h3>
             </div>
             <div className="space-y-4">

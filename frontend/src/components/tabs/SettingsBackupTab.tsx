@@ -330,7 +330,7 @@ export default function SettingsBackupTab() {
         {/* ========== SECTION 1: SETTINGS BACKUP ========== */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
         <div className="flex items-start gap-3 mb-6">
-          <FileJson className="w-6 h-6 text-primary mt-1" />
+          <FileJson className="w-6 h-6 text-(--accent-fg) mt-1" />
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-garage-text mb-2">{t('backup.settingsBackup')}</h2>
             <p className="text-sm text-garage-text-muted">
@@ -347,14 +347,14 @@ export default function SettingsBackupTab() {
                 <Database className="w-4 h-4" />
                 <span className="text-sm font-medium">{t('backup.databaseSize')}</span>
               </div>
-              <p className="text-2xl font-bold text-primary">{stats.database.size_mb} MB</p>
+              <p className="text-2xl font-bold text-(--accent-fg)">{stats.database.size_mb} MB</p>
             </div>
             <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
               <div className="flex items-center gap-2 text-garage-text-muted mb-2">
                 <FileJson className="w-4 h-4" />
                 <span className="text-sm font-medium">{t('backup.settingsBackups')}</span>
               </div>
-              <p className="text-2xl font-bold text-primary">{stats.settings_backups.count}</p>
+              <p className="text-2xl font-bold text-(--accent-fg)">{stats.settings_backups.count}</p>
               <p className="text-xs text-garage-text-muted mt-1">
                 {t('backupTab.totalSize', { size: formatSize(stats.settings_backups.total_size_mb) })}
               </p>
@@ -364,7 +364,7 @@ export default function SettingsBackupTab() {
                 <Database className="w-4 h-4" />
                 <span className="text-sm font-medium">{t('backup.lastModified')}</span>
               </div>
-              <p className="text-sm font-bold text-primary">
+              <p className="text-sm font-bold text-(--accent-fg)">
                 {stats.database.last_modified ? formatDate(stats.database.last_modified) : t('backup.never')}
               </p>
             </div>
@@ -426,7 +426,7 @@ export default function SettingsBackupTab() {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleDownload(backup.filename)}
-                          className="p-1 text-primary hover:bg-primary/10 rounded"
+                          className="p-1 text-(--accent-fg) hover:bg-primary/10 rounded"
                           title={t('backup.download')}
                         >
                           <Download size={16} />
@@ -582,7 +582,7 @@ export default function SettingsBackupTab() {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleDownload(backup.filename)}
-                          className="p-1 text-primary hover:bg-primary/10 rounded"
+                          className="p-1 text-(--accent-fg) hover:bg-primary/10 rounded"
                           title={t('backup.download')}
                         >
                           <Download size={16} />
