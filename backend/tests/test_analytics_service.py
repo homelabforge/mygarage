@@ -1014,6 +1014,32 @@ class TestCalculatePropaneCosts:
         assert len(result["monthly_trend"]) == 1
         assert result["tank_breakdown"]["9"]["refill_count"] == 1
 
+    def test_record_count_leaves_out_a_refill_with_no_cost(self):
+        """record_count is the refills the totals came from: a $0 one counts, an uncosted one doesn't (R1)."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), Decimal("30.00")),
+            self._bottle(2, date(2024, 2, 10), Decimal("0.00")),
+            self._bottle(3, date(2024, 3, 10), None),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["record_count"] == 2
+        assert result["record_count"] == len(result["tank_timeline"])
+
+    def test_record_count_is_zero_when_no_refill_has_a_cost(self):
+        """Guard: refills with no cost at all leave nothing to count, same as the empty case."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), None),
+            self._bottle(2, date(2024, 2, 10), None),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["record_count"] == 0
+        assert result["total_liters"] == Decimal("0.00")
+        assert result["tank_timeline"] == []
+
 
 def _make_line_item(**kwargs):
     """Create a mock ServiceLineItem-like object with sensible defaults."""
