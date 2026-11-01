@@ -12,12 +12,7 @@ import HttpBackend from 'i18next-http-backend'
 import { withBase } from './utils/basePath'
 
 // Canonical English translations — bundled at build time via Vite import
-import commonEn from './locales/en/common.json'
-import navEn from './locales/en/nav.json'
-import settingsEn from './locales/en/settings.json'
-import vehiclesEn from './locales/en/vehicles.json'
-import formsEn from './locales/en/forms.json'
-import analyticsEn from './locales/en/analytics.json'
+import { EN_RESOURCES, NAMESPACES } from './locales/enResources'
 
 declare const APP_VERSION: string
 
@@ -27,16 +22,7 @@ i18n
   .use(initReactI18next)
   .init({
     // Bundled English — no network request needed
-    resources: {
-      en: {
-        common: commonEn,
-        nav: navEn,
-        settings: settingsEn,
-        vehicles: vehiclesEn,
-        forms: formsEn,
-        analytics: analyticsEn,
-      },
-    },
+    resources: { en: EN_RESOURCES },
 
     // currentOnly keeps explicitly-supported region tags (pt-BR) while base-tag
     // browsers (e.g. pl-PL) still resolve to their base (pl) via supportedLngs,
@@ -45,7 +31,7 @@ i18n
     supportedLngs: ['en', 'fr', 'pl', 'uk', 'ru', 'pt-BR', 'de', 'ms', 'it'],
     fallbackLng: 'en',
     defaultNS: 'common',
-    ns: ['common', 'nav', 'settings', 'vehicles', 'forms', 'analytics'],
+    ns: NAMESPACES,
 
     // Detection: localStorage first, then browser language
     detection: {
