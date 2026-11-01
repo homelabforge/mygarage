@@ -42,6 +42,12 @@ function groupingReading(text: string, locale: string): number | null {
 }
 
 /**
+ * The last number the form wrote into each registerDecimal field, per form.
+ * Keyed on `register`, which RHF keeps stable for the life of a form.
+ */
+const writtenNumbers = new WeakMap<object, Map<string, number>>()
+
+/**
  * Register a numeric field so the raw text is parsed with the locale-aware rule
  * instead of the browser's `valueAsNumber`.
  *
@@ -63,18 +69,41 @@ function groupingReading(text: string, locale: string): number | null {
  * (RHF skips `validateField` entirely whenever a `resolver` is configured),
  * so there's no case where passing them helps — better a compile error than
  * either dead code or a stack trace.
+ *
+ * A number the form writes (defaultValues, reset, setValue) lands in the box as
+ * `String(n)`, JS notation, so "1.234" in de is 1.234, not what a German typed.
+ * RHF hands setValueAs that number first, so it's remembered, and the box text
+ * reads back as it until the user actually changes it. Blurring an untouched
+ * edit field can't turn a 1.799 price into 1799 any more.
  */
 export function registerDecimal<T extends FieldValues>(
   register: UseFormRegister<T>,
   name: FieldPath<T>,
   options?: Omit<RegisterOptions<T, FieldPath<T>>, 'setValueAs' | 'valueAsNumber' | 'valueAsDate' | 'min' | 'max'>
 ): UseFormRegisterReturn {
+  let written = writtenNumbers.get(register)
+  if (written === undefined) {
+    written = new Map()
+    writtenNumbers.set(register, written)
+  }
+  const numbers = written
   return register(name, {
     ...options,
     setValueAs: (raw: unknown) => {
-      // Edit mode supplies a number from defaultValues; never re-parse it as text.
-      if (typeof raw === 'number') return raw
-      const result = parseDecimalInput(String(raw ?? ''), getActiveLocale())
+      // The form wrote a number (defaults, reset, setValue); never re-parse it as text.
+      if (typeof raw === 'number') {
+        numbers.set(name, raw)
+        return raw
+      }
+      const text = String(raw ?? '')
+      const number = numbers.get(name)
+      if (number !== undefined) {
+        // Still the text the form wrote, so it's still that number, in any language.
+        if (text === String(number)) return number
+        // The user changed it: from here on it's theirs, read in their locale.
+        numbers.delete(name)
+      }
+      const result = parseDecimalInput(text, getActiveLocale())
       if (result.kind === 'empty') return undefined
       if (result.kind === 'invalid') return INVALID_NUMBER
       // RHF keeps this until the next change or blur, read in the locale of that moment.

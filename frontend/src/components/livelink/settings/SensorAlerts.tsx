@@ -73,6 +73,9 @@ export default function SensorAlerts({ readings, sensorLabel, onSaved }: Props):
   const headingId = useId()
   const fieldIdPrefix = useId()
   const [drafts, setDrafts] = useState<Drafts>(() => draftsFor(readings))
+  // Fields the user changed. The rest hold the stored number as String(n), JS
+  // notation, so a de reader's "12.345" would read back as 12345 and block the save.
+  const [edited, setEdited] = useState<ReadonlySet<string>>(() => new Set())
   const [saveError, setSaveError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -83,6 +86,7 @@ export default function SensorAlerts({ readings, sensorLabel, onSaved }: Props):
   if (readings !== seen) {
     setSeen(readings)
     setDrafts(draftsFor(readings))
+    setEdited(new Set())
     setSaveError(null)
   }
 
@@ -90,10 +94,10 @@ export default function SensorAlerts({ readings, sensorLabel, onSaved }: Props):
     const lines = linesOf(reading)
     if (lines.length === 0) return []
 
-    const parsed = lines.map((line) => ({
-      line,
-      value: parseLine(drafts[draftKey(reading.param_key, line)] ?? ''),
-    }))
+    const parsed = lines.map((line) => {
+      const key = draftKey(reading.param_key, line)
+      return { line, value: edited.has(key) ? parseLine(drafts[key] ?? '') : (reading[FIELD[line]] ?? null) }
+    })
     let problem: string | null = null
     // Sent on save: only a valid change.
     let update: LiveLinkParameterUpdate | null = null
@@ -171,6 +175,7 @@ export default function SensorAlerts({ readings, sensorLabel, onSaved }: Props):
                       onChange={(e) => {
                         const text = e.target.value
                         setDrafts((current) => ({ ...current, [key]: text }))
+                        setEdited((current) => new Set(current).add(key))
                       }}
                     />
                   </div>

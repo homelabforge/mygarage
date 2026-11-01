@@ -458,3 +458,85 @@ describe('NumberInput hint across a language switch (R1-M1)', () => {
     expect(saved).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'value', value: 1234 }))
   })
 })
+
+describe('NumberInput: a number the form wrote stays that number (seeded decimal)', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  interface Seeded { amount?: number | typeof INVALID_NUMBER }
+
+  /** An edit form seeded with `seed`, plus buttons that reset and setValue it the way forms do. */
+  function SeededForm({ seed }: { seed?: number }): React.JSX.Element {
+    const { register, handleSubmit, reset, setValue } = useForm<Seeded>({ defaultValues: { amount: seed } })
+    return (
+      <form onSubmit={handleSubmit(v => onSubmit(v))}>
+        <label htmlFor="amount">Amount</label>
+        <NumberInput id="amount" {...registerDecimal(register, 'amount')} />
+        <button type="button" onClick={() => reset({ amount: 2.345 })}>Reset</button>
+        <button type="button" onClick={() => setValue('amount', 1.234)}>Fill</button>
+        <button type="submit">Save</button>
+      </form>
+    )
+  }
+
+  /** Focus the box and tab out without typing, which is when RHF re-reads it. */
+  async function passThrough(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(screen.getByLabelText('Amount'))
+    await user.tab()
+  }
+
+  it('de: a seeded 1.799 survives a focus and blur, and saves 1.799 with no hint', async () => {
+    setActiveLocale('de')
+    const user = userEvent.setup()
+    render(<SeededForm seed={1.799} />)
+    await passThrough(user)
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1.799 })
+  })
+
+  it('de: reset to 2.345, then a focus and blur, saves 2.345', async () => {
+    // 2.5 would read the same either way in de, so the reset value has the ambiguous shape.
+    setActiveLocale('de')
+    const user = userEvent.setup()
+    render(<SeededForm />)
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(screen.getByLabelText('Amount')).toHaveValue('2.345')
+    await passThrough(user)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 2.345 })
+  })
+
+  it('de: setValue(1.234), then a focus and blur, saves 1.234', async () => {
+    setActiveLocale('de')
+    const user = userEvent.setup()
+    render(<SeededForm />)
+    await user.click(screen.getByRole('button', { name: 'Fill' }))
+    await passThrough(user)
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1.234 })
+  })
+
+  it('de: typing "1.234" over a seed is the user\'s text, so it saves 1234 and says so (guard)', async () => {
+    // Guard: passes on main. Mutation: keep returning the seed for its text after the user changed the box.
+    setActiveLocale('de')
+    const user = userEvent.setup()
+    render(<SeededForm seed={1.234} />)
+    const input = screen.getByLabelText('Amount')
+    await user.clear(input)
+    await user.type(input, '1.234')
+    await user.tab()
+    expect(screen.getByText('Read as 1.234')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1234 })
+  })
+
+  it('en: a seeded 1.799 still saves 1.799 after a focus and blur (guard)', async () => {
+    // Guard: passes on main, where en reads the dot as a decimal anyway.
+    const user = userEvent.setup()
+    render(<SeededForm seed={1.799} />)
+    await passThrough(user)
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1.799 })
+  })
+})
