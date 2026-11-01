@@ -41,6 +41,11 @@ export default function VendorSearch({
   const [creating, setCreating] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const clearRef = useRef<HTMLButtonElement>(null)
+  // A pick unmounts the focused search box, so focus goes to the clear button that
+  // replaces it instead of falling to the page. Only picks: a vendor loaded from the
+  // saved value mustn't grab focus.
+  const focusClearRef = useRef(false)
   // Every search takes a number and a stale one is dropped, so a slow answer for
   // old text can't land over the newer one.
   const requestIdRef = useRef(0)
@@ -109,7 +114,14 @@ export default function VendorSearch({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    if (!selectedVendor || !focusClearRef.current) return
+    focusClearRef.current = false
+    clearRef.current?.focus()
+  }, [selectedVendor])
+
   const handleSelect = (vendor: Vendor) => {
+    focusClearRef.current = true
     setSelectedVendor(vendor)
     setQuery('')
     setIsOpen(false)
@@ -165,6 +177,7 @@ export default function VendorSearch({
 
   const combobox = useCombobox({
     id,
+    inputValue: query,
     open: panelOpen,
     count: showResults ? vendors.length + (showCreateOption ? 1 : 0) : 0,
     onSelect: (index) => (index < vendors.length ? handleSelect(vendors[index]) : openCreateForm()),
@@ -192,6 +205,7 @@ export default function VendorSearch({
           <Building2 className="w-4 h-4 text-garage-text-muted" />
           <span className="flex-1 text-garage-text">{selectedVendor.name}</span>
           <button
+            ref={clearRef}
             type="button"
             onClick={handleClear}
             disabled={disabled}

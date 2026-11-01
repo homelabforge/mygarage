@@ -95,6 +95,7 @@ export default function LineItemEditor({
     showSuggestions && !!item.category && visibleSuggestions.length > 0 && item.description.length < 50
   const descriptionBox = useCombobox({
     id: `line-item-${index}-description`,
+    inputValue: item.description,
     open: suggestionsOpen,
     count: visibleSuggestions.length,
     onSelect: (i) => {

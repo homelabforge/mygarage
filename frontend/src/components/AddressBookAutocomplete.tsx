@@ -200,6 +200,7 @@ export default function AddressBookAutocomplete({
 
   const combobox = useCombobox({
     id,
+    inputValue: value,
     open: showDropdown,
     count: optionCount,
     onSelect: (index) => (index < entries.length ? handleSelectEntry(entries[index]) : handleAddNew()),

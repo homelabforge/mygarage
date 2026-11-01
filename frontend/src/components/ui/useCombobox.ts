@@ -3,6 +3,8 @@ import { useEffect, useId, useState, type KeyboardEvent, type MouseEvent } from 
 interface UseComboboxOptions {
   /** The input's id. Pass the one a label's htmlFor points at; otherwise one is made. */
   id?: string
+  /** What's in the box. A change drops the highlight, since the rows under it moved. */
+  inputValue: string
   /** The panel under the box is showing at all: options, a searching row or an empty state.
    *  Escape closes it. */
   open: boolean
@@ -57,7 +59,15 @@ interface Combobox {
  * picks the active option, Escape closes the panel. Enter with the list showing never
  * submits the form, so a half-typed name can't save it.
  */
-export function useCombobox({ id, open, count, onSelect, onClose, onOpen }: UseComboboxOptions): Combobox {
+export function useCombobox({
+  id,
+  inputValue,
+  open,
+  count,
+  onSelect,
+  onClose,
+  onOpen,
+}: UseComboboxOptions): Combobox {
   const baseId = useId()
   const inputId = id ?? `${baseId}-input`
   const listId = `${baseId}-listbox`
@@ -65,10 +75,12 @@ export function useCombobox({ id, open, count, onSelect, onClose, onOpen }: UseC
 
   const expanded = open && count > 0
   const [active, setActive] = useState(-1)
-  // A collapse or reopen starts again from the box, not the row picked last time.
-  const [wasExpanded, setWasExpanded] = useState(expanded)
-  if (wasExpanded !== expanded) {
-    setWasExpanded(expanded)
+  // A collapse, a reopen or new text starts again from the box. Option ids go by
+  // position, so a highlight kept through typing would sit on whatever row slid under
+  // it, and the screen reader wouldn't hear the swap.
+  const [seen, setSeen] = useState({ expanded, inputValue })
+  if (seen.expanded !== expanded || seen.inputValue !== inputValue) {
+    setSeen({ expanded, inputValue })
     setActive(-1)
   }
   const activeIndex = expanded && active < count ? active : -1

@@ -75,6 +75,45 @@ describe('LineItemEditor description suggestions (G-4)', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
+  it('typing drops the highlight, so Enter never picks a row nobody heard', () => {
+    // The list stays open while the filter still matches and option ids go by position, so
+    // the old highlight sat on whatever row slid under it, unannounced.
+    const { rerender } = render(
+      <LineItemEditor
+        item={item}
+        index={0}
+        vin="V1"
+        supplies={[]}
+        unitsBySupplyId={new Map()}
+        failedInspections={[]}
+        onChange={onChange}
+        onRemove={vi.fn()}
+        categories={['Maintenance']}
+      />
+    )
+    fireEvent.focus(description())
+    fireEvent.keyDown(description(), { key: 'ArrowDown' })
+    fireEvent.keyDown(description(), { key: 'ArrowDown' })
+    expect(description()).toHaveAttribute('aria-activedescendant')
+    rerender(
+      <LineItemEditor
+        item={{ ...item, description: 'o' }}
+        index={0}
+        vin="V1"
+        supplies={[]}
+        unitsBySupplyId={new Map()}
+        failedInspections={[]}
+        onChange={onChange}
+        onRemove={vi.fn()}
+        categories={['Maintenance']}
+      />
+    )
+    expect(description()).toHaveAttribute('aria-expanded', 'true')
+    expect(description()).not.toHaveAttribute('aria-activedescendant')
+    fireEvent.keyDown(description(), { key: 'Enter' })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('the suggestions are out of the Tab order and close as soon as focus leaves', () => {
     // Tab went to the suggestion buttons, the 200 ms blur close pulled the list out from
     // under them, and focus fell to <body>.

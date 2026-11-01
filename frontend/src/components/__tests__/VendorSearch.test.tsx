@@ -112,6 +112,51 @@ describe('VendorSearch as a combobox (G-4)', () => {
     expect(screen.queryByText('Mavis')).not.toBeInTheDocument()
   })
 
+  it('a keyboard pick leaves focus on the clear button, not the page', async () => {
+    // The pick unmounted the focused search box and nothing caught focus, so it fell to <body>.
+    render(<VendorSearch id="vendor" onSelect={vi.fn()} />)
+    box().focus()
+    type('Ma')
+    await wait(300)
+    fireEvent.keyDown(box(), { key: 'ArrowDown' })
+    fireEvent.keyDown(box(), { key: 'Enter' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'vendorSearch.clear' }))
+  })
+
+  it('creating a vendor leaves focus on the clear button', async () => {
+    // Same drop as a pick: the new-vendor box unmounted under focus.
+    post.mockResolvedValue({ data: vendor(3, 'Ma Garage') })
+    render(<VendorSearch id="vendor" onSelect={vi.fn()} />)
+    type('Ma')
+    await wait(300)
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(box(), { key: 'ArrowDown' })
+    fireEvent.keyDown(box(), { key: 'Enter' })
+    const name = screen.getByRole('textbox', { name: 'vendorSearch.newVendorName' })
+    name.focus()
+    await act(async () => {
+      fireEvent.keyDown(name, { key: 'Enter' })
+    })
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'vendorSearch.clear' }))
+  })
+
+  it('a vendor loaded from the saved value does not take focus', async () => {
+    // Guard, passes before the fix: only a pick moves focus. Killed by the mutant that
+    // focuses the clear button whenever a vendor is set.
+    get.mockResolvedValueOnce({ data: MAVIS })
+    render(
+      <>
+        <input aria-label="elsewhere" />
+        <VendorSearch id="vendor" value={1} onSelect={vi.fn()} />
+      </>
+    )
+    const elsewhere = screen.getByRole('textbox', { name: 'elsewhere' })
+    elsewhere.focus()
+    await wait(0)
+    expect(screen.getByRole('button', { name: 'vendorSearch.clear' })).toBeInTheDocument()
+    expect(document.activeElement).toBe(elsewhere)
+  })
+
   it('the clear button has a name', async () => {
     // An X icon with no aria-label or title, read as an unnamed button.
     render(<VendorSearch id="vendor" onSelect={vi.fn()} />)
