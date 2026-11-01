@@ -46,6 +46,10 @@ export default function VendorSearch({
   // replaces it instead of falling to the page. Only picks: a vendor loaded from the
   // saved value mustn't grab focus.
   const focusClearRef = useRef(false)
+  // Same for a clear: the search box comes back a render later, so focus goes to it then.
+  const focusInputRef = useRef(false)
+  // The Create button disables itself while it posts; Enter in the name box checks this.
+  const creatingRef = useRef(false)
   // Every search takes a number and a stale one is dropped, so a slow answer for
   // old text can't land over the newer one.
   const requestIdRef = useRef(0)
@@ -120,6 +124,12 @@ export default function VendorSearch({
     clearRef.current?.focus()
   }, [selectedVendor])
 
+  useEffect(() => {
+    if (selectedVendor || !focusInputRef.current) return
+    focusInputRef.current = false
+    inputRef.current?.focus()
+  }, [selectedVendor])
+
   const handleSelect = (vendor: Vendor) => {
     focusClearRef.current = true
     setSelectedVendor(vendor)
@@ -129,10 +139,10 @@ export default function VendorSearch({
   }
 
   const handleClear = () => {
+    focusInputRef.current = true
     setSelectedVendor(null)
     setQuery('')
     onSelect(null)
-    inputRef.current?.focus()
   }
 
   const openCreateForm = (): void => {
@@ -146,11 +156,13 @@ export default function VendorSearch({
   }
 
   const handleCreateVendor = async () => {
+    if (creatingRef.current) return
     if (!newVendorName.trim()) {
       toast.error(t('vendorSearch.nameRequired'))
       return
     }
 
+    creatingRef.current = true
     setCreating(true)
     try {
       const payload: VendorCreate = { name: newVendorName.trim() }
@@ -164,6 +176,7 @@ export default function VendorSearch({
     } catch (err) {
       toast.error(getActionErrorMessage(err, t('vendorSearch.createAction')))
     } finally {
+      creatingRef.current = false
       setCreating(false)
     }
   }
@@ -209,7 +222,7 @@ export default function VendorSearch({
             type="button"
             onClick={handleClear}
             disabled={disabled}
-            aria-label={t('vendorSearch.clear')}
+            aria-label={t('vendorSearch.clearNamed', { name: selectedVendor.name })}
             className="p-1 text-garage-text-muted hover:text-garage-text rounded"
           >
             <X className="w-4 h-4" aria-hidden="true" />

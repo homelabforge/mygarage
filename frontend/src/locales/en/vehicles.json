@@ -1376,7 +1376,7 @@
     "nameRequired": "Vendor name is required",
     "createFailed": "Failed to create vendor",
     "createAction": "create the vendor",
-    "clear": "Clear vendor",
+    "clearNamed": "Clear vendor: {{name}}",
     "searchFailed": "Couldn't search vendors. Keep typing to try again."
   },
   "vinDemo": {

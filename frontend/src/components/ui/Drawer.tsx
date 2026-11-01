@@ -26,6 +26,10 @@ const WIDTH: Record<DrawerWidth, string> = {
  */
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+/** Initial focus tries these first: a box the user can type or pick in, so a
+ *  Revoke or Delete listed above the form never gets it. */
+const FORM_FIELD_SELECTOR =
+  'input:not([disabled]):not([readonly]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]):not([readonly])'
 /** Tab-trap only: also honours elements made focusable purely via tabindex. */
 const TAB_TRAP_SELECTOR = `${FOCUSABLE_SELECTOR}, [tabindex]:not([tabindex="-1"])`
 
@@ -134,11 +138,11 @@ export default function Drawer({
 
   // onClose is held in a ref and deliberately NOT in the effect's dep array.
   // Every consumer passes an inline arrow, so its identity changes on every
-  // parent render; with [open, onClose] the effect tears down and re-runs on
-  // each keystroke in any controlled input, and its cleanup focuses
-  // restoreRef while its body focuses the first focusable node — so focus
-  // jumps to the Close button after every character typed in all 15 record
-  // forms. The gallery cannot catch this: its demo Input is uncontrolled.
+  // parent render; with [open, onClose] the open effect would tear down and
+  // re-run on each keystroke in any controlled input, and its cleanup focuses
+  // restoreRef, so focus would jump back to the trigger after every character
+  // typed in all 15 record forms. The gallery can't catch this: its demo Input
+  // is uncontrolled.
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
@@ -259,9 +263,12 @@ export default function Drawer({
     const body = bodyRef.current
     const panel = panelRef.current
     if (!body || !panel) return
-    // Body slot first, never the header's Close (Finding 1). The panel is
-    // the fallback so focus never drops to <body>; the footer never gets it.
-    const first = body.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    // Body slot first, never the header's Close (Finding 1): its first form
+    // field, else its first focusable. The panel is the fallback so focus
+    // never drops to <body>; the footer never gets it.
+    const target = (): HTMLElement | null =>
+      body.querySelector<HTMLElement>(FORM_FIELD_SELECTOR) ?? body.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    const first = target()
     if (first) {
       first.focus()
       return
@@ -271,7 +278,7 @@ export default function Drawer({
     // (or a disabled one comes alive), and only if focus is still parked on
     // the panel.
     const observer = new MutationObserver(() => {
-      const late = body.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+      const late = target()
       if (!late) return
       observer.disconnect()
       if (document.activeElement === panel) late.focus()

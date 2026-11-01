@@ -121,7 +121,28 @@ describe('LineItemEditor description suggestions (G-4)', () => {
     fireEvent.focus(description())
     const first = screen.getByText(OIL)
     expect(first).toHaveAttribute('tabindex', '-1')
+    // Tab hands focus to the next field.
+    fireEvent.blur(description(), { relatedTarget: screen.getByLabelText('lineItemEditor.cost') })
+    expect(screen.queryByText(OIL)).not.toBeInTheDocument()
+  })
+
+  it('a tap on a suggestion picks it, even when the box blurs before the click', () => {
+    // On a touch browser the box can blur between the tap's pointerdown and its click.
+    // The blur used to close the list, so the click landed on nothing.
+    renderEditor()
+    fireEvent.focus(description())
+    const oil = screen.getByText(OIL)
+    fireEvent.pointerDown(oil)
     fireEvent.blur(description())
+    fireEvent.click(oil)
+    expect(onChange).toHaveBeenCalledWith(0, 'description', OIL)
+  })
+
+  it('a pointerdown outside closes the suggestions', () => {
+    renderEditor()
+    fireEvent.focus(description())
+    expect(screen.getByText(OIL)).toBeInTheDocument()
+    fireEvent.pointerDown(screen.getByLabelText('lineItemEditor.cost'))
     expect(screen.queryByText(OIL)).not.toBeInTheDocument()
   })
 

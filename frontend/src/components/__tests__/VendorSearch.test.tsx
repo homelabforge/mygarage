@@ -120,7 +120,7 @@ describe('VendorSearch as a combobox (G-4)', () => {
     await wait(300)
     fireEvent.keyDown(box(), { key: 'ArrowDown' })
     fireEvent.keyDown(box(), { key: 'Enter' })
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'vendorSearch.clear' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'vendorSearch.clearNamed' }))
   })
 
   it('creating a vendor leaves focus on the clear button', async () => {
@@ -137,7 +137,7 @@ describe('VendorSearch as a combobox (G-4)', () => {
       fireEvent.keyDown(name, { key: 'Enter' })
     })
     expect(post).toHaveBeenCalledTimes(1)
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'vendorSearch.clear' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'vendorSearch.clearNamed' }))
   })
 
   it('a vendor loaded from the saved value does not take focus', async () => {
@@ -153,7 +153,7 @@ describe('VendorSearch as a combobox (G-4)', () => {
     const elsewhere = screen.getByRole('textbox', { name: 'elsewhere' })
     elsewhere.focus()
     await wait(0)
-    expect(screen.getByRole('button', { name: 'vendorSearch.clear' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'vendorSearch.clearNamed' })).toBeInTheDocument()
     expect(document.activeElement).toBe(elsewhere)
   })
 
@@ -163,7 +163,44 @@ describe('VendorSearch as a combobox (G-4)', () => {
     type('Ma')
     await wait(300)
     fireEvent.click(screen.getByText('Mavis'))
-    expect(screen.getByRole('button', { name: 'vendorSearch.clear' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'vendorSearch.clearNamed' })).toBeInTheDocument()
+  })
+})
+
+describe('VendorSearch: keyboard create and clear', () => {
+  it('Enter pressed again while a create is pending sends one POST', async () => {
+    // Enter skipped the lock the Create button has, so each press posted and the second hit a 409.
+    const pending = deferred<{ data: Vendor }>()
+    post.mockReturnValue(pending.promise)
+    render(<VendorSearch id="vendor" onSelect={vi.fn()} />)
+    type('Ma')
+    await wait(300)
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(box(), { key: 'ArrowDown' })
+    fireEvent.keyDown(box(), { key: 'Enter' })
+    const name = screen.getByRole('textbox', { name: 'vendorSearch.newVendorName' })
+    fireEvent.keyDown(name, { key: 'Enter' })
+    fireEvent.keyDown(name, { key: 'Enter' })
+    fireEvent.keyDown(name, { key: 'Enter' })
+    expect(post).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      pending.resolve({ data: vendor(3, 'Ma Garage') })
+    })
+    expect(post).toHaveBeenCalledTimes(1)
+  })
+
+  it('clearing a picked vendor from the keyboard leaves focus in the search box', async () => {
+    // The search box wasn't back yet when clear focused it, so focus fell to the page.
+    render(<VendorSearch id="vendor" onSelect={vi.fn()} />)
+    box().focus()
+    type('Ma')
+    await wait(300)
+    fireEvent.keyDown(box(), { key: 'ArrowDown' })
+    fireEvent.keyDown(box(), { key: 'Enter' })
+    const clear = screen.getByRole('button', { name: 'vendorSearch.clearNamed' })
+    expect(document.activeElement).toBe(clear)
+    // Enter on a focused button is a click.
+    fireEvent.click(clear)
+    expect(document.activeElement).toBe(box())
   })
 })
 

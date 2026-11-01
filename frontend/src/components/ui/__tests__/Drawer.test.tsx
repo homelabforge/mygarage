@@ -363,6 +363,67 @@ describe('Drawer: initial focus', () => {
   })
 })
 
+describe('Drawer: initial focus prefers a form field', () => {
+  // TorqueSourceModal lists its sources, each with a Revoke button, above the
+  // label box, so the first focusable was a destructive button.
+  function RevokeThenLabel(): ReactElement {
+    return (
+      <>
+        <button type="button">Revoke Pixel</button>
+        <input aria-label="Label" />
+      </>
+    )
+  }
+
+  function LateRevokeThenLabel(): ReactElement {
+    const [ready, setReady] = useState(false)
+    useEffect(() => {
+      const id = window.setTimeout(() => setReady(true), 20)
+      return () => window.clearTimeout(id)
+    }, [])
+    return ready ? <RevokeThenLabel /> : <p>Loading</p>
+  }
+
+  it('focuses the field, not a button that comes before it', () => {
+    render(
+      <Drawer open onClose={() => {}} title="Torque sources">
+        <RevokeThenLabel />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Label' }))
+  })
+
+  it('focuses the field when the body loads late', async () => {
+    render(
+      <Drawer open onClose={() => {}} title="Torque sources">
+        <LateRevokeThenLabel />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByTestId('drawer'))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Label' })))
+  })
+
+  it('skips a read-only box for a field the user can type in', () => {
+    render(
+      <Drawer open onClose={() => {}} title="Token">
+        <input aria-label="Token" readOnly value="tok" />
+        <input aria-label="Label" />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Label' }))
+  })
+
+  it('still lands on a button when the body has no field', () => {
+    // Guard: passes on main too. Drop the first-focusable fallback and focus stays on the panel.
+    render(
+      <Drawer open onClose={() => {}} title="More">
+        <button type="button">Contacts</button>
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Contacts' }))
+  })
+})
+
 describe('Drawer — background inertness', () => {
   function withRoot(): HTMLElement {
     let root = document.getElementById('root')

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Trash2, ChevronDown, ChevronUp, Clipboard, Wrench, Bell } from 'lucide-react'
 import type { ServiceVisitFormLineItem } from '../types/serviceVisit'
@@ -73,6 +73,7 @@ export default function LineItemEditor({
   const [costText, setCostText] = useState(() => (item.cost == null ? '' : String(item.cost)))
   const [expanded, setExpanded] = useState(true)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const descriptionWrapRef = useRef<HTMLDivElement>(null)
   // ★ The reminder draft's `interval_km` is canonical kilometres, converted
   // by RecurrenceFields through `units.distance` (a litres-and-miles account
   // typing 500 stores 804.672, not 500). The backend anchors the reminder on
@@ -105,6 +106,17 @@ export default function LineItemEditor({
     onClose: () => setShowSuggestions(false),
     onOpen: () => setShowSuggestions(true),
   })
+
+  // A press anywhere else closes the suggestions. A tap on one can blur the box
+  // before its click lands, so the blur itself only closes when focus went elsewhere.
+  useEffect(() => {
+    if (!showSuggestions) return
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (!descriptionWrapRef.current?.contains(event.target as Node)) setShowSuggestions(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [showSuggestions])
 
   const handleReminderToggle = (enabled: boolean) => {
     if (enabled) {
@@ -194,7 +206,7 @@ export default function LineItemEditor({
               />
             </div>
 
-            <div className="md:col-span-2 relative">
+            <div ref={descriptionWrapRef} className="md:col-span-2 relative">
               <label htmlFor={`line-item-${index}-description`} className="block text-sm font-medium text-garage-text mb-1">
                 {t('lineItemEditor.misc.descriptionLabel')} <span className="text-danger">*</span>
               </label>
@@ -207,9 +219,12 @@ export default function LineItemEditor({
                   setShowSuggestions(true)
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                // Options never take focus (mousedown is swallowed), so a blur means focus
-                // really left and the list can go now. A delay here ate the next Tab.
-                onBlur={() => setShowSuggestions(false)}
+                // Tab to another field closes it now (a delay here ate the next Tab). A blur
+                // to nowhere, like a tap that lost its mousedown guard, waits for the click.
+                onBlur={(e) => {
+                  const next = e.relatedTarget
+                  if (next instanceof Node && !descriptionWrapRef.current?.contains(next)) setShowSuggestions(false)
+                }}
                 placeholder={
                   item.category
                     ? t('lineItemEditor.misc.typeOrSelect')

@@ -12,7 +12,7 @@ interface UseComboboxOptions {
    *  rendered, so the box reads as collapsed. */
   count: number
   onSelect: (index: number) => void
-  /** Escape with the panel showing. */
+  /** Escape with the panel showing, or Enter with the list up and nothing highlighted. */
   onClose: () => void
   /** ArrowDown on a collapsed box. */
   onOpen?: () => void
@@ -56,8 +56,8 @@ interface Combobox {
  *
  * Keys: ArrowDown/ArrowUp walk the options and wrap back through the box, Home/End
  * jump to the ends while an option is active (otherwise they move the caret), Enter
- * picks the active option, Escape closes the panel. Enter with the list showing never
- * submits the form, so a half-typed name can't save it.
+ * picks the active option, Escape closes the panel. Enter with the list up and nothing
+ * highlighted only closes it, like the APG example, so the next Enter submits the form.
  */
 export function useCombobox({
   id,
@@ -122,6 +122,7 @@ export function useCombobox({
         if (!expanded) return
         event.preventDefault()
         if (activeIndex >= 0) select(activeIndex)
+        else onClose()
         return
       case 'Escape':
         if (!open) return

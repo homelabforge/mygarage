@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import AddressBookAutocomplete from '../AddressBookAutocomplete'
 import type { AddressBookEntry } from '../../types/addressBook'
 
@@ -528,5 +529,32 @@ describe('AddressBookAutocomplete empty state (G-3)', () => {
     expect(noMatches()).not.toBeInTheDocument()
     expect(screen.getByText('addressBookAutocomplete.searchFailed')).toBeInTheDocument()
     expect(screen.queryByText('addressBookAutocomplete.addToAddressBook')).not.toBeInTheDocument()
+  })
+})
+
+describe('Enter with the list open and nothing highlighted', () => {
+  it('closes the list, and the next Enter submits the form around it', async () => {
+    // Enter was swallowed while the list showed, so the fuel form couldn't be saved from the keyboard.
+    // Real timers: user-event and Testing Library's async helpers wait on them.
+    vi.useRealTimers()
+    const user = userEvent.setup()
+    const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault())
+    render(
+      <form onSubmit={onSubmit}>
+        <Picker />
+        <button type="submit">save</button>
+      </form>
+    )
+    input().focus()
+    type('Sh')
+    expect(await screen.findByRole('listbox')).toBeInTheDocument()
+
+    await user.keyboard('{Enter}')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.keyboard('{Enter}')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(input().value).toBe('Sh')
   })
 })
