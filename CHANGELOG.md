@@ -235,7 +235,6 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - The vehicle specs editor keeps your draft when the vehicle refetches or the units change while it's open
 - Tire, brake, service visit and vehicle numbers, the fuel form's outside temperature and the notification settings read a comma decimal instead of dropping the value, and text that isn't a number shows an error instead of saving a blank
 - The notification numbers and SMTP port show their range and only save a value inside it, a model year like 1850 is refused, and auto-archive days refuses 12.5 instead of saving 125
-- A tread gauge reading in inches, like 0.346 or 0,346, converts to 32nds in every language; German read it as 346
 - Switching vehicles while the page is still loading no longer shows the previous vehicle's details on the new one, or saves them to it
 - The station and vendor searches no longer say "No matches" before the search has answered, and a failed search says so
 - Screen reader and keyboard fixes: the station, vendor and line item suggestions are comboboxes you can arrow through, drawers take focus when they open, the device token dialog traps focus and closes on Escape, and icon buttons, report downloads, family cards, DTC notes, window sticker and sign-up errors, and the LiveLink, Torque and tire controls have names that say which one
