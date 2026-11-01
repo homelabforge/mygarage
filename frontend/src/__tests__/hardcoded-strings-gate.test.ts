@@ -40,4 +40,17 @@ describe('validate-hardcoded-strings: JSX text beside an {expression}', () => {
   it('still honours i18n-exempt on the line above', () => {
     expect(scan('// i18n-exempt\n<span>Est. {x} Left</span>\n')).toEqual([])
   })
+
+  it('only skips "as Type<" when the whole segment is the type', () => {
+    // The `} as X` filter looked at the start of the segment only, so this prose went unseen.
+    expect(scan('<p>{name} as Owner {suffix}</p>\n')).toEqual(['as Owner'])
+    expect(scan('<p>{name} as Owner of this car<b>x</b></p>\n')).toEqual(['as Owner of this car'])
+    expect(scan('<p>{name} as Owner<br />now</p>\n')).toEqual(['as Owner'])
+  })
+
+  it('a one-line segment beside a brace honours i18n-exempt only on its line or the one above', () => {
+    // It got the multiline scanner's 200-character look-back, so a marker three lines up hid it.
+    expect(scan('// i18n-exempt\n<b>Brand</b>\n<i>x</i>\n<span>Est. {x} Left</span>\n')).toEqual(['Est.', 'Left'])
+    expect(scan('<span>Est. {x} Left</span> {/* i18n-exempt */}\n')).toEqual([])
+  })
 })

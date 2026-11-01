@@ -185,6 +185,7 @@ function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
   // in place (spaces, newlines kept), so this copy indexes identically to
   // `source` and can be sliced with the same offsets.
   const withComments = stripImports(rawSource)
+  const commentLines = withComments.split('\n')
   for (const m of source.matchAll(JSX_TEXT_MULTILINE)) {
     const raw = m[1]
     const opener = m[0][0]
@@ -192,10 +193,17 @@ function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
     // `=> Promise<void>`: the arrow's own `>` is not a JSX delimiter.
     if ((m.index ?? 0) > 0 && source[(m.index ?? 0) - 1] === '=') continue
     if (CODE_PUNCTUATION.test(raw)) continue
-    // `} as Record<...>` is a TS assertion, not text after an expression. Its `<`
-    // opens a generic; `{name} as Owner</p>` closes a tag and is still prose.
+    // `} as Record<...>` is a TS assertion, not text after an expression: the
+    // segment is just `as TypeName` and its `<` opens a generic. Anything more in
+    // it is prose, and so is a `<` that closes a tag or opens a self-closing one.
     const end = (m.index ?? 0) + m[0].length
-    if (opener === '}' && /^\s*as\s+[A-Z]/.test(raw) && source[end] !== '/') continue
+    if (
+      opener === '}' &&
+      closer === '<' &&
+      /^\s*as\s+[A-Z][\w.]*$/.test(raw) &&
+      !/^(?:\/|[A-Za-z][\w.-]*\s*\/>)/.test(source.slice(end))
+    )
+      continue
     // string literals and code identifiers, never JSX prose (which uses &apos;)
     if (/['"`]/.test(raw)) continue
     if (CODE_KEYWORD.test(raw)) continue
@@ -207,8 +215,14 @@ function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
     // is never its job, so that stays here.
     if (!raw.includes('\n') && opener === '>' && closer === '<') continue
     const line = source.slice(0, m.index).split('\n').length
-    const context = withComments.slice(Math.max(0, m.index - 200), m.index)
-    if (context.includes('i18n-exempt')) continue
+    // One line, so the line scanner's rule: the marker on this line or the one above.
+    // A multi-line run keeps the look-back, since its marker sits above the whole run.
+    if (raw.includes('\n')) {
+      const context = withComments.slice(Math.max(0, m.index - 200), m.index)
+      if (context.includes('i18n-exempt')) continue
+    } else if (`${commentLines[line - 2] ?? ''}\n${commentLines[line - 1] ?? ''}`.includes('i18n-exempt')) {
+      continue
+    }
     findings.push({ file: rel, kind: 'jsx-text', text, line })
   }
   return findings
