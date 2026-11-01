@@ -45,10 +45,39 @@ def _rel(path: Path) -> str:
     return str(path.relative_to(BACKEND_DIR))
 
 
-def _is_today(node: ast.AST, names: set[str]) -> bool:
+def _getfixturevalue_calls(node: ast.AST) -> list[ast.Call]:
+    return [
+        sub
+        for sub in ast.walk(node)
+        if isinstance(sub, ast.Call)
+        and isinstance(sub.func, ast.Attribute)
+        and sub.func.attr == "getfixturevalue"
+    ]
+
+
+def _fixturevalue_name(node: ast.AST) -> str | None:
+    """The fixture a `getfixturevalue("name")` call asks for, if it's that call with a literal."""
+    if not (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "getfixturevalue"
+    ):
+        return None
+    arg = (
+        node.args[0]
+        if node.args
+        else next((kw.value for kw in node.keywords if kw.arg == "argname"), None)
+    )
+    return arg.value if isinstance(arg, ast.Constant) and isinstance(arg.value, str) else None
+
+
+def _is_today(node: ast.AST, names: Set[str]) -> bool:
     """True if this expression reads today's date, directly or through a local name."""
     for sub in ast.walk(node):
         if isinstance(sub, ast.Name) and sub.id in names:
+            return True
+        # `request.getfixturevalue("x")` holds what a parameter `x` would.
+        if (literal := _fixturevalue_name(sub)) is not None and literal in names:
             return True
         if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name):
             if sub.func.id in TODAY_FUNCS:
@@ -262,7 +291,23 @@ def _fixture_name(fn: Fn) -> str:
 
 
 def _params(fn: Fn) -> set[str]:
-    return {a.arg for a in [*fn.args.posonlyargs, *fn.args.args, *fn.args.kwonlyargs]}
+    """The fixtures a test or fixture takes: its parameters, and every
+    `request.getfixturevalue("name")` it makes with a literal name."""
+    named = {a.arg for a in [*fn.args.posonlyargs, *fn.args.args, *fn.args.kwonlyargs]}
+    return named | {
+        name
+        for call in _getfixturevalue_calls(fn)
+        if (name := _fixturevalue_name(call)) is not None
+    }
+
+
+def _asks_for_an_unnamed_fixture(fn: Fn) -> bool:
+    """A `getfixturevalue` whose name the guard can't read: a variable or an f-string."""
+    return any(_fixturevalue_name(call) is None for call in _getfixturevalue_calls(fn))
+
+
+#: What the guard says when it can't tell which fixture a writer takes.
+UNNAMED_FIXTURE = "getfixturevalue with a non-literal name: use a literal, or own_vehicle"
 
 
 @dataclass(frozen=True)
@@ -320,12 +365,16 @@ def _shared_vehicle_today_writers(tree: ast.Module, known: TodaySources = NO_SOU
         params = _params(fn)
         if not (fn.name.startswith("test_") or is_fixture) or "test_vehicle" not in params:
             continue
-        if (
+        name = _fixture_name(fn) if is_fixture else fn.name
+        if _asks_for_an_unnamed_fixture(fn):
+            # It writes on test_vehicle with a fixture nobody can name, so it can't be cleared.
+            found.append(f"{name} ({UNNAMED_FIXTURE})")
+        elif (
             _dates_a_row_today(fn, params & sources.values)
             or _calls_any(fn, helpers)
             or params & sources.rows
         ):
-            found.append(_fixture_name(fn) if is_fixture else fn.name)
+            found.append(name)
     return found
 
 
@@ -484,6 +533,27 @@ FIXTURE_SHAPES = {
         "@pytest.fixture\ndef payload(base):\n    return {**base, 'cost': 1}\n"
         "async def test_w(test_vehicle, payload):\n    post(json=payload)\n"
     ),
+    "getfixturevalue payload": (
+        "@pytest.fixture\ndef payload():\n    return {'date': date.today().isoformat()}\n"
+        "async def test_w(test_vehicle, request):\n"
+        "    post(json=request.getfixturevalue('payload'))\n"
+    ),
+    "getfixturevalue value": (
+        "@pytest.fixture\ndef today():\n    return date.today()\n"
+        "async def test_w(test_vehicle, request):\n"
+        "    add(Fuel(date=request.getfixturevalue(argname='today')))\n"
+    ),
+    "getfixturevalue value, bound to a name": (
+        "@pytest.fixture\ndef today():\n    return date.today()\n"
+        "async def test_w(test_vehicle, request):\n"
+        "    d = request.getfixturevalue('today')\n    add(Fuel(date=d))\n"
+    ),
+    "getfixturevalue test_vehicle": (
+        "@pytest.fixture\ndef today():\n    return date.today()\n"
+        "async def test_w(request, today):\n"
+        "    vin = request.getfixturevalue('test_vehicle')['vin']\n"
+        "    add(Fuel(vin=vin, date=today))\n"
+    ),
     "fixture that writes on test_vehicle": (
         "@pytest_asyncio.fixture\n"
         "async def writer(db_session, test_vehicle):\n"
@@ -492,8 +562,29 @@ FIXTURE_SHAPES = {
     ),
 }
 
+# A writer that asks for a fixture by a name the guard can't read fails outright.
+UNNAMED_FIXTURE_WRITERS = {
+    "variable": (
+        "async def test_w(test_vehicle, request):\n"
+        "    name = 'payload'\n    post(json=request.getfixturevalue(name))\n"
+    ),
+    "f-string": (
+        "async def test_w(test_vehicle, request, kind):\n"
+        "    post(json=request.getfixturevalue(f'{kind}_payload'))\n"
+    ),
+}
+
 # And the near misses each shape must leave alone.
 FIXTURE_NEAR_MISSES = {
+    "getfixturevalue of a fixed-date payload": (
+        "@pytest.fixture\ndef payload():\n    return {'date': '2024-05-15'}\n"
+        "async def test_w(test_vehicle, request):\n"
+        "    post(json=request.getfixturevalue('payload'))\n"
+    ),
+    "unnamed getfixturevalue on own_vehicle": (
+        "async def test_w(own_vehicle, request, kind):\n"
+        "    post(json=request.getfixturevalue(f'{kind}_payload'))\n"
+    ),
     "today value used in a query": (
         "@pytest.fixture\ndef today():\n    return date.today()\n"
         "async def test_w(test_vehicle, today):\n    get(params={'start': today.isoformat()})\n"
@@ -518,6 +609,14 @@ def test_the_today_check_follows_every_fixture_shape() -> None:
         not in (["test_w"], ["writer"])
     }
     assert missed == {}
+
+
+def test_a_writer_asking_for_an_unnamed_fixture_fails_with_a_way_out() -> None:
+    found = {
+        shape: _shared_vehicle_today_writers(ast.parse(source))
+        for shape, source in UNNAMED_FIXTURE_WRITERS.items()
+    }
+    assert found == {shape: [f"test_w ({UNNAMED_FIXTURE})"] for shape in UNNAMED_FIXTURE_WRITERS}
 
 
 def test_the_today_check_leaves_fixture_near_misses_alone() -> None:
