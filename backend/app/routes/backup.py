@@ -1,8 +1,6 @@
 """Backup API endpoints for settings and full data backup/restore."""
 
 import logging
-import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +17,7 @@ from app.services.auth_settings import AuthSettingsConflictError
 from app.services.backup_service import BackupService
 from app.services.restore_staging import RestoreInProgressError
 from app.services.settings_secrets import ensure_secrets_encrypted
+from app.utils.backup_names import backup_stamp
 from app.utils.datetime_utils import utc_from_timestamp
 from app.utils.logging_utils import sanitize_for_log
 
@@ -416,9 +415,7 @@ async def upload_backup(
 
         # Determine backup type and generate standardized filename
         # This ensures uploaded files appear in the backup list
-        # The suffix keeps two uploads in one second apart; by the second alone
-        # the later one overwrote the first.
-        stamp = f"{datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
+        stamp = backup_stamp()
         if file.filename.endswith(".json"):
             backup_type = "settings"
             safe_filename = f"mygarage-settings-uploaded-{stamp}.json"

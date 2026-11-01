@@ -10,16 +10,20 @@ import gzip
 import json
 import sqlite3
 import tarfile
-from datetime import datetime
+from datetime import datetime, tzinfo
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Self
+from uuid import UUID
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
+from app.utils import backup_names
 from tests.integration._secret_helpers import Keep
 
 RESTORE_PROBE = "__backup_route_restore_probe__"
@@ -75,8 +79,37 @@ class _FrozenClock(datetime):
     """Every `now()` lands in the same second, as two quick uploads do."""
 
     @classmethod
-    def now(cls, tz=None):  # type: ignore[override]
-        return cls(2026, 11, 1, 12, 0, 0)
+    def now(cls, tz: tzinfo | None = None) -> Self:
+        return cls(2026, 11, 1, 12, 0, 0, tzinfo=tz)
+
+
+# What _FrozenClock stamps a backup name with.
+FROZEN_STAMP = "2026-11-01-120000"
+
+# Every way a backup gets written, and the name each had when names went by
+# the second alone.
+SETTINGS_UPLOAD = ("a.json", json.dumps({"version": "1.0.0", "settings": []}).encode())
+FULL_UPLOAD = ("a.tar.gz", gzip.compress(b"full"))
+BACKUP_WRITERS = {
+    "create": ("/api/backup/create", None, "mygarage-settings-{}.json"),
+    "create-full": ("/api/backup/create-full", None, "mygarage-full-{}.tar.gz"),
+    "upload-settings": (
+        "/api/backup/upload",
+        SETTINGS_UPLOAD,
+        "mygarage-settings-uploaded-{}.json",
+    ),
+    "upload-full": ("/api/backup/upload", FULL_UPLOAD, "mygarage-full-uploaded-{}.tar.gz"),
+}
+
+
+async def _write_backup(client: AsyncClient, headers: dict[str, str], writer: str) -> Response:
+    url, upload, _ = BACKUP_WRITERS[writer]
+    if upload is None:
+        return await client.post(url, headers=headers)
+    name, content = upload
+    return await client.post(
+        url, headers=headers, files={"file": (name, BytesIO(content), "application/octet-stream")}
+    )
 
 
 def _seed_one_of_each(backup_dir: Path) -> None:
@@ -650,39 +683,71 @@ class TestBackupRoutes:
         assert data["backup"]["filename"].endswith(".tar.gz")
         assert (backup_dir / data["backup"]["filename"]).read_bytes() == tar_content
 
-    @pytest.mark.parametrize(
-        ("upload_name", "content"),
-        [
-            ("a.json", json.dumps({"version": "1.0.0", "settings": []}).encode()),
-            ("a.tar.gz", gzip.compress(b"full")),
-        ],
-        ids=["settings", "full"],
-    )
-    async def test_two_uploads_in_the_same_second_keep_both(
+    @pytest.mark.parametrize("writer", sorted(BACKUP_WRITERS))
+    async def test_two_backups_in_the_same_second_keep_both(
         self,
         client: AsyncClient,
         auth_headers,
         backup_dir: Path,
         monkeypatch: pytest.MonkeyPatch,
-        upload_name: str,
-        content: bytes,
+        writer: str,
     ):
-        """Uploads were named by the second, so the second one overwrote the first."""
-        from app.routes import backup as backup_routes
-
-        monkeypatch.setattr(backup_routes, "datetime", _FrozenClock)
+        """Names went by the second, so the second backup overwrote the first."""
+        monkeypatch.setattr(backup_names, "datetime", _FrozenClock)
         names = []
         for _ in range(2):
-            response = await client.post(
-                "/api/backup/upload",
-                headers=auth_headers,
-                files={"file": (upload_name, BytesIO(content), "application/octet-stream")},
-            )
+            response = await _write_backup(client, auth_headers, writer)
             assert response.status_code == 200, response.text
             names.append(response.json()["backup"]["filename"])
 
         assert names[0] != names[1]
+        # The freeze really applied, so both landed in the one second.
+        assert all(FROZEN_STAMP in name for name in names), names
         assert sorted(p.name for p in backup_dir.iterdir()) == sorted(names)
+
+    @pytest.mark.parametrize("writer", sorted(BACKUP_WRITERS))
+    async def test_a_backup_leaves_a_file_with_its_by_the_second_name_alone(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        backup_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        writer: str,
+    ):
+        """An older backup made in the same second keeps its bytes; the new one lands beside it."""
+        monkeypatch.setattr(backup_names, "datetime", _FrozenClock)
+        existing = backup_dir / BACKUP_WRITERS[writer][2].format(FROZEN_STAMP)
+        existing.write_bytes(b"an earlier backup")
+
+        response = await _write_backup(client, auth_headers, writer)
+
+        assert response.status_code == 200, response.text
+        new_name = response.json()["backup"]["filename"]
+        assert new_name != existing.name
+        assert FROZEN_STAMP in new_name
+        assert (backup_dir / new_name).is_file()
+        assert existing.read_bytes() == b"an earlier backup"
+
+    @pytest.mark.parametrize("writer", sorted(BACKUP_WRITERS))
+    async def test_a_clash_on_the_whole_name_fails_instead_of_overwriting(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        backup_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        writer: str,
+    ):
+        """Pin the suffix too, so the next name is already taken: refuse, never clobber."""
+        monkeypatch.setattr(backup_names, "datetime", _FrozenClock)
+        monkeypatch.setattr(backup_names, "uuid", SimpleNamespace(uuid4=lambda: UUID(int=0)))
+        taken = backup_dir / BACKUP_WRITERS[writer][2].format(f"{FROZEN_STAMP}-00000000")
+        taken.write_bytes(b"an earlier backup")
+
+        response = await _write_backup(client, auth_headers, writer)
+
+        assert response.status_code == 500, response.text
+        assert taken.read_bytes() == b"an earlier backup"
+        assert [p.name for p in backup_dir.iterdir()] == [taken.name]
 
     async def test_backup_non_admin_forbidden(self, client: AsyncClient, non_admin_headers):
         """Test that non-admin users get 403 on all backup endpoints."""

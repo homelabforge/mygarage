@@ -10,7 +10,6 @@ import sqlite3
 import subprocess
 import tarfile
 import tempfile
-import uuid
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
@@ -31,6 +30,7 @@ from app.services.oidc.config import OIDC_REDIRECT_URI_KEY, checked_redirect_uri
 from app.services.oidc.tokens import MASKED_SECRET_PLACEHOLDER
 from app.services.setting_rules import canonical_setting_value, check_setting_value
 from app.services.settings_service import SettingsService
+from app.utils.backup_names import backup_stamp
 from app.utils.datetime_utils import utc_from_timestamp
 from app.utils.default_unit_prefs import (
     DEFAULT_UNIT_PREFS_KEY,
@@ -319,13 +319,11 @@ class BackupService:
             "settings": _settings_backup_rows(settings),
         }
 
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        filename = f"mygarage-settings-{timestamp}.json"
+        filename = f"mygarage-settings-{backup_stamp()}.json"
         backup_path = self.backup_dir / filename
 
-        # Write backup file
-        with open(backup_path, "w") as f:
+        # "x", so a name that's somehow taken fails instead of overwriting a backup.
+        with open(backup_path, "x") as f:
             json.dump(backup_data, f, indent=2)
 
         logger.info("Created settings backup: %s", filename)
@@ -351,9 +349,7 @@ class BackupService:
         """
         self.ensure_backup_dir()
 
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        filename = f"mygarage-full-{timestamp}.tar.gz"
+        filename = f"mygarage-full-{backup_stamp()}.tar.gz"
         backup_path = self.backup_dir / filename
 
         logger.info("Creating full backup: %s", filename)
@@ -363,7 +359,8 @@ class BackupService:
         # `settings.key` would make every secret in the archive readable to whoever holds
         # it, and `secret.key` would let them forge sessions. A same-host restore needs
         # neither; a new host needs `settings.key` copied over, or the secrets re-entered.
-        with tarfile.open(backup_path, "w:gz") as tar:
+        # "x" for the same reason as the settings backup: never overwrite one.
+        with tarfile.open(backup_path, "x:gz") as tar:
             if self.is_sqlite:
                 # SQLite: archive a consistent Online-Backup-API snapshot, not
                 # the live file. The snapshot is self-contained, so no -wal or
@@ -469,8 +466,7 @@ class BackupService:
         if create_safety:
             # The suffix keeps two restores in one second apart, so a refused one
             # can only ever delete its own copy.
-            timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-            safety_filename = f"mygarage-settings-safety-{timestamp}-{uuid.uuid4().hex[:8]}.json"
+            safety_filename = f"mygarage-settings-safety-{backup_stamp()}.json"
 
             # Get current settings for safety backup
             current_settings = await SettingsService.get_all(db)
@@ -813,8 +809,7 @@ class BackupService:
         with restore_staging.restore_lock(self.data_dir):
             safety_filename = None
             if create_safety:
-                timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-                safety_filename = f"mygarage-full-safety-{timestamp}.tar.gz"
+                safety_filename = f"mygarage-full-safety-{backup_stamp()}.tar.gz"
                 try:
                     self._write_safety_archive(self.backup_dir / safety_filename)
                 except sqlite3.Error as exc:
@@ -863,7 +858,7 @@ class BackupService:
                         tar.add(dir_path, arcname=dir_name)
             restore_staging.publish_file(partial, archive)
         except BaseException:
-            # A request's archive is named by the second, so each failed one would leave
+            # Every request's archive gets its own name, so each failed one would leave
             # another .partial behind that nothing lists or cleans up. The cleanup never
             # hides the real error.
             with contextlib.suppress(OSError):
