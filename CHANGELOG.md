@@ -241,6 +241,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Two backups uploaded or created in the same second no longer overwrite each other, and a backup never writes over an existing file
 - Deleting a service visit, a vehicle or a user also deletes the attachment files and rows that belonged to it, including receipts for supplies kept for a deleted vehicle
 - Analytics no longer shows numbers from before an edit for up to 10 minutes
+- Deleting a user takes their vehicles off shared insurance policies the way deleting a vehicle does, so the premium drops by their share instead of still counting it
 - On an insurance policy, a server error on the notes or on a covered vehicle's type, premium share or deductible shows under that field instead of a generic save error
 - A server error on the odometer unit, an EV charging field or a supply barcode shows under that field instead of a generic save error
 - On a fill-up, an error on the driver or the OBC trip duration shows under that field, and a server error on one of the checkboxes shows the save error instead of nothing

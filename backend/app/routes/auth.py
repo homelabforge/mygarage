@@ -746,6 +746,18 @@ async def delete_user(
     ).all()
     attachment_paths = await purge_vehicle_attachments(db, [v.vin for v in owned])
 
+    # The cascade would drop each vehicle's policy link but leave the premium
+    # counting it, so the vehicles that stay wouldn't add up. Release them the
+    # way a vehicle delete does: the premium drops by each one's share.
+    from app.services.insurance_service import InsuranceService
+
+    insurance = InsuranceService(db)
+    for v in owned:
+        await insurance.release_vehicle(v.vin)
+    # Out before the user goes, or the cascade deletes the links first and the
+    # ORM's own delete of them finds nothing.
+    await db.flush()
+
     await db.delete(user)
 
     if active_admins >= 1:
