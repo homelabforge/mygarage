@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { IMPERIAL_UNITS, METRIC_UNITS } from '../../__tests__/factories'
 import { canonicalFromTreadField, thirtySecondsFromDecimalInches } from '../treadEntry'
 import { makeUnitFormat, seedUnitField } from '../unitFormat'
+import { setActiveLocale } from '@/constants/i18n'
 
 const in32 = makeUnitFormat(IMPERIAL_UNITS).tread
 const mm = makeUnitFormat(METRIC_UNITS).tread
@@ -50,5 +51,25 @@ describe('canonicalFromTreadField', () => {
 
   it('treats a cleared field as cleared', () => {
     expect(canonicalFromTreadField('', seeded, in32)).toBeNull()
+  })
+})
+
+// A gauge's inches start "0." or ".", and a leading zero is never a thousands
+// group, so German "0.346" is still 0.346 in, not 346 (review of G1b-21).
+describe('a gauge decimal in de', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  it('reads 0.346, 0,346, .346 and ,346 as inches, not grouped thousands', () => {
+    setActiveLocale('de')
+    for (const typed of ['0.346', '0,346', '.346', ',346']) {
+      expect(thirtySecondsFromDecimalInches(typed, in32)).toBe('11')
+    }
+    expect(canonicalFromTreadField('0.346', seedUnitField(8.4, in32), in32)).toBe(8.73125)
+  })
+
+  it('still reads a whole 32nd as itself', () => {
+    setActiveLocale('de')
+    expect(thirtySecondsFromDecimalInches('11', in32)).toBeNull()
+    expect(canonicalFromTreadField('10', seedUnitField(8.4, in32), in32)).toBe(7.9375)
   })
 })

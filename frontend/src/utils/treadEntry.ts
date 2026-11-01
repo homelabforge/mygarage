@@ -23,8 +23,11 @@ export function thirtySecondsFromDecimalInches(
   tread: QuantityFormat
 ): string | null {
   if (tread.unit !== 'in32') return null
-  // Read in the user's language, so a German gauge's 0,346 converts too.
-  const inches = numberFromField(typed)
+  // A gauge reads "0.346" or ".346". A leading zero is never a thousands group,
+  // so that's a decimal with either separator in any language; de would
+  // otherwise read 0.346 as 346. Anything else reads in the user's language.
+  const gauge = /^\s*0?[.,](\d+)\s*$/.exec(typed)
+  const inches = gauge ? Number(`0.${gauge[1]}`) : numberFromField(typed)
   if (inches === null || inches <= 0 || inches >= 1) return null
   return tread.toInputValue(inches * UnitConverter.INCH_TO_METERS * MM_PER_M)
 }

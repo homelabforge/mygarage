@@ -80,6 +80,17 @@ describe('ReadingEditor: numbers read in the user language', () => {
     expect(mutate.mock.calls[0][0].pressure_kpa).toBeCloseTo(expected, 6)
   })
 
+  it('de: a gauge reading of 0.346 in saves as 11/32, not 346/32', () => {
+    setActiveLocale('de')
+    renderEditor()
+    fireEvent.change(input('reading-edit-tread'), { target: { value: '0.346' } })
+    save()
+
+    expect(mutate).toHaveBeenCalledTimes(1)
+    // 11/32 in, the 32nd the gauge's 0.346 in rounds to.
+    expect(mutate.mock.calls[0][0].tread_depth_mm).toBe(8.73125)
+  })
+
   it('refuses text that is not a number instead of clearing the pressure', () => {
     renderEditor()
     fireEvent.change(input('reading-edit-pressure'), { target: { value: 'abc' } })
