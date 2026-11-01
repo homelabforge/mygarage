@@ -413,6 +413,61 @@ describe('Drawer: initial focus prefers a form field', () => {
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Label' }))
   })
 
+  it('skips a hidden file input for the button after it', () => {
+    // WindowStickerUpload's first upload: the file input is display:none ahead of
+    // "Select file", so focus went nowhere and stayed on the panel.
+    render(
+      <Drawer open onClose={() => {}} title="Window sticker">
+        <input type="file" aria-label="Sticker file" style={{ display: 'none' }} />
+        <button type="button">Select file</button>
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Select file' }))
+  })
+
+  it('moves on when a field refuses focus', () => {
+    // Backs up the rendered check for anything else a browser won't focus.
+    // jsdom focuses everything, so the first box's focus() is made a no-op here.
+    render(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <input
+          aria-label="Refuses"
+          ref={(el) => {
+            if (el) el.focus = () => {}
+          }}
+        />
+        <input aria-label="Litres" />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Litres' }))
+  })
+
+  it('waits for a field when the only one there is hidden', async () => {
+    // It took the hidden input as found and never watched for the real field.
+    function HiddenThenLate(): ReactElement {
+      const [ready, setReady] = useState(false)
+      useEffect(() => {
+        const id = window.setTimeout(() => setReady(true), 20)
+        return () => window.clearTimeout(id)
+      }, [])
+      return (
+        <>
+          <div hidden>
+            <input aria-label="Hidden" />
+          </div>
+          {ready ? <input aria-label="Litres" /> : null}
+        </>
+      )
+    }
+    render(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <HiddenThenLate />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByTestId('drawer'))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Litres' })))
+  })
+
   it('still lands on a button when the body has no field', () => {
     // Guard: passes on main too. Drop the first-focusable fallback and focus stays on the panel.
     render(

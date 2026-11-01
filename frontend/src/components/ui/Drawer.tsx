@@ -33,6 +33,20 @@ const FORM_FIELD_SELECTOR =
 /** Tab-trap only: also honours elements made focusable purely via tabindex. */
 const TAB_TRAP_SELECTOR = `${FOCUSABLE_SELECTOR}, [tabindex]:not([tabindex="-1"])`
 
+/**
+ * Whether a candidate is rendered, so focus() can land on it. A display:none
+ * file input (an upload's, ahead of its Select file button) matches the
+ * selectors but focus() on it does nothing. Uses checkVisibility where the
+ * browser has it; jsdom doesn't, so it walks up for `hidden` and display:none.
+ */
+function isRendered(el: HTMLElement): boolean {
+  if (typeof el.checkVisibility === 'function') return el.checkVisibility({ visibilityProperty: true })
+  for (let node: HTMLElement | null = el; node; node = node.parentElement) {
+    if (node.hidden || window.getComputedStyle(node).display === 'none') return false
+  }
+  return window.getComputedStyle(el).visibility !== 'hidden'
+}
+
 /** Added on top of the measured transition duration before the closing
  *  timeout fallback fires — covers rAF/paint scheduling jitter so it never
  *  races a `transitionend` that is genuinely still in flight. */
@@ -264,30 +278,35 @@ export default function Drawer({
     const panel = panelRef.current
     if (!body || !panel) return
     // Body slot first, never the header's Close (Finding 1): its first form
-    // field, else its first focusable. The panel is the fallback so focus
-    // never drops to <body>; the footer never gets it.
-    const target = (): HTMLElement | null =>
-      body.querySelector<HTMLElement>(FORM_FIELD_SELECTOR) ?? body.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-    const first = target()
-    if (first) {
-      first.focus()
-      return
-    }
+    // field, else its first focusable, skipping anything not rendered. The
+    // panel is the fallback so focus never drops to <body>; the footer never gets it.
+    const candidates = (): HTMLElement[] =>
+      [
+        ...body.querySelectorAll<HTMLElement>(FORM_FIELD_SELECTOR),
+        ...body.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ].filter(isRendered)
+    // The activeElement check backs up isRendered: anything focus() won't take, try the next.
+    const focusFirst = (found: HTMLElement[]): boolean =>
+      found.some((el) => {
+        el.focus()
+        return document.activeElement === el
+      })
+    if (focusFirst(candidates())) return
     panel.focus()
     // Body is still a spinner. Step in once, when the first field shows up
-    // (or a disabled one comes alive), and only if focus is still parked on
-    // the panel.
+    // (or a disabled or hidden one comes alive), and only if focus is still
+    // parked on the panel.
     const observer = new MutationObserver(() => {
-      const late = target()
-      if (!late) return
+      const found = candidates()
+      if (found.length === 0) return
       observer.disconnect()
-      if (document.activeElement === panel) late.focus()
+      if (document.activeElement === panel) focusFirst(found)
     })
     observer.observe(body, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['disabled'],
+      attributeFilter: ['disabled', 'hidden', 'style', 'class'],
     })
     return () => observer.disconnect()
   }, [open, rendered])
