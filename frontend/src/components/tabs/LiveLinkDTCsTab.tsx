@@ -2,7 +2,7 @@
  * LiveLink DTCs Tab - Diagnostic Trouble Codes management
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { toast } from 'sonner'
@@ -44,6 +44,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
   const [filter, setFilter] = useState<DTCListFilter>('active')
   const [editingNotes, setEditingNotes] = useState<number | null>(null)
   const [notesValue, setNotesValue] = useState('')
+  const rowIdPrefix = useId()
 
   const fetchDTCs = useCallback(async () => {
     setLoading(true)
@@ -176,7 +177,9 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                   {getSeverityIcon(dtc.severity)}
                   <div>
                     <div className="flex items-center gap-2">
-                      <Mono weight="bold">{dtc.code}</Mono>
+                      <span id={`${rowIdPrefix}-code-${dtc.id}`}>
+                        <Mono weight="bold">{dtc.code}</Mono>
+                      </span>
                       {!dtc.is_active && (
                         <Chip tone="success" icon={CheckCircle}>{t('livelink.dtcs.cleared')}</Chip>
                       )}
@@ -267,6 +270,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                       value={notesValue}
                       onChange={(e) => setNotesValue(e.target.value)}
                       placeholder={t('livelink.dtcs.addNotesPlaceholder')}
+                      aria-label={t('livelink.dtcs.notesFor', { code: dtc.code })}
                       autoFocus
                       className="flex-1"
                     />
@@ -276,7 +280,11 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                     </Button>
                   </div>
                 ) : (
+                  // Named by its own text then the code: every empty one reads
+                  // "Add notes..." otherwise.
                   <Button
+                    id={`${rowIdPrefix}-notes-${dtc.id}`}
+                    aria-labelledby={`${rowIdPrefix}-notes-${dtc.id} ${rowIdPrefix}-code-${dtc.id}`}
                     size="sm"
                     variant="ghost"
                     icon={FileText}

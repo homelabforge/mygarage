@@ -800,6 +800,7 @@
       "noActive": "No active diagnostic trouble codes",
       "noCleared": "No cleared diagnostic trouble codes",
       "noRecorded": "No diagnostic trouble codes recorded",
+      "notesFor": "Notes for {{code}}",
       "notesSaveError": "Failed to save notes",
       "notesSaved": "Notes saved",
       "searchHint": "Click the search icon on any code to look up causes and fixes online",

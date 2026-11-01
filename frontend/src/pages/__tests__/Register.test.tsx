@@ -154,6 +154,26 @@ describe('Register — server-side 422 field-error wiring', () => {
   })
 })
 
+// A failure the fields can't hold lands in the banner, and that has to be
+// announced like Login's (C-a11y).
+describe('Register: the error banner is an alert', () => {
+  it('a server failure shows in an alert', async () => {
+    registerMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      message: 'Request failed with status code 500',
+      response: { status: 500, data: { detail: 'boom' } },
+    })
+    const user = userEvent.setup()
+    render(<Register />)
+
+    await fillValidForm(user)
+    await user.click(screen.getByRole('button', { name: 'register.submit' }))
+
+    // The test i18n leaves the action template unfilled, as in WindowStickerUpload.test.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to {{action}}. {{message}}')
+  })
+})
+
 describe('Register: first-user check', () => {
   it('shows the admin badge when nobody has registered yet', async () => {
     usersCount.hasUsers = false

@@ -379,6 +379,7 @@
     "other": "Other"
   },
   "familyCard": {
+    "actionFor": "{{action}}: {{name}}",
     "allowSsoRelink": "Allow SSO relink for 30 minutes",
     "cancelSsoRelink": "Cancel SSO relink",
     "columnLastService": "Last Service",

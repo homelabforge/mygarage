@@ -307,10 +307,11 @@ function WindowStickerUpload({
         disabled={!editMode}
         placeholder={placeholder}
         aria-invalid={fieldErrors[key] ? true : undefined}
+        aria-describedby={fieldErrors[key] ? `sticker-${key}-error` : undefined}
         className="w-full px-3 py-2 bg-garage-surface border border-garage-border rounded text-garage-text text-sm disabled:opacity-60"
       />
       {fieldErrors[key] && (
-        <p role="alert" className="mt-1 text-xs text-danger-500">{fieldErrors[key]}</p>
+        <p id={`sticker-${key}-error`} role="alert" className="mt-1 text-xs text-danger-500">{fieldErrors[key]}</p>
       )}
     </div>
   )
@@ -332,19 +333,19 @@ function WindowStickerUpload({
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="bg-danger-500/10 border border-danger-500 rounded-lg p-3">
+          <div role="alert" className="bg-danger-500/10 border border-danger-500 rounded-lg p-3">
             <p className="text-sm text-danger-500">{error}</p>
           </div>
         )}
 
         {success && (
-          <div className="bg-success-500/10 border border-success-500 rounded-lg p-3">
+          <div role="status" className="bg-success-500/10 border border-success-500 rounded-lg p-3">
             <p className="text-sm text-success-500">{success}</p>
           </div>
         )}
 
         {notice && (
-          <div className="bg-warning-500/10 border border-warning-500 rounded-lg p-3">
+          <div role="status" className="bg-warning-500/10 border border-warning-500 rounded-lg p-3">
             <p className="text-sm text-warning-500">{notice}</p>
           </div>
         )}
