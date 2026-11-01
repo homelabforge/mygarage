@@ -550,6 +550,109 @@ export function formatCostPerDistance(
   )
 }
 
+/** Decimal places for a cost over ONE distance unit (e.g. `$0.189/mi`). */
+const COST_PER_SINGLE_DISTANCE_PRECISION = 3
+
+/**
+ * Render a cost rate over exactly ONE of the reader's distance units.
+ *
+ * The macro companion to {@link formatCostPerDistance}, which quotes the same
+ * canonical rate over 1,000 mi / 100 km. Three decimals because a per-mile
+ * figure lives in the cents-and-tenths range (`$0.189`), where two would round
+ * away the part worth reading.
+ *
+ * @param units The client's resolved unit set.
+ * @param costPerKm The canonical rate, currency per kilometre.
+ * @param currencyCode The reader's currency.
+ * @param locale The reader's locale.
+ * @returns e.g. `'$0.189'` per mi, or `'$0.117'` per km.
+ */
+export function formatCostPerSingleDistanceUnit(
+  units: UnitSet,
+  costPerKm: number,
+  currencyCode: string,
+  locale = 'en-US'
+): string {
+  const canonicalPerDistanceUnit = adapterFor(units, 'distance').toCanonical(1)!
+  return cachedCurrencyFormat(locale, currencyCode, COST_PER_SINGLE_DISTANCE_PRECISION).format(
+    costPerKm * canonicalPerDistanceUnit
+  )
+}
+
+/**
+ * The single distance unit's label, e.g. `'mi'` or `'km'`.
+ *
+ * @param units The client's resolved unit set.
+ */
+export function singleDistanceUnitLabel(units: UnitSet): string {
+  return adapterFor(units, 'distance').label
+}
+
+/**
+ * The single volume unit's label, e.g. `'gal'` or `'L'`.
+ *
+ * @param units The client's resolved unit set.
+ */
+export function singleVolumeUnitLabel(units: UnitSet): string {
+  return adapterFor(units, 'volume').label
+}
+
+/**
+ * A fuel price over ONE of the reader's volume units, at three places.
+ *
+ * Fuel prices are read to the tenth of a cent (`$2.986/gal`), which the
+ * two-place `UnitFormatter.formatCostPerVolume` would round away.
+ *
+ * @param units The client's resolved unit set.
+ * @param pricePerLiter The canonical price, currency per litre.
+ * @param currencyCode The reader's currency.
+ * @param locale The reader's locale.
+ * @returns e.g. `'$2.986'` per gal.
+ */
+export function formatPricePerVolumeUnit(
+  units: UnitSet,
+  pricePerLiter: number,
+  currencyCode: string,
+  locale = 'en-US'
+): string {
+  const litersPerUnit = adapterFor(units, 'volume').toCanonical(1)!
+  return cachedCurrencyFormat(locale, currencyCode, 3).format(pricePerLiter * litersPerUnit)
+}
+
+/**
+ * A volume in the reader's unit with its label, at a chosen precision.
+ *
+ * @param units The client's resolved unit set.
+ * @param liters The canonical volume in litres.
+ * @param digits Decimal places.
+ * @returns e.g. `'10.77 gal'` (`'10,77 gal'` in German), or `'N/A'` for a missing value.
+ *
+ * Reads the active locale ambiently, like `formatAtPrecision` and the
+ * `UnitFormatter` family, instead of taking a `locale` argument the way the
+ * currency helpers above do. A bare number has no currency to resolve, so the
+ * one app-wide locale is the only source it needs.
+ */
+export function formatVolumeWithUnit(units: UnitSet, liters: number | null | undefined, digits = 2): string {
+  const adapter = adapterFor(units, 'volume')
+  const value = adapter.toDisplay(liters)
+  return value == null || Number.isNaN(value) ? 'N/A' : `${formatAtPrecision(value, digits)} ${adapter.label}`
+}
+
+/**
+ * How far one unit of currency of fuel goes, as a bare number in the reader's
+ * distance unit (the `10.595` of `10.595 mi/$`).
+ *
+ * @param units The client's resolved unit set.
+ * @param kmPerCurrencyUnit The canonical figure, kilometres per currency unit.
+ * @returns The number at three places, grouped and punctuated for the active
+ *   locale (`10,595` in German), or `'N/A'`.
+ *   Reads the active locale ambiently, like `formatVolumeWithUnit`.
+ */
+export function formatDistancePerCurrencyUnit(units: UnitSet, kmPerCurrencyUnit: number | null | undefined): string {
+  const value = adapterFor(units, 'distance').toDisplay(kmPerCurrencyUnit)
+  return value == null || Number.isNaN(value) ? 'N/A' : formatAtPrecision(value, 3)
+}
+
 /**
  * The denominator a cost-per-distance figure is read under, as a unit phrase.
  *

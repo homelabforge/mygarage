@@ -110,3 +110,79 @@ def accrued_cost(
     return cost_between(
         share, frequency, start, end, date.min, today + timedelta(days=1), effective_to
     )
+
+
+#: Calendar months between one billing date and the next.
+_STEP_MONTHS = {"Monthly": 1, "Quarterly": 3, "Semi-Annual": 6, "Annual": 12}
+
+
+def add_months(day: date, months: int) -> date:
+    """`day` moved forward by whole calendar months, clamped to the month's last day.
+
+    Counted from the original date every time, never chained, so a policy that
+    starts on the 31st is billed on Jan 31, Feb 28 (29 in a leap year), Mar 31,
+    Apr 30 and so on, instead of drifting to the 28th for the rest of the term.
+    """
+    index = day.year * 12 + (day.month - 1) + months
+    year, month = divmod(index, 12)
+    month += 1
+    last = (date(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1)).day
+    return date(year, month, min(day.day, last))
+
+
+def billing_periods(frequency: str | None, start: date, end: date) -> list[tuple[date, date]]:
+    """The term cut into its billing periods, as `[start, end)` pairs.
+
+    Periods begin on the policy's calendar anniversaries (see `add_months`), the
+    way a bill actually falls, and the count is `periods_in_term`, so this and
+    `term_cost` always agree on how many payments the term holds. The first
+    period starts on `start` and the last ends on `end`.
+    """
+    count = periods_in_term(frequency, start, end)
+    step = _STEP_MONTHS.get(frequency or "")
+    if count == 1 or step is None:
+        return [(start, end)]
+    starts = [min(add_months(start, k * step), end) for k in range(count)]
+    return list(zip(starts, [*starts[1:], end], strict=True))
+
+
+def paid_cost(
+    share: Decimal | None,
+    frequency: str | None,
+    start: date,
+    end: date,
+    today: date,
+    effective_to: date | None = None,
+) -> Decimal:
+    """Cost counting each billing period in full once it has begun.
+
+    This is how an expense logged whole on the day it is paid reads. A Monthly
+    policy with a twelve-month term has cost three payments once its third month
+    has begun, not twelve; a Semi-Annual or Annual policy that holds a single
+    period counts it whole from its start date. A policy that has not started
+    yet costs nothing. If the vehicle's cover ended early (`effective_to`), the
+    periods it never reached cost nothing and the one it ended inside is
+    prorated by that period's own days, so a payment is not counted for cover
+    the vehicle no longer had.
+
+    Billing periods here and the term `cost_between` spreads over days are the
+    same term with the same period count; they differ only in how the money is
+    placed (whole at the start of each period here, evenly by day there).
+    """
+    if share is None or start > today:
+        return Decimal("0.00")
+    total = Decimal("0.00")
+    for period_start, period_end in billing_periods(frequency, start, end):
+        if period_start > today:
+            break
+        if effective_to is None or effective_to >= period_end:
+            total += share
+        elif effective_to > period_start and period_end > period_start:
+            days = Decimal((period_end - period_start).days)
+            total += share * Decimal((effective_to - period_start).days) / days
+        elif period_end <= period_start and effective_to >= period_start:
+            # A term whose end is on or before its start (bad or placeholder
+            # dates) is one period with no days to prorate, so it counts whole
+            # if the vehicle's cover reached its date and not at all otherwise.
+            total += share
+    return total.quantize(CENT, ROUND_HALF_UP)
