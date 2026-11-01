@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { render } from '../../../__tests__/test-utils'
-import { setActiveLocale } from '@/constants/i18n'
+import { getActiveLocale, setActiveLocale } from '@/constants/i18n'
+import { parseDecimalInput } from '@/utils/decimalInput'
 import { INVALID_NUMBER } from '@/schemas/shared'
 import NumberInput, { registerDecimal } from '../NumberInput'
 
@@ -363,5 +364,97 @@ describe('NumberInput ambiguity hint (D4)', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(input).toHaveFocus()
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+})
+
+describe('NumberInput hint across a language switch (R1-M1)', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  // In the app i18n.ts moves the active locale first, then useTranslation re-renders.
+  // The mocked hook here never re-renders, so the switch buttons re-render the form instead.
+  function LanguageButtons({ onSwitch }: { onSwitch: (lang: string) => void }): React.JSX.Element {
+    return (
+      <>
+        <button type="button" onClick={() => { setActiveLocale('de'); onSwitch('de') }}>Deutsch</button>
+        <button type="button" onClick={() => { setActiveLocale('en'); onSwitch('en') }}>English</button>
+      </>
+    )
+  }
+
+  function Switchable(): React.JSX.Element {
+    const { register, handleSubmit } = useForm<Values>()
+    const [, setLang] = useState('')
+    return (
+      <form onSubmit={handleSubmit(v => onSubmit(v))}>
+        <label htmlFor="amount">Amount</label>
+        <NumberInput id="amount" {...registerDecimal(register, 'amount')} />
+        <LanguageButtons onSwitch={setLang} />
+        <button type="submit">Save</button>
+      </form>
+    )
+  }
+
+  it('en -> de: "1.234" was read as 1.234, so no grouping hint appears and 1.234 is saved', async () => {
+    const user = userEvent.setup()
+    render(<Switchable />)
+    await user.type(screen.getByLabelText('Amount'), '1.234')
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Deutsch' }))
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1.234 })
+  })
+
+  it('de -> en: "1.234" was read as 1234, so the hint keeps saying so and 1234 is saved', async () => {
+    setActiveLocale('de')
+    const user = userEvent.setup()
+    render(<Switchable />)
+    await user.type(screen.getByLabelText('Amount'), '1.234')
+    expect(screen.getByText('Read as 1.234')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'English' }))
+    // Same number, now written the English way.
+    expect(screen.getByText('Read as 1,234')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1234 })
+  })
+
+  it('a blur after the switch re-reads the box in the new language, and the hint follows (guard)', async () => {
+    // Guard: passes on main. Mutation: don't restamp the locale on blur.
+    setActiveLocale('de')
+    const user = userEvent.setup()
+    render(<Switchable />)
+    const input = screen.getByLabelText('Amount')
+    await user.type(input, '1.234')
+    await user.click(screen.getByRole('button', { name: 'English' }))
+    await user.click(input)
+    await user.tab()
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1.234 })
+  })
+
+  it('a controlled caller parses at save in the new language, so its hint follows it (guard)', async () => {
+    // Guard: passes on main. Mutation: read controlled text under the typing-time stamp too.
+    const saved = vi.fn()
+    function Controlled(): React.JSX.Element {
+      const [text, setText] = useState('')
+      const [, setLang] = useState('')
+      return (
+        <>
+          <label htmlFor="ctl">Amount</label>
+          <NumberInput id="ctl" value={text} onChange={e => setText(e.target.value)} />
+          <LanguageButtons onSwitch={setLang} />
+          <button type="button" onClick={() => saved(parseDecimalInput(text, getActiveLocale()))}>Save</button>
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Controlled />)
+    await user.type(screen.getByLabelText('Amount'), '1.234')
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Deutsch' }))
+    expect(screen.getByText('Read as 1.234')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(saved).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'value', value: 1234 }))
   })
 })

@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState } from 'react'
-import type { ChangeEvent, ComponentProps } from 'react'
+import type { ChangeEvent, ComponentProps, FocusEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   FieldPath,
@@ -72,7 +72,8 @@ export function registerDecimal<T extends FieldValues>(
       const result = parseDecimalInput(String(raw ?? ''), getActiveLocale())
       if (result.kind === 'empty') return undefined
       if (result.kind === 'invalid') return INVALID_NUMBER
-      // NumberInput re-parses the same text to show which reading was taken.
+      // RHF keeps this until the next change or blur, read in the locale of that moment.
+      // NumberInput's hint stamps the same moments so it reads the text the same way.
       return result.value
     },
   })
@@ -88,6 +89,12 @@ export function registerDecimal<T extends FieldValues>(
  * When what the user typed got the grouping reading ("1,234" in en is 1234,
  * not 1.234) it says so underneath, so a 1000x odometer is caught before save.
  * It keys off the typed text, so a default nobody touched stays quiet.
+ *
+ * The hint reads the text the way its owner does. A registerDecimal field is
+ * parsed by RHF on change and blur and cached, so a language switch after
+ * typing doesn't move it: the hint keeps the locale of that last change or
+ * blur. A controlled caller holds the text and parses it at save (or render)
+ * in whatever language is active, so its hint follows the active language.
  */
 export default function NumberInput({
   mono = true,
@@ -95,23 +102,38 @@ export default function NumberInput({
   id,
   'aria-describedby': ariaDescribedBy,
   onChange,
+  onBlur,
   ...rest
 }: NumberInputProps) {
   const { t } = useTranslation('common')
   const fallbackId = useId()
-  const [typed, setTyped] = useState<string | null>(null)
+  // What was typed, and the locale it was typed (or last blurred) under.
+  const [typed, setTyped] = useState<{ text: string; locale: string } | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const controlled = rest.value !== undefined
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>): void => {
     // Grabbed from the event so the caller's ref (RHF's register) goes through untouched.
     inputRef.current = event.currentTarget
-    setTyped(event.currentTarget.value)
+    setTyped({ text: event.currentTarget.value, locale: getActiveLocale() })
     onChange?.(event)
   }
 
+  const handleBlur = (event: FocusEvent<HTMLInputElement>): void => {
+    // RHF re-reads the box on blur too, so restamp with the locale it'll use.
+    if (!controlled) {
+      const locale = getActiveLocale()
+      setTyped(prev => (prev === null || prev.locale === locale ? prev : { ...prev, locale }))
+    }
+    onBlur?.(event)
+  }
+
   // A controlled caller's value wins, but only while it's still what was typed.
-  const text = typeof rest.value === 'string' ? (rest.value === typed ? typed : null) : typed
-  const reading = text ? groupingReading(text, getActiveLocale()) : null
+  const current = typed !== null && (!controlled || rest.value === typed.text) ? typed : null
+  // RHF already parsed it under the stamp; a controlled caller parses in today's language.
+  const reading = current?.text
+    ? groupingReading(current.text, controlled ? getActiveLocale() : current.locale)
+    : null
   const hint =
     ambiguityHint ??
     (reading === null ? undefined : t('numberInput.readAs', { value: formatAtPrecision(reading, 0) }))
@@ -124,7 +146,7 @@ export default function NumberInput({
     const input = inputRef.current
     if (reading === null || input === null) return
     const dropIfOverwritten = (): void => {
-      if (input.value !== typed) setTyped(null)
+      if (input.value !== typed?.text) setTyped(null)
     }
     dropIfOverwritten()
     const timer = window.setInterval(dropIfOverwritten, OVERWRITE_CHECK_MS)
@@ -140,6 +162,7 @@ export default function NumberInput({
         mono={mono}
         aria-describedby={[ariaDescribedBy, hintId].filter(Boolean).join(' ') || undefined}
         onChange={handleChange}
+        onBlur={handleBlur}
         {...rest}
       />
       {hint ? (
