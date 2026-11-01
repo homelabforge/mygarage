@@ -83,10 +83,9 @@ test.describe('Toll tags', () => {
     expect(body).not.toHaveProperty('toll_country')
     await expect(form).toBeHidden({ timeout: 10000 })
 
-    const saved = page.getByRole('heading', { name: 'SunPass', exact: true })
-    await expect(saved).toBeVisible({ timeout: 10000 })
     // The vehicle header has its own Edit, so go through the tag's card.
-    const card = saved.locator('xpath=ancestor::div[contains(@class, "rounded-card")][1]')
+    const card = page.getByRole('article', { name: 'SunPass', exact: true })
+    await expect(card).toBeVisible({ timeout: 10000 })
     await card.getByRole('button', { name: 'Edit', exact: true }).click()
     const edit = page.getByRole('dialog', { name: 'Edit Toll Tag' })
     await expect(edit.locator('#toll_country')).toHaveValue('US')

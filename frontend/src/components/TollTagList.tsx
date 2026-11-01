@@ -82,8 +82,10 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {tollTags.map((tag) => (
-            <div
+            // An article named by its toll system, so the card is findable as a card.
+            <article
               key={tag.id}
+              aria-labelledby={`toll-tag-${tag.id}-title`}
               className={`bg-surface rounded-card p-6 border border-border ${
                 tag.status === 'inactive' ? 'opacity-60' : ''
               }`}
@@ -96,7 +98,9 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
                     className={tag.status === 'active' ? 'text-(--accent-fg) mt-1' : 'text-text-mute mt-1'}
                   />
                   <div>
-                    <h3 className="text-lg font-semibold text-text">{tag.toll_system}</h3>
+                    <h3 id={`toll-tag-${tag.id}-title`} className="text-lg font-semibold text-text">
+                      {tag.toll_system}
+                    </h3>
                     <Mono size="sm" tabular={false} className="text-text-mute">{tag.tag_number}</Mono>
                   </div>
                 </div>
@@ -131,7 +135,7 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
                   </div>
                 )}
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}

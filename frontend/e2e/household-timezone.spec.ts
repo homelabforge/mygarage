@@ -1,7 +1,7 @@
 import { request as apiRequest } from '@playwright/test'
 
 import { test, expect } from './helpers/fixtures'
-import { adminSessionFromStorageState, type AdminSession } from './helpers/seed'
+import { adminSessionFromStorageState, randomVin, type AdminSession } from './helpers/seed'
 
 /**
  * The household-"today" contract (plan 4.8, R1 proof checklist).
@@ -52,10 +52,7 @@ test('a dateless API mount and an untouched UI dismount agree on "today" across 
     previousTimezoneRow = null
   }
 
-  const vin = ('THHZ' + Math.random().toString(36).slice(2).toUpperCase())
-    .replace(/[IOQ]/g, 'X')
-    .padEnd(17, '0')
-    .slice(0, 17)
+  const vin = randomVin('THHZ')
 
   try {
     const pinned = await request.post(`${API_BASE}/settings/batch`, {

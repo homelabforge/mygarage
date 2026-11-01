@@ -16,22 +16,29 @@ import { expect } from './fixtures'
  * Used by tests that need to verify form submit posts the right
  * payload (Phase 3.3 address-book FK write, Phase 3.5 time field,
  * Phase 3.7 OBC HH:MM ingestion). Returns a promise that resolves
- * with the parsed JSON body.
+ * with the parsed JSON body. Call it before the click that sends it.
+ *
+ * A request that never goes out fails here, by name, after `timeoutMs`,
+ * instead of hanging the test until its own timeout says nothing useful.
  */
 export function captureApiRequest(
   page: Page,
   method: string,
-  urlPattern: RegExp
+  urlPattern: RegExp,
+  timeoutMs = 10_000
 ): Promise<Record<string, unknown>> {
-  return new Promise((resolve) => {
-    const handler = (request: Request): void => {
-      if (request.method() === method && urlPattern.test(request.url())) {
-        page.off('request', handler)
-        resolve(JSON.parse(request.postData() ?? '{}'))
+  return page
+    .waitForRequest((request: Request) => request.method() === method && urlPattern.test(request.url()), {
+      timeout: timeoutMs,
+    })
+    .then(
+      (request) => JSON.parse(request.postData() ?? '{}') as Record<string, unknown>,
+      (error: unknown) => {
+        throw new Error(`captureApiRequest: no ${method} matching ${urlPattern} within ${timeoutMs} ms`, {
+          cause: error,
+        })
       }
-    }
-    page.on('request', handler)
-  })
+    )
 }
 
 /** Open the "Add Fill-up" modal on a vehicle's fuel tab.

@@ -1,4 +1,4 @@
-import { request as apiRequest, type APIRequestContext, type Page } from '@playwright/test'
+import { request as apiRequest, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { test, expect } from './helpers/fixtures'
 import { openFuelRecordForm } from './helpers/forms'
@@ -56,6 +56,13 @@ async function openEngineHours(page: Page, vin: string): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Engine Hours Readings' })).toBeVisible({ timeout: 10000 })
 }
 
+/** The cell in `row` under the column headed `header`, so a word elsewhere in the row can't pass for it. */
+async function cellUnder(table: Locator, row: Locator, header: string): Promise<Locator> {
+  const headers = (await table.getByRole('columnheader').allTextContents()).map((text) => text.trim())
+  expect(headers, `no "${header}" column`).toContain(header)
+  return row.getByRole('cell').nth(headers.indexOf(header))
+}
+
 test.describe('Engine hours', () => {
   test('a manual reading lists, a fill-up takes hours not miles, and it shows a per-hour rate and a Fuel row', async ({
     page,
@@ -72,7 +79,7 @@ test.describe('Engine hours', () => {
     const hoursTable = page.getByRole('table', { name: 'Engine hours reading history' })
     const manualRow = hoursTable.getByRole('row').filter({ hasText: '50.0 hr' })
     await expect(manualRow).toHaveCount(1)
-    await expect(manualRow).toContainText('Manual')
+    await expect(await cellUnder(hoursTable, manualRow, 'Source')).toHaveText('Manual')
 
     // The first full fill goes in through the API, so the UI one has something to measure from.
     await ledger.post(`/vehicles/${vin}/fuel`, {
@@ -103,6 +110,6 @@ test.describe('Engine hours', () => {
     await openEngineHours(page, vin)
     const fuelRow = hoursTable.getByRole('row').filter({ hasText: '110.0 hr' })
     await expect(fuelRow).toHaveCount(1)
-    await expect(fuelRow).toContainText('Fuel')
+    await expect(await cellUnder(hoursTable, fuelRow, 'Source')).toHaveText('Fuel')
   })
 })
