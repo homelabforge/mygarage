@@ -16,14 +16,16 @@ violates a CHECK is one reported row and the rest of the file still imports.
 """
 
 import json
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import get_db
@@ -31,7 +33,9 @@ from app.main import app
 from app.models.def_record import DEFRecord
 from app.models.fuel import FuelRecord
 from app.models.hours import HoursRecord
+from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.odometer import OdometerRecord
+from app.models.vehicle import Vehicle
 
 # Diesel, so the DEF imports are accepted.
 pytestmark = pytest.mark.own_vehicle(fuel_type="diesel")
@@ -466,6 +470,29 @@ class TestABadServiceOrReminderRowDoesNotFailOtherRecordTypes:
             assert fuel_count.scalar() == 1
 
 
+@pytest_asyncio.fixture
+async def imported_policies_go(
+    own_vehicle: Vehicle, db_session: AsyncSession
+) -> AsyncIterator[None]:
+    """Deletes the policies an import linked to own_vehicle.
+
+    The vehicle's delete only takes the links, so the policies would outlive it.
+    Runs before own_vehicle's teardown, while the links still find them.
+    """
+    vin = own_vehicle.vin  # a rollback expires the object, so read it now
+    yield
+    await db_session.rollback()
+    linked = select(InsurancePolicyVehicle.policy_id).where(InsurancePolicyVehicle.vin == vin)
+    await db_session.execute(delete(InsurancePolicy).where(InsurancePolicy.id.in_(linked)))
+    await db_session.commit()
+    left = await db_session.scalar(
+        select(func.count())
+        .select_from(InsurancePolicy)
+        .where(InsurancePolicy.provider.in_(["Good", "Bad"]))
+    )
+    assert left == 0, "the imported policy outlived the test"
+
+
 @pytest.mark.asyncio
 class TestOneBadRowDoesNotFailTheFile:
     async def test_an_invalid_warranty_type_is_a_row_error_not_a_500(
@@ -493,7 +520,7 @@ class TestOneBadRowDoesNotFailTheFile:
         assert any("3" in e for e in data["errors"]), data["errors"]
 
     async def test_an_invalid_policy_type_is_a_row_error_not_a_500(
-        self, client: AsyncClient, auth_headers, own_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle, imported_policies_go
     ):
         csv_content = (
             "Provider,Policy Number,Type,Start Date,End Date,Premium,Premium Frequency,"

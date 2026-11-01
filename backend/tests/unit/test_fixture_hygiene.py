@@ -13,7 +13,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 TESTS_DIR = BACKEND_DIR / "tests"
 ROUTES_DIR = TESTS_DIR / "integration" / "routes"
 
-#: test_vehicle's VIN. Only its own fixture and the DB-free unit tests may spell it.
+#: test_vehicle's VIN. Only its own fixture and the unit tests may spell it.
 SHARED_VIN = "1HGBH41JXMN109186"
 #: Calls that stamp a row with the day the suite runs.
 TODAY_CALLS = {
@@ -54,18 +54,49 @@ def _is_today(node: ast.AST, names: set[str]) -> bool:
     return False
 
 
-def _dates_a_row_today(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """A `"date": <today>` entry in any dict this function builds."""
+def _today_names(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Local names holding today, followed through reassignments (`d = today`)."""
     names: set[str] = set()
+    while True:
+        found = {
+            target.id
+            for node in ast.walk(fn)
+            if isinstance(node, ast.Assign) and _is_today(node.value, names)
+            for target in node.targets
+            if isinstance(target, ast.Name)
+        }
+        if found <= names:
+            return names
+        names |= found
+
+
+def _date_values(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.AST]:
+    """Whatever a row's `date` is set to: `{"date": x}`, `Model(date=x)` or `row["date"] = x`."""
+    values: list[ast.AST] = []
     for node in ast.walk(fn):
-        if isinstance(node, ast.Assign) and _is_today(node.value, names):
-            names |= {t.id for t in node.targets if isinstance(t, ast.Name)}
-    return any(
-        isinstance(key, ast.Constant) and key.value == "date" and _is_today(value, names)
-        for node in ast.walk(fn)
-        if isinstance(node, ast.Dict)
-        for key, value in zip(node.keys, node.values, strict=True)
-    )
+        if isinstance(node, ast.Dict):
+            values += [
+                value
+                for key, value in zip(node.keys, node.values, strict=True)
+                if isinstance(key, ast.Constant) and key.value == "date"
+            ]
+        elif isinstance(node, ast.Call):
+            values += [kw.value for kw in node.keywords if kw.arg == "date"]
+        elif isinstance(node, ast.Assign):
+            values += [
+                node.value
+                for target in node.targets
+                if isinstance(target, ast.Subscript)
+                and isinstance(target.slice, ast.Constant)
+                and target.slice.value == "date"
+            ]
+    return values
+
+
+def _dates_a_row_today(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """A row whose `date` reads today, in any of the forms `_date_values` knows."""
+    names = _today_names(fn)
+    return any(_is_today(value, names) for value in _date_values(fn))
 
 
 def test_no_route_module_shadows_own_vehicle() -> None:

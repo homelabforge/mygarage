@@ -567,11 +567,11 @@ class TestDashboardRoutes:
         assert stat["vehicle_type"] == "Car"
 
     async def test_fleet_health_spent_this_year_is_ytd_scoped(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
     ):
         """Spent = service + fuel + DEF dated year_start..today; prior-year AND
         later-this-year records are both excluded (true YTD)."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         today = date.today()
 
         before = Decimal(
