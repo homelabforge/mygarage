@@ -110,7 +110,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Durations in LiveLink (trips, sessions and the live session timer) follow the selected language
 - Fitting a tire set again the same day with a lower odometer or hour meter no longer lowers that day's reading. To fix a mistyped fit, Edit the mount period of every tire in the set; the day drops only once the last one is edited
 - The Garage page hides Insurance and Taxes at $0, like DEF and Financing
-- The garage monthly trend is the last 12 calendar months, zeros included; a future-dated record counts in the totals but not the trend
+- The garage monthly trend is the last 12 calendar months, zeros included; a record dated in a future month counts in the totals but not the trend
 - The hours economy trend's average, which the vehicle PDF's Hours Economy card shows, includes towing tanks like its chart
 - UK gallons, quarts, fl oz and MPG are labelled (UK); US labels don't change
 - The supplies list names the unit of its average cost, like the cards ("$5.00/qt")

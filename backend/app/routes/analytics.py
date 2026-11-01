@@ -1257,7 +1257,8 @@ async def get_garage_analytics(
         cost_breakdown.append(GarageCostByCategory(category="Financing", amount=total_financing))
 
     # The 12 calendar months ending this month, oldest first, quiet ones as zeros.
-    # A future-dated record still counts in the totals above, just not here.
+    # A record dated in a later month still counts in the totals above, just not here.
+    # One dated later this month lands in this month's bucket.
     monthly_trends = []
     for back in range(11, -1, -1):
         year, month_index = divmod(today.year * 12 + today.month - 1 - back, 12)
