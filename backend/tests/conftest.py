@@ -17,6 +17,10 @@ os.environ["MYGARAGE_TEST_MODE"] = "true"
 # Tests that swap key sources call settings_crypto._reset_keyring_for_tests().
 os.environ.setdefault("MYGARAGE_SETTINGS_KEY", "bXlnYXJhZ2UgdGVzdCBzZXR0aW5ncyBrZXkgMDAwMSE")
 
+# Same for the JWT key: unset, importing app.config writes /data/secret.key on
+# any host where /data is writable. Same value as docker-compose.test.yml.
+os.environ.setdefault("MYGARAGE_SECRET_KEY", "test-secret-key")
+
 # If TEST_DATABASE_URL is set (e.g. for PostgreSQL), propagate it to the app's
 # database URL so the app engine matches the test engine. Must happen before imports.
 if "TEST_DATABASE_URL" in os.environ:

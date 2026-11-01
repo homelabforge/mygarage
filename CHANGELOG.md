@@ -238,6 +238,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Switching vehicles while the page is still loading no longer shows the previous vehicle's details on the new one, or saves them to it
 - The station and vendor searches no longer say "No matches" before the search has answered, and a failed search says so
 - Screen reader and keyboard fixes: the station, vendor and line item suggestions are comboboxes you can arrow through, drawers take focus on their first field even when kept mounted or when their fields load late, the device token dialog traps focus and closes on Escape, window sticker and sign-up errors are alerts tied to their fields, the phone More tab says when you're on one of its pages, and icon buttons, report downloads, family cards, DTC notes, the vendor clear button, and the LiveLink, Torque and tire controls have names that say which one
+- Two backups uploaded in the same second no longer overwrite each other
 
 ### Security
 - A sign-in token with no expiry is refused instead of never expiring

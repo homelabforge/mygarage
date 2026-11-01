@@ -1,6 +1,8 @@
 """Backup API endpoints for settings and full data backup/restore."""
 
 import logging
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -385,8 +387,6 @@ async def upload_backup(
     Returns:
         Metadata about the uploaded backup file
     """
-    from datetime import datetime
-
     try:
         backup_service = get_backup_service()
         backup_service.ensure_backup_dir()
@@ -416,13 +416,15 @@ async def upload_backup(
 
         # Determine backup type and generate standardized filename
         # This ensures uploaded files appear in the backup list
-        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        # The suffix keeps two uploads in one second apart; by the second alone
+        # the later one overwrote the first.
+        stamp = f"{datetime.now().strftime('%Y-%m-%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
         if file.filename.endswith(".json"):
             backup_type = "settings"
-            safe_filename = f"mygarage-settings-uploaded-{timestamp}.json"
+            safe_filename = f"mygarage-settings-uploaded-{stamp}.json"
         else:
             backup_type = "full"
-            safe_filename = f"mygarage-full-uploaded-{timestamp}.tar.gz"
+            safe_filename = f"mygarage-full-uploaded-{stamp}.tar.gz"
 
         backup_path = BACKUP_DIR / safe_filename
 
@@ -445,8 +447,8 @@ async def upload_backup(
             ):
                 raise HTTPException(status_code=400, detail="Invalid backup file structure")
 
-        # Write to backup directory
-        with open(backup_path, "wb") as f:
+        # Write to backup directory; "x" so a clash fails instead of overwriting
+        with open(backup_path, "xb") as f:
             f.write(content)
 
         logger.info(
