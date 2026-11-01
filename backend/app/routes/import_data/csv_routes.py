@@ -92,7 +92,6 @@ from app.schemas.tax import TaxRecordCreate
 from app.schemas.warranty import WarrantyRecordCreate
 from app.services import maintenance_service
 from app.services.auth import get_vehicle_or_403, require_auth
-from app.services.fuel_side_effects import invalidate_cache_for_vehicle
 from app.services.insurance_service import InsuranceService
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.csv_units import (
@@ -254,7 +253,6 @@ async def import_service_csv(
     # Imported services may be the newest of a rule's type: reconcile once per
     # upload (own lock, own commit), never per row.
     await maintenance_service.reconcile_vehicle(db, vin)
-    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -559,7 +557,6 @@ async def import_fuel_csv(
 
     await readings.apply(db, vin, claim=False)
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -695,7 +692,6 @@ async def import_def_csv(
 
     await readings.apply(db, vin, claim=False)
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -782,7 +778,6 @@ async def import_odometer_csv(
             import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -877,7 +872,6 @@ async def import_hours_csv(
             import_result.add_error(row_num, _unexpected_reason(e, "Invalid hours record data"))
 
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -984,7 +978,6 @@ async def import_warranties_csv(
             import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1046,7 +1039,6 @@ async def import_insurance_csv(
             import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1127,7 +1119,6 @@ async def import_tax_csv(
             import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()
 
@@ -1188,6 +1179,5 @@ async def import_notes_csv(
             import_result.add_error(row_num, _unexpected_reason(e, "Invalid record data"))
 
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
 
     return import_result.to_dict()

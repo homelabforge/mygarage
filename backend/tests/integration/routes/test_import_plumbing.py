@@ -1,4 +1,4 @@
-"""Shared import plumbing (batch 3a task 1): dedup, sync, markers, cache, scale, warnings."""
+"""Shared import plumbing (batch 3a task 1): dedup, sync, markers, scale, warnings."""
 
 import json
 import logging
@@ -11,7 +11,7 @@ from typing import Any
 import asyncpg
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete, select, text
+from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql.asyncpg import (
     AsyncAdapt_asyncpg_connection,
     AsyncAdapt_asyncpg_dbapi,
@@ -23,7 +23,6 @@ from sqlalchemy.orm import Session
 from app.models import (
     FuelRecord,
     HoursRecord,
-    InsurancePolicy,
     Note,
     OdometerRecord,
     Reminder,
@@ -31,7 +30,6 @@ from app.models import (
     Vehicle,
     WarrantyRecord,
 )
-from app.utils.cache import cache
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -480,53 +478,6 @@ async def test_a_reading_csv_row_loses_its_marker(
     assert [(notes, source) for _d, _v, notes, source in rows] == [(None, "manual")]
 
 
-# -- N-6: every native import clears the analytics cache -----------------------
-
-_ONE_ROW = {
-    "service": "Date,Category,Description,Odometer (km),Cost,Vendor,Notes\n"
-    "2026-06-01,Maintenance,Oil,100.00,10.00,,\n",
-    "fuel": "Date,Odometer (km),Liters,Total Cost,Full Tank\n2026-06-01,100.00,10.000,15.00,Yes\n",
-    "def": "Date,Odometer (km),Liters,Total Cost\n2026-06-01,100.00,5.000,9.00\n",
-    "odometer": "Date,Reading (km),Notes\n2026-06-01,100.00,\n",
-    "hours": "Date,Engine Hours,Notes\n2026-06-01,5.0,\n",
-    "warranties": "Provider,Type,Start Date\nB3 Cache Co,Extended,2026-06-01\n",
-    "insurance": "Provider,Policy Number,Type,Start Date,End Date,Premium,Premium Frequency,"
-    "Deductible,Coverage Limits,Notes\n"
-    "B3 Cache Insure,B3-CACHE-1,Liability,2026-06-01,2026-12-01,100.00,Semi-Annual,,,\n",
-    "tax": "Date,Type,Amount\n2026-06-01,Registration,10.00\n",
-    "notes": "Date,Title,Content\n2026-06-01,Cache,probe\n",
-}
-
-
-@pytest.mark.parametrize("pair", ["json", *_ONE_ROW])
-async def test_an_import_clears_the_analytics_cache(
-    pair: str, client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
-):
-    vin = await _vehicle(db_session, test_user["id"], f"B3RTCACHE{pair[:8].upper():0<8}")
-    await cache.set("b3-cache-probe", "stale", 300)
-    if pair == "json":
-        await _post_json(
-            client,
-            auth_headers,
-            vin,
-            {
-                "export_version": "8",
-                "units": "metric",
-                "notes": [{"date": "2026-06-01", "title": "Cache", "content": "probe"}],
-            },
-        )
-    else:
-        await _post_csv(client, auth_headers, vin, pair, _ONE_ROW[pair])
-    # main: "stale" (no native import invalidated the cache)
-    assert await cache.get("b3-cache-probe") is None
-    if pair == "insurance":
-        # A policy is a household row, so it would outlive the vehicle.
-        await db_session.execute(
-            delete(InsurancePolicy).where(InsurancePolicy.provider == "B3 Cache Insure")
-        )
-        await db_session.commit()
-
-
 # -- R7: a converted figure is stored at the column's scale --------------------
 
 
@@ -555,7 +506,9 @@ async def test_every_import_response_carries_a_warnings_list(
     client: AsyncClient, auth_headers, test_user, db_session: AsyncSession
 ):
     vin = await _vehicle(db_session, test_user["id"], "B3RTWARNINGSKEY01")
-    csv_data = await _post_csv(client, auth_headers, vin, "notes", _ONE_ROW["notes"])
+    csv_data = await _post_csv(
+        client, auth_headers, vin, "notes", "Date,Title,Content\n2026-06-01,Cache,probe\n"
+    )
     json_data = await _post_json(
         client, auth_headers, vin, {"export_version": "8", "units": "metric"}
     )

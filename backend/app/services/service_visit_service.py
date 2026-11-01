@@ -30,7 +30,6 @@ from app.services import maintenance_service
 from app.services.attachment_cleanup import purge_record_attachments, remove_attachment_files
 from app.services.supply_service import SupplyService, usage_cost_subject
 from app.services.vehicle_lock import lock_vehicle_for_write
-from app.utils.cache import invalidate_cache_for_vehicle
 from app.utils.hours_sync import remove_synced_hours, sync_hours_from_record
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.maintenance_types import resolve_type
@@ -234,7 +233,6 @@ class ServiceVisitService:
             await self.db.commit()
 
             logger.info("Created service visit %s for %s", visit_id, sanitize_for_log(vin))
-            await invalidate_cache_for_vehicle(vin)
 
             # Reload with relationships
             return await self.get_service_visit(vin, visit_id, current_user)
@@ -573,7 +571,6 @@ class ServiceVisitService:
             await self.db.commit()
 
             logger.info("Updated service visit %s for %s", visit_id, sanitize_for_log(vin))
-            await invalidate_cache_for_vehicle(vin)
 
             # Reload with the FULL eager chain (line_items -> supply_usages -> supply,
             # + vendor) before returning. `_recompute_visit_total`'s reload deliberately
@@ -702,7 +699,6 @@ class ServiceVisitService:
             logger.info(
                 "Deleted service visit %s for %s", sanitize_for_log(visit_id), sanitize_for_log(vin)
             )
-            await invalidate_cache_for_vehicle(vin)
 
         except HTTPException:
             raise
@@ -814,7 +810,6 @@ class ServiceVisitService:
                 visit_id,
                 sanitize_for_log(vin),
             )
-            await invalidate_cache_for_vehicle(vin)
 
             return line_item
 
@@ -887,7 +882,6 @@ class ServiceVisitService:
                 visit_id,
                 sanitize_for_log(vin),
             )
-            await invalidate_cache_for_vehicle(vin)
 
         except HTTPException:
             raise

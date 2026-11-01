@@ -361,25 +361,52 @@ class TestAnalyticsEndpoints:
 @pytest.mark.integration
 @pytest.mark.analytics
 @pytest.mark.asyncio
-async def test_analytics_caching(
+async def test_a_reading_added_after_a_read_shows_on_the_next_one(
+    client: AsyncClient, own_vehicle: Vehicle, auth_headers: dict
+):
+    """An hours reading saved through its own route shows on the very next read.
+
+    The hours routes never cleared the analytics cache, so once the cache keyed
+    on the VIN alone the series stayed stale for 10 minutes.
+    """
+    vin = own_vehicle.vin
+    url = f"/api/analytics/vehicles/{vin}"
+
+    before = await client.get(url, headers=auth_headers)
+    assert before.status_code == 200, before.text
+    assert before.json()["hours_accumulated"] == []
+
+    added = await client.post(
+        f"/api/vehicles/{vin}/hours",
+        json={"vin": vin, "date": "2024-04-01", "engine_hours": 120.5},
+        headers=auth_headers,
+    )
+    assert added.status_code == 201, added.text
+
+    after = await client.get(url, headers=auth_headers)
+    assert [
+        (p["date"], Decimal(str(p["engine_hours"]))) for p in after.json()["hours_accumulated"]
+    ] == [("2024-04-01", Decimal("120.5"))]
+
+
+@pytest.mark.integration
+@pytest.mark.analytics
+@pytest.mark.asyncio
+async def test_a_fill_up_written_behind_the_routes_shows_on_the_next_read(
     client: AsyncClient,
     seeded_vehicle: SeededVehicle,
     test_sessionmaker: async_sessionmaker[AsyncSession],
     auth_headers: dict,
 ):
-    """A second read comes from the cache until something invalidates it.
+    """Nothing caches the analytics, so a write no route saw still shows at once.
 
-    The extra fill-up goes in behind the routes' back, so only a cache hit can
-    keep it out of the second answer.
+    It used to be held in a 10 minute cache that only some writes cleared.
     """
-    from app.utils.cache import invalidate_cache_for_vehicle
-
     vin = seeded_vehicle.vin
 
     response1 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
     assert response1.status_code == 200
-    data1 = response1.json()
-    assert Decimal(str(data1["cost_analysis"]["total_cost"])) == Decimal("320.00")
+    assert Decimal(str(response1.json()["cost_analysis"]["total_cost"])) == Decimal("320.00")
 
     async with test_sessionmaker() as session:
         session.add(_fuel(vin, date(2024, 8, 15), "30.00"))
@@ -387,12 +414,8 @@ async def test_analytics_caching(
 
     response2 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
     assert response2.status_code == 200
-    # The part the extra fill-up would move, not the whole payload.
-    assert response2.json()["cost_analysis"] == data1["cost_analysis"]
-
-    await invalidate_cache_for_vehicle(vin)
-    response3 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
-    assert Decimal(str(response3.json()["cost_analysis"]["total_cost"])) == Decimal("350.00")
+    # The part the extra fill-up moves, not the whole payload.
+    assert Decimal(str(response2.json()["cost_analysis"]["total_cost"])) == Decimal("350.00")
 
 
 @pytest.mark.integration

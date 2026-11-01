@@ -28,7 +28,6 @@ from app.schemas.fuel import (
     FuelRecordUpdate,
     check_reading_and_amount,
 )
-from app.utils.cache import cached, invalidate_cache_for_vehicle
 from app.utils.def_sync import ensure_def_capable, sync_def_from_fuel_record
 from app.utils.fuel_station_sync import resolve_fuel_station
 from app.utils.hours_sync import sync_hours_from_record
@@ -581,7 +580,6 @@ async def get_previous_full_tank(
     return result.scalar_one_or_none()
 
 
-@cached(ttl_seconds=300)  # Cache for 5 minutes
 async def calculate_average_l_per_100km(
     db: AsyncSession, vin: str, exclude_hauling: bool = True
 ) -> Decimal | None:
@@ -612,7 +610,6 @@ async def calculate_average_l_per_100km(
     return average_l_per_100km(periods)
 
 
-@cached(ttl_seconds=300)  # Cache for 5 minutes
 async def calculate_average_hours_economy(
     db: AsyncSession, vin: str, exclude_hauling: bool = True
 ) -> tuple[Decimal | None, Decimal | None]:
@@ -963,8 +960,6 @@ class FuelRecordService:
                 value,
             )
 
-            await invalidate_cache_for_vehicle(vin)
-
             return record, value, hours_value
 
         except HTTPException:
@@ -1190,8 +1185,6 @@ class FuelRecordService:
                 "Updated fuel record %s for %s", sanitize_for_log(record_id), sanitize_for_log(vin)
             )
 
-            await invalidate_cache_for_vehicle(vin)
-
             return record, value, hours_value
 
         except HTTPException:
@@ -1256,8 +1249,6 @@ class FuelRecordService:
             logger.info(
                 "Deleted fuel record %s for %s", sanitize_for_log(record_id), sanitize_for_log(vin)
             )
-
-            await invalidate_cache_for_vehicle(vin)
 
         except HTTPException:
             raise

@@ -17,6 +17,7 @@ import pytest_asyncio
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 from sqlalchemy import exc as sa_exc
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fuel import FuelRecord
 from app.models.odometer import OdometerRecord
@@ -511,10 +512,8 @@ async def test_an_exception_after_the_commit_replies_logged_and_does_not_duplica
     vin = test_vehicle["vin"]
     fake.message(f"fuel {vin} 10000 40")
 
-    with patch(
-        "app.services.fuel_ingest.invalidate_cache_for_vehicle",
-        AsyncMock(side_effect=RuntimeError("cache down")),
-    ):
+    # The refresh is the only work left after the commit.
+    with patch.object(AsyncSession, "refresh", AsyncMock(side_effect=RuntimeError("db went away"))):
         await _round(poller, fake)
     await _round(poller, fake)
 

@@ -148,7 +148,6 @@ from app.schemas.service_visit import (
 from app.services import maintenance_service
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.brake_service import BrakeService
-from app.services.fuel_side_effects import invalidate_cache_for_vehicle
 from app.services.insurance_service import InsuranceService
 from app.services.reminder_service import start_readings
 from app.services.service_visit_service import drop_stray_links
@@ -1511,7 +1510,6 @@ async def import_vehicle_json(
     await db.commit()
     # Imported services may be the newest of a rule's type: reconcile once.
     await maintenance_service.reconcile_vehicle(db, vin)
-    await invalidate_cache_for_vehicle(vin)
 
     for key in _JSON_RESULT_BUCKETS:
         bucket = results[key]

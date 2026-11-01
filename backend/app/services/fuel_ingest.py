@@ -26,10 +26,7 @@ from app.schemas.fuel import (
     _validate_octane,
     _validate_price_basis,
 )
-from app.services.fuel_side_effects import (
-    apply_fuel_record_side_effects,
-    invalidate_cache_for_vehicle,
-)
+from app.services.fuel_side_effects import apply_fuel_record_side_effects
 from app.utils.household_time import household_today
 
 
@@ -161,5 +158,4 @@ async def create_fuel_record(db: AsyncSession, payload: WebhookFuelPayload) -> d
     await apply_fuel_record_side_effects(db, record)
     await db.commit()
     await db.refresh(record)
-    await invalidate_cache_for_vehicle(vehicle.vin)
     return {"id": record.id, "vin": record.vin, "date": str(record.date)}

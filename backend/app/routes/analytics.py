@@ -73,7 +73,6 @@ from app.services.hours_service import latest_engine_hours_and_date
 from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.service_visit_service import service_visit_cost_load_options
 from app.services.tire_service import TireService
-from app.utils.cache import cached
 from app.utils.household_time import household_today
 from app.utils.insurance_cost import accrued_cost, monthly_costs
 from app.utils.insurance_shares import effective_shares
@@ -212,7 +211,6 @@ def filter_anomalies_to_window(
     return filtered
 
 
-@cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_cost_analysis(
     db: AsyncSession, vin: str, *, currency_code: str | None
 ) -> CostAnalysis:
@@ -447,7 +445,6 @@ def build_cost_projection(cost_analysis: CostAnalysis) -> CostProjection:
     )
 
 
-@cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_fuel_economy_trend(db: AsyncSession, vin: str) -> FuelEconomyTrend:
     """Calculate fuel economy trends using pandas."""
 
@@ -489,7 +486,6 @@ async def get_fuel_economy_trend(db: AsyncSession, vin: str) -> FuelEconomyTrend
     )
 
 
-@cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_hours_economy_trend(db: AsyncSession, vin: str) -> HoursEconomyTrend:
     """Calculate engine-hours fuel economy trend (L/hr + cost/hr) using pandas.
 
@@ -501,8 +497,7 @@ async def get_hours_economy_trend(db: AsyncSession, vin: str) -> HoursEconomyTre
     hauling out. Null/empty for a pure-distance vehicle (no ``engine_hours``
     fill-ups).
     """
-    # Same tanks as the points. The flag is part of the cache key, so this
-    # doesn't share an entry with the card's hauling-free average.
+    # Same tanks as the points, hauling included, unlike the card's average.
     average_l_per_hr, average_cost_per_hr = await calculate_average_hours_economy(
         db, vin, exclude_hauling=False
     )
@@ -555,7 +550,6 @@ async def get_hours_economy_trend(db: AsyncSession, vin: str) -> HoursEconomyTre
     )
 
 
-@cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_hours_accumulated_series(
     db: AsyncSession, vin: str
 ) -> list[HoursAccumulatedDataPoint]:
@@ -653,7 +647,6 @@ def build_fuel_alerts(fuel_economy: FuelEconomyTrend) -> list[FuelEfficiencyAler
     return alerts
 
 
-@cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_service_history_timeline(db: AsyncSession, vin: str) -> list[ServiceHistoryItem]:
     """Get service history with timeline context from ServiceVisit line items."""
 
@@ -702,7 +695,6 @@ async def get_service_history_timeline(db: AsyncSession, vin: str) -> list[Servi
     return timeline
 
 
-@cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_maintenance_predictions(
     db: AsyncSession, vin: str, current_odometer_km: Decimal | None = None
 ) -> list[MaintenancePrediction]:
