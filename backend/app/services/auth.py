@@ -152,12 +152,15 @@ async def get_current_user(
         key = OctKey.import_key(settings.secret_key)
         claims = jwt.decode(token, key).claims
 
-        # Explicitly validate expiration (defense-in-depth)
+        # jwt.decode doesn't check exp, so this is the only expiry check. Every
+        # token we mint has one, so a token without it would never expire.
         exp = claims.get("exp")
-        if exp is not None:
-            if datetime.now(UTC).timestamp() > exp:
-                logger.debug("Token has expired")
-                raise credentials_exception
+        if exp is None:
+            logger.debug("Token has no expiry")
+            raise credentials_exception
+        if datetime.now(UTC).timestamp() > exp:
+            logger.debug("Token has expired")
+            raise credentials_exception
 
         user_id_str: str | None = claims.get("sub")
         username: str | None = claims.get("username")

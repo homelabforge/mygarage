@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import parse_client_ip_header, parse_trusted_proxies, settings
 from app.main import app
+from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_share import VehicleShare
@@ -96,6 +97,44 @@ async def unrelated_user(db_session: AsyncSession) -> User:
 async def admin_user(db_session: AsyncSession) -> User:
     """A separate admin user (not the vehicle owner)."""
     return await _get_or_create_user(db_session, "authz_admin", is_admin=True)
+
+
+@pytest_asyncio.fixture
+async def made_users(db_session: AsyncSession) -> AsyncIterator[list[str]]:
+    """Usernames a test creates, deleted afterwards."""
+    names: list[str] = []
+    yield names
+    await db_session.rollback()
+    await db_session.execute(delete(User).where(User.username.in_(names)))
+    await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def multi_user_on(db_session: AsyncSession) -> AsyncIterator[None]:
+    """multi_user_enabled on for one test, then put back.
+
+    A stored "false" stops create_user at its 403, before the write and the log line.
+    """
+    row = (
+        await db_session.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
+    ).scalar_one_or_none()
+    before = row.value if row is not None else None
+    if row is None:
+        db_session.add(Setting(key="multi_user_enabled", value="true"))
+    else:
+        row.value = "true"
+    await db_session.commit()
+    yield
+    await db_session.rollback()
+    row = (
+        await db_session.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
+    ).scalar_one_or_none()
+    if before is None:
+        if row is not None:
+            await db_session.delete(row)
+    elif row is not None:
+        row.value = before
+    await db_session.commit()
 
 
 # --- The owned vehicle + shares ----------------------------------------------

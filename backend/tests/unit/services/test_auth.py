@@ -170,17 +170,6 @@ class TestJWTTokens:
         assert "exp" in payload
         assert "iat" in payload
 
-    @pytest.mark.skip(reason="jwt.decode() does not validate expiration; use JWTClaimsRegistry")
-    def test_decode_token_expired(self):
-        """Test that expired tokens raise an error."""
-        data = {"sub": "123", "username": "testuser"}
-        # Create token that expired well in the past to ensure timing margin
-        token = create_access_token(data, expires_delta=timedelta(seconds=-100))
-
-        # Decoding should raise an error for expired token
-        with pytest.raises(JoseError):
-            jwt.decode(token, OctKey.import_key(settings.secret_key))
-
     def test_decode_token_invalid_signature(self):
         """Test that tokens with invalid signatures raise an error."""
         data = {"sub": "123", "username": "testuser"}

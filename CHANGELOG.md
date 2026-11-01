@@ -240,6 +240,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Screen reader and keyboard fixes: the station, vendor and line item suggestions are comboboxes you can arrow through, drawers take focus on their first field even when kept mounted or when their fields load late, the device token dialog traps focus and closes on Escape, window sticker and sign-up errors are alerts tied to their fields, the phone More tab says when you're on one of its pages, and icon buttons, report downloads, family cards, DTC notes, the vendor clear button, and the LiveLink, Torque and tire controls have names that say which one
 
 ### Security
+- A sign-in token with no expiry is refused instead of never expiring
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)
 - The Google Places, Yelp and Foursquare API keys are masked in `GET /api/settings` like the other secrets
 - Sending the `********` placeholder back never overwrites a stored secret, even one that can't be decrypted, and the POI provider and LiveLink forms now honour it too instead of saving it as the value

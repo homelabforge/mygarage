@@ -15,17 +15,15 @@ in the dependency, so those service checks get called directly.
 """
 
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 import pytest
-import pytest_asyncio
 from fastapi import HTTPException
 from httpx import AsyncClient
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_share import VehicleShare
@@ -42,17 +40,7 @@ _HASH = "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAM
 _NEW_PASSWORD = "NewSecureP@ss1"
 
 
-# --- Fixtures -----------------------------------------------------------------
-
-
-@pytest_asyncio.fixture
-async def made_users(db_session: AsyncSession) -> AsyncIterator[list[str]]:
-    """Usernames a test creates, deleted afterwards."""
-    names: list[str] = []
-    yield names
-    await db_session.rollback()
-    await db_session.execute(delete(User).where(User.username.in_(names)))
-    await db_session.commit()
+# --- Helpers ------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -90,34 +78,6 @@ async def _user(
     await db_session.commit()
     made_users.append(name)
     return _Made(user.id, name)
-
-
-@pytest_asyncio.fixture
-async def multi_user_on(db_session: AsyncSession) -> AsyncIterator[None]:
-    """multi_user_enabled on for one test, then put back.
-
-    A stored "false" stops create_user at its 403, before the write and the log line.
-    """
-    row = (
-        await db_session.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
-    ).scalar_one_or_none()
-    before = row.value if row is not None else None
-    if row is None:
-        db_session.add(Setting(key="multi_user_enabled", value="true"))
-    else:
-        row.value = "true"
-    await db_session.commit()
-    yield
-    await db_session.rollback()
-    row = (
-        await db_session.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
-    ).scalar_one_or_none()
-    if before is None:
-        if row is not None:
-            await db_session.delete(row)
-    elif row is not None:
-        row.value = before
-    await db_session.commit()
 
 
 async def _share_id(sessionmaker: async_sessionmaker[AsyncSession], user_id: int) -> int | None:
