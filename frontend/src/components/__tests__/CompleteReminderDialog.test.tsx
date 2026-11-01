@@ -7,10 +7,11 @@
  * (88,896 mi seeded from 143064.24 km returns 143064.24, not 143064.28).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import type { Reminder } from '../../types/reminder'
+import { setActiveLocale } from '@/constants/i18n'
 
 const completeMock = vi.fn()
 vi.mock('../../hooks/useReminders', () => ({
@@ -233,5 +234,35 @@ describe('CompleteReminderDialog: the visit cost', () => {
     fireEvent.submit(form())
     await waitFor(() => expect(completeMock).toHaveBeenCalledTimes(1))
     expect(completeMock.mock.calls[0][0].cost).toBeUndefined()
+  })
+})
+
+describe('CompleteReminderDialog: the odometer reads the user language', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  it('en: "88,900" mi is 88,900 miles, not dropped as unreadable', async () => {
+    renderDialog()
+    fireEvent.change(screen.getByLabelText(/completeReminder\.odometer/), { target: { value: '88,900' } })
+    fireEvent.submit(form())
+    await waitFor(() => expect(completeMock).toHaveBeenCalledTimes(1))
+    expect(completeMock.mock.calls[0][0].odometer_km).toBeCloseTo(143070.6816, 4)
+  })
+
+  it('de: "88.900" mi is 88,900 miles, not 88.9', async () => {
+    setActiveLocale('de')
+    renderDialog()
+    fireEvent.change(screen.getByLabelText(/completeReminder\.odometer/), { target: { value: '88.900' } })
+    fireEvent.submit(form())
+    await waitFor(() => expect(completeMock).toHaveBeenCalledTimes(1))
+    expect(completeMock.mock.calls[0][0].odometer_km).toBeCloseTo(143070.6816, 4)
+  })
+
+  it('text that is not a number sends no odometer (guard)', async () => {
+    // Guard: passes on main, where NaN fell out as null. Mutation: return 0 for unreadable text in canonicalFromTypedUnitField.
+    renderDialog()
+    fireEvent.change(screen.getByLabelText(/completeReminder\.odometer/), { target: { value: 'abc' } })
+    fireEvent.submit(form())
+    await waitFor(() => expect(completeMock).toHaveBeenCalledTimes(1))
+    expect(completeMock.mock.calls[0][0].odometer_km).toBeUndefined()
   })
 })

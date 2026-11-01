@@ -3,17 +3,21 @@
  * distance unit, stored as canonical km), calendar months, and engine hours
  * for vehicles that track them.
  *
- * The distance field goes through `seedUnitField` / `canonicalFromUnitField`
+ * The distance field goes through `seedUnitField` / `canonicalFromTypedUnitField`
  * like every other unit-bearing input, so an untouched field hands back the
  * exact canonical value it was seeded from rather than a re-conversion of a
  * rounded display.
+ *
+ * Every field is read when it's typed, in that moment's locale, and the draft
+ * keeps the number. So each NumberInput says `parsedOnChange` and its hint
+ * keeps that locale too, even if the language changes before the save.
  */
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Field, NumberInput } from './ui'
 import { useUnitFormat } from '../hooks/useUnitFormat'
-import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
+import { canonicalFromTypedUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
 import { parseOptionalDecimal } from '../utils/decimalInput'
 import type { RecurrenceDraft } from '../types/reminder'
 
@@ -63,11 +67,12 @@ export default function RecurrenceFields({
             value={kmText}
             onChange={(e) => {
               setKmText(e.target.value)
-              const km = canonicalFromUnitField(e.target.value, kmOrigin, u.distance)
+              const km = canonicalFromTypedUnitField(e.target.value, kmOrigin, u.distance)
               emit({ interval_km: km == null ? undefined : km })
             }}
             placeholder={t('recurrence.distancePlaceholder')}
             disabled={disabled}
+            parsedOnChange
           />
         </Field>
       )}
@@ -87,6 +92,7 @@ export default function RecurrenceFields({
           }}
           placeholder={t('recurrence.monthsPlaceholder')}
           disabled={disabled}
+          parsedOnChange
         />
       </Field>
       {showDays && (
@@ -106,6 +112,7 @@ export default function RecurrenceFields({
             }}
             placeholder={t('recurrence.daysPlaceholder')}
             disabled={disabled}
+            parsedOnChange
           />
         </Field>
       )}
@@ -126,6 +133,7 @@ export default function RecurrenceFields({
             }}
             placeholder={t('recurrence.hoursPlaceholder')}
             disabled={disabled}
+            parsedOnChange
           />
         </Field>
       )}

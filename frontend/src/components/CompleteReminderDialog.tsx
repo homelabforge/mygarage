@@ -20,7 +20,7 @@ import { useServiceVisitPages } from '../hooks/queries/useServiceVisits'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useDateLocale } from '../hooks/useDateLocale'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
-import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
+import { canonicalFromTypedUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
 import { formatDateForDisplay, formatDateForInput } from '../utils/dateUtils'
 import { parseOptionalDecimal } from '../utils/decimalInput'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
@@ -99,7 +99,7 @@ function CompleteReminderDialog({
     // A linked visit is the service record: the backend takes its date and
     // readings, so the dialog sends the visit's date and no readings of its own.
     const linkedVisit = linking ? visits.find((v) => String(v.id) === visitId) : undefined
-    const odometerKm = !linking && tracksDistance ? canonicalFromUnitField(odometerText, odometerOrigin, u.distance) : null
+    const odometerKm = !linking && tracksDistance ? canonicalFromTypedUnitField(odometerText, odometerOrigin, u.distance) : null
     const hours = !linking && tracksHours ? parseOptionalDecimal(hoursText) : undefined
     const cost = parseOptionalDecimal(costText)
     try {

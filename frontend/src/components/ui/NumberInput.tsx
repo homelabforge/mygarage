@@ -17,6 +17,11 @@ import { INVALID_NUMBER } from '@/schemas/shared'
 interface NumberInputProps extends Omit<ComponentProps<typeof Input>, 'type' | 'inputMode'> {
   /** Overrides the hint NumberInput works out for itself from what the user typed. */
   ambiguityHint?: string
+  /**
+   * A controlled caller that parses each change and keeps the number, instead
+   * of parsing its text at save. The hint then reads in the locale of that change.
+   */
+  parsedOnChange?: boolean
 }
 
 /** How often a visible hint checks the form hasn't overwritten the field. Exported for tests. */
@@ -94,11 +99,13 @@ export function registerDecimal<T extends FieldValues>(
  * parsed by RHF on change and blur and cached, so a language switch after
  * typing doesn't move it: the hint keeps the locale of that last change or
  * blur. A controlled caller holds the text and parses it at save (or render)
- * in whatever language is active, so its hint follows the active language.
+ * in whatever language is active, so its hint follows the active language,
+ * unless it says `parsedOnChange`, which reads like registerDecimal minus the blur.
  */
 export default function NumberInput({
   mono = true,
   ambiguityHint,
+  parsedOnChange = false,
   id,
   'aria-describedby': ariaDescribedBy,
   onChange,
@@ -130,9 +137,9 @@ export default function NumberInput({
 
   // A controlled caller's value wins, but only while it's still what was typed.
   const current = typed !== null && (!controlled || rest.value === typed.text) ? typed : null
-  // RHF already parsed it under the stamp; a controlled caller parses in today's language.
+  // RHF (or a parsedOnChange caller) already parsed it under the stamp; anyone else parses in today's language.
   const reading = current?.text
-    ? groupingReading(current.text, controlled ? getActiveLocale() : current.locale)
+    ? groupingReading(current.text, controlled && !parsedOnChange ? getActiveLocale() : current.locale)
     : null
   const hint =
     ambiguityHint ??

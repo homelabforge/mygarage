@@ -51,6 +51,7 @@ import { getActiveLocale } from '@/constants/i18n'
 import { cachedCurrencyFormat, cachedNumberFormat } from './numberFormatCache'
 import { UNIT_QUANTITIES, type UnitQuantity, type UnitSet } from '@/types/units'
 import { adapterFor, counterpartFor, type UnitAdapter, type UnitToken } from './unitAdapters'
+import { parseDecimalInput } from './decimalInput'
 
 /**
  * What `format` renders when there is no value to render.
@@ -631,6 +632,31 @@ export function canonicalFromUnitField(
   if (unitFieldUnchanged(typed, origin)) return origin.canonical
   if (typed.trim() === '') return null
   return quantity.toCanonical(Number(typed))
+}
+
+/**
+ * `canonicalFromUnitField` for a box that holds what the user typed, like a
+ * controlled NumberInput's text, rather than a number a form already parsed.
+ *
+ * `Number()` only knows a dot, so "1,234" in en came out NaN and "1.234" in de
+ * came out 1.234. This reads it in the active locale, the way NumberInput and
+ * registerDecimal do, so the save matches the "Read as" hint. Text that isn't a number comes back null.
+ *
+ * @param typed What the input currently holds.
+ * @param origin What `seedUnitField` recorded for this field.
+ * @param quantity The formatter for the field's quantity.
+ * @returns The canonical value to store, or null when the field is empty or not a number.
+ */
+export function canonicalFromTypedUnitField(
+  typed: string,
+  origin: UnitFieldOrigin,
+  quantity: QuantityFormat
+): number | null {
+  if (typed === origin.display) return origin.canonical
+  const parsed = parseDecimalInput(typed, getActiveLocale())
+  if (parsed.kind !== 'value') return null
+  // Hand the parsed number on, so an untouched value spelled differently still keeps its origin.
+  return canonicalFromUnitField(String(parsed.value), origin, quantity)
 }
 
 /**
