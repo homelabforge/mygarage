@@ -199,11 +199,13 @@ async def finish_test_db(engine: AsyncEngine) -> None:
 async def init_test_db(test_engine):
     """Initialize test database schema.
 
-    At the end `finish_test_db` fails the run if any far-future row survived
-    its test's teardown (R5), then drops the tables either way.
+    Dropped first: a run killed before its teardown leaves its tables and rows
+    in the file, and the next run would start on them and trip over its own
+    test data. At the end `finish_test_db` fails the run if any far-future row
+    survived its test's teardown (R5), then drops the tables either way.
     """
     async with test_engine.begin() as conn:
-        # Create all tables from SQLAlchemy models
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
     await finish_test_db(test_engine)

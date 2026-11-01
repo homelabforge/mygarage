@@ -184,3 +184,21 @@ def test_init_test_db_runs_the_guard_and_fails_on_survivors() -> None:
 
     assert "finish_test_db" in calls("init_test_db")
     assert {"far_future_survivors", "pytest.fail"} <= calls("finish_test_db")
+
+
+def test_init_test_db_drops_before_it_creates() -> None:
+    """A run killed before its teardown leaves its rows in the file. Creating over
+    them is a no-op, so the next run would start on stale rows and fail on them."""
+    tree = ast.parse(CONFTEST.read_text(), filename=str(CONFTEST))
+    fn = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "init_test_db"
+    )
+    # The `Base.metadata.<name>` handed to run_sync, in source order.
+    steps = [
+        node.attr
+        for node in ast.walk(fn)
+        if isinstance(node, ast.Attribute) and node.attr in {"drop_all", "create_all"}
+    ]
+    assert steps[:2] == ["drop_all", "create_all"]

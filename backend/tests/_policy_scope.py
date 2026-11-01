@@ -10,7 +10,12 @@ delete other tests' leaked rows before the leak guard saw them.
 from sqlalchemy import ColumnElement, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.insurance import InsurancePolicy
+from app.models.insurance import (
+    InsuranceCoverage,
+    InsurancePolicy,
+    InsurancePolicyField,
+    InsurancePolicyVehicle,
+)
 
 
 class PolicyScope:
@@ -26,5 +31,21 @@ class PolicyScope:
         return InsurancePolicy.id > self.floor
 
     async def drop(self, db: AsyncSession) -> None:
-        """Delete this test's policies (their links and fields go by cascade). No commit."""
-        await db.execute(delete(InsurancePolicy).where(self.mine()))
+        """Delete this test's policies and everything under them. No commit.
+
+        Child first, each through the ORM with `synchronize_session="fetch"`, so
+        every deleted row also leaves the session. Leaving the children to the
+        database cascade kept them in the identity map, and when SQLite handed
+        their ids to the next import's rows the session met two objects with
+        one identity (SAWarning: "Identity map already had an identity").
+        """
+        links = select(InsurancePolicyVehicle.id).where(
+            InsurancePolicyVehicle.policy_id > self.floor
+        )
+        for statement in (
+            delete(InsuranceCoverage).where(InsuranceCoverage.policy_vehicle_id.in_(links)),
+            delete(InsurancePolicyField).where(InsurancePolicyField.policy_id > self.floor),
+            delete(InsurancePolicyVehicle).where(InsurancePolicyVehicle.policy_id > self.floor),
+            delete(InsurancePolicy).where(self.mine()),
+        ):
+            await db.execute(statement.execution_options(synchronize_session="fetch"))
