@@ -42,10 +42,54 @@ function groupingReading(text: string, locale: string): number | null {
 }
 
 /**
- * The last number the form wrote into each registerDecimal field, per form.
- * Keyed on `register`, which RHF keeps stable for the life of a form.
+ * The text the user's last change left in each registerDecimal box, or null
+ * once code wrote over it. Keyed by element, so a field-array row that moves
+ * takes its own history with it.
  */
-const writtenNumbers = new WeakMap<object, Map<string, number>>()
+const userText = new WeakMap<HTMLInputElement, string | null>()
+
+/** Per form (keyed on `register`, stable for a form's life): the box each field name is in now. */
+const boxes = new WeakMap<object, Map<string, HTMLInputElement>>()
+
+/** Per form: the unreadable text each field last held, to put back if its box remounts. */
+const unreadable = new WeakMap<object, Map<string, string>>()
+
+/** Boxes whose `value` setter already turns the INVALID_NUMBER symbol back into text. */
+const guarded = new WeakSet<HTMLInputElement>()
+
+function perForm<V>(store: WeakMap<object, Map<string, V>>, register: object): Map<string, V> {
+  let map = store.get(register)
+  if (map === undefined) {
+    map = new Map()
+    store.set(register, map)
+  }
+  return map
+}
+
+/**
+ * A box RHF re-registers (a hidden section shown again) gets the field's held
+ * value written in, and for unreadable text that's the INVALID_NUMBER symbol,
+ * which throws on the way into `value`. Wrap this box's setter, React's value
+ * tracker included, so the symbol goes in as the text the user typed.
+ */
+function guardAgainstSymbol(box: HTMLInputElement, textFor: () => string): void {
+  if (guarded.has(box)) return
+  const own = Object.getOwnPropertyDescriptor(box, 'value')
+  const base = own ?? Object.getOwnPropertyDescriptor(Object.getPrototypeOf(box), 'value')
+  if (base?.get === undefined || base.set === undefined) return
+  const { get, set } = base
+  Object.defineProperty(box, 'value', {
+    configurable: true,
+    enumerable: base.enumerable,
+    get(this: HTMLInputElement) {
+      return get.call(this)
+    },
+    set(this: HTMLInputElement, value: unknown) {
+      set.call(this, typeof value === 'symbol' ? textFor() : value)
+    },
+  })
+  guarded.add(box)
+}
 
 /**
  * Register a numeric field so the raw text is parsed with the locale-aware rule
@@ -72,45 +116,75 @@ const writtenNumbers = new WeakMap<object, Map<string, number>>()
  *
  * A number the form writes (defaultValues, reset, setValue) lands in the box as
  * `String(n)`, JS notation, so "1.234" in de is 1.234, not what a German typed.
- * RHF hands setValueAs that number first, so it's remembered, and the box text
- * reads back as it until the user actually changes it. Blurring an untouched
- * edit field can't turn a 1.799 price into 1799 any more.
+ * So the box remembers what the user's last change event left in it. Text that
+ * isn't that was written by code and reads back as a JS number, in any
+ * language; text that is reads in the user's locale. Blurring an untouched
+ * edit field can't turn a 1.799 price into 1799.
  */
 export function registerDecimal<T extends FieldValues>(
   register: UseFormRegister<T>,
   name: FieldPath<T>,
   options?: Omit<RegisterOptions<T, FieldPath<T>>, 'setValueAs' | 'valueAsNumber' | 'valueAsDate' | 'min' | 'max'>
 ): UseFormRegisterReturn {
-  let written = writtenNumbers.get(register)
-  if (written === undefined) {
-    written = new Map()
-    writtenNumbers.set(register, written)
-  }
-  const numbers = written
-  return register(name, {
+  const boxOf = perForm(boxes, register)
+  const unreadableText = perForm(unreadable, register)
+  const registered = register(name, {
     ...options,
     setValueAs: (raw: unknown) => {
-      // The form wrote a number (defaults, reset, setValue); never re-parse it as text.
+      // Unreadable text held over a remount comes back as the sentinel; keep it unreadable.
+      if (raw === INVALID_NUMBER) return INVALID_NUMBER
+      const box = boxOf.get(name)
+      // The form wrote a number (defaults, reset, setValue): whatever the user typed is gone.
       if (typeof raw === 'number') {
-        numbers.set(name, raw)
+        if (box !== undefined) userText.set(box, null)
+        unreadableText.delete(name)
         return raw
       }
       const text = String(raw ?? '')
-      const number = numbers.get(name)
-      if (number !== undefined) {
-        // Still the text the form wrote, so it's still that number, in any language.
-        if (text === String(number)) return number
-        // The user changed it: from here on it's theirs, read in their locale.
-        numbers.delete(name)
+      if (box !== undefined && userText.get(box) !== text) {
+        // Code put this text here, so it's String(n): read it back as n, in any language.
+        const written = Number(text)
+        if (text !== '' && String(written) === text) return written
       }
       const result = parseDecimalInput(text, getActiveLocale())
+      if (result.kind === 'invalid') {
+        unreadableText.set(name, text)
+        return INVALID_NUMBER
+      }
+      unreadableText.delete(name)
       if (result.kind === 'empty') return undefined
-      if (result.kind === 'invalid') return INVALID_NUMBER
       // RHF keeps this until the next change or blur, read in the locale of that moment.
       // NumberInput's hint stamps the same moments so it reads the text the same way.
       return result.value
     },
   })
+  return {
+    ...registered,
+    onChange: (event) => {
+      // A real change is the user's text, even if code once wrote the same characters.
+      if (event.target instanceof HTMLInputElement) userText.set(event.target, event.target.value)
+      return registered.onChange(event)
+    },
+    ref: (instance: HTMLInputElement | null) => {
+      if (instance === null) {
+        boxOf.delete(name)
+      } else {
+        if (!userText.has(instance)) userText.set(instance, null)
+        boxOf.set(name, instance)
+        guardAgainstSymbol(instance, () => unreadableText.get(name) ?? '')
+      }
+      registered.ref(instance)
+    },
+  }
+}
+
+/**
+ * Whether code wrote over the text a registerDecimal box's user typed. Null
+ * for a box registerDecimal doesn't own, so callers fall back to the text.
+ */
+function codeWroteOver(box: HTMLInputElement, typed: string): boolean | null {
+  if (!userText.has(box)) return null
+  return userText.get(box) !== typed
 }
 
 /**
@@ -182,7 +256,8 @@ export default function NumberInput({
     const input = inputRef.current
     if (reading === null || input === null) return
     const dropIfOverwritten = (): void => {
-      if (input.value !== typed?.text) setTyped(null)
+      // A code write can leave the very same characters, so ask the box too.
+      if (input.value !== typed?.text || codeWroteOver(input, typed.text) === true) setTyped(null)
     }
     dropIfOverwritten()
     const timer = window.setInterval(dropIfOverwritten, OVERWRITE_CHECK_MS)

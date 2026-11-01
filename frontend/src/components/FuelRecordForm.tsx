@@ -1560,11 +1560,11 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
                   {obcMessage && <p className="text-xs text-text-mute">{obcMessage}</p>}
 
                   <div className="grid grid-cols-3 gap-2">
-                    <Field id="obc_l_per_100km" label={t('fuel.obcConsumption')} unit={u.consumption.label}>
-                      <NumberInput id="obc_l_per_100km" {...registerDecimal(register, 'obc_l_per_100km')} disabled={isSubmitting} />
+                    <Field id="obc_l_per_100km" label={t('fuel.obcConsumption')} unit={u.consumption.label} error={errors.obc_l_per_100km}>
+                      <NumberInput id="obc_l_per_100km" {...registerDecimal(register, 'obc_l_per_100km')} invalid={!!errors.obc_l_per_100km} disabled={isSubmitting} />
                     </Field>
-                    <Field id="obc_avg_speed_kmh" label={t('fuel.obcAvgSpeed')} unit={u.speed.label}>
-                      <NumberInput id="obc_avg_speed_kmh" {...registerDecimal(register, 'obc_avg_speed_kmh')} disabled={isSubmitting} />
+                    <Field id="obc_avg_speed_kmh" label={t('fuel.obcAvgSpeed')} unit={u.speed.label} error={errors.obc_avg_speed_kmh}>
+                      <NumberInput id="obc_avg_speed_kmh" {...registerDecimal(register, 'obc_avg_speed_kmh')} invalid={!!errors.obc_avg_speed_kmh} disabled={isSubmitting} />
                     </Field>
                     <Field id="obc_trip_duration_s" label={t('fuel.obcDuration')}>
                       <Input type="text" id="obc_trip_duration_s" inputMode="text" placeholder={t('fuelRecordForm.obcDurationPlaceholder')} {...register('obc_trip_duration_s')} disabled={isSubmitting} />

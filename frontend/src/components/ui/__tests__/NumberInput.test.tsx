@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { render } from '../../../__tests__/test-utils'
 import { getActiveLocale, setActiveLocale } from '@/constants/i18n'
 import { parseDecimalInput } from '@/utils/decimalInput'
 import { INVALID_NUMBER } from '@/schemas/shared'
-import NumberInput, { registerDecimal } from '../NumberInput'
+import NumberInput, { OVERWRITE_CHECK_MS, registerDecimal } from '../NumberInput'
 
 // The global mock hands back bare keys. This one reads the shipped en strings so the
 // hint tests can pin the actual words and the formatted value in them.
@@ -538,5 +538,122 @@ describe('NumberInput: a number the form wrote stays that number (seeded decimal
     await passThrough(user)
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1.799 })
+  })
+})
+
+describe('NumberInput: what the form wrote vs what the user typed, at the edges', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  interface Edge { amount?: number | typeof INVALID_NUMBER }
+
+  it('de: after setValue(undefined), pasting the old seed text is the user\'s text, read in German', async () => {
+    setActiveLocale('de')
+    function Cleared(): React.JSX.Element {
+      const { register, handleSubmit, setValue } = useForm<Edge>({ defaultValues: { amount: 1.234 } })
+      return (
+        <form onSubmit={handleSubmit(v => onSubmit(v))}>
+          <label htmlFor="amount">Amount</label>
+          <NumberInput id="amount" {...registerDecimal(register, 'amount')} />
+          <button type="button" onClick={() => setValue('amount', undefined)}>Clear</button>
+          <button type="submit">Save</button>
+        </form>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Cleared />)
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+    const input = screen.getByLabelText('Amount')
+    expect(input).toHaveValue('')
+    await user.click(input)
+    await user.paste('1.234')
+    await user.tab()
+    expect(screen.getByText('Read as 1.234')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1234 })
+  })
+
+  it('de: a code write of the same text the user typed takes the hint down, and saves the written number', async () => {
+    setActiveLocale('de')
+    function Filled(): React.JSX.Element {
+      const { register, handleSubmit, setValue } = useForm<Edge>()
+      return (
+        <form onSubmit={handleSubmit(v => onSubmit(v))}>
+          <label htmlFor="amount">Amount</label>
+          <NumberInput id="amount" {...registerDecimal(register, 'amount')} />
+          <button type="button" onClick={() => setValue('amount', 1.234)}>Fill</button>
+          <button type="submit">Save</button>
+        </form>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Filled />)
+    await user.type(screen.getByLabelText('Amount'), '1.234')
+    await user.tab()
+    expect(screen.getByText('Read as 1.234')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Fill' }))
+    // setValue fires no event here, so the hint goes on the next overwrite check.
+    await waitFor(() => expect(screen.queryByText(/^Read as/)).toBeNull(), { timeout: OVERWRITE_CHECK_MS * 4 })
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ amount: 1.234 })
+  })
+
+  it('de: a field-array row that moves up keeps its own number through a blur', async () => {
+    setActiveLocale('de')
+    interface Rows { rows: { amt?: number }[] }
+    function Rows(): React.JSX.Element {
+      const { register, handleSubmit, control } = useForm<Rows>({ defaultValues: { rows: [{ amt: 1.234 }, { amt: 2.345 }] } })
+      const { fields, remove } = useFieldArray({ control, name: 'rows' })
+      return (
+        <form onSubmit={handleSubmit(v => onSubmit(v))}>
+          {fields.map((f, i) => (
+            <div key={f.id}>
+              <label htmlFor={`row-${i}`}>Row {i}</label>
+              <NumberInput id={`row-${i}`} {...registerDecimal(register, `rows.${i}.amt`)} />
+              <button type="button" onClick={() => remove(i)}>Remove {i}</button>
+            </div>
+          ))}
+          <button type="submit">Save</button>
+        </form>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Rows />)
+    await user.click(screen.getByRole('button', { name: 'Remove 0' }))
+    const input = screen.getByLabelText('Row 0')
+    expect(input).toHaveValue('2.345')
+    await user.click(input)
+    await user.tab()
+    expect(screen.queryByText(/^Read as/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ rows: [{ amt: 2.345 }] })
+  })
+
+  it('a field holding unreadable text can be hidden and shown again, and still refuses to save', async () => {
+    const validate = vi.fn((v: unknown) => (v === INVALID_NUMBER ? 'unreadable' : true))
+    function Toggled(): React.JSX.Element {
+      const { register, handleSubmit } = useForm<Edge>()
+      const [shown, setShown] = useState(true)
+      return (
+        <form onSubmit={handleSubmit(v => onSubmit(v))}>
+          {shown ? (
+            <>
+              <label htmlFor="amount">Amount</label>
+              <NumberInput id="amount" {...registerDecimal(register, 'amount', { validate })} />
+            </>
+          ) : null}
+          <button type="button" onClick={() => setShown(s => !s)}>Toggle</button>
+          <button type="submit">Save</button>
+        </form>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Toggled />)
+    await user.type(screen.getByLabelText('Amount'), 'abc')
+    await user.click(screen.getByRole('button', { name: 'Toggle' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle' }))
+    // The box gets back what was typed, not a symbol (which threw) or a blank that would read as empty.
+    expect(screen.getByLabelText('Amount')).toHaveValue('abc')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 })
