@@ -427,7 +427,10 @@ class TestProtectedEndpoints:
         assert response.status_code == 401
         assert response.json()["detail"] == _BAD_CREDENTIALS
 
-    @pytest.mark.parametrize("exp_json", ['"9"', "Infinity", "NaN"])
+    # 10**400 is a whole number too big for a float, so isfinite can't take it.
+    @pytest.mark.parametrize(
+        "exp_json", ['"9"', "Infinity", "NaN", "1" + "0" * 400], ids=["text", "inf", "nan", "1e400"]
+    )
     async def test_token_with_a_non_finite_or_non_numeric_exp_is_refused(
         self, client: AsyncClient, test_user, exp_json: str
     ):

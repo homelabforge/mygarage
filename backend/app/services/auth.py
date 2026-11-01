@@ -125,6 +125,14 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
     return jwt.encode(header, to_encode, key)
 
 
+def _finite(value: int | float) -> bool:
+    """isfinite, except an int too big for a float (10**400) is refused, not a 500."""
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 async def get_current_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -160,7 +168,7 @@ async def get_current_user(
         if exp is None:
             logger.debug("Token has no expiry")
             raise credentials_exception
-        if isinstance(exp, bool) or not isinstance(exp, int | float) or not math.isfinite(exp):
+        if isinstance(exp, bool) or not isinstance(exp, int | float) or not _finite(exp):
             logger.debug("Token expiry isn't a finite number")
             raise credentials_exception
         if datetime.now(UTC).timestamp() > exp:
