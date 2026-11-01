@@ -657,3 +657,65 @@ describe('NumberInput: what the form wrote vs what the user typed, at the edges'
     expect(onSubmit).not.toHaveBeenCalled()
   })
 })
+
+describe('NumberInput: field-array rows carry their own text when they move', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  interface Rows { rows: { amt?: number | typeof INVALID_NUMBER }[] }
+
+  /** Rows that can be removed, and a toggle that unmounts and remounts every box. */
+  function MovingRows({ seed }: { seed: Rows['rows'] }): React.JSX.Element {
+    const { register, handleSubmit, control } = useForm<Rows>({ defaultValues: { rows: seed } })
+    const { fields, remove } = useFieldArray({ control, name: 'rows' })
+    const [shown, setShown] = useState(true)
+    return (
+      <form onSubmit={handleSubmit(v => onSubmit(v))}>
+        {shown
+          ? fields.map((f, i) => (
+              <div key={f.id}>
+                <label htmlFor={`moving-${i}`}>Row {i}</label>
+                <NumberInput id={`moving-${i}`} {...registerDecimal(register, `rows.${i}.amt`)} />
+                <button type="button" onClick={() => remove(i)}>Remove {i}</button>
+              </div>
+            ))
+          : null}
+        <button type="button" onClick={() => setShown(s => !s)}>Toggle</button>
+        <button type="submit">Save</button>
+      </form>
+    )
+  }
+
+  it('de: a row the user typed "5.678" into moves up and still reads as typed: hint and save agree', async () => {
+    setActiveLocale('de')
+    const user = userEvent.setup()
+    render(<MovingRows seed={[{ amt: 1.234 }, { amt: 2.345 }]} />)
+    const typed = screen.getByLabelText('Row 1')
+    await user.clear(typed)
+    await user.type(typed, '5.678')
+    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'Remove 0' }))
+    const moved = screen.getByLabelText('Row 0')
+    expect(moved).toHaveValue('5.678')
+    await user.click(moved)
+    await user.tab()
+    expect(screen.getByText('Read as 5.678')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenLastCalledWith({ rows: [{ amt: 5678 }] })
+  })
+
+  it('a row holding unreadable text moves up, remounts, and comes back with its own text', async () => {
+    const user = userEvent.setup()
+    render(<MovingRows seed={[{ amt: 1 }, { amt: 2 }]} />)
+    await user.clear(screen.getByLabelText('Row 0'))
+    await user.type(screen.getByLabelText('Row 0'), 'abc')
+    await user.clear(screen.getByLabelText('Row 1'))
+    await user.type(screen.getByLabelText('Row 1'), 'xyz')
+    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'Remove 0' }))
+    expect(screen.getByLabelText('Row 0')).toHaveValue('xyz')
+    await user.click(screen.getByRole('button', { name: 'Toggle' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle' }))
+    // Not "abc": that was the deleted row's text.
+    expect(screen.getByLabelText('Row 0')).toHaveValue('xyz')
+  })
+})

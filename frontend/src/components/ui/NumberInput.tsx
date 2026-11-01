@@ -51,8 +51,14 @@ const userText = new WeakMap<HTMLInputElement, string | null>()
 /** Per form (keyed on `register`, stable for a form's life): the box each field name is in now. */
 const boxes = new WeakMap<object, Map<string, HTMLInputElement>>()
 
-/** Per form: the unreadable text each field last held, to put back if its box remounts. */
-const unreadable = new WeakMap<object, Map<string, string>>()
+/** The unreadable text each box last held, so a moved row keeps its own. */
+const unreadableText = new WeakMap<HTMLInputElement, string>()
+
+/**
+ * Per form: unreadable text parked under the name its box had when it went
+ * away, for the new box a hidden section gets when it's shown again.
+ */
+const parked = new WeakMap<object, Map<string, string>>()
 
 /** Boxes whose `value` setter already turns the INVALID_NUMBER symbol back into text. */
 const guarded = new WeakSet<HTMLInputElement>()
@@ -70,9 +76,9 @@ function perForm<V>(store: WeakMap<object, Map<string, V>>, register: object): M
  * A box RHF re-registers (a hidden section shown again) gets the field's held
  * value written in, and for unreadable text that's the INVALID_NUMBER symbol,
  * which throws on the way into `value`. Wrap this box's setter, React's value
- * tracker included, so the symbol goes in as the text the user typed.
+ * tracker included, so the symbol goes in as the text this box last held.
  */
-function guardAgainstSymbol(box: HTMLInputElement, textFor: () => string): void {
+function guardAgainstSymbol(box: HTMLInputElement): void {
   if (guarded.has(box)) return
   const own = Object.getOwnPropertyDescriptor(box, 'value')
   const base = own ?? Object.getOwnPropertyDescriptor(Object.getPrototypeOf(box), 'value')
@@ -85,7 +91,7 @@ function guardAgainstSymbol(box: HTMLInputElement, textFor: () => string): void 
       return get.call(this)
     },
     set(this: HTMLInputElement, value: unknown) {
-      set.call(this, typeof value === 'symbol' ? textFor() : value)
+      set.call(this, typeof value === 'symbol' ? (unreadableText.get(this) ?? '') : value)
     },
   })
   guarded.add(box)
@@ -127,7 +133,7 @@ export function registerDecimal<T extends FieldValues>(
   options?: Omit<RegisterOptions<T, FieldPath<T>>, 'setValueAs' | 'valueAsNumber' | 'valueAsDate' | 'min' | 'max'>
 ): UseFormRegisterReturn {
   const boxOf = perForm(boxes, register)
-  const unreadableText = perForm(unreadable, register)
+  const parkedText = perForm(parked, register)
   const registered = register(name, {
     ...options,
     setValueAs: (raw: unknown) => {
@@ -136,8 +142,10 @@ export function registerDecimal<T extends FieldValues>(
       const box = boxOf.get(name)
       // The form wrote a number (defaults, reset, setValue): whatever the user typed is gone.
       if (typeof raw === 'number') {
-        if (box !== undefined) userText.set(box, null)
-        unreadableText.delete(name)
+        if (box !== undefined) {
+          userText.set(box, null)
+          unreadableText.delete(box)
+        }
         return raw
       }
       const text = String(raw ?? '')
@@ -148,10 +156,10 @@ export function registerDecimal<T extends FieldValues>(
       }
       const result = parseDecimalInput(text, getActiveLocale())
       if (result.kind === 'invalid') {
-        unreadableText.set(name, text)
+        if (box !== undefined) unreadableText.set(box, text)
         return INVALID_NUMBER
       }
-      unreadableText.delete(name)
+      if (box !== undefined) unreadableText.delete(box)
       if (result.kind === 'empty') return undefined
       // RHF keeps this until the next change or blur, read in the locale of that moment.
       // NumberInput's hint stamps the same moments so it reads the text the same way.
@@ -167,11 +175,20 @@ export function registerDecimal<T extends FieldValues>(
     },
     ref: (instance: HTMLInputElement | null) => {
       if (instance === null) {
+        // Park the leaving box's unreadable text under the name it has now, not the one it started with.
+        const leaving = boxOf.get(name)
+        const text = leaving === undefined ? undefined : unreadableText.get(leaving)
+        if (text === undefined) parkedText.delete(name)
+        else parkedText.set(name, text)
         boxOf.delete(name)
       } else {
         if (!userText.has(instance)) userText.set(instance, null)
+        // A fresh box for this name (a section shown again) takes what was parked; a box that has its own keeps it.
+        const waiting = parkedText.get(name)
+        if (waiting !== undefined && !unreadableText.has(instance)) unreadableText.set(instance, waiting)
+        parkedText.delete(name)
         boxOf.set(name, instance)
-        guardAgainstSymbol(instance, () => unreadableText.get(name) ?? '')
+        guardAgainstSymbol(instance)
       }
       registered.ref(instance)
     },
