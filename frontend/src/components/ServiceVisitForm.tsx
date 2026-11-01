@@ -797,8 +797,9 @@ function ServiceVisitForm({
             )}
 
             <div className="mb-4">
-              <label className="mb-1 block text-sm font-medium text-text">{t('service.vendorShop')}</label>
+              <label htmlFor="service-vendor" className="mb-1 block text-sm font-medium text-text">{t('service.vendorShop')}</label>
               <VendorSearch
+                id="service-vendor"
                 value={formData.vendor_id}
                 onSelect={(vendor) => handleFieldChange('vendor_id', vendor?.id)}
                 disabled={submitting}

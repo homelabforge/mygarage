@@ -1372,7 +1372,9 @@
     "created": "Created vendor: {{name}}",
     "nameRequired": "Vendor name is required",
     "createFailed": "Failed to create vendor",
-    "createAction": "create the vendor"
+    "createAction": "create the vendor",
+    "clear": "Clear vendor",
+    "searchFailed": "Couldn't search vendors. Keep typing to try again."
   },
   "vinDemo": {
     "enterVIN": "Enter VIN"

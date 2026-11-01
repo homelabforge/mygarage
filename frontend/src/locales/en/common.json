@@ -481,7 +481,17 @@
     "helperText": "Type at least 2 characters to search address book",
     "noMatches": "No contacts found matching \"{{query}}\"",
     "noMatchesInCategory": "No contacts found matching \"{{query}}\" in {{category}} category",
-    "addToAddressBook": "Add \"{{query}}\" to address book"
+    "addToAddressBook": "Add \"{{query}}\" to address book",
+    "searching": "Searching...",
+    "searchFailed": "Couldn't search the address book. Keep typing to try again."
+  },
+  "combobox": {
+    "results": "{{count}} results",
+    "results_one": "{{count}} result",
+    "results_other": "{{count}} results",
+    "searching": "Searching...",
+    "noResults": "No matches",
+    "searchFailed": "Search failed"
   },
   "exportMenu": {
     "export": "Export"

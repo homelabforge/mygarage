@@ -143,8 +143,9 @@ export default function FinancingRecordForm({ vin, record, onClose, onSuccess }:
           </Field>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-text">{t('financing.lender')}</label>
+            <label htmlFor="financing-lender" className="mb-1 block text-sm font-medium text-text">{t('financing.lender')}</label>
             <VendorSearch
+              id="financing-lender"
               value={watch('vendor_id')}
               onSelect={(vendor) => setValue('vendor_id', vendor?.id ?? undefined)}
               placeholder={t('financing.lenderSearchPlaceholder')}

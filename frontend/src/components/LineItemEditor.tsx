@@ -10,7 +10,7 @@ import CurrencyInput from './common/CurrencyInput'
 import SupplyUsedPicker from './SupplyUsedPicker'
 import MaintenanceTypeSelect from './MaintenanceTypeSelect'
 import RecurrenceFields from './RecurrenceFields'
-import { Select } from './ui'
+import { Select, useCombobox } from './ui'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { readTypedNumber } from '../utils/decimalInput'
 
@@ -90,6 +90,20 @@ export default function LineItemEditor({
   const filteredSuggestions = suggestions.filter(s =>
     s.toLowerCase().includes(item.description.toLowerCase())
   )
+  const visibleSuggestions = filteredSuggestions.slice(0, 8)
+  const suggestionsOpen =
+    showSuggestions && !!item.category && visibleSuggestions.length > 0 && item.description.length < 50
+  const descriptionBox = useCombobox({
+    id: `line-item-${index}-description`,
+    open: suggestionsOpen,
+    count: visibleSuggestions.length,
+    onSelect: (i) => {
+      onChange(index, 'description', visibleSuggestions[i])
+      setShowSuggestions(false)
+    },
+    onClose: () => setShowSuggestions(false),
+    onOpen: () => setShowSuggestions(true),
+  })
 
   const handleReminderToggle = (enabled: boolean) => {
     if (enabled) {
@@ -184,42 +198,48 @@ export default function LineItemEditor({
                 {t('lineItemEditor.misc.descriptionLabel')} <span className="text-danger">*</span>
               </label>
               <input
-                id={`line-item-${index}-description`}
                 type="text"
+                {...descriptionBox.inputProps}
                 value={item.description}
                 onChange={(e) => {
                   onChange(index, 'description', e.target.value)
                   setShowSuggestions(true)
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                // Options never take focus (mousedown is swallowed), so a blur means focus
+                // really left and the list can go now. A delay here ate the next Tab.
+                onBlur={() => setShowSuggestions(false)}
                 placeholder={
                   item.category
                     ? t('lineItemEditor.misc.typeOrSelect')
                     : t('lineItemEditor.misc.selectCategoryFirst')
                 }
                 disabled={disabled}
+                autoComplete="off"
                 className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
               />
               {/* Service suggestions dropdown */}
-              {showSuggestions && item.category && filteredSuggestions.length > 0 && item.description.length < 50 && (
-                <div className="absolute z-10 w-full mt-1 bg-garage-surface border border-garage-border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                  {filteredSuggestions.slice(0, 8).map((suggestion) => (
-                    <button
+              {descriptionBox.expanded && (
+                <div
+                  {...descriptionBox.listProps}
+                  className="absolute z-10 w-full mt-1 bg-garage-surface border border-garage-border rounded-md shadow-lg max-h-48 overflow-y-auto"
+                >
+                  {visibleSuggestions.map((suggestion, i) => (
+                    <div
                       key={suggestion}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        onChange(index, 'description', suggestion)
-                        setShowSuggestions(false)
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-garage-text hover:bg-primary/10 transition-colors"
+                      {...descriptionBox.optionProps(i)}
+                      className={`w-full text-left px-3 py-2 text-sm text-garage-text cursor-pointer hover:bg-primary/10 transition-colors ${
+                        i === descriptionBox.activeIndex ? 'bg-primary/10' : ''
+                      }`}
                     >
                       {suggestion}
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
+              <div role="status" className="sr-only">
+                {descriptionBox.expanded ? t('common:combobox.results', { count: visibleSuggestions.length }) : ''}
+              </div>
             </div>
 
             <div>

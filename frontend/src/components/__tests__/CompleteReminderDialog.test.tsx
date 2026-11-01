@@ -26,7 +26,8 @@ const FIRST_PAGE = {
   visits: [{ id: 7, date: '2026-06-13', odometer_km: '143064.24', line_items: [{ description: 'Labor' }], vendor: { name: 'Mavis' } }],
   total: 101,
 }
-vi.mock('../VendorSearch', () => ({ default: () => <div>vendor-search</div> }))
+// Keeps the id it's handed, so the Field label's htmlFor can be checked against it.
+vi.mock('../VendorSearch', () => ({ default: ({ id }: { id?: string }) => <input id={id} /> }))
 vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US', formatCurrency: (n: number) => `$${n}` }),
@@ -82,6 +83,14 @@ beforeEach(() => {
   vi.clearAllMocks()
   completeMock.mockResolvedValue({ reminder, next_reminder: null, service_visit_id: 9, line_item_id: 61 })
   pagesMock.mockReturnValue({ data: { pages: [FIRST_PAGE] }, hasNextPage: true, fetchNextPage, isFetchingNextPage: false })
+})
+
+describe('CompleteReminderDialog vendor label (G-4)', () => {
+  it('the vendor box takes the Field id, so its label names it', () => {
+    // VendorSearch took no id, so the Field's htmlFor pointed at nothing.
+    renderDialog()
+    expect(screen.getByLabelText('completeReminder.vendor')).toBeInstanceOf(HTMLInputElement)
+  })
 })
 
 describe('CompleteReminderDialog — payloads', () => {
