@@ -40,7 +40,7 @@ def _device_id(vin: str) -> str:
 
 
 @pytest_asyncio.fixture
-async def own_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> AsyncIterator[str]:
+async def tool_vin(db_session: AsyncSession, test_user: dict[str, object]) -> AsyncIterator[str]:
     """A vehicle owned by this test alone, returned as its VIN, and deleted after.
 
     The suite shares one database with no per-test rollback, and `test_vehicle`
@@ -101,7 +101,7 @@ class TestBackfillToolRunsOnThisDialect:
         await db_session.commit()
 
     async def test_dry_run_completes_instead_of_raising_on_a_date_column(
-        self, db_session: AsyncSession, own_vehicle: str, monkeypatch
+        self, db_session: AsyncSession, tool_vin: str, monkeypatch
     ) -> None:
         """The regression. On PostgreSQL this raised TypeError on the first row.
 
@@ -110,7 +110,7 @@ class TestBackfillToolRunsOnThisDialect:
         """
         from tools.backfill_livelink_odometer import main
 
-        vin = own_vehicle
+        vin = tool_vin
         await self._seed(db_session, vin)
 
         monkeypatch.setattr(
@@ -119,7 +119,7 @@ class TestBackfillToolRunsOnThisDialect:
         assert main() == 0
 
     async def test_it_skips_a_day_that_already_has_a_record(
-        self, db_session: AsyncSession, own_vehicle: str, monkeypatch
+        self, db_session: AsyncSession, tool_vin: str, monkeypatch
     ) -> None:
         """Reads `odometer_records.date`, the second DATE column the tool parses.
 
@@ -129,7 +129,7 @@ class TestBackfillToolRunsOnThisDialect:
         """
         from tools.backfill_livelink_odometer import main
 
-        vin = own_vehicle
+        vin = tool_vin
         await self._seed(db_session, vin)
         from app.models.odometer import OdometerRecord
 

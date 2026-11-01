@@ -62,8 +62,8 @@ async def _detail(client: AsyncClient, headers: dict, vin: str) -> dict:
 
 
 class TestSnoozeEndpoint:
-    async def test_snooze_and_unsnooze_round_trip(self, client, auth_headers, test_vehicle):
-        vin = test_vehicle["vin"]
+    async def test_snooze_and_unsnooze_round_trip(self, client, auth_headers, own_vehicle):
+        vin = own_vehicle.vin
         reminder = await _reminder(client, auth_headers, vin, title="Snooze RT", due_in_days=-5)
         until = household_today() + timedelta(days=7)
         await _snooze(client, auth_headers, vin, reminder["id"], until)
@@ -79,9 +79,9 @@ class TestSnoozeEndpoint:
         assert r.json()["snoozed_until"] is None
 
     async def test_snooze_rejects_past_today_and_absurd_dates(
-        self, client, auth_headers, test_vehicle
+        self, client, auth_headers, own_vehicle
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         reminder = await _reminder(client, auth_headers, vin, title="Snooze 422", due_in_days=-5)
         for until in (household_today(), household_today() - timedelta(days=1)):
             r = await client.post(
@@ -97,8 +97,8 @@ class TestSnoozeEndpoint:
         )
         assert r.status_code == 422, r.text
 
-    async def test_only_a_pending_reminder_can_be_snoozed(self, client, auth_headers, test_vehicle):
-        vin = test_vehicle["vin"]
+    async def test_only_a_pending_reminder_can_be_snoozed(self, client, auth_headers, own_vehicle):
+        vin = own_vehicle.vin
         reminder = await _reminder(client, auth_headers, vin, title="Snooze 409", due_in_days=-5)
         r = await client.post(
             f"/api/vehicles/{vin}/reminders/{reminder['id']}/done", headers=auth_headers
@@ -112,9 +112,9 @@ class TestSnoozeEndpoint:
         assert r.status_code == 409, r.text
 
     async def test_completion_clears_the_snooze(
-        self, client, auth_headers, test_vehicle, db_session
+        self, client, auth_headers, own_vehicle, db_session
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         reminder = await _reminder(
             client, auth_headers, vin, title="Snooze cleared", due_in_days=-5
         )
@@ -132,9 +132,9 @@ class TestSnoozeEndpoint:
 
 class TestSnoozeSuppression:
     async def test_dashboard_and_detail_stats_drop_a_snoozed_reminder_entirely(
-        self, client, auth_headers, test_vehicle
+        self, client, auth_headers, own_vehicle
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         reminder = await _reminder(client, auth_headers, vin, title="Snooze dash", due_in_days=-5)
         before_dash = await _dash(client, auth_headers, vin)
         before_detail = await _detail(client, auth_headers, vin)
@@ -159,11 +159,11 @@ class TestSnoozeSuppression:
         assert after_detail["upcoming_count"] == before_detail["upcoming_count"]
 
     async def test_widget_aggregation_drops_a_snoozed_reminder(
-        self, client, auth_headers, test_vehicle, db_session
+        self, client, auth_headers, own_vehicle, db_session
     ):
         from app.services.widget_aggregation import WidgetAggregationService
 
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         reminder = await _reminder(client, auth_headers, vin, title="Snooze widget", due_in_days=-5)
         before = await WidgetAggregationService(db_session)._overdue_upcoming([vin], None, None)
         await _snooze(
@@ -175,9 +175,9 @@ class TestSnoozeSuppression:
         assert after[1] == before[1]
 
     async def test_the_inbox_drops_snoozed_overdue_and_upcoming_reminders(
-        self, client, auth_headers, test_vehicle
+        self, client, auth_headers, own_vehicle
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         overdue = await _reminder(
             client, auth_headers, vin, title="Snooze inbox overdue", due_in_days=-5
         )
@@ -201,9 +201,9 @@ class TestSnoozeSuppression:
         assert "Snooze inbox upcoming" not in titles
 
     async def test_fleet_30d_count_and_next_due_skip_a_snoozed_reminder(
-        self, client, auth_headers, test_vehicle
+        self, client, auth_headers, own_vehicle
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         reminder = await _reminder(client, auth_headers, vin, title="Snooze fleet", due_in_days=10)
         before = (await _dash(client, auth_headers, vin))["fleet"]
         await _snooze(
@@ -216,12 +216,12 @@ class TestSnoozeSuppression:
         assert next_due is None or next_due.get("reminder_id") != reminder["id"]
 
     async def test_family_summary_skips_a_snoozed_reminder(
-        self, client, auth_headers, test_vehicle, db_session
+        self, client, auth_headers, own_vehicle, db_session
     ):
         from app.models.vehicle import Vehicle
         from app.services.family_dashboard_service import FamilyDashboardService
 
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         reminder = await _reminder(client, auth_headers, vin, title="Snooze family", due_in_days=-5)
         vehicle = await db_session.scalar(select(Vehicle).where(Vehicle.vin == vin))
         service = FamilyDashboardService(db_session)
@@ -237,7 +237,7 @@ class TestSnoozeSuppression:
         assert after.overdue_maintenance == before.overdue_maintenance - 1
 
     async def test_scheduled_notifications_skip_snoozed_and_resume_after_expiry(
-        self, client, auth_headers, test_vehicle, db_session, monkeypatch
+        self, client, auth_headers, own_vehicle, db_session, monkeypatch
     ):
         from app.services.reminder_service import check_due_reminders
 
@@ -256,7 +256,7 @@ class TestSnoozeSuppression:
             _StubDispatcher,
         )
 
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         reminder = await _reminder(
             client, auth_headers, vin, title="Snooze scheduler", due_in_days=-5
         )
@@ -273,9 +273,9 @@ class TestSnoozeSuppression:
         assert any("Snooze scheduler" in t for t in sent), sent
 
     async def test_the_calendar_still_shows_a_snoozed_reminder(
-        self, client, auth_headers, test_vehicle
+        self, client, auth_headers, own_vehicle
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         reminder = await _reminder(
             client, auth_headers, vin, title="Snooze calendar", due_in_days=3
         )

@@ -289,7 +289,7 @@ class TestIsReminderOverdue:
 
     def _reminder(self, **kwargs) -> Reminder:
         base = {
-            "vin": "1HGBH41JXMN109186",
+            "vin": "1HGCM82633A004352",
             "title": "Test reminder",
             "reminder_type": "date",
             "status": "pending",
@@ -360,7 +360,7 @@ class TestIsReminderOverdue:
 
 def _pending(**kwargs) -> Reminder:
     base = {
-        "vin": "1HGBH41JXMN109186",
+        "vin": "1HGCM82633A004352",
         "title": "Test reminder",
         "reminder_type": "date",
         "status": "pending",
@@ -982,10 +982,8 @@ class TestCountPendingRemindersFallback:
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestEnrichDueStatus:
-    async def test_a_pending_reminder_says_where_it_stands(
-        self, db_session, test_vehicle, clean_odometer_records, clean_reminders
-    ):
-        vin = test_vehicle["vin"]
+    async def test_a_pending_reminder_says_where_it_stands(self, db_session, own_vehicle):
+        vin = own_vehicle.vin
         today = household_today()
         # One reading: no rate, so the mileage can't project and D2 decides.
         await _add_odometer_record(db_session, vin, today, Decimal("59000"))
@@ -1014,12 +1012,10 @@ class TestEnrichDueStatus:
         assert response.hours_until_due is None
         assert response.estimated_due_date is None  # no rate, no projection
 
-    async def test_done_and_dismissed_rows_carry_nulls(
-        self, db_session, test_vehicle, clean_reminders
-    ):
+    async def test_done_and_dismissed_rows_carry_nulls(self, db_session, own_vehicle):
         for status in ("done", "dismissed"):
             reminder = Reminder(
-                vin=test_vehicle["vin"],
+                vin=own_vehicle.vin,
                 title=f"Closed {status}",
                 reminder_type="date",
                 status=status,
@@ -1082,7 +1078,7 @@ _STAMP = datetime(2026, 9, 1, 12, 0)
 def _resp(rid: int, **kwargs) -> ReminderResponse:
     base = {
         "id": rid,
-        "vin": "1HGBH41JXMN109186",
+        "vin": "1HGCM82633A004352",
         "line_item_id": None,
         "title": f"r{rid}",
         "reminder_type": "date",
@@ -1250,14 +1246,12 @@ class TestEnrichWithEstimateSmartProjection:
     async def test_backward_compat_smart_mileage_projection_unchanged(
         self,
         db_session: AsyncSession,
-        test_vehicle,
-        clean_odometer_records,
-        clean_reminders,
+        own_vehicle,
     ):
         """CRITICAL: an existing-style smart reminder (due_date +
         due_mileage_km, due_hours null) must still validate and project via
         km/day exactly as before this feature existed."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
 
         # Known rate: 1000 km over 20 days = 50 km/day.
         start = date.today() - timedelta(days=20)
@@ -1289,14 +1283,12 @@ class TestEnrichWithEstimateSmartProjection:
     async def test_smart_hours_projection_from_engine_hours_per_day_rate(
         self,
         db_session: AsyncSession,
-        test_vehicle,
-        clean_hours_records,
-        clean_reminders,
+        own_vehicle,
     ):
         """New capability: due_date + due_hours (mileage null) projects a
         due-date from the engine-hours-per-day rate, mirroring the mileage
         case above."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
 
         # Known rate: 200 hours over 20 days = 10 hr/day.
         start = date.today() - timedelta(days=20)
@@ -1328,11 +1320,9 @@ class TestEnrichWithEstimateSmartProjection:
     async def test_smart_hours_projection_never_exceeds_hard_date(
         self,
         db_session: AsyncSession,
-        test_vehicle,
-        clean_hours_records,
-        clean_reminders,
+        own_vehicle,
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         start = date.today() - timedelta(days=10)
         await _add_hours_record(db_session, vin, start, Decimal("10.0"))
         await _add_hours_record(db_session, vin, date.today(), Decimal("11.0"))  # 0.1 hr/day
@@ -1383,12 +1373,10 @@ class TestCreateReminderHours:
         assert reminder.due_hours == Decimal("500.0")
         assert reminder.due_mileage_km is None
 
-    async def test_creates_smart_with_hours_only(
-        self, db_session: AsyncSession, test_vehicle, clean_reminders
-    ):
+    async def test_creates_smart_with_hours_only(self, db_session: AsyncSession, own_vehicle):
         from app.schemas.reminder import ReminderCreate
 
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         data = ReminderCreate(
             title="Filter change",
             reminder_type="smart",
@@ -1408,11 +1396,11 @@ class TestCreateReminderHours:
 @pytest.mark.asyncio
 class TestCreateReminderStoresItsStart:
     async def test_a_one_off_stores_both_current_readings_whatever_its_targets(
-        self, db_session, test_vehicle, clean_odometer_records, clean_hours_records, clean_reminders
+        self, db_session, own_vehicle
     ):
         from app.schemas.reminder import ReminderCreate
 
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         await _add_odometer_record(db_session, vin, household_today(), Decimal("42000"))
         await _add_hours_record(db_session, vin, household_today(), Decimal("300.0"))
         for data in (
@@ -1758,7 +1746,7 @@ class TestTheOverdueCooldownAllowsSweepJitter:
 class TestBuildReminderMessage:
     def test_includes_due_hours_when_set(self):
         reminder = Reminder(
-            vin="1HGBH41JXMN109186",
+            vin="1HGCM82633A004352",
             title="Oil change",
             reminder_type="hours",
             due_hours=Decimal("500.0"),
@@ -1768,7 +1756,7 @@ class TestBuildReminderMessage:
 
     def test_omits_due_hours_when_unset(self):
         reminder = Reminder(
-            vin="1HGBH41JXMN109186",
+            vin="1HGCM82633A004352",
             title="Oil change",
             reminder_type="mileage",
             due_mileage_km=Decimal("50000"),
@@ -1794,7 +1782,7 @@ class TestReminderSnooze:
 
     def _reminder(self, **kwargs) -> Reminder:
         base = {
-            "vin": "1HGBH41JXMN109186",
+            "vin": "1HGCM82633A004352",
             "title": "Snoozed reminder",
             "reminder_type": "date",
             "status": "pending",

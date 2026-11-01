@@ -12,7 +12,7 @@ row => get_auth_mode returns ``local``), so ``require_auth`` /
 """
 
 import uuid
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import pytest
 import pytest_asyncio
@@ -195,38 +195,6 @@ async def owned_vehicle(
 
 
 # --- A throwaway vehicle for legacy-row reads ---------------------------------
-
-
-@pytest_asyncio.fixture
-async def own_vehicle(
-    request: pytest.FixtureRequest, db_session: AsyncSession, test_user: dict[str, object]
-) -> AsyncGenerator[Vehicle]:
-    """A fresh vehicle, deleted afterwards with every record on it. What a test
-    writes here would otherwise land in the test user's garage-wide totals.
-
-    `@pytest.mark.own_vehicle(fuel_type="diesel", ...)` on a test, class or
-    module overrides any of its columns.
-    """
-    marker = request.node.get_closest_marker("own_vehicle")
-    fields: dict[str, object] = {
-        "nickname": "Legacy Money",
-        "vehicle_type": "Car",
-        "year": 2015,
-        "make": "Honda",
-        "model": "Fit",
-        **(marker.kwargs if marker is not None else {}),
-    }
-    vehicle = Vehicle(vin="LEG" + uuid.uuid4().hex[:14].upper(), user_id=test_user["id"], **fields)
-    db_session.add(vehicle)
-    await db_session.commit()
-    vin = vehicle.vin
-    yield vehicle
-    # A failed read rolls the session back, so look the vehicle up again.
-    await db_session.rollback()
-    stored = await db_session.get(Vehicle, vin)
-    if stored is not None:
-        await db_session.delete(stored)
-        await db_session.commit()
 
 
 # --- Header fixtures ----------------------------------------------------------

@@ -200,12 +200,12 @@ class TestSetManualCurrentHours:
         assert rows_after_third[0].engine_hours == Decimal("175.3")
 
     async def test_does_not_match_or_overwrite_a_synced_row_same_day(
-        self, db_session: AsyncSession, test_vehicle, clean_hours_records
+        self, db_session: AsyncSession, own_vehicle
     ):
         """A fuel-synced row on the SAME day carries a non-null FK, so the
         manual upsert's identity filter (both FKs null) must not match it —
         it creates its OWN manual row instead, leaving the synced row alone."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         fuel = FuelRecord(vin=vin, date=date.today(), liters=Decimal("10.000"))
         db_session.add(fuel)
         await db_session.commit()
@@ -234,10 +234,6 @@ class TestSetManualCurrentHours:
         assert len(rows) == 2
         synced_row = next(r for r in rows if r.id == synced.id)
         assert synced_row.engine_hours == Decimal("50.0"), "synced row must be untouched"
-
-        # Cleanup — FuelRecord is not covered by clean_hours_records.
-        await db_session.delete(fuel)
-        await db_session.commit()
 
     async def test_tolerates_multiple_same_day_manual_rows(
         self, db_session: AsyncSession, test_vehicle, clean_hours_records
