@@ -38,24 +38,18 @@ function setup(initialPath = '/insurance') {
 }
 
 describe('Layout insurance nav', () => {
-  // Counted by href, not accessible name: both navs now source labels from
-  // navItems.ts as `nav:insurance` (namespace-qualified for the i18n gate, G5),
-  // so the mock renders the raw key as the name. The href is stable and both
-  // links point at /insurance. The hamburger panel is closed by default, so the
-  // count stays 2 (inline TopNav link + MobileTabBar tab), not 3 — §7.2.
-  it('renders both nav links to /insurance', () => {
+  // Counted by href, not accessible name: navItems.ts labels are `nav:` keys
+  // and the global mock renders them raw. On phone, Insurance lives in the
+  // More drawer (D1), which mounts nothing while closed, so only the inline
+  // TopNav link is in the DOM. The hamburger panel is closed too (§7.2).
+  it('renders the one inline nav link to /insurance', () => {
     setup()
     const links = screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/insurance')
-    expect(links).toHaveLength(2)
+    expect(links).toHaveLength(1)
   })
 
-  it('marks the mobile /insurance tab active on that route', () => {
+  it('marks the phone More tab active on /insurance', () => {
     setup('/insurance')
-    const links = screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/insurance')
-    // Retokenized active class (MobileTabBar): the mobile tab carries
-    // bg-(--accent-soft); the inline desktop link uses an underline span, not a
-    // fill. This replaces the old literal text-primary-500 assertion (§7.2).
-    const active = links.find((el) => el.className.includes('bg-(--accent-soft)'))
-    expect(active).toHaveClass('bg-(--accent-soft)')
+    expect(screen.getByRole('button', { name: 'more' })).toHaveClass('bg-(--accent-soft)')
   })
 })
