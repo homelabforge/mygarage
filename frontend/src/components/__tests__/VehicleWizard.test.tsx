@@ -166,3 +166,52 @@ describe('VehicleWizard — duplicate-VIN warning (issue #69)', () => {
     expect(mockedVinService.exists).toHaveBeenCalledWith(TEST_VIN)
   })
 })
+
+describe('VehicleWizard: every label names its control', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedVinService.validate.mockResolvedValue({ valid: true, vin: TEST_VIN })
+    mockedVinService.exists.mockResolvedValue(false)
+  })
+
+  // Label (the i18n key under the test mock) -> the RHF field its control registers.
+  const STEP_2_FIELDS: Array<[string | RegExp, string]> = [
+    [/^wizard\.nickname/, 'nickname'],
+    [/^edit\.vehicleType/, 'vehicle_type'],
+    ['wizard.year', 'year'],
+    ['wizard.make', 'make'],
+    ['wizard.model', 'model'],
+    ['wizard.color', 'color'],
+    ['edit.licensePlate', 'license_plate'],
+    ['edit.purchaseDate', 'purchase_date'],
+    ['edit.purchasePrice', 'purchase_price'],
+    ['wizard.trim', 'trim'],
+    ['edit.bodyClass', 'body_class'],
+    ['edit.driveType', 'drive_type'],
+    ['edit.doors', 'doors'],
+    ['edit.displacement', 'displacement_l'],
+    ['edit.cylinders', 'cylinders'],
+    ['wizard.fuelType', 'fuel_type'],
+    ['edit.transmissionType', 'transmission_type'],
+    ['edit.transmissionSpeeds', 'transmission_speeds'],
+  ]
+
+  it.each(STEP_2_FIELDS)('step 2: %s resolves to the %s control', async (label, field) => {
+    await goToStep2()
+    expect(screen.getByLabelText(label)).toHaveAttribute('name', field)
+  })
+
+  it('the four number fields are the NumberInputs, found by their labels', async () => {
+    await goToStep2()
+    for (const label of ['wizard.year', 'edit.purchasePrice', 'edit.doors', 'edit.cylinders']) {
+      expect(screen.getByLabelText(label)).toHaveAttribute('inputMode', 'decimal')
+    }
+  })
+
+  it('step 3: the photo picker is labelled', async () => {
+    await goToStep2()
+    fireEvent.change(screen.getByLabelText(/^wizard\.nickname/), { target: { value: 'Tow rig' } })
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+    expect(await screen.findByLabelText('wizard.misc.uploadPhotos')).toHaveAttribute('type', 'file')
+  })
+})
