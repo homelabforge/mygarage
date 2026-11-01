@@ -14,6 +14,7 @@ import jwt
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from joserfc import jws
 from joserfc import jwt as jose_jwt
 from joserfc.jwk import OctKey
 from sqlalchemy import func, select
@@ -422,6 +423,34 @@ class TestProtectedEndpoints:
         assert control.json()["id"] == test_user["id"]
 
         response = await client.get("/api/auth/me", headers=_bearer(without_exp))
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == _BAD_CREDENTIALS
+
+    @pytest.mark.parametrize("exp_json", ['"9"', "Infinity", "NaN"])
+    async def test_token_with_a_non_finite_or_non_numeric_exp_is_refused(
+        self, client: AsyncClient, test_user, exp_json: str
+    ):
+        """A signed token whose exp isn't a finite number gets 401.
+
+        A string used to blow up the comparison (500), and `now > inf` or
+        `now > nan` is False, so those tokens never expired. The payload is
+        written as raw JSON so it really carries the bare Infinity/NaN tokens.
+        """
+        claims = f'"sub": "{test_user["id"]}", "username": "{test_user["username"]}"'
+        key = OctKey.import_key(settings.secret_key)
+        header = {"alg": settings.algorithm}
+
+        def sign(exp: str) -> str:
+            return jws.serialize_compact(header, f"{{{claims}, {exp}}}".encode(), key)
+
+        control = await client.get(
+            "/api/auth/me", headers=_bearer(sign(f'"exp": {int(time.time()) + 600}'))
+        )
+        assert control.status_code == 200
+        assert control.json()["id"] == test_user["id"]
+
+        response = await client.get("/api/auth/me", headers=_bearer(sign(f'"exp": {exp_json}')))
 
         assert response.status_code == 401
         assert response.json()["detail"] == _BAD_CREDENTIALS

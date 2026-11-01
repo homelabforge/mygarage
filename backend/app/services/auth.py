@@ -2,6 +2,7 @@
 
 # pyright: reportAssignmentType=false
 
+import math
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -153,10 +154,14 @@ async def get_current_user(
         claims = jwt.decode(token, key).claims
 
         # jwt.decode doesn't check exp, so this is the only expiry check. Every
-        # token we mint has one, so a token without it would never expire.
+        # token we mint has one, so a token without it would never expire. A
+        # string would 500 the compare, and inf/nan never compare as past.
         exp = claims.get("exp")
         if exp is None:
             logger.debug("Token has no expiry")
+            raise credentials_exception
+        if isinstance(exp, bool) or not isinstance(exp, int | float) or not math.isfinite(exp):
+            logger.debug("Token expiry isn't a finite number")
             raise credentials_exception
         if datetime.now(UTC).timestamp() > exp:
             logger.debug("Token has expired")
