@@ -216,24 +216,43 @@ def _calls_any(fn: ast.AST, names: set[str]) -> bool:
     )
 
 
-def _shared_vehicle_today_writers(tree: ast.Module) -> list[str]:
-    """Tests taking test_vehicle that date a row today, themselves or through a helper."""
+def _today_fixtures(tree: ast.Module) -> set[str]:
+    """Fixtures here whose body builds a today-dated row, like a payload with today's date."""
+    return {fn.name for fn in _functions(tree) if _is_fixture(fn) and _dates_a_row_today(fn)}
+
+
+def _conftest_today_fixtures() -> frozenset[str]:
+    """Every conftest's today-dated fixtures, which any test below it can take."""
+    return frozenset(
+        name
+        for path in sorted(TESTS_DIR.rglob("conftest.py"))
+        for name in _today_fixtures(_parse(path))
+    )
+
+
+def _shared_vehicle_today_writers(
+    tree: ast.Module, conftest_fixtures: frozenset[str] = frozenset()
+) -> list[str]:
+    """Tests taking test_vehicle that date a row today: themselves, through a helper,
+    or with a fixture that hands them a today-dated value."""
     helpers = _today_helpers(tree)
+    fixtures = _today_fixtures(tree) | conftest_fixtures
     return [
         fn.name
         for fn in _functions(tree)
         if fn.name.startswith("test_")
-        and "test_vehicle" in {a.arg for a in fn.args.args}
-        and (_dates_a_row_today(fn) or _calls_any(fn, helpers))
+        and "test_vehicle" in (params := {a.arg for a in fn.args.args})
+        and (_dates_a_row_today(fn) or _calls_any(fn, helpers) or bool(params & fixtures))
     ]
 
 
 def test_no_test_dates_a_shared_vehicle_row_today() -> None:
     """A row dated today on test_vehicle turns up in every later test's latest figures."""
+    conftest_fixtures = _conftest_today_fixtures()
     found = [
         f"{_rel(path)}::{name}"
         for path in _today_scan_files()
-        for name in _shared_vehicle_today_writers(_parse(path))
+        for name in _shared_vehicle_today_writers(_parse(path), conftest_fixtures)
     ]
     assert found == [], "write today's rows on own_vehicle"
 
@@ -288,6 +307,11 @@ TODAY_WRITERS = {
         "async def _smart(vin):\n    return await _remind(vin)\n"
         "async def test_w(test_vehicle):\n    await _smart(test_vehicle['vin'])\n"
     ),
+    "module fixture": (
+        "@pytest.fixture\n"
+        "def payload():\n    return {'date': date.today().isoformat()}\n"
+        "async def test_w(test_vehicle, payload):\n    post(json=payload)\n"
+    ),
     "method helper": (
         "class T:\n"
         "    async def _remind(self, vin):\n"
@@ -318,6 +342,22 @@ def test_the_today_check_sees_every_form() -> None:
         if _shared_vehicle_today_writers(ast.parse(source)) != ["test_w"]
     ]
     assert missed == []
+
+
+def test_the_today_check_sees_a_conftest_fixtures_today() -> None:
+    """A payload fixture in a conftest hands its today to every test that takes it."""
+    conftest = ast.parse(
+        "@pytest.fixture\ndef sample_payload():\n    return {'date': datetime.now().date().isoformat()}\n"
+        "@pytest.fixture\ndef fixed_payload():\n    return {'date': '2024-05-15'}\n"
+    )
+    conftest_fixtures = frozenset(_today_fixtures(conftest))
+    assert conftest_fixtures == {"sample_payload"}
+    tests = ast.parse(
+        "async def test_today(test_vehicle, sample_payload):\n    post(json=sample_payload)\n"
+        "async def test_fixed(test_vehicle, fixed_payload):\n    post(json=fixed_payload)\n"
+        "async def test_own(own_vehicle, sample_payload):\n    post(json=sample_payload)\n"
+    )
+    assert _shared_vehicle_today_writers(tests, conftest_fixtures) == ["test_today"]
 
 
 def test_the_today_check_leaves_the_rest_alone() -> None:

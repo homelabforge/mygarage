@@ -7,7 +7,7 @@ These fixtures extend the base conftest.py fixtures.
 
 import os
 from collections.abc import Iterator
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -188,13 +188,17 @@ async def test_vehicle_with_records(test_vehicle, db_session):
     }
 
 
+# The payloads carry a fixed past day: tests post them on the shared
+# test_vehicle, where a row dated today lands in every later test's figures.
+
+
 @pytest.fixture
 def sample_service_payload():
     """Sample payload for creating a service record."""
     return {
         "service_type": "Oil Change",
         "service_category": "Maintenance",
-        "date": datetime.now().date().isoformat(),
+        "date": "2024-05-15",
         "odometer_km": 24140.10,  # 15000 mi
         "cost": 45.99,
         "vendor_name": "Test Garage",
@@ -206,7 +210,7 @@ def sample_service_payload():
 def sample_fuel_payload():
     """Sample payload for creating a fuel record."""
     return {
-        "date": datetime.now().date().isoformat(),
+        "date": "2024-05-15",
         "odometer_km": 24140.10,  # 15000 mi
         "liters": 47.318,  # 12.5 gal
         "cost": 45.50,
@@ -222,7 +226,7 @@ def sample_fuel_payload():
 def sample_def_payload():
     """Sample payload for creating a DEF record."""
     return {
-        "date": datetime.now().date().isoformat(),
+        "date": "2024-05-15",
         "odometer_km": 25749.44,  # 16000 mi
         "liters": 9.464,  # 2.5 gal
         "cost": 18.75,
