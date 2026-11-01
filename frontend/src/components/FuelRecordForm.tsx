@@ -907,7 +907,8 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
     } catch (err) {
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
-      // empty and this banner would never show.
+      // empty and this banner would never show. The checkboxes aren't listed:
+      // they have nowhere to show an error, so theirs go to the banner.
       const { attached, unhandled } = applyServerErrors<FuelRecordFormData>(setFieldError, err, [
         'date',
         'odometer_km',
@@ -924,14 +925,10 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         'price_basis',
         'rebate',
         'cost',
-        'is_full_tank',
-        'missed_fillup',
-        'is_hauling',
         'def_fill_level',
         'fuel_type_used',
         'octane',
         'diesel_grade',
-        'one_time_visit',
         'driver_name_freetext',
         'payment_method',
         'trip_type',
@@ -1432,8 +1429,8 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
                 </div>
 
                 {/* Driver freetext */}
-                <Field id="driver_name_freetext" label={t('fuel.driver')}>
-                  <Input type="text" id="driver_name_freetext" {...register('driver_name_freetext')} placeholder={t('fuel.driverFreetextPlaceholder')} disabled={isSubmitting} />
+                <Field id="driver_name_freetext" label={t('fuel.driver')} error={errors.driver_name_freetext}>
+                  <Input type="text" id="driver_name_freetext" {...register('driver_name_freetext')} placeholder={t('fuel.driverFreetextPlaceholder')} invalid={!!errors.driver_name_freetext} disabled={isSubmitting} />
                 </Field>
 
                 {/* Payment method + trip type — native selects, retokenized */}
@@ -1565,8 +1562,8 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
                     <Field id="obc_avg_speed_kmh" label={t('fuel.obcAvgSpeed')} unit={u.speed.label} error={errors.obc_avg_speed_kmh}>
                       <NumberInput id="obc_avg_speed_kmh" {...registerDecimal(register, 'obc_avg_speed_kmh')} invalid={!!errors.obc_avg_speed_kmh} disabled={isSubmitting} />
                     </Field>
-                    <Field id="obc_trip_duration_s" label={t('fuel.obcDuration')}>
-                      <Input type="text" id="obc_trip_duration_s" inputMode="text" placeholder={t('fuelRecordForm.obcDurationPlaceholder')} {...register('obc_trip_duration_s')} disabled={isSubmitting} />
+                    <Field id="obc_trip_duration_s" label={t('fuel.obcDuration')} error={errors.obc_trip_duration_s}>
+                      <Input type="text" id="obc_trip_duration_s" inputMode="text" placeholder={t('fuelRecordForm.obcDurationPlaceholder')} {...register('obc_trip_duration_s')} invalid={!!errors.obc_trip_duration_s} disabled={isSubmitting} />
                     </Field>
                   </div>
                 </div>

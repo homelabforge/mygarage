@@ -1,7 +1,7 @@
 /**
  * A rejected save (G1b-75): a 422 on a field the form shows lands under that
  * field with no banner, and anything else shows the banner. Plus the guard that
- * keeps knownFields in step with what the form registers.
+ * every field a 422 can name shows it somewhere.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
@@ -120,13 +120,40 @@ describe('FuelRecordForm: a rejected save', () => {
     expect(control('soc_start_pct-error')).toHaveTextContent('Input should be less than or equal to 100')
     expect(banner()).toBeNull()
   })
+
+  it('a 422 on the driver shows under the driver field and no banner', async () => {
+    localStorage.setItem('fuel_form:more_details_expanded', '1')
+    mockGets(mockVehicle())
+    mockedApiPost.mockRejectedValueOnce(validationError({ driver_name_freetext: 'String should have at most 100 characters' }))
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+    await waitFor(() => expect(control('driver_name_freetext')).not.toBeNull())
+    fireEvent.submit(drawerForm())
+
+    await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
+    await waitFor(() => expect(control('driver_name_freetext-error')).not.toBeNull())
+    expect(control('driver_name_freetext-error')).toHaveTextContent('String should have at most 100 characters')
+    expect(banner()).toBeNull()
+  })
+
+  it('a 422 on a checkbox shows the banner, since a checkbox has nowhere to show it', async () => {
+    mockGets(mockVehicle())
+    mockedApiPost.mockRejectedValueOnce(validationError({ is_full_tank: 'Input should be a valid boolean' }))
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+    await waitFor(() => expect(control('is_full_tank')).not.toBeNull())
+    fireEvent.submit(drawerForm())
+
+    await waitFor(() => expect(banner()).not.toBeNull())
+  })
 })
 
-// Guard for knownFields drift: a 422 on any field this form registers has to
-// attach, so it never falls through to the generic banner. No single vehicle
-// shows every field, so it walks four that between them do.
-// Mutant: drop any name from knownFields and the banner shows.
-describe('FuelRecordForm: knownFields covers every registered field', () => {
+// Guard for knownFields drift and for silent fields: a 422 on any field this
+// form registers has to show up, under the field or, for the few with nowhere
+// to show it, in the banner. One 422 per name, so a stray banner can't hide a
+// field that stayed silent. No single vehicle shows every field, so it walks
+// four that between them do.
+// Mutants: drop a name from knownFields (it banners), or drop a Field's error
+// prop (it goes silent).
+describe('FuelRecordForm: every field a 422 can name shows it', () => {
   const vehicles: Record<string, TestVehicle> = {
     // EV charging fields, kWh and litres, odometer and engine hours.
     pluginHybridDual: mockVehicle({ fuel_type: 'plugin_hybrid', secondary_usage_enabled: true }),
@@ -137,12 +164,33 @@ describe('FuelRecordForm: knownFields covers every registered field', () => {
   }
 
   // Named controls that aren't payload fields go here. None today: the fill-up
-  // time, station search and outside temp boxes are controlled and carry no
-  // name, so they never reach the sweep.
+  // time and station search boxes are controlled and carry no name.
   const UI_ONLY: string[] = []
+  // Checkboxes have no inline error, so they stay out of knownFields and a 422
+  // on one goes to the banner.
+  const BANNER_ROUTED = ['is_full_tank', 'missed_fillup', 'is_hauling', 'one_time_visit']
+  // In knownFields but nameless: the outside temp box is controlled, and its
+  // error shows under that box.
+  const CONTROLLED = ['outside_temp_c']
 
-  it('guard: a 422 on every registered field attaches, on every vehicle shape', async () => {
-    const seen = new Set<string>()
+  type Outcome = 'field' | 'banner' | 'silent'
+  /** Where a 422 on `name` ended up. Each message is unique, so an older one can't answer. */
+  const rejectOne = async (name: string, msg: string): Promise<Outcome> => {
+    const calls = mockedApiPost.mock.calls.length
+    mockedApiPost.mockRejectedValueOnce(validationError({ [name]: msg }))
+    fireEvent.submit(drawerForm())
+    await waitFor(() => expect(mockedApiPost).toHaveBeenCalledTimes(calls + 1))
+    try {
+      await waitFor(() => expect(screen.queryByText(msg) ?? banner()).toBeTruthy(), { timeout: 300 })
+    } catch {
+      return 'silent'
+    }
+    return screen.queryByText(msg) ? 'field' : 'banner'
+  }
+
+  it('guard: a 422 on each field shows under it, or in the banner for a checkbox', async () => {
+    const checked = new Set<string>()
+    const wrong: string[] = []
     for (const [shape, vehicle] of Object.entries(vehicles)) {
       vi.clearAllMocks()
       // Open "More details" so the station, driver, payment and OBC fields render.
@@ -157,20 +205,22 @@ describe('FuelRecordForm: knownFields covers every registered field', () => {
       if (shape === 'gasoline') await waitFor(() => expect(control('octane')).not.toBeNull())
       if (shape === 'propane') await waitFor(() => expect(control('propane_liters')).not.toBeNull())
 
-      const names = registeredFieldNames(drawerForm(), UI_ONLY)
-      names.forEach((n) => seen.add(n))
-      mockedApiPost.mockRejectedValueOnce(validationError(Object.fromEntries(names.map((n) => [n, `bad ${n}`]))))
-      fireEvent.submit(drawerForm())
-
-      await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
-      // Settled once the catch has run: either the banner or a field message is up.
-      await waitFor(() => expect(banner() ?? screen.queryAllByText(/^bad /)[0]).toBeTruthy())
-      expect(banner(), `${shape}: ${names.join(', ')}`).toBeNull()
+      const names = [...registeredFieldNames(drawerForm(), UI_ONLY), ...CONTROLLED].filter((n) => !checked.has(n))
+      for (const [i, name] of names.entries()) {
+        checked.add(name)
+        const want: Outcome = BANNER_ROUTED.includes(name) ? 'banner' : 'field'
+        const got = await rejectOne(name, `bad ${name} ${shape} ${i}`)
+        if (got !== want) wrong.push(`${name}: ${got}`)
+      }
       cleanup()
     }
-    // The fields that drifted before have to be in the sweep, or it proves nothing.
-    expect([...seen]).toEqual(
-      expect.arrayContaining(['soc_start_pct', 'soc_end_pct', 'battery_soh_pct', 'charge_level', 'charge_location'])
+    expect(wrong).toEqual([])
+    // The fields that drifted or went silent before have to be in the sweep, or it proves nothing.
+    expect([...checked]).toEqual(
+      expect.arrayContaining([
+        'soc_start_pct', 'soc_end_pct', 'battery_soh_pct', 'charge_level', 'charge_location',
+        'driver_name_freetext', 'obc_trip_duration_s', ...BANNER_ROUTED, ...CONTROLLED,
+      ])
     )
   })
 })

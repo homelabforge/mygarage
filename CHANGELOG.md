@@ -240,6 +240,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Screen reader and keyboard fixes: the station, vendor and line item suggestions are comboboxes you can arrow through, drawers take focus on their first field even when kept mounted or when their fields load late, the device token dialog traps focus and closes on Escape, window sticker and sign-up errors are alerts tied to their fields, the phone More tab says when you're on one of its pages, and icon buttons, report downloads, family cards, DTC notes, the vendor clear button, and the LiveLink, Torque and tire controls have names that say which one
 - Two backups uploaded in the same second no longer overwrite each other
 - A server error on the odometer unit, an EV charging field or a supply barcode shows under that field instead of a generic save error
+- On a fill-up, an error on the driver or the OBC trip duration shows under that field, and a server error on one of the checkboxes shows the save error instead of nothing
 
 ### Security
 - A sign-in token with no expiry is refused instead of never expiring
