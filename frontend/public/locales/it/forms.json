@@ -747,8 +747,6 @@
     "suppliesLoadFailed": "Impossibile caricare le scorte. Il salvataggio è disabilitato per evitare di perdere le scorte registrate in questo intervento — riprova.",
     "suppliesLoading": "Caricamento scorte in corso…",
     "suppliesNone": "Nessuna scorta utilizzata per questa voce.",
-    "suppliesQuantity": "Quantità",
-    "suppliesRemoveRow": "Rimuovi scorta",
     "suppliesUsed": "Scorte utilizzate",
     "supplyQuantityInvalid": "Voce {{number}}: la quantità non può essere negativa",
     "supplyQuantityWholeNumber": "Voce {{number}}: questa scorta è a pezzi singoli, la quantità deve essere un numero intero",

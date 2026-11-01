@@ -6,13 +6,13 @@ import type { RecurrenceDraft, ReminderDraft, ReminderDraftMode } from '../types
 import type { Supply } from '../types/supplies'
 import type { SupplyUnit } from '../utils/supplyUnits'
 import InspectionResult from './InspectionResult'
-import CurrencyInputPrefix from './common/CurrencyInputPrefix'
+import CurrencyInput from './common/CurrencyInput'
 import SupplyUsedPicker from './SupplyUsedPicker'
 import MaintenanceTypeSelect from './MaintenanceTypeSelect'
 import RecurrenceFields from './RecurrenceFields'
-import { Select, affixStyle, useAffixWidth } from './ui'
+import { Select } from './ui'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
-import { useCurrencySymbol } from '../hooks/useCurrencySymbol'
+import { readTypedNumber } from '../utils/decimalInput'
 
 // Service suggestions per category. Module scope can't reach `t`, so these are
 // translation-key suffixes under `lineItemEditor.misc.suggestions.*`, resolved
@@ -68,8 +68,9 @@ export default function LineItemEditor({
 }: LineItemEditorProps) {
   const { t } = useTranslation('vehicles')
   const { formatCurrency } = useCurrencyPreference()
-  // The cost field pads past the currency symbol at its drawn width.
-  const [symbolRef, symbolWidth] = useAffixWidth(useCurrencySymbol())
+  // The cost as typed. The item holds the number it reads as (NaN when it
+  // doesn't), and ServiceVisitForm's line-item check says so on save.
+  const [costText, setCostText] = useState(() => (item.cost == null ? '' : String(item.cost)))
   const [expanded, setExpanded] = useState(true)
   const [showSuggestions, setShowSuggestions] = useState(false)
   // ★ The reminder draft's `interval_km` is canonical kilometres, converted
@@ -179,10 +180,11 @@ export default function LineItemEditor({
             </div>
 
             <div className="md:col-span-2 relative">
-              <label className="block text-sm font-medium text-garage-text mb-1">
+              <label htmlFor={`line-item-${index}-description`} className="block text-sm font-medium text-garage-text mb-1">
                 {t('lineItemEditor.misc.descriptionLabel')} <span className="text-danger">*</span>
               </label>
               <input
+                id={`line-item-${index}-description`}
                 type="text"
                 value={item.description}
                 onChange={(e) => {
@@ -221,19 +223,20 @@ export default function LineItemEditor({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">{t('lineItemEditor.cost')}</label>
-              <div className="relative">
-                <CurrencyInputPrefix ref={symbolRef} />
-                <input
-                  type="number"
-                  value={item.cost ?? ''}
-                  onChange={(e) => onChange(index, 'cost', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  placeholder="0.00"
-                  disabled={disabled}
-                  className="w-full pl-affix pr-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
-                  style={affixStyle(symbolWidth)}
-                />
-              </div>
+              <label htmlFor={`line-item-${index}-cost`} className="block text-sm font-medium text-garage-text mb-1">
+                {t('lineItemEditor.cost')}
+              </label>
+              <CurrencyInput
+                id={`line-item-${index}-cost`}
+                value={costText}
+                onChange={(e) => {
+                  setCostText(e.target.value)
+                  onChange(index, 'cost', readTypedNumber(e.target.value))
+                }}
+                placeholder="0.00"
+                disabled={disabled}
+                parsedOnChange
+              />
               {partsCost > 0 && (
                 <p className="text-xs text-garage-text-muted mt-1">
                   {t('lineItemEditor.partsCost', { amount: formatCurrency(partsCost) })}

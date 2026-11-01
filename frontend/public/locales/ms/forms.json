@@ -747,8 +747,6 @@
     "suppliesLoadFailed": "Bekalan tidak dapat dimuatkan. Penyimpanan dilumpuhkan untuk mengelakkan kehilangan bekalan yang direkodkan bagi lawatan ini — sila cuba lagi.",
     "suppliesLoading": "Memuatkan bekalan…",
     "suppliesNone": "Tiada bekalan digunakan untuk item ini.",
-    "suppliesQuantity": "Kuantiti",
-    "suppliesRemoveRow": "Buang bekalan",
     "suppliesUsed": "Bekalan Digunakan",
     "supplyQuantityInvalid": "Item baris {{number}}: kuantiti bekalan tidak boleh negatif",
     "supplyQuantityWholeNumber": "Item baris {{number}}: bekalan ini dikira dalam unit, jadi kuantitinya mestilah nombor bulat",

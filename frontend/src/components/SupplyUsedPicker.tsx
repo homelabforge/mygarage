@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Plus, Trash2 } from 'lucide-react'
 import { unitLabel, type SupplyUnit } from '../utils/supplyUnits'
 import type { SupplyUsedEntry } from '../types/serviceVisit'
 import type { Supply } from '../types/supplies'
-import { Select } from './ui'
+import { NumberInput, Select } from './ui'
+import { readTypedNumber } from '../utils/decimalInput'
 
 interface SupplyUsedPickerProps {
   value: SupplyUsedEntry[]
@@ -22,6 +24,43 @@ interface SupplyUsedPickerProps {
   // converts with, so they can't disagree.
   unitsBySupplyId: Map<number, SupplyUnit>
   disabled?: boolean
+}
+
+/** A row's quantity box. The row holds the number; this holds what was typed. */
+function QuantityInput({
+  quantity,
+  onChange,
+  disabled,
+  'aria-label': ariaLabel,
+}: {
+  quantity: number
+  onChange: (quantity: number) => void
+  disabled: boolean
+  'aria-label': string
+}) {
+  const [text, setText] = useState(() => String(quantity))
+  // The number this text stands for. Rows are keyed by position, so when one
+  // above is removed (or an edit hydrates) the number changes under this box.
+  const [shown, setShown] = useState(quantity)
+  if (!Object.is(shown, quantity)) {
+    setShown(quantity)
+    setText(Number.isNaN(quantity) ? '' : String(quantity))
+  }
+  return (
+    <NumberInput
+      value={text}
+      onChange={(e) => {
+        // Blank stays 0, as before; text that isn't a number is NaN, which the form refuses.
+        const next = readTypedNumber(e.target.value) ?? 0
+        setText(e.target.value)
+        setShown(next)
+        onChange(next)
+      }}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      parsedOnChange
+    />
+  )
 }
 
 /**
@@ -92,6 +131,7 @@ export default function SupplyUsedPicker({
         <div className="space-y-2">
           {value.map((row, rowIndex) => {
             const supply = suppliesById.get(row.supply_id)
+            const supplyName = supply?.name ?? `#${row.supply_id}`
             const quantityUnit = unitLabel(unitsBySupplyId.get(row.supply_id) ?? 'count')
             // Row's own select keeps its current supply as an option even if it's
             // archived (not in addableSupplies) or — defensively — also picked by
@@ -108,21 +148,17 @@ export default function SupplyUsedPicker({
                     disabled={disabled}
                     aria-label={t('service.suppliesUsed')}
                     options={[
-                      ...(supply == null ? [{ value: String(row.supply_id), label: `#${row.supply_id}` }] : []),
+                      ...(supply == null ? [{ value: String(row.supply_id), label: supplyName }] : []),
                       ...rowOptions.map((s) => ({ value: String(s.id), label: s.name })),
                     ]}
                   />
                 </div>
                 <div className="w-28 flex items-center gap-1">
-                  <input
-                    type="number"
-                    value={row.quantity}
-                    onChange={(e) =>
-                      handleQuantityChange(rowIndex, e.target.value ? parseFloat(e.target.value) : 0)
-                    }
+                  <QuantityInput
+                    quantity={row.quantity}
+                    onChange={(quantity) => handleQuantityChange(rowIndex, quantity)}
                     disabled={disabled}
-                    aria-label={t('service.suppliesQuantity')}
-                    className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
+                    aria-label={t('service.suppliesQuantityOf', { supply: supplyName })}
                   />
                   {quantityUnit && <span className="text-xs text-garage-text-muted flex-shrink-0">{quantityUnit}</span>}
                 </div>
@@ -130,8 +166,8 @@ export default function SupplyUsedPicker({
                   type="button"
                   onClick={() => handleRemoveRow(rowIndex)}
                   disabled={disabled}
-                  aria-label={t('service.suppliesRemoveRow')}
-                  title={t('service.suppliesRemoveRow')}
+                  aria-label={t('service.suppliesRemoveNamed', { supply: supplyName })}
+                  title={t('service.suppliesRemoveNamed', { supply: supplyName })}
                   className="p-1 text-danger hover:bg-danger/10 rounded disabled:opacity-50"
                 >
                   <Trash2 className="w-4 h-4" />

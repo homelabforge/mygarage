@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next'
 import { makeFuelRecordSchema } from '../fuel'
 import { INVALID_NUMBER, MONEY_MAX, UNIT_PRICE_MAX } from '../shared'
 import { IMPERIAL_UNITS, METRIC_UNITS } from '@/__tests__/factories'
+import { makeUnitFormat } from '@/utils/unitFormat'
 
 // Same shape as the global react-i18next mock in src/__tests__/setup.ts:
 // messages come back as their i18n key, which is all these tests need.
@@ -12,7 +13,7 @@ import { IMPERIAL_UNITS, METRIC_UNITS } from '@/__tests__/factories'
 // makeFuelRecordSchema. This file tests the actual production schema.
 const t = ((key: string) => key) as unknown as TFunction
 
-const fuelRecordSchema = makeFuelRecordSchema(t, METRIC_UNITS)
+const fuelRecordSchema = makeFuelRecordSchema(t, METRIC_UNITS, makeUnitFormat(METRIC_UNITS).temperature)
 
 const REQUIRED = {
   date: '2026-04-30',
@@ -77,7 +78,7 @@ describe('Fuel Record Schema — def_fill_level / obc fields (Task 8)', () => {
 // is per. So the cap is an object-level check that reads the basis off the
 // same parse, not a number baked into the field.
 describe('Fuel Record Schema: the unit-price cap follows the price basis', () => {
-  const imperial = makeFuelRecordSchema(t, IMPERIAL_UNITS)
+  const imperial = makeFuelRecordSchema(t, IMPERIAL_UNITS, makeUnitFormat(IMPERIAL_UNITS).temperature)
   const priceMessages = (
     schema: ReturnType<typeof makeFuelRecordSchema>,
     input: Record<string, unknown>,

@@ -2,7 +2,6 @@ import { useState, useMemo, useRef, useEffect, type SyntheticEvent } from 'react
 import { useTranslation } from 'react-i18next'
 import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
-import { useCurrencyPrefix } from '../hooks/useCurrencyPrefix'
 import { toast } from 'sonner'
 import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory, SupplyUsedEntry } from '../types/serviceVisit'
 import { reminderDraftToCreate } from '../types/reminder'
@@ -20,14 +19,16 @@ import { useSupplies } from '../hooks/queries/useSupplies'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useLatestMileage } from '../hooks/useLatestMileage'
-import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
+import { canonicalFromTypedUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
+import { readTypedNumber } from '../utils/decimalInput'
 import { readNumber } from '../utils/decimalSafe'
 import { supplyDisplayUnit, toCanonical, toDisplay, type SupplyUnit } from '../utils/supplyUnits'
 import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors, withoutFieldError } from '../hooks/useApiFormErrors'
-import { Button, Field, Input, Textarea, Mono } from './ui'
+import { Button, Field, Input, NumberInput, Textarea, Mono } from './ui'
+import CurrencyInput from './common/CurrencyInput'
 import { formatCurrency, formatCurrencyZero } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { formatDateForInput } from '@/utils/dateUtils'
@@ -79,6 +80,12 @@ const createEmptyLineItem = (tempId: number): ServiceVisitFormLineItem => ({
 
 const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
 
+/** The visit's own number boxes, each held as typed text. */
+type NumericVisitField = 'odometer_km' | 'engine_hours' | 'tax_amount' | 'shop_supplies' | 'misc_fees'
+
+/** A seeded number as box text. It's only parsed once the user edits it; until then formData keeps the number. */
+const textOf = (value: number | undefined): string => (value == null ? '' : String(value))
+
 function ServiceVisitForm({
   vin,
   vehicleType,
@@ -94,7 +101,6 @@ function ServiceVisitForm({
   const { system } = useUnitPreference()
   const u = useUnitFormat()
   const { currencyCode, locale } = useCurrencyPreference()
-  const currencyPrefix = useCurrencyPrefix()
   const createMutation = useCreateServiceVisit(vin)
   const updateMutation = useUpdateServiceVisit(vin)
   const isMotorized = !vehicleType || !NON_MOTORIZED.includes(vehicleType)
@@ -234,6 +240,16 @@ function ServiceVisitForm({
     }
   })
 
+  // What the user typed in each number box. formData holds the number it reads
+  // as (NaN when it doesn't), which validateFields refuses on the field.
+  const [numberText, setNumberText] = useState<Record<NumericVisitField, string>>(() => ({
+    odometer_km: odometerOrigin.display,
+    engine_hours: textOf(formData.engine_hours),
+    tax_amount: textOf(formData.tax_amount),
+    shop_supplies: textOf(formData.shop_supplies),
+    misc_fees: textOf(formData.misc_fees),
+  }))
+
   // Hydrate supplies_used from visit.line_items[*].supply_usages once the
   // supplies list has loaded. This can't happen in the formData initializer
   // above because useSupplies() resolves asynchronously and supply_usages
@@ -311,6 +327,11 @@ function ServiceVisitForm({
     setFormData((prev) => ({ ...prev, [field]: value }))
     // Form keys and error keys share names, so this clears just the field being edited.
     setFieldErrors((prev) => withoutFieldError(prev, field))
+  }
+
+  const handleNumberChange = (field: NumericVisitField, text: string): void => {
+    setNumberText((prev) => ({ ...prev, [field]: text }))
+    handleFieldChange(field, readTypedNumber(text))
   }
 
   // A repair can only link to an inspection, so links to `ref` go with it.
@@ -565,11 +586,7 @@ function ServiceVisitForm({
       // canonical value it was seeded from rather than a re-conversion of a
       // rounded display.
       const odometerKm =
-        canonicalFromUnitField(
-          String(formData.odometer_km ?? ''),
-          odometerOrigin,
-          u.distance
-        ) ?? undefined
+        canonicalFromTypedUnitField(numberText.odometer_km, odometerOrigin, u.distance) ?? undefined
 
       // A line item's reminder is anchored by the BACKEND on this visit's own
       // date and odometer (v3.5.0). The form never adds an interval to the
@@ -747,12 +764,11 @@ function ServiceVisitForm({
 
               {isMotorized && tracksDistance && (
                 <Field id="service-odometer" label={t('common:mileage')} unit={u.distance.label} error={fieldErrors.odometer_km}>
-                  <Input
-                    type="number"
+                  {/* No parsedOnChange: the save reads this text again, in the language of the save. */}
+                  <NumberInput
                     id="service-odometer"
-                    mono
-                    value={formData.odometer_km ?? ''}
-                    onChange={(e) => handleFieldChange('odometer_km', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    value={numberText.odometer_km}
+                    onChange={(e) => handleNumberChange('odometer_km', e.target.value)}
                     /* One example reading (72420 km) rendered in the client's
                        own distance unit, rather than one of two literals chosen
                        by a collapsed system. It reproduces both shipped hints
@@ -769,14 +785,13 @@ function ServiceVisitForm({
                 NO unit conversion regardless of system, unlike odometer_km above. */}
             {isMotorized && tracksHours && (
               <Field id="service-engine-hours" label={t('common:engineHours')} unit="hr" error={fieldErrors.engine_hours}>
-                <Input
-                  type="number"
+                <NumberInput
                   id="service-engine-hours"
-                  mono
-                  value={formData.engine_hours ?? ''}
-                  onChange={(e) => handleFieldChange('engine_hours', e.target.value ? parseFloat(e.target.value) : undefined)}
+                  value={numberText.engine_hours}
+                  onChange={(e) => handleNumberChange('engine_hours', e.target.value)}
                   placeholder="812.4"
                   disabled={submitting}
+                  parsedOnChange
                 />
               </Field>
             )}
@@ -858,39 +873,33 @@ function ServiceVisitForm({
             <h3 className="text-sm font-semibold text-text-mute uppercase tracking-wide">{t('service.taxAndFees')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Field id="tax-amount" label={t('service.tax')} error={fieldErrors.tax_amount}>
-                <Input
-                  type="number"
+                <CurrencyInput
                   id="tax-amount"
-                  value={formData.tax_amount ?? ''}
-                  onChange={(e) => handleFieldChange('tax_amount', e.target.value ? parseFloat(e.target.value) : undefined)}
+                  value={numberText.tax_amount}
+                  onChange={(e) => handleNumberChange('tax_amount', e.target.value)}
                   placeholder="0.00"
                   disabled={submitting}
-                  mono
-                  prefix={currencyPrefix}
+                  parsedOnChange
                 />
               </Field>
               <Field id="shop-supplies" label={t('service.shopSupplies')} error={fieldErrors.shop_supplies}>
-                <Input
-                  type="number"
+                <CurrencyInput
                   id="shop-supplies"
-                  value={formData.shop_supplies ?? ''}
-                  onChange={(e) => handleFieldChange('shop_supplies', e.target.value ? parseFloat(e.target.value) : undefined)}
+                  value={numberText.shop_supplies}
+                  onChange={(e) => handleNumberChange('shop_supplies', e.target.value)}
                   placeholder="0.00"
                   disabled={submitting}
-                  mono
-                  prefix={currencyPrefix}
+                  parsedOnChange
                 />
               </Field>
               <Field id="misc-fees" label={t('service.miscFees')} error={fieldErrors.misc_fees}>
-                <Input
-                  type="number"
+                <CurrencyInput
                   id="misc-fees"
-                  value={formData.misc_fees ?? ''}
-                  onChange={(e) => handleFieldChange('misc_fees', e.target.value ? parseFloat(e.target.value) : undefined)}
+                  value={numberText.misc_fees}
+                  onChange={(e) => handleNumberChange('misc_fees', e.target.value)}
                   placeholder="0.00"
                   disabled={submitting}
-                  mono
-                  prefix={currencyPrefix}
+                  parsedOnChange
                 />
               </Field>
             </div>
@@ -904,19 +913,20 @@ function ServiceVisitForm({
             </div>
             {(formData.tax_amount || formData.shop_supplies || formData.misc_fees || partsSupplies > 0) && (
               <>
-                {formData.tax_amount && (
+                {/* `!!` so an amount that isn't a number (NaN) doesn't print "NaN". */}
+                {!!formData.tax_amount && (
                   <div className="flex items-center justify-end gap-2 text-sm text-text-mute">
                     <span>{t('service.tax')}:</span>
                     <Mono>{formatCurrency(formData.tax_amount, { currencyCode, locale })}</Mono>
                   </div>
                 )}
-                {formData.shop_supplies && (
+                {!!formData.shop_supplies && (
                   <div className="flex items-center justify-end gap-2 text-sm text-text-mute">
                     <span>{t('service.shopSupplies')}:</span>
                     <Mono>{formatCurrency(formData.shop_supplies, { currencyCode, locale })}</Mono>
                   </div>
                 )}
-                {formData.misc_fees && (
+                {!!formData.misc_fees && (
                   <div className="flex items-center justify-end gap-2 text-sm text-text-mute">
                     <span>{t('service.miscFees')}:</span>
                     <Mono>{formatCurrency(formData.misc_fees, { currencyCode, locale })}</Mono>

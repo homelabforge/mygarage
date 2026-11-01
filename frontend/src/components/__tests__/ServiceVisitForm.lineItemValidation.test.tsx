@@ -108,15 +108,12 @@ const describeTheWork = () =>
     target: { value: 'Oil change' },
   })
 
-const costField = (): HTMLInputElement =>
-  screen.getByText('lineItemEditor.cost').parentElement?.querySelector(
-    'input[type="number"]'
-  ) as HTMLInputElement
+const costField = (): HTMLInputElement => screen.getByLabelText('lineItemEditor.cost') as HTMLInputElement
 
 const addSupplyRow = () => fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
 
 const quantityField = (): HTMLInputElement =>
-  screen.getByRole('spinbutton', { name: 'service.suppliesQuantity' }) as HTMLInputElement
+  screen.getByRole('textbox', { name: 'service.suppliesQuantityOf' }) as HTMLInputElement
 
 /** Submit and assert nothing reached the API. */
 const submitAndExpectRefusal = async (message: RegExp) => {
@@ -199,30 +196,15 @@ describe('ServiceVisitForm — the line-item constraints that replaced native on
     await submitAndExpectRefusal(/lineItemCostDecimals/)
   })
 
-  it('treats unparseable text as no cost, rather than throwing or posting NaN', async () => {
-    // The specific failure `SupplyHistoryModal` records is a THROW: RHF's own
-    // `min` coerces with unary `+` and blows up on the symbol
-    // `registerDecimal` emits for unparseable text. Nothing here throws, and
-    // nothing garbage reaches the API.
-    //
-    // Note on `validateLineItems`' `Number.isNaN(item.cost)` branch: it has no
-    // test because it has no reachable input. `type="number"` sanitises 'abc'
-    // to '' in jsdom and in browsers, and the handler maps '' to `undefined`
-    // before the validator ever sees it. It is kept as cheap defence for
-    // paste and programmatic paths rather than deleted to satisfy a coverage
-    // rule, and this note is here so that is a recorded decision rather than
-    // an oversight the next reader has to re-derive.
+  it('refuses unparseable text as a cost, rather than dropping it or posting NaN', async () => {
+    // The box is typed text now, so 'abc' reaches the handler, reads as NaN,
+    // and validateLineItems' NaN branch says so. It used to sanitise to '' and
+    // post no cost at all.
     render(<ServiceVisitForm {...DEFAULT_PROPS} />)
     describeTheWork()
     fireEvent.change(costField(), { target: { value: 'abc' } })
 
-    fireEvent.submit(drawerForm())
-
-    await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
-    const body = mockedApiPost.mock.calls.at(-1)?.[1] as {
-      line_items: { cost?: number | null }[]
-    }
-    expect(body.line_items[0].cost ?? null).toBeNull()
+    await submitAndExpectRefusal(/lineItemCostInvalid/)
   })
 
   it('refuses a negative supply quantity', async () => {

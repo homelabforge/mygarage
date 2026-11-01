@@ -147,3 +147,14 @@ export function parseOptionalDecimal(raw: string): number | undefined {
   const result = parseDecimalInput(raw, getActiveLocale())
   return result.kind === 'value' ? result.value : undefined
 }
+
+/**
+ * A controlled field's text as the number a form holds: blank is `undefined`,
+ * and text that isn't a number is NaN, so the form's own check can say so
+ * instead of the entry quietly going away.
+ */
+export function readTypedNumber(raw: string): number | undefined {
+  const result = parseDecimalInput(raw, getActiveLocale())
+  if (result.kind === 'empty') return undefined
+  return result.kind === 'value' ? result.value : Number.NaN
+}

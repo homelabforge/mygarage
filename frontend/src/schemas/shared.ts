@@ -55,6 +55,8 @@ interface NumericFieldOptions {
   /** When set, a non-integer value is rejected with this message. Checked
    *  alongside min/max, after the invalid-number guard. */
   integerKey?: string
+  /** Interpolated into every message, for one that names its bounds in the user's unit. */
+  messageValues?: Record<string, string>
 }
 
 /**
@@ -88,24 +90,25 @@ export const makeNumericField = (t: TFunction, opts: NumericFieldOptions) =>
       // parse, never an empty one, and belongs with the invalid guard below,
       // not the empty one.
       const isEmpty = val === undefined || val === null || val === ''
+      const say = (key: string): string => (opts.messageValues ? t(key, opts.messageValues) : t(key))
 
       if (isEmpty) {
         if (opts.requiredKey) {
-          ctx.addIssue({ code: 'custom', message: t(opts.requiredKey) })
+          ctx.addIssue({ code: 'custom', message: say(opts.requiredKey) })
         }
         return
       }
 
       if (val === INVALID_NUMBER || typeof val !== 'number' || Number.isNaN(val)) {
-        ctx.addIssue({ code: 'custom', message: t(opts.invalidKey) })
+        ctx.addIssue({ code: 'custom', message: say(opts.invalidKey) })
         return
       }
       if (opts.integerKey && !Number.isInteger(val)) {
-        ctx.addIssue({ code: 'custom', message: t(opts.integerKey) })
+        ctx.addIssue({ code: 'custom', message: say(opts.integerKey) })
       }
       const belowMin = opts.exclusiveMin ? val <= opts.min : val < opts.min
-      if (belowMin) ctx.addIssue({ code: 'custom', message: t(opts.negativeKey) })
-      if (val > opts.max) ctx.addIssue({ code: 'custom', message: t(opts.tooLargeKey) })
+      if (belowMin) ctx.addIssue({ code: 'custom', message: say(opts.negativeKey) })
+      if (val > opts.max) ctx.addIssue({ code: 'custom', message: say(opts.tooLargeKey) })
     })
     .transform(val => (typeof val === 'number' && !Number.isNaN(val) ? val : undefined))
 

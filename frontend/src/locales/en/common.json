@@ -673,7 +673,10 @@
       "obcTripDurationFormat": "Use seconds (e.g. 8100), HH:MM (e.g. 2:15), or HH:MM:SS",
       "obcNegative": "OBC value cannot be negative",
       "obcTooLarge": "OBC value too large",
-      "obcInvalid": "Enter a valid number"
+      "obcInvalid": "Enter a valid number",
+      "outsideTempTooLow": "Outside temperature must be at least {{min}}",
+      "outsideTempTooHigh": "Outside temperature must be at most {{max}}",
+      "outsideTempInvalid": "Enter a valid number"
     },
     "tireSet": {
       "nameRequired": "Name is required"

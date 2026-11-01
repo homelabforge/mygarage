@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { TFunction } from 'i18next'
 import type { UnitSet } from '@/types/units'
+import type { QuantityFormat } from '@/utils/unitFormat'
 import {
   checkUnitPriceCap,
   makeDateSchema,
@@ -30,6 +31,9 @@ import {
  * the typed number is per, so the cap is an object-level check that reads the
  * basis off the parse (Fable F-B4). The form rebuilds the schema when `units`
  * changes.
+ *
+ * `temperature` is the form's own formatter for the outside temperature, so
+ * the range's message names the unit the user typed in.
  */
 
 export const PRICE_BASIS_VALUES = ['per_volume', 'per_weight', 'per_kwh', 'per_tank'] as const
@@ -51,7 +55,11 @@ const optionalEnum = <T extends readonly [string, ...string[]]>(values: T) =>
     .optional()
     .transform((v) => (v === '' || v === undefined ? undefined : v))
 
-export const makeFuelRecordSchema = (t: TFunction, units: UnitSet) =>
+/** The API's outside temperature range, in Celsius (backend app/schemas/fuel.py). */
+const OUTSIDE_TEMP_MIN_C = -60
+const OUTSIDE_TEMP_MAX_C = 70
+
+export const makeFuelRecordSchema = (t: TFunction, units: UnitSet, temperature: QuantityFormat) =>
   z.object({
     date: makeDateSchema(t),
     filled_at: z.string().optional(),
@@ -135,13 +143,19 @@ export const makeFuelRecordSchema = (t: TFunction, units: UnitSet) =>
     driver_name_freetext: z.string().max(100).optional(),
     payment_method: optionalEnum(PAYMENT_METHOD_VALUES),
     trip_type: optionalEnum(TRIP_TYPE_VALUES),
-    outside_temp_c: z
-      .number()
-      .min(-60)
-      .max(70)
-      .or(z.nan())
-      .transform((val) => (isNaN(val) ? undefined : val))
-      .optional(),
+    // Held in Celsius (the form converts as you type), but the message names
+    // the bounds in the unit the user typed in, so a F user reads -76 to 158.
+    outside_temp_c: makeNumericField(t, {
+      min: OUTSIDE_TEMP_MIN_C,
+      max: OUTSIDE_TEMP_MAX_C,
+      negativeKey: 'common:validation.fuel.outsideTempTooLow',
+      tooLargeKey: 'common:validation.fuel.outsideTempTooHigh',
+      invalidKey: 'common:validation.fuel.outsideTempInvalid',
+      messageValues: {
+        min: temperature.formatPrimary(OUTSIDE_TEMP_MIN_C),
+        max: temperature.formatPrimary(OUTSIDE_TEMP_MAX_C),
+      },
+    }),
     // Task 8 moved both onto NumberInput/registerDecimal — same reasoning as
     // def_fill_level above. Neither had a custom message before (bare
     // `.min(0)`, zod's default), so both reuse one new "obc" key family.

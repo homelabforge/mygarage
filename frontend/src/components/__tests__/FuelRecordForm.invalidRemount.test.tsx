@@ -50,6 +50,7 @@ const fillUp = {
 } as unknown as FuelRecord
 
 const obc = () => document.getElementById('obc_l_per_100km') as HTMLInputElement
+const temperature = () => document.getElementById('outside_temp_display') as HTMLInputElement
 const moreDetails = () => screen.getByRole('button', { name: /fuel\.moreDetails/ })
 
 beforeEach(() => {
@@ -74,6 +75,21 @@ describe('FuelRecordForm: unreadable text in a section that closes and opens', (
     expect(obc()).toHaveValue('abc')
     fireEvent.submit(drawerForm())
     await waitFor(() => expect(obc()).toHaveAttribute('aria-invalid', 'true'))
+    expect(mockedApiPut).not.toHaveBeenCalled()
+  })
+
+  it('the outside temperature comes back as typed too, still refused and still saying why', async () => {
+    render(<FuelRecordForm vin={VIN} record={fillUp} onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await waitFor(() => expect(temperature()).toBeInTheDocument())
+    const user = userEvent.setup()
+    await user.type(temperature(), 'abc')
+    await user.click(moreDetails())
+    expect(temperature()).toBeNull()
+    await user.click(moreDetails())
+    expect(temperature()).toHaveValue('abc')
+    fireEvent.submit(drawerForm())
+    await waitFor(() => expect(temperature()).toHaveAttribute('aria-invalid', 'true'))
+    expect(screen.getByText('common:validation.fuel.outsideTempInvalid')).toBeInTheDocument()
     expect(mockedApiPut).not.toHaveBeenCalled()
   })
 })
