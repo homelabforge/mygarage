@@ -259,11 +259,12 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
                     className="flex-1 px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text font-mono text-xs"
                   />
                   <button
+                    type="button"
                     onClick={() => void copyToClipboard(settings.ingestion_url ?? '', t('modal.livelink.urlLabel'))}
                     className="px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text hover:bg-garage-bg"
-                    aria-label={t('modal.livelink.urlLabel')}
+                    aria-label={t('modal.copyValue', { label: t('modal.ingestionUrl') })}
                   >
-                    <Copy className="w-4 h-4" />
+                    <Copy aria-hidden="true" className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -281,16 +282,22 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
                         className="flex-1 px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text font-mono text-xs"
                       />
                       <button
+                        type="button"
                         onClick={() => setShowToken(!showToken)}
+                        aria-label={t(showToken ? 'modal.hideValue' : 'modal.showValue', {
+                          label: t('modal.globalApiToken'),
+                        })}
                         className="px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text hover:bg-garage-bg"
                       >
-                        {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showToken ? <EyeOff aria-hidden="true" className="w-4 h-4" /> : <Eye aria-hidden="true" className="w-4 h-4" />}
                       </button>
                       <button
+                        type="button"
                         onClick={() => void copyToClipboard(newToken, t('modal.livelink.tokenLabel'))}
+                        aria-label={t('modal.copyValue', { label: t('modal.globalApiToken') })}
                         className="px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text hover:bg-garage-bg"
                       >
-                        <Copy className="w-4 h-4" />
+                        <Copy aria-hidden="true" className="w-4 h-4" />
                       </button>
                     </div>
                     <div className="p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">

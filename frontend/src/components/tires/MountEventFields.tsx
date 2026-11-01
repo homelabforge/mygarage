@@ -50,6 +50,9 @@ interface MountEventFieldsProps {
   hours?: string
   onHoursChange?: (next: string) => void
   hoursHint?: string
+  /** Names the fields as a group. The period editors show two of these, mount
+   *  and dismount, and without it both halves' boxes read the same. */
+  groupLabel?: string
 }
 
 /** How far a suggested reading sits from the date asked about. */
@@ -95,9 +98,10 @@ export default function MountEventFields({
   hours = '',
   onHoursChange,
   hoursHint,
+  groupLabel,
 }: MountEventFieldsProps) {
-  return (
-    <div className="space-y-3">
+  const fields = (
+    <>
       <Field id={`${idPrefix}-date`} label={dateLabel}>
         <Input
           id={`${idPrefix}-date`}
@@ -127,7 +131,14 @@ export default function MountEventFields({
           onChange={onHoursChange ?? (() => undefined)}
         />
       )}
-    </div>
+    </>
+  )
+  if (!groupLabel) return <div className="space-y-3">{fields}</div>
+  return (
+    <fieldset className="space-y-3">
+      <legend className="sr-only">{groupLabel}</legend>
+      {fields}
+    </fieldset>
   )
 }
 
@@ -151,6 +162,7 @@ function OdometerField({ vin, idPrefix, date, label, hint, odometer, onChange }:
   const u = useUnitFormat()
   const nearest = useNearestOdometer(vin, date)
   const reading = nearest.isSuccess ? (nearest.data ?? null) : undefined
+  const shown = reading ? u.distance.format(Number(reading.odometer_km)) : ''
 
   return (
     <>
@@ -168,7 +180,7 @@ function OdometerField({ vin, idPrefix, date, label, hint, odometer, onChange }:
         >
           <span>
             {t('tireList.suggestion', {
-              odometer: u.distance.format(Number(reading.odometer_km)),
+              odometer: shown,
               date: formatDateForDisplay(reading.date),
               offset: dayOffset(t, reading.days_away),
             })}
@@ -176,6 +188,7 @@ function OdometerField({ vin, idPrefix, date, label, hint, odometer, onChange }:
           <Button
             size="sm"
             variant="ghost"
+            aria-label={t('tireList.suggestionUseOdometer', { odometer: shown })}
             onClick={() => {
               const seed = seedUnitField(Number(reading.odometer_km), u.distance)
               onChange({ typed: seed.display, origin: seed })
@@ -205,6 +218,7 @@ function HoursField({ vin, idPrefix, date, hint, hours, onChange }: HoursFieldPr
   const { t } = useTranslation('vehicles')
   const nearest = useNearestHours(vin, date)
   const reading = nearest.isSuccess ? (nearest.data ?? null) : undefined
+  const shown = reading ? formatHours(reading.engine_hours) : ''
 
   return (
     <>
@@ -222,12 +236,17 @@ function HoursField({ vin, idPrefix, date, hint, hours, onChange }: HoursFieldPr
         >
           <span>
             {t('tireList.suggestionHours', {
-              hours: formatHours(reading.engine_hours),
+              hours: shown,
               date: formatDateForDisplay(reading.date),
               offset: dayOffset(t, reading.days_away),
             })}
           </span>
-          <Button size="sm" variant="ghost" onClick={() => onChange(Number(reading.engine_hours).toFixed(1))}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={t('tireList.suggestionUseHours', { hours: shown })}
+            onClick={() => onChange(Number(reading.engine_hours).toFixed(1))}
+          >
             {t('tireList.suggestionUse')}
           </Button>
         </div>

@@ -154,6 +154,7 @@ function AddPastPeriodDrawer({
         <MountEventFields
           vin={vin}
           idPrefix="past-mount"
+          groupLabel={t('tireList.periodMount')}
           dateLabel={t('tireList.periodMount')}
           date={mountedOn}
           onDateChange={setMountedOn}
@@ -168,6 +169,7 @@ function AddPastPeriodDrawer({
         <MountEventFields
           vin={vin}
           idPrefix="past-dismount"
+          groupLabel={t('tireList.periodDismount')}
           dateLabel={t('tireList.periodDismount')}
           date={dismountedOn}
           onDateChange={setDismountedOn}

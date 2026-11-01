@@ -164,6 +164,7 @@ function MountPeriodEditor({
         <MountEventFields
           vin={vin}
           idPrefix="period-mount"
+          groupLabel={t('tireList.periodMount')}
           dateLabel={t('tireList.periodMount')}
           date={form.mounted_on}
           onDateChange={(next) => setForm({ ...form, mounted_on: next })}
@@ -179,6 +180,7 @@ function MountPeriodEditor({
           <MountEventFields
             vin={vin}
             idPrefix="period-dismount"
+            groupLabel={t('tireList.periodDismount')}
             dateLabel={t('tireList.periodDismount')}
             date={form.dismounted_on}
             onDateChange={(next) => setForm({ ...form, dismounted_on: next })}

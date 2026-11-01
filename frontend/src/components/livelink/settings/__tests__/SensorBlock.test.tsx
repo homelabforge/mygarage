@@ -153,7 +153,7 @@ describe('SensorBlock', () => {
 
   it('links it to a vehicle, and unlinks with an empty VIN', async () => {
     renderBlock()
-    const picker = await screen.findByRole('combobox', { name: 'integrations.sourceVehicle' })
+    const picker = await screen.findByRole('combobox', { name: 'integrations.sourceVehicleFor' })
 
     fireEvent.change(picker, { target: { value: '' } })
 

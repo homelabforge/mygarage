@@ -1589,6 +1589,8 @@
     "suggestionNoneHours": "No hour meter readings yet",
     "suggestionSameDay": "same day",
     "suggestionUse": "Use",
+    "suggestionUseHours": "Use nearest hour meter reading, {{hours}}",
+    "suggestionUseOdometer": "Use nearest odometer reading, {{odometer}}",
     "title": "Tires",
     "tread": "Tread",
     "treadConverted": "Converted {{inches}} in to {{thirtySeconds}}/32 in.",

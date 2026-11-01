@@ -151,4 +151,17 @@ describe('MountPeriodEditor', () => {
       notes: 'first winter',
     })
   })
+
+  it('groups each half under its own name, so the two odometers and hour meters are told apart', () => {
+    render(
+      <MountPeriodEditor vin={VIN} tire={TIRE as never} period={CLOSED as never} open onClose={vi.fn()} labelFor={labelFor} tracksHours />
+    )
+    const mount = drawer().getByRole('group', { name: 'tireList.periodMount' })
+    const dismount = drawer().getByRole('group', { name: 'tireList.periodDismount' })
+    expect(mount).toContainElement(input('period-mount-odometer'))
+    expect(mount).toContainElement(input('period-mount-hours'))
+    expect(mount).not.toContainElement(input('period-dismount-odometer'))
+    expect(dismount).toContainElement(input('period-dismount-odometer'))
+    expect(dismount).toContainElement(input('period-dismount-hours'))
+  })
 })
