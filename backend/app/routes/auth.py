@@ -754,9 +754,10 @@ async def delete_user(
     insurance = InsuranceService(db)
     for v in owned:
         await insurance.release_vehicle(v.vin)
-    # Out before the user goes, or the cascade deletes the links first and the
-    # ORM's own delete of them finds nothing.
-    await db.flush()
+        # Flushed one at a time: the next release reloads the policy, so an
+        # unflushed cut would be undone. Done before the user goes, too, or the
+        # cascade deletes the links first and the ORM's delete finds nothing.
+        await db.flush()
 
     await db.delete(user)
 

@@ -29,7 +29,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 @dataclass
 class Household:
     a_id: int
-    a_vin: str
+    a_vins: list[str]
     b_vin: str
     policy_id: int
 
@@ -50,12 +50,16 @@ async def _user(db: AsyncSession, made_users: list[str], tag: str) -> User:
 
 
 async def _household(
-    db: AsyncSession, made_users: list[str], share_a: str | None, share_b: str | None
+    db: AsyncSession,
+    made_users: list[str],
+    premium: str,
+    shares_a: tuple[str | None, ...],
+    share_b: str | None,
 ) -> Household:
-    """Two users, a vehicle each, both on one 1000.00 policy."""
+    """User A with a vehicle per entry in `shares_a`, user B with one, all on one policy."""
     a, b = await _user(db, made_users, "a"), await _user(db, made_users, "b")
     vins = []
-    for owner in (a, b):
+    for owner in [a] * len(shares_a) + [b]:
         vin = "INS" + uuid.uuid4().hex[:14].upper()
         db.add(Vehicle(vin=vin, user_id=owner.id, nickname="Insured", vehicle_type="Car"))
         vins.append(vin)
@@ -65,12 +69,12 @@ async def _household(
         policy_number=uuid.uuid4().hex[:10],
         start_date=date(2024, 1, 1),
         end_date=date(2024, 12, 31),
-        premium_amount=Decimal("1000.00"),
+        premium_amount=Decimal(premium),
         premium_frequency="Annual",
     )
     db.add(policy)
     await db.flush()
-    for vin, share in zip(vins, (share_a, share_b), strict=True):
+    for vin, share in zip(vins, (*shares_a, share_b), strict=True):
         db.add(
             InsurancePolicyVehicle(
                 policy_id=policy.id,
@@ -80,7 +84,7 @@ async def _household(
             )
         )
     await db.commit()
-    return Household(a_id=a.id, a_vin=vins[0], b_vin=vins[1], policy_id=policy.id)
+    return Household(a_id=a.id, a_vins=vins[:-1], b_vin=vins[-1], policy_id=policy.id)
 
 
 async def _left(
@@ -98,34 +102,41 @@ async def _left(
             )
         )
     ).all()
-    role = {house.a_vin: "A", house.b_vin: "B"}
+    role = {**dict.fromkeys(house.a_vins, "A"), house.b_vin: "B"}
     return premium, sorted((role[vin], share) for vin, share in links)
 
 
 @pytest.mark.parametrize(
-    ("share_a", "share_b", "premium_left", "share_b_left"),
-    [(None, None, "500.00", None), ("300.00", "700.00", "700.00", "700.00")],
-    ids=["even split", "set shares"],
+    ("premium", "shares_a", "share_b", "premium_left", "share_b_left"),
+    [
+        ("1000.00", (None,), None, "500.00", None),
+        ("1000.00", ("300.00",), "700.00", "700.00", "700.00"),
+        # Each release has to see the one before it, or the second undoes the first.
+        ("900.00", (None, None), None, "300.00", None),
+    ],
+    ids=["even split", "set shares", "two vehicles"],
 )
-async def test_deleting_a_user_releases_their_vehicle_like_a_vehicle_delete(
+async def test_deleting_a_user_releases_their_vehicles_like_vehicle_deletes(
     client: AsyncClient,
     auth_headers: dict[str, str],
     db_session: AsyncSession,
     made_users: list[str],
-    share_a: str | None,
+    premium: str,
+    shares_a: tuple[str | None, ...],
     share_b: str | None,
     premium_left: str,
     share_b_left: str | None,
 ) -> None:
-    via_user = await _household(db_session, made_users, share_a, share_b)
-    via_vehicle = await _household(db_session, made_users, share_a, share_b)
+    via_user = await _household(db_session, made_users, premium, shares_a, share_b)
+    via_vehicle = await _household(db_session, made_users, premium, shares_a, share_b)
     try:
         response = await client.delete(f"/api/auth/users/{via_user.a_id}", headers=auth_headers)
         assert response.status_code == 204, response.text
 
         owner = await db_session.get(User, via_vehicle.a_id)
         assert owner is not None
-        await VehicleService(db_session).delete_vehicle(via_vehicle.a_vin, owner)
+        for vin in via_vehicle.a_vins:
+            await VehicleService(db_session).delete_vehicle(vin, owner)
 
         expected = (Decimal(premium_left), [("B", Decimal(share_b_left) if share_b_left else None)])
         assert await _left(db_session, via_vehicle) == expected, "control: the vehicle delete"
