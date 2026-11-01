@@ -33,6 +33,7 @@ import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors } from '../hooks/useApiFormErrors'
 import { getActiveLocale } from '@/constants/i18n'
+import { withUnitSession } from '../contexts/UnitSession'
 
 type BaselineMode = 'from_now' | 'from_last'
 
@@ -63,7 +64,7 @@ export const REMINDER_TYPE_DEFS: Record<ReminderType, { labelKey: string; descri
 // The reminder types that carry a due date (the backend's rule too).
 const DATED_TYPES = new Set<string>(['date', 'both', 'smart'])
 
-export default function ReminderForm({ vin, reminder, currentMileage, currentHours, onClose, onSuccess }: ReminderFormProps) {
+function ReminderForm({ vin, reminder, currentMileage, currentHours, onClose, onSuccess }: ReminderFormProps) {
   const { t } = useTranslation('forms')
   const isEdit = !!reminder
   const createMutation = useCreateReminder(vin)
@@ -917,3 +918,6 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
     </FormModalWrapper>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(ReminderForm)

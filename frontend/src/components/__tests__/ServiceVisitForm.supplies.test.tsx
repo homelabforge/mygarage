@@ -29,13 +29,16 @@ vi.mock('../../services/api', () => ({
 // value under imperial — proving conversion actually ran, not just passed through.
 vi.mock('../../hooks/useUnitPreference', async () => {
   const { IMPERIAL_UNITS } = await import('@/__tests__/factories')
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
+    system: 'imperial',
+    showBoth: false,
+    units: IMPERIAL_UNITS,
+    gallonStandard: 'us',
+  })
   return {
-    useUnitPreference: () => ({
-      system: 'imperial',
-      showBoth: false,
-      units: IMPERIAL_UNITS,
-      gallonStandard: 'us',
-    }),
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
   }
 })
 

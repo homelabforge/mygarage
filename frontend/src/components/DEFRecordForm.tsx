@@ -25,6 +25,7 @@ import CurrencyInput from './common/CurrencyInput'
 import { Button, Field, Input, NumberInput, Textarea, registerDecimal } from './ui'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { withUnitSession } from '../contexts/UnitSession'
 
 // `labelKey` is translated at render time; the fraction labels are numerals and
 // stay as-is (they are not prose).
@@ -58,7 +59,7 @@ interface DEFRecordFormProps {
   onSuccess: () => void
 }
 
-export default function DEFRecordForm({
+function DEFRecordForm({
   vin,
   record,
   onClose,
@@ -353,3 +354,6 @@ export default function DEFRecordForm({
     </FormModalWrapper>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(DEFRecordForm)

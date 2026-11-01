@@ -31,7 +31,7 @@
  * comparing the RESOLVED SET.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
@@ -98,6 +98,9 @@ import i18n from '@/i18n'
 import api from '@/services/api'
 import { getUnitPrefs, setUnitPrefs } from '@/utils/unitPrefsStore'
 import UnitPreferencesCard from '../UnitPreferencesCard'
+import { useUnitPreference } from '@/hooks/useUnitPreference'
+import { withUnitSession } from '@/contexts/UnitSession'
+import { resolvedUnitSummary } from '@/utils/unitFormat'
 
 const mockedApi = vi.mocked(api)
 
@@ -626,5 +629,40 @@ describe('UnitPreferencesCard, D10: unit names are translated, symbols are not',
       'Bar (bar)',
       'Pounds per square inch (PSI)',
     ])
+  })
+})
+
+describe('UnitPreferencesCard is never pinned (R4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+    reloadBrowserPrefs()
+  })
+
+  // Stands in for an open record form, which pins itself on mount.
+  const OpenForm = withUnitSession(function OpenForm() {
+    return <span>{`form:${useUnitPreference().units.volume}`}</span>
+  })
+
+  it('guard: the card repaints on a units change while an open form beside it holds its own', () => {
+    setUnitPrefs({ units: METRIC_UNITS, unit_preference: null, show_both_units: false })
+    h.isAuthenticated = false
+    h.user = null
+    h.defaultUnitPrefs = METRIC_UNITS
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <UnitPreferencesCard />
+        <OpenForm />
+      </QueryClientProvider>,
+    )
+    const summary = (units: UnitSet): string =>
+      i18n.t('settings:units.resolvedDescription', { units: resolvedUnitSummary(units) })
+    expect(screen.getByText(summary(METRIC_UNITS))).toBeInTheDocument()
+
+    // Another tab picks imperial.
+    act(() => setUnitPrefs({ units: IMPERIAL_UNITS, unit_preference: null, show_both_units: false }))
+
+    expect(screen.getByText(summary(IMPERIAL_UNITS))).toBeInTheDocument()
+    expect(screen.getByText('form:L')).toBeInTheDocument()
   })
 })

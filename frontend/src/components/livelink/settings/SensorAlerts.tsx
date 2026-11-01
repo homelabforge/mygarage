@@ -71,7 +71,11 @@ function parseLine(text: string): number | null | 'invalid' {
 export default function SensorAlerts({ readings, sensorLabel, onSaved }: Props): ReactElement | null {
   const { t } = useTranslation('settings')
   const headingId = useId()
+  const fieldIdPrefix = useId()
   const [drafts, setDrafts] = useState<Drafts>(() => draftsFor(readings))
+  // Fields the user changed. The rest hold the stored number as String(n), JS
+  // notation, so a de reader's "12.345" would read back as 12345 and block the save.
+  const [edited, setEdited] = useState<ReadonlySet<string>>(() => new Set())
   const [saveError, setSaveError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -82,6 +86,7 @@ export default function SensorAlerts({ readings, sensorLabel, onSaved }: Props):
   if (readings !== seen) {
     setSeen(readings)
     setDrafts(draftsFor(readings))
+    setEdited(new Set())
     setSaveError(null)
   }
 
@@ -89,10 +94,10 @@ export default function SensorAlerts({ readings, sensorLabel, onSaved }: Props):
     const lines = linesOf(reading)
     if (lines.length === 0) return []
 
-    const parsed = lines.map((line) => ({
-      line,
-      value: parseLine(drafts[draftKey(reading.param_key, line)] ?? ''),
-    }))
+    const parsed = lines.map((line) => {
+      const key = draftKey(reading.param_key, line)
+      return { line, value: edited.has(key) ? parseLine(drafts[key] ?? '') : (reading[FIELD[line]] ?? null) }
+    })
     let problem: string | null = null
     // Sent on save: only a valid change.
     let update: LiveLinkParameterUpdate | null = null
@@ -143,17 +148,23 @@ export default function SensorAlerts({ readings, sensorLabel, onSaved }: Props):
 
       {rows.map(({ reading, lines, name, problem }) => (
         <div key={reading.param_key} className="space-y-1">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="w-20 text-sm text-text">{name}</span>
+          {/* Top-aligned so a read-as hint growing one field doesn't shift the row. */}
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-1">
+            <span className="flex h-input-sm w-20 items-center text-sm text-text">{name}</span>
             {lines.map((line) => {
               const lineName = line === 'low' ? t('integrations.alertLow') : t('integrations.alertCritical')
               const key = draftKey(reading.param_key, line)
+              const inputId = `${fieldIdPrefix}-${key}`
               return (
-                <label key={line} className="flex items-center gap-1.5 text-xs text-text-mute">
-                  {lineName}
-                  {/* The control fills its box (w-full), so the box sets the width. */}
-                  <span className="w-20 shrink-0">
+                <div key={line} className="flex items-start gap-1.5 text-xs text-text-mute">
+                  {/* Paired by id, not wrapped, so NumberInput's hint stays out of the label. */}
+                  <label htmlFor={inputId} className="flex h-input-sm items-center">
+                    {lineName}
+                  </label>
+                  {/* The control (first child) gets the 5rem; the hint under it gets its own width. */}
+                  <div className="flex shrink-0 flex-col [&>:first-child]:w-20">
                     <NumberInput
+                      id={inputId}
                       size="sm"
                       aria-label={t('integrations.alertField', { reading: name, line: lineName })}
                       placeholder={t('integrations.alertOff')}
@@ -164,10 +175,11 @@ export default function SensorAlerts({ readings, sensorLabel, onSaved }: Props):
                       onChange={(e) => {
                         const text = e.target.value
                         setDrafts((current) => ({ ...current, [key]: text }))
+                        setEdited((current) => new Set(current).add(key))
                       }}
                     />
-                  </span>
-                </label>
+                  </div>
+                </div>
               )
             })}
           </div>

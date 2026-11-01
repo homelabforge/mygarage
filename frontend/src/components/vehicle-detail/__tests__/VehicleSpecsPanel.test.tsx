@@ -34,9 +34,14 @@ const unitPrefMock = vi.hoisted(() => ({
     torque: 'nm', tread: 'mm', secondary_gallon: 'us',
   } as Record<string, string>,
 }))
-vi.mock('../../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => unitPrefMock,
-}))
+vi.mock('../../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => unitPrefMock
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 /* The numeric controls here are NumberInput, which renders type="text", so the
  * raw value carries the reader's own decimal mark. */

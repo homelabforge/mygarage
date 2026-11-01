@@ -351,8 +351,8 @@ class TestPdfRoutesUseTheCallersUnits:
             assert "Tire rotation" in text
             assert _EXPECTED_DUE_MI in text
             assert _EXPECTED_DUE_KM not in text
-            # The KPI label no longer hardcodes a distance unit.
-            assert "COST PER DISTANCE" in text
-            assert "COST PER KM" not in text
+            # The KPI label carries the caller's scale, like the screen.
+            assert "COST PER 1,000 MI" in text
+            assert "COST PER 100 KM" not in text
         finally:
             await _cleanup(db_session)

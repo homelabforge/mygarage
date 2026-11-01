@@ -958,6 +958,88 @@ class TestCalculatePropaneCosts:
         assert freq["min_days"] == 14  # Jan 1 → Jan 15
         assert freq["max_days"] == 30  # Jan 15 → Feb 14
 
+    @staticmethod
+    def _bottle(id: int, on: date, cost: Decimal | None) -> SimpleNamespace:
+        return _make_fuel_record(
+            id=id,
+            date=on,
+            liters=None,
+            propane_liters=Decimal("20.00"),
+            tank_size_kg=Decimal("9"),
+            cost=cost,
+        )
+
+    def test_a_free_refill_still_counts_its_propane(self):
+        """A $0 bottle refill (a swap promo, say) still put propane in the tank (R1)."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), Decimal("30.00")),
+            self._bottle(2, date(2024, 2, 10), Decimal("0.00")),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["total_spent"] == Decimal("30.00")
+        assert result["total_liters"] == Decimal("40.00")
+        assert result["avg_price_per_liter"] == Decimal("0.75")
+        assert [(m["year"], m["month"]) for m in result["monthly_trend"]] == [
+            (2024, 1),
+            (2024, 2),
+        ]
+        assert result["tank_breakdown"]["9"]["refill_count"] == 2
+        assert result["refill_frequency"]["9"]["min_days"] == 31
+        assert len(result["tank_timeline"]) == 2
+
+    def test_free_refills_average_zero_not_unknown(self):
+        """Every refill free: the price per litre is 0.00, not missing."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), Decimal("0.00")),
+            self._bottle(2, date(2024, 2, 10), Decimal("0.00")),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["total_liters"] == Decimal("40.00")
+        assert result["avg_price_per_liter"] == Decimal("0.00")
+
+    def test_a_refill_with_no_cost_still_stays_out(self):
+        """Guard: a missing cost isn't a price, so its litres don't land either."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), Decimal("30.00")),
+            self._bottle(2, date(2024, 2, 10), None),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["total_liters"] == Decimal("20.00")
+        assert len(result["monthly_trend"]) == 1
+        assert result["tank_breakdown"]["9"]["refill_count"] == 1
+
+    def test_record_count_leaves_out_a_refill_with_no_cost(self):
+        """record_count is the refills the totals came from: a $0 one counts, an uncosted one doesn't (R1)."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), Decimal("30.00")),
+            self._bottle(2, date(2024, 2, 10), Decimal("0.00")),
+            self._bottle(3, date(2024, 3, 10), None),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["record_count"] == 2
+        assert result["record_count"] == len(result["tank_timeline"])
+
+    def test_record_count_is_zero_when_no_refill_has_a_cost(self):
+        """Guard: refills with no cost at all leave nothing to count, same as the empty case."""
+        records = [
+            self._bottle(1, date(2024, 1, 10), None),
+            self._bottle(2, date(2024, 2, 10), None),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["record_count"] == 0
+        assert result["total_liters"] == Decimal("0.00")
+        assert result["tank_timeline"] == []
+
 
 def _make_line_item(**kwargs):
     """Create a mock ServiceLineItem-like object with sensible defaults."""
@@ -1231,3 +1313,64 @@ class TestFinancingInDataframeAndMonthlyAggregation:
         assert rolling["rolling_3m"] == Decimal("0.00")
         assert analytics_service.calculate_trend_direction(monthly["total_cost"]) == "stable"
         assert list(monthly["financing_cost"]) == [100.0, 200.0, 300.0]
+
+
+@pytest.mark.unit
+@pytest.mark.analytics
+class TestZeroCostRecordsCount:
+    """A recorded $0 counts in its month; a missing cost doesn't (R1)."""
+
+    @staticmethod
+    def _january(df: pd.DataFrame) -> pd.Series:
+        monthly = analytics_service.calculate_monthly_aggregation(df)
+        return monthly[(monthly["year"] == 2024) & (monthly["month"] == 1)].iloc[0]
+
+    def test_a_free_fill_up_counts_in_fuel_count(self):
+        fuel = [
+            _make_fuel_record(id=1, date=date(2024, 1, 5), cost=Decimal("40.00")),
+            _make_fuel_record(id=2, date=date(2024, 1, 20), cost=Decimal("0.00")),
+        ]
+
+        jan = self._january(analytics_service.visits_to_dataframe([], fuel))
+
+        assert jan["fuel_count"] == 2
+        assert jan["fuel_cost"] == 40.0
+
+    def test_a_zero_cost_def_purchase_counts_in_def_count(self):
+        fuel = [_make_fuel_record(date=date(2024, 1, 5), cost=Decimal("40.00"))]
+        def_records = [_make_def_record(date=date(2024, 1, 12), cost=Decimal("0.00"))]
+
+        jan = self._january(analytics_service.visits_to_dataframe([], fuel, def_records))
+
+        assert jan["def_count"] == 1
+        assert jan["def_cost"] == 0.0
+
+    def test_a_zero_financing_record_counts_in_financing_count(self):
+        fuel = [_make_fuel_record(date=date(2024, 1, 5), cost=Decimal("40.00"))]
+        financing = [_make_financing_record(date=date(2024, 1, 1), amount=Decimal("0.00"))]
+
+        jan = self._january(
+            analytics_service.visits_to_dataframe([], fuel, financing_records=financing)
+        )
+
+        assert jan["financing_count"] == 1
+        assert jan["financing_cost"] == 0.0
+
+    def test_a_missing_cost_still_does_not_count(self):
+        """Guard: None isn't a recorded price, so it stays out."""
+        fuel = [
+            _make_fuel_record(id=1, date=date(2024, 1, 5), cost=Decimal("40.00")),
+            _make_fuel_record(id=2, date=date(2024, 1, 20), cost=None),
+        ]
+        def_records = [_make_def_record(date=date(2024, 1, 12), cost=None)]
+        financing = [_make_financing_record(date=date(2024, 1, 1), amount=None)]
+
+        jan = self._january(
+            analytics_service.visits_to_dataframe(
+                [], fuel, def_records, financing_records=financing
+            )
+        )
+
+        assert jan["fuel_count"] == 1
+        assert jan["def_count"] == 0
+        assert jan["financing_count"] == 0

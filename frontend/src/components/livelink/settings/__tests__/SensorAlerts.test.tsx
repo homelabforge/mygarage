@@ -3,11 +3,12 @@
  * English bundle, so "Level: Low" is the wording a user reads, and two tanks'
  * fields cannot share one accessible name.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ReactNode } from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 import type { DeviceReading } from '@/types/livelink'
+import { setActiveLocale } from '@/constants/i18n'
 import settingsEn from '../../../../locales/en/settings.json'
 
 vi.mock('react-i18next', () => {
@@ -214,5 +215,63 @@ describe('SensorAlerts', () => {
 
     expect(field('Battery: Low').value).toBe('17')
     expect(save()).toBeDisabled()
+  })
+
+  it("puts NumberInput's read-as hint outside the field's label and its narrow box", () => {
+    renderAlerts()
+    type('Level: Low', '1,234')
+
+    // This file's i18n mock only knows settings, so the common hint reads as its key.
+    const hint = screen.getByText('numberInput.readAs')
+    const input = field('Level: Low')
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(hint.id)
+    // Inside a <label> it joins the label's text, and inside the 5rem box it wraps to nothing.
+    expect(hint.closest('label')).toBeNull()
+    expect(hint.closest('.w-20')).toBeNull()
+  })
+
+  it('labels each field with its line name alone, and keeps the hint out of the name', () => {
+    // The wrapping label used to pull in the unit suffix and the hint too. The name half is a
+    // guard (aria-label already won it); the labels half fails if the label wraps again or loses htmlFor.
+    renderAlerts()
+    type('Level: Low', '1,234')
+
+    const input = field('Level: Low')
+    expect(Array.from(input.labels ?? []).map((l) => l.textContent)).toEqual(['Low'])
+    expect(screen.queryByRole('textbox', { name: /numberInput\.readAs/ })).toBeNull()
+  })
+})
+
+describe('SensorAlerts: a stored line in a comma-decimal language', () => {
+  afterEach(() => setActiveLocale('en'))
+
+  const STORED: DeviceReading[] = [
+    reading({ param_key: LEVEL, display_name: 'Tank 1 level', warning_min: 12.345, alert_lines: ['low'] }),
+    reading({ param_key: BATTERY, display_name: 'Tank 1 battery', warning_min: 20, alert_lines: ['low'] }),
+  ]
+
+  it('de: an untouched 12.345 is still 12.345, so it neither blocks nor rewrites the save', async () => {
+    setActiveLocale('de')
+    const { onSaved } = renderAlerts(STORED)
+
+    expect(field('Level: Low').value).toBe('12.345')
+    expect(screen.queryByRole('alert')).toBeNull()
+    type('Battery: Low', '15')
+    fireEvent.click(save())
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(updateParameter).toHaveBeenCalledTimes(1)
+    expect(updateParameter).toHaveBeenCalledWith(BATTERY, { warning_min: 15 })
+  })
+
+  it('de: retyping that field is the user\'s text again, read in German (guard)', () => {
+    // Guard: passes on main. Mutation: never mark a field edited, so the stored number always wins.
+    setActiveLocale('de')
+    renderAlerts(STORED)
+
+    type('Level: Low', '')
+    type('Level: Low', '12.345')
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter 0 to 100, or leave it blank.')
   })
 })

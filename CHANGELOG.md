@@ -60,6 +60,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Restoring a vehicle whose supply was used on another vehicle's visit counts that use once, in either restore order, and that visit's total includes it
 - Restoring only the supply's vehicle warns about the use it can't count
 - The fuel CSV (schema 8) carries kWh, Propane Volume, Tank Size, Tank Quantity and Price Basis, so an EV charge or a propane fill-up round-trips
+- Number fields say how they read a value like 1,234: "Read as 1,234" shows under the field
 
 ### Changed
 - An engine-off stop shorter than the drive gap no longer splits a drive
@@ -108,7 +109,15 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Torque's two L/100km economy parameters read "(L/100km)", like their unit
 - Durations in LiveLink (trips, sessions and the live session timer) follow the selected language
 - Fitting a tire set again the same day with a lower odometer or hour meter no longer lowers that day's reading. To fix a mistyped fit, Edit the mount period of every tire in the set; the day drops only once the last one is edited
+- The Garage page hides Insurance and Taxes at $0, like DEF and Financing
+- The garage monthly trend is the last 12 calendar months, zeros included; a record dated in a future month counts in the totals but not the trend
+- The hours economy trend's average, which the vehicle PDF's Hours Economy card shows, includes towing tanks like its chart
+- UK gallons, quarts, fl oz and MPG are labelled (UK); US labels don't change
+- The supplies list names the unit of its average cost, like the cards ("$5.00/qt")
+- The vehicle PDF's cost per distance card puts the scale in its label ("Cost Per 100 km"), like the screen
+- English text uses US spelling (kilometers, recognizes)
 - **BREAKING (API):** `GET /api/analytics/vehicles/{vin}/tires` renames the readiness counts `can_report_distance` to `can_report_usage` and `needs_reading_odometer` to `needs_reading_usage`
+- **BREAKING (API):** `GET /api/analytics/garage` `monthly_trends[].total` no longer includes insurance, and `monthly_trends` always lists 12 months (still empty with no vehicles)
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded
@@ -216,6 +225,10 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - The receipt parser leaves a zero or negative odometer, volume or price, a negative cost or kWh, a value too large to store, and a per-kWh price blank, and a field of the wrong type or an overlong number no longer fails with a 500
 - A repair can only be linked to an inspection on its own visit: any other link is dropped on save, unticking or removing an inspection clears its repairs' links, and migration 142 (not FATAL) clears the stray links already stored
 - DTCs P251D, P251E and P251F (PTO engine shutdown circuit) are warnings, not critical, and migration 141 (not FATAL) moves their stored definitions and the vehicle DTCs still marked critical
+- A $0 record counts in the analytics counts, averages and months; only a missing cost is left out
+- The vehicle PDF prints $0.00 for a $0 cost per distance instead of N/A
+- An open form keeps the units it opened with when they change in another tab or on the vehicle, and no longer closes and loses its draft when the vehicle's distance unit changes
+- The vehicle specs editor keeps your draft when the vehicle refetches or the units change while it's open
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)

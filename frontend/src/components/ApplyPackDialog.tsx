@@ -35,6 +35,7 @@ import type {
   PackItemPlan,
   RecurrenceDraft,
 } from '../types/reminder'
+import { withUnitSession } from '../contexts/UnitSession'
 
 /**
  * The item's planned intervals as a recurrence draft.
@@ -77,7 +78,7 @@ interface ApplyPackDialogProps {
   onApplied: () => void
 }
 
-export default function ApplyPackDialog({ vin, packId, packName, onClose, onApplied }: ApplyPackDialogProps) {
+function ApplyPackDialog({ vin, packId, packName, onClose, onApplied }: ApplyPackDialogProps) {
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
   const dateLocale = useDateLocale()
@@ -290,3 +291,7 @@ export default function ApplyPackDialog({ vin, packId, packName, onClose, onAppl
     </FormModalWrapper>
   )
 }
+
+// Pins its units for as long as it is open, so the interval fields in every
+// row share one capture (R4).
+export default withUnitSession(ApplyPackDialog)

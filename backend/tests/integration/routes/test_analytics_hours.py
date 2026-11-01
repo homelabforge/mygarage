@@ -17,6 +17,7 @@ from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import FuelRecord, HoursRecord, Vehicle
@@ -174,6 +175,59 @@ class TestHoursEconomyTrendRoute:
 
         assert hours_economy["average_l_per_hr"] is None
         assert Decimal(str(hours_economy["average_cost_per_hr"])) == Decimal("0.50")
+
+    async def test_the_average_counts_the_hauling_tank_it_plots(
+        self, client: AsyncClient, db_session: AsyncSession, test_sessionmaker
+    ):
+        """The trend's averages come from the tanks it plots, towing included (R3).
+        The vehicle card keeps leaving hauling out."""
+        vin, headers = await _isolated_vehicle(db_session)
+
+        def fill(hours: str, liters: str, cost: str, *, hauling: bool = False) -> FuelRecord:
+            return FuelRecord(
+                vin=vin,
+                date=date(2026, 3, int(Decimal(hours)) // 10),
+                engine_hours=Decimal(hours),
+                liters=Decimal(liters),
+                cost=Decimal(cost),
+                is_full_tank=True,
+                is_hauling=hauling,
+            )
+
+        try:
+            async with test_sessionmaker() as session:
+                session.add_all(
+                    [
+                        fill("100.0", "20.000", "40.00"),  # anchor
+                        fill("120.0", "10.000", "20.00"),  # 20h: 0.50 L/hr, 1.00/hr
+                        fill("130.0", "30.000", "60.00", hauling=True),  # 10h: 3.00, 6.00
+                        fill("150.0", "10.000", "20.00"),  # 20h: 0.50 L/hr, 1.00/hr
+                    ]
+                )
+                await session.commit()
+
+            response = await client.get(f"/api/analytics/vehicles/{vin}", headers=headers)
+            assert response.status_code == 200, response.text
+            hours_economy = response.json()["hours_economy"]
+
+            assert len(hours_economy["data_points"]) == 3
+            # 50 L over 50 h, and 100.00 over 50 h, across all three plotted tanks.
+            assert Decimal(str(hours_economy["average_l_per_hr"])) == Decimal("1.00")
+            assert Decimal(str(hours_economy["average_cost_per_hr"])) == Decimal("2.00")
+
+            # Guard: the vehicle card still leaves the hauling tank out (20 L / 40 h),
+            # and the trend's cached average didn't leak into it.
+            stats = await client.get(f"/api/vehicles/{vin}/detail-stats", headers=headers)
+            assert stats.status_code == 200, stats.text
+            assert Decimal(str(stats.json()["average_l_per_hr"])) == Decimal("0.50")
+            assert Decimal(str(stats.json()["average_cost_per_hr"])) == Decimal("1.00")
+        finally:
+            # The vehicle takes its fill-ups with it.
+            async with test_sessionmaker() as session:
+                owner_id = await session.scalar(select(Vehicle.user_id).where(Vehicle.vin == vin))
+                await session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+                await session.execute(delete(User).where(User.id == owner_id))
+                await session.commit()
 
     async def test_unauthenticated_request_rejected(
         self, client: AsyncClient, db_session: AsyncSession

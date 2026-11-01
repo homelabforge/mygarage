@@ -37,6 +37,7 @@ import type { Supply, SupplyCreate, SupplyUpdate } from '@/types/supplies'
 import { getActiveLocale } from '@/constants/i18n'
 import { applyServerErrors } from '@/hooks/useApiFormErrors'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
+import { withUnitSession } from '@/contexts/UnitSession'
 
 export default function Supplies() {
   const { t } = useTranslation('common')
@@ -197,6 +198,16 @@ export default function Supplies() {
   const avgCostValue = (supply: Supply, unit: SupplyUnit): string =>
     formatCurrency(unitCostToDisplay(supply.avg_unit_cost, unit), { fractionDigits: costDecimals(unit) })
 
+  // The list shares one header across rows, so the cell says what it's per. A
+  // count has no unit, and no cost stays a bare dash instead of "-/qt".
+  const avgCostCell = (supply: Supply, unit: SupplyUnit): string => {
+    const value = avgCostValue(supply, unit)
+    const label = unitLabel(unit)
+    return label && unitCostToDisplay(supply.avg_unit_cost, unit)
+      ? t('supplies.avgCostValuePerUnit', { value, unit: label })
+      : value
+  }
+
   const quickActions = (supply: Supply) => (
     <>
       <button
@@ -282,7 +293,7 @@ export default function Supplies() {
       header: t('supplies.avgUnitCost'),
       align: 'right',
       mono: true,
-      render: (s) => avgCostValue(s, unitFor(s)),
+      render: (s) => avgCostCell(s, unitFor(s)),
     },
     {
       id: 'actions',
@@ -619,7 +630,7 @@ interface SupplyFormProps {
   categorySuggestions?: string[]
 }
 
-export function SupplyForm({ supply, onClose, onSuccess, categorySuggestions = [] }: SupplyFormProps) {
+function SupplyFormBody({ supply, onClose, onSuccess, categorySuggestions = [] }: SupplyFormProps) {
   const { t } = useTranslation('common')
   const isEdit = !!supply
   const [error, setError] = useState<string | null>(null)
@@ -871,3 +882,6 @@ export function SupplyForm({ supply, onClose, onSuccess, categorySuggestions = [
     </FormModalWrapper>
   )
 }
+
+// Its unit picker seeds from the account, so it pins like the record forms (R4).
+export const SupplyForm = withUnitSession(SupplyFormBody)

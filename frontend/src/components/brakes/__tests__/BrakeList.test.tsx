@@ -28,8 +28,9 @@ vi.mock('../../../hooks/queries/useHoursRecords', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 // Miles, so the odometer round trip below runs through a real conversion.
-vi.mock('../../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: 'imperial',
     showBoth: false,
     gallonStandard: 'us',
@@ -46,8 +47,12 @@ vi.mock('../../../hooks/useUnitPreference', () => ({
       tread: 'in32',
       secondary_gallon: 'us',
     },
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 import { toast } from 'sonner'
 

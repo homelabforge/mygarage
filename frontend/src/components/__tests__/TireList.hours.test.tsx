@@ -44,8 +44,9 @@ vi.mock('@tanstack/react-query', () => ({
 }))
 const toastError = vi.fn()
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }))
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: 'imperial',
     showBoth: false,
     gallonStandard: 'us',
@@ -53,8 +54,12 @@ vi.mock('../../hooks/useUnitPreference', () => ({
       distance: 'mi', speed: 'mph', length: 'ft', volume: 'gal_us', consumption: 'mpg_us',
       pressure: 'psi', temperature: 'f', mass: 'lb', torque: 'lbft', tread: 'in32', secondary_gallon: 'us',
     },
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 import TireList from '../TireList'
 

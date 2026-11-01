@@ -81,7 +81,7 @@ describe('a mounted consumption badge paints the account\'s own gallon', () => {
     // Rung 1's `resolved_units` decides, so the badge is right on its first
     // frame. Before task 6b this line read '25.0 MPG' until a repaint the
     // deleted subscription in `useUnitPreference` had to arrange.
-    expect(screen.getByTestId('mpg').textContent).toBe('30.0 MPG')
+    expect(screen.getByTestId('mpg').textContent).toBe('30.0 MPG (UK)')
 
     // ...and the instance default is untouched by the account reading it, which
     // is the constraint that made a plain store write the wrong mechanism.
@@ -94,7 +94,7 @@ describe('a mounted consumption badge paints the account\'s own gallon', () => {
 
     render(<EconomyBadge />)
 
-    expect(screen.getByTestId('mpg').textContent).toBe('30.0 MPG')
+    expect(screen.getByTestId('mpg').textContent).toBe('30.0 MPG (UK)')
   })
 
   it('★ holds the account\'s answer when the instance value moves mid-session', () => {
@@ -107,7 +107,7 @@ describe('a mounted consumption badge paints the account\'s own gallon', () => {
     auth.user = makeUser({ unit_preference: 'custom', resolved_units: UK_IMPERIAL_UNITS })
 
     const { rerender } = render(<EconomyBadge />)
-    expect(screen.getByTestId('mpg').textContent).toBe('30.0 MPG')
+    expect(screen.getByTestId('mpg').textContent).toBe('30.0 MPG (UK)')
 
     // `act` so the new context value and the resulting render flush before the
     // assertions; without it this asserts against a frame React has not
@@ -118,6 +118,6 @@ describe('a mounted consumption badge paints the account\'s own gallon', () => {
     })
 
     expect(auth.defaultUnitPrefs).toStrictEqual(IMPERIAL_UNITS)
-    expect(screen.getByTestId('mpg').textContent).toBe('30.0 MPG')
+    expect(screen.getByTestId('mpg').textContent).toBe('30.0 MPG (UK)')
   })
 })

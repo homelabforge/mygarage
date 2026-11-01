@@ -89,6 +89,8 @@ const SHOW_BOTH_KEY = 'units.showBothDescription'
 
 /** Hand-written from `UNIT_ADAPTERS`, in `UNIT_QUANTITIES` order. */
 const IMPERIAL_TEXT = 'Using these units: mi, mph, ft, gal, MPG, PSI, °F, lb, lb-ft, /32 in'
+/** The UK gallon and UK MPG say so (D3). */
+const UK_IMPERIAL_TEXT = 'Using these units: mi, mph, ft, gal (UK), MPG (UK), PSI, °F, lb, lb-ft, /32 in'
 const METRIC_TEXT = 'Using these units: km, km/h, m, L, L/100km, kPa, °C, kg, Nm, mm'
 
 const h = vi.hoisted(() => ({
@@ -197,7 +199,7 @@ describe('UnitPreferencesCard — the Units card reads the resolved set', () => 
     const card = await cardFor(
       makeUser({ unit_preference: 'custom', resolved_units: UK_IMPERIAL_UNITS }),
     )
-    expect(card).toStrictEqual({ description: IMPERIAL_TEXT })
+    expect(card).toStrictEqual({ description: UK_IMPERIAL_TEXT })
   })
 
   it('describes a custom account resolving to litres in litres, not gallons', async () => {
@@ -278,7 +280,7 @@ describe('UnitPreferencesCard — D3: an override column beats the preset', () =
     const card = await cardFor(
       makeUser({ unit_preference: 'metric', resolved_units: UK_IMPERIAL_UNITS }),
     )
-    expect(card).toStrictEqual({ description: IMPERIAL_TEXT })
+    expect(card).toStrictEqual({ description: UK_IMPERIAL_TEXT })
   })
 
   it('renders litres for an IMPERIAL-preset account whose overrides are metric', async () => {
@@ -318,7 +320,7 @@ describe('UnitPreferencesCard — D3: an override column beats the preset', () =
       expect(mockedApi.put).toHaveBeenCalledWith('/auth/me/units', { unit_preference: 'metric' }),
     )
 
-    expect(await readCard()).toStrictEqual({ description: IMPERIAL_TEXT })
+    expect(await readCard()).toStrictEqual({ description: UK_IMPERIAL_TEXT })
   })
 })
 
@@ -373,7 +375,7 @@ describe('UnitPreferencesCard — the show-both example demonstrates the reader\
       makeUser({ unit_preference: 'custom', resolved_units: UK_IMPERIAL_UNITS }),
     )
     expect(sentence).toBe(
-      'Show each value with its counterpart in parentheses, for example 30.0 MPG (9.41 L/100km).',
+      'Show each value with its counterpart in parentheses, for example 30.0 MPG (UK) (9.41 L/100km).',
     )
   })
 })

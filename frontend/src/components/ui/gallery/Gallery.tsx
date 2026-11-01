@@ -386,7 +386,7 @@ export default function Gallery() {
             </>
           }
         >
-          <Field id="g-liters" label="Litres" required>
+          <Field id="g-liters" label="Liters" required>
             <Input id="g-liters" type="number" mono placeholder="0.00" />
           </Field>
           <p className="text-sm text-text-mute">Tab is trapped. Escape closes. Focus restores to the trigger. Type in the field — focus must stay put.</p>
@@ -416,7 +416,7 @@ export default function Gallery() {
             rowKey={(r) => r.id}
             columns={[
               { id: 'date', header: 'Date', render: (r) => r.date },
-              { id: 'volume', header: 'Litres', align: 'right', mono: true, render: (r) => r.volume },
+              { id: 'volume', header: 'Liters', align: 'right', mono: true, render: (r) => r.volume },
               { id: 'cost', header: 'Cost', align: 'right', mono: true, render: (r) => r.cost },
             ]}
             rows={[

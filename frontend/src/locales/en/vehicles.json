@@ -518,7 +518,7 @@
     "distanceUnit": "Odometer unit",
     "distanceUnitHelp": "What this vehicle's odometer reads. Its distances and speeds are shown and entered in this unit. Fuel economy and cost per distance keep your account setting.",
     "distanceUnitAccountDefault": "Account default ({{unit}})",
-    "distanceUnitKm": "Kilometres (km)",
+    "distanceUnitKm": "Kilometers (km)",
     "distanceUnitMi": "Miles (mi)",
     "usageDistance": "Distance (odometer)",
     "usageHours": "Hours (hour meter)",

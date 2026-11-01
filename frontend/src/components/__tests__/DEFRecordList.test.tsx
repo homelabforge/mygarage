@@ -250,14 +250,14 @@ describe('DEFRecordList — one gallon per page, taken from the user', () => {
 
     // 4.7 L/1000km is 1.7 imperial gal/1000mi (2.0 US ones).
     expect(screen.getByText('1.7')).toBeInTheDocument()
-    expect(screen.getByText('gal/1,000 mi')).toBeInTheDocument()
+    expect(screen.getByText('gal (UK)/1,000 mi')).toBeInTheDocument()
     // $1.189/L is $5.41 per imperial gallon, $4.50 per US one.
-    expect(screen.getByText('defList.avgCostPerVolume (gal)')).toBeInTheDocument()
+    expect(screen.getByText('defList.avgCostPerVolume (gal (UK))')).toBeInTheDocument()
     expect(screen.getByText('$5.41')).toBeInTheDocument()
     // 20.82 L is 4.6 imperial gallons.
-    expect(screen.getByText('defList.volumeTotal (4.6 gal)')).toBeInTheDocument()
+    expect(screen.getByText('defList.volumeTotal (4.6 gal (UK))')).toBeInTheDocument()
     // And the row cell agrees with all three.
-    expect(within(screen.getByRole('table', { name: 'defList.tableCaption' })).getByText('4.58 gal')).toBeInTheDocument()
+    expect(within(screen.getByRole('table', { name: 'defList.tableCaption' })).getByText('4.58 gal (UK)')).toBeInTheDocument()
     expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 

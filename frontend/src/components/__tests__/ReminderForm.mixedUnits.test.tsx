@@ -39,14 +39,19 @@ vi.mock('../../services/api', () => ({
 // pinning it to a literal could not express the disagreement these cases exist
 // to catch (commit `e3f834f`).
 const unitPrefMock = vi.hoisted(() => ({ units: null as unknown as UnitSet }))
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: binarySystemFor(unitPrefMock.units.volume),
     showBoth: false,
     units: unitPrefMock.units,
     gallonStandard: unitPrefMock.units.secondary_gallon,
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 // LOCAL i18n mock that RETAINS the interpolated values. The global setup.ts
 // mock is `t: (key) => key`, so a hint assertion against it would render the

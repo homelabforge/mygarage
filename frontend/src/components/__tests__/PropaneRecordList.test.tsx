@@ -23,14 +23,17 @@ const unitPrefMock = vi.hoisted(() => ({
 }))
 vi.mock('../../hooks/useUnitPreference', async () => {
   const { IMPERIAL_UNITS, METRIC_UNITS } = await import('@/__tests__/factories')
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
+    system: unitPrefMock.system,
+    showBoth: unitPrefMock.showBoth,
+    units:
+      unitPrefMock.units ??
+      (unitPrefMock.system === 'imperial' ? IMPERIAL_UNITS : METRIC_UNITS),
+  })
   return {
-    useUnitPreference: () => ({
-      system: unitPrefMock.system,
-      showBoth: unitPrefMock.showBoth,
-      units:
-        unitPrefMock.units ??
-        (unitPrefMock.system === 'imperial' ? IMPERIAL_UNITS : METRIC_UNITS),
-    }),
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
   }
 })
 // LOCAL i18n mock (B5) — overrides the global setup mock FOR THIS FILE ONLY. For a `{ unit }`
@@ -171,14 +174,14 @@ describe('PropaneRecordList — one gallon per page, taken from the user', () =>
     render(<PropaneRecordList vin="TEST12345678901234" />)
 
     // 39.75 L is 8.74 imperial gallons (10.50 US ones).
-    expect(within(table()).getByRole('columnheader', { name: 'propaneList.volumeUnit (gal)' })).toBeInTheDocument()
-    expect(within(table()).getByText('8.74 gal')).toBeInTheDocument()
+    expect(within(table()).getByRole('columnheader', { name: 'propaneList.volumeUnit (gal (UK))' })).toBeInTheDocument()
+    expect(within(table()).getByText('8.74 gal (UK)')).toBeInTheDocument()
     // $0.766/L is $3.48 per imperial gallon, $2.90 per US one.
     expect(within(table()).getByText('$3.48')).toBeInTheDocument()
     // The total tile and its label follow the same token.
-    expect(screen.getByText('propaneList.totalVolume (gal)')).toBeInTheDocument()
-    expect(screen.getByText('8.7 gal')).toBeInTheDocument()
-    expect(screen.getByText('propaneList.avgCostPerVolume (gal)')).toBeInTheDocument()
+    expect(screen.getByText('propaneList.totalVolume (gal (UK))')).toBeInTheDocument()
+    expect(screen.getByText('8.7 gal (UK)')).toBeInTheDocument()
+    expect(screen.getByText('propaneList.avgCostPerVolume (gal (UK))')).toBeInTheDocument()
     expect(UnitConverter.getGallonStandard()).toBe('us')
   })
 

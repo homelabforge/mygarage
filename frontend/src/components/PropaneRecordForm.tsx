@@ -25,6 +25,7 @@ import CurrencyInput from './common/CurrencyInput'
 import { Button, Field, Input, NumberInput, Select, Textarea, registerDecimal } from './ui'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { withUnitSession } from '../contexts/UnitSession'
 
 // Propane density: 1 kg ≈ 1.968 L (1 gal ≈ 1.923 kg, 1 gal = 3.785411784 L).
 const KG_TO_LITERS = 1.968
@@ -76,7 +77,7 @@ interface PropaneRecordFormProps {
   onSuccess: () => void
 }
 
-export default function PropaneRecordForm({
+function PropaneRecordForm({
   vin,
   record,
   onClose,
@@ -426,3 +427,6 @@ export default function PropaneRecordForm({
     </FormModalWrapper>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(PropaneRecordForm)

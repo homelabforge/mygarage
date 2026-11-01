@@ -20,10 +20,11 @@ things keep them together:
 
 Header tokens, never display labels (R2)
 ----------------------------------------
-`gal_us` and `gal_uk` both render as the label `gal`, and `mpg_us`/`mpg_uk`
-both as `MPG` (`unit_adapters.py`), so a labelled header cannot identify its
-own unit. The phase-1 vocabulary tokens are unique by construction and are
-direct keys into `ADAPTERS`. Tokens are case-significant: `L` is not `l`, and
+Display labels are for people and they change: the UK gallon and UK MPG
+used to print the same `gal` / `MPG` as the US ones and now say `(UK)`, and
+every file exported before that still has to import. The phase-1 vocabulary
+tokens are unique by construction, never change, and are direct keys into
+`ADAPTERS`. Tokens are case-significant: `L` is not `l`, and
 the Celsius token is lowercase `c` even though v5 emitted the display label
 `(C)`.
 

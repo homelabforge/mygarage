@@ -4,13 +4,14 @@
  * Each of the five sidecars hands VehicleDetail the server's fresh row, which
  * can carry an odometer unit changed on another device. That row must reach
  * the offline copy and the Quick Entry list, or the NEXT form opens in the old
- * unit. And a unit change must remount the scoped page, so no open form can
- * outlive the unit it opened with.
+ * unit. A unit change repaints the page in place; an open form keeps the unit
+ * it opened with, and its draft (R4).
  *
  * The sidecars and the overview tab are replaced by buttons that call their
  * save callback with the vehicle they were given plus `writer.next`, and the
- * odometer tab by a probe holding local state. The REAL `useUnitPreference`
- * runs (only `AuthContext` is mocked), so the probe reads the true scope.
+ * odometer tab by a probe holding local state next to the REAL odometer form.
+ * The REAL `useUnitPreference` runs (only `AuthContext` is mocked), so both
+ * read the true scope.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -61,9 +62,15 @@ vi.mock('../../components/vehicle-detail/VehicleOverviewTab', () => ({
     <button onClick={() => p.onVehicleUpdated?.({ ...p.vehicle, ...writer.next })}>save-specs</button>
   ),
 }))
+const odometerCreate = vi.hoisted(() => vi.fn().mockResolvedValue({}))
+vi.mock('../../hooks/queries/useOdometerRecords', () => ({
+  useCreateOdometerRecord: () => ({ mutateAsync: odometerCreate }),
+  useUpdateOdometerRecord: () => ({ mutateAsync: vi.fn() }),
+}))
 vi.mock('../../components/tabs/OdometerTab', async () => {
   const { useState } = await import('react')
   const { useUnitPreference } = await import('../../hooks/useUnitPreference')
+  const { default: OdometerRecordForm } = await import('../../components/OdometerRecordForm')
   return {
     default: function OdometerProbe() {
       const [count, setCount] = useState(0)
@@ -73,6 +80,7 @@ vi.mock('../../components/tabs/OdometerTab', async () => {
           <span data-testid="probe-unit">{unit}</span>
           <span data-testid="probe-count">{count}</span>
           <button onClick={() => setCount((n) => n + 1)}>bump</button>
+          <OdometerRecordForm vin="TEST12345678901234" onClose={() => {}} onSuccess={() => {}} />
         </div>
       )
     },
@@ -234,8 +242,13 @@ describe('one save handler for every vehicle writer', () => {
   })
 })
 
-describe('a unit change remounts the scoped page', () => {
-  it('an open tab re-reads the new unit with fresh state; a same-unit save keeps its state', async () => {
+describe('a unit change repaints the page in place', () => {
+  const odometerLabel = (): string =>
+    document.querySelector('label[for="odometer_km"]')?.textContent ?? ''
+  const odometerField = (): HTMLInputElement =>
+    document.getElementById('odometer_km') as HTMLInputElement
+
+  it('an open tab re-reads the new unit and keeps its state; so does a same-unit save', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     renderPage(client, `/vehicles/${VIN}?tab=odometer`)
 
@@ -243,17 +256,35 @@ describe('a unit change remounts the scoped page', () => {
     fireEvent.click(screen.getByText('bump'))
     expect(screen.getByTestId('probe-count')).toHaveTextContent('1')
 
-    // A save that lands with a new unit: remount, so no form outlives its unit.
+    // A save that lands with a new unit repaints; nothing remounts.
     fireEvent.click(screen.getByText('save-edit'))
     await waitFor(() => expect(screen.getByTestId('probe-unit')).toHaveTextContent('mi'))
-    expect(screen.getByTestId('probe-count')).toHaveTextContent('0')
+    expect(screen.getByTestId('probe-count')).toHaveTextContent('1')
 
-    // A save that keeps the unit remounts nothing.
-    fireEvent.click(screen.getByText('bump'))
     writer.next = { distance_unit: 'mi', nickname: 'Renamed' }
     fireEvent.click(screen.getByText('save-edit'))
     await waitFor(() => expect(readCachedVehicle(VIN)?.nickname).toBe('Renamed'))
     expect(screen.getByTestId('probe-count')).toHaveTextContent('1')
+  })
+
+  it('an open record form keeps its draft and its unit through a vehicle unit change', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    renderPage(client, `/vehicles/${VIN}?tab=odometer`)
+    await screen.findByTestId('probe-unit')
+    expect(odometerLabel()).toMatch(/\(km\)/)
+    fireEvent.change(document.getElementById('date')!, { target: { value: '2026-03-01' } })
+    fireEvent.change(odometerField(), { target: { value: '50000' } })
+
+    // Another device switched this vehicle to miles; the save lands mid-entry.
+    fireEvent.click(screen.getByText('save-edit'))
+    await waitFor(() => expect(screen.getByTestId('probe-unit')).toHaveTextContent('mi'))
+
+    expect(odometerField().value).toBe('50000')
+    expect(odometerLabel()).toMatch(/\(km\)/)
+    fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
+    await waitFor(() => expect(odometerCreate).toHaveBeenCalledTimes(1))
+    // Typed as km, stored as km.
+    expect(odometerCreate.mock.calls[0][0].odometer_km).toBe(50000)
   })
 })
 

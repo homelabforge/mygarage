@@ -30,14 +30,19 @@ vi.mock('../../hooks/queries/useOdometerRecords', () => ({
 // pinning it to a literal could not express the disagreement these cases exist
 // to catch (commit `e3f834f`).
 const unitPrefMock = vi.hoisted(() => ({ units: null as unknown as UnitSet }))
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: binarySystemFor(unitPrefMock.units.volume),
     showBoth: false,
     units: unitPrefMock.units,
     gallonStandard: unitPrefMock.units.secondary_gallon,
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 import { IMPERIAL_UNITS, METRIC_UNITS } from '../../__tests__/factories'
 import OdometerRecordForm from '../OdometerRecordForm'

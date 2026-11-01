@@ -109,14 +109,14 @@ class TestEmittedHeaders:
         assert header_for(column, "mi") == "Reading (mi)"
 
     def test_volume_headers_distinguish_the_two_gallons(self) -> None:
-        """The whole reason a header carries a token and not a label: both
-        gallons render as the label `gal` (`unit_adapters.py`), so a labelled
-        header could not say which one it holds."""
+        """Headers carry the token, never the display label. The UK labels say
+        (UK) now, but files exported before that still say `Volume (gal_uk)`,
+        so the header can't follow the label around."""
         column = EMITTED_COLUMNS["Liters"]
         assert header_for(column, "L") == "Volume (L)"
         assert header_for(column, "gal_us") == "Volume (gal_us)"
         assert header_for(column, "gal_uk") == "Volume (gal_uk)"
-        assert ADAPTERS["gal_us"].label == ADAPTERS["gal_uk"].label
+        assert header_for(column, "gal_uk") != f"Volume ({ADAPTERS['gal_uk'].label})"
 
     def test_fuel_price_headers(self) -> None:
         column = EMITTED_COLUMNS["Price Per Liter"]

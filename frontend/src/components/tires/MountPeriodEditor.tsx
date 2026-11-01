@@ -12,6 +12,7 @@ import { canonicalFromUnitField, seedUnitField } from '../../utils/unitFormat'
 import { num } from '../../utils/wireNumber'
 import { Button, Drawer, Field, Input } from '../ui'
 import MountEventFields, { type OdometerFieldValue } from './MountEventFields'
+import { withUnitSession } from '../../contexts/UnitSession'
 
 interface MountPeriodEditorProps {
   vin: string
@@ -47,7 +48,7 @@ interface EditorState {
  * closing a period is what Dismount is. Render this with `key={period.id}`
  * so the state seeds once per period rather than through an effect.
  */
-export default function MountPeriodEditor({
+function MountPeriodEditor({
   vin,
   tire,
   period,
@@ -190,3 +191,6 @@ export default function MountPeriodEditor({
     </Drawer>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(MountPeriodEditor)

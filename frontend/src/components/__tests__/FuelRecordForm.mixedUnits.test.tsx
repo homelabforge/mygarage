@@ -48,14 +48,19 @@ vi.mock('../../services/api', () => ({
 // hardcoded `system` cannot express the disagreement. Commit `e3f834f` fixed
 // exactly this in two other suites.
 let units: UnitSet = METRIC_UNITS
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: binarySystemFor(units.volume),
     showBoth: false,
     units,
     gallonStandard: units.secondary_gallon,
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }))
 vi.mock('../../hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '24h' }) }))

@@ -351,9 +351,10 @@ describe('VehicleStatisticsCard', () => {
     )
 
     expect(
-      screen.getByText('vehicleStatisticsCardExtra.averageFuelEconomy (gal/hr)'),
+      screen.getByText('vehicleStatisticsCardExtra.averageFuelEconomy (gal (UK)/hr)'),
     ).toBeInTheDocument()
-    expect(screen.getByText('1.00 gal/hr')).toBeInTheDocument()
+    expect(screen.getByText('1.00 gal (UK)/hr')).toBeInTheDocument()
+    // What the US gallon would have printed: 4.54609 / 3.785411784 = 1.20.
     expect(screen.queryByText('1.20 gal/hr')).not.toBeInTheDocument()
   })
 

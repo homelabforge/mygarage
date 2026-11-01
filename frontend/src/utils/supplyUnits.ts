@@ -39,11 +39,12 @@ const UNIT_LABELS: Readonly<Record<SupplyUnit, string>> = {
   mL: 'mL',
   L: 'L',
   fl_oz_us: 'fl oz',
-  fl_oz_uk: 'fl oz',
+  fl_oz_uk: 'fl oz (UK)',
   qt_us: 'qt',
-  qt_uk: 'qt',
+  qt_uk: 'qt (UK)',
   gal_us: 'gal',
-  gal_uk: 'gal',
+  // Matches the fuel adapter's UK gallon, so the two never disagree on a page.
+  gal_uk: 'gal (UK)',
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -245,5 +245,129 @@ describe('GarageAnalytics — Monthly Spending Trend rolling averages', () => {
     expect(trend).toBeDefined()
     expect(trend![0].month).toContain('26')
     expect(trend![0].month).not.toContain('2026')
+  })
+})
+
+describe('GarageAnalytics: optional cost cards show only when they carry money', () => {
+  const withCosts = (overrides: Partial<typeof GARAGE.total_costs>) => ({
+    ...GARAGE,
+    total_costs: { ...GARAGE.total_costs, ...overrides },
+  })
+
+  it('hides the Insurance and Taxes cards at $0', async () => {
+    mockedGet.mockResolvedValue({
+      data: withCosts({ total_insurance: '0.00', total_taxes: '0.00' }),
+    })
+    render(<GarageAnalytics />)
+    await screen.findByText('garage.cards.fuel')
+    expect(screen.queryByText('garage.cards.insurance')).not.toBeInTheDocument()
+    expect(screen.queryByText('garage.cards.taxes')).not.toBeInTheDocument()
+    // The core three still show.
+    expect(screen.getByText('garage.cards.garageValue')).toBeInTheDocument()
+    expect(screen.getByText('garage.cards.maintenance')).toBeInTheDocument()
+    expect(screen.getByText('garage.cards.fuel')).toBeInTheDocument()
+  })
+
+  it('shows the core three at $0 too (guard)', async () => {
+    mockedGet.mockResolvedValue({
+      data: withCosts({ total_garage_value: '0.00', total_maintenance: '0.00', total_fuel: '0.00' }),
+    })
+    render(<GarageAnalytics />)
+    expect(await screen.findByText('garage.cards.garageValue')).toBeInTheDocument()
+    expect(screen.getByText('garage.cards.maintenance')).toBeInTheDocument()
+    expect(screen.getByText('garage.cards.fuel')).toBeInTheDocument()
+  })
+
+  it('shows the Insurance and Taxes cards with their amounts above zero (guard)', async () => {
+    render(<GarageAnalytics />)
+    const insurance = (await screen.findByText('garage.cards.insurance')).closest('div')!.parentElement!
+    const taxes = screen.getByText('garage.cards.taxes').closest('div')!.parentElement!
+    expect(within(insurance).getByText('$2,000.00')).toBeInTheDocument()
+    expect(within(taxes).getByText('$400.00')).toBeInTheDocument()
+  })
+})
+
+// The API sends the last 12 calendar months, zeros included.
+const TWELVE_MONTHS = [
+  'Nov 2025', 'Dec 2025', 'Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026',
+  'May 2026', 'Jun 2026', 'Jul 2026', 'Aug 2026', 'Sep 2026', 'Oct 2026',
+]
+const zeroMonth = (month: string) => ({
+  month, service: '0.00', fuel: '0.00', def_cost: '0.00', insurance: '0.00', financing: '0.00', total: '0.00',
+})
+
+describe('GarageAnalytics: fixed 12-month trend window', () => {
+  it('renders all 12 months and the averages skip the zero ones (guard)', async () => {
+    // Fuel in Jan, Mar and May 2026 only; the other nine months are zero.
+    const fuel: Record<string, string> = { 'Jan 2026': '100.00', 'Mar 2026': '300.00', 'May 2026': '500.00' }
+    mockedGet.mockResolvedValue({
+      data: {
+        ...GARAGE,
+        monthly_trends: TWELVE_MONTHS.map((month) =>
+          fuel[month] ? { ...zeroMonth(month), fuel: fuel[month], total: fuel[month] } : zeroMonth(month)
+        ),
+      },
+    })
+    render(<GarageAnalytics />)
+    await screen.findByText('$13,200.00')
+    const trend = captured.barCharts.find(
+      (d): d is Array<{ month: string; avg3: number | null }> =>
+        Array.isArray(d) && d.length > 0 && typeof d[0] === 'object' && d[0] !== null && 'avg3' in d[0]
+    )
+    expect(trend).toBeDefined()
+    expect(trend!).toHaveLength(12)
+    expect(trend![0].month).toBe('Nov 25')
+    expect(trend![11].month).toBe('Oct 26')
+    // Averaging the zero months in would give May (300 + 0 + 500) / 3.
+    expect(trend![6].avg3).toBe(300)
+    expect(trend![0].avg3).toBeNull()
+    expect(trend![3].avg3).toBeNull()
+    expect(trend![11].avg3).toBeNull()
+    expect(screen.queryAllByTestId('trend-line').map((el) => el.textContent)).toContain('avg3')
+  })
+
+  it('hides the trend chart when every month is zero', async () => {
+    mockedGet.mockResolvedValue({ data: { ...GARAGE, monthly_trends: TWELVE_MONTHS.map(zeroMonth) } })
+    render(<GarageAnalytics />)
+    await screen.findByText('$13,200.00')
+    expect(screen.queryByText('garage.monthlySpendingTrend')).not.toBeInTheDocument()
+    expect(captured.barCharts).toHaveLength(0)
+  })
+
+  it('shows the trend bars for a financing-only window, with no average lines', async () => {
+    mockedGet.mockResolvedValue({
+      data: {
+        ...GARAGE,
+        monthly_trends: TWELVE_MONTHS.map((month) =>
+          month === 'Mar 2026' || month === 'Apr 2026'
+            ? { ...zeroMonth(month), financing: '450.00' }
+            : zeroMonth(month)
+        ),
+      },
+    })
+    render(<GarageAnalytics />)
+    await screen.findByText('$13,200.00')
+    expect(screen.getByText('garage.monthlySpendingTrend')).toBeInTheDocument()
+    const trend = captured.barCharts.at(-1) as Array<{ Financing: number; avg3: number | null }>
+    expect(trend).toHaveLength(12)
+    expect(trend[4].Financing).toBe(450)
+    // Financing isn't a running cost, so the averages have nothing to run over.
+    expect(trend.every((row) => row.avg3 === null)).toBe(true)
+    expect(screen.queryAllByTestId('trend-line')).toHaveLength(0)
+  })
+
+  it('shows the trend chart when one month carries running costs (guard)', async () => {
+    mockedGet.mockResolvedValue({
+      data: {
+        ...GARAGE,
+        monthly_trends: TWELVE_MONTHS.map((month) =>
+          month === 'Jun 2026' ? { ...zeroMonth(month), service: '75.00', total: '75.00' } : zeroMonth(month)
+        ),
+      },
+    })
+    render(<GarageAnalytics />)
+    await screen.findByText('$13,200.00')
+    expect(screen.getByText('garage.monthlySpendingTrend')).toBeInTheDocument()
+    expect(captured.barCharts.at(-1)).toHaveLength(12)
   })
 })

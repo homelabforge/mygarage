@@ -31,10 +31,15 @@ const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4'
 
 // Running-cost total for one month: service, fuel and DEF. Financing has its
 // own bar/legend entry but is excluded here, same as it's excluded from
-// total_cost/cost-per-distance elsewhere — a lease payment isn't a cost of
+// total_cost/cost-per-distance elsewhere. A lease payment isn't a cost of
 // driving the vehicle.
 const monthlyTrendTotal = (trend: GarageAnalytics['monthly_trends'][number]) =>
   parseFloat(trend.service) + parseFloat(trend.fuel) + parseFloat(trend.def_cost)
+
+// The API always sends the last 12 months, zeros and all, so a row count can't
+// tell a quiet garage apart. Anything the chart plots counts, financing too.
+const hasTrend = (trends: GarageAnalytics['monthly_trends']): boolean =>
+  trends.some((trend) => monthlyTrendTotal(trend) > 0 || parseFloat(trend.financing) > 0)
 
 export default function GarageAnalytics() {
   const { t } = useTranslation('analytics')
@@ -92,7 +97,7 @@ export default function GarageAnalytics() {
     rows.push('')
 
     // Monthly Trends
-    if (analytics.monthly_trends.length > 0) {
+    if (hasTrend(analytics.monthly_trends)) {
       rows.push('Monthly Spending Trends')
       rows.push('Month,Service,Fuel,DEF,Financing,Total')
       analytics.monthly_trends.forEach((trend) => {
@@ -248,12 +253,11 @@ export default function GarageAnalytics() {
   }))
   const maxVehicleCost = barData.reduce((max, v) => Math.max(max, v.totalCost), 0)
 
-  // Monthly trend: trailing averages over the available window, so the lines
-  // have no leading nulls across the running-cost months. A month with only
-  // insurance or financing has no running costs (service, fuel and DEF only
-  // land in a month when the cost is above zero), so the lines skip it as the
-  // vehicle page does: null there, bridged by connectNulls between running
-  // months, and no line before the first or after the last one.
+  // Monthly trend: trailing averages over the running-cost months only. Empty
+  // months, and ones with just insurance or financing, total zero and get
+  // skipped like on the vehicle page: null there, bridged by connectNulls, and
+  // no line before the first running month or after the last. A $0 record
+  // counts now, but it still adds nothing, so the > 0 filter holds.
   const runningCostMonths = monthly_trends.filter((trend) => monthlyTrendTotal(trend) > 0)
   const runningTotals = runningCostMonths.map(monthlyTrendTotal)
   const rollingAvg3 = trailingAverage(runningTotals, 3)
@@ -301,7 +305,8 @@ export default function GarageAnalytics() {
         </div>
       </div>
 
-      {/* Total Cost Summary Cards */}
+      {/* Total Cost Summary Cards. Garage value, Maintenance and Fuel always show;
+          DEF, Financing, Insurance and Taxes only once there's money in them. */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
@@ -357,25 +362,29 @@ export default function GarageAnalytics() {
           </div>
         )}
 
-        <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.insurance')}</h3>
-            <Shield className="w-5 h-5 text-warning-500" />
+        {parseFloat(total_costs.total_insurance) > 0 && (
+          <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.insurance')}</h3>
+              <Shield className="w-5 h-5 text-warning-500" />
+            </div>
+            <p className="text-2xl font-bold text-garage-text">
+              {formatCurrency(total_costs.total_insurance, { currencyCode, locale })}
+            </p>
           </div>
-          <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(total_costs.total_insurance, { currencyCode, locale })}
-          </p>
-        </div>
+        )}
 
-        <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.taxes')}</h3>
-            <FileText className="w-5 h-5 text-danger-500" />
+        {parseFloat(total_costs.total_taxes) > 0 && (
+          <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.taxes')}</h3>
+              <FileText className="w-5 h-5 text-danger-500" />
+            </div>
+            <p className="text-2xl font-bold text-garage-text">
+              {formatCurrency(total_costs.total_taxes, { currencyCode, locale })}
+            </p>
           </div>
-          <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(total_costs.total_taxes, { currencyCode, locale })}
-          </p>
-        </div>
+        )}
       </div>
 
       {/* Cost Breakdown Charts */}
@@ -477,7 +486,7 @@ export default function GarageAnalytics() {
           <h2 className="text-xl font-bold mb-4 text-garage-text">{t('garage.runningCostsByVehicle')}</h2>
           {barData.length > 0 ? (
             <>
-              {/* Bar list — name + inline total, width relative to the top spender */}
+              {/* Bar list: name + inline total, width relative to the top spender */}
               <div className="space-y-3">
                 {barData.map((vehicle) => (
                   <div key={vehicle.name}>
@@ -578,7 +587,7 @@ export default function GarageAnalytics() {
       </div>
 
       {/* Monthly Spending Trend */}
-      {trendData.length > 0 && (
+      {hasTrend(monthly_trends) && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <h2 className="text-xl font-bold mb-4 text-garage-text">{t('garage.monthlySpendingTrend')}</h2>
           <ResponsiveContainer width="100%" height={300}>
@@ -606,7 +615,7 @@ export default function GarageAnalytics() {
                           {payload[0].payload.month}
                         </p>
                         {payload.map((entry, index) =>
-                          // A rolling average is null on insurance- or financing-only months.
+                          // A rolling average is null on months with no running costs.
                           entry.value == null ? null : (
                             <p
                               key={index}

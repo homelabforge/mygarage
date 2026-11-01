@@ -33,14 +33,19 @@ vi.mock('../../hooks/queries/useWarrantyRecords', () => ({
 // reason: the whole defect is that `system` disagrees with `units.distance`,
 // and a hardcoded `system` cannot express the disagreement (commit `e3f834f`).
 const unitPrefMock = vi.hoisted(() => ({ units: null as unknown as UnitSet }))
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: binarySystemFor(unitPrefMock.units.volume),
     showBoth: false,
     units: unitPrefMock.units,
     gallonStandard: unitPrefMock.units.secondary_gallon,
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 import { IMPERIAL_UNITS, METRIC_UNITS } from '../../__tests__/factories'
 import WarrantyForm from '../WarrantyForm'

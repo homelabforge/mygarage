@@ -232,3 +232,67 @@ describe('GarageAnalytics — financing in the CSV export', () => {
     }
   })
 })
+
+describe('GarageAnalytics: trend rows in the CSV export', () => {
+  // The API now always sends 12 months, so an all-zero window has to read as no trend.
+  const exportCsv = async (data: GarageAnalyticsData): Promise<string> => {
+    const blobs: Blob[] = []
+    const createObjectURL = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockImplementation((blob: Blob | MediaSource) => {
+        blobs.push(blob as Blob)
+        return 'blob:mock'
+      })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      mockedGet.mockResolvedValue({ data })
+      render(<GarageAnalytics />)
+      await screen.findByText('garage.table.financing')
+      fireEvent.click(screen.getByRole('button', { name: /export/i }))
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'CSV' }))
+      await waitFor(() => expect(blobs).toHaveLength(1))
+      return await blobs[0].text()
+    } finally {
+      createObjectURL.mockRestore()
+      click.mockRestore()
+    }
+  }
+
+  const months = Array.from({ length: 12 }, (_, i) => `M${String(i + 1).padStart(2, '0')} 2026`)
+  const zeroMonth = (month: string): GarageAnalyticsData['monthly_trends'][number] => ({
+    month, service: ZERO, fuel: ZERO, def_cost: ZERO, insurance: ZERO, financing: ZERO, total: ZERO,
+  })
+
+  it('leaves the trend rows out when every month is zero', async () => {
+    const csv = await exportCsv({ ...GARAGE, monthly_trends: months.map(zeroMonth) })
+    expect(csv).toContain('Cost by Vehicle')
+    expect(csv).not.toContain('Monthly Spending Trends')
+    expect(csv).not.toContain('M01 2026')
+  })
+
+  it('keeps the trend rows for a financing-only window', async () => {
+    const csv = await exportCsv({
+      ...GARAGE,
+      monthly_trends: months.map((month) =>
+        month === 'M04 2026' ? { ...zeroMonth(month), financing: '450.00' } : zeroMonth(month)
+      ),
+    })
+    expect(csv).toContain('Monthly Spending Trends')
+    expect(csv).toContain('M01 2026,0.00,0.00,0.00,0.00,0.00')
+    // Total is running costs only, so the lease payment leaves it at zero.
+    expect(csv).toContain('M04 2026,0.00,0.00,0.00,450.00,0.00')
+  })
+
+  it('keeps all 12 rows, zeros included, when one month has running costs (guard)', async () => {
+    const csv = await exportCsv({
+      ...GARAGE,
+      monthly_trends: months.map((month) =>
+        month === 'M06 2026' ? { ...zeroMonth(month), fuel: '40.00', total: '40.00' } : zeroMonth(month)
+      ),
+    })
+    expect(csv).toContain('Monthly Spending Trends')
+    expect(csv).toContain('M01 2026,0.00,0.00,0.00,0.00,0.00')
+    expect(csv).toContain('M06 2026,0.00,40.00,0.00,0.00,40.00')
+    expect(csv).toContain('M12 2026,0.00,0.00,0.00,0.00,0.00')
+  })
+})

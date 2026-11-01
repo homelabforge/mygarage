@@ -46,8 +46,9 @@ vi.mock('@tanstack/react-query', () => ({
 // The resolved set is written out here rather than imported from the factories,
 // so this file states the units it is asserting against. `useUnitFormat` is NOT
 // mocked: the conversions below are the real adapters running.
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: 'imperial',
     showBoth: false,
     gallonStandard: 'us',
@@ -64,8 +65,12 @@ vi.mock('../../hooks/useUnitPreference', () => ({
       tread: 'in32',
       secondary_gallon: 'us',
     },
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 import TireList from '../TireList'
 

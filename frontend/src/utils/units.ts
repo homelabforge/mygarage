@@ -154,6 +154,17 @@ export class UnitConverter {
     gal_uk: UnitConverter.UK_GALLONS_TO_LITERS,
   };
 
+  /**
+   * The label each volume token prints. The adapter table builds its volume
+   * labels from this, so `getVolumeUnit` and the adapters can't disagree. It
+   * lives here because the import cycle above won't let this file read them.
+   */
+  static readonly VOLUME_UNIT_LABELS: Readonly<Record<UnitSet['volume'], string>> = {
+    L: 'L',
+    gal_us: 'gal',
+    gal_uk: 'gal (UK)',
+  };
+
   /** Kilograms in one unit of each mass token a resolved set can name. */
   static readonly KG_PER_MASS_UNIT: Readonly<Record<UnitSet['mass'], number>> = {
     kg: 1,
@@ -585,12 +596,14 @@ export class UnitFormatter {
         // D4b: a litre primary's counterpart gallon comes from the set, since
         // 'L' cannot state a flavour of its own.
         const gallons = litersNum / UnitConverter.LITERS_PER_SECONDARY_GALLON[units.secondary_gallon];
-        return `${primary} (${gallons.toFixed(2)} gal)`;
+        // The counterpart names its gallon too, so a UK secondary reads 'gal (UK)'.
+        const gallonLabel = UnitConverter.VOLUME_UNIT_LABELS[`gal_${units.secondary_gallon}` as const];
+        return `${primary} (${gallons.toFixed(2)} ${gallonLabel})`;
       }
       return primary;
     } else {
       const gallons = UnitConverter.litersToVolumeUnit(litersNum, units);
-      const primary = `${gallons?.toFixed(2)} gal`;
+      const primary = `${gallons?.toFixed(2)} ${UnitConverter.VOLUME_UNIT_LABELS[units.volume]}`;
       if (showBoth) {
         return `${primary} (${litersNum.toFixed(2)} L)`;
       }
@@ -622,8 +635,8 @@ export class UnitFormatter {
    * @param units - The client's resolved unit set
    */
   static getVolumeUnit(units: UnitSet): string {
-    // units-exempt(token-branch): a volume LABEL chosen by the volume token. Not deferred work, though the label is D4b-incomplete: both gallons answer 'gal', which `units.manifest.json` records against SettingsSystemTab and phase 4 owns.
-    return units.volume === 'L' ? 'L' : 'gal';
+    // Same table the adapters read, so a UK gallon says 'gal (UK)' here too.
+    return UnitConverter.VOLUME_UNIT_LABELS[units.volume];
   }
 
   /**
@@ -666,12 +679,10 @@ export class UnitFormatter {
    * word "breaks silently the moment this file is localized"; it did.
    */
   static formatVolumeShort(liters: number, units: UnitSet): string {
-    // units-exempt(token-branch): volume dispatch inside a volume formatter, same rule as `formatVolume`. Not deferred work.
-    if (units.volume === 'L') {
-      return `${liters.toFixed(1)} L`;
-    }
-    const gallons = UnitConverter.litersToVolumeUnit(liters, units);
-    return `${(gallons ?? 0).toFixed(1)} gal`;
+    // No token branch any more: litres come back untouched and the label comes
+    // off the shared table, so the UK gallon reads 'gal (UK)'.
+    const value = UnitConverter.litersToVolumeUnit(liters, units) ?? 0;
+    return `${value.toFixed(1)} ${UnitConverter.VOLUME_UNIT_LABELS[units.volume]}`;
   }
 
   /**

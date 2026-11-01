@@ -318,10 +318,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
             <h3 className="text-lg font-semibold text-text mb-4">{t('edit.vehicleDetails')}</h3>
 
             <div>
-              <label className="block text-sm font-medium text-text-mid mb-2">
+              <label htmlFor="wizard-nickname" className="block text-sm font-medium text-text-mid mb-2">
                 {t('wizard.nickname')} <span className="text-danger">*</span>
               </label>
               <input
+                id="wizard-nickname"
                 type="text"
                 {...register('nickname')}
                 className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -332,10 +333,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">
+                <label htmlFor="wizard-vehicle-type" className="block text-sm font-medium text-text-mid mb-2">
                   {t('edit.vehicleType')} <span className="text-danger">*</span>
                 </label>
                 <Select
+                  id="wizard-vehicle-type"
                   {...register('vehicle_type', {
                     onChange: (e) => {
                       setValue('usage_unit', defaultUsageUnitForType(e.target.value))
@@ -348,8 +350,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('wizard.year')}</label>
+                <label htmlFor="wizard-year" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.year')}</label>
                 <NumberInput
+                  id="wizard-year"
                   {...registerDecimal(register, 'year')}
                   invalid={!!errors.year}
                   placeholder="2019"
@@ -360,8 +363,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('wizard.make')}</label>
+                <label htmlFor="wizard-make" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.make')}</label>
                 <input
+                  id="wizard-make"
                   type="text"
                   {...register('make')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -371,8 +375,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('wizard.model')}</label>
+                <label htmlFor="wizard-model" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.model')}</label>
                 <input
+                  id="wizard-model"
                   type="text"
                   {...register('model')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -384,8 +389,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('wizard.color')}</label>
+                <label htmlFor="wizard-color" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.color')}</label>
                 <input
+                  id="wizard-color"
                   type="text"
                   {...register('color')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -395,10 +401,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">
+                <label htmlFor="wizard-license-plate" className="block text-sm font-medium text-text-mid mb-2">
                   {t('edit.licensePlate')}
                 </label>
                 <input
+                  id="wizard-license-plate"
                   type="text"
                   {...register('license_plate')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -410,10 +417,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">
+                <label htmlFor="wizard-purchase-date" className="block text-sm font-medium text-text-mid mb-2">
                   {t('edit.purchaseDate')}
                 </label>
                 <input
+                  id="wizard-purchase-date"
                   type="date"
                   {...register('purchase_date')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -422,10 +430,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">
+                <label htmlFor="wizard-purchase-price" className="block text-sm font-medium text-text-mid mb-2">
                   {t('edit.purchasePrice')}
                 </label>
                 <NumberInput
+                  id="wizard-purchase-price"
                   {...registerDecimal(register, 'purchase_price')}
                   invalid={!!errors.purchase_price}
                   placeholder="15 000,00"
@@ -438,8 +447,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('wizard.trim')}</label>
+                <label htmlFor="wizard-trim" className="block text-sm font-medium text-text-mid mb-2">{t('wizard.trim')}</label>
                 <input
+                  id="wizard-trim"
                   type="text"
                   {...register('trim')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -449,8 +459,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('edit.bodyClass')}</label>
+                <label htmlFor="wizard-body-class" className="block text-sm font-medium text-text-mid mb-2">{t('edit.bodyClass')}</label>
                 <input
+                  id="wizard-body-class"
                   type="text"
                   {...register('body_class')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -462,8 +473,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('edit.driveType')}</label>
+                <label htmlFor="wizard-drive-type" className="block text-sm font-medium text-text-mid mb-2">{t('edit.driveType')}</label>
                 <input
+                  id="wizard-drive-type"
                   type="text"
                   {...register('drive_type')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -473,8 +485,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('edit.doors')}</label>
+                <label htmlFor="wizard-doors" className="block text-sm font-medium text-text-mid mb-2">{t('edit.doors')}</label>
                 <NumberInput
+                  id="wizard-doors"
                   {...registerDecimal(register, 'doors')}
                   invalid={!!errors.doors}
                   placeholder="4"
@@ -487,8 +500,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('edit.displacement')}</label>
+                <label htmlFor="wizard-displacement" className="block text-sm font-medium text-text-mid mb-2">{t('edit.displacement')}</label>
                 <input
+                  id="wizard-displacement"
                   type="text"
                   {...register('displacement_l')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -498,8 +512,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('edit.cylinders')}</label>
+                <label htmlFor="wizard-cylinders" className="block text-sm font-medium text-text-mid mb-2">{t('edit.cylinders')}</label>
                 <NumberInput
+                  id="wizard-cylinders"
                   {...registerDecimal(register, 'cylinders')}
                   invalid={!!errors.cylinders}
                   placeholder="4"
@@ -531,8 +546,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('edit.transmissionType')}</label>
+                <label htmlFor="wizard-transmission-type" className="block text-sm font-medium text-text-mid mb-2">{t('edit.transmissionType')}</label>
                 <input
+                  id="wizard-transmission-type"
                   type="text"
                   {...register('transmission_type')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -542,8 +558,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-mid mb-2">{t('edit.transmissionSpeeds')}</label>
+                <label htmlFor="wizard-transmission-speeds" className="block text-sm font-medium text-text-mid mb-2">{t('edit.transmissionSpeeds')}</label>
                 <input
+                  id="wizard-transmission-speeds"
                   type="text"
                   {...register('transmission_speeds')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
@@ -563,10 +580,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
             </h3>
 
             <div>
-              <label className="block text-sm font-medium text-text-mid mb-2">
+              <label htmlFor="wizard-photos" className="block text-sm font-medium text-text-mid mb-2">
                 {t('wizard.misc.uploadPhotos')}
               </label>
               <input
+                id="wizard-photos"
                 type="file"
                 accept="image/*"
                 multiple

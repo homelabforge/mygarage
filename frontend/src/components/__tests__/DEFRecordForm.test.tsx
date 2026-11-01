@@ -18,14 +18,17 @@ const unitPrefMock = vi.hoisted(() => ({
 }))
 vi.mock('../../hooks/useUnitPreference', async () => {
   const { IMPERIAL_UNITS, METRIC_UNITS } = await import('@/__tests__/factories')
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
+    system: unitPrefMock.system,
+    showBoth: unitPrefMock.showBoth,
+    units:
+      unitPrefMock.units ??
+      (unitPrefMock.system === 'imperial' ? IMPERIAL_UNITS : METRIC_UNITS),
+  })
   return {
-    useUnitPreference: () => ({
-      system: unitPrefMock.system,
-      showBoth: unitPrefMock.showBoth,
-      units:
-        unitPrefMock.units ??
-        (unitPrefMock.system === 'imperial' ? IMPERIAL_UNITS : METRIC_UNITS),
-    }),
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
   }
 })
 vi.mock('../../hooks/useCurrencySymbol', () => ({ useCurrencySymbol: () => '$' }))
@@ -33,6 +36,7 @@ vi.mock('../../hooks/useCurrencySymbol', () => ({ useCurrencySymbol: () => '$' }
 import { UK_IMPERIAL_UNITS } from '../../__tests__/factories'
 import { UnitConverter } from '../../utils/units'
 import DEFRecordForm from '../DEFRecordForm'
+import { OVERWRITE_CHECK_MS } from '../ui/NumberInput'
 
 const DEFAULT_PROPS = { vin: 'TEST12345678901234', onClose: vi.fn(), onSuccess: vi.fn() }
 const defForm = () => document.getElementById('def-record-form') as HTMLFormElement
@@ -254,5 +258,37 @@ describe('DEFRecordForm — the gallon comes from the user, not the instance', (
     const payload = updateMock.mock.calls[0][0] as Record<string, unknown>
     expect(payload.liters).toBe(45.461)
     expect(payload.price_per_unit).toBe(1.31981548979)
+  })
+})
+
+describe('DEFRecordForm: the NumberInput ambiguity hint reaches a registerDecimal field', () => {
+  // The global i18n mock hands back the bare key, so the hint reads as its key here.
+  const hintFor = (id: string): HTMLElement | null => {
+    const input = document.getElementById(id) as HTMLInputElement
+    const ids = (input.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean)
+    return ids.map(d => document.getElementById(d)).find(el => el?.textContent === 'numberInput.readAs') ?? null
+  }
+
+  it('en "1,234" in the volume shows the hint, linked by aria-describedby, with no change to the form', () => {
+    render(<DEFRecordForm {...DEFAULT_PROPS} />)
+    expect(screen.queryByText('numberInput.readAs')).toBeNull()
+    fireEvent.change(document.getElementById('liters') as HTMLInputElement, { target: { value: '1,234' } })
+    const hint = screen.getByText('numberInput.readAs')
+    expect(hintFor('liters')).toBe(hint)
+  })
+
+  it('a cost the form recalculates drops the hint for the text the user typed there', async () => {
+    render(<DEFRecordForm {...DEFAULT_PROPS} />)
+    const cost = document.getElementById('cost') as HTMLInputElement
+    fireEvent.change(cost, { target: { value: '1,234' } })
+    expect(hintFor('cost')).not.toBeNull()
+    fireEvent.change(document.getElementById('liters') as HTMLInputElement, { target: { value: '5' } })
+    fireEvent.change(document.getElementById('price_per_unit') as HTMLInputElement, { target: { value: '2' } })
+    await waitFor(() => expect(cost.value).toBe('10'))
+    // setValue fires no event and no render here, so NumberInput notices on its next check.
+    // The timeout follows the interval, so slowing the check can't make this flaky.
+    await waitFor(() => expect(screen.queryByText('numberInput.readAs')).toBeNull(), {
+      timeout: OVERWRITE_CHECK_MS * 4,
+    })
   })
 })

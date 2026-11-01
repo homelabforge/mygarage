@@ -31,6 +31,7 @@ import { Button, Field, Input, Textarea, Mono } from './ui'
 import { formatCurrency, formatCurrencyZero } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { formatDateForInput } from '@/utils/dateUtils'
+import { withUnitSession } from '../contexts/UnitSession'
 
 // Shared by the edit-hydration effect (canonical -> display, via toDisplay),
 // the parts estimate and mapSuppliesUsedForSubmit (display -> canonical, via
@@ -78,7 +79,7 @@ const createEmptyLineItem = (tempId: number): ServiceVisitFormLineItem => ({
 
 const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
 
-export default function ServiceVisitForm({
+function ServiceVisitForm({
   vin,
   vehicleType,
   visit,
@@ -955,3 +956,6 @@ export default function ServiceVisitForm({
     </FormModalWrapper>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(ServiceVisitForm)

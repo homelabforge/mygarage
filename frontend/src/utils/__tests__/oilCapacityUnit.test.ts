@@ -37,7 +37,9 @@ describe('oilCapacityFormat', () => {
     // The defect supplies' legacy branch (supplyDisplayUnit) still has: one UK
     // quart is 1.1365225 L, not the US 0.946352946. Reading a UK entry with the US constant is 20.1% out.
     const f = oilCapacityFormat(UK)
-    expect(f.label).toBe('qt')
+    // D3: and it says so, since a bare 'qt' reads as the US one.
+    expect(f.label).toBe('qt (UK)')
+    expect(f.formatPrimary(1.1365225)).toBe('1.0 qt (UK)')
     expect(f.toCanonical(1)).toBeCloseTo(1.1365225, 6)
     expect(f.toCanonical(1)).not.toBeCloseTo(0.946352946, 3)
   })

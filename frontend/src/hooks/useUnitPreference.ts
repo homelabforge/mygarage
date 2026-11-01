@@ -56,9 +56,10 @@
  * the modifier while falling through to rung 3 for the set.
  */
 
-import { useMemo, useSyncExternalStore } from 'react';
+import { useContext, useMemo, useSyncExternalStore } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useVehicleDistanceUnit } from '../contexts/VehicleUnitScope';
+import { UnitSessionContext } from '../contexts/unitSessionContext';
 import type { components } from '../types/api.generated';
 import {
   basePresetFor,
@@ -142,10 +143,20 @@ function systemFor(user: UnitPreferenceFields): UnitSystem {
  * distance-DENOMINATED rates (cost and volume per distance), which stay with
  * the account like fuel economy. Everything else wants `useUnitPreference`.
  *
+ * Inside an open form's `UnitSession` it's the set that form opened with (R4).
+ *
  * @returns The binary system, the show-both flag, the gallon standard, and the
  *   fully resolved per-quantity set, all decided on the same rung.
  */
 export function useAccountUnitPreference(): UnitPreference {
+  // Live hooks run every render (rules of hooks), then the pin wins.
+  const live = useLiveAccountUnitPreference();
+  const pinned = useContext(UnitSessionContext);
+  return pinned ?? live;
+}
+
+/** The four rungs, read live. Only `useAccountUnitPreference` calls this. */
+function useLiveAccountUnitPreference(): UnitPreference {
   const { user, isAuthenticated, defaultUnitPrefs } = useAuth();
   // Subscribed rather than read during render, which is what makes the Settings
   // card's own controls repaint the screen behind them: the store parses once at

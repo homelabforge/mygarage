@@ -65,8 +65,9 @@ vi.mock('@tanstack/react-query', () => ({
 // Metric, so the odometer fields submit what is typed and the assertions below
 // are about the moves rather than about a conversion. Conversion has its own
 // coverage in TireList.metric.test.tsx.
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({
+vi.mock('../../hooks/useUnitPreference', () => {
+  // UnitSession reads the account half too; same answer, nothing to pin here.
+  const unitPreference = () => ({
     system: 'metric',
     showBoth: false,
     gallonStandard: 'us',
@@ -86,8 +87,12 @@ vi.mock('../../hooks/useUnitPreference', () => ({
       tread: 'mm',
       volume: 'L',
     },
-  }),
-}))
+  })
+  return {
+    useUnitPreference: unitPreference,
+    useAccountUnitPreference: unitPreference,
+  }
+})
 
 import TireList from '../TireList'
 import { formatDateForInput } from '../../utils/dateUtils'

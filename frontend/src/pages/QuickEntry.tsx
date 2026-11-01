@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactElement, type ReactNode } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
@@ -16,7 +16,7 @@ import { useQuickEntryVehicles } from '../hooks/queries/useQuickEntryVehicles'
 import { vehicleLabel } from '../utils/vehicleLabel'
 import { withBase } from '../utils/basePath'
 import { fillUpKind, vehicleLogKinds } from '../utils/vehicleLogKinds'
-import { VehicleUnitScope, type VehicleDistanceUnit } from '../contexts/VehicleUnitScope'
+import { VehicleUnitScope } from '../contexts/VehicleUnitScope'
 
 type EntryType = 'fuel' | 'def' | 'propane' | 'service' | 'odometer' | 'hours' | null
 
@@ -27,26 +27,6 @@ interface Action {
   tint: string
   title: string
   description: string
-}
-
-/**
- * Holds a vehicle's odometer unit for the life of one open form (#172).
- *
- * The vehicle list refetches in the background (30 s stale, on focus), so a
- * unit changed on another device can arrive while a form holds typed text.
- * Captured synchronously on mount (a lazy state initialiser, never an effect,
- * which would render the first frame in the account's unit) and keyed on the
- * entry and vehicle, so the next form opens with the new one.
- */
-function EntryUnitSession({
-  distanceUnit,
-  children,
-}: {
-  distanceUnit: VehicleDistanceUnit
-  children: ReactNode
-}): ReactElement {
-  const [captured] = useState(() => distanceUnit)
-  return <VehicleUnitScope distanceUnit={captured}>{children}</VehicleUnitScope>
 }
 
 export default function QuickEntry() {
@@ -244,10 +224,12 @@ export default function QuickEntry() {
         )}
       </main>
 
-      {/* Modal forms — opened by action buttons. Each holds the vehicle's
-          odometer unit it opened with until it closes (#172). */}
+      {/* Modal forms, opened by the action buttons. Each form pins the
+          vehicle's odometer unit and the account set itself when it mounts
+          (R4), so this scope stays live. The key remounts the form if a deep
+          link swaps the vehicle under it. */}
       {openEntry !== null && selectedVehicle && (
-        <EntryUnitSession key={`${openEntry}:${selectedVin}`} distanceUnit={selectedVehicle.distance_unit}>
+        <VehicleUnitScope key={`${openEntry}:${selectedVin}`} distanceUnit={selectedVehicle.distance_unit}>
           {openEntry === 'fuel' && (
             <FuelRecordForm
               vin={selectedVin}
@@ -296,7 +278,7 @@ export default function QuickEntry() {
               onSuccess={() => handleSuccess('hours')}
             />
           )}
-        </EntryUnitSession>
+        </VehicleUnitScope>
       )}
     </div>
   )

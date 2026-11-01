@@ -13,6 +13,7 @@ import { canonicalFromUnitField } from '../../utils/unitFormat'
 import MountEventFields, { EMPTY_ODOMETER, type OdometerFieldValue } from '../tires/MountEventFields'
 import { Button, Drawer, Field, Input } from '../ui'
 import { useBrakeText } from './useBrakeText'
+import { withUnitSession } from '../../contexts/UnitSession'
 
 /** The figures one corner's fieldset holds, as typed, in mm. */
 interface CornerFields {
@@ -54,7 +55,7 @@ interface LogBrakeMeasurementsDrawerProps {
  * together. A corner left blank is skipped. Remount it (with a `key`) to start
  * the form over.
  */
-export default function LogBrakeMeasurementsDrawer({
+function LogBrakeMeasurementsDrawer({
   vin,
   overview,
   open,
@@ -192,3 +193,6 @@ export default function LogBrakeMeasurementsDrawer({
     </Drawer>
   )
 }
+
+// Pins its units for as long as it is open (R4).
+export default withUnitSession(LogBrakeMeasurementsDrawer)
