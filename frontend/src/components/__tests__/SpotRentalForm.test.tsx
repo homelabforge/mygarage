@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands } from '../../__tests__/serverErrors'
 import type { SpotRental } from '../../types/spotRental'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -168,5 +169,63 @@ describe('SpotRentalForm — nested Save-to-Address-Book confirm (LD8 wiring net
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
     expect(onSuccess).toHaveBeenCalledTimes(1)
     expect(apiPost).not.toHaveBeenCalled()
+  })
+})
+
+describe('SpotRentalForm: a rejected save', () => {
+  const rentalForm = (): HTMLFormElement => document.getElementById('spot-rental-form') as HTMLFormElement
+  const banner = (): HTMLElement | null => screen.queryByText(/^Failed to spotRental\.saveAction\./)
+  const openFilled = (): void => {
+    render(<SpotRentalForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    fireEvent.change(document.getElementById('check_in_date')!, { target: { value: '2026-03-01' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    createMutateAsync.mockRejectedValueOnce(new Error('Network Error'))
+    openFilled()
+    await submitAndSettle(rentalForm())
+
+    expect(screen.getByText('Failed to spotRental.saveAction. Network Error')).toBeInTheDocument()
+    expect(document.getElementById('check_in_date-error')).toBeNull()
+  })
+
+  it('a 422 on the check-in date shows under it and no banner', async () => {
+    createMutateAsync.mockRejectedValueOnce(validationError({ check_in_date: 'Input should be a valid date' }))
+    openFilled()
+    await submitAndSettle(rentalForm())
+
+    expect(document.getElementById('check_in_date-error')).toHaveTextContent('Input should be a valid date')
+    expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today: the rate
+  // type picker is controlled and carries no name.
+  const UI_ONLY: string[] = []
+  // In knownFields but nameless: the location box is controlled, and its error
+  // shows under that box.
+  const CONTROLLED = ['location_name']
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show under that field. Only one rate field is on screen
+  // at a time, so it walks the three rate types. Mutant: drop a name from
+  // knownFields and it banners.
+  it('guard: a 422 on each field shows under it', async () => {
+    openFilled()
+    const checked = new Set<string>()
+    const wrong: string[] = []
+    for (const rateType of ['nightly', 'weekly', 'monthly']) {
+      fireEvent.change(document.getElementById('rate_type')!, { target: { value: rateType } })
+      const names = [...registeredFieldNames(rentalForm(), UI_ONLY), ...CONTROLLED].filter((n) => !checked.has(n))
+      for (const name of names) {
+        checked.add(name)
+        const got = await whereA422Lands(rentalForm(), createMutateAsync, name, `bad ${name}`, banner)
+        if (got !== 'field') wrong.push(`${name}: ${got}`)
+      }
+    }
+    expect(wrong).toEqual([])
+    // An empty sweep would pass, so pin the names it must contain.
+    expect([...checked]).toEqual(
+      expect.arrayContaining(['nightly_rate', 'weekly_rate', 'monthly_rate', 'total_cost', 'check_in_date', ...CONTROLLED])
+    )
   })
 })

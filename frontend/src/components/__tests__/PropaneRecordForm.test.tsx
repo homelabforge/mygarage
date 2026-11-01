@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands } from '../../__tests__/serverErrors'
 
 const createMock = vi.fn().mockResolvedValue({})
 const updateMock = vi.fn().mockResolvedValue({})
@@ -332,5 +333,53 @@ describe('PropaneRecordForm — the gallon comes from the user, not the instance
     const payload = updateMock.mock.calls[0][0] as Record<string, unknown>
     expect(payload.propane_liters).toBe(45.461)
     expect(payload.price_per_unit).toBe(1.31981548979)
+  })
+})
+
+describe('PropaneRecordForm: a rejected save', () => {
+  const banner = (): HTMLElement | null => screen.queryByText(/^Failed to propane\.saveAction\./)
+  const openFilled = (): void => {
+    render(<PropaneRecordForm {...DEFAULT_PROPS} />)
+    fireEvent.change(document.getElementById('date') as HTMLInputElement, { target: { value: '2026-03-01' } })
+    fireEvent.change(document.getElementById('propane_liters') as HTMLInputElement, { target: { value: '35.7' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    createMock.mockRejectedValueOnce(new Error('Network Error'))
+    openFilled()
+    await submitAndSettle(propaneForm())
+
+    expect(screen.getByText('Failed to propane.saveAction. Network Error')).toBeInTheDocument()
+    expect(document.getElementById('propane_liters-error')).toBeNull()
+  })
+
+  it('a 422 on the volume shows under it and no banner', async () => {
+    createMock.mockRejectedValueOnce(validationError({ propane_liters: 'Input should be greater than 0' }))
+    openFilled()
+    await submitAndSettle(propaneForm())
+
+    expect(document.getElementById('propane_liters-error')).toHaveTextContent('Input should be greater than 0')
+    expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today: vendor is
+  // folded into notes but still has its own error slot.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show under that field. Mutant: drop a name from
+  // knownFields and it banners.
+  it('guard: a 422 on each field shows under it', async () => {
+    openFilled()
+    const names = registeredFieldNames(propaneForm(), UI_ONLY)
+    // An empty sweep would pass, so pin the names it must contain.
+    expect(names).toEqual(expect.arrayContaining(['date', 'tank_size_kg', 'tank_quantity', 'propane_liters', 'price_per_unit', 'cost']))
+
+    const wrong: string[] = []
+    for (const name of names) {
+      const got = await whereA422Lands(propaneForm(), createMock, name, `bad ${name}`, banner)
+      if (got !== 'field') wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

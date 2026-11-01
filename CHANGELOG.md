@@ -241,6 +241,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Two backups uploaded in the same second no longer overwrite each other
 - A server error on the odometer unit, an EV charging field or a supply barcode shows under that field instead of a generic save error
 - On a fill-up, an error on the driver or the OBC trip duration shows under that field, and a server error on one of the checkboxes shows the save error instead of nothing
+- Logging a supply purchase shows errors on the date, supplier and part number under the field (an empty date says it's required), and a server error on a recall's resolved checkbox shows the save error instead of nothing
 
 ### Security
 - A sign-in token with no expiry is refused instead of never expiring

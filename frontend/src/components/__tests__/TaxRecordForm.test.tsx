@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands } from '../../__tests__/serverErrors'
 import type { TaxRecord } from '../../types/tax'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -159,5 +160,53 @@ describe('TaxRecordForm: the renewal date and type are optional and can be clear
     await user.click(screen.getByRole('button', { name: 'common:update' }))
     await waitFor(() => expect(updateMutateAsync).toHaveBeenCalledTimes(1))
     expect(updateMutateAsync.mock.calls[0][0]).toMatchObject({ renewal_date: null, tax_type: null })
+  })
+})
+
+describe('TaxRecordForm: a rejected save', () => {
+  const taxForm = (): HTMLFormElement => document.getElementById('tax-record-form') as HTMLFormElement
+  const banner = (): HTMLElement | null => screen.queryByText(/^Failed to tax\.saveAction\./)
+  const openFilled = (): void => {
+    render(<TaxRecordForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    fireEvent.change(document.getElementById('date')!, { target: { value: '2026-03-01' } })
+    fireEvent.change(document.getElementById('amount')!, { target: { value: '85.50' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    createMutateAsync.mockRejectedValueOnce(new Error('Network Error'))
+    openFilled()
+    await submitAndSettle(taxForm())
+
+    expect(screen.getByText('Failed to tax.saveAction. Network Error')).toBeInTheDocument()
+    expect(document.getElementById('amount-error')).toBeNull()
+  })
+
+  it('a 422 on amount shows under amount and no banner', async () => {
+    createMutateAsync.mockRejectedValueOnce(validationError({ amount: 'Input should be greater than or equal to 0' }))
+    openFilled()
+    await submitAndSettle(taxForm())
+
+    expect(document.getElementById('amount-error')).toHaveTextContent('Input should be greater than or equal to 0')
+    expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show under that field. Mutant: drop a name from
+  // knownFields and it banners.
+  it('guard: a 422 on each field shows under it', async () => {
+    openFilled()
+    const names = registeredFieldNames(taxForm(), UI_ONLY)
+    // An empty sweep would pass, so pin the names it must contain.
+    expect(names).toEqual(expect.arrayContaining(['date', 'tax_type', 'amount', 'renewal_date', 'notes']))
+
+    const wrong: string[] = []
+    for (const name of names) {
+      const got = await whereA422Lands(taxForm(), createMutateAsync, name, `bad ${name}`, banner)
+      if (got !== 'field') wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

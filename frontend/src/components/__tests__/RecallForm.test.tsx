@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands } from '../../__tests__/serverErrors'
 import type { Recall } from '../../types/recall'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -99,5 +100,66 @@ describe('RecallForm: the announce date is optional and can be cleared', () => {
     fireEvent.click(screen.getByRole('button', { name: 'recall.updateRecall' }))
     await waitFor(() => expect(updateMutateAsync).toHaveBeenCalledTimes(1))
     expect(updateMutateAsync.mock.calls[0][0].date_announced).toBeNull()
+  })
+})
+
+describe('RecallForm: a rejected save', () => {
+  const recallForm = (): HTMLFormElement => document.getElementById('recall-form') as HTMLFormElement
+  const banner = (): HTMLElement | null => screen.queryByText(/^Failed to recall\.saveAction\./)
+  const openFilled = (): void => {
+    render(<RecallForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    fireEvent.change(document.getElementById('component')!, { target: { value: 'Brakes' } })
+    fireEvent.change(document.getElementById('summary')!, { target: { value: 'Brake line corrosion' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    createMutateAsync.mockRejectedValueOnce(new Error('Network Error'))
+    openFilled()
+    await submitAndSettle(recallForm())
+
+    expect(screen.getByText('Failed to recall.saveAction. Network Error')).toBeInTheDocument()
+    expect(document.getElementById('component-error')).toBeNull()
+  })
+
+  it('a 422 on component shows under component and no banner', async () => {
+    createMutateAsync.mockRejectedValueOnce(validationError({ component: 'String should have at most 200 characters' }))
+    openFilled()
+    await submitAndSettle(recallForm())
+
+    expect(document.getElementById('component-error')).toHaveTextContent('String should have at most 200 characters')
+    expect(banner()).toBeNull()
+  })
+
+  it('a 422 on the resolved checkbox shows the banner, since a checkbox has nowhere to show it', async () => {
+    createMutateAsync.mockRejectedValueOnce(validationError({ is_resolved: 'Input should be a valid boolean' }))
+    openFilled()
+    await submitAndSettle(recallForm())
+
+    expect(banner()).toHaveTextContent('Failed to recall.saveAction. Please check your input.')
+  })
+
+  // Named controls that aren't payload fields go here. None today.
+  const UI_ONLY: string[] = []
+  // Checkboxes have no inline error, so they stay out of knownFields and a 422
+  // on one goes to the banner.
+  const BANNER_ROUTED = ['is_resolved']
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show up, under the field or, for a checkbox, in the banner.
+  // Mutants: drop a name from knownFields (it banners), or put is_resolved back
+  // (it goes silent).
+  it('guard: a 422 on each field shows under it, or in the banner for the checkbox', async () => {
+    openFilled()
+    const names = registeredFieldNames(recallForm(), UI_ONLY)
+    // An empty sweep would pass, so pin a few names it must contain.
+    expect(names).toEqual(expect.arrayContaining(['component', 'summary', 'date_announced', ...BANNER_ROUTED]))
+
+    const wrong: string[] = []
+    for (const name of names) {
+      const want = BANNER_ROUTED.includes(name) ? 'banner' : 'field'
+      const got = await whereA422Lands(recallForm(), createMutateAsync, name, `bad ${name}`, banner)
+      if (got !== want) wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

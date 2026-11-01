@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands } from '../../__tests__/serverErrors'
 import type { TollTag, TollTransaction } from '../../types/toll'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -196,5 +197,54 @@ describe('TollTransactionForm: the amount is required', () => {
     await user.click(screen.getByRole('button', { name: 'toll.addTransaction' }))
     expect(await screen.findByText('common:validation.amount.required')).toBeInTheDocument()
     expect(createMutateAsync).not.toHaveBeenCalled()
+  })
+})
+
+describe('TollTransactionForm: a rejected save', () => {
+  const tollForm = (): HTMLFormElement => document.getElementById('toll-transaction-form') as HTMLFormElement
+  const banner = (): HTMLElement | null => screen.queryByText(/^Failed to toll\.saveTransactionAction\./)
+  const openFilled = (): void => {
+    render(<TollTransactionForm vin="V1" tollTags={[activeTag]} onClose={vi.fn()} onSuccess={vi.fn()} />)
+    fireEvent.change(document.getElementById('transaction_date')!, { target: { value: '2026-02-01' } })
+    fireEvent.change(document.getElementById('amount')!, { target: { value: '4.50' } })
+    fireEvent.change(document.getElementById('location')!, { target: { value: 'Main St Toll' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    createMutateAsync.mockRejectedValueOnce(new Error('Network Error'))
+    openFilled()
+    await submitAndSettle(tollForm())
+
+    expect(screen.getByText('Failed to toll.saveTransactionAction. Network Error')).toBeInTheDocument()
+    expect(document.getElementById('location-error')).toBeNull()
+  })
+
+  it('a 422 on location shows under location and no banner', async () => {
+    createMutateAsync.mockRejectedValueOnce(validationError({ location: 'String should have at most 200 characters' }))
+    openFilled()
+    await submitAndSettle(tollForm())
+
+    expect(document.getElementById('location-error')).toHaveTextContent('String should have at most 200 characters')
+    expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show under that field. Mutant: drop a name from
+  // knownFields and it banners.
+  it('guard: a 422 on each field shows under it', async () => {
+    openFilled()
+    const names = registeredFieldNames(tollForm(), UI_ONLY)
+    // An empty sweep would pass, so pin the names it must contain.
+    expect(names).toEqual(expect.arrayContaining(['transaction_date', 'amount', 'location', 'toll_tag_id', 'notes']))
+
+    const wrong: string[] = []
+    for (const name of names) {
+      const got = await whereA422Lands(tollForm(), createMutateAsync, name, `bad ${name}`, banner)
+      if (got !== 'field') wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

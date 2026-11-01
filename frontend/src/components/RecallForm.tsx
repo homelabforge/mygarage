@@ -81,7 +81,8 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
     } catch (err) {
       // attached.length === 0 catches a non-422 failure (network drop, 500):
       // it carries no field problems at all, so `unhandled` alone would stay
-      // empty and this banner would never show.
+      // empty and this banner would never show. The resolved checkbox isn't
+      // listed: it has nowhere to show an error, so its errors go to the banner.
       const { attached, unhandled } = applyServerErrors<RecallFormData>(setFieldError, err, [
         'nhtsa_campaign_number',
         'component',
@@ -89,7 +90,6 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
         'consequence',
         'remedy',
         'date_announced',
-        'is_resolved',
         'notes',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
