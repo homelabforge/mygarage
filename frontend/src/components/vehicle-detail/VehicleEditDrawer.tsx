@@ -680,7 +680,7 @@ function VehicleEditForm({
 /**
  * The drawer stays mounted while closed, so each open takes a fresh pin (R4).
  * Account set only: it edits the vehicle's own odometer unit and converts no
- * distance, and VehicleDetail's scope already remounts it on a unit change.
+ * distance, so there's no vehicle unit to pin.
  */
 export default function VehicleEditDrawer(props: VehicleEditDrawerProps): ReactElement {
   return (

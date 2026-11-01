@@ -257,6 +257,8 @@ export default function UnitPreferencesCard(): React.ReactElement {
         busy={saving}
         onSelect={(selection) => void applySelection(selection)}
         description={
+          // Labels come straight off the adapters, so a UK account reads
+          // "gal (UK)" and "MPG (UK)" here and the two gallons no longer look alike.
           <p className="mt-2 text-sm text-garage-text-muted">
             {t('units.resolvedDescription', { units: resolvedUnitSummary(editorUnits) })}
           </p>
