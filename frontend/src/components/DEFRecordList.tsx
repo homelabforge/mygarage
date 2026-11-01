@@ -178,7 +178,7 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
             <Card padding="sm">
               <div className="flex items-center gap-1 text-xs text-text-mute mb-1">
                 <TrendingDown aria-hidden="true" className="w-3 h-3" />
-                <span>Est. {u.distance.label} Left</span>
+                <span>{t('defList.estimatedRemaining', { unit: u.distance.label })}</span>
               </div>
               <Mono size="2xl" weight="bold" tone={remainingTone(parseNum(analytics.estimated_km_remaining) ?? 0)}>
                 {u.distance.toDisplayText(parseNum(analytics.estimated_km_remaining) ?? 0)}

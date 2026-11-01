@@ -167,6 +167,7 @@
     "deleteError": "Failed to delete DEF record",
     "deleted": "DEF record deleted",
     "estimatedDays": "~{{count}} days",
+    "estimatedRemaining": "Est. {{unit}} Left",
     "estimates": "Estimates",
     "fillLevel": "Fill Level",
     "gallons": "Gallons",

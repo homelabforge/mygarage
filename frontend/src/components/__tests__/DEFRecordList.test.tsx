@@ -234,7 +234,7 @@ describe('DEFRecordList — one gallon per page, taken from the user', () => {
     render(<DEFRecordList vin="TEST12345678901234" />)
 
     // A distance: the vehicle's miles.
-    expect(screen.getByText('Est. mi Left')).toBeInTheDocument()
+    expect(screen.getByText('defList.estimatedRemaining (mi)')).toBeInTheDocument()
     // A rate with distance underneath: the account's, number and label.
     expect(screen.getByText('4.7')).toBeInTheDocument()
     expect(screen.getByText('L/1,000 km')).toBeInTheDocument()

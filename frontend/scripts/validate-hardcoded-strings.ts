@@ -44,7 +44,7 @@ import { ROOT } from './translation-utils'
 const SRC_DIR = join(ROOT, 'src')
 const BASELINE_PATH = join(ROOT, 'scripts', 'hardcoded-strings.baseline.json')
 
-interface Finding {
+export interface Finding {
   file: string
   kind: string
   text: string
@@ -79,8 +79,11 @@ const JSX_TEXT = />([^<>{}\n]{3,})</g
 const NON_PROSE =
   /^(true|false|null|undefined|button|submit|reset|text|number|date|email|password|checkbox|radio|file|search|tel|url|month|time|week|color|range|hidden|image|https?:|\/|#|[A-Z_]+_[A-Z_]+)$/i
 
-/** Requires either two real words, or one capitalized word of 4+ letters. */
-const LOOKS_LIKE_PROSE = /[A-Za-z]{2,}[\s'’-]+[A-Za-z]{2,}|^[A-Z][a-z]{3,}$/
+/**
+ * Requires two real words, one capitalized word of 4+ letters, or one
+ * capitalized word with a trailing dot ("Est.", "Done.").
+ */
+const LOOKS_LIKE_PROSE = /[A-Za-z]{2,}[\s'’-]+[A-Za-z]{2,}|^[A-Z][a-z]{3,}$|^[A-Z][a-z]+\.$/
 
 function isUserFacing(raw: string): boolean {
   const s = raw.trim()
@@ -184,9 +187,15 @@ function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
   const withComments = stripImports(rawSource)
   for (const m of source.matchAll(JSX_TEXT_MULTILINE)) {
     const raw = m[1]
+    const opener = m[0][0]
+    const closer = m[0][m[0].length - 1]
     // `=> Promise<void>`: the arrow's own `>` is not a JSX delimiter.
     if ((m.index ?? 0) > 0 && source[(m.index ?? 0) - 1] === '=') continue
     if (CODE_PUNCTUATION.test(raw)) continue
+    // `} as Record<...>` is a TS assertion, not text after an expression. Its `<`
+    // opens a generic; `{name} as Owner</p>` closes a tag and is still prose.
+    const end = (m.index ?? 0) + m[0].length
+    if (opener === '}' && /^\s*as\s+[A-Z]/.test(raw) && source[end] !== '/') continue
     // string literals and code identifiers, never JSX prose (which uses &apos;)
     if (/['"`]/.test(raw)) continue
     if (CODE_KEYWORD.test(raw)) continue
@@ -194,8 +203,9 @@ function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
     if ((raw.match(/\n/g) ?? []).length > 3) continue
     const text = raw.replace(/\s+/g, ' ').trim()
     if (!isUserFacing(text)) continue
-    // single-line hits are already covered by the line scanner
-    if (!raw.includes('\n')) continue
+    // The line scanner only sees `>text<` on one line. Text touching a {brace}
+    // is never its job, so that stays here.
+    if (!raw.includes('\n') && opener === '>' && closer === '<') continue
     const line = source.slice(0, m.index).split('\n').length
     const context = withComments.slice(Math.max(0, m.index - 200), m.index)
     if (context.includes('i18n-exempt')) continue
@@ -204,14 +214,13 @@ function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
   return findings
 }
 
-function scanFile(path: string): Finding[] {
+/**
+ * Scan one file's source. Split out from the file walk so the rules can be
+ * tested against fixture strings.
+ */
+export function scanSource(source: string, rel: string, isJsx: boolean): Finding[] {
   const findings: Finding[] = []
-  const rel = relative(ROOT, path)
-  const source = readFileSync(path, 'utf-8')
   const lines = source.split('\n')
-  // Plain .ts holds no JSX, and running the JSX scanners over it just mines
-  // generics and comparisons for noise. Only the literal-based rules apply.
-  const isJsx = path.endsWith('.tsx')
 
   lines.forEach((line, idx) => {
     const trimmed = line.trim()
@@ -248,6 +257,12 @@ function scanFile(path: string): Finding[] {
   if (isJsx) findings.push(...scanMultilineJsx(source, rel))
 
   return findings
+}
+
+function scanFile(path: string): Finding[] {
+  // Plain .ts holds no JSX, and running the JSX scanners over it just mines
+  // generics and comparisons for noise. Only the literal-based rules apply.
+  return scanSource(readFileSync(path, 'utf-8'), relative(ROOT, path), path.endsWith('.tsx'))
 }
 
 /** Stable identity for a finding — deliberately excludes the line number. */
@@ -318,4 +333,5 @@ function main(): void {
   )
 }
 
-main()
+// Guarded so the tests can import scanSource() without running the gate.
+if (import.meta.main) main()
