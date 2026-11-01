@@ -36,6 +36,21 @@ describe('parseApiError on a FastAPI 422', () => {
   })
 })
 
+describe('getActionErrorMessage on a 500', () => {
+  it('fills the action and the status message into the template', () => {
+    // setup.ts inits the real i18next singleton, so this is what a user reads.
+    // Without it tSafe hands back the raw "{{action}}" template.
+    const axios500 = {
+      isAxiosError: true,
+      message: 'Request failed with status code 500',
+      response: { status: 500, data: {} },
+    }
+    expect(getActionErrorMessage(axios500, 'save the record')).toBe(
+      'Failed to save the record. An unexpected server error occurred.'
+    )
+  })
+})
+
 // Regression fence for Task 10c review IMPORTANT finding: getActionErrorMessage
 // only surfaced `detail` for 400/422/409, so a 404 raised as
 // `HTTPException(404, "X not found")` fell through to the generic "requested
@@ -108,12 +123,10 @@ describe('getActionErrorMessage on a 404', () => {
     // `responseType: 'blob'` download sites, where axios leaves the error
     // body an unreadable Blob, so `.detail` can never resolve there
     // regardless of what the backend raised). getActionErrorMessage now
-    // falls through to the translated `actionFailedCheckInput` template —
-    // asserted as the literal, un-interpolated default value since this
-    // suite's i18next singleton isn't initialized outside a rendered
-    // component (see ReminderForm.test.tsx:114 for the same pattern).
+    // falls through to the translated `actionFailedCheckInput` template,
+    // with the action filled in by the en singleton from setup.ts.
     const message = getActionErrorMessage(axios404(), 'restore the backup')
-    expect(message).toBe('Failed to {{action}}. Please check your input.')
+    expect(message).toBe('Failed to restore the backup. Please check your input.')
   })
 
   it('surfaces a 404 detail that is a validation-problem array as the generic phrasing, never stringified', () => {
@@ -133,7 +146,7 @@ describe('getActionErrorMessage on a 404', () => {
       'restore the backup'
     )
     expect(message).not.toContain('[object Object]')
-    expect(message).toBe('Failed to {{action}}. Please check your input.')
+    expect(message).toBe('Failed to restore the backup. Please check your input.')
   })
 })
 

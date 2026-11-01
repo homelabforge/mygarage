@@ -35,7 +35,7 @@ class TestWritersRefuseInMaintenanceMode:
 
         with pytest.raises(MaintenanceModeError):
             await TelemetryService(db_session).store_telemetry(
-                "1HGBH41JXMN109186", "dev-1", {"SPEED": 40}, {}
+                "1HGCM82633A004352", "dev-1", {"SPEED": 40}, {}
             )
 
     async def test_bulk_backfill_refuses(self, db_session, maintenance_on):
@@ -43,7 +43,7 @@ class TestWritersRefuseInMaintenanceMode:
         from app.services.telemetry_service import TelemetryService
 
         with pytest.raises(MaintenanceModeError):
-            await TelemetryService(db_session).bulk_backfill("1HGBH41JXMN109186", "dev-1", [])
+            await TelemetryService(db_session).bulk_backfill("1HGCM82633A004352", "dev-1", [])
 
     async def test_bulk_backfill_refuses_before_it_looks_at_its_rows(
         self, db_session, maintenance_on
@@ -58,7 +58,7 @@ class TestWritersRefuseInMaintenanceMode:
 
         with pytest.raises(MaintenanceModeError):
             await TelemetryService(db_session).bulk_backfill(
-                "1HGBH41JXMN109186", "dev-1", [object()]
+                "1HGCM82633A004352", "dev-1", [object()]
             )
 
 

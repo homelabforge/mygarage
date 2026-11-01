@@ -9,27 +9,6 @@ import pytest
 from httpx import AsyncClient
 
 
-@pytest.fixture(autouse=True)
-def _reset_export_rate_limit():
-    """Reset export routes' shared limiter storage before each test.
-
-    ``routes/export.py`` defines a single module-level ``Limiter`` shared by
-    every export endpoint (5/minute, deliberately strict for expensive
-    CSV/JSON generation). Without a reset, cumulative calls across this
-    file's tests (including ``test_export_rate_limiting``'s intentional
-    10-call burst) exhaust the budget and later tests intermittently 429
-    regardless of their own logic. Mirrors the precedent in
-    ``test_auth.py``'s ``TestCookieSecureFlag._reset_rate_limits``.
-    """
-    from app.routes.export import limiter as export_limiter
-
-    storage = export_limiter._storage
-    storage.storage.clear()
-    storage.expirations.clear()
-    if hasattr(storage, "events"):
-        storage.events.clear()
-
-
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.slow

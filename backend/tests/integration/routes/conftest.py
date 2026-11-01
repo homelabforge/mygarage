@@ -12,7 +12,7 @@ row => get_auth_mode returns ``local``), so ``require_auth`` /
 """
 
 import uuid
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import pytest
 import pytest_asyncio
@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import parse_client_ip_header, parse_trusted_proxies, settings
 from app.main import app
+from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_share import VehicleShare
@@ -98,6 +99,44 @@ async def admin_user(db_session: AsyncSession) -> User:
     return await _get_or_create_user(db_session, "authz_admin", is_admin=True)
 
 
+@pytest_asyncio.fixture
+async def made_users(db_session: AsyncSession) -> AsyncIterator[list[str]]:
+    """Usernames a test creates, deleted afterwards."""
+    names: list[str] = []
+    yield names
+    await db_session.rollback()
+    await db_session.execute(delete(User).where(User.username.in_(names)))
+    await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def multi_user_on(db_session: AsyncSession) -> AsyncIterator[None]:
+    """multi_user_enabled on for one test, then put back.
+
+    A stored "false" stops create_user at its 403, before the write and the log line.
+    """
+    row = (
+        await db_session.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
+    ).scalar_one_or_none()
+    before = row.value if row is not None else None
+    if row is None:
+        db_session.add(Setting(key="multi_user_enabled", value="true"))
+    else:
+        row.value = "true"
+    await db_session.commit()
+    yield
+    await db_session.rollback()
+    row = (
+        await db_session.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
+    ).scalar_one_or_none()
+    if before is None:
+        if row is not None:
+            await db_session.delete(row)
+    elif row is not None:
+        row.value = before
+    await db_session.commit()
+
+
 # --- The owned vehicle + shares ----------------------------------------------
 
 AUTHZ_VIN = "WAUZZZ8K9AA000001"
@@ -156,33 +195,6 @@ async def owned_vehicle(
 
 
 # --- A throwaway vehicle for legacy-row reads ---------------------------------
-
-
-@pytest_asyncio.fixture
-async def own_vehicle(
-    db_session: AsyncSession, test_user: dict[str, object]
-) -> AsyncGenerator[Vehicle]:
-    """A fresh vehicle, deleted afterwards with every record on it. What a test
-    writes here would otherwise land in the test user's garage-wide totals."""
-    vehicle = Vehicle(
-        vin="LEG" + uuid.uuid4().hex[:14].upper(),
-        user_id=test_user["id"],
-        nickname="Legacy Money",
-        vehicle_type="Car",
-        year=2015,
-        make="Honda",
-        model="Fit",
-    )
-    db_session.add(vehicle)
-    await db_session.commit()
-    vin = vehicle.vin
-    yield vehicle
-    # A failed read rolls the session back, so look the vehicle up again.
-    await db_session.rollback()
-    stored = await db_session.get(Vehicle, vin)
-    if stored is not None:
-        await db_session.delete(stored)
-        await db_session.commit()
 
 
 # --- Header fixtures ----------------------------------------------------------
@@ -282,18 +294,7 @@ async def client_via(client: AsyncClient) -> AsyncIterator[Callable[[str], Async
         await via.aclose()
 
 
-# --- Import rate limits and throwaway vehicles --------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _reset_import_limiter() -> None:
-    """Each test starts with the import routes' 20 a minute and the export's
-    5 a minute unspent (K6). The new JSON modules export more than 5 times."""
-    from app.routes.export import limiter as export_limiter
-    from app.routes.import_data import limiter as import_limiter
-
-    import_limiter.reset()
-    export_limiter.reset()
+# --- Throwaway vehicles --------------------------------------------------------
 
 
 @pytest_asyncio.fixture

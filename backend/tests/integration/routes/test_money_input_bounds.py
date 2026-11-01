@@ -6,50 +6,22 @@ ordinary forint payment and fill-up, a per-tank propane price, the largest
 amount a column holds, and a negative vehicle price, which used to save.
 """
 
-import uuid
-from collections.abc import AsyncGenerator
 from decimal import Decimal
 from typing import Any
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.vehicle import Vehicle
 from app.schemas._money import MONEY_MAX
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.asyncio,
+    pytest.mark.own_vehicle(fuel_type="gas"),
+]
 
 CENT = Decimal("0.01")
 DAY = "2026-01-15"
-
-
-@pytest_asyncio.fixture
-async def own_vehicle(
-    db_session: AsyncSession, test_user: dict[str, object]
-) -> AsyncGenerator[Vehicle]:
-    """A fresh vehicle, deleted afterwards with every record on it. Amounts this
-    size would otherwise land in the test user's garage-wide totals."""
-    vehicle = Vehicle(
-        vin="HUF" + uuid.uuid4().hex[:14].upper(),
-        user_id=test_user["id"],
-        nickname="Forint Money",
-        vehicle_type="Car",
-        year=2018,
-        make="Suzuki",
-        model="Vitara",
-        fuel_type="gas",
-    )
-    db_session.add(vehicle)
-    await db_session.commit()
-    vin = vehicle.vin
-    yield vehicle
-    await db_session.rollback()
-    stored = await db_session.get(Vehicle, vin)
-    if stored is not None:
-        await db_session.delete(stored)
-        await db_session.commit()
 
 
 async def _post(client: AsyncClient, headers: dict[str, str], url: str, body: dict[str, Any]):

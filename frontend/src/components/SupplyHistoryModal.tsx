@@ -506,6 +506,7 @@ function PurchaseForm({
         'quantity',
         'total_cost',
         'supplier_id',
+        'part_number',
       ])
       if (attached.length === 0 || unhandled.length > 0) {
         setError(getActionErrorMessage(err, t('supplies.history.logPurchaseAction')))
@@ -532,10 +533,11 @@ function PurchaseForm({
           <input
             type="date"
             id="purchase-date"
-            {...register('date', { required: true })}
+            {...register('date', { required: t('required') })}
             className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
             disabled={isSubmitting}
           />
+          <FormError error={errors.date} />
         </div>
         <div>
           <label htmlFor="purchase-quantity" className="block text-xs font-medium text-garage-text mb-1">
@@ -583,6 +585,7 @@ function PurchaseForm({
               label: supplierLabel(entry),
             }))}
           />
+          <FormError error={errors.supplier_id} />
         </div>
       </div>
 
@@ -599,6 +602,7 @@ function PurchaseForm({
             disabled={isSubmitting}
           />
         </div>
+        <FormError error={errors.part_number} />
       </div>
 
       <div>

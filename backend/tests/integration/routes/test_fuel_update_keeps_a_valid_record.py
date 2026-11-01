@@ -9,38 +9,20 @@ to the rule: the forms send them all on every save, and a legacy record that
 already falls short must still take a notes edit.
 """
 
-import uuid
 from datetime import date
 from decimal import Decimal
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fuel import FuelRecord
-from app.models.vehicle import Vehicle
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
-
-
-@pytest_asyncio.fixture
-async def own_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> dict:
-    vin = "UPD" + uuid.uuid4().hex[:14].upper()
-    db_session.add(
-        Vehicle(
-            vin=vin,
-            user_id=test_user["id"],
-            nickname="Update Rule",
-            vehicle_type="Truck",
-            year=2020,
-            make="Ram",
-            model="2500",
-            fuel_type="diesel",
-        )
-    )
-    await db_session.commit()
-    return {"vin": vin}
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.asyncio,
+    pytest.mark.own_vehicle(vehicle_type="Truck", make="Ram", model="2500", fuel_type="diesel"),
+]
 
 
 async def _create(client: AsyncClient, headers: dict, vin: str, **fields) -> dict:
@@ -61,7 +43,7 @@ class TestUpdateKeepsAValidFillUp:
     async def test_emptying_a_propane_refill_is_refused(
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         record = await _create(client, auth_headers, vin, propane_liters=30.0)
 
         r = await _put(client, auth_headers, vin, record["id"], {"propane_liters": None})
@@ -73,7 +55,7 @@ class TestUpdateKeepsAValidFillUp:
     async def test_clearing_the_volume_of_a_fill_up_is_refused(
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         record = await _create(client, auth_headers, vin, odometer_km=5000, liters=40.0)
 
         r = await _put(client, auth_headers, vin, record["id"], {"liters": None})
@@ -83,7 +65,7 @@ class TestUpdateKeepsAValidFillUp:
     async def test_clearing_the_only_reading_is_refused(
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         record = await _create(client, auth_headers, vin, odometer_km=5000, liters=40.0)
 
         r = await _put(client, auth_headers, vin, record["id"], {"odometer_km": None})
@@ -93,7 +75,7 @@ class TestUpdateKeepsAValidFillUp:
     async def test_clearing_the_odometer_with_engine_hours_left_is_fine(
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         record = await _create(
             client, auth_headers, vin, odometer_km=5000, engine_hours=120.5, liters=40.0
         )
@@ -108,7 +90,7 @@ class TestUpdateKeepsAValidFillUp:
     ):
         """Already short of create's rule (an old import), and an API client's
         edit doesn't send the rule's fields at all."""
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         legacy = FuelRecord(vin=vin, date=date(2032, 1, 11), cost=Decimal("20.00"))
         db_session.add(legacy)
         await db_session.commit()
@@ -123,7 +105,7 @@ class TestUpdateKeepsAValidFillUp:
         """The form sends every rule field on every save, unchanged or not. A
         webhook or pre-rule fill-up with a volume and no reading must still
         take a station or notes edit, or it could never be saved again."""
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         legacy = FuelRecord(vin=vin, date=date(2032, 1, 12), liters=Decimal("40.000"))
         db_session.add(legacy)
         await db_session.commit()

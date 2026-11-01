@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, waitFor, screen, within } from '../../__tests__/test-utils' // selects by id (i18n mock renders keys)
 import AddressBook, { AddressBookForm, displayCategory } from '../AddressBook'
+import { registeredFieldNames, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
 
 // vi.mock is hoisted above module-level consts, so spies must be created with vi.hoisted.
 const { get, post, put, del } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn() }))
@@ -13,6 +14,9 @@ beforeEach(() => {
   put.mockResolvedValue({ data: {} })
   del.mockResolvedValue({ data: {} })
 })
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(get, post, put, del))
 
 // The form portals through the Drawer, so query the document, not a container.
 const formEl = () => document.getElementById('address-book-form') as HTMLFormElement
@@ -395,5 +399,52 @@ describe('AddressBookForm: an untouched edit writes nothing it did not load', ()
     fireEvent.submit(formEl())
     await waitFor(() => expect(post).toHaveBeenCalled())
     expect((post.mock.calls.at(-1)?.[1] as Record<string, unknown>).source).toBe('manual')
+  })
+})
+
+describe('AddressBookForm: a rejected save', () => {
+  const banner = (): HTMLElement | null => screen.queryByText(/^Failed to addressBook\.saveAction\./)
+  const openAdd = (): void => {
+    render(<AddressBookForm entry={null} onClose={() => {}} onSuccess={() => {}} />)
+    fireEvent.change(businessInput(), { target: { value: 'Corner Fuel' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    post.mockRejectedValueOnce(new Error('Network Error'))
+    openAdd()
+    fireEvent.submit(formEl())
+
+    expect(await screen.findByText('Failed to addressBook.saveAction. Network Error')).toBeInTheDocument()
+    expect(document.getElementById('business_name-error')).toBeNull()
+  })
+
+  it('a 422 on business_name shows under it and no banner', async () => {
+    post.mockRejectedValueOnce(validationError({ business_name: 'String should have at most 150 characters' }))
+    openAdd()
+    fireEvent.submit(formEl())
+
+    await waitFor(() => expect(document.getElementById('business_name-error')).not.toBeNull())
+    expect(document.getElementById('business_name-error')).toHaveTextContent('String should have at most 150 characters')
+    expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show up under that field. Mutants: drop a name from
+  // knownFields (it goes to the banner), or drop a field's error (it goes silent).
+  it('guard: a 422 on each field shows under it', async () => {
+    openAdd()
+    const names = registeredFieldNames(formEl(), UI_ONLY)
+    // An empty sweep would pass, so pin a few names it must contain.
+    expect(names).toEqual(expect.arrayContaining(['business_name', 'category', 'phone', 'notes']))
+
+    const wrong: string[] = []
+    for (const name of names) {
+      const got = await whereA422Lands(formEl(), post, name, `bad ${name}`, banner)
+      if (got !== 'field') wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

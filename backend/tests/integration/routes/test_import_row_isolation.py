@@ -16,14 +16,16 @@ violates a CHECK is one reported row and the rest of the file still imports.
 """
 
 import json
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.database import get_db
@@ -31,7 +33,12 @@ from app.main import app
 from app.models.def_record import DEFRecord
 from app.models.fuel import FuelRecord
 from app.models.hours import HoursRecord
+from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.odometer import OdometerRecord
+from app.models.vehicle import Vehicle
+
+# Diesel, so the DEF imports are accepted.
+pytestmark = pytest.mark.own_vehicle(fuel_type="diesel")
 
 
 @asynccontextmanager
@@ -82,7 +89,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
     """
 
     async def test_fuel_csv_keeps_a_row_repeated_within_one_upload(
-        self, client: AsyncClient, auth_headers, test_vehicle, test_engine
+        self, client: AsyncClient, auth_headers, own_vehicle, test_engine
     ):
         csv_content = (
             "Date,Odometer (km),Liters,Price Per Liter,Total Cost,Full Tank,Notes\n"
@@ -91,7 +98,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
         )
         async with _production_session(test_engine) as session:
             response = await client.post(
-                f"/api/import/vehicles/{test_vehicle['vin']}/fuel/csv",
+                f"/api/import/vehicles/{own_vehicle.vin}/fuel/csv",
                 headers=auth_headers,
                 files={"file": ("fuel.csv", BytesIO(csv_content.encode()), "text/csv")},
             )
@@ -104,7 +111,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
                 select(func.count())
                 .select_from(FuelRecord)
                 .where(
-                    FuelRecord.vin == test_vehicle["vin"],
+                    FuelRecord.vin == own_vehicle.vin,
                     FuelRecord.date == date(2027, 1, 10),
                     FuelRecord.odometer_km == Decimal("70000"),
                 )
@@ -112,7 +119,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
             assert count.scalar() == 2
 
     async def test_def_csv_keeps_a_row_repeated_within_one_upload(
-        self, client: AsyncClient, auth_headers, test_vehicle, test_engine
+        self, client: AsyncClient, auth_headers, own_vehicle, test_engine
     ):
         csv_content = (
             "Date,Odometer (km),Liters,Price Per Unit,Total Cost,Fill Level,Source,Brand,Notes\n"
@@ -121,7 +128,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
         )
         async with _production_session(test_engine) as session:
             response = await client.post(
-                f"/api/import/vehicles/{test_vehicle['vin']}/def/csv",
+                f"/api/import/vehicles/{own_vehicle.vin}/def/csv",
                 headers=auth_headers,
                 files={"file": ("def.csv", BytesIO(csv_content.encode()), "text/csv")},
             )
@@ -134,7 +141,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
                 select(func.count())
                 .select_from(DEFRecord)
                 .where(
-                    DEFRecord.vin == test_vehicle["vin"],
+                    DEFRecord.vin == own_vehicle.vin,
                     DEFRecord.date == date(2027, 1, 11),
                     DEFRecord.odometer_km == Decimal("70010"),
                 )
@@ -142,12 +149,12 @@ class TestOneUploadKeepsARowRepeatedInIt:
             assert count.scalar() == 2
 
     async def test_hours_csv_keeps_a_row_repeated_within_one_upload(
-        self, client: AsyncClient, auth_headers, test_vehicle, test_engine
+        self, client: AsyncClient, auth_headers, own_vehicle, test_engine
     ):
         csv_content = "Date,Engine Hours,Notes\n2027-01-12,55.5,Repeat\n2027-01-12,55.5,Repeat\n"
         async with _production_session(test_engine) as session:
             response = await client.post(
-                f"/api/import/vehicles/{test_vehicle['vin']}/hours/csv",
+                f"/api/import/vehicles/{own_vehicle.vin}/hours/csv",
                 headers=auth_headers,
                 files={"file": ("hours.csv", BytesIO(csv_content.encode()), "text/csv")},
             )
@@ -160,7 +167,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
                 select(func.count())
                 .select_from(HoursRecord)
                 .where(
-                    HoursRecord.vin == test_vehicle["vin"],
+                    HoursRecord.vin == own_vehicle.vin,
                     HoursRecord.date == date(2027, 1, 12),
                     HoursRecord.engine_hours == Decimal("55.5"),
                 )
@@ -168,7 +175,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
             assert count.scalar() == 2
 
     async def test_vehicle_json_fuel_keeps_a_row_repeated_within_one_upload(
-        self, client: AsyncClient, auth_headers, test_vehicle, test_engine
+        self, client: AsyncClient, auth_headers, own_vehicle, test_engine
     ):
         json_data = {
             "export_version": "3",
@@ -180,7 +187,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
         }
         async with _production_session(test_engine) as session:
             response = await client.post(
-                f"/api/import/vehicles/{test_vehicle['vin']}/json",
+                f"/api/import/vehicles/{own_vehicle.vin}/json",
                 headers=auth_headers,
                 files={
                     "file": (
@@ -200,7 +207,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
                 select(func.count())
                 .select_from(FuelRecord)
                 .where(
-                    FuelRecord.vin == test_vehicle["vin"],
+                    FuelRecord.vin == own_vehicle.vin,
                     FuelRecord.date == date(2027, 1, 13),
                     FuelRecord.odometer_km == Decimal("70020"),
                 )
@@ -208,7 +215,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
             assert count.scalar() == 2
 
     async def test_vehicle_json_def_keeps_a_row_repeated_within_one_upload(
-        self, client: AsyncClient, auth_headers, test_vehicle, test_engine
+        self, client: AsyncClient, auth_headers, own_vehicle, test_engine
     ):
         json_data = {
             "export_version": "3",
@@ -220,7 +227,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
         }
         async with _production_session(test_engine) as session:
             response = await client.post(
-                f"/api/import/vehicles/{test_vehicle['vin']}/json",
+                f"/api/import/vehicles/{own_vehicle.vin}/json",
                 headers=auth_headers,
                 files={
                     "file": (
@@ -240,7 +247,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
                 select(func.count())
                 .select_from(DEFRecord)
                 .where(
-                    DEFRecord.vin == test_vehicle["vin"],
+                    DEFRecord.vin == own_vehicle.vin,
                     DEFRecord.date == date(2027, 1, 14),
                     DEFRecord.odometer_km == Decimal("70030"),
                 )
@@ -248,7 +255,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
             assert count.scalar() == 2
 
     async def test_vehicle_json_odometer_keeps_a_row_repeated_within_one_upload(
-        self, client: AsyncClient, auth_headers, test_vehicle, test_engine
+        self, client: AsyncClient, auth_headers, own_vehicle, test_engine
     ):
         json_data = {
             "export_version": "3",
@@ -260,7 +267,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
         }
         async with _production_session(test_engine) as session:
             response = await client.post(
-                f"/api/import/vehicles/{test_vehicle['vin']}/json",
+                f"/api/import/vehicles/{own_vehicle.vin}/json",
                 headers=auth_headers,
                 files={
                     "file": (
@@ -280,7 +287,7 @@ class TestOneUploadKeepsARowRepeatedInIt:
                 select(func.count())
                 .select_from(OdometerRecord)
                 .where(
-                    OdometerRecord.vin == test_vehicle["vin"],
+                    OdometerRecord.vin == own_vehicle.vin,
                     OdometerRecord.date == date(2027, 1, 15),
                     OdometerRecord.odometer_km == Decimal("70040"),
                 )
@@ -309,7 +316,7 @@ class TestADatabaseInvalidRowDoesNotDiscardTheUpload:
     """
 
     async def test_vehicle_json_odometer_refuses_a_row_with_no_reading_and_keeps_the_rest(
-        self, client: AsyncClient, auth_headers, test_vehicle, test_engine
+        self, client: AsyncClient, auth_headers, own_vehicle, test_engine
     ):
         json_data = {
             "export_version": "3",
@@ -322,7 +329,7 @@ class TestADatabaseInvalidRowDoesNotDiscardTheUpload:
         }
         async with _production_session(test_engine) as session:
             response = await client.post(
-                f"/api/import/vehicles/{test_vehicle['vin']}/json",
+                f"/api/import/vehicles/{own_vehicle.vin}/json",
                 headers=auth_headers,
                 files={
                     "file": (
@@ -343,7 +350,7 @@ class TestADatabaseInvalidRowDoesNotDiscardTheUpload:
                 select(func.count())
                 .select_from(OdometerRecord)
                 .where(
-                    OdometerRecord.vin == test_vehicle["vin"],
+                    OdometerRecord.vin == own_vehicle.vin,
                     OdometerRecord.date.in_([date(2027, 1, 20), date(2027, 1, 22)]),
                 )
             )
@@ -353,7 +360,7 @@ class TestADatabaseInvalidRowDoesNotDiscardTheUpload:
                 select(func.count())
                 .select_from(OdometerRecord)
                 .where(
-                    OdometerRecord.vin == test_vehicle["vin"],
+                    OdometerRecord.vin == own_vehicle.vin,
                     OdometerRecord.date == date(2027, 1, 21),
                 )
             )
@@ -377,7 +384,7 @@ class TestABadServiceOrReminderRowDoesNotFailOtherRecordTypes:
     """
 
     async def test_vehicle_json_service_record_with_invalid_category_does_not_500_the_upload(
-        self, client: AsyncClient, auth_headers, test_vehicle, test_engine
+        self, client: AsyncClient, auth_headers, own_vehicle, test_engine
     ):
         json_data = {
             "export_version": "3",
@@ -391,7 +398,7 @@ class TestABadServiceOrReminderRowDoesNotFailOtherRecordTypes:
         }
         async with _production_session(test_engine) as session:
             response = await client.post(
-                f"/api/import/vehicles/{test_vehicle['vin']}/json",
+                f"/api/import/vehicles/{own_vehicle.vin}/json",
                 headers=auth_headers,
                 files={
                     "file": (
@@ -412,7 +419,7 @@ class TestABadServiceOrReminderRowDoesNotFailOtherRecordTypes:
                 select(func.count())
                 .select_from(FuelRecord)
                 .where(
-                    FuelRecord.vin == test_vehicle["vin"],
+                    FuelRecord.vin == own_vehicle.vin,
                     FuelRecord.date == date(2027, 2, 1),
                     FuelRecord.odometer_km == Decimal("72000"),
                 )
@@ -420,7 +427,7 @@ class TestABadServiceOrReminderRowDoesNotFailOtherRecordTypes:
             assert fuel_count.scalar() == 1
 
     async def test_vehicle_json_reminder_with_negative_recurrence_miles_does_not_500_the_upload(
-        self, client: AsyncClient, auth_headers, test_vehicle, test_engine
+        self, client: AsyncClient, auth_headers, own_vehicle, test_engine
     ):
         json_data = {
             "export_version": "3",
@@ -434,7 +441,7 @@ class TestABadServiceOrReminderRowDoesNotFailOtherRecordTypes:
         }
         async with _production_session(test_engine) as session:
             response = await client.post(
-                f"/api/import/vehicles/{test_vehicle['vin']}/json",
+                f"/api/import/vehicles/{own_vehicle.vin}/json",
                 headers=auth_headers,
                 files={
                     "file": (
@@ -455,7 +462,7 @@ class TestABadServiceOrReminderRowDoesNotFailOtherRecordTypes:
                 select(func.count())
                 .select_from(FuelRecord)
                 .where(
-                    FuelRecord.vin == test_vehicle["vin"],
+                    FuelRecord.vin == own_vehicle.vin,
                     FuelRecord.date == date(2027, 2, 3),
                     FuelRecord.odometer_km == Decimal("72010"),
                 )
@@ -463,10 +470,33 @@ class TestABadServiceOrReminderRowDoesNotFailOtherRecordTypes:
             assert fuel_count.scalar() == 1
 
 
+@pytest_asyncio.fixture
+async def imported_policies_go(
+    own_vehicle: Vehicle, db_session: AsyncSession
+) -> AsyncIterator[None]:
+    """Deletes the policies an import linked to own_vehicle.
+
+    The vehicle's delete only takes the links, so the policies would outlive it.
+    Runs before own_vehicle's teardown, while the links still find them.
+    """
+    vin = own_vehicle.vin  # a rollback expires the object, so read it now
+    yield
+    await db_session.rollback()
+    linked = select(InsurancePolicyVehicle.policy_id).where(InsurancePolicyVehicle.vin == vin)
+    await db_session.execute(delete(InsurancePolicy).where(InsurancePolicy.id.in_(linked)))
+    await db_session.commit()
+    left = await db_session.scalar(
+        select(func.count())
+        .select_from(InsurancePolicy)
+        .where(InsurancePolicy.provider.in_(["Good", "Bad"]))
+    )
+    assert left == 0, "the imported policy outlived the test"
+
+
 @pytest.mark.asyncio
 class TestOneBadRowDoesNotFailTheFile:
     async def test_an_invalid_warranty_type_is_a_row_error_not_a_500(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """`Roadside` is not in the `check_warranty_type` vocabulary.
 
@@ -478,7 +508,7 @@ class TestOneBadRowDoesNotFailTheFile:
             "Bad Co,Roadside,covered,2024-01-01,2025-01-01,bad type\n"
         )
         response = await client.post(
-            f"/api/import/vehicles/{test_vehicle['vin']}/warranties/csv",
+            f"/api/import/vehicles/{own_vehicle.vin}/warranties/csv",
             headers=auth_headers,
             files={"file": ("w.csv", BytesIO(csv_content.encode()), "text/csv")},
         )
@@ -490,7 +520,7 @@ class TestOneBadRowDoesNotFailTheFile:
         assert any("3" in e for e in data["errors"]), data["errors"]
 
     async def test_an_invalid_policy_type_is_a_row_error_not_a_500(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle, imported_policies_go
     ):
         csv_content = (
             "Provider,Policy Number,Type,Start Date,End Date,Premium,Premium Frequency,"
@@ -499,7 +529,7 @@ class TestOneBadRowDoesNotFailTheFile:
             "Bad,P2,Spaceship,2026-01-01,2027-01-01,10.00,Monthly,100.00,100/300,bad\n"
         )
         response = await client.post(
-            f"/api/import/vehicles/{test_vehicle['vin']}/insurance/csv",
+            f"/api/import/vehicles/{own_vehicle.vin}/insurance/csv",
             headers=auth_headers,
             files={"file": ("i.csv", BytesIO(csv_content.encode()), "text/csv")},
         )
@@ -510,7 +540,7 @@ class TestOneBadRowDoesNotFailTheFile:
         assert data["error_count"] == 1, data
 
     async def test_a_valid_file_still_imports_every_row(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """Guards the guard: a savepoint that always rolled back would pass
         both tests above while importing nothing."""
@@ -520,7 +550,7 @@ class TestOneBadRowDoesNotFailTheFile:
             "Beta,Corrosion,b,2024-03-01,2029-03-01,y\n"
         )
         response = await client.post(
-            f"/api/import/vehicles/{test_vehicle['vin']}/warranties/csv",
+            f"/api/import/vehicles/{own_vehicle.vin}/warranties/csv",
             headers=auth_headers,
             files={"file": ("w.csv", BytesIO(csv_content.encode()), "text/csv")},
         )

@@ -58,17 +58,17 @@ class TestTaxRecordRoutes:
         assert data["tax_type"] == "Registration"
         assert float(data["amount"]) == 85.50
 
-    async def test_create_tax_record(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_create_tax_record(self, client: AsyncClient, auth_headers, own_vehicle):
         """Test creating a new tax record."""
         payload = {
-            "vin": test_vehicle["vin"],
+            "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
             "tax_type": "Inspection",
             "amount": 35.00,
             "notes": "Annual state inspection",
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/tax-records",
+            f"/api/vehicles/{own_vehicle.vin}/tax-records",
             json=payload,
             headers=auth_headers,
         )
@@ -197,19 +197,19 @@ class TestTaxRecordRoutes:
         assert response.status_code == 403
 
     async def test_create_tax_record_with_renewal_date(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """Test creating a tax record with renewal date."""
         next_year = (datetime.now() + timedelta(days=365)).date().isoformat()
         payload = {
-            "vin": test_vehicle["vin"],
+            "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
             "tax_type": "Registration",
             "amount": 95.00,
             "renewal_date": next_year,
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/tax-records",
+            f"/api/vehicles/{own_vehicle.vin}/tax-records",
             json=payload,
             headers=auth_headers,
         )

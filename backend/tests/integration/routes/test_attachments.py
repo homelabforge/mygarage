@@ -5,32 +5,23 @@ Tests file attachment upload, download, view, list, and delete operations
 for service visits.
 """
 
-import os
+from collections.abc import AsyncGenerator
 from io import BytesIO
 from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# Check if we have write access to the data directory for attachment storage
-DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
-try:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    test_file = DATA_DIR / ".write_test"
-    test_file.touch()
-    test_file.unlink()
-    HAS_WRITE_ACCESS = True
-except PermissionError, OSError:
-    HAS_WRITE_ACCESS = False
-
-requires_write_access = pytest.mark.skipif(
-    not HAS_WRITE_ACCESS, reason="Test requires write access to data directory"
-)
+from app.models.attachment import Attachment
 
 
 @pytest.fixture
-async def service_record(client: AsyncClient, auth_headers, test_vehicle):
-    """Create a service visit for attachment tests."""
+async def service_record(
+    client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
+) -> AsyncGenerator[dict]:
+    """Create a service visit for attachment tests, and clear it and its attachments after."""
     payload = {
         "vin": test_vehicle["vin"],
         "date": "2024-06-15",
@@ -54,7 +45,27 @@ async def service_record(client: AsyncClient, auth_headers, test_vehicle):
         headers=auth_headers,
     )
     assert response.status_code == 201
-    return response.json()
+    visit = response.json()
+    yield visit
+
+    # Attachments have no FK to the visit, so deleting the visit leaves them behind,
+    # and a later visit that reuses the id would list them.
+    await db_session.rollback()
+    rows = (
+        await db_session.scalars(
+            select(Attachment)
+            .where(Attachment.record_type == "service_visit")
+            .where(Attachment.record_id == visit["id"])
+        )
+    ).all()
+    for row in rows:
+        Path(row.file_path).unlink(missing_ok=True)
+    await db_session.execute(delete(Attachment).where(Attachment.id.in_([r.id for r in rows])))
+    await db_session.commit()
+    gone = await client.delete(
+        f"/api/vehicles/{test_vehicle['vin']}/service-visits/{visit['id']}", headers=auth_headers
+    )
+    assert gone.status_code == 204, gone.text
 
 
 def create_test_file(filename: str, content: bytes = b"test content") -> tuple:
@@ -97,7 +108,6 @@ class TestServiceVisitAttachments:
         assert "total" in data
         assert data["total"] == 0
 
-    @requires_write_access
     async def test_upload_visit_attachment(self, client: AsyncClient, auth_headers, service_record):
         """Test uploading an attachment to a service visit."""
         file_data = create_test_file("work-order.pdf")
@@ -113,8 +123,11 @@ class TestServiceVisitAttachments:
         assert data["record_type"] == "service_visit"
         assert data["record_id"] == service_record["id"]
         assert data["file_type"] == "application/pdf"
+        # The bytes landed, under the test's tmp data dir.
+        download = await client.get(data["download_url"], headers=auth_headers)
+        assert download.status_code == 200
+        assert download.content == file_data[1].getvalue()
 
-    @requires_write_access
     async def test_list_visit_attachments_after_upload(
         self, client: AsyncClient, auth_headers, service_record
     ):
@@ -136,8 +149,8 @@ class TestServiceVisitAttachments:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["total"] >= 1
-        assert len(data["attachments"]) >= 1
+        assert data["total"] == 1
+        assert len(data["attachments"]) == 1
         # Verify it's the correct type
         assert data["attachments"][0]["record_type"] == "service_visit"
 
@@ -173,7 +186,6 @@ class TestServiceVisitAttachments:
 class TestAttachmentResponses:
     """Test attachment response structure and URLs."""
 
-    @requires_write_access
     async def test_attachment_response_structure(
         self, client: AsyncClient, auth_headers, service_record
     ):
@@ -204,7 +216,6 @@ class TestAttachmentResponses:
         assert data["download_url"] == f"/api/attachments/{data['id']}/download"
         assert data["view_url"] == f"/api/attachments/{data['id']}/view"
 
-    @requires_write_access
     async def test_attachment_list_response_structure(
         self, client: AsyncClient, auth_headers, service_record
     ):
@@ -212,11 +223,12 @@ class TestAttachmentResponses:
         # Upload a few attachments
         for i in range(2):
             file_data = create_test_file(f"list-test-{i}.pdf")
-            await client.post(
+            uploaded = await client.post(
                 f"/api/service-visits/{service_record['id']}/attachments",
                 headers=auth_headers,
                 files={"file": file_data},
             )
+            assert uploaded.status_code == 201, uploaded.text
 
         # List attachments
         response = await client.get(
@@ -231,7 +243,8 @@ class TestAttachmentResponses:
         assert "total" in data
         assert isinstance(data["attachments"], list)
         assert isinstance(data["total"], int)
-        assert data["total"] >= 2
+        assert data["total"] == 2
+        assert len(data["attachments"]) == 2
 
         # Verify each attachment has required fields
         for attachment in data["attachments"]:

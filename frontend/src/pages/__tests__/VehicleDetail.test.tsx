@@ -252,7 +252,7 @@ describe('VehicleDetail', () => {
     renderVehicleDetail()
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to {{action}}. {{message}}')).toBeInTheDocument()
+      expect(screen.getByText('Failed to detail.misc.loadAction. Network Error')).toBeInTheDocument()
     })
     expect(screen.getByText('detail.backToDashboard')).toBeInTheDocument()
   })
@@ -307,7 +307,7 @@ describe('VehicleDetail', () => {
     renderVehicleDetail()
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to {{action}}. {{message}}')).toBeInTheDocument()
+      expect(screen.getByText('Failed to detail.misc.loadAction. Network Error')).toBeInTheDocument()
     })
 
     Object.defineProperty(navigator, 'onLine', { value: originalOnLine, configurable: true })
@@ -756,7 +756,7 @@ describe('VehicleDetail', () => {
 
     await act(async () => rejectA(new Error('Network Error')))
     expect(screen.getByText('Truck B')).toBeInTheDocument()
-    expect(screen.queryByText('Failed to {{action}}. {{message}}')).not.toBeInTheDocument()
+    expect(screen.queryByText('Failed to detail.misc.loadAction. Network Error')).not.toBeInTheDocument()
   })
 
   // Guard: keying the route remounts the page, and `?tab=` still has to land

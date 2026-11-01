@@ -356,19 +356,6 @@ async def _cleanup(db: AsyncSession) -> None:
     await _set_setting(db, "auth_mode", "local")
 
 
-@pytest.fixture(autouse=True)
-def _reset_export_rate_limit() -> None:
-    """CSV exports are capped at 5/minute and this module makes far more.
-
-    Same approach as `test_widget.py`: wipe the route module's own limiter
-    storage before each test, so a 429 earned by a sibling test cannot
-    masquerade as a units failure.
-    """
-    from app.routes.export import limiter as export_limiter
-
-    export_limiter.reset()
-
-
 def _read(body: str) -> tuple[list[str], dict[str, str]]:
     """The header row and the single data row of a one-record export."""
     reader = csv.DictReader(io.StringIO(body))

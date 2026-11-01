@@ -7,13 +7,11 @@
  *   vi.mock('react-i18next', async () => (await import('@/__tests__/i18nEn')).reactI18nextEn())
  */
 import type { ReactNode } from 'react'
+import { EN_RESOURCES } from '@/locales/enResources'
 
 type Bundle = Record<string, unknown>
 
-const files = import.meta.glob<Bundle>('../locales/en/*.json', { eager: true, import: 'default' })
-const BUNDLES: Record<string, Bundle> = Object.fromEntries(
-  Object.entries(files).map(([path, json]) => [path.replace(/^.*\/([^/]+)\.json$/, '$1'), json]),
-)
+const BUNDLES: Record<string, Bundle> = EN_RESOURCES
 
 function lookup(ns: string, path: string): string | undefined {
   let node: unknown = BUNDLES[ns]

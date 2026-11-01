@@ -46,10 +46,12 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
+  // A beforeAll that threw leaves these unassigned (the types say otherwise), so
+  // ?. keeps its real error from being buried under a TypeError.
   try {
-    await ledger.cleanup()
+    await ledger?.cleanup()
   } finally {
-    await api.dispose()
+    await api?.dispose()
   }
 })
 

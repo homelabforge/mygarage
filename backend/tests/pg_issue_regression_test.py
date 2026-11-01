@@ -141,14 +141,6 @@ class TestIssue42MigrationsApplied:
             "livelink_devices.pending_offline_at missing — migration not applied"
         )
 
-    @pytest.mark.skip(reason="maintenance_schedule_items table removed in migration 049 (v2.24+)")
-    async def test_maintenance_schedule_items_notification_cols(self, pg_engine):
-        """Columns last_notified_at and last_notified_status must exist.
-
-        Skipped: the maintenance_schedule_items table was dropped in migration
-        049. The reminder/notification surfaces now live on vehicle_reminders.
-        """
-
     async def test_insurance_policies_last_notified_at(self, pg_engine):
         """Column insurance_policies.last_notified_at must exist."""
         async with pg_engine.connect() as conn:

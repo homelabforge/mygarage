@@ -1,7 +1,6 @@
 """OIDC external URLs must include MYGARAGE_ROOT_PATH so the callback the IdP
 redirects to (and the post-login frontend redirect) resolve under the prefix (#107)."""
 
-from collections.abc import Iterator
 from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlparse, urlsplit
 
@@ -12,17 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.main import app
 from app.routes.oidc import _external_base  # thin alias over request_scheme.get_external_base_url
-from app.routes.oidc import limiter as oidc_route_limiter
 from app.utils import request_scheme
 from tests.integration.routes.test_oidc import clear_oidc_settings, set_settings
-
-
-@pytest.fixture(autouse=True)
-def _fresh_sso_limits() -> Iterator[None]:
-    """The SSO start allows 5 a minute per address, and other files spend it from 127.0.0.1 too."""
-    oidc_route_limiter.reset()
-    yield
-    oidc_route_limiter.reset()
 
 
 class _Req:

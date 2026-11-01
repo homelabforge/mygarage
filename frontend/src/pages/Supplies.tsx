@@ -720,6 +720,7 @@ function SupplyFormBody({ supply, onClose, onSuccess, categorySuggestions = [] }
         'unit_type',
         'volume_unit',
         'part_number',
+        'barcode',
         'category',
         'notes',
         'vin',

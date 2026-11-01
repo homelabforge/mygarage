@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fireEvent, waitFor } from '@testing-library/react'
+import { fireEvent, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render, screen } from '../../__tests__/test-utils'
 import type { Supply } from '../../types/supplies'
 import { setActiveLocale } from '../../constants/i18n'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
 
 // Mock the supplies query hooks so this stays a unit test — no real network
 // calls needed. The api layer itself is already mocked globally (setup.ts
@@ -113,6 +114,9 @@ beforeEach(() => {
   addPurchaseMock.mockResolvedValue({ id: 99 })
   addAdjustmentMock.mockResolvedValue({ id: 98 })
 })
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(addPurchaseMock, addAdjustmentMock))
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -484,5 +488,142 @@ describe('SupplyHistoryModal: the supply keeps its own unit', () => {
       expect(addAdjustmentMock).toHaveBeenCalledTimes(1)
     })
     expect(addAdjustmentMock.mock.calls[0][0].quantity).toBeCloseTo(0.5, 9)
+  })
+})
+
+// The two log forms each keep their own banner, so every query is scoped to the
+// form under test.
+const logForm = (heading: string): HTMLFormElement =>
+  screen.getByRole('heading', { name: heading }).closest('form') as HTMLFormElement
+
+describe('SupplyHistoryModal: a rejected purchase', () => {
+  const purchaseForm = (): HTMLFormElement => logForm('supplies.history.logPurchase')
+  const banner = (): HTMLElement | null =>
+    within(purchaseForm()).queryByText(/^Failed to supplies\.history\.logPurchaseAction\./)
+  const openFilled = (): void => {
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} initialForm="purchase" />)
+    fireEvent.change(document.getElementById('purchase-quantity')!, { target: { value: '2' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    addPurchaseMock.mockRejectedValueOnce(new Error('Network Error'))
+    openFilled()
+    await submitAndSettle(purchaseForm())
+
+    expect(within(purchaseForm()).getByText('Failed to supplies.history.logPurchaseAction. Network Error')).toBeInTheDocument()
+    expect(within(purchaseForm()).queryAllByRole('alert')).toEqual([])
+  })
+
+  it('a 422 on quantity shows under quantity and no banner', async () => {
+    addPurchaseMock.mockRejectedValueOnce(validationError({ quantity: 'Input should be less than or equal to 99999' }))
+    openFilled()
+    await submitAndSettle(purchaseForm())
+
+    expect(within(purchaseForm()).getByRole('alert')).toHaveTextContent('Input should be less than or equal to 99999')
+    expect(banner()).toBeNull()
+  })
+
+  it('a 422 on the part number shows under it and no banner', async () => {
+    addPurchaseMock.mockRejectedValueOnce(validationError({ part_number: 'String should have at most 60 characters' }))
+    openFilled()
+    await submitAndSettle(purchaseForm())
+
+    expect(within(purchaseForm()).queryByText('String should have at most 60 characters')).toBeInTheDocument()
+    expect(banner()).toBeNull()
+  })
+
+  it('a 422 on the date shows under the date and no banner', async () => {
+    addPurchaseMock.mockRejectedValueOnce(validationError({ date: 'Input should be a valid date' }))
+    openFilled()
+    await submitAndSettle(purchaseForm())
+
+    expect(within(purchaseForm()).queryByText('Input should be a valid date')).toBeInTheDocument()
+    expect(banner()).toBeNull()
+  })
+
+  it('an emptied date says so under the date instead of blocking the save silently', async () => {
+    openFilled()
+    fireEvent.change(document.getElementById('purchase-date')!, { target: { value: '' } })
+    await submitAndSettle(purchaseForm())
+
+    expect(within(purchaseForm()).getByRole('alert')).toHaveTextContent('required')
+    expect(addPurchaseMock).not.toHaveBeenCalled()
+  })
+
+  it('a 422 on the supplier shows under the supplier and no banner', async () => {
+    addPurchaseMock.mockRejectedValueOnce(validationError({ supplier_id: 'Input should be a valid integer' }))
+    openFilled()
+    await submitAndSettle(purchaseForm())
+
+    expect(within(purchaseForm()).queryByText('Input should be a valid integer')).toBeInTheDocument()
+    expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today: the receipt
+  // picker is uploaded separately and carries no name.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show under that field. Mutants: drop a name from
+  // knownFields (it banners), or drop a field's FormError (it goes silent).
+  it('guard: a 422 on each field shows under it', async () => {
+    openFilled()
+    const names = registeredFieldNames(purchaseForm(), UI_ONLY)
+    // The fields that drifted or went silent before have to be in the sweep, or it proves nothing.
+    expect(names).toEqual(expect.arrayContaining(['date', 'quantity', 'total_cost', 'supplier_id', 'part_number']))
+
+    const wrong: string[] = []
+    for (const name of names) {
+      const got = await whereA422Lands(purchaseForm(), addPurchaseMock, name, `bad ${name}`, banner)
+      if (got !== 'field') wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
+  })
+})
+
+describe('SupplyHistoryModal: a rejected adjustment', () => {
+  const adjustmentForm = (): HTMLFormElement => logForm('supplies.history.logAdjustment')
+  const banner = (): HTMLElement | null =>
+    within(adjustmentForm()).queryByText(/^Failed to supplies\.history\.logAdjustmentAction\./)
+  const openFilled = (): void => {
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} initialForm="adjustment" />)
+    fireEvent.change(document.getElementById('adjustment-quantity')!, { target: { value: '1' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    addAdjustmentMock.mockRejectedValueOnce(new Error('Network Error'))
+    openFilled()
+    await submitAndSettle(adjustmentForm())
+
+    expect(within(adjustmentForm()).getByText('Failed to supplies.history.logAdjustmentAction. Network Error')).toBeInTheDocument()
+    expect(within(adjustmentForm()).queryAllByRole('alert')).toEqual([])
+  })
+
+  it('a 422 on quantity shows under quantity and no banner', async () => {
+    addAdjustmentMock.mockRejectedValueOnce(validationError({ quantity: 'Not enough on hand' }))
+    openFilled()
+    await submitAndSettle(adjustmentForm())
+
+    expect(within(adjustmentForm()).getByRole('alert')).toHaveTextContent('Not enough on hand')
+    expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift: quantity is the form's only field today, so
+  // this catches the next one added without an error slot. Mutant: drop
+  // quantity from knownFields and it banners.
+  it('guard: a 422 on each field shows under it', async () => {
+    openFilled()
+    const names = registeredFieldNames(adjustmentForm(), UI_ONLY)
+    expect(names).toEqual(expect.arrayContaining(['quantity']))
+
+    const wrong: string[] = []
+    for (const name of names) {
+      const got = await whereA422Lands(adjustmentForm(), addAdjustmentMock, name, `bad ${name}`, banner)
+      if (got !== 'field') wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

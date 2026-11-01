@@ -79,7 +79,7 @@ MQTT_ON = {
     "livelink_mqtt_enabled": "true",
     "livelink_mqtt_broker_host": "10.10.1.11",
 }
-REPORTED = {"vin": "1HGBH41JXMN109186", "enabled": True, "seen": datetime(2026, 9, 1, 12, 0)}
+REPORTED = {"vin": "1HGCM82633A004352", "enabled": True, "seen": datetime(2026, 9, 1, 12, 0)}
 WICAN = {**REPORTED, "kind": "wican"}
 UPLOADED = {**REPORTED, "kind": "torque"}
 

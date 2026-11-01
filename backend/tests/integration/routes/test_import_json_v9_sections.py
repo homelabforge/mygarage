@@ -1,13 +1,15 @@
 """The v9 JSON sections: financing, tax, tolls, warranties, spot rentals, the vehicle (task 5)."""
 
 import json
+from collections.abc import AsyncIterator
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import delete, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,8 +21,36 @@ from app.models.toll import TollTag, TollTransaction
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
+#: VINs `_vehicle` made in the running test, deleted after it.
+_made_vins: list[str] = []
+#: Lenders this file makes, by hand or through an import. Nothing else uses these names.
+_LENDERS = ("B3 Lender", "B3 Pair Bank", "B3 Same Lender A", "B3 Same Lender B")
+_LONG_LENDER_PREFIX = "B3 Long Lender "
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _drop_what_each_test_made(db_session: AsyncSession) -> AsyncIterator[None]:
+    """Each vehicle goes after its test, and everything on it with it (FK cascade).
+
+    Their warranties end years out, so a survivor trips the far-future leak
+    guard. A table-wide warranty wipe in a unit test hid that until CI split
+    the suite into shards.
+    """
+    yield
+    await db_session.rollback()
+    if _made_vins:
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_(_made_vins)))
+    await db_session.execute(
+        delete(Vendor).where(
+            or_(Vendor.name.in_(_LENDERS), Vendor.name.startswith(_LONG_LENDER_PREFIX))
+        )
+    )
+    await db_session.commit()
+    _made_vins.clear()
+
 
 async def _vehicle(db_session: AsyncSession, owner_id: Any, vin: str, **fields: Any) -> str:
+    _made_vins.append(vin)
     db_session.add(
         Vehicle(
             vin=vin,

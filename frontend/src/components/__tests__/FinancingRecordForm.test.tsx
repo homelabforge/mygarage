@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
+import { registeredFieldNames, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
 import type { FinancingRecord } from '../../types/financing'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -26,6 +27,9 @@ vi.mock('../VendorSearch', () => ({
 import FinancingRecordForm from '../FinancingRecordForm'
 
 beforeEach(() => vi.clearAllMocks())
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(createMutateAsync, updateMutateAsync))
 
 describe('FinancingRecordForm — routing + exact payload (SDQ-C)', () => {
   it('create submits the COMPLETE payload INCLUDING vin (amount coerced to a number), and NEVER calls update (fails if a field is dropped, vin is omitted, the amount stays a string, or it misroutes)', async () => {
@@ -152,5 +156,61 @@ describe('FinancingRecordForm — amount field on NumberInput (Task 8 convention
       expect(screen.getByText('common:validation.amount.invalid')).toBeInTheDocument()
     )
     expect(createMutateAsync).not.toHaveBeenCalled()
+  })
+})
+
+describe('FinancingRecordForm: a rejected save', () => {
+  const banner = (): HTMLElement | null => screen.queryByText(/^Failed to financing\.saveAction\./)
+  const fillAndCreate = async (user: ReturnType<typeof userEvent.setup>): Promise<void> => {
+    await user.clear(screen.getByLabelText('financing.date *'))
+    await user.type(screen.getByLabelText('financing.date *'), '2026-03-01')
+    await user.selectOptions(screen.getByLabelText('financing.category *'), 'lease_payment')
+    await user.type(screen.getByLabelText('common:amount *'), '450')
+    await user.click(screen.getByRole('button', { name: 'common:create' }))
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    createMutateAsync.mockRejectedValueOnce(new Error('Network Error'))
+    const user = userEvent.setup()
+    render(<FinancingRecordForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await fillAndCreate(user)
+
+    expect(await screen.findByText('Failed to financing.saveAction. Network Error')).toBeInTheDocument()
+    expect(document.getElementById('amount-error')).toBeNull()
+  })
+
+  it('a 422 on amount shows under amount and no banner', async () => {
+    createMutateAsync.mockRejectedValueOnce(validationError({ amount: 'Input should be greater than 0' }))
+    const user = userEvent.setup()
+    render(<FinancingRecordForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await fillAndCreate(user)
+
+    await waitFor(() => expect(document.getElementById('amount-error')).not.toBeNull())
+    expect(document.getElementById('amount-error')).toHaveTextContent('Input should be greater than 0')
+    expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift and silent fields: a 422 on any field the form
+  // registers has to show up under that field. Mutants: drop a name from
+  // knownFields (it goes to the banner), or drop a field's error (it goes silent).
+  it('guard: a 422 on each field shows under it', async () => {
+    const user = userEvent.setup()
+    render(<FinancingRecordForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await fillAndCreate(user)
+    await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
+    const form = document.getElementById('financing-record-form') as HTMLFormElement
+    const names = registeredFieldNames(form, UI_ONLY)
+    // An empty sweep would pass, so pin a few names it must contain.
+    expect(names).toEqual(expect.arrayContaining(['date', 'category', 'amount']))
+
+    const wrong: string[] = []
+    for (const name of names) {
+      const got = await whereA422Lands(form, createMutateAsync, name, `bad ${name}`, banner)
+      if (got !== 'field') wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

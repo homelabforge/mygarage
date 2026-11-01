@@ -3,9 +3,7 @@
 Simulates real-world upgrade scenarios against PostgreSQL:
 
 1. Fresh install: create_all -> run every migration -> verify schema
-2. Upgrade from v2.21: create baseline schema missing new columns ->
-   run migrations -> verify missing columns are added (Issue #42)
-3. Idempotency: run migrations twice -> no errors
+2. Idempotency: run migrations twice -> no errors
 
 The migration runner uses psycopg2 (sync), not asyncpg.
 
@@ -163,36 +161,7 @@ class TestFreshInstallPath:
 
 
 # ===========================================================================
-# Scenario 2: Upgrade from v2.21 (Issue #42)
-#
-# Simulates: Existing user upgrades from v2.21 to current.
-# The v2.21 schema is missing columns that were added in later migrations.
-# Flow: create baseline → mark old migrations as applied → run pending → verify
-# ===========================================================================
-
-
-@pytest.mark.skip(
-    reason=(
-        "v2.21 baseline simulation no longer works after migration 053 (v2.26.2). "
-        "create_all produces the metric-canonical schema, but 053 is a destructive "
-        "rebuild gated on an idempotency check that sees odometer_km already "
-        "present and short-circuits. To restore real v2.21 upgrade-path coverage "
-        "we'd need a hand-maintained v2.21 baseline SQL dump fed in before the "
-        "migration runner — out of scope for the migration-runner regression tests, "
-        "which are the focus of this file. Fresh install + idempotency + runner "
-        "behaviour are still covered by TestFreshInstallPath, TestMigrationIdempotency, "
-        "and TestMigrationRunnerOnPG below."
-    )
-)
-class TestUpgradeFromV221:
-    """Disabled — see class-level skip reason."""
-
-    def test_disabled(self):
-        pass
-
-
-# ===========================================================================
-# Scenario 3: Idempotency
+# Scenario 2: Idempotency
 #
 # Simulates: User restarts container (migrations run again on every startup).
 # All migrations should be safe to run twice without errors.
@@ -274,7 +243,7 @@ class TestMigrationIdempotency:
 
 
 # ===========================================================================
-# Scenario 4: Migration runner PostgreSQL-specific behavior
+# Scenario 3: Migration runner PostgreSQL-specific behavior
 #
 # Verify the runner itself works correctly with PostgreSQL.
 # ===========================================================================
@@ -373,7 +342,7 @@ class TestMigrationRunnerOnPG:
 
 
 # ===========================================================================
-# Scenario 5: Unit preference columns (migration 093)
+# Scenario 4: Unit preference columns (migration 093)
 #
 # Everything here runs against a GENUINE pre-093 schema, built by hand. A
 # create_all schema already carries the eleven columns from the ORM model, so
@@ -611,7 +580,7 @@ class TestUnitPreferenceColumns:
 
 
 # ===========================================================================
-# Scenario 6: Money columns (migration 122)
+# Scenario 5: Money columns (migration 122)
 #
 # tests/migrations/test_122_widen_money_columns.py runs the ALTERs on bare
 # narrow tables with values in them, on both dialects. Here it's the two
@@ -729,7 +698,7 @@ class TestMoneyColumnsWidened:
 
 
 # ===========================================================================
-# Scenario 7: Batch 7's widened columns (migration 135)
+# Scenario 6: Batch 7's widened columns (migration 135)
 #
 # tests/migrations/test_135_widen_numeric_columns.py runs the ALTERs on bare
 # tables. Here it's the whole install, through the runner.

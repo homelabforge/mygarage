@@ -59,16 +59,16 @@ class TestHoursRecordRoutes:
         assert float(data["engine_hours"]) == 812.4
         assert data["notes"] == "Monthly reading"
 
-    async def test_create_hours_record(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_create_hours_record(self, client: AsyncClient, auth_headers, own_vehicle):
         """Test creating a new hours record sets source=manual with null FKs."""
         payload = {
-            "vin": test_vehicle["vin"],
+            "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
             "engine_hours": 1024.7,
             "notes": "Test hours reading",
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/hours",
+            f"/api/vehicles/{own_vehicle.vin}/hours",
             json=payload,
             headers=auth_headers,
         )

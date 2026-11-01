@@ -169,8 +169,8 @@ describe('Register: the error banner is an alert', () => {
     await fillValidForm(user)
     await user.click(screen.getByRole('button', { name: 'register.submit' }))
 
-    // The test i18n leaves the action template unfilled, as in WindowStickerUpload.test.
-    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to {{action}}. {{message}}')
+    // Action stays a key (the hook mock echoes keys); setup.ts's en singleton fills the rest.
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to registerPage.createAccountAction. An unexpected server error occurred.')
   })
 })
 

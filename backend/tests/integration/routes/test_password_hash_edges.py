@@ -34,18 +34,6 @@ UNREADABLE_HASHES = {
 }
 
 
-@pytest.fixture(autouse=True)
-def _reset_rate_limits() -> None:
-    """Login and change-password are limited per address; an earlier suite can use it up."""
-    from app.routes.auth import limiter as auth_limiter
-
-    storage = auth_limiter._storage
-    storage.storage.clear()
-    storage.expirations.clear()
-    if hasattr(storage, "events"):
-        storage.events.clear()
-
-
 @pytest_asyncio.fixture(params=list(UNREADABLE_HASHES))
 async def unreadable_user(
     request: pytest.FixtureRequest, db_session: AsyncSession

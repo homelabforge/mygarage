@@ -78,7 +78,7 @@ describe('WindowStickerUpload — server-side error wiring (final-review I4)', (
 
     await vi.waitFor(() => expect(apiPatch).toHaveBeenCalledTimes(1))
     expect(
-      await screen.findByText('Failed to {{action}}. Please check your input.')
+      await screen.findByText('Failed to windowSticker.saveAction. Please check your input.')
     ).toBeInTheDocument()
   })
 
@@ -104,7 +104,7 @@ describe('WindowStickerUpload — server-side error wiring (final-review I4)', (
     expect(alert).toHaveTextContent('Input should be >= 0')
     // Fully-mapped 422 (attached>0, unhandled===0): the field error alone is
     // enough, the generic banner must stay silent — no double-report.
-    expect(screen.queryByText('Failed to {{action}}. Please check your input.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Failed to windowSticker.saveAction. Please check your input.')).not.toBeInTheDocument()
   })
 
   it('a 422 with one mapped and one unmapped field shows BOTH the field message and the banner', async () => {
@@ -131,7 +131,7 @@ describe('WindowStickerUpload — server-side error wiring (final-review I4)', (
     // Two alerts now: the field's own and the banner (G1b-78).
     await vi.waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
     expect(
-      await screen.findByText('Failed to {{action}}. Please check your input.')
+      await screen.findByText('Failed to windowSticker.saveAction. Please check your input.')
     ).toBeInTheDocument()
   })
 })
@@ -167,7 +167,7 @@ describe('WindowStickerUpload: errors and results are announced', () => {
     await uploadAndReachEditScreen(user)
     await editAndSave(user)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to {{action}}. Please check your input.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to windowSticker.saveAction. Please check your input.')
   })
 
   it('the upload success line is a status', async () => {

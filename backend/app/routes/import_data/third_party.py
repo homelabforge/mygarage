@@ -41,7 +41,6 @@ from app.schemas.fuel import (
     FuelRecordCreate,
 )
 from app.services.auth import get_vehicle_or_403, require_auth
-from app.services.fuel_side_effects import invalidate_cache_for_vehicle
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.file_validation import validate_csv_upload
 from app.utils.logging_utils import sanitize_for_log
@@ -335,5 +334,4 @@ async def _persist_parsed_fuel(
     await readings.apply(db, vin, claim=True)
 
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
     return import_result.to_dict()

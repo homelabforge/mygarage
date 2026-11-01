@@ -2,6 +2,9 @@
 Integration tests for warranty record routes.
 
 Tests warranty record CRUD operations.
+
+Every test writes on its own vehicle: warranties end years out, and on the
+shared test_vehicle they'd outlive the run (the far-future leak guard).
 """
 
 from datetime import datetime, timedelta
@@ -9,16 +12,18 @@ from datetime import datetime, timedelta
 import pytest
 from httpx import AsyncClient
 
+from app.models.vehicle import Vehicle
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestWarrantyRecordRoutes:
     """Test warranty record API endpoints."""
 
-    async def test_list_warranties(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_list_warranties(self, client: AsyncClient, auth_headers, own_vehicle: Vehicle):
         """Test listing warranty records for a vehicle."""
         response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             headers=auth_headers,
         )
 
@@ -26,11 +31,13 @@ class TestWarrantyRecordRoutes:
         data = response.json()
         assert isinstance(data, list)
 
-    async def test_get_warranty_by_id(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_get_warranty_by_id(
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle
+    ):
         """Test retrieving a specific warranty record."""
         # First create a warranty record
         create_response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             json={
                 "warranty_type": "Powertrain",
                 "provider": "Honda",
@@ -47,7 +54,7 @@ class TestWarrantyRecordRoutes:
 
         # Get the warranty record
         response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties/{record['id']}",
+            f"/api/vehicles/{own_vehicle.vin}/warranties/{record['id']}",
             headers=auth_headers,
         )
 
@@ -57,7 +64,7 @@ class TestWarrantyRecordRoutes:
         assert data["warranty_type"] == "Powertrain"
         assert float(data["mileage_limit_km"]) == 96560.4
 
-    async def test_create_warranty(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_create_warranty(self, client: AsyncClient, auth_headers, own_vehicle: Vehicle):
         """Test creating a new warranty record."""
         payload = {
             "warranty_type": "Bumper-to-Bumper",
@@ -69,7 +76,7 @@ class TestWarrantyRecordRoutes:
             "notes": "Factory warranty",
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             json=payload,
             headers=auth_headers,
         )
@@ -82,11 +89,11 @@ class TestWarrantyRecordRoutes:
         assert "id" in data
         assert "created_at" in data
 
-    async def test_update_warranty(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_update_warranty(self, client: AsyncClient, auth_headers, own_vehicle: Vehicle):
         """Test updating a warranty record."""
         # Create a warranty record
         create_response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             json={
                 "warranty_type": "Extended",
                 "start_date": "2024-01-01",
@@ -105,7 +112,7 @@ class TestWarrantyRecordRoutes:
         }
 
         response = await client.put(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties/{record['id']}",
+            f"/api/vehicles/{own_vehicle.vin}/warranties/{record['id']}",
             json=update_data,
             headers=auth_headers,
         )
@@ -116,11 +123,11 @@ class TestWarrantyRecordRoutes:
         assert data["notes"] == "Extended coverage purchased"
         assert data["policy_number"] == "EXT-12345"
 
-    async def test_delete_warranty(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_delete_warranty(self, client: AsyncClient, auth_headers, own_vehicle: Vehicle):
         """Test deleting a warranty record."""
         # Create a warranty record
         create_response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             json={
                 "warranty_type": "Corrosion",
                 "start_date": "2024-01-01",
@@ -132,7 +139,7 @@ class TestWarrantyRecordRoutes:
 
         # Delete the record
         response = await client.delete(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties/{record['id']}",
+            f"/api/vehicles/{own_vehicle.vin}/warranties/{record['id']}",
             headers=auth_headers,
         )
 
@@ -140,19 +147,19 @@ class TestWarrantyRecordRoutes:
 
         # Verify it's deleted
         get_response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties/{record['id']}",
+            f"/api/vehicles/{own_vehicle.vin}/warranties/{record['id']}",
             headers=auth_headers,
         )
         assert get_response.status_code == 404
 
-    async def test_warranty_unauthorized(self, client: AsyncClient, test_vehicle):
+    async def test_warranty_unauthorized(self, client: AsyncClient, own_vehicle: Vehicle):
         """Test that unauthenticated users cannot access warranty records."""
-        response = await client.get(f"/api/vehicles/{test_vehicle['vin']}/warranties")
+        response = await client.get(f"/api/vehicles/{own_vehicle.vin}/warranties")
 
         assert response.status_code == 401
 
     async def test_create_warranty_validation(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle
     ):
         """Test that invalid warranty records are rejected."""
         invalid_payload = {
@@ -162,7 +169,7 @@ class TestWarrantyRecordRoutes:
         }
 
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             json=invalid_payload,
             headers=auth_headers,
         )
@@ -178,34 +185,38 @@ class TestWarrantyRecordRoutes:
 
         assert response.status_code == 404
 
-    async def test_warranty_record_not_found(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_warranty_record_not_found(
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle
+    ):
         """Test get warranty with non-existent record ID."""
         response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties/99999",
+            f"/api/vehicles/{own_vehicle.vin}/warranties/99999",
             headers=auth_headers,
         )
 
         assert response.status_code == 404
 
     async def test_warranty_forbidden_non_owner(
-        self, client: AsyncClient, non_admin_headers, test_vehicle
+        self, client: AsyncClient, non_admin_headers, own_vehicle: Vehicle
     ):
         """Test that non-owner users cannot access another user's warranties."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         response = await client.get(
             f"/api/vehicles/{vin}/warranties",
             headers=non_admin_headers,
         )
         assert response.status_code == 403
 
-    async def test_create_warranty_minimal(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_create_warranty_minimal(
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle
+    ):
         """Test creating a warranty with minimal required fields."""
         payload = {
             "warranty_type": "Other",  # Must be valid: Manufacturer, Powertrain, Extended, Bumper-to-Bumper, Emissions, Corrosion, Other
             "start_date": "2024-06-01",
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             json=payload,
             headers=auth_headers,
         )
@@ -217,7 +228,7 @@ class TestWarrantyRecordRoutes:
         assert data["end_date"] is None
         assert data["mileage_limit_km"] is None
 
-    async def test_warranty_ordering(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_warranty_ordering(self, client: AsyncClient, auth_headers, own_vehicle: Vehicle):
         """Test that warranties are ordered by start_date descending."""
         # Create warranties out of order using valid types
         warranty_data = [
@@ -228,7 +239,7 @@ class TestWarrantyRecordRoutes:
 
         for date, warranty_type in warranty_data:
             await client.post(
-                f"/api/vehicles/{test_vehicle['vin']}/warranties",
+                f"/api/vehicles/{own_vehicle.vin}/warranties",
                 json={
                     "warranty_type": warranty_type,
                     "start_date": date,
@@ -238,7 +249,7 @@ class TestWarrantyRecordRoutes:
 
         # Get list
         response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             headers=auth_headers,
         )
 
@@ -250,11 +261,13 @@ class TestWarrantyRecordRoutes:
             for i in range(len(data) - 1):
                 assert data[i]["start_date"] >= data[i + 1]["start_date"]
 
-    async def test_update_warranty_partial(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_update_warranty_partial(
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle
+    ):
         """Test partial update of warranty record."""
         # Create a warranty record using a valid type
         create_response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             json={
                 "warranty_type": "Extended",
                 "provider": "Original Provider",
@@ -269,7 +282,7 @@ class TestWarrantyRecordRoutes:
 
         # Update only one field
         response = await client.put(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties/{record['id']}",
+            f"/api/vehicles/{own_vehicle.vin}/warranties/{record['id']}",
             json={"notes": "Transferred from previous owner"},
             headers=auth_headers,
         )
@@ -283,7 +296,9 @@ class TestWarrantyRecordRoutes:
         # New field added
         assert data["notes"] == "Transferred from previous owner"
 
-    async def test_warranty_with_all_fields(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_warranty_with_all_fields(
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle
+    ):
         """Test creating a warranty with all optional fields populated."""
         payload = {
             "warranty_type": "Extended",  # Must be valid type
@@ -296,7 +311,7 @@ class TestWarrantyRecordRoutes:
             "notes": "Purchased at time of sale, transferable to new owner",
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/warranties",
+            f"/api/vehicles/{own_vehicle.vin}/warranties",
             json=payload,
             headers=auth_headers,
         )

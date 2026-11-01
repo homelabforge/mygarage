@@ -15,25 +15,26 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_device import LiveLinkDevice
+from app.models.vehicle import Vehicle
 from app.models.vehicle_telemetry import VehicleTelemetry
 from app.utils.datetime_utils import utc_now
-
-pytestmark = pytest.mark.usefixtures("test_vehicle")
-
-VIN = "1HGBH41JXMN109186"
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_a_torque_device_declares_its_odometer_after_sending_it(
-    client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    own_vehicle: Vehicle,
 ) -> None:
     """Red on 4e32c6eb: 409."""
+    vin = own_vehicle.vin
     now = utc_now()
-    db_session.add(LiveLinkDevice(device_id="torqdecl0001", vin=VIN, kind="torque", enabled=True))
+    db_session.add(LiveLinkDevice(device_id="torqdecl0001", vin=vin, kind="torque", enabled=True))
     db_session.add(
         VehicleTelemetry(
-            vin=VIN,
+            vin=vin,
             device_id="torqdecl0001",
             param_key="TORQUE_ODOMETER",
             value=80000.0,

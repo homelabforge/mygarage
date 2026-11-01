@@ -1,6 +1,29 @@
-import { afterEach, vi } from 'vitest'
+import { afterEach, beforeAll, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
+import i18next from 'i18next'
+import { EN_RESOURCES, NAMESPACES } from '../locales/enResources'
+
+// Real i18next singleton, en only. Code outside React (httpErrorHandler,
+// ErrorBoundary) calls it directly, and uninitialised it hands back the raw
+// "Failed to {{action}}" template, so no test could see which action went in.
+// It runs in beforeAll, after the test file's imports, so a file that imports
+// the app's own src/i18n.ts keeps that config instead of getting this one
+// layered under it (i18next merges a re-init over the old options).
+// The isInitialized guard leans on vitest's per-file isolation: each test file
+// gets a fresh i18next module, so a file that inits it can't leak into the next.
+beforeAll(() => {
+  if (i18next.isInitialized || i18next.isInitializing) return
+  void i18next.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    ns: NAMESPACES,
+    defaultNS: 'common',
+    resources: { en: EN_RESOURCES },
+    interpolation: { escapeValue: false },
+    initAsync: false,
+  })
+})
 
 // Mock react-i18next globally for all tests.
 //

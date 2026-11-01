@@ -30,7 +30,7 @@ import datetime as dt
 import json
 import logging
 import uuid
-from collections.abc import AsyncIterator, Callable, Generator, Iterator
+from collections.abc import AsyncIterator, Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -55,7 +55,6 @@ from app.models.oidc_pending_link import OIDCPendingLink
 from app.models.oidc_state import OIDCState
 from app.models.settings import Setting
 from app.models.user import User
-from app.routes.oidc import limiter as oidc_route_limiter
 from app.services.oidc import create_pending_link_token, store_oidc_state
 from app.services.oidc import linking as oidc_linking
 from app.utils.datetime_utils import utc_now
@@ -111,17 +110,6 @@ async def _oidc_rows(db_session: AsyncSession):
             )
         )
     await db_session.commit()
-
-
-@pytest.fixture(autouse=True)
-def _fresh_link_limit() -> Iterator[None]:
-    """The SSO start, the callback and /link-account each allow 5 a minute per address.
-
-    Nearly every request here comes from one address, 127.0.0.1.
-    """
-    oidc_route_limiter.reset()
-    yield
-    oidc_route_limiter.reset()
 
 
 @dataclass(frozen=True)

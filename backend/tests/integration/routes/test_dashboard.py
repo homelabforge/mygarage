@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -22,7 +23,9 @@ from app.models import (
 )
 
 
-async def _isolated_fleet(db_session: AsyncSession) -> tuple[str, dict[str, str]]:
+async def _isolated_fleet(
+    db_session: AsyncSession, made_users: list[str]
+) -> tuple[str, dict[str, str]]:
     """Create a throwaway non-admin owner + one vehicle and return
     ``(vin, auth_headers)`` whose ``/api/dashboard`` fleet is EXACTLY that vehicle.
 
@@ -53,6 +56,8 @@ async def _isolated_fleet(db_session: AsyncSession) -> tuple[str, dict[str, str]
         is_admin=False,
     )
     db_session.add(user)
+    # Deleting the user at teardown takes the vehicle and its rows with it (FK cascade).
+    made_users.append(user.username)
     await db_session.commit()
     await db_session.refresh(user)
 
@@ -153,13 +158,13 @@ class TestDashboardRoutes:
         assert "overdue_maintenance_count" in test_vehicle_stats
 
     async def test_pure_distance_vehicle_has_null_hours_fields(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """Part A: a vehicle with no hours_records rows must never leak an
         hours figure — latest_hours/average_l_per_hr/average_cost_per_hr stay
         null and secondary_usage_enabled defaults false on the garage-list
         VehicleStatistics card."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         response = await client.get("/api/dashboard", headers=headers)
         assert response.status_code == 200
         card = next(v for v in response.json()["vehicles"] if v["vin"] == vin)
@@ -169,12 +174,12 @@ class TestDashboardRoutes:
         assert card["secondary_usage_enabled"] is False
 
     async def test_dashboard_hours_reminder_overdue_is_counted(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """Phase 6b: a pure `hours` reminder (due_hours, no due_date) with
         current_hours >= due_hours counts toward overdue_maintenance_count,
         exactly like a mileage reminder does today."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         db_session.add(HoursRecord(vin=vin, date=date.today(), engine_hours=Decimal("600.0")))
         db_session.add(
             Reminder(
@@ -194,10 +199,10 @@ class TestDashboardRoutes:
         assert card["upcoming_maintenance_count"] == 0
 
     async def test_dashboard_hours_reminder_not_yet_due_is_not_overdue(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """A pure hours reminder below its target is upcoming, not overdue."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         db_session.add(HoursRecord(vin=vin, date=date.today(), engine_hours=Decimal("100.0")))
         db_session.add(
             Reminder(
@@ -217,12 +222,12 @@ class TestDashboardRoutes:
         assert card["upcoming_maintenance_count"] == 1
 
     async def test_dashboard_mixed_date_mileage_hours_reminders_all_evaluated(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """Regression: date, mileage, AND hours reminders on the SAME vehicle
         each evaluate independently and correctly — the new hours branch
         doesn't cross-contaminate the pre-existing date/mileage checks."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         db_session.add(OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("60000")))
         db_session.add(HoursRecord(vin=vin, date=date.today(), engine_hours=Decimal("50.0")))
         db_session.add_all(
@@ -267,7 +272,7 @@ class TestDashboardRoutes:
         assert card["upcoming_maintenance_count"] == 2
 
     async def test_dashboard_fetches_current_hours_once_per_vehicle(
-        self, client: AsyncClient, db_session: AsyncSession, monkeypatch
+        self, client: AsyncClient, db_session: AsyncSession, monkeypatch, made_users: list[str]
     ):
         """No N+1: latest_engine_hours_and_date is called exactly once per
         vehicle regardless of how many pending hours reminders it has —
@@ -276,7 +281,7 @@ class TestDashboardRoutes:
         not re-query per reminder."""
         import app.routes.dashboard as dashboard_module
 
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         db_session.add(HoursRecord(vin=vin, date=date.today(), engine_hours=Decimal("500.0")))
         db_session.add_all(
             [
@@ -383,47 +388,39 @@ class TestDashboardRoutes:
         assert data["total_fuel_records"] >= 1
 
     async def test_dashboard_maintenance_counts(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
     ):
-        """Test that dashboard tracks maintenance schedule counts correctly."""
-        # Create an upcoming reminder
-        item_upcoming = Reminder(
-            vin=test_vehicle["vin"],
-            title="Dashboard upcoming item",
-            reminder_type="date",
-            due_date=date.today() + timedelta(days=15),
-            status="pending",
-        )
-        db_session.add(item_upcoming)
+        """One overdue and one due-soon reminder read back as exactly one of each.
 
-        # Create an overdue reminder
-        item_overdue = Reminder(
-            vin=test_vehicle["vin"],
-            title="Dashboard overdue item",
-            reminder_type="date",
-            due_date=date.today() - timedelta(days=30),
-            status="pending",
+        On its own vehicle: on test_vehicle every run's reminders piled up, so
+        this could only ever say "at least one".
+        """
+        db_session.add_all(
+            [
+                Reminder(
+                    vin=own_vehicle.vin,
+                    title="Dashboard upcoming item",
+                    reminder_type="date",
+                    due_date=date.today() + timedelta(days=15),
+                    status="pending",
+                ),
+                Reminder(
+                    vin=own_vehicle.vin,
+                    title="Dashboard overdue item",
+                    reminder_type="date",
+                    due_date=date.today() - timedelta(days=30),
+                    status="pending",
+                ),
+            ]
         )
-        db_session.add(item_overdue)
         await db_session.commit()
 
-        # Get dashboard
-        response = await client.get(
-            "/api/dashboard",
-            headers=auth_headers,
-        )
-        data = response.json()
+        response = await client.get("/api/dashboard", headers=auth_headers)
+        assert response.status_code == 200
+        stats = next(v for v in response.json()["vehicles"] if v["vin"] == own_vehicle.vin)
 
-        # Find our test vehicle
-        test_vehicle_stats = None
-        for vehicle in data["vehicles"]:
-            if vehicle["vin"] == test_vehicle["vin"]:
-                test_vehicle_stats = vehicle
-                break
-
-        assert test_vehicle_stats is not None
-        # Should have overdue count
-        assert test_vehicle_stats["overdue_maintenance_count"] >= 1
+        assert stats["overdue_maintenance_count"] == 1
+        assert stats["due_soon_maintenance_count"] == 1
 
     async def test_dashboard_latest_dates(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test that dashboard tracks latest service/fuel dates."""
@@ -567,11 +564,11 @@ class TestDashboardRoutes:
         assert stat["vehicle_type"] == "Car"
 
     async def test_fleet_health_spent_this_year_is_ytd_scoped(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
     ):
         """Spent = service + fuel + DEF dated year_start..today; prior-year AND
         later-this-year records are both excluded (true YTD)."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         today = date.today()
 
         before = Decimal(
@@ -613,11 +610,11 @@ class TestDashboardRoutes:
         assert after - before == Decimal("160.00")
 
     async def test_fleet_health_upcoming_excludes_today_and_far(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """upcoming_30d_count = strictly-future within 30 days; a due-today
         reminder is Overdue only, never double-counted (review finding 6)."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         db_session.add_all(
             [
@@ -688,12 +685,12 @@ class TestDashboardRoutes:
         assert fh["upcoming_30d_count"] == 2
 
     async def test_due_soon_uses_the_usage_projection_for_mileage_reminders(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """A mileage reminder is due soon when the odometer is projected to reach
         it within 30 days at the last 90 days' rate, the same date the reminders
         list shows; a calendar date and the projection both count, earliest wins."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         db_session.add_all(
             [
@@ -760,12 +757,12 @@ class TestDashboardRoutes:
         assert data["fleet_health"]["upcoming_30d_count"] == 3
 
     async def test_due_soon_without_a_usage_rate_needs_a_date(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """One odometer reading gives no rate, so a mileage-only reminder has no
         expected date. Created beside today's reading, it is 0% along its span, so
         the D2 fallback doesn't make it due soon either."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         db_session.add_all(
             [
                 OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("56000")),
@@ -789,10 +786,10 @@ class TestDashboardRoutes:
         assert card["due_soon_maintenance_count"] == 0
 
     async def test_fleet_health_next_due_picks_soonest_dated(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """next_due is the pending dated reminder with the earliest due_date."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         db_session.add_all(
             [
@@ -823,11 +820,11 @@ class TestDashboardRoutes:
         assert next_due["due_date"] == (today + timedelta(days=5)).isoformat()
 
     async def test_fleet_health_next_due_excludes_completed_and_undated(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """Completed reminders and reminders with neither date nor mileage never
         win Next-due (review finding 7)."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         db_session.add_all(
             [
@@ -872,11 +869,11 @@ class TestDashboardRoutes:
         assert next_due["label"] == "Real next"
 
     async def test_fleet_health_next_due_mileage_only_fallback(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """With no dated pending reminder, a mileage-only reminder surfaces,
         ordered by due_mileage_km when the vehicle has no odometer (OQ1/finding 9)."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         db_session.add_all(
             [
                 Reminder(
@@ -914,7 +911,7 @@ class TestDashboardRoutes:
         client: AsyncClient,
         non_admin_headers,
         non_admin_user,
-        test_vehicle,
+        own_vehicle: Vehicle,
         db_session: AsyncSession,
     ):
         """A non-admin's fleet_health never includes a vehicle they neither own
@@ -941,11 +938,11 @@ class TestDashboardRoutes:
                 status="pending",
             )
         )
-        # Out of scope: test_vehicle belongs to the ADMIN test_user, not shared
+        # Out of scope: own_vehicle belongs to the ADMIN test_user, not shared
         # with the non-admin. Its EARLIER reminder must not leak into the fleet.
         db_session.add(
             Reminder(
-                vin=test_vehicle["vin"],
+                vin=own_vehicle.vin,
                 title="Not mine due sooner",
                 reminder_type="date",
                 due_date=today + timedelta(days=1),
@@ -954,18 +951,24 @@ class TestDashboardRoutes:
         )
         await db_session.commit()
 
-        response = await client.get("/api/dashboard", headers=non_admin_headers)
-        assert response.status_code == 200
-        data = response.json()
-        vins = {v["vin"] for v in data["vehicles"]}
-        assert owned_vin in vins
-        assert test_vehicle["vin"] not in vins
+        try:
+            response = await client.get("/api/dashboard", headers=non_admin_headers)
+            assert response.status_code == 200
+            data = response.json()
+            vins = {v["vin"] for v in data["vehicles"]}
+            assert owned_vin in vins
+            assert own_vehicle.vin not in vins
 
-        next_due = data["fleet_health"]["next_due"]
-        assert next_due is not None
-        # If scope leaked, the day+1 out-of-scope reminder (earlier) would win.
-        assert next_due["vin"] == owned_vin
-        assert next_due["label"] == "Mine due later"
+            next_due = data["fleet_health"]["next_due"]
+            assert next_due is not None
+            # If scope leaked, the day+1 out-of-scope reminder (earlier) would win.
+            assert next_due["vin"] == owned_vin
+            assert next_due["label"] == "Mine due later"
+        finally:
+            # The non-admin's vehicle and its reminder go too (FK cascade).
+            await db_session.rollback()
+            await db_session.execute(delete(Vehicle).where(Vehicle.vin == owned_vin))
+            await db_session.commit()
 
 
 @pytest.mark.integration
@@ -984,8 +987,10 @@ class TestHomePageFuelEconomyAndTowing:
     total fuel over total distance.
     """
 
-    async def _tow_fleet(self, db_session: AsyncSession) -> tuple[str, dict[str, str]]:
-        vin, headers = await _isolated_fleet(db_session)
+    async def _tow_fleet(
+        self, db_session: AsyncSession, made_users: list[str]
+    ) -> tuple[str, dict[str, str]]:
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         # Endpoints tile the odometer axis. The first yields no figure (nothing
         # before it); the second is a clean 500 km on 40 L; the third is a
@@ -1035,26 +1040,26 @@ class TestHomePageFuelEconomyAndTowing:
         return vehicles[0]
 
     async def test_the_headline_figure_excludes_towing(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
-        vin, headers = await self._tow_fleet(db_session)
+        vin, headers = await self._tow_fleet(db_session, made_users)
         stats = await self._stats(client, headers, vin)
         assert Decimal(str(stats["average_l_per_100km"])) == Decimal("8.00")
 
     async def test_the_towing_figure_is_towing_alone(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
-        vin, headers = await self._tow_fleet(db_session)
+        vin, headers = await self._tow_fleet(db_session, made_users)
         stats = await self._stats(client, headers, vin)
         assert Decimal(str(stats["towing_l_per_100km"])) == Decimal("16.00")
         assert "average_l_per_100km_with_towing" not in stats
 
     async def test_a_towing_tank_between_two_ordinary_ones_stays_out_of_the_headline(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """The towing tank used to merge into the tank after it: 88 L over
         800 km = 11.0 joined the 8.0 in the "excluding towing" figure (9.50)."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         for days, odo, litres, towing in [
             (30, "1000", "40", False),
@@ -1079,12 +1084,12 @@ class TestHomePageFuelEconomyAndTowing:
         assert Decimal(str(stats["towing_l_per_100km"])) == Decimal("16.00")
 
     async def test_averages_are_total_fuel_over_total_distance(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """Tanks of 100 km at 10.0 and 400 km at 5.0, twice over. All four:
         60 L / 1000 km = 6.00 (a mean of figures says 7.50). The last three:
         50 L / 900 km = 5.5556 (a mean says 6.67)."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         for days, odo, litres in [
             (40, "1000", "40"),
@@ -1111,11 +1116,11 @@ class TestHomePageFuelEconomyAndTowing:
         assert stats["towing_l_per_100km"] is None
 
     async def test_the_last_three_tanks_skip_an_impossible_one(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """A mistyped odometer sorts last. "Last 3 tanks" is the last three
         tanks that could be real: (20 + 10 + 20) L over 900 km = 5.5556."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         for days, odo, litres in [
             (50, "1000", "40"),
@@ -1142,10 +1147,10 @@ class TestHomePageFuelEconomyAndTowing:
         assert Decimal(str(stats["recent_l_per_100km"])) == Decimal("5.5556")
 
     async def test_a_vehicle_that_never_tows_has_no_towing_figure(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """No towing tank, no towing figure, so the card shows nothing extra."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         db_session.add_all(
             [
@@ -1174,12 +1179,12 @@ class TestHomePageFuelEconomyAndTowing:
         assert stats["towing_l_per_100km"] is None
 
     async def test_a_vehicle_that_only_ever_tows_still_reports_a_figure(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """Every fill-up hauling means there is no non-towing figure to headline.
         Reporting nothing would hide a number the vehicle genuinely has, so the
         towing figure stands alone and the frontend labels it."""
-        vin, headers = await _isolated_fleet(db_session)
+        vin, headers = await _isolated_fleet(db_session, made_users)
         today = date.today()
         db_session.add_all(
             [
@@ -1219,9 +1224,9 @@ class TestTowableCards:
         return {v["vin"]: v for v in response.json()["vehicles"]}
 
     async def test_a_fifth_wheel_names_its_tow_vehicle_and_its_propane_rate(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
-        truck_vin, headers = await _isolated_fleet(db_session)
+        truck_vin, headers = await _isolated_fleet(db_session, made_users)
         truck = await db_session.get(Vehicle, truck_vin)
         assert truck is not None
         truck.year, truck.make, truck.model = 2025, "RAM", "3500"

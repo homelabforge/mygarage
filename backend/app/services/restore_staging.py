@@ -34,6 +34,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from app.utils.backup_names import backup_stamp
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -174,7 +175,6 @@ def write_manifest(data_dir: Path, *, source_backup: str, database_file: Path) -
     _fsync_dir(data_dir)
     _fsync_file(staged_db)
     _fsync_dir(staged_db.parent)
-    stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")  # local, like every backup name
     _write_json(
         staging / MANIFEST_NAME,
         {
@@ -182,7 +182,7 @@ def write_manifest(data_dir: Path, *, source_backup: str, database_file: Path) -
             "source_backup": source_backup,
             "staged_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "database": str(database_file.resolve()),
-            "prerestore_backup": f"mygarage-full-safety-prerestore-{stamp}.tar.gz",
+            "prerestore_backup": f"mygarage-full-safety-prerestore-{backup_stamp()}.tar.gz",
         },
     )
 

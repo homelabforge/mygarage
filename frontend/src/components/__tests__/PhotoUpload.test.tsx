@@ -123,7 +123,7 @@ describe('PhotoUpload — centered upload modal: guard + upload', () => {
     await user.click(screen.getByRole('button', { name: 'photoUpload.uploadBtn' }))
     await vi.waitFor(() => expect(postMock).toHaveBeenCalledTimes(1))
     expect(
-      await screen.findByText('Failed to {{action}}. Please check your input.')
+      await screen.findByText('Failed to photoUpload.uploadAction. Please check your input.')
     ).toBeInTheDocument()
   })
 })

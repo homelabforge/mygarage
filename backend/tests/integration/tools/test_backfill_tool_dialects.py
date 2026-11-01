@@ -15,11 +15,12 @@ because psycopg2 adapts PostgreSQL `DATE` to `datetime.date`.
 
 import sys
 import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.utils.db_url import to_sync_url
@@ -39,8 +40,8 @@ def _device_id(vin: str) -> str:
 
 
 @pytest_asyncio.fixture
-async def own_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> str:
-    """A vehicle owned by this test alone, returned as its VIN.
+async def tool_vin(db_session: AsyncSession, test_user: dict[str, object]) -> AsyncIterator[str]:
+    """A vehicle owned by this test alone, returned as its VIN, and deleted after.
 
     The suite shares one database with no per-test rollback, and `test_vehicle`
     hands every test the same fixed VIN. Two tests here both seed odometer
@@ -48,6 +49,7 @@ async def own_vehicle(db_session: AsyncSession, test_user: dict[str, object]) ->
     second test's result -- and the direction of that leak (extra telemetry,
     already-taken days) is exactly what these tests assert on.
     """
+    from app.models.livelink_device import LiveLinkDevice
     from app.models.vehicle import Vehicle
 
     vin = f"TOOLTEST{uuid.uuid4().hex[:9].upper()}"
@@ -63,7 +65,12 @@ async def own_vehicle(db_session: AsyncSession, test_user: dict[str, object]) ->
         )
     )
     await db_session.commit()
-    return vin
+    yield vin
+    # Deleting the vehicle only nulls the device's VIN, so find the device first.
+    await db_session.rollback()
+    await db_session.execute(delete(LiveLinkDevice).where(LiveLinkDevice.vin == vin))
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+    await db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -94,7 +101,7 @@ class TestBackfillToolRunsOnThisDialect:
         await db_session.commit()
 
     async def test_dry_run_completes_instead_of_raising_on_a_date_column(
-        self, db_session: AsyncSession, own_vehicle: str, monkeypatch
+        self, db_session: AsyncSession, tool_vin: str, monkeypatch
     ) -> None:
         """The regression. On PostgreSQL this raised TypeError on the first row.
 
@@ -103,7 +110,7 @@ class TestBackfillToolRunsOnThisDialect:
         """
         from tools.backfill_livelink_odometer import main
 
-        vin = own_vehicle
+        vin = tool_vin
         await self._seed(db_session, vin)
 
         monkeypatch.setattr(
@@ -112,7 +119,7 @@ class TestBackfillToolRunsOnThisDialect:
         assert main() == 0
 
     async def test_it_skips_a_day_that_already_has_a_record(
-        self, db_session: AsyncSession, own_vehicle: str, monkeypatch
+        self, db_session: AsyncSession, tool_vin: str, monkeypatch
     ) -> None:
         """Reads `odometer_records.date`, the second DATE column the tool parses.
 
@@ -122,7 +129,7 @@ class TestBackfillToolRunsOnThisDialect:
         """
         from tools.backfill_livelink_odometer import main
 
-        vin = own_vehicle
+        vin = tool_vin
         await self._seed(db_session, vin)
         from app.models.odometer import OdometerRecord
 

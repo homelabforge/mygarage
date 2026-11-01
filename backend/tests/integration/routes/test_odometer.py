@@ -57,16 +57,16 @@ class TestOdometerRecordRoutes:
         assert float(data["odometer_km"]) == 80467.0
         assert data["notes"] == "Monthly reading"
 
-    async def test_create_odometer_record(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_create_odometer_record(self, client: AsyncClient, auth_headers, own_vehicle):
         """Test creating a new odometer record."""
         payload = {
-            "vin": test_vehicle["vin"],
+            "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
             "odometer_km": 88513.7,
             "notes": "Test odometer reading",
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/odometer",
+            f"/api/vehicles/{own_vehicle.vin}/odometer",
             json=payload,
             headers=auth_headers,
         )

@@ -4,13 +4,102 @@ Integration tests for authentication routes.
 Tests user registration, login, logout, and protected endpoints.
 """
 
+import time
+import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import timedelta
+from pathlib import Path
+
 import jwt
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import delete, select  # noqa: F401
+from joserfc import jws
+from joserfc import jwt as jose_jwt
+from joserfc.jwk import OctKey
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import settings
+from app.database import Base, configure_sqlite_engine, get_db
+from app.main import app
 from app.models.user import User
+from app.models.vehicle import Vehicle
+from app.services.auth import create_access_token
+from tests._users import TEST_PASSWORD_HASH
+
+_REGISTRATION_DISABLED = (
+    "Registration is disabled. Please contact an administrator to create an account."
+)
+_BAD_CREDENTIALS = "Could not validate credentials"
+_NEW_PASSWORD = "NewSecureP@ss1"
+
+
+def _bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def empty_db(
+    client: AsyncClient, tmp_path: Path
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """A private SQLite database with nobody in it, for this test's requests only.
+
+    The zero-user tests used to delete every user in the shared database, and
+    the cascade took every vehicle and record with them. It's SQLite in the
+    PostgreSQL job too, so first-user registration only runs on SQLite.
+    """
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'empty.db'}")
+    configure_sqlite_engine(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False, autoflush=False)
+
+    async def private_get_db() -> AsyncIterator[AsyncSession]:
+        async with maker() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+
+    shared = app.dependency_overrides[get_db]
+    app.dependency_overrides[get_db] = private_get_db
+    yield maker
+    app.dependency_overrides[get_db] = shared
+    await engine.dispose()
+
+
+async def _make_user(db_session: AsyncSession, made_users: list[str]) -> tuple[int, str]:
+    """A throwaway active non-admin user; its email is `<name>@example.com`."""
+    name = f"dup_{uuid.uuid4().hex[:10]}"
+    user = User(
+        username=name,
+        email=f"{name}@example.com",
+        hashed_password=TEST_PASSWORD_HASH,
+        is_active=True,
+        is_admin=False,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    made_users.append(name)
+    return user.id, name
+
+
+async def _count_users(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    username: str | None = None,
+    email: str | None = None,
+) -> int:
+    """Committed users matching every filter given, read over a second session."""
+    query = select(func.count(User.id))
+    if username is not None:
+        query = query.where(User.username == username)
+    if email is not None:
+        query = query.where(User.email == email)
+    async with sessionmaker() as fresh:
+        return await fresh.scalar(query) or 0
 
 
 @pytest.mark.integration
@@ -19,11 +108,16 @@ from app.models.user import User
 class TestUserRegistration:
     """Test user registration endpoint."""
 
-    async def test_register_first_user_success(self, client: AsyncClient, db_session):
+    async def test_register_first_user_success(
+        self,
+        client: AsyncClient,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        new_vehicle: Callable[..., Awaitable[str]],
+        empty_db: async_sessionmaker[AsyncSession],
+    ):
         """Test that the first user can register and becomes admin."""
-        # Clear any existing users
-        await db_session.execute(delete(User))
-        await db_session.commit()
+        # A vehicle in the shared database, which this test must leave alone.
+        bystander = await new_vehicle()
 
         # Register first user
         response = await client.post(
@@ -43,36 +137,18 @@ class TestUserRegistration:
         assert data["is_admin"] is True
         assert data["is_active"] is True
         assert "hashed_password" not in data  # Password should not be returned
+        async with empty_db() as private:
+            assert await private.scalar(select(func.count(User.id))) == 1
+        # Nobody else's garage pays for the empty database.
+        async with test_sessionmaker() as fresh:
+            assert await fresh.get(Vehicle, bystander) is not None
 
-    @pytest.mark.skip(
-        reason="Single-user mode: registration disabled after first user, "
-        "duplicate username check can't be tested via API"
-    )
-    async def test_register_duplicate_username(self, client: AsyncClient, db_session):
-        """Test that duplicate usernames are rejected.
-
-        NOTE: This test is skipped because MyGarage operates in single-user mode.
-        After the first user registers, all subsequent registration attempts return 403.
-        Duplicate username validation happens at the database level but can't be
-        tested through the API in single-user mode.
-        """
-        pass
-
-    @pytest.mark.skip(
-        reason="Single-user mode: registration disabled after first user, "
-        "duplicate email check can't be tested via API"
-    )
-    async def test_register_duplicate_email(self, client: AsyncClient, db_session):
-        """Test that duplicate emails are rejected.
-
-        NOTE: This test is skipped because MyGarage operates in single-user mode.
-        After the first user registers, all subsequent registration attempts return 403.
-        Duplicate email validation happens at the database level but can't be
-        tested through the API in single-user mode.
-        """
-        pass
-
-    async def test_register_second_user_blocked(self, client: AsyncClient, test_user):
+    async def test_register_second_user_blocked(
+        self,
+        client: AsyncClient,
+        test_user,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+    ):
         """Test that registration is blocked after first user."""
         # test_user fixture ensures a user exists, so registration should be blocked
         response = await client.post(
@@ -84,16 +160,15 @@ class TestUserRegistration:
             },
         )
 
-        # Should be 403 (disabled) or 429 (rate limited from previous tests)
-        assert response.status_code in [403, 429]
-        if response.status_code == 403:
-            assert "disabled" in response.json()["detail"].lower()
+        # Every limiter starts each test unspent, so a 429 here is a real failure.
+        assert response.status_code == 403
+        assert response.json()["detail"] == _REGISTRATION_DISABLED
+        assert await _count_users(test_sessionmaker, username="seconduser") == 0
 
-    async def test_register_invalid_email(self, client: AsyncClient, db_session):
+    async def test_register_invalid_email(
+        self, client: AsyncClient, empty_db: async_sessionmaker[AsyncSession]
+    ):
         """Test that invalid email addresses are rejected."""
-        await db_session.execute(delete(User))
-        await db_session.commit()
-
         response = await client.post(
             "/api/auth/register",
             json={
@@ -112,11 +187,10 @@ class TestUserRegistration:
 class TestHasUsers:
     """The public first-user check says yes or no, never how many."""
 
-    async def test_no_users_reads_false(self, client: AsyncClient, db_session):
+    async def test_no_users_reads_false(
+        self, client: AsyncClient, empty_db: async_sessionmaker[AsyncSession]
+    ):
         """With nobody registered, anonymous callers get has_users false."""
-        await db_session.execute(delete(User))
-        await db_session.commit()
-
         response = await client.get("/api/auth/users/count")
 
         assert response.status_code == 200
@@ -126,19 +200,21 @@ class TestHasUsers:
         assert body["has_users"] is False
         assert "count" not in body
 
-    async def test_one_user_reads_true(self, client: AsyncClient, db_session):
+    async def test_one_user_reads_true(
+        self, client: AsyncClient, empty_db: async_sessionmaker[AsyncSession]
+    ):
         """Once someone exists, anonymous callers get has_users true and no count."""
-        await db_session.execute(delete(User))
-        await db_session.commit()
-        user = User(
-            username="hasusersprobe",
-            email="hasusersprobe@example.com",
-            hashed_password="unused",
-            is_active=True,
-            is_admin=False,
-        )
-        db_session.add(user)
-        await db_session.commit()
+        async with empty_db() as private:
+            private.add(
+                User(
+                    username="hasusersprobe",
+                    email="hasusersprobe@example.com",
+                    hashed_password="unused",
+                    is_active=True,
+                    is_admin=False,
+                )
+            )
+            await private.commit()
 
         response = await client.get("/api/auth/users/count")
 
@@ -148,9 +224,6 @@ class TestHasUsers:
         # 1 == True too, so a leaked count of one would sneak past the equality.
         assert body["has_users"] is True
         assert "count" not in body
-
-        await db_session.delete(user)
-        await db_session.commit()
 
 
 @pytest.mark.integration
@@ -311,24 +384,79 @@ class TestProtectedEndpoints:
 
         assert response.status_code == 401
 
-    async def test_get_current_user_expired_token(self, client: AsyncClient):
-        """Test accessing /me endpoint with expired token."""
-        # Create an expired token (1 second expiry)
-        from datetime import timedelta
+    async def test_get_current_user_expired_token(self, client: AsyncClient, test_user):
+        """An expired token for a real user gets 401, and a live one for them gets 200.
 
-        from app.services.auth import create_access_token
+        It used to mint for user 999, who doesn't exist, so the user lookup
+        answered 401 and the expiry check never had to.
+        """
+        claims = {"sub": str(test_user["id"]), "username": str(test_user["username"])}
+        live = create_access_token(claims)
+        expired = create_access_token(claims, expires_delta=timedelta(seconds=-100))
 
-        expired_token = create_access_token(
-            {"sub": "999", "username": "test"},
-            expires_delta=timedelta(seconds=-1),  # Already expired
-        )
+        control = await client.get("/api/auth/me", headers=_bearer(live))
+        assert control.status_code == 200
+        assert control.json()["id"] == test_user["id"]
 
-        response = await client.get(
-            "/api/auth/me",
-            headers={"Authorization": f"Bearer {expired_token}"},
-        )
+        response = await client.get("/api/auth/me", headers=_bearer(expired))
 
         assert response.status_code == 401
+        assert response.json()["detail"] == _BAD_CREDENTIALS
+
+    async def test_token_without_exp_is_refused(self, client: AsyncClient, test_user):
+        """A signed token with no exp claim gets 401 instead of never expiring.
+
+        The control is the same token with an exp, so the 401 can only be the
+        missing claim, not a bad signature.
+        """
+        claims: dict[str, object] = {
+            "sub": str(test_user["id"]),
+            "username": str(test_user["username"]),
+        }
+        key = OctKey.import_key(settings.secret_key)
+        header = {"alg": settings.algorithm}
+        with_exp = jose_jwt.encode(header, {**claims, "exp": int(time.time()) + 600}, key)
+        without_exp = jose_jwt.encode(header, claims, key)
+
+        control = await client.get("/api/auth/me", headers=_bearer(with_exp))
+        assert control.status_code == 200
+        assert control.json()["id"] == test_user["id"]
+
+        response = await client.get("/api/auth/me", headers=_bearer(without_exp))
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == _BAD_CREDENTIALS
+
+    # 10**400 is a whole number too big for a float, so isfinite can't take it.
+    @pytest.mark.parametrize(
+        "exp_json", ['"9"', "Infinity", "NaN", "1" + "0" * 400], ids=["text", "inf", "nan", "1e400"]
+    )
+    async def test_token_with_a_non_finite_or_non_numeric_exp_is_refused(
+        self, client: AsyncClient, test_user, exp_json: str
+    ):
+        """A signed token whose exp isn't a finite number gets 401.
+
+        A string used to blow up the comparison (500), and `now > inf` or
+        `now > nan` is False, so those tokens never expired. The payload is
+        written as raw JSON so it really carries the bare Infinity/NaN tokens.
+        """
+        claims = f'"sub": "{test_user["id"]}", "username": "{test_user["username"]}"'
+        key = OctKey.import_key(settings.secret_key)
+        header = {"alg": settings.algorithm}
+
+        def sign(exp: str) -> str:
+            return jws.serialize_compact(header, f"{{{claims}, {exp}}}".encode(), key)
+
+        control = await client.get(
+            "/api/auth/me", headers=_bearer(sign(f'"exp": {int(time.time()) + 600}'))
+        )
+        assert control.status_code == 200
+        assert control.json()["id"] == test_user["id"]
+
+        response = await client.get("/api/auth/me", headers=_bearer(sign(f'"exp": {exp_json}')))
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == _BAD_CREDENTIALS
 
     async def test_get_current_user_auth_mode_none_returns_null(
         self, client: AsyncClient, db_session
@@ -390,60 +518,12 @@ class TestLogout:
 @pytest.mark.integration
 @pytest.mark.auth
 @pytest.mark.asyncio
-class TestRateLimiting:
-    """Test rate limiting on auth endpoints."""
-
-    async def test_login_rate_limit(self, client: AsyncClient, test_user):
-        """Test that login endpoint has rate limiting."""
-        # Make multiple rapid login attempts
-        for _ in range(10):
-            await client.post(
-                "/api/auth/login",
-                json={
-                    "username": test_user["username"],
-                    "password": "wrongpassword",
-                },
-            )
-
-        # Should eventually get rate limited
-        # Note: This test may be flaky depending on rate limit settings
-        # The actual rate limit check is implementation-specific
-        # For now, we just verify the endpoint exists and responds
-        response = await client.post(
-            "/api/auth/login",
-            json={
-                "username": test_user["username"],
-                "password": "wrongpassword",
-            },
-        )
-
-        # Either 401 (auth failed) or 429 (rate limited) is acceptable
-        assert response.status_code in [401, 429]
-
-
-@pytest.mark.integration
-@pytest.mark.auth
-@pytest.mark.asyncio
 class TestCookieSecureFlag:
     """Test cookie Secure flag behavior based on request scheme.
 
     Regression tests for GitHub issue #35: Local auth login fails over HTTP
     because the Secure flag causes browsers to silently drop the cookie.
-
-    These tests run with rate limiting disabled to avoid interference from
-    earlier test classes that exhaust the auth rate limit.
     """
-
-    @pytest.fixture(autouse=True)
-    def _reset_rate_limits(self):
-        """Reset auth route's rate limiter storage to avoid 429s from earlier tests."""
-        from app.routes.auth import limiter as auth_limiter
-
-        storage = auth_limiter._storage
-        storage.storage.clear()
-        storage.expirations.clear()
-        if hasattr(storage, "events"):
-            storage.events.clear()
 
     @pytest.fixture(autouse=True)
     async def _ensure_local_auth(self, db_session):
@@ -580,6 +660,112 @@ class TestAdminPasswordReset:
             headers=auth_headers,
         )
         assert response.status_code == 422
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+@pytest.mark.asyncio
+class TestDuplicateUserChecks:
+    """Admin create and both profile updates refuse a taken username or email.
+
+    Without these checks the unique index catches the duplicate instead, and
+    nothing turns its IntegrityError into a 400.
+    """
+
+    async def test_create_user_duplicate_username(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        made_users: list[str],
+        multi_user_on: None,
+    ):
+        """A second user with a taken username is a 400, and no row is written."""
+        _, taken = await _make_user(db_session, made_users)
+        email = f"other_{taken}@example.com"
+
+        response = await client.post(
+            "/api/auth/users",
+            json={"username": taken, "email": email, "password": _NEW_PASSWORD},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Username already registered"
+        assert await _count_users(test_sessionmaker, username=taken) == 1
+        assert await _count_users(test_sessionmaker, email=email) == 0
+
+    async def test_create_user_duplicate_email(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        made_users: list[str],
+        multi_user_on: None,
+    ):
+        """A second user with a taken email is a 400, and no row is written."""
+        _, owner = await _make_user(db_session, made_users)
+        taken = f"{owner}@example.com"
+        name = f"dup_{uuid.uuid4().hex[:10]}"
+        made_users.append(name)
+
+        response = await client.post(
+            "/api/auth/users",
+            json={"username": name, "email": taken, "password": _NEW_PASSWORD},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Email already registered"
+        assert await _count_users(test_sessionmaker, email=taken) == 1
+        assert await _count_users(test_sessionmaker, username=name) == 0
+
+    async def test_update_me_to_another_users_email(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        made_users: list[str],
+    ):
+        """PUT /me with someone else's email is a 400, and the caller's email stays."""
+        me_id, me = await _make_user(db_session, made_users)
+        _, other = await _make_user(db_session, made_users)
+        token = create_access_token(data={"sub": str(me_id), "username": me})
+
+        response = await client.put(
+            "/api/auth/me", json={"email": f"{other}@example.com"}, headers=_bearer(token)
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Email already registered"
+        assert await _count_users(test_sessionmaker, username=me, email=f"{me}@example.com") == 1
+
+    async def test_admin_update_user_to_another_users_email(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        test_sessionmaker: async_sessionmaker[AsyncSession],
+        made_users: list[str],
+    ):
+        """An admin moving a user onto someone else's email is a 400, and nothing changes."""
+        target_id, target = await _make_user(db_session, made_users)
+        _, other = await _make_user(db_session, made_users)
+
+        response = await client.put(
+            f"/api/auth/users/{target_id}",
+            json={"email": f"{other}@example.com"},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Email already registered"
+        assert (
+            await _count_users(test_sessionmaker, username=target, email=f"{target}@example.com")
+            == 1
+        )
 
 
 @pytest.mark.integration

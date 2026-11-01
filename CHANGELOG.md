@@ -238,8 +238,17 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Switching vehicles while the page is still loading no longer shows the previous vehicle's details on the new one, or saves them to it
 - The station and vendor searches no longer say "No matches" before the search has answered, and a failed search says so
 - Screen reader and keyboard fixes: the station, vendor and line item suggestions are comboboxes you can arrow through, drawers take focus on their first field even when kept mounted or when their fields load late, the device token dialog traps focus and closes on Escape, window sticker and sign-up errors are alerts tied to their fields, the phone More tab says when you're on one of its pages, and icon buttons, report downloads, family cards, DTC notes, the vendor clear button, and the LiveLink, Torque and tire controls have names that say which one
+- Two backups uploaded or created in the same second no longer overwrite each other, and a backup never writes over an existing file
+- Deleting a service visit, a vehicle or a user also deletes the attachment files and rows that belonged to it, including receipts for supplies kept for a deleted vehicle
+- Analytics no longer shows numbers from before an edit for up to 10 minutes
+- Deleting a user takes their vehicles off shared insurance policies the way deleting a vehicle does, so the premium drops by their share instead of still counting it
+- On an insurance policy, a server error on the notes or on a covered vehicle's type, premium share or deductible shows under that field instead of a generic save error
+- A server error on the odometer unit, an EV charging field or a supply barcode shows under that field instead of a generic save error
+- On a fill-up, an error on the driver or the OBC trip duration shows under that field, and a server error on one of the checkboxes shows the save error instead of nothing
+- Logging a supply purchase shows errors on the date, supplier and part number under the field (an empty date says it's required), and a server error on a recall's resolved checkbox shows the save error instead of nothing
 
 ### Security
+- A sign-in token with no expiry, or with one that isn't a finite number, is refused instead of never expiring (a text expiry used to error)
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)
 - The Google Places, Yelp and Foursquare API keys are masked in `GET /api/settings` like the other secrets
 - Sending the `********` placeholder back never overwrites a stored secret, even one that can't be decrypted, and the POI provider and LiveLink forms now honour it too instead of saving it as the value

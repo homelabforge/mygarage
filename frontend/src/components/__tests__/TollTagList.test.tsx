@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen } from '../../__tests__/test-utils'
-import { fireEvent } from '@testing-library/react'
+import { fireEvent, within } from '@testing-library/react'
 import type { TollTag } from '../../types/toll'
 
 const useTollTagsMock = vi.fn()
@@ -62,6 +62,13 @@ describe('TollTagList — rendering + row actions', () => {
     render(<TollTagList {...PROPS} />)
     expect(screen.getByRole('button', { name: 'common:edit' })).toHaveAttribute('aria-label', 'common:edit')
     expect(screen.getByRole('button', { name: 'common:delete' })).toHaveAttribute('aria-label', 'common:delete')
+  })
+
+  it('each tag is an article named by its toll system, holding its own Edit (the e2e finds the card this way)', () => {
+    render(<TollTagList {...PROPS} />)
+    const card = screen.getByRole('article', { name: 'E-ZPass' })
+    fireEvent.click(within(card).getByRole('button', { name: 'common:edit' }))
+    expect(onEditClick).toHaveBeenCalledWith(activeTag)
   })
 })
 

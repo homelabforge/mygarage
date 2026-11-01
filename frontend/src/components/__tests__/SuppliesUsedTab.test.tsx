@@ -122,11 +122,10 @@ describe('SuppliesUsedTab', () => {
     // luck for THIS error shape, but any AxiosError variable named `error`
     // instead of `err` was invisible to the original completion grep and
     // still printed "Request failed with status code NNN"). Routed through
-    // getActionErrorMessage like every other query-error render in the app;
-    // asserted as the literal, un-interpolated translated template since
-    // this suite's i18next singleton isn't initialized outside a rendered
-    // component (see ReminderForm.test.tsx:114 for the same pattern).
-    expect(screen.getByText('Failed to {{action}}. {{message}}')).toBeInTheDocument()
+    // getActionErrorMessage like every other query-error render in the app.
+    // The action stays a key (the hook mock echoes keys) and the message is
+    // filled in by the en singleton from setup.ts.
+    expect(screen.getByText('Failed to supplies.usedTab.loadAction. boom')).toBeInTheDocument()
   })
 
   describe('each usage shows its own supply unit', () => {

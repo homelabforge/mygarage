@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reminder import Reminder
+from app.models.vehicle import Vehicle
 from app.services.notifications.dispatcher import NotificationDispatcher
 
 
@@ -52,13 +53,13 @@ def delivered(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.usefixtures("delivered")
 class TestLastNotifiedAtIsWrittenNaive:
     async def test_a_due_reminder_can_be_marked_notified(
-        self, db_session: AsyncSession, test_vehicle: dict[str, object]
+        self, db_session: AsyncSession, own_vehicle: Vehicle
     ) -> None:
         """The regression. On PostgreSQL this raised before the row was written."""
         from app.services.reminder_service import check_due_reminders
 
         reminder = Reminder(
-            vin=str(test_vehicle["vin"]),
+            vin=own_vehicle.vin,
             title="Naive datetime guard",
             reminder_type="date",
             due_date=date.today() - timedelta(days=1),
@@ -83,7 +84,7 @@ class TestLastNotifiedAtIsWrittenNaive:
         )
 
     async def test_the_cooldown_still_works_after_a_notification(
-        self, db_session: AsyncSession, test_vehicle: dict[str, object]
+        self, db_session: AsyncSession, own_vehicle: Vehicle
     ) -> None:
         """The read guard and the write must agree.
 
@@ -95,7 +96,7 @@ class TestLastNotifiedAtIsWrittenNaive:
         from app.services.reminder_service import check_due_reminders
 
         reminder = Reminder(
-            vin=str(test_vehicle["vin"]),
+            vin=own_vehicle.vin,
             title="Cooldown guard",
             reminder_type="date",
             due_date=date.today() - timedelta(days=1),

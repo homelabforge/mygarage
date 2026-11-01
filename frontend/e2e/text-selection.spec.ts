@@ -83,10 +83,12 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
+  // A beforeAll that threw leaves these unassigned (the types say otherwise), so
+  // ?. keeps its real error from being buried under a TypeError.
   try {
-    await ledger.cleanup()
+    await ledger?.cleanup()
   } finally {
-    await api.dispose()
+    await api?.dispose()
   }
 })
 
@@ -197,6 +199,17 @@ async function clickCentreOf(page: Page, control: Locator): Promise<void> {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
 }
 
+/**
+ * Open a vehicle page and wait for its last late block. The key-facts strip
+ * mounts only once the detail stats land, and it pushes every card below it
+ * down about 90px. A value measured before that moves before the mouse gets
+ * there, so a drag lands on blank card and reads as a click (the one CI flake).
+ */
+async function openVehicle(page: Page, path: string): Promise<void> {
+  await page.goto(path)
+  await expect(page.getByRole('group', { name: 'Last Fill-up' })).toBeVisible({ timeout: 15000 })
+}
+
 /** What a plain click on a card does. */
 type CardAction = { kind: 'drawer'; name: string } | { kind: 'navigate'; path: () => string } | { kind: 'nothing' }
 
@@ -231,7 +244,7 @@ const TARGETS: Target[] = [
   {
     name: 'tire card DOT',
     open: async (page) => {
-      await page.goto(`/vehicles/${carVin}?tab=tires`)
+      await openVehicle(page, `/vehicles/${carVin}?tab=tires`)
     },
     value: (page) =>
       page.locator('.rounded-card', { hasText: TIRE.brand }).getByText(TIRE.dot, { exact: true }),
@@ -257,7 +270,7 @@ const TARGETS: Target[] = [
   {
     name: 'Overview VIN (EditableCard)',
     open: async (page) => {
-      await page.goto(`/vehicles/${carVin}`)
+      await openVehicle(page, `/vehicles/${carVin}`)
     },
     value: (page) =>
       page
@@ -275,7 +288,7 @@ const TARGETS: Target[] = [
   {
     name: 'hero VIN',
     open: async (page) => {
-      await page.goto(`/vehicles/${carVin}`)
+      await openVehicle(page, `/vehicles/${carVin}`)
     },
     value: (page) =>
       page
@@ -376,7 +389,7 @@ test.describe('Card text stays selectable (#179)', () => {
    */
   test('tire card: Edit opens the editor and not the history', async ({ page }) => {
     markGuard('ClickableCard drops its cameFromNestedControl check')
-    await page.goto(`/vehicles/${carVin}?tab=tires`)
+    await openVehicle(page, `/vehicles/${carVin}?tab=tires`)
     const card = page.locator('.rounded-card', { hasText: TIRE.brand })
     await expect(card).toBeVisible({ timeout: 15000 })
     await recordDialogs(page)
@@ -398,7 +411,7 @@ test.describe('Card text stays selectable (#179)', () => {
   test('tire card: with the keyboard button focused, a click on Edit opens the editor', async ({
     page,
   }) => {
-    await page.goto(`/vehicles/${carVin}?tab=tires`)
+    await openVehicle(page, `/vehicles/${carVin}?tab=tires`)
     const card = page.locator('.rounded-card', { hasText: TIRE.brand })
     await expect(card).toBeVisible({ timeout: 15000 })
     const keyboardButton = card.getByRole('button', { name: /^View reading history for/ })

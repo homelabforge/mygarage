@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import HoursRecord, OdometerRecord, Reminder, Vehicle
 
 
-async def _isolated_vehicle(db_session: AsyncSession) -> tuple[str, dict[str, str]]:
+async def _isolated_vehicle(
+    db_session: AsyncSession, made_users: list[str]
+) -> tuple[str, dict[str, str]]:
     """Create a throwaway non-admin owner + one vehicle and return
     ``(vin, auth_headers)`` whose ``/api/calendar`` scope is EXACTLY that
     vehicle. Mirrors ``test_dashboard.py``'s ``_isolated_fleet`` — the
@@ -42,6 +44,8 @@ async def _isolated_vehicle(db_session: AsyncSession) -> tuple[str, dict[str, st
         is_admin=False,
     )
     db_session.add(user)
+    # Deleting the user at teardown takes the vehicle and its rows with it (FK cascade).
+    made_users.append(user.username)
     await db_session.commit()
     await db_session.refresh(user)
 
@@ -159,12 +163,12 @@ class TestCalendarRoutes:
             assert event["type"] in ["maintenance", "insurance"]
 
     async def test_calendar_includes_reminder_events(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
     ):
         """Test that reminders appear as calendar events."""
         due_date = date.today() + timedelta(days=15)
         item = Reminder(
-            vin=test_vehicle["vin"],
+            vin=own_vehicle.vin,
             title="Oil Change Test",
             reminder_type="date",
             due_date=due_date,
@@ -186,24 +190,27 @@ class TestCalendarRoutes:
         assert response.status_code == 200
         data = response.json()
 
-        test_events = [e for e in data["events"] if "Oil Change Test" in e.get("title", "")]
-        assert len(test_events) >= 1
+        test_events = [
+            e
+            for e in data["events"]
+            if e["vehicle_vin"] == own_vehicle.vin and "Oil Change Test" in e.get("title", "")
+        ]
+        assert len(test_events) == 1
 
         event = test_events[0]
         assert event["type"] == "maintenance"
         assert event["category"] == "maintenance"
-        assert event["vehicle_vin"] == test_vehicle["vin"]
         assert "id" in event
         assert event["id"].startswith("reminder-")
 
     async def test_calendar_hours_reminder_with_history_gets_estimated_event(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """Phase 6b: a pure `hours` reminder (due_hours, no due_date) with
         enough engine-hours history to compute a rate gets an ESTIMATED
         calendar event date, projected from the engine-hours rate the same
         way a mileage reminder projects from km/day."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add_all(
             [
                 HoursRecord(
@@ -249,12 +256,12 @@ class TestCalendarRoutes:
         assert event["hours_until_due"] == "200.0"
 
     async def test_calendar_hours_reminder_insufficient_history_no_crash(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """No hours history at all -> current hours unknown -> no estimate
         possible -> the reminder yields no calendar event (mirrors the
         mileage no-odometer-record case), and the endpoint does not crash."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add(
             Reminder(
                 vin=vin,
@@ -282,12 +289,12 @@ class TestCalendarRoutes:
         assert test_events == []
 
     async def test_calendar_hours_reminder_single_reading_no_rate_no_crash(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """Exactly one hours reading -> current hours known but no rate can
         be computed (needs >= 2 points) -> no estimate -> no event, mirroring
         the mileage single-odometer-record case. No crash."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add(HoursRecord(vin=vin, date=date.today(), engine_hours=Decimal("100.0")))
         db_session.add(
             Reminder(
@@ -318,14 +325,14 @@ class TestCalendarRoutes:
         assert test_events == []
 
     async def test_calendar_smart_hours_reminder_surfaces_via_due_date(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """A 'smart' reminder targeting hours (due_date + due_hours, no
         due_mileage_km) with no hours history has no usage projection, so it
         must surface via its due_date directly, never dropped. (With history
         it sits at the EARLIER of date and projection; see
         test_calendar_usage_reminder_sits_on_its_projection.)"""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         due_date = date.today() + timedelta(days=10)
         db_session.add(
             Reminder(
@@ -368,12 +375,13 @@ class TestCalendarRoutes:
         db_session: AsyncSession,
         reminder_type: str,
         due_in_days: int | None,
+        made_users: list[str],
     ):
         """Rate = (51000 - 50000) / 10 days = 100 km/day; 2,000 km remaining
         projects 20 days out. A smart reminder's hard date 300 days out must
         not win: the event sits at the EARLIER of its date and its projection
         (expected_due_date), the same date the reminders list and bell show."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add_all(
             [
                 OdometerRecord(
@@ -398,13 +406,13 @@ class TestCalendarRoutes:
         assert events[0]["date"] == (date.today() + timedelta(days=20)).isoformat()
 
     async def test_calendar_date_overdue_outside_window_pinned_to_today(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """#195: a long-overdue date reminder must surface TODAY, not on its
         past date. The frontend fetches ±3 months around the viewed month, so
         an event placed on the old due date falls out of the window entirely
         and the reminder silently vanishes from the calendar."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add(
             Reminder(
                 vin=vin,
@@ -424,7 +432,7 @@ class TestCalendarRoutes:
 
     @pytest.mark.parametrize("shape", ["date-overdue", "mileage-reached", "mileage-no-reading"])
     async def test_calendar_snoozed_due_reminder_surfaces_on_its_return_day(
-        self, client: AsyncClient, db_session: AsyncSession, shape: str
+        self, client: AsyncClient, db_session: AsyncSession, shape: str, made_users: list[str]
     ):
         """A snooze silences the nag, not the plan: a reminder already due
         (by date or by a reached usage target), or one with no determinable
@@ -433,7 +441,7 @@ class TestCalendarRoutes:
         date it falls out of the fetch window and vanishes (#195 again for
         snoozed rows); left on today it nags daily straight through the
         snooze."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         comeback = date.today() + timedelta(days=5)
         kwargs: dict = {"reminder_type": "date", "due_date": date.today() - timedelta(days=200)}
         if shape != "date-overdue":
@@ -470,12 +478,12 @@ class TestCalendarRoutes:
         assert events[0]["is_estimated"] is False
 
     async def test_calendar_undated_due_soon_reminder_is_pinned_to_today(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """RD-7, D5a: a mileage-only reminder with no rate has no date to sit
         on. At 92% of its span it is due soon by the 90% fallback, so it is
         pinned to today, estimated, as the list and the hero call it."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add_all(
             [
                 OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("19200")),
@@ -511,12 +519,12 @@ class TestCalendarRoutes:
         assert await _reminder_events(client, headers, "Undated On Track Belt") == []
 
     async def test_calendar_due_soon_reminder_twenty_days_out_is_high_urgency(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """RD-3: the warning border keys on urgency, so a "Due soon" chip 20
         days out sat on a plain card ("medium" past 7 days). Due soon is
         "high" across the whole 30-day window."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add(
             Reminder(
                 vin=vin,
@@ -535,12 +543,12 @@ class TestCalendarRoutes:
         assert events[0]["is_estimated"] is False
 
     async def test_calendar_reminder_description_drops_the_type_token(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """D6a: the description was "Reminder (smart)", a raw token the
         backend can't translate, shown in the notes drawer and the iCal
         export."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add(
             Reminder(
                 vin=vin,
@@ -565,11 +573,11 @@ class TestCalendarRoutes:
         assert "Reminder (smart)" not in response.text
 
     async def test_calendar_low_tread_event_carries_the_tread(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """D7a: a low-tread event carries its tread and minimum in canonical
         mm; every other event leaves both null."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add_all(
             [
                 Reminder(
@@ -601,11 +609,11 @@ class TestCalendarRoutes:
         assert plain["tread_threshold_mm"] is None
 
     async def test_calendar_summary_counts_overdue_apart_from_upcoming(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """An overdue reminder pinned to today must not double into the
         Next 7/30 Days KPIs; overdue has its own box."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add(
             Reminder(
                 vin=vin,
@@ -632,12 +640,12 @@ class TestCalendarRoutes:
         assert summary["upcoming_30_days"] == 0
 
     async def test_calendar_mileage_overdue_with_future_due_date_is_overdue_today(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """#195 ('Brake inspection'): overdue by mileage but not yet by time.
         The old code used due_date unconditionally, so the event sat months in
         the future as on_track while the bell called it overdue."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add_all(
             [
                 OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("51200")),
@@ -662,12 +670,12 @@ class TestCalendarRoutes:
         assert Decimal(event["km_until_due"]) == Decimal("-1200")
 
     async def test_calendar_mileage_only_overdue_is_marked_overdue_not_due_soon(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, made_users: list[str]
     ):
         """#195 ('Tire rotation'): a mileage-only overdue reminder was pinned
         to today but labelled due_soon/high, because the urgency ladder only
         knew dates and today is not < today."""
-        vin, headers = await _isolated_vehicle(db_session)
+        vin, headers = await _isolated_vehicle(db_session, made_users)
         db_session.add_all(
             [
                 OdometerRecord(vin=vin, date=date.today(), odometer_km=Decimal("51200")),
@@ -689,11 +697,11 @@ class TestCalendarRoutes:
         assert events[0]["status"] == "overdue"
 
     async def test_calendar_event_structure(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
     ):
         """Test that calendar events have correct structure."""
         item = Reminder(
-            vin=test_vehicle["vin"],
+            vin=own_vehicle.vin,
             title="Structure Test Item",
             reminder_type="date",
             due_date=date.today() + timedelta(days=30),
@@ -715,8 +723,12 @@ class TestCalendarRoutes:
         assert response.status_code == 200
         data = response.json()
 
-        test_events = [e for e in data["events"] if "Structure Test" in e.get("title", "")]
-        assert len(test_events) >= 1
+        test_events = [
+            e
+            for e in data["events"]
+            if e["vehicle_vin"] == own_vehicle.vin and "Structure Test" in e.get("title", "")
+        ]
+        assert len(test_events) == 1
 
         event = test_events[0]
         assert "id" in event
@@ -767,11 +779,11 @@ class TestCalendarRoutes:
         assert ".ics" in content_disp
 
     async def test_calendar_export_content_structure(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle, db_session: AsyncSession
     ):
         """Test that iCal export has proper structure."""
         item = Reminder(
-            vin=test_vehicle["vin"],
+            vin=own_vehicle.vin,
             title="Export Test Item",
             reminder_type="date",
             due_date=date.today() + timedelta(days=30),
@@ -797,11 +809,13 @@ class TestCalendarRoutes:
         assert "CALSCALE:GREGORIAN" in content
         assert "X-WR-CALNAME:MyGarage Maintenance" in content
 
-        if "BEGIN:VEVENT" in content:
-            assert "UID:" in content
-            assert "DTSTART" in content
-            assert "SUMMARY:" in content
-            assert "END:VEVENT" in content
+        # The reminder above is in range, so there's always an event to check.
+        assert "BEGIN:VEVENT" in content
+        assert "UID:" in content
+        assert "DTSTART" in content
+        assert "SUMMARY:" in content
+        assert "Export Test Item" in content
+        assert "END:VEVENT" in content
 
     async def test_calendar_unauthorized(self, client: AsyncClient):
         """Test that unauthenticated users cannot access calendar."""

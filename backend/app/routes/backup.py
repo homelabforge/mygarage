@@ -17,6 +17,7 @@ from app.services.auth_settings import AuthSettingsConflictError
 from app.services.backup_service import BackupService
 from app.services.restore_staging import RestoreInProgressError
 from app.services.settings_secrets import ensure_secrets_encrypted
+from app.utils.backup_names import backup_stamp
 from app.utils.datetime_utils import utc_from_timestamp
 from app.utils.logging_utils import sanitize_for_log
 
@@ -385,8 +386,6 @@ async def upload_backup(
     Returns:
         Metadata about the uploaded backup file
     """
-    from datetime import datetime
-
     try:
         backup_service = get_backup_service()
         backup_service.ensure_backup_dir()
@@ -416,13 +415,13 @@ async def upload_backup(
 
         # Determine backup type and generate standardized filename
         # This ensures uploaded files appear in the backup list
-        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        stamp = backup_stamp()
         if file.filename.endswith(".json"):
             backup_type = "settings"
-            safe_filename = f"mygarage-settings-uploaded-{timestamp}.json"
+            safe_filename = f"mygarage-settings-uploaded-{stamp}.json"
         else:
             backup_type = "full"
-            safe_filename = f"mygarage-full-uploaded-{timestamp}.tar.gz"
+            safe_filename = f"mygarage-full-uploaded-{stamp}.tar.gz"
 
         backup_path = BACKUP_DIR / safe_filename
 
@@ -445,8 +444,8 @@ async def upload_backup(
             ):
                 raise HTTPException(status_code=400, detail="Invalid backup file structure")
 
-        # Write to backup directory
-        with open(backup_path, "wb") as f:
+        # Write to backup directory; "x" so a clash fails instead of overwriting
+        with open(backup_path, "xb") as f:
             f.write(content)
 
         logger.info(

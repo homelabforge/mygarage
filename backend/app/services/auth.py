@@ -2,6 +2,7 @@
 
 # pyright: reportAssignmentType=false
 
+import math
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -124,6 +125,14 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
     return jwt.encode(header, to_encode, key)
 
 
+def _finite(value: int | float) -> bool:
+    """isfinite, except an int too big for a float (10**400) is refused, not a 500."""
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 async def get_current_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -152,12 +161,19 @@ async def get_current_user(
         key = OctKey.import_key(settings.secret_key)
         claims = jwt.decode(token, key).claims
 
-        # Explicitly validate expiration (defense-in-depth)
+        # jwt.decode doesn't check exp, so this is the only expiry check. Every
+        # token we mint has one, so a token without it would never expire. A
+        # string would 500 the compare, and inf/nan never compare as past.
         exp = claims.get("exp")
-        if exp is not None:
-            if datetime.now(UTC).timestamp() > exp:
-                logger.debug("Token has expired")
-                raise credentials_exception
+        if exp is None:
+            logger.debug("Token has no expiry")
+            raise credentials_exception
+        if isinstance(exp, bool) or not isinstance(exp, int | float) or not _finite(exp):
+            logger.debug("Token expiry isn't a finite number")
+            raise credentials_exception
+        if datetime.now(UTC).timestamp() > exp:
+            logger.debug("Token has expired")
+            raise credentials_exception
 
         user_id_str: str | None = claims.get("sub")
         username: str | None = claims.get("username")

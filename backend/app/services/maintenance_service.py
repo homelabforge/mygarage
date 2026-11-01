@@ -60,7 +60,6 @@ from app.services.reminder_service import (
     validate_reminder_state,
 )
 from app.services.vehicle_lock import lock_vehicle_for_write
-from app.utils.cache import invalidate_cache_for_vehicle
 from app.utils.datetime_utils import utc_now
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
@@ -1185,7 +1184,6 @@ async def complete_reminder(
         await reconcile_vehicle_unlocked(db, vin)
 
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
     await db.refresh(reminder)
     if successor is not None:
         await db.refresh(successor)
@@ -1591,7 +1589,6 @@ async def apply_pack(
         if reminder is not None:
             results.append(reminder)
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
     for reminder in results:
         await db.refresh(reminder)
     return results
@@ -1687,7 +1684,6 @@ async def reconcile_duplicates(
     if keeper.rule is not None and keeper.rule.is_active:
         await reconcile_rule(db, keeper.rule)
     await db.commit()
-    await invalidate_cache_for_vehicle(vin)
     for reminder in [keeper, *losers]:
         await db.refresh(reminder)
     return [keeper, *losers]

@@ -130,7 +130,7 @@ describe('DEFRecordForm — submit wiring + canonical payload', () => {
     fireEvent.change(document.getElementById('date') as HTMLInputElement, { target: { value: '2026-02-10' } })
     fireEvent.submit(defForm())
     await waitFor(() => expect(createMock).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getByText('Failed to {{action}}. {{message}}')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Failed to def.saveAction. Network Error')).toBeInTheDocument())
   })
 })
 

@@ -18,7 +18,6 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fuel import FuelRecord
-from app.utils.cache import invalidate_cache_for_vehicle
 from app.utils.odometer_sync import sync_odometer_from_record
 
 logger = logging.getLogger(__name__)
@@ -33,8 +32,6 @@ async def apply_fuel_record_side_effects(
     """Sync the odometer log for one freshly-flushed fuel record.
 
     ``record.id`` must already be populated, so call this after ``flush()``.
-    Cache invalidation is NOT done here: it is per-vehicle and belongs after the
-    whole batch, so callers invoke ``invalidate_cache_for_vehicle`` once.
 
     Errors are logged and re-raised, matching FuelRecordService. Swallowing them
     would commit a fuel record with no odometer entry. Callers that must survive
@@ -63,4 +60,4 @@ async def apply_fuel_record_side_effects(
         raise
 
 
-__all__ = ["apply_fuel_record_side_effects", "invalidate_cache_for_vehicle"]
+__all__ = ["apply_fuel_record_side_effects"]

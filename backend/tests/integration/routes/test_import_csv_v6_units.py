@@ -52,25 +52,6 @@ from tests._importer_source import importer_files
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
-@pytest.fixture(autouse=True)
-def _reset_import_rate_limit():
-    """Clear the shared import/export limiter storage between tests.
-
-    `routes/import_data.py` has one module-level 20/minute limiter for every
-    import endpoint; this file alone posts more than that. Mirrors the
-    precedent in `test_import_data.py`.
-    """
-    from app.routes.export import limiter as export_limiter
-    from app.routes.import_data import limiter as import_limiter
-
-    for lim in (import_limiter, export_limiter):
-        storage = lim._storage
-        storage.storage.clear()
-        storage.expirations.clear()
-        if hasattr(storage, "events"):
-            storage.events.clear()
-
-
 @asynccontextmanager
 async def _vehicle(db_session: AsyncSession, user_id: object, vin: str) -> AsyncIterator[str]:
     """A throwaway diesel vehicle, torn down in `finally`.

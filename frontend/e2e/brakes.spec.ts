@@ -1,7 +1,7 @@
-import { request as apiRequest } from '@playwright/test'
+import { request as apiRequest, type APIRequestContext } from '@playwright/test'
 
 import { test, expect } from './helpers/fixtures'
-import { adminSessionFromStorageState, type AdminSession } from './helpers/seed'
+import { adminSessionFromStorageState, randomVin, seedLedger, type SeedLedger } from './helpers/seed'
 
 /**
  * Brake tracking (#202), driven through the browser: the tab is reachable by
@@ -14,43 +14,25 @@ const ROOT_BASE_URL = 'http://localhost:3000'
 const API_BASE = `${ROOT_BASE_URL}/api`
 const AUTH_FILE = './e2e/.auth/user.json'
 
-let cachedAdmin: AdminSession | null = null
+let api: APIRequestContext
+let ledger: SeedLedger
 
-async function adminSession(): Promise<AdminSession> {
-  if (cachedAdmin !== null) return cachedAdmin
-  const context = await apiRequest.newContext({ baseURL: ROOT_BASE_URL })
-  try {
-    cachedAdmin = await adminSessionFromStorageState(context, API_BASE, AUTH_FILE)
-    return cachedAdmin
-  } finally {
-    await context.dispose()
-  }
-}
+test.beforeAll(async () => {
+  api = await apiRequest.newContext({ baseURL: ROOT_BASE_URL })
+  const admin = await adminSessionFromStorageState(api, API_BASE, AUTH_FILE)
+  ledger = seedLedger(api, API_BASE, admin.headers)
+})
 
 /** A vehicle of this file's own, fresh every run, deleted in afterAll. */
-const vehicleVins: string[] = []
-
-async function brakeVehicle(request: import('@playwright/test').APIRequestContext): Promise<string> {
-  const admin = await adminSession()
-  // 17 chars, no I/O/Q: VIN validation rejects those.
-  const vin = ('BRAK' + Math.random().toString(36).slice(2).toUpperCase())
-    .replace(/[IOQ]/g, 'X')
-    .padEnd(17, '0')
-    .slice(0, 17)
-  const made = await request.post(`${API_BASE}/vehicles`, {
-    headers: admin.headers,
-    data: {
-      vin,
-      nickname: 'E2E Brake Rig',
-      vehicle_type: 'Car',
-      year: 1999,
-      make: 'BrakeRigMake',
-      model: 'BrakeRigModel',
-    },
+async function brakeVehicle(): Promise<string> {
+  return ledger.vehicle({
+    vin: randomVin('BRAK'),
+    nickname: 'E2E Brake Rig',
+    vehicle_type: 'Car',
+    year: 1999,
+    make: 'BrakeRigMake',
+    model: 'BrakeRigModel',
   })
-  expect(made.status(), `seed brake vehicle: ${await made.text()}`).toBe(201)
-  vehicleVins.push(vin)
-  return vin
 }
 
 async function openBrakes(page: import('@playwright/test').Page, vin: string) {
@@ -61,26 +43,21 @@ async function openBrakes(page: import('@playwright/test').Page, vin: string) {
   await expect(page.getByRole('heading', { name: 'Brakes', exact: true })).toBeVisible({ timeout: 10000 })
 }
 
-test.afterAll(async ({ playwright }) => {
-  if (vehicleVins.length === 0) return
-  const admin = await adminSession()
-  const context = await playwright.request.newContext({ baseURL: ROOT_BASE_URL })
+test.afterAll(async () => {
+  // A beforeAll that threw leaves these unassigned (the types say otherwise), so
+  // ?. keeps its real error from being buried under a TypeError.
   try {
-    for (const vin of vehicleVins) {
-      await context.delete(`${API_BASE}/vehicles/${vin}`, { headers: admin.headers })
-    }
+    await ledger?.cleanup()
   } finally {
-    await context.dispose()
-    vehicleVins.length = 0
+    await api?.dispose()
   }
 })
 
 test.describe('Brakes', () => {
   test('set the rear axle to drum, log all four corners, then a pad job starts the front over', async ({
     page,
-    request,
   }) => {
-    const vin = await brakeVehicle(request)
+    const vin = await brakeVehicle()
     await openBrakes(page, vin)
 
     // Four corners, nothing measured yet.

@@ -193,7 +193,7 @@ describe('WindowStickerUpload review: the PATCH carries only what the user chang
     await save(user)
     await vi.waitFor(() => expect(apiPatch).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('alert')).toHaveTextContent('String should have at most 10 characters')
-    expect(screen.queryByText('Failed to {{action}}. Please check your input.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Failed to windowSticker.saveAction. Please check your input.')).not.toBeInTheDocument()
   })
 })
 

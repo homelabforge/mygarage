@@ -75,7 +75,7 @@ class TestExternalVehicleRoutes:
         self, client: AsyncClient, auth_headers, db_session
     ):
         await _set_setting(db_session, "family_friends_enabled", "true")
-        vin = "1HGBH41JXMN109186"
+        vin = "1HGCM82633A004352"
 
         create = await client.post(
             "/api/external-vehicles",

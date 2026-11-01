@@ -119,7 +119,7 @@ describe('DocumentUpload — centered upload modal: guard + upload', () => {
     await user.click(screen.getByRole('button', { name: 'documentUpload.uploadBtn' }))
     await vi.waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1))
     expect(
-      await screen.findByText('Failed to {{action}}. Please check your input.')
+      await screen.findByText('Failed to documentUpload.uploadAction. Please check your input.')
     ).toBeInTheDocument()
   })
 })

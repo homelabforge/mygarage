@@ -18,7 +18,6 @@ from app.schemas.def_record import (
     DEFRecordResponse,
     DEFRecordUpdate,
 )
-from app.utils.cache import invalidate_cache_for_vehicle
 from app.utils.def_sync import ensure_def_capable
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.odometer_sync import remove_synced_odometer, sync_odometer_from_record
@@ -142,8 +141,6 @@ class DEFRecordService:
                         sanitize_for_log(e),
                     )
 
-            await invalidate_cache_for_vehicle(vin)
-
             return record
 
         except HTTPException:
@@ -231,8 +228,6 @@ class DEFRecordService:
                         sanitize_for_log(e),
                     )
 
-            await invalidate_cache_for_vehicle(vin)
-
             return record
 
         except HTTPException:
@@ -281,8 +276,6 @@ class DEFRecordService:
             logger.info(
                 "Deleted DEF record %s for %s", sanitize_for_log(record_id), sanitize_for_log(vin)
             )
-
-            await invalidate_cache_for_vehicle(vin)
 
         except HTTPException:
             raise
