@@ -144,13 +144,14 @@ describe('TireList under a metric set', () => {
     expect(screen.queryByText('2.40 bar')).not.toBeInTheDocument()
   })
 
-  it('shows canonical millimetres unconverted in the form, stepping by hundredths', () => {
+  it('shows canonical millimetres unconverted in the form, at hundredths', () => {
     render(<TireList vin="1HGCM82633A004352" />)
     fireEvent.click(screen.getByLabelText('tireList.edit'))
 
     const tread = screen.getByLabelText('tireList.treadWithUnit') as HTMLInputElement
     expect(tread.value).toBe('7.50')
-    expect(tread.step).toBe('0.01')
+    // Typed text since G1b-21, so no native step can refuse a decimal.
+    expect(tread).toHaveAttribute('inputmode', 'decimal')
   })
 
   it('stores kPa unconverted, where the imperial path multiplies by 6.894757...', () => {
@@ -161,11 +162,7 @@ describe('TireList under a metric set', () => {
     fireEvent.click(screen.getByLabelText('tireList.edit'))
 
     const pressure = screen.getByLabelText('tireList.pressureWithUnit') as HTMLInputElement
-    // kPa has no decimals, so the field steps in whole kilopascals. This is the
-    // assertion that is false at t=0 AND false before the change, where every
-    // input carried a fixed step="0.1": the value and the payload below are
-    // both what the unmigrated component already produced.
-    expect(pressure.step).toBe('1')
+    // kPa has no decimals, so the seeded text is whole kilopascals.
     expect(pressure.value).toBe('240')
 
     fireEvent.change(pressure, { target: { value: '250' } })
@@ -181,11 +178,9 @@ describe('TireList under a metric set', () => {
     render(<TireList vin="1HGCM82633A004352" />)
     fireEvent.click(screen.getByLabelText('tireList.edit'))
 
-    // Same role as the step assertion above: mm renders at two decimals, which
-    // the fixed step="0.1" never did, so this is false before the change while
-    // the payload below is not.
+    // mm renders at two decimals.
     const tread = screen.getByLabelText('tireList.treadWithUnit') as HTMLInputElement
-    expect(tread.step).toBe('0.01')
+    expect(tread.value).toBe('7.50')
 
     fireEvent.change(tread, { target: { value: '8' } })
     fireEvent.click(screen.getByText('common:save'))
@@ -202,12 +197,7 @@ describe('TireList under a metric set', () => {
     render(<TireList vin="1HGCM82633A004352" />)
     fireEvent.click(screen.getByText('tireList.addReading'))
 
-    // Same role as the two step assertions above, and for the same reason: the
-    // payload below is what `Number('100')` produced before any of this work, so
-    // on its own this test would pass with the fix absent. km has no decimals,
-    // where every input used to carry a fixed step="0.1".
     const odo = screen.getByLabelText('tireList.odometerWithUnit') as HTMLInputElement
-    expect(odo.step).toBe('1')
 
     fireEvent.change(odo, { target: { value: '100' } })
     fireEvent.click(screen.getByText('common:save'))

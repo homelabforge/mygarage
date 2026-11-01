@@ -15,7 +15,7 @@
  */
 
 import { useTranslation } from 'react-i18next'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useId } from 'react'
 import { toast } from 'sonner'
 import { Radio, Plus, Copy, Eye, EyeOff, Trash2, Loader2, AlertTriangle } from 'lucide-react'
 import { Drawer } from '@/components/ui'
@@ -31,6 +31,7 @@ interface TorqueSourceModalProps {
 
 export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSourceModalProps) {
   const { t } = useTranslation('forms')
+  const idBase = useId()
   const [loading, setLoading] = useState(true)
   const [sources, setSources] = useState<TorqueSourceResponse[]>([])
 
@@ -77,7 +78,7 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
   const copyToClipboard = async (text: string, fieldLabel: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(text)
-      toast.success(`${fieldLabel} copied to clipboard`)
+      toast.success(t('modal.livelink.copiedToClipboard', { label: fieldLabel }))
     } catch {
       toast.error(t('modal.failedToCopy'))
     }
@@ -121,6 +122,9 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
 
   if (!isOpen) return null
 
+  const urlLabel = t('modal.torque.urlLabel')
+  const tokenLabel = t('modal.torque.tokenLabel')
+
   return (
     <Drawer
       open
@@ -153,7 +157,7 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            <Loader2 className="w-6 h-6 text-(--accent-fg) animate-spin" />
           </div>
         ) : (
           <>
@@ -161,47 +165,59 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
             {revealed && (
               <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
                 <div>
-                  <label className="block text-sm font-medium text-garage-text mb-1">
-                    {t('modal.torque.urlLabel')}
+                  <label htmlFor={`${idBase}-url`} className="block text-sm font-medium text-garage-text mb-1">
+                    {urlLabel}
                   </label>
                   <div className="flex gap-2">
                     <input
+                      id={`${idBase}-url`}
                       type="text"
                       readOnly
                       value={revealed.upload_url}
                       className="flex-1 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text font-mono text-xs"
                     />
                     <button
-                      onClick={() => copyToClipboard(revealed.upload_url, 'URL')}
+                      type="button"
+                      onClick={() => copyToClipboard(revealed.upload_url, urlLabel)}
+                      aria-label={t('modal.copyValue', { label: urlLabel })}
                       className="px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text hover:bg-garage-surface"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy aria-hidden="true" className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-garage-text mb-1">
-                    {t('modal.torque.tokenLabel')}
+                  <label htmlFor={`${idBase}-token`} className="block text-sm font-medium text-garage-text mb-1">
+                    {tokenLabel}
                   </label>
                   <div className="flex gap-2">
                     <input
+                      id={`${idBase}-token`}
                       type={showToken ? 'text' : 'password'}
                       readOnly
                       value={revealed.token}
                       className="flex-1 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text font-mono text-xs"
                     />
                     <button
+                      type="button"
                       onClick={() => setShowToken(!showToken)}
+                      aria-label={t(showToken ? 'modal.hideValue' : 'modal.showValue', { label: tokenLabel })}
                       className="px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text hover:bg-garage-surface"
                     >
-                      {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showToken ? (
+                        <EyeOff aria-hidden="true" className="w-4 h-4" />
+                      ) : (
+                        <Eye aria-hidden="true" className="w-4 h-4" />
+                      )}
                     </button>
                     <button
-                      onClick={() => copyToClipboard(revealed.token, 'Token')}
+                      type="button"
+                      onClick={() => copyToClipboard(revealed.token, tokenLabel)}
+                      aria-label={t('modal.copyValue', { label: tokenLabel })}
                       className="px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text hover:bg-garage-surface"
                     >
-                      <Copy className="w-4 h-4" />
+                      <Copy aria-hidden="true" className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -212,8 +228,12 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
                   </p>
                 </div>
 
+                {/* Reads "Done" like the footer's, but this one throws the token
+                    away for good, so its name says so. */}
                 <button
+                  type="button"
                   onClick={() => setRevealed(null)}
+                  aria-label={t('modal.torque.doneSavedToken')}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-surface text-garage-text text-sm transition-colors"
                 >
                   {t('modal.torque.done')}
@@ -253,6 +273,7 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
                         disabled={revokingDeviceId === source.device_id}
                         className="p-2 text-danger hover:bg-danger/20 rounded transition-colors disabled:opacity-50"
                         title={t('modal.torque.revoke')}
+                        aria-label={t('modal.torque.revokeSource', { name: source.label || source.device_id })}
                       >
                         {revokingDeviceId === source.device_id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -272,10 +293,11 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
                 <h3 className="text-sm font-medium text-garage-text mb-3">{t('modal.torque.add')}</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm text-garage-text-muted mb-1">
+                    <label htmlFor={`${idBase}-label`} className="block text-sm text-garage-text-muted mb-1">
                       {t('modal.torque.addLabel')}
                     </label>
                     <input
+                      id={`${idBase}-label`}
                       type="text"
                       value={label}
                       onChange={(e) => setLabel(e.target.value)}

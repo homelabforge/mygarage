@@ -32,14 +32,15 @@ export default function VehicleMobileActionsSheet({
   const canShare = authMode !== 'none'
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 md:hidden" onClick={onClose}>
-      <div className="bg-surface rounded-t-2xl w-full max-w-lg max-h-[70vh] overflow-y-auto pb-safe" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-surface rounded-t-2xl w-full max-w-lg max-h-[70vh] overflow-y-auto pb-safe-bottom" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="text-lg font-semibold text-text">{t('detail.actions')}</h3>
           <button
             onClick={onClose}
+            aria-label={t('common:close')}
             className="p-2 text-text-mute hover:text-text rounded-lg ui-motion cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
         <div className="p-2">

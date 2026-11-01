@@ -36,6 +36,20 @@ describe('VehicleMobileActionsSheet', () => {
     expect(screen.getByRole('button', { name: 'detail.editVehicle' })).toBeInTheDocument()
   })
 
+  it('names the close X and closes on it (R8)', () => {
+    const props = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'common:close' }))
+    expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  // pb-safe was never a utility; the theme only defines --spacing-safe-*.
+  it('pads the sheet with the real safe-area utility (R8)', () => {
+    setup()
+    const panel = screen.getByRole('heading', { name: 'detail.actions' }).closest('.rounded-t-2xl')
+    expect(panel).toHaveClass('pb-safe-bottom')
+    expect(panel).not.toHaveClass('pb-safe')
+  })
+
   it.each(['local', 'oidc'])('shows Share with auth mode %s and opens the sharing modal', (mode) => {
     h.authMode = mode
     const props = setup()

@@ -34,6 +34,7 @@ import {
 } from '../utils/decimalSafe'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import {
+  canonicalFromTypedUnitField,
   canonicalFromUnitField,
   seedUnitField,
   NOT_AVAILABLE,
@@ -50,6 +51,9 @@ import { useTimeFormat } from '../hooks/useTimeFormat'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { withUnitSession } from '../contexts/UnitSession'
+import { getActiveLocale } from '../constants/i18n'
+import { parseDecimalInput } from '../utils/decimalInput'
+import { INVALID_NUMBER } from '../schemas/shared'
 
 const MORE_DETAILS_KEY = 'fuel_form:more_details_expanded'
 
@@ -230,7 +234,8 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   // the language changes. Only the resolver depends on it — no fetch, no
   // reset() — so a rebuild can't discard what the user typed. `units` is in
   // there too: the price cap converts the typed price to $/L or $/kg first.
-  const schema = useMemo(() => makeFuelRecordSchema(t, units), [t, units])
+  // The temperature formatter lets the outside temp's range read in the user's unit.
+  const schema = useMemo(() => makeFuelRecordSchema(t, units, u.temperature), [t, units, u.temperature])
 
   /**
    * The canonical origin of each unit-bearing field this form seeds.
@@ -313,6 +318,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
     getValues,
     subscribe,
     setError: setFieldError,
+    clearErrors,
   } = useForm<FuelRecordFormData>({
     resolver: zodResolver(schema) as Resolver<FuelRecordFormData>,
     defaultValues: {
@@ -504,7 +510,8 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   // (`outside_temp_c`) and the form's own field holds that canonical value;
   // this string is what the user reads and types, in `units.temperature`.
   // Fahrenheit is the one AFFINE token in the set, so its conversion is the
-  // adapter's business and never a local `9/5 + 32`.
+  // adapter's business and never a local `9/5 + 32`. It lives up here, not in
+  // More details, so unreadable text is still there when that section reopens.
   const [outsideTempDisplay, setOutsideTempDisplay] = useState<string>(
     () => unitOrigins.outside_temp_c.display
   )
@@ -1009,7 +1016,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         </>
       }
     >
-        <form id="fuel-record-form" onSubmit={handleSubmit(onSubmit, (validationErrors) => {
+        <form id="fuel-record-form" noValidate onSubmit={handleSubmit(onSubmit, (validationErrors) => {
           const fields = Object.keys(validationErrors).join(', ')
           setError(t('common:checkFields', { fields }))
         })} className="p-6 space-y-4">
@@ -1022,7 +1029,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
           {!isEdit && llmReceiptEnabled && (
             <div className="rounded-lg border border-garage-border bg-garage-bg/40 p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
+                <Sparkles className="w-4 h-4 text-(--accent-fg)" />
                 <h4 className="text-sm font-semibold text-garage-text">{t('fuel.parseReceipt')}</h4>
               </div>
               <p className="text-xs text-garage-text-muted">{t('fuel.parseReceiptHint')}</p>
@@ -1448,52 +1455,39 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
                   </Field>
                 </div>
 
-                {/* Outside temp — controlled input (value/onChange). M1: compose <Input>
-                    (it forwards value/onChange/step/id via ...rest). This IS a real
-                    display-boundary field: the label, the step and the conversion all
-                    come from `units.temperature`, which is an independent choice from
-                    the volume `system` collapses.
-
-                    ★ AND IT IS NOW THE ONLY ONE OF FOUR SHAPED THIS WAY, which is a
-                    deferral rather than an oversight. The odometer and the two OBC
-                    fields are react-hook-form NUMBER fields holding a display value the
-                    origin arbitrates at submit, matching every sibling form in the repo;
-                    this one keeps its canonical Celsius in react-hook-form and its
-                    display in a separate string state, converting on each keystroke. It
-                    is therefore the one origin `acceptUnitField` cannot take. Unifying
-                    it is task-sized, not a rider: `makeFuelRecordSchema` bounds
-                    `outside_temp_c` at -60..70 CANONICAL degrees, so moving the field to
-                    display values changes what that range means, and
-                    FuelRecordForm.mixedUnits.test.tsx pins the current behaviour. */}
+                {/* Outside temp. The backend stores Celsius, and RHF holds that
+                    canonical value while this box holds the text in
+                    `units.temperature`, read in the user's language on each change.
+                    It's still the one origin `acceptUnitField` can't take: the other
+                    three hold display values the origin settles at submit, and
+                    moving this one over would change what the schema's -60..70
+                    range means. Text that isn't a number goes in as INVALID_NUMBER
+                    so the error shows instead of the reading quietly going away. */}
                 <Field id="outside_temp_display" label={t('fuel.outsideTemp')} unit={u.temperature.label} error={errors.outside_temp_c}>
-                  <Input
-                    type="number"
+                  <NumberInput
                     id="outside_temp_display"
-                    mono
-                    step={u.temperature.step}
                     value={outsideTempDisplay}
                     onChange={(e) => {
                       const raw = e.target.value
                       setOutsideTempDisplay(raw)
-                      if (raw === '') {
-                        setValue('outside_temp_c', undefined as unknown as number)
+                      // A lone sign is a negative on its way, so no error yet. It's
+                      // still not a number, so a save with it left there is refused.
+                      if (/^\s*[+-]\s*$/.test(raw)) {
+                        clearErrors('outside_temp_c')
+                        setValue('outside_temp_c', INVALID_NUMBER as unknown as number)
                         return
                       }
-                      if (Number.isNaN(parseFloat(raw))) return
-                      // Re-typing the seeded reading is not an edit of the
-                      // quantity, so it returns the stored Celsius rather than
-                      // a value round-tripped through the display precision.
-                      const canonical = canonicalFromUnitField(
-                        raw,
-                        unitOrigins.outside_temp_c,
-                        u.temperature
-                      )
-                      setValue('outside_temp_c', canonical ?? (undefined as unknown as number), {
-                        shouldValidate: true,
-                      })
+                      // Re-typing the seeded reading isn't an edit of the quantity,
+                      // so it hands back the stored Celsius, not a round trip.
+                      const next =
+                        parseDecimalInput(raw, getActiveLocale()).kind === 'invalid'
+                          ? INVALID_NUMBER
+                          : (canonicalFromTypedUnitField(raw, unitOrigins.outside_temp_c, u.temperature) ?? undefined)
+                      setValue('outside_temp_c', next as unknown as number, { shouldValidate: true })
                     }}
                     invalid={!!errors.outside_temp_c}
                     disabled={isSubmitting}
+                    parsedOnChange
                   />
                 </Field>
 

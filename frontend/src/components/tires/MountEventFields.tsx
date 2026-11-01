@@ -7,7 +7,7 @@ import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../../utils/dateUtils'
 import { formatHours } from '../../utils/hoursFormat'
 import { seedUnitField, type UnitFieldOrigin } from '../../utils/unitFormat'
-import { Button, Field, Input } from '../ui'
+import { Button, Field, Input, NumberInput } from '../ui'
 
 /**
  * An odometer as typed, with the canonical value it was seeded from.
@@ -50,6 +50,9 @@ interface MountEventFieldsProps {
   hours?: string
   onHoursChange?: (next: string) => void
   hoursHint?: string
+  /** Names the fields as a group. The period editors show two of these, mount
+   *  and dismount, and without it both halves' boxes read the same. */
+  groupLabel?: string
 }
 
 /** How far a suggested reading sits from the date asked about. */
@@ -76,9 +79,9 @@ function dayOffset(t: TFunction, daysAway: number): string {
  * a tire mounted at 100,000 km used to store 99,999.56 km, because the
  * "62,137 mi" it displayed was converted back to kilometres with no memory of
  * the value it came from. Typing keeps carrying the current origin forward
- * unchanged -- only Use ever replaces it -- so `canonicalFromUnitField` can
+ * unchanged -- only Use ever replaces it -- so `canonicalFromTypedUnitField` can
  * still tell an untouched field from an edited one after a suggestion has
- * been accepted.
+ * been accepted. Both boxes are typed text, read in the user's language.
  */
 export default function MountEventFields({
   vin,
@@ -95,9 +98,10 @@ export default function MountEventFields({
   hours = '',
   onHoursChange,
   hoursHint,
+  groupLabel,
 }: MountEventFieldsProps) {
-  return (
-    <div className="space-y-3">
+  const fields = (
+    <>
       <Field id={`${idPrefix}-date`} label={dateLabel}>
         <Input
           id={`${idPrefix}-date`}
@@ -127,7 +131,14 @@ export default function MountEventFields({
           onChange={onHoursChange ?? (() => undefined)}
         />
       )}
-    </div>
+    </>
+  )
+  if (!groupLabel) return <div className="space-y-3">{fields}</div>
+  return (
+    <fieldset className="space-y-3">
+      <legend className="sr-only">{groupLabel}</legend>
+      {fields}
+    </fieldset>
   )
 }
 
@@ -151,14 +162,13 @@ function OdometerField({ vin, idPrefix, date, label, hint, odometer, onChange }:
   const u = useUnitFormat()
   const nearest = useNearestOdometer(vin, date)
   const reading = nearest.isSuccess ? (nearest.data ?? null) : undefined
+  const shown = reading ? u.distance.format(Number(reading.odometer_km)) : ''
 
   return (
     <>
       <Field id={`${idPrefix}-odometer`} label={label} hint={hint}>
-        <Input
+        <NumberInput
           id={`${idPrefix}-odometer`}
-          type="number"
-          step={u.distance.step}
           value={odometer.typed}
           onChange={(e) => onChange({ typed: e.target.value, origin: odometer.origin })}
         />
@@ -170,7 +180,7 @@ function OdometerField({ vin, idPrefix, date, label, hint, odometer, onChange }:
         >
           <span>
             {t('tireList.suggestion', {
-              odometer: u.distance.format(Number(reading.odometer_km)),
+              odometer: shown,
               date: formatDateForDisplay(reading.date),
               offset: dayOffset(t, reading.days_away),
             })}
@@ -178,6 +188,7 @@ function OdometerField({ vin, idPrefix, date, label, hint, odometer, onChange }:
           <Button
             size="sm"
             variant="ghost"
+            aria-label={t('tireList.suggestionUseOdometer', { odometer: shown })}
             onClick={() => {
               const seed = seedUnitField(Number(reading.odometer_km), u.distance)
               onChange({ typed: seed.display, origin: seed })
@@ -207,14 +218,13 @@ function HoursField({ vin, idPrefix, date, hint, hours, onChange }: HoursFieldPr
   const { t } = useTranslation('vehicles')
   const nearest = useNearestHours(vin, date)
   const reading = nearest.isSuccess ? (nearest.data ?? null) : undefined
+  const shown = reading ? formatHours(reading.engine_hours) : ''
 
   return (
     <>
       <Field id={`${idPrefix}-hours`} label={t('common:engineHours')} unit="hr" hint={hint}>
-        <Input
+        <NumberInput
           id={`${idPrefix}-hours`}
-          type="number"
-          step="0.1"
           value={hours}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -226,12 +236,17 @@ function HoursField({ vin, idPrefix, date, hint, hours, onChange }: HoursFieldPr
         >
           <span>
             {t('tireList.suggestionHours', {
-              hours: formatHours(reading.engine_hours),
+              hours: shown,
               date: formatDateForDisplay(reading.date),
               offset: dayOffset(t, reading.days_away),
             })}
           </span>
-          <Button size="sm" variant="ghost" onClick={() => onChange(Number(reading.engine_hours).toFixed(1))}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={t('tireList.suggestionUseHours', { hours: shown })}
+            onClick={() => onChange(Number(reading.engine_hours).toFixed(1))}
+          >
             {t('tireList.suggestionUse')}
           </Button>
         </div>

@@ -113,7 +113,7 @@ export default function TopicMapEditor({ deviceId, onMappingsChanged }: Props): 
               size="sm"
               variant="ghost"
               icon={Trash2}
-              aria-label={t('integrations.mqttRemoveMapping')}
+              aria-label={t('integrations.mqttRemoveMappingFor', { topic: m.topic, key: m.param_key })}
               onClick={() => void remove(m.id)}
             />
           </li>

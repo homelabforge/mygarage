@@ -321,6 +321,7 @@ describe('EventNotificationsCard names no unit it does not resolve', () => {
         settings={{ notify_service_due: 'true' }}
         onSettingChange={noop}
         onTextChange={noop}
+        onNumberValidity={noop}
         saving={false}
         hasEnabledService
       />,

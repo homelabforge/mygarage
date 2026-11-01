@@ -3,11 +3,14 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Bell, Settings2 } from 'lucide-react';
 import { Toggle } from '@/components/ui'
 import { isSettingOn } from '@/utils/settingSwitch'
+import { SettingNumberInput } from './SettingNumberInput'
 
 interface EventNotificationsCardProps {
   settings: Record<string, unknown>;
   onSettingChange: (key: string, value: boolean) => void;
   onTextChange: (key: string, value: string) => void;
+  /** Passed to each number box, so the tab can refuse a save while one is wrong. */
+  onNumberValidity: (id: string, valid: boolean) => void;
   saving: boolean;
   hasEnabledService: boolean;
 }
@@ -15,13 +18,12 @@ interface EventNotificationsCardProps {
 // A boolean event toggle can pair with zero or more numeric companion
 // settings (e.g. "Insurance expiring" pairs with a days-before field).
 // Data-driven so a new unit (days/percent/...) is a config addition, not a new
-// copy-pasted JSX block.
+// copy-pasted JSX block. All of them are whole numbers.
 interface NumberFieldConfig {
   key: string;
   default: string;
   min: number;
   max: number;
-  step?: number;
   suffix: string;
 }
 
@@ -43,6 +45,7 @@ export function EventNotificationsCard({
   settings,
   onSettingChange,
   onTextChange,
+  onNumberValidity,
   saving,
   hasEnabledService,
 }: EventNotificationsCardProps) {
@@ -166,7 +169,7 @@ export function EventNotificationsCard({
   return (
     <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
       <div className="flex items-center gap-3 mb-4">
-        <Bell className="w-6 h-6 text-primary" />
+        <Bell className="w-6 h-6 text-(--accent-fg)" />
         <div>
           <h2 className="text-lg font-semibold text-garage-text">{t('events.title')}</h2>
           <p className="text-sm text-garage-text-muted">{t('events.card.subtitle')}</p>
@@ -197,15 +200,17 @@ export function EventNotificationsCard({
                     <div className="flex flex-col gap-1">
                       {event.numberFields.map((field) => (
                         <div key={field.key} className="flex items-center gap-2">
-                          <input
-                            type="number"
+                          <SettingNumberInput
+                            id={`event-${field.key}`}
                             value={String(settings[field.key] ?? field.default)}
-                            onChange={(e) => onTextChange(field.key, e.target.value)}
+                            onCommit={(value) => onTextChange(field.key, value)}
+                            onValidityChange={onNumberValidity}
                             disabled={saving || !isSettingOn(String(settings[event.key] ?? ''))}
                             min={field.min}
                             max={field.max}
-                            step={field.step}
-                            className="w-16 px-2 py-1 text-sm bg-garage-bg border border-garage-border rounded text-garage-text disabled:opacity-50"
+                            integer
+                            aria-label={`${event.label}: ${field.suffix}`}
+                            className="w-16"
                           />
                           <span className="text-xs text-garage-text-muted whitespace-nowrap">{field.suffix}</span>
                         </div>
@@ -240,33 +245,39 @@ export function EventNotificationsCard({
             <div className="p-3 space-y-3 bg-garage-surface">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <label className="text-sm text-garage-text">{t('events.card.retryAttempts')}</label>
+                  <label htmlFor="notification_retry_attempts" className="text-sm text-garage-text">
+                    {t('events.card.retryAttempts')}
+                  </label>
                   <p className="text-xs text-garage-text-muted">{t('events.card.retryAttemptsDesc')}</p>
                 </div>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
+                <SettingNumberInput
+                  id="notification_retry_attempts"
                   value={String(settings.notification_retry_attempts ?? '3')}
-                  onChange={(e) => onTextChange('notification_retry_attempts', e.target.value)}
+                  onCommit={(value) => onTextChange('notification_retry_attempts', value)}
+                  onValidityChange={onNumberValidity}
                   disabled={saving}
-                  className="w-20 px-2 py-1 text-sm bg-garage-bg border border-garage-border rounded text-garage-text disabled:opacity-50"
+                  min={1}
+                  max={10}
+                  integer
+                  className="w-20"
                 />
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <label className="text-sm text-garage-text">{t('events.card.retryDelay')}</label>
+                  <label htmlFor="notification_retry_delay" className="text-sm text-garage-text">
+                    {t('events.card.retryDelay')}
+                  </label>
                   <p className="text-xs text-garage-text-muted">{t('events.card.retryDelayDesc')}</p>
                 </div>
-                <input
-                  type="number"
-                  min="0.5"
-                  max="30"
-                  step="0.5"
+                <SettingNumberInput
+                  id="notification_retry_delay"
                   value={String(settings.notification_retry_delay ?? '2.0')}
-                  onChange={(e) => onTextChange('notification_retry_delay', e.target.value)}
+                  onCommit={(value) => onTextChange('notification_retry_delay', value)}
+                  onValidityChange={onNumberValidity}
                   disabled={saving}
-                  className="w-20 px-2 py-1 text-sm bg-garage-bg border border-garage-border rounded text-garage-text disabled:opacity-50"
+                  min={0.5}
+                  max={30}
+                  className="w-20"
                 />
               </div>
               <p className="text-xs text-garage-text-muted italic">{t('events.card.retryNote')}</p>

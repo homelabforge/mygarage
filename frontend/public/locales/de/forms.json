@@ -472,11 +472,9 @@
       "stopped": "Angehalten",
       "tokenConfigured": "Token konfiguriert",
       "tokenForDevice": "Token für Gerät {{deviceId}}",
-      "tokenLabel": "Token",
       "unknown": "Unbekannt",
       "unlinked": "Nicht verknüpft",
       "updateBadge": "Update",
-      "urlLabel": "URL",
       "viewRelease": "Release anzeigen"
     },
     "transfer": {
@@ -647,8 +645,6 @@
     "suppliesLoadFailed": "Vorräte konnten nicht geladen werden. Das Speichern ist deaktiviert, um den Verlust der für diesen Besuch erfassten Vorräte zu verhindern — bitte versuche es erneut.",
     "suppliesLoading": "Vorräte werden geladen…",
     "suppliesNone": "Keine Vorräte für diesen Eintrag verwendet.",
-    "suppliesQuantity": "Menge",
-    "suppliesRemoveRow": "Vorrat entfernen",
     "suppliesUsed": "Verwendete Vorräte",
     "tax": "Steuer",
     "taxAndFees": "Steuern & Gebühren",

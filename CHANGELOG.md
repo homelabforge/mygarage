@@ -116,6 +116,10 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - The supplies list names the unit of its average cost, like the cards ("$5.00/qt")
 - The vehicle PDF's cost per distance card puts the scale in its label ("Cost Per 100 km"), like the screen
 - English text uses US spelling (kilometers, recognizes)
+- The phone tab bar fits a phone: Home, Calendar, Supplies, Analytics and More, which opens Contacts, Insurance, POI and Settings
+- On a phone, the vehicle page has Log Service, Add Fuel and Reminder buttons beside Actions, like the desktop row
+- Accent text and icons are readable in all six accents, light and dark, at 4.5:1 contrast
+- The Reports tab has one Select year for the Annual Cost Summary, Tax Deduction Report and All Records CSV. All Years only applies to the CSV, so the two yearly PDFs wait for a year
 - **BREAKING (API):** `GET /api/analytics/vehicles/{vin}/tires` renames the readiness counts `can_report_distance` to `can_report_usage` and `needs_reading_odometer` to `needs_reading_usage`
 - **BREAKING (API):** `GET /api/analytics/garage` `monthly_trends[].total` no longer includes insurance, and `monthly_trends` always lists 12 months (still empty with no vehicles)
 
@@ -229,6 +233,11 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - The vehicle PDF prints $0.00 for a $0 cost per distance instead of N/A
 - An open form keeps the units it opened with when they change in another tab or on the vehicle, and no longer closes and loses its draft when the vehicle's distance unit changes
 - The vehicle specs editor keeps your draft when the vehicle refetches or the units change while it's open
+- Tire, brake, service visit and vehicle numbers, the fuel form's outside temperature and the notification settings read a comma decimal instead of dropping the value, text that isn't a number shows an error instead of saving a blank, and a 21.25 outside temperature no longer blocks saving the fuel form
+- The notification numbers and SMTP port only save a value inside their range and say the range when one is outside it, the settings don't save while one is, a model year like 1850 is refused, and auto-archive days refuses 12.5 instead of saving 125
+- Switching vehicles while the page is still loading no longer shows the previous vehicle's details on the new one, or saves them to it
+- The station and vendor searches no longer say "No matches" before the search has answered, and a failed search says so
+- Screen reader and keyboard fixes: the station, vendor and line item suggestions are comboboxes you can arrow through, drawers take focus on their first field even when kept mounted or when their fields load late, the device token dialog traps focus and closes on Escape, window sticker and sign-up errors are alerts tied to their fields, the phone More tab says when you're on one of its pages, and icon buttons, report downloads, family cards, DTC notes, the vendor clear button, and the LiveLink, Torque and tire controls have names that say which one
 
 ### Security
 - Secret settings are encrypted at rest: AES-256-GCM, 17 keys, and a keyring that supports key rotation (see the Upgrade note)

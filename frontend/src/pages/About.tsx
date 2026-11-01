@@ -25,7 +25,7 @@ export default function About() {
       <div className="bg-garage-surface border-b border-garage-border">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center gap-3">
-            <Car className="w-8 h-8 text-primary" />
+            <Car className="w-8 h-8 text-(--accent-fg)" />
             <div>
               <h1 className="text-3xl font-bold text-garage-text">{t('about.title')}</h1>
               <p className="text-sm text-garage-text-muted">{t('about.subtitle')}</p>
@@ -38,18 +38,18 @@ export default function About() {
         {/* Header */}
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-primary/10 rounded-2xl mb-6">
-            <Car className="w-12 h-12 text-primary" />
+            <Car className="w-12 h-12 text-(--accent-fg)" />
           </div>
           <h1 className="text-4xl font-bold text-garage-text mb-3">
             {/* Accent falls on "My", matching the header wordmark in shell/Logo.tsx. */}
             {/* i18n-exempt — product brand name, identical in every locale */}
-            <span className="text-primary">My</span>Garage
+            <span className="text-(--accent)">My</span>Garage
           </h1>
           <p className="text-xl text-garage-text-muted">
             {t('about.tagline')}
           </p>
           <div className="mt-4 inline-block px-4 py-2 bg-primary/10 border border-primary/20 rounded-full">
-            <span className="text-primary font-semibold">v{version}</span>
+            <span className="text-(--accent-fg) font-semibold">v{version}</span>
           </div>
         </div>
 
@@ -69,7 +69,7 @@ export default function About() {
           <h2 className="text-2xl font-bold text-garage-text mb-4">{t('about.whyTitle')}</h2>
           <div className="space-y-3 text-garage-text-muted">
             <div className="flex items-start gap-3">
-              <Shield className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
+              <Shield className="w-5 h-5 text-(--accent-fg) mt-1 flex-shrink-0" />
               <div>
                 <p className="font-semibold text-garage-text">{t('about.privacyFirst')}</p>
                 <p className="text-sm">
@@ -78,7 +78,7 @@ export default function About() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <Database className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
+              <Database className="w-5 h-5 text-(--accent-fg) mt-1 flex-shrink-0" />
               <div>
                 <p className="font-semibold text-garage-text">{t('about.databaseSettings')}</p>
                 <p className="text-sm">
@@ -87,7 +87,7 @@ export default function About() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <Bell className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
+              <Bell className="w-5 h-5 text-(--accent-fg) mt-1 flex-shrink-0" />
               <div>
                 <p className="font-semibold text-garage-text">{t('about.multiNotifications')}</p>
                 <p className="text-sm">
@@ -96,7 +96,7 @@ export default function About() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <Car className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
+              <Car className="w-5 h-5 text-(--accent-fg) mt-1 flex-shrink-0" />
               <div>
                 <p className="font-semibold text-garage-text">{t('about.comprehensiveTracking')}</p>
                 <p className="text-sm">
@@ -118,21 +118,21 @@ export default function About() {
           </p>
           <ul className="space-y-2 text-garage-text-muted text-sm">
             <li className="flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+              <CheckCircle className="w-4 h-4 text-(--accent-fg) mt-0.5 flex-shrink-0" />
               <span>
                 {/* i18n-exempt — AI assistant product name, identical in every locale */}
                 <strong className="text-garage-text">Claude</strong> – {t('about.claudeRole')}
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+              <CheckCircle className="w-4 h-4 text-(--accent-fg) mt-0.5 flex-shrink-0" />
               <span>
                 {/* i18n-exempt — AI assistant product name, identical in every locale */}
                 <strong className="text-garage-text">Operator</strong> – {t('about.operatorRole')}
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+              <CheckCircle className="w-4 h-4 text-(--accent-fg) mt-0.5 flex-shrink-0" />
               <span>
                 {/* i18n-exempt — AI assistant product name, identical in every locale */}
                 <strong className="text-garage-text">Codex</strong> – {t('about.codexRole')}
@@ -144,7 +144,7 @@ export default function About() {
         {/* Integration with NHTSA */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 border-l-4 border-l-primary">
           <h2 className="text-2xl font-bold text-garage-text mb-4 flex items-center gap-2">
-            <Shield className="w-6 h-6 text-primary" />
+            <Shield className="w-6 h-6 text-(--accent-fg)" />
             {t('about.poweredByNHTSA')}
           </h2>
           <p className="text-garage-text-muted leading-relaxed mb-3">

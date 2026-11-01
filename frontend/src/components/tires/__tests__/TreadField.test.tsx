@@ -49,7 +49,7 @@ describe('TreadField', () => {
     fireEvent.change(field(), { target: { value: '.346' } })
     expect(onConverted).not.toHaveBeenCalled()
     fireEvent.blur(field())
-    expect(field()).toHaveValue(11)
+    expect(field()).toHaveValue('11')
     expect(hint()).toBe('tireList.treadConverted')
     // So the form drops the seeded origin: this 11 is a new measurement.
     expect(onConverted).toHaveBeenCalledTimes(1)
@@ -74,7 +74,7 @@ describe('TreadField', () => {
     expect(hint()).toBeNull()
     fireEvent.change(field(), { target: { value: '0.0625' } })
     fireEvent.blur(field())
-    expect(field()).toHaveValue(2)
+    expect(field()).toHaveValue('2')
     expect(hint()).toBe('tireList.treadConverted')
   })
 

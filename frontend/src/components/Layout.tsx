@@ -7,16 +7,17 @@ import MobileTabBar from './shell/MobileTabBar'
 
 /**
  * App chrome. The header/nav/bottom-bar JSX moved into src/components/shell/
- * (P2). Root keeps `pb-16 md:pb-0` so the fixed MobileTabBar never overlaps
- * content on phone. OfflineBanner sits between the sticky bar and main, exactly
- * as before (digest §A4).
+ * (P2). On phone the root pads by the fixed MobileTabBar's full height (64px
+ * row, 1px hairline, home-indicator inset) so it never covers content.
+ * OfflineBanner sits between the sticky bar and main, exactly as before
+ * (digest §A4).
  */
 export default function Layout() {
   const { t: tc } = useTranslation('common')
   const version = useAppVersion()
 
   return (
-    <div className="flex min-h-screen flex-col pb-16 md:pb-0">
+    <div className="flex min-h-screen flex-col pb-[calc(65px+var(--spacing-safe-bottom))] md:pb-0">
       <TopNav />
       <OfflineBanner />
       <main className="flex-1">

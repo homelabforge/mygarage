@@ -491,7 +491,6 @@
   },
   "reports": {
     "title": "Report ed esportazione",
-    "dateRangeTitle": "Selezione intervallo date",
     "startDate": "Data inizio",
     "endDate": "Data fine",
     "pdfReports": "Report PDF",

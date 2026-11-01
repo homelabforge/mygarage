@@ -256,13 +256,14 @@ describe('the sites that render a unit label of their own', () => {
   })
 
   it('the DEF estimate card names the resolved unit and converts the number beside it', () => {
-    // `Est. {label} Left` over `toDisplayText`: 80467 km is 50,000 mi, and the
-    // card used to answer "80,467" under an "Est. km Left" caption for this
-    // account because both halves read the collapsed system.
+    // The `defList.estimatedRemaining` caption over `toDisplayText`: 80467 km is
+    // 50,000 mi, and the card used to answer "80,467" under an "Est. km Left"
+    // caption for this account because both halves read the collapsed system.
     unitPrefMock.units = LITRES_MILES
     render(<DEFRecordList vin="V1" />)
-    const card = screen.getByText(/Est\./).closest('div')?.parentElement as HTMLElement
-    expect(within(card).getByText(/Est\. mi Left/)).toBeInTheDocument()
+    const caption = screen.getByText('defList.estimatedRemaining (mi)')
+    expect(caption).toBeInTheDocument()
+    const card = caption.closest('div')?.parentElement as HTMLElement
     expect(within(card).getByText('50,000')).toBeInTheDocument()
   })
 

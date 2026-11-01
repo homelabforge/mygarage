@@ -379,6 +379,7 @@
     "other": "Other"
   },
   "familyCard": {
+    "actionFor": "{{action}}: {{name}}",
     "allowSsoRelink": "Allow SSO relink for 30 minutes",
     "cancelSsoRelink": "Cancel SSO relink",
     "columnLastService": "Last Service",
@@ -481,7 +482,17 @@
     "helperText": "Type at least 2 characters to search address book",
     "noMatches": "No contacts found matching \"{{query}}\"",
     "noMatchesInCategory": "No contacts found matching \"{{query}}\" in {{category}} category",
-    "addToAddressBook": "Add \"{{query}}\" to address book"
+    "addToAddressBook": "Add \"{{query}}\" to address book",
+    "searching": "Searching...",
+    "searchFailed": "Couldn't search the address book. Keep typing to try again."
+  },
+  "combobox": {
+    "results": "{{count}} results",
+    "results_one": "{{count}} result",
+    "results_other": "{{count}} results",
+    "searching": "Searching...",
+    "noResults": "No matches",
+    "searchFailed": "Search failed"
   },
   "exportMenu": {
     "export": "Export"
@@ -673,7 +684,10 @@
       "obcTripDurationFormat": "Use seconds (e.g. 8100), HH:MM (e.g. 2:15), or HH:MM:SS",
       "obcNegative": "OBC value cannot be negative",
       "obcTooLarge": "OBC value too large",
-      "obcInvalid": "Enter a valid number"
+      "obcInvalid": "Enter a valid number",
+      "outsideTempTooLow": "Outside temperature must be at least {{min}}",
+      "outsideTempTooHigh": "Outside temperature must be at most {{max}}",
+      "outsideTempInvalid": "Enter a valid number"
     },
     "tireSet": {
       "nameRequired": "Name is required"
@@ -720,6 +734,7 @@
   "tooManyDecimals": "At most {{count}} decimal places",
   "ofMax": "{{value}} of {{max}}",
   "numberInput": {
-    "readAs": "Read as {{value}}"
+    "readAs": "Read as {{value}}",
+    "invalidField": "{{field}}: enter a valid number"
   }
 }

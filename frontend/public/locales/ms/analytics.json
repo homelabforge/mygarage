@@ -491,7 +491,6 @@
   },
   "reports": {
     "title": "Laporan & Eksport",
-    "dateRangeTitle": "Pemilihan Julat Tarikh",
     "startDate": "Tarikh Mula",
     "endDate": "Tarikh Tamat",
     "pdfReports": "Laporan PDF",

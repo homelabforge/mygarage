@@ -23,16 +23,19 @@ export const DESKTOP_NAV_ITEMS: NavItem[] = [
   { to: '/calendar', icon: Calendar, labelKey: 'nav:calendar' },
 ]
 
-/** Mobile bottom tab bar — MOBILE keys (adds settings). Order per digest §A2:
- *  Home, Contacts, Supplies, Insurance, POI, Calendar, Analytics, Settings. Do NOT
- *  harmonize with the desktop keys (G6). */
+/** Phone tab bar (D1): four tabs, then More. Mobile keys, so do NOT harmonize
+ *  with the desktop ones (G6). Eight tabs never fit a 360px phone. */
 export const MOBILE_NAV_ITEMS: NavItem[] = [
   { to: '/', icon: Home, labelKey: 'nav:home' },
-  { to: '/address-book', icon: BookUser, labelKey: 'nav:contacts' },
+  { to: '/calendar', icon: Calendar, labelKey: 'nav:calendar' },
   { to: '/supplies', icon: Package, labelKey: 'nav:supplies' },
+  { to: '/analytics', icon: BarChart3, labelKey: 'nav:analytics' },
+]
+
+/** What the phone bar's More drawer lists. More lights up on any of these. */
+export const MOBILE_MORE_ITEMS: NavItem[] = [
+  { to: '/address-book', icon: BookUser, labelKey: 'nav:contacts' },
   { to: '/insurance', icon: Shield, labelKey: 'nav:insurance' },
   { to: '/poi-finder', icon: MapPin, labelKey: 'nav:poi' },
-  { to: '/calendar', icon: Calendar, labelKey: 'nav:calendar' },
-  { to: '/analytics', icon: BarChart3, labelKey: 'nav:analytics' },
   { to: '/settings', icon: Settings, labelKey: 'nav:settings' },
 ]

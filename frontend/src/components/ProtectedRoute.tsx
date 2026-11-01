@@ -16,7 +16,7 @@ export default function ProtectedRoute() {
         aria-label={t('protectedRoute.loadingAriaLabel')}
       >
         <div className="text-center">
-          <Loader className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+          <Loader className="w-8 h-8 text-(--accent-fg) animate-spin mx-auto mb-4" />
           <p className="text-garage-text-muted">{t('loading')}</p>
         </div>
       </div>

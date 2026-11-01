@@ -44,7 +44,7 @@ import { ROOT } from './translation-utils'
 const SRC_DIR = join(ROOT, 'src')
 const BASELINE_PATH = join(ROOT, 'scripts', 'hardcoded-strings.baseline.json')
 
-interface Finding {
+export interface Finding {
   file: string
   kind: string
   text: string
@@ -79,8 +79,11 @@ const JSX_TEXT = />([^<>{}\n]{3,})</g
 const NON_PROSE =
   /^(true|false|null|undefined|button|submit|reset|text|number|date|email|password|checkbox|radio|file|search|tel|url|month|time|week|color|range|hidden|image|https?:|\/|#|[A-Z_]+_[A-Z_]+)$/i
 
-/** Requires either two real words, or one capitalized word of 4+ letters. */
-const LOOKS_LIKE_PROSE = /[A-Za-z]{2,}[\s'’-]+[A-Za-z]{2,}|^[A-Z][a-z]{3,}$/
+/**
+ * Requires two real words, one capitalized word of 4+ letters, or one
+ * capitalized word with a trailing dot ("Est.", "Done.").
+ */
+const LOOKS_LIKE_PROSE = /[A-Za-z]{2,}[\s'’-]+[A-Za-z]{2,}|^[A-Z][a-z]{3,}$|^[A-Z][a-z]+\.$/
 
 function isUserFacing(raw: string): boolean {
   const s = raw.trim()
@@ -173,6 +176,34 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, blankOut).replace(/^[ \t]*\/\/.*$/gm, blankOut)
 }
 
+/** What may follow a generic's closing `>`: the end of the line, or code carrying on. */
+const AFTER_GENERIC = /^[ \t]*(?:$|[\r\n;),.[])/
+
+/**
+ * Whether the `<` just before `start` opens a TS generic rather than a JSX tag.
+ * `Owner<b>` reads exactly like `Foo<Bar>`, so it's what follows the matching
+ * `>` that decides: text means a tag, the end of the line or code means a type.
+ */
+function opensGeneric(source: string, start: number): boolean {
+  // `</p>` closes a tag.
+  if (source[start] === '/') return false
+  let depth = 1
+  // A type argument list is short; give up well before reading a whole file.
+  for (let i = start; i < source.length && i < start + 300; i++) {
+    const c = source[i]
+    if (c === '<') depth++
+    // `=>` in a function type isn't a closing bracket.
+    else if (c === '>' && source[i - 1] !== '=') {
+      depth--
+      if (depth > 0) continue
+      // `<br />` is a self-closing tag.
+      if (source[i - 1] === '/') return false
+      return AFTER_GENERIC.test(source.slice(i + 1, i + 40))
+    }
+  }
+  return false
+}
+
 function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
   const findings: Finding[] = []
   const source = stripComments(stripImports(rawSource))
@@ -182,11 +213,20 @@ function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
   // in place (spaces, newlines kept), so this copy indexes identically to
   // `source` and can be sliced with the same offsets.
   const withComments = stripImports(rawSource)
+  const commentLines = withComments.split('\n')
   for (const m of source.matchAll(JSX_TEXT_MULTILINE)) {
     const raw = m[1]
+    const opener = m[0][0]
+    const closer = m[0][m[0].length - 1]
     // `=> Promise<void>`: the arrow's own `>` is not a JSX delimiter.
     if ((m.index ?? 0) > 0 && source[(m.index ?? 0) - 1] === '=') continue
     if (CODE_PUNCTUATION.test(raw)) continue
+    // `} as Record<...>` is a TS assertion, not text after an expression: the
+    // segment is just `as TypeName` and its `<` opens a generic. Anything more in
+    // it is prose, and so is a `<` that turns out to be a tag.
+    const end = (m.index ?? 0) + m[0].length
+    if (opener === '}' && closer === '<' && /^\s*as\s+[A-Z][\w.]*$/.test(raw) && opensGeneric(source, end))
+      continue
     // string literals and code identifiers, never JSX prose (which uses &apos;)
     if (/['"`]/.test(raw)) continue
     if (CODE_KEYWORD.test(raw)) continue
@@ -194,24 +234,30 @@ function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
     if ((raw.match(/\n/g) ?? []).length > 3) continue
     const text = raw.replace(/\s+/g, ' ').trim()
     if (!isUserFacing(text)) continue
-    // single-line hits are already covered by the line scanner
-    if (!raw.includes('\n')) continue
+    // The line scanner only sees `>text<` on one line. Text touching a {brace}
+    // is never its job, so that stays here.
+    if (!raw.includes('\n') && opener === '>' && closer === '<') continue
     const line = source.slice(0, m.index).split('\n').length
-    const context = withComments.slice(Math.max(0, m.index - 200), m.index)
-    if (context.includes('i18n-exempt')) continue
+    // One line, so the line scanner's rule: the marker on this line or the one above.
+    // A multi-line run keeps the look-back, since its marker sits above the whole run.
+    if (raw.includes('\n')) {
+      const context = withComments.slice(Math.max(0, m.index - 200), m.index)
+      if (context.includes('i18n-exempt')) continue
+    } else if (`${commentLines[line - 2] ?? ''}\n${commentLines[line - 1] ?? ''}`.includes('i18n-exempt')) {
+      continue
+    }
     findings.push({ file: rel, kind: 'jsx-text', text, line })
   }
   return findings
 }
 
-function scanFile(path: string): Finding[] {
+/**
+ * Scan one file's source. Split out from the file walk so the rules can be
+ * tested against fixture strings.
+ */
+export function scanSource(source: string, rel: string, isJsx: boolean): Finding[] {
   const findings: Finding[] = []
-  const rel = relative(ROOT, path)
-  const source = readFileSync(path, 'utf-8')
   const lines = source.split('\n')
-  // Plain .ts holds no JSX, and running the JSX scanners over it just mines
-  // generics and comparisons for noise. Only the literal-based rules apply.
-  const isJsx = path.endsWith('.tsx')
 
   lines.forEach((line, idx) => {
     const trimmed = line.trim()
@@ -248,6 +294,12 @@ function scanFile(path: string): Finding[] {
   if (isJsx) findings.push(...scanMultilineJsx(source, rel))
 
   return findings
+}
+
+function scanFile(path: string): Finding[] {
+  // Plain .ts holds no JSX, and running the JSX scanners over it just mines
+  // generics and comparisons for noise. Only the literal-based rules apply.
+  return scanSource(readFileSync(path, 'utf-8'), relative(ROOT, path), path.endsWith('.tsx'))
 }
 
 /** Stable identity for a finding — deliberately excludes the line number. */
@@ -318,4 +370,5 @@ function main(): void {
   )
 }
 
-main()
+// Guarded so the tests can import scanSource() without running the gate.
+if (import.meta.main) main()

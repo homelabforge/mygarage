@@ -2,11 +2,14 @@ import { Mail, Send, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
 import { isSettingOn } from '@/utils/settingSwitch'
+import { SettingNumberInput } from './SettingNumberInput'
 
 interface EmailConfigProps {
   settings: Record<string, unknown>;
   onSettingChange: (key: string, value: boolean) => void;
   onTextChange: (key: string, value: string) => void;
+  /** Passed to each number box, so the tab can refuse a save while one is wrong. */
+  onNumberValidity: (id: string, valid: boolean) => void;
   onTest: () => void;
   testing: boolean;
   saving: boolean;
@@ -16,6 +19,7 @@ export function EmailConfig({
   settings,
   onSettingChange,
   onTextChange,
+  onNumberValidity,
   onTest,
   testing,
   saving,
@@ -33,7 +37,7 @@ export function EmailConfig({
   return (
     <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
       <div className="flex items-center gap-3 mb-6">
-        <Mail className="w-6 h-6 text-primary" />
+        <Mail className="w-6 h-6 text-(--accent-fg)" />
         <div>
           <h2 className="text-lg font-semibold text-garage-text">{t('email.misc.title')}</h2>
           <p className="text-sm text-garage-text-muted">{t('email.misc.subtitle')}</p>
@@ -68,14 +72,16 @@ export function EmailConfig({
             <label htmlFor="email_smtp_port" className="block text-sm font-medium text-garage-text mb-1">
               {t('email.misc.port')}
             </label>
-            <input
-              type="number"
+            <SettingNumberInput
               id="email_smtp_port"
               value={String(settings.email_smtp_port ?? '587')}
-              onChange={(e) => onTextChange('email_smtp_port', e.target.value)}
-              placeholder="587"
+              onCommit={(value) => onTextChange('email_smtp_port', value)}
+              onValidityChange={onNumberValidity}
               disabled={saving || !isEnabled}
-              className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              min={1}
+              max={65535}
+              integer
+              size="md"
             />
           </div>
         </div>

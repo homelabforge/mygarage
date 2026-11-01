@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, act } from '../../../__tests__/test-utils'
+import { useEffect, useState, type ReactElement } from 'react'
+import { render, screen, fireEvent, act, waitFor } from '../../../__tests__/test-utils'
 import Drawer from '../Drawer'
 import type { IconType } from '../types'
 
@@ -250,6 +251,231 @@ describe('Drawer', () => {
     // drawer that has since reopened.
     fireEvent.transitionEnd(panel)
     expect(screen.getByTestId('drawer')).toBeInTheDocument()
+  })
+})
+
+// Stands in for a drawer body that shows a spinner until its seed loads.
+function LateField(): ReactElement {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    const id = window.setTimeout(() => setReady(true), 20)
+    return () => window.clearTimeout(id)
+  }, [])
+  return ready ? <input aria-label="Litres" /> : <p>Loading</p>
+}
+
+describe('Drawer: initial focus', () => {
+  it('focuses the first body field when a drawer mounted closed is opened', () => {
+    // Most shell drawers stay mounted with open={false}. The panel doesn't
+    // exist yet on the render that flips open, so focus used to never get in.
+    const { rerender } = render(
+      <Drawer open={false} onClose={() => {}} title="Add Fuel">
+        <input aria-label="Litres" />
+      </Drawer>,
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    rerender(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <input aria-label="Litres" />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Litres' }))
+  })
+
+  it('focuses a body field that only renders after the seed loads', async () => {
+    render(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <LateField />
+      </Drawer>,
+    )
+    expect(screen.queryByRole('textbox', { name: 'Litres' })).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByTestId('drawer'))
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Litres' })),
+    )
+  })
+
+  it('focuses a field that was disabled while the seed loaded', async () => {
+    function DisabledUntilSeeded(): ReactElement {
+      const [ready, setReady] = useState(false)
+      useEffect(() => {
+        const id = window.setTimeout(() => setReady(true), 20)
+        return () => window.clearTimeout(id)
+      }, [])
+      return <input aria-label="Litres" disabled={!ready} />
+    }
+    render(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <DisabledUntilSeeded />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByTestId('drawer'))
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Litres' })),
+    )
+  })
+
+  it('leaves focus alone when the user moved it before the seed loaded', async () => {
+    // Guard: can't go red on main (main never moves focus late at all).
+    // Drop the activeElement check in the observer and this fails.
+    render(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <LateField />
+      </Drawer>,
+    )
+    const closeButton = screen.getByRole('button', { name: 'Close' })
+    closeButton.focus()
+
+    await screen.findByRole('textbox', { name: 'Litres' })
+    await act(async () => {})
+    expect(document.activeElement).toBe(closeButton)
+  })
+
+  it('only steps in once, then leaves later fields alone', async () => {
+    // Guard: can't go red on main either. Remove the observer's disconnect
+    // and the second late field yanks focus off the panel.
+    const { rerender } = render(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <LateField />
+        {null}
+      </Drawer>,
+    )
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Litres' })),
+    )
+    const panel = screen.getByTestId('drawer')
+    panel.focus()
+
+    // A second field turns up later (rerender, not a timer, so it can't race
+    // the waitFor above).
+    rerender(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <LateField />
+        <input aria-label="Odometer" />
+      </Drawer>,
+    )
+    await act(async () => {})
+    expect(screen.getByRole('textbox', { name: 'Odometer' })).toBeInTheDocument()
+    expect(document.activeElement).toBe(panel)
+  })
+})
+
+describe('Drawer: initial focus prefers a form field', () => {
+  // TorqueSourceModal lists its sources, each with a Revoke button, above the
+  // label box, so the first focusable was a destructive button.
+  function RevokeThenLabel(): ReactElement {
+    return (
+      <>
+        <button type="button">Revoke Pixel</button>
+        <input aria-label="Label" />
+      </>
+    )
+  }
+
+  function LateRevokeThenLabel(): ReactElement {
+    const [ready, setReady] = useState(false)
+    useEffect(() => {
+      const id = window.setTimeout(() => setReady(true), 20)
+      return () => window.clearTimeout(id)
+    }, [])
+    return ready ? <RevokeThenLabel /> : <p>Loading</p>
+  }
+
+  it('focuses the field, not a button that comes before it', () => {
+    render(
+      <Drawer open onClose={() => {}} title="Torque sources">
+        <RevokeThenLabel />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Label' }))
+  })
+
+  it('focuses the field when the body loads late', async () => {
+    render(
+      <Drawer open onClose={() => {}} title="Torque sources">
+        <LateRevokeThenLabel />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByTestId('drawer'))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Label' })))
+  })
+
+  it('skips a read-only box for a field the user can type in', () => {
+    render(
+      <Drawer open onClose={() => {}} title="Token">
+        <input aria-label="Token" readOnly value="tok" />
+        <input aria-label="Label" />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Label' }))
+  })
+
+  it('skips a hidden file input for the button after it', () => {
+    // WindowStickerUpload's first upload: the file input is display:none ahead of
+    // "Select file", so focus went nowhere and stayed on the panel.
+    render(
+      <Drawer open onClose={() => {}} title="Window sticker">
+        <input type="file" aria-label="Sticker file" style={{ display: 'none' }} />
+        <button type="button">Select file</button>
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Select file' }))
+  })
+
+  it('moves on when a field refuses focus', () => {
+    // Backs up the rendered check for anything else a browser won't focus.
+    // jsdom focuses everything, so the first box's focus() is made a no-op here.
+    render(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <input
+          aria-label="Refuses"
+          ref={(el) => {
+            if (el) el.focus = () => {}
+          }}
+        />
+        <input aria-label="Litres" />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Litres' }))
+  })
+
+  it('waits for a field when the only one there is hidden', async () => {
+    // It took the hidden input as found and never watched for the real field.
+    function HiddenThenLate(): ReactElement {
+      const [ready, setReady] = useState(false)
+      useEffect(() => {
+        const id = window.setTimeout(() => setReady(true), 20)
+        return () => window.clearTimeout(id)
+      }, [])
+      return (
+        <>
+          <div hidden>
+            <input aria-label="Hidden" />
+          </div>
+          {ready ? <input aria-label="Litres" /> : null}
+        </>
+      )
+    }
+    render(
+      <Drawer open onClose={() => {}} title="Add Fuel">
+        <HiddenThenLate />
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByTestId('drawer'))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Litres' })))
+  })
+
+  it('still lands on a button when the body has no field', () => {
+    // Guard: passes on main too. Drop the first-focusable fallback and focus stays on the panel.
+    render(
+      <Drawer open onClose={() => {}} title="More">
+        <button type="button">Contacts</button>
+      </Drawer>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Contacts' }))
   })
 })
 

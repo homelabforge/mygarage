@@ -11,17 +11,22 @@
  * open.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '../../__tests__/test-utils'
+import { render, screen, fireEvent, within } from '../../__tests__/test-utils'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import FamilyMemberCard from '../FamilyMemberCard'
 import type { FamilyMemberData } from '@/types/family'
 import type { User } from '@/types/user'
 import { formatTime } from '@/utils/parseAPITimestamp'
+import commonEn from '@/locales/en/common.json'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, opts?: { time?: string }) => (opts?.time ? `${key} ${opts.time}` : key),
+    t: (key: string, opts?: { time?: string; action?: string; name?: string }) => {
+      // Same shape as the shipped "{{action}}: {{name}}", so names read "familyCard.editUser: Dana".
+      if (key === 'familyCard.actionFor') return `${opts?.action}: ${opts?.name}`
+      return opts?.time ? `${key} ${opts.time}` : key
+    },
     i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
   }),
   Trans: ({ children }: { children: ReactNode }) => children,
@@ -217,10 +222,11 @@ describe('FamilyMemberCard disable and delete', () => {
 })
 
 /**
- * The header is one big toggle that also holds the admin action buttons
- * (issue #179). jsdom pins the handlers only: a click that ends a text
- * selection doesn't toggle, and a key pressed on a header button belongs to
- * that button. Whether the name is selectable on a phone is the E2E half.
+ * A click anywhere on the header toggles, but only the chevron is a button,
+ * so the admin actions aren't nested inside one (issue #179, P2E1). jsdom pins
+ * the handlers only: a click that ends a text selection doesn't toggle, and a
+ * click or key on an action belongs to that action. Whether the name is
+ * selectable on a phone is the E2E half.
  */
 describe('FamilyMemberCard header', () => {
   afterEach(() => {
@@ -246,8 +252,7 @@ describe('FamilyMemberCard header', () => {
   const panelIsOpen = (): boolean => screen.queryByText('familyCard.noVehicles') !== null
 
   it('ending a selection in the header does not toggle the panel', () => {
-    // RED today: the header's onClick toggles on any click, including the one
-    // that lets go of a selection.
+    // The click that lets go of a selection mustn't toggle.
     renderWithEdit()
     vi.spyOn(window, 'getSelection').mockReturnValue({
       isCollapsed: false,
@@ -264,9 +269,7 @@ describe('FamilyMemberCard header', () => {
   })
 
   it('Enter on a header action button (Edit) runs it and does not toggle the panel', async () => {
-    // RED today: handleHeaderKeyDown catches the bubbled Enter, calls
-    // preventDefault so the button never activates, and toggles the panel.
-    // The stopPropagation wrapper around the buttons stops clicks, not keys.
+    // The old role=button header caught the bubbled Enter, ate it and toggled.
     const userEv = userEvent.setup()
     const onEdit = renderWithEdit()
 
@@ -278,8 +281,7 @@ describe('FamilyMemberCard header', () => {
   })
 
   it('Space on a header action button (Edit) runs it and does not toggle the panel', async () => {
-    // RED today, same cause as Enter: the header's preventDefault on the
-    // keydown cancels the click Space would have made on keyup.
+    // Same for Space: the click it makes on keyup is the button's own.
     const userEv = userEvent.setup()
     const onEdit = renderWithEdit()
 
@@ -290,18 +292,77 @@ describe('FamilyMemberCard header', () => {
     expect(panelIsOpen()).toBe(false)
   })
 
-  it('Enter and Space on the header itself still toggle the panel', async () => {
-    // Guard for the target check: keys pressed on the header are still its
-    // own. Mutant that kills it: flip the early return to
-    // `e.target === e.currentTarget`.
+  // The chevron is the disclosure button now, named by the member (P2E1).
+  const chevron = (): HTMLElement => screen.getByRole('button', { name: 'Dana' })
+
+  it('Enter and Space on the chevron toggle the panel and say so', async () => {
     const userEv = userEvent.setup()
     renderWithEdit()
-    const header = screen.getByText('@dana').closest('[role="button"]') as HTMLElement
+    expect(chevron()).toHaveAttribute('aria-expanded', 'false')
 
-    header.focus()
+    chevron().focus()
     await userEv.keyboard('{Enter}')
     expect(panelIsOpen()).toBe(true)
+    expect(chevron()).toHaveAttribute('aria-expanded', 'true')
     await userEv.keyboard(' ')
     expect(panelIsOpen()).toBe(false)
+    expect(chevron()).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('a click on an action button does not toggle the panel', () => {
+    const onEdit = renderWithEdit()
+    fireEvent.click(screen.getByRole('button', { name: 'familyCard.editUser: Dana' }))
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(panelIsOpen()).toBe(false)
+  })
+
+  it('no button sits inside another button', () => {
+    // axe nested-interactive: the header was a role=button around up to 8 real ones.
+    renderWithEdit()
+    for (const button of screen.getAllByRole('button')) {
+      expect(within(button).queryAllByRole('button')).toHaveLength(0)
+    }
+  })
+})
+
+describe('FamilyMemberCard action names say whose card it is', () => {
+  it('every admin action names the member', () => {
+    render(
+      <FamilyMemberCard
+        member={member}
+        user={user({ auth_method: 'local' })}
+        currentUserId={1}
+        activeAdminCount={2}
+        showActions
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onToggleActive={vi.fn()}
+        onToggleDashboard={vi.fn()}
+        onResetPassword={vi.fn()}
+        onMoveUp={vi.fn()}
+        onMoveDown={vi.fn()}
+        canMoveDown
+      />,
+    )
+    for (const action of [
+      'familyCard.hideFromDashboard',
+      'familyCard.editUser',
+      'familyCard.resetPassword',
+      'familyCard.disableUser',
+      'familyCard.deleteUser',
+      'familyCard.moveUp',
+      'familyCard.moveDown',
+    ]) {
+      expect(screen.getByRole('button', { name: `${action}: Dana` })).toBeInTheDocument()
+    }
+  })
+
+  it('the relink button names the member too', () => {
+    renderCard(user())
+    expect(screen.getByRole('button', { name: 'familyCard.allowSsoRelink: Dana' })).toBeInTheDocument()
+  })
+
+  it('the shipped English starts with the action, so the tooltip text is in the name', () => {
+    expect(commonEn.familyCard.actionFor.startsWith('{{action}}')).toBe(true)
   })
 })

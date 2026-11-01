@@ -111,3 +111,22 @@ describe('LinkAccount: the pending link token rides in the fragment', () => {
     expect(h.post).not.toHaveBeenCalled()
   })
 })
+
+// Same banner as Login's, which already announces itself (C-a11y).
+describe('LinkAccount: the error banner is an alert', () => {
+  it('a refused link shows in an alert', async () => {
+    arriveAt('/auth/link-account#token=pending-abc')
+    h.post.mockRejectedValueOnce({
+      isAxiosError: true,
+      message: 'Request failed with status code 401',
+      response: { status: 401, data: { detail: 'Wrong password' } },
+    })
+    const user = userEvent.setup()
+    render(<LinkAccount />)
+
+    await user.type(screen.getByLabelText(PASSWORD_LABEL), 'nope')
+    await user.click(screen.getByRole('button', { name: 'oidc.linkAccount' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Wrong password')
+  })
+})

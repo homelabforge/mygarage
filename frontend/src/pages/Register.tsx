@@ -100,7 +100,7 @@ export default function Register() {
                 ? t('registerPage.successAdminRedirect')
                 : t('registerPage.successRedirect')}
             </p>
-            <Loader className="w-6 h-6 animate-spin text-primary mx-auto" />
+            <Loader className="w-6 h-6 animate-spin text-(--accent-fg) mx-auto" />
           </div>
         </div>
       </div>
@@ -124,7 +124,7 @@ export default function Register() {
       footerExtra={
         <div className="mt-6 text-center text-sm text-garage-text-muted">
           {t('register.hasAccount')}{' '}
-          <Link to="/login" className="text-primary hover:underline font-medium">
+          <Link to="/login" className="text-(--accent-fg) hover:underline font-medium">
             {t('register.loginLink')}
           </Link>
         </div>
@@ -133,8 +133,8 @@ export default function Register() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         {/* Error Message */}
         {error && (
-          <div className="p-4 bg-danger-500/10 border border-danger-500 rounded-lg flex items-start gap-2">
-            <AlertCircle className="w-5 h-5 text-danger-500 flex-shrink-0 mt-0.5" />
+          <div role="alert" className="p-4 bg-danger-500/10 border border-danger-500 rounded-lg flex items-start gap-2">
+            <AlertCircle aria-hidden="true" className="w-5 h-5 text-danger-500 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-danger-500">{error}</div>
           </div>
         )}

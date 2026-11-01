@@ -207,6 +207,16 @@ const FULL_CAPS = ['telemetry', 'drive_session', 'location', 'dtc', 'odometer']
 // `location`: WiCAN has no GPS, so it has never produced a trip.
 const WICAN_CAPS = ['telemetry', 'drive_session', 'dtc', 'odometer', 'commands', 'sd_backfill', 'auto_discover']
 
+// The routine actions render twice, a phone row and the desktop row, and CSS
+// picks one. jsdom sees both, so the desktop tests skip the phone group.
+const QUICK_ACTIONS = 'detail.hero.quickActions'
+function desktopAction(name: string): HTMLElement {
+  const phone = screen.getByRole('group', { name: QUICK_ACTIONS })
+  const desktop = screen.getAllByRole('button', { name }).filter((el) => !phone.contains(el))
+  expect(desktop).toHaveLength(1)
+  return desktop[0]
+}
+
 describe('VehicleDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -686,6 +696,78 @@ describe('VehicleDetail', () => {
     expect(screen.queryByText('vehicleStats.overdue')).not.toBeInTheDocument()
   })
 
+  // The B3 harness again, but A's vehicle GET is the slow one (G2c-54). The
+  // route is keyed by vin, so A's late answer lands on a page that's gone.
+  const VIN_A = 'AAAAAAAAAAAAAAAAA'
+  const VIN_B = 'BBBBBBBBBBBBBBBBB'
+  function renderAThenB(bPath = `/vehicles/${VIN_B}`) {
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <MemoryRouter initialEntries={[`/vehicles/${VIN_A}`]}>
+          <Routes>
+            <Route path="/vehicles/:vin" element={<VehicleDetail />} />
+          </Routes>
+          <Link to={bPath}>go B</Link>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+  }
+
+  it('a late A vehicle load never paints over B after navigating A->B (G2c-54)', async () => {
+    let resolveA: (value: Vehicle) => void = () => {}
+    let resolveCapsA: (value: VehicleLiveLinkStatus) => void = () => {}
+    mockedVehicleService.get.mockImplementation((vin: string) =>
+      vin === VIN_A
+        ? new Promise<Vehicle>((res) => { resolveA = res })
+        : Promise.resolve({ ...mockVehicle, vin: VIN_B, nickname: 'Truck B' }),
+    )
+    // A has a LiveLink device and B doesn't, so A's late caps would put the
+    // LiveLink tab on B's page.
+    mockedLivelinkService.getVehicleStatus.mockImplementation((vin: string) =>
+      vin === VIN_A
+        ? new Promise<VehicleLiveLinkStatus>((res) => { resolveCapsA = res })
+        : Promise.resolve(noDevice),
+    )
+    renderAThenB()
+    expect(screen.getByRole('status', { name: 'detail.loading' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('go B'))
+    expect(await screen.findByText('Truck B')).toBeInTheDocument()
+
+    await act(async () => {
+      resolveA({ ...mockVehicle, vin: VIN_A, nickname: 'Car A' })
+      resolveCapsA(linked(FULL_CAPS))
+    })
+    expect(screen.getByText('Truck B')).toBeInTheDocument()
+    expect(screen.queryByText('Car A')).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('tab', { name: 'LiveLink' })).toHaveLength(0)
+  })
+
+  it("a late A load failure doesn't put the error screen on B (G2c-54)", async () => {
+    let rejectA: (reason: Error) => void = () => {}
+    mockedVehicleService.get.mockImplementation((vin: string) =>
+      vin === VIN_A
+        ? new Promise<Vehicle>((_res, rej) => { rejectA = rej })
+        : Promise.resolve({ ...mockVehicle, vin: VIN_B, nickname: 'Truck B' }),
+    )
+    renderAThenB()
+    fireEvent.click(screen.getByText('go B'))
+    expect(await screen.findByText('Truck B')).toBeInTheDocument()
+
+    await act(async () => rejectA(new Error('Network Error')))
+    expect(screen.getByText('Truck B')).toBeInTheDocument()
+    expect(screen.queryByText('Failed to {{action}}. {{message}}')).not.toBeInTheDocument()
+  })
+
+  // Guard: keying the route remounts the page, and `?tab=` still has to land
+  // on the fresh mount (calendar and search links carry it).
+  it('guard: ?tab= still picks the tab after an A->B switch remounts the page', async () => {
+    renderAThenB(`/vehicles/${VIN_B}?tab=reminders`)
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('go B'))
+    expect(await screen.findByText('ReminderList')).toBeInTheDocument()
+  })
+
   it('renders fetched nonzero stats end-to-end: hero badge + reading + key facts (B4)', async () => {
     // Successful NONZERO page integration: fetch -> page state -> props ->
     // mounted VehicleHero AND VehicleKeyFacts. A broken page mount, an omitted
@@ -730,14 +812,14 @@ describe('VehicleDetail', () => {
   it('Log Service switches to Maintenance/service (SDQ-1)', async () => {
     renderVehicleDetail()
     await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'detail.hero.logService' }))
+    fireEvent.click(desktopAction('detail.hero.logService'))
     expect(await screen.findByText('ServiceTab')).toBeInTheDocument()
   })
 
   it('Add Fuel on a motorized car opens Fuel/fuel (SDQ-1)', async () => {
     renderVehicleDetail()
     await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'detail.hero.addFuel' }))
+    fireEvent.click(desktopAction('detail.hero.addFuel'))
     expect(await screen.findByText('FuelTab')).toBeInTheDocument()
   })
 
@@ -750,7 +832,7 @@ describe('VehicleDetail', () => {
     })
     renderVehicleDetail()
     await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'detail.hero.addFuel' }))
+    fireEvent.click(desktopAction('detail.hero.addFuel'))
     expect(await screen.findByText('DEFTab')).toBeInTheDocument()
     expect(screen.queryByText('PropaneTab')).not.toBeInTheDocument()
   })
@@ -899,13 +981,25 @@ describe('VehicleDetail', () => {
   it('Reminder switches the active primary tab to Tracking (SDQ-1)', async () => {
     renderVehicleDetail()
     await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'detail.hero.reminder' }))
+    fireEvent.click(desktopAction('detail.hero.reminder'))
     await waitFor(() =>
       expect(
         screen.getAllByRole('tab', { name: 'detail.tabs.tracking' })
           .some((el) => el.getAttribute('aria-selected') === 'true'),
       ).toBe(true),
     )
+  })
+
+  it('the phone row has Log Service, Add Fuel and Reminder, and each switches tabs (G2c-53)', async () => {
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+    const row = within(screen.getByRole('group', { name: QUICK_ACTIONS }))
+    fireEvent.click(row.getByRole('button', { name: 'detail.hero.logService' }))
+    expect(await screen.findByText('ServiceTab')).toBeInTheDocument()
+    fireEvent.click(row.getByRole('button', { name: 'detail.hero.addFuel' }))
+    expect(await screen.findByText('FuelTab')).toBeInTheDocument()
+    fireEvent.click(row.getByRole('button', { name: 'detail.hero.reminder' }))
+    expect(await screen.findByText('ReminderList')).toBeInTheDocument()
   })
 
   it('Standard/Optional open the equipment editor sidecar with the current items (SDQ-2)', async () => {

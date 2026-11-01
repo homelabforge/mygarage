@@ -13,7 +13,9 @@ import OIDCModal from '@/components/modals/OIDCModal'
 import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
 import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
 import InstanceUnitDefaultsCard from '@/components/settings/InstanceUnitDefaultsCard'
-import { Select, Toggle } from '../ui'
+import { NumberInput, Select, Toggle } from '../ui'
+import { getActiveLocale } from '@/constants/i18n'
+import { parseDecimalInput } from '@/utils/decimalInput'
 
 type RawSetting = {
   key: string
@@ -255,14 +257,18 @@ export default function SettingsSystemTab() {
     }
   }, [formData, loadedFormData, refreshPublicSettings])
 
-  const handleAutoArchiveDaysChange = (raw: string) => {
-    setAutoArchiveDays(raw.replace(/[^\d]/g, ''))
-  }
-
   const saveAutoArchiveDays = async () => {
+    // Blank means off, as before. Anything else has to be a whole number of
+    // days, read in the user's language, or it's refused rather than guessed at.
+    const parsed = parseDecimalInput(autoArchiveDays, getActiveLocale())
+    const days = parsed.kind === 'empty' ? 0 : parsed.kind === 'value' ? parsed.value : Number.NaN
+    if (!Number.isInteger(days) || days < 0) {
+      toast.error(t('archive.autoArchiveInvalid'))
+      return
+    }
     setAutoArchiveSaving(true)
     try {
-      const value = String(Math.max(0, parseInt(autoArchiveDays || '0', 10) || 0))
+      const value = String(days)
       setAutoArchiveDays(value)
       await api.post('/settings/batch', {
         settings: { auto_archive_inactive_days: value },
@@ -386,13 +392,13 @@ export default function SettingsSystemTab() {
             icon={<Wrench className="w-5 h-5" />}
             label={t('stats.serviceRecords')}
             value={dashboardStats.total_service_records}
-            color="text-primary"
+            color="text-(--accent-fg)"
           />
           <StatCard
             icon={<Fuel className="w-5 h-5" />}
             label={t('stats.fuelRecords')}
             value={dashboardStats.total_fuel_records}
-            color="text-primary"
+            color="text-(--accent-fg)"
           />
           <StatCard
             icon={<Bell className="w-5 h-5" />}
@@ -404,19 +410,19 @@ export default function SettingsSystemTab() {
             icon={<FileText className="w-5 h-5" />}
             label={t('stats.documents')}
             value={dashboardStats.total_documents}
-            color="text-primary"
+            color="text-(--accent-fg)"
           />
           <StatCard
             icon={<StickyNote className="w-5 h-5" />}
             label={t('stats.notes')}
             value={dashboardStats.total_notes}
-            color="text-primary"
+            color="text-(--accent-fg)"
           />
           <StatCard
             icon={<Camera className="w-5 h-5" />}
             label={t('stats.photos')}
             value={dashboardStats.total_photos}
-            color="text-primary"
+            color="text-(--accent-fg)"
           />
         </div>
       )}
@@ -429,7 +435,7 @@ export default function SettingsSystemTab() {
       <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-6">
         {/* Header */}
         <div className="flex items-start gap-3">
-          <Server className="w-6 h-6 text-primary mt-1" />
+          <Server className="w-6 h-6 text-(--accent-fg) mt-1" />
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-garage-text mb-2">
               {t('systemConfig.title')}
@@ -506,17 +512,15 @@ export default function SettingsSystemTab() {
           </label>
           <div className="flex gap-3 items-end">
             <div className="flex-1">
-              <label className="block text-xs text-garage-text-muted mb-1">
+              <label htmlFor="auto-archive-days" className="block text-xs text-garage-text-muted mb-1">
                 {t('archive.autoArchiveDays')}
               </label>
-              <input
-                type="number"
-                min={0}
+              <NumberInput
+                id="auto-archive-days"
                 value={autoArchiveDays}
-                onChange={(e) => handleAutoArchiveDaysChange(e.target.value)}
+                onChange={(e) => setAutoArchiveDays(e.target.value)}
                 onBlur={() => void saveAutoArchiveDays()}
                 disabled={autoArchiveSaving}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text"
               />
             </div>
           </div>
@@ -528,7 +532,7 @@ export default function SettingsSystemTab() {
         {/* Info Box - Secret Key */}
         <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
           <div className="flex items-start gap-2">
-            <Info className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+            <Info className="w-5 h-5 text-(--accent-fg) mt-0.5 flex-shrink-0" />
             <div className="text-sm text-garage-text">
               <strong className="font-semibold">{t('secretKey.label')}</strong>{' '}
               {t('secretKey.description', { path: '/data/secret.key' })}
@@ -549,7 +553,7 @@ export default function SettingsSystemTab() {
       {isAuthenticated && (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-4">
           <div className="flex items-start gap-3">
-            <Smartphone className="w-6 h-6 text-primary mt-1" />
+            <Smartphone className="w-6 h-6 text-(--accent-fg) mt-1" />
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-garage-text mb-1">{t('mobile.title')}</h2>
               <p className="text-sm text-garage-text-muted">
@@ -576,7 +580,7 @@ export default function SettingsSystemTab() {
       {isAuthenticated && (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-4">
           <div className="flex items-start gap-3">
-            <Fuel className="w-6 h-6 text-primary mt-1" />
+            <Fuel className="w-6 h-6 text-(--accent-fg) mt-1" />
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-garage-text mb-1">
                 {t('fuel.title')}
@@ -667,7 +671,7 @@ export default function SettingsSystemTab() {
       {isAdmin && (savedAuthMode === 'local' || savedAuthMode === 'oidc') && (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-6">
           <div className="flex items-start gap-3">
-            <Users className="w-6 h-6 text-primary mt-1" />
+            <Users className="w-6 h-6 text-(--accent-fg) mt-1" />
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-garage-text mb-2">
                 {t('family.title')}
@@ -696,7 +700,7 @@ export default function SettingsSystemTab() {
         {/* Header */}
         <div className="p-6 pb-0">
           <div className="flex items-start gap-3 mb-4">
-            <Shield className="w-6 h-6 text-primary mt-1" />
+            <Shield className="w-6 h-6 text-(--accent-fg) mt-1" />
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-garage-text mb-2">
                 {t('auth.title')}
@@ -716,7 +720,7 @@ export default function SettingsSystemTab() {
                 onClick={() => setViewedMode(mode)}
                 className={`px-6 py-4 font-medium transition-colors whitespace-nowrap border-b-2 ${
                   shownMode === mode
-                    ? 'border-primary text-primary'
+                    ? 'border-primary text-(--accent-fg)'
                     : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
                 }`}
               >
@@ -737,7 +741,7 @@ export default function SettingsSystemTab() {
               {authenticatorDetected === true ? (
                 <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
                   <div className="flex items-start gap-3">
-                    <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                    <Info className="w-5 h-5 text-(--accent-fg) flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-garage-text">
                       <strong className="font-semibold">{t('auth.noneDetected')}</strong>
                       <p className="mt-1">
@@ -771,7 +775,7 @@ export default function SettingsSystemTab() {
             <div className="space-y-4">
               <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
                 <div className="flex items-start gap-3">
-                  <Key className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                  <Key className="w-5 h-5 text-(--accent-fg) flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <strong className="text-sm font-semibold text-garage-text">{t('auth.localTitle')}</strong>
                     <p className="mt-1 text-sm text-garage-text">
@@ -797,7 +801,7 @@ export default function SettingsSystemTab() {
             <div className="space-y-4">
               <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
                 <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                  <Shield className="w-5 h-5 text-(--accent-fg) flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <strong className="text-sm font-semibold text-garage-text">{t('auth.oidcTitle')}</strong>
                     <p className="mt-1 text-sm text-garage-text">
@@ -850,7 +854,7 @@ export default function SettingsSystemTab() {
       <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-6">
         {/* Header */}
         <div className="flex items-start gap-3">
-          <Archive className="w-6 h-6 text-primary mt-1" />
+          <Archive className="w-6 h-6 text-(--accent-fg) mt-1" />
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-garage-text mb-2">
               {t('archive.title')}

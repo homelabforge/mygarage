@@ -450,7 +450,6 @@
   },
   "reports": {
     "title": "Berichte & Export",
-    "dateRangeTitle": "Auswahl des Datumsbereichs",
     "startDate": "Startdatum",
     "endDate": "Enddatum",
     "pdfReports": "PDF-Berichte",

@@ -16,7 +16,8 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
   const { t } = useTranslation('analytics')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [selectedYear, setSelectedYear] = useState(() => Number(todayInHousehold().slice(0, 4)))
+  // null is All Years. Only the all-records CSV can take it; the yearly PDFs need a year.
+  const [selectedYear, setSelectedYear] = useState<number | null>(() => Number(todayInHousehold().slice(0, 4)))
   const [isGenerating, setIsGenerating] = useState(false)
   const { currencyCode, locale } = useCurrencyPreference()
 
@@ -24,6 +25,8 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
   const years = Array.from({ length: 10 }, (_, i) => currentYear - i)
 
   const handleDownloadPDF = async (reportType: string) => {
+    const needsYear = reportType === 'cost-summary' || reportType === 'tax-deduction'
+    if (needsYear && selectedYear === null) return
     setIsGenerating(true)
     try {
       let url: string
@@ -69,7 +72,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
       if (reportType === 'service-history') {
         if (startDate) url += `start_date=${startDate}&`
         if (endDate) url += `end_date=${endDate}&`
-      } else if (reportType === 'all-records') {
+      } else if (reportType === 'all-records' && selectedYear !== null) {
         url += `year=${selectedYear}`
       }
 
@@ -98,18 +101,32 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
         <h2 className="text-2xl font-bold text-text">{t('reports.title')}</h2>
       </div>
 
-      {/* Date Range Selector */}
+      {/* Date range and year */}
       <Card>
         <h3 className="text-lg font-semibold text-text mb-4 flex items-center gap-2">
           <Calendar aria-hidden="true" className="w-5 h-5 text-(--accent-fg)" />
-          {t('reports.dateRangeTitle')}
+          {t('reports.rangeAndYearTitle')}
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field id="report-start-date" label={t('reports.startDate')}>
             <Input id="report-start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </Field>
           <Field id="report-end-date" label={t('reports.endDate')}>
             <Input id="report-end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </Field>
+          {/* One year for the cost, tax and all-records reports. */}
+          <Field
+            id="report-year"
+            label={t('reports.selectYear')}
+            hint={selectedYear === null ? t('reports.allYearsCsvOnly') : t('reports.yearHint')}
+          >
+            <Select
+              id="report-year"
+              value={selectedYear ?? ''}
+              onChange={(e) => setSelectedYear(e.target.value === '' ? null : Number(e.target.value))}
+              placeholder={t('reports.allYears')}
+              options={years.map((year) => ({ value: String(year), label: String(year) }))}
+            />
           </Field>
         </div>
       </Card>
@@ -130,7 +147,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
                 {startDate || endDate ? t('reports.rangeCustom') : t('reports.rangeAll')}
               </p>
             </div>
-            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('service-history')} disabled={isGenerating} aria-label={t('reports.downloadPdf')} className="ml-4">
+            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('service-history')} disabled={isGenerating} aria-label={t('reports.downloadPdfFor', { report: t('reports.serviceHistoryTitle') })} className="ml-4">
               <span className="hidden sm:inline">{t('reports.downloadPdf')}</span>
             </Button>
           </div>
@@ -142,16 +159,8 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
               <p className="text-sm text-text-mute mt-1">
                 {t('reports.annualCostDesc')}
               </p>
-              <div className="mt-2">
-                <Select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  aria-label={t('reports.selectYear')}
-                  options={years.map((year) => ({ value: String(year), label: String(year) }))}
-                />
-              </div>
             </div>
-            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('cost-summary')} disabled={isGenerating} aria-label={t('reports.downloadPdf')} className="ml-4">
+            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('cost-summary')} disabled={isGenerating || selectedYear === null} aria-label={t('reports.downloadPdfFor', { report: t('reports.annualCostTitle') })} aria-describedby="report-year-hint" className="ml-4">
               <span className="hidden sm:inline">{t('reports.downloadPdf')}</span>
             </Button>
           </div>
@@ -163,16 +172,8 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
               <p className="text-sm text-text-mute mt-1">
                 {t('reports.taxDeductionDesc')}
               </p>
-              <div className="mt-2">
-                <Select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  aria-label={t('reports.selectYear')}
-                  options={years.map((year) => ({ value: String(year), label: String(year) }))}
-                />
-              </div>
             </div>
-            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('tax-deduction')} disabled={isGenerating} aria-label={t('reports.downloadPdf')} className="ml-4">
+            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('tax-deduction')} disabled={isGenerating || selectedYear === null} aria-label={t('reports.downloadPdfFor', { report: t('reports.taxDeductionTitle') })} aria-describedby="report-year-hint" className="ml-4">
               <span className="hidden sm:inline">{t('reports.downloadPdf')}</span>
             </Button>
           </div>
@@ -190,7 +191,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
               icon={Download}
               onClick={() => handleDownloadPDF('sale-history')}
               disabled={isGenerating}
-              aria-label={t('reports.saleHistoryTitle')}
+              aria-label={t('reports.downloadPdfFor', { report: t('reports.saleHistoryTitle') })}
               className="ml-4"
             >
               <span className="hidden sm:inline">{t('reports.downloadPdf')}</span>
@@ -215,7 +216,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
                 {startDate || endDate ? t('reports.rangeCustom') : t('reports.rangeAll')}
               </p>
             </div>
-            <Button variant="primary" icon={Download} onClick={() => handleDownloadCSV('service-history')} disabled={isGenerating} aria-label={t('reports.exportCsv')} className="ml-4">
+            <Button variant="primary" icon={Download} onClick={() => handleDownloadCSV('service-history')} disabled={isGenerating} aria-label={t('reports.exportCsvFor', { report: t('reports.serviceHistoryCsvTitle') })} className="ml-4">
               <span className="hidden sm:inline">{t('reports.exportCsv')}</span>
             </Button>
           </div>
@@ -227,17 +228,8 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
               <p className="text-sm text-text-mute mt-1">
                 {t('reports.allRecordsCsvDesc')}
               </p>
-              <div className="mt-2">
-                <Select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  aria-label={t('reports.selectYear')}
-                  placeholder={t('reports.allYears')}
-                  options={years.map((year) => ({ value: String(year), label: String(year) }))}
-                />
-              </div>
             </div>
-            <Button variant="primary" icon={Download} onClick={() => handleDownloadCSV('all-records')} disabled={isGenerating} aria-label={t('reports.exportCsv')} className="ml-4">
+            <Button variant="primary" icon={Download} onClick={() => handleDownloadCSV('all-records')} disabled={isGenerating} aria-label={t('reports.exportCsvFor', { report: t('reports.allRecordsCsvTitle') })} className="ml-4">
               <span className="hidden sm:inline">{t('reports.exportCsv')}</span>
             </Button>
           </div>

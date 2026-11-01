@@ -24,8 +24,10 @@ import {
   useDeleteTire,
 } from '../hooks/queries/useTires'
 import { useUnitFormat } from '../hooks/useUnitFormat'
+import { useRefuseUnreadableNumbers } from '../hooks/useRefuseUnreadableNumbers'
+import type { LabelledNumberText } from '../utils/decimalInput'
 import {
-  canonicalFromUnitField,
+  canonicalFromTypedUnitField,
   seedUnitField,
   type QuantityFormat,
   type UnitFieldOrigin,
@@ -46,6 +48,7 @@ import {
   Input,
   Field,
   ListRow,
+  NumberInput,
   Toggle,
 } from './ui'
 import ClickableCard from './ClickableCard'
@@ -343,6 +346,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
   const [addingPeriod, setAddingPeriod] = useState(false)
   const [form, setForm] = useState<TireFormState>(() => seedTireForm(null, 'FL'))
   const [readingForm, setReadingForm] = useState<ReadingFormState>(emptyReadingForm)
+  const refuseUnreadable = useRefuseUnreadableNumbers()
 
   const tires = data?.tires ?? []
   /* Which readings this vehicle takes, from the server that 422s the other one (#217).
@@ -357,7 +361,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
     distance: QuantityFormat
   ): Partial<Record<K, number | null>> =>
     tracksDistance
-      ? ({ [key]: canonicalFromUnitField(value.typed, value.origin, distance) } as Record<K, number | null>)
+      ? ({ [key]: canonicalFromTypedUnitField(value.typed, value.origin, distance) } as Record<K, number | null>)
       : {}
   const hoursKey = <K extends string>(key: K, typed: string): Partial<Record<K, number | null>> =>
     tracksHours ? ({ [key]: hoursFromField(typed) } as Record<K, number | null>) : {}
@@ -602,6 +606,11 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
     tread: t('tireList.treadWithUnit', { unit: pu.tread.label }),
     minTread: t('tireList.minTreadWithUnit', { unit: pu.tread.label }),
   })
+  /* A MountEventFields' odometer and hour meter, for the unreadable-text check. Only the ones it shows. */
+  const eventNumbers = (pu: UnitFormat, odometer: OdometerFieldValue, hours: string): LabelledNumberText[] => [
+    [unitLabels(pu).odometer, tracksDistance && odometer.typed],
+    [t('common:engineHours'), tracksHours && hours],
+  ]
 
   /* Add and Edit are deliberately separate intents. The form is one mutable
    * object holding every in-progress field, so reloading it when the position
@@ -705,6 +714,17 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
     // now a 409, and `position` is not a writable field on a tire at all --
     // where a tire sits changes through mount/dismount, not through its
     // metadata form.
+    const labels = unitLabels(pu)
+    const mounting = editingTireId === null && form.position != null
+    if (
+      refuseUnreadable([
+        [labels.tread, form.tread_depth_mm],
+        [labels.pressure, form.pressure_kpa],
+        [labels.minTread, form.min_tread_mm],
+        ...(mounting ? eventNumbers(pu, form.mounted_odometer_km, form.mounted_hours) : []),
+      ])
+    )
+      return
     const shared = {
       brand: form.brand || null,
       model_name: form.model_name || null,
@@ -715,7 +735,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
         form.origins.tread_depth_mm,
         pu.tread
       ),
-      pressure_kpa: canonicalFromUnitField(
+      pressure_kpa: canonicalFromTypedUnitField(
         form.pressure_kpa,
         form.origins.pressure_kpa,
         pu.pressure
@@ -789,6 +809,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
       return
     }
     if (retireTireId === null) return
+    if (refuseUnreadable(eventNumbers(pu, retireOdometer, retireHours))) return
     retire.mutate(
       {
         tireId: retireTireId,
@@ -864,6 +885,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
       toast.error(t('tireList.eventDateRequired'))
       return
     }
+    if (refuseUnreadable(eventNumbers(pu, fitOdometer, fitHours))) return
     mountSet.mutate(
       {
         setId,
@@ -900,6 +922,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
       toast.error(t('tireList.eventDateRequired'))
       return
     }
+    if (refuseUnreadable(eventNumbers(pu, rotateOdometer, rotateHours))) return
     const pattern = ROTATION_PATTERNS[rotatePattern]
     const moves = ROTATION_CORNERS.flatMap((corner) => {
       const tire = tireAt(corner)
@@ -951,11 +974,20 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
       toast.error(t('tireList.eventDateRequired'))
       return
     }
+    const labels = unitLabels(pu)
+    if (
+      refuseUnreadable([
+        [labels.tread, readingForm.tread_depth_mm],
+        [labels.pressure, readingForm.pressure_kpa],
+        [labels.odometer, tracksDistance && readingForm.odometer_km],
+        [t('common:engineHours'), tracksHours && readingForm.engine_hours],
+      ])
+    )
+      return
     /* Resolved before the guard so the refusal and the payload come from one
      * computation rather than two. It is NOT a behaviour change against the old
-     * truthiness check: `<Input type="number">` hands back an empty string for
-     * text that is not a number, so `null` here means "blank" and nothing else
-     * reaches it. */
+     * truthiness check: unreadable text was refused above, so `null` here means
+     * "blank" and nothing else reaches it. */
     const tread = canonicalFromTreadField(
       readingForm.tread_depth_mm,
       readingForm.origins.tread_depth_mm,
@@ -963,7 +995,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
     )
     /* Hoisted out of the payload for the same reason as tread: the guard below
      * and the body must be one computation, not two that can disagree. */
-    const pressure = canonicalFromUnitField(
+    const pressure = canonicalFromTypedUnitField(
       readingForm.pressure_kpa,
       readingForm.origins.pressure_kpa,
       pu.pressure
@@ -984,7 +1016,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
         recorded_at: readingForm.recorded_at,
         ...(tracksDistance
           ? {
-              odometer_km: canonicalFromUnitField(
+              odometer_km: canonicalFromTypedUnitField(
                 readingForm.odometer_km,
                 readingForm.origins.odometer_km,
                 pu.distance
@@ -1384,6 +1416,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                       return
                     }
                     if (mountTireId === null) return
+                    if (refuseUnreadable(eventNumbers(pu, mountOdometer, mountHours))) return
                     mount.mutate(
                       {
                         tireId: mountTireId,
@@ -1466,6 +1499,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                       return
                     }
                     if (dismountTireId === null) return
+                    if (refuseUnreadable(eventNumbers(pu, dismountOdometer, dismountHours))) return
                     dismount.mutate(
                       {
                         tireId: dismountTireId,
@@ -2051,10 +2085,8 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                   }
                 />
                 <Field id="tire-pressure" label={unitLabels(pu).pressure}>
-                  <Input
+                  <NumberInput
                     id="tire-pressure"
-                    type="number"
-                    step={pu.pressure.step}
                     value={form.pressure_kpa}
                     onChange={(e) => setForm({ ...form, pressure_kpa: e.target.value })}
                   />
@@ -2126,20 +2158,16 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                 }
               />
               <Field id="reading-pressure" label={unitLabels(pu).pressure}>
-                <Input
+                <NumberInput
                   id="reading-pressure"
-                  type="number"
-                  step={pu.pressure.step}
                   value={readingForm.pressure_kpa}
                   onChange={(e) => setReadingForm({ ...readingForm, pressure_kpa: e.target.value })}
                 />
               </Field>
               {tracksDistance && (
                 <Field id="reading-odo" label={unitLabels(pu).odometer}>
-                  <Input
+                  <NumberInput
                     id="reading-odo"
-                    type="number"
-                    step={pu.distance.step}
                     value={readingForm.odometer_km}
                     onChange={(e) => setReadingForm({ ...readingForm, odometer_km: e.target.value })}
                   />
@@ -2147,10 +2175,8 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
               )}
               {tracksHours && (
                 <Field id="reading-hours" label={t('common:engineHours')} unit="hr">
-                  <Input
+                  <NumberInput
                     id="reading-hours"
-                    type="number"
-                    step="0.1"
                     value={readingForm.engine_hours}
                     onChange={(e) => setReadingForm({ ...readingForm, engine_hours: e.target.value })}
                   />

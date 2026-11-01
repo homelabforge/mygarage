@@ -210,7 +210,7 @@ export default function WindowStickerTest() {
                 >
                   {file ? (
                     <div className="flex flex-col items-center gap-2">
-                      <FileText className="w-12 h-12 text-primary" />
+                      <FileText className="w-12 h-12 text-(--accent-fg)" />
                       <p className="text-garage-text font-medium">{file.name}</p>
                       <p className="text-garage-text-muted text-sm">
                         {t('windowSticker.test.fileSizeMb', { size: formatAtPrecision(file.size / 1024 / 1024, 2) })}
@@ -384,7 +384,7 @@ export default function WindowStickerTest() {
                           {Object.entries(result.extracted_data.options_detail).map(([name, price]) => (
                             <div key={name} className="flex justify-between text-sm p-2 bg-garage-bg rounded">
                               <span className="text-garage-text truncate mr-2">{name}</span>
-                              <span className="text-primary whitespace-nowrap">{formatCurrency(price, { currencyCode, locale })}</span>
+                              <span className="text-(--accent-fg) whitespace-nowrap">{formatCurrency(price, { currencyCode, locale })}</span>
                             </div>
                           ))}
                         </div>
@@ -482,7 +482,7 @@ export default function WindowStickerTest() {
                       <div>
                         <button
                           onClick={() => setShowEquipment(!showEquipment)}
-                          className="flex items-center gap-2 text-sm font-medium text-garage-text hover:text-primary"
+                          className="flex items-center gap-2 text-sm font-medium text-garage-text hover:text-(--accent-fg)"
                         >
                           {showEquipment ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           {t('windowSticker.test.equipmentLists', {
@@ -525,7 +525,7 @@ export default function WindowStickerTest() {
                   <div>
                     <button
                       onClick={() => setShowRawText(!showRawText)}
-                      className="flex items-center gap-2 text-sm font-medium text-garage-text hover:text-primary"
+                      className="flex items-center gap-2 text-sm font-medium text-garage-text hover:text-(--accent-fg)"
                     >
                       {showRawText ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       {t('windowSticker.test.rawExtractedText')}
@@ -558,7 +558,7 @@ export default function WindowStickerTest() {
                       a.download = `window_sticker_${vin}.json`
                       a.click()
                     }}
-                    className="flex items-center gap-2 text-sm text-primary hover:underline"
+                    className="flex items-center gap-2 text-sm text-(--accent-fg) hover:underline"
                   >
                     <Download className="w-4 h-4" />
                     {t('windowSticker.exportJSON')}

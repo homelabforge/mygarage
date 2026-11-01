@@ -150,7 +150,7 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
             <button
               type="button"
               onClick={() => setIncludeStationary(true)}
-              className="text-sm font-medium text-primary hover:underline"
+              className="text-sm font-medium text-(--accent-fg) hover:underline"
             >
               {t('livelink.sessions.showStationary')}
             </button>
@@ -172,7 +172,7 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
           <button
             type="button"
             onClick={() => setIncludeStationary((shown) => !shown)}
-            className="text-sm font-medium text-primary hover:underline"
+            className="text-sm font-medium text-(--accent-fg) hover:underline"
           >
             {includeStationary
               ? t('livelink.sessions.hideStationary')

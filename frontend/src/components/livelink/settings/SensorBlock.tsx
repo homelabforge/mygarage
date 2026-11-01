@@ -138,7 +138,7 @@ export default function SensorBlock({ device, vehicles, onChanged }: Props): Rea
         <span className={`text-xs ${tone}`}>{status}</span>
         <div className="ml-auto flex items-center gap-1">
           <Select
-            aria-label={t('integrations.sourceVehicle')}
+            aria-label={t('integrations.sourceVehicleFor', { name })}
             size="sm"
             value={device.vin ?? ''}
             disabled={busy}
@@ -151,7 +151,9 @@ export default function SensorBlock({ device, vehicles, onChanged }: Props): Rea
           />
           <IconButton
             icon={SlidersHorizontal}
-            label={t('integrations.advancedMappings')}
+            label={t('integrations.advancedMappingsFor', { name })}
+            title={t('integrations.advancedMappings')}
+            aria-expanded={showMappings}
             variant="ghost"
             size="sm"
             onClick={() => setShowMappings((shown) => !shown)}

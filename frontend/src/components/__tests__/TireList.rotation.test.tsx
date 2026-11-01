@@ -635,7 +635,7 @@ describe('TireList dates and storage location', () => {
       fireEvent.click(drawer().getByText('common:cancel'))
       open('Second')
       expect(drawer().getByLabelText(dateLabel)).toHaveValue(TODAY)
-      expect(drawer().getByLabelText('tireList.odometerWithUnit')).toHaveValue(null)
+      expect(drawer().getByLabelText('tireList.odometerWithUnit')).toHaveValue('')
     }
 
     it('mount', () => {

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import AddressBookAutocomplete from '../AddressBookAutocomplete'
 import type { AddressBookEntry } from '../../types/addressBook'
 
@@ -98,7 +99,9 @@ function PickerWithReceipt(): ReactElement {
   )
 }
 
-const input = (): HTMLInputElement => screen.getByRole<HTMLInputElement>('textbox')
+// By id, not role: the G-3 cases below have to fail on their own assertion on the
+// old picker, whose box was a plain textbox.
+const input = (): HTMLInputElement => document.getElementById('station') as HTMLInputElement
 const type = (text: string): void => {
   fireEvent.change(input(), { target: { value: text } })
 }
@@ -107,9 +110,9 @@ const wait = async (ms: number): Promise<void> => {
     await vi.advanceTimersByTimeAsync(ms)
   })
 }
-const option = (name: string): HTMLElement | null => screen.queryByRole('button', { name })
+const option = (name: string): HTMLElement | null => screen.queryByRole('option', { name })
 const pick = (name: string): void => {
-  fireEvent.click(screen.getByRole('button', { name }))
+  fireEvent.click(screen.getByRole('option', { name }))
 }
 const spinner = (container: HTMLElement): Element | null => container.querySelector('.animate-spin')
 const clearButton = (): HTMLElement | null =>
@@ -156,9 +159,10 @@ describe('AddressBookAutocomplete after a pick (#194)', () => {
 
   it.each([
     { label: 'the pick changes the text', typed: ['Sh', 'She'] },
-    { label: 'the picked name is already the text', typed: ['Shel', 'Shell'] },
+    { label: 'the picked name is already the text', typed: ['Shell', 'Shellx'] },
   ])('a search still in flight when you pick does not reopen the list ($label)', async ({ typed }) => {
-    // The late answer used to land after the pick and open the list over it.
+    // The late answer used to land after the pick and open the list over it. Old matches hide
+    // while a search is out (G-3), so the pick comes after typing back to the answered text.
     const late = deferred<SearchResponse>()
     render(<Picker />)
     type(typed[0])
@@ -167,12 +171,16 @@ describe('AddressBookAutocomplete after a pick (#194)', () => {
     type(typed[1])
     await wait(300)
     expect(get).toHaveBeenCalledTimes(2)
+    type(typed[0])
     pick('Shell')
     await act(async () => {
       late.resolve(found(SHEETZ))
     })
+    await wait(1000)
+    expect(get).toHaveBeenCalledTimes(2)
     expect(option('Sheetz')).not.toBeInTheDocument()
     expect(option('Shell')).not.toBeInTheDocument()
+    expect(screen.queryByText('addressBookAutocomplete.searching')).not.toBeInTheDocument()
     // Focus would show the late answer if it had landed in the entries.
     fireEvent.focus(input())
     expect(option('Sheetz')).not.toBeInTheDocument()
@@ -198,8 +206,10 @@ describe('AddressBookAutocomplete after a pick (#194)', () => {
     // The pick names what's already typed, so the value doesn't change and the waiting search
     // still fires afterwards. Checking the typed text only when the effect runs misses this.
     render(<Picker />)
-    type('Shel')
+    type('Shell')
     await wait(300)
+    // Away and back inside the debounce: Shell's answer shows again with its search waiting.
+    type('Shel')
     type('Shell')
     pick('Shell')
     await wait(1000)
@@ -207,8 +217,9 @@ describe('AddressBookAutocomplete after a pick (#194)', () => {
     expect(option('Shell')).not.toBeInTheDocument()
   })
 
-  it('a late failure after a pick leaves the picker idle', async () => {
-    // A dropped search skips its own finally, so the pick has to stop the spinner itself.
+  it('a late failure after a close leaves the picker idle', async () => {
+    // A dropped search skips its own finally, so closing has to stop the spinner itself. Old
+    // matches hide while a search is out (G-3), so this closes with Escape, not a pick.
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
     const late = deferred<SearchResponse>()
     const { container } = render(<Picker withClear />)
@@ -218,7 +229,7 @@ describe('AddressBookAutocomplete after a pick (#194)', () => {
     type('She')
     await wait(300)
     expect(spinner(container)).toBeInTheDocument()
-    pick('Shell')
+    fireEvent.keyDown(input(), { key: 'Escape' })
     expect(spinner(container)).not.toBeInTheDocument()
     expect(clearButton()).toBeInTheDocument()
     await act(async () => {
@@ -226,7 +237,7 @@ describe('AddressBookAutocomplete after a pick (#194)', () => {
     })
     expect(spinner(container)).not.toBeInTheDocument()
     expect(clearButton()).toBeInTheDocument()
-    expect(option('Shell')).not.toBeInTheDocument()
+    expect(screen.queryByText('addressBookAutocomplete.searchFailed')).not.toBeInTheDocument()
     expect(errors).not.toHaveBeenCalled()
   })
 
@@ -266,7 +277,7 @@ describe('AddressBookAutocomplete after a pick (#194)', () => {
     render(<PickerWithQuickAdd />)
     type('Zz')
     await wait(300)
-    fireEvent.click(screen.getByRole('button', { name: 'addressBookAutocomplete.addToAddressBook' }))
+    fireEvent.click(screen.getByRole('option', { name: 'addressBookAutocomplete.addToAddressBook' }))
     fireEvent.click(screen.getByRole('button', { name: 'save quick add' }))
     expect(input().value).toBe('Zz Garage')
     await wait(1000)
@@ -331,9 +342,10 @@ describe('AddressBookAutocomplete after a close (#194)', () => {
     type('Sh')
     await wait(300)
     type('She')
-    expect(option('Shell')).toBeInTheDocument()
+    // Open on "Searching" for the new text; the old matches hide until it answers (G-3).
+    expect(screen.getByText('addressBookAutocomplete.searching')).toBeInTheDocument()
     close()
-    expect(option('Shell')).not.toBeInTheDocument()
+    expect(screen.queryByText('addressBookAutocomplete.searching')).not.toBeInTheDocument()
     await wait(1000)
     expect(get).toHaveBeenCalledTimes(1)
     expect(option('Shell')).not.toBeInTheDocument()
@@ -374,5 +386,175 @@ describe('AddressBookAutocomplete after a close (#194)', () => {
     await wait(300)
     expect(get).toHaveBeenCalledTimes(2)
     expect(option('Shell')).toBeInTheDocument()
+  })
+})
+
+describe('AddressBookAutocomplete as a combobox (G-4)', () => {
+  it('ArrowDown moves aria-activedescendant through the options and Enter picks it', async () => {
+    // The highlight was a CSS class only, so a screen reader never heard which row was active.
+    get.mockResolvedValue(found(SHELL, SHEETZ))
+    render(<Picker />)
+    input().focus()
+    type('Sh')
+    await wait(300)
+    const box = screen.getByRole('combobox')
+    expect(box).toHaveAttribute('aria-expanded', 'true')
+    expect(box).toHaveAttribute('aria-autocomplete', 'list')
+    const list = screen.getByRole('listbox')
+    expect(box).toHaveAttribute('aria-controls', list.id)
+    const [shell, sheetz] = within(list).getAllByRole('option')
+    expect(box).not.toHaveAttribute('aria-activedescendant')
+    fireEvent.keyDown(box, { key: 'ArrowDown' })
+    expect(box).toHaveAttribute('aria-activedescendant', shell.id)
+    expect(shell).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(box, { key: 'ArrowDown' })
+    expect(box).toHaveAttribute('aria-activedescendant', sheetz.id)
+    expect(shell).toHaveAttribute('aria-selected', 'false')
+    expect(sheetz).toHaveAttribute('aria-selected', 'true')
+    // Focus never leaves the box, and the options stay out of the Tab order.
+    expect(box).toHaveFocus()
+    expect(sheetz).toHaveAttribute('tabindex', '-1')
+    fireEvent.keyDown(box, { key: 'Enter' })
+    expect(input().value).toBe('Sheetz')
+    expect(box).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('+ Add is the last option, so the arrow keys reach it', async () => {
+    // + Add was a separate button the arrow keys skipped, and Enter did nothing with no matches.
+    get.mockResolvedValue(found())
+    const onAddNew = vi.fn()
+    render(<Picker onAddNew={onAddNew} />)
+    type('Zz')
+    await wait(300)
+    fireEvent.keyDown(input(), { key: 'ArrowDown' })
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(onAddNew).toHaveBeenCalledWith('Zz')
+  })
+
+  it('Escape with the list open closes the list, not the drawer around it', async () => {
+    // Escape reached the drawer's document listener and shut the whole form.
+    const drawerEscape = vi.fn()
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') drawerEscape()
+    }
+    document.addEventListener('keydown', onKey)
+    try {
+      render(<Picker />)
+      type('Sh')
+      await wait(300)
+      expect(screen.getByText('Shell')).toBeInTheDocument()
+      fireEvent.keyDown(input(), { key: 'Escape' })
+      expect(screen.queryByText('Shell')).not.toBeInTheDocument()
+      expect(drawerEscape).not.toHaveBeenCalled()
+      // With the list shut, Escape is the drawer's again.
+      fireEvent.keyDown(input(), { key: 'Escape' })
+      expect(drawerEscape).toHaveBeenCalledTimes(1)
+    } finally {
+      document.removeEventListener('keydown', onKey)
+    }
+  })
+
+  it('a status line announces searching, then the count', async () => {
+    // Nothing was announced, so a screen reader user typed into silence.
+    const late = deferred<SearchResponse>()
+    get.mockReturnValueOnce(late.promise)
+    render(<Picker />)
+    type('Sh')
+    await wait(300)
+    expect(screen.getByRole('status')).toHaveTextContent('combobox.searching')
+    await act(async () => {
+      late.resolve(found(SHELL, SHEETZ))
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('combobox.results')
+  })
+})
+
+describe('AddressBookAutocomplete empty state (G-3)', () => {
+  const noMatches = (): HTMLElement | null => screen.queryByText('addressBookAutocomplete.noMatches')
+  const searchingRow = (): HTMLElement | null => screen.queryByText('addressBookAutocomplete.searching')
+
+  it('no "No matches" for text whose search has not answered yet', async () => {
+    // The empty state belonged to the last search but read the current text, so "Shelz" got
+    // a "No matches" before anyone searched it, then the panel vanished while it ran.
+    get.mockResolvedValueOnce(found())
+    render(<Picker onAddNew={vi.fn()} />)
+    type('Shel')
+    await wait(300)
+    expect(noMatches()).toBeInTheDocument()
+    const late = deferred<SearchResponse>()
+    get.mockReturnValueOnce(late.promise)
+    type('Shelz')
+    expect(noMatches()).not.toBeInTheDocument()
+    expect(searchingRow()).toBeInTheDocument()
+    await wait(300)
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(noMatches()).not.toBeInTheDocument()
+    expect(searchingRow()).toBeInTheDocument()
+    await act(async () => {
+      late.resolve(found())
+    })
+    expect(noMatches()).toBeInTheDocument()
+    expect(searchingRow()).not.toBeInTheDocument()
+  })
+
+  it('old matches hide while the next search is out', async () => {
+    // The last search's hits stayed clickable through the debounce and the next request.
+    const late = deferred<SearchResponse>()
+    render(<Picker />)
+    type('Sh')
+    await wait(300)
+    expect(screen.getByText('Shell')).toBeInTheDocument()
+    get.mockReturnValueOnce(late.promise)
+    type('Shx')
+    expect(screen.queryByText('Shell')).not.toBeInTheDocument()
+    expect(searchingRow()).toBeInTheDocument()
+    await wait(300)
+    expect(screen.queryByText('Shell')).not.toBeInTheDocument()
+    await act(async () => {
+      late.resolve(found(SHEETZ))
+    })
+    expect(screen.getByText('Sheetz')).toBeInTheDocument()
+  })
+
+  it('a failed search says so instead of "No matches"', async () => {
+    // The catch emptied the matches and left the panel open, which read as "No matches".
+    get.mockResolvedValueOnce(found())
+    render(<Picker onAddNew={vi.fn()} />)
+    type('Sh')
+    await wait(300)
+    expect(noMatches()).toBeInTheDocument()
+    get.mockRejectedValueOnce(new Error('network down'))
+    type('She')
+    await wait(300)
+    expect(noMatches()).not.toBeInTheDocument()
+    expect(screen.getByText('addressBookAutocomplete.searchFailed')).toBeInTheDocument()
+    expect(screen.queryByText('addressBookAutocomplete.addToAddressBook')).not.toBeInTheDocument()
+  })
+})
+
+describe('Enter with the list open and nothing highlighted', () => {
+  it('closes the list, and the next Enter submits the form around it', async () => {
+    // Enter was swallowed while the list showed, so the fuel form couldn't be saved from the keyboard.
+    // Real timers: user-event and Testing Library's async helpers wait on them.
+    vi.useRealTimers()
+    const user = userEvent.setup()
+    const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault())
+    render(
+      <form onSubmit={onSubmit}>
+        <Picker />
+        <button type="submit">save</button>
+      </form>
+    )
+    input().focus()
+    type('Sh')
+    expect(await screen.findByRole('listbox')).toBeInTheDocument()
+
+    await user.keyboard('{Enter}')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.keyboard('{Enter}')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(input().value).toBe('Sh')
   })
 })

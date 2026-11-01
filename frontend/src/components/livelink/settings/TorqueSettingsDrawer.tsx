@@ -125,7 +125,7 @@ export default function TorqueSettingsDrawer({ open, tab, onClose, onChanged }: 
         </div>
       ) : !devices ? (
         <div className="flex items-center justify-center py-12">
-          <RefreshCw aria-hidden="true" className="w-8 h-8 text-primary animate-spin" />
+          <RefreshCw aria-hidden="true" className="w-8 h-8 text-(--accent-fg) animate-spin" />
         </div>
       ) : (
         <div className="space-y-6">
@@ -147,10 +147,12 @@ export default function TorqueSettingsDrawer({ open, tab, onClose, onChanged }: 
                     className="flex-1 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text font-mono text-xs"
                   />
                   <button
+                    type="button"
                     onClick={() => void copyToClipboard(revealed.upload_url, t('modal.torque.urlLabel'))}
+                    aria-label={t('modal.copyValue', { label: t('modal.torque.urlLabel') })}
                     className="px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text hover:bg-garage-surface"
                   >
-                    <Copy className="w-4 h-4" />
+                    <Copy aria-hidden="true" className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -165,16 +167,22 @@ export default function TorqueSettingsDrawer({ open, tab, onClose, onChanged }: 
                     className="flex-1 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text font-mono text-xs"
                   />
                   <button
+                    type="button"
                     onClick={() => setShowToken(!showToken)}
+                    aria-label={t(showToken ? 'modal.hideValue' : 'modal.showValue', {
+                      label: t('modal.torque.tokenLabel'),
+                    })}
                     className="px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text hover:bg-garage-surface"
                   >
-                    {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showToken ? <EyeOff aria-hidden="true" className="w-4 h-4" /> : <Eye aria-hidden="true" className="w-4 h-4" />}
                   </button>
                   <button
+                    type="button"
                     onClick={() => void copyToClipboard(revealed.token, t('modal.torque.tokenLabel'))}
+                    aria-label={t('modal.copyValue', { label: t('modal.torque.tokenLabel') })}
                     className="px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text hover:bg-garage-surface"
                   >
-                    <Copy className="w-4 h-4" />
+                    <Copy aria-hidden="true" className="w-4 h-4" />
                   </button>
                 </div>
               </div>

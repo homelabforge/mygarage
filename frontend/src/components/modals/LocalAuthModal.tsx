@@ -162,7 +162,7 @@ export default function LocalAuthModal({
         {!authEverEnabled && (
             <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
               <div className="flex items-start gap-3">
-                <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                <Info className="w-5 h-5 text-(--accent-fg) flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <strong className="font-semibold text-garage-text">{t('modal.enableLocalAuth')}</strong>
                   <p className="mt-1 text-sm text-garage-text">
@@ -190,7 +190,7 @@ export default function LocalAuthModal({
                 <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Users className="w-5 h-5 text-primary" />
+                      <Users className="w-5 h-5 text-(--accent-fg)" />
                       <div>
                         <div className="text-sm font-medium text-garage-text">{t('modal.userManagement')}</div>
                         <div className="text-xs text-garage-text-muted mt-0.5">
@@ -236,7 +236,7 @@ export default function LocalAuthModal({
                         <div className="flex items-center gap-2">
                           <span className="text-garage-text">{user.username}</span>
                           {user.is_admin && (
-                            <span className="px-1.5 py-0.5 text-xs bg-primary/20 text-primary rounded">{t('modal.localAuth.adminBadge')}</span>
+                            <span className="px-1.5 py-0.5 text-xs bg-primary/20 text-(--accent-fg) rounded">{t('modal.localAuth.adminBadge')}</span>
                           )}
                           {user.auth_method === 'oidc' && (
                             <span className="px-1.5 py-0.5 text-xs bg-warning/20 text-warning rounded">OIDC</span>
@@ -260,7 +260,7 @@ export default function LocalAuthModal({
               {/* Change Password Section */}
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
                 <div className="flex items-start gap-3">
-                  <Key className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                  <Key className="w-5 h-5 text-(--accent-fg) flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <div className="text-sm font-medium text-garage-text mb-4">{t('modal.changePassword')}</div>
 
@@ -430,7 +430,7 @@ export default function LocalAuthModal({
               {/* Change Password Section for Regular Users */}
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
                 <div className="flex items-start gap-3">
-                  <Key className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                  <Key className="w-5 h-5 text-(--accent-fg) flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <div className="text-sm font-medium text-garage-text mb-4">{t('modal.changePassword')}</div>
 

@@ -34,8 +34,9 @@
   /* ---------------------------------------------------------------------
    * Accent. --accent/-soft/-line are written to documentElement at runtime by
    * AccentContext (see src/contexts/AccentContext.tsx). Pointing the primary
-   * ramp at them makes ~589 existing bg-primary/text-primary/border-primary
-   * sites follow the accent with no edits.
+   * ramp at them makes the bg-primary and border-primary sites follow the
+   * accent. Accent text doesn't use the ramp: it's text-(--accent-fg), which
+   * stays readable in light mode, and a guard test refuses the old class.
    *
    * Do NOT declare --color-accent-soft here: it would generate an *opaque*
    * bg-accent-soft, the opposite of every consumer. --accent-soft and
@@ -195,14 +196,15 @@
 @layer base {
   :root {
     --radius: 0.5rem;
-    /* Lifts toasts over the phone tab bar (MobileTabBar: h-16 + hairline,
-       md:hidden). AppToaster adds it to sonner's bottom offsets. Keyed on the
-       bar itself, so login and the other Layout-less pages don't get it. */
+    /* Lifts toasts over the phone tab bar (MobileTabBar: h-16 + hairline +
+       home-indicator inset, md:hidden). AppToaster adds it to sonner's bottom
+       offsets. Keyed on the bar itself, so login and the other Layout-less
+       pages don't get it. */
     --toast-lift: 0px;
   }
   @media (width < 48rem) {
     :root:has([data-tab-bar]) {
-      --toast-lift: 65px;
+      --toast-lift: calc(65px + var(--spacing-safe-bottom));
     }
   }
 }

@@ -55,7 +55,7 @@ export default function OIDCSuccess() {
           {/* Logo */}
           <div className="flex justify-center mb-4">
             <div className="p-4 bg-primary/10 rounded-full">
-              <Car className="w-12 h-12 text-primary" />
+              <Car className="w-12 h-12 text-(--accent-fg)" />
             </div>
           </div>
 
@@ -74,7 +74,7 @@ export default function OIDCSuccess() {
           </p>
 
           {/* Loading spinner */}
-          <Loader className="w-6 h-6 animate-spin text-primary mx-auto" />
+          <Loader className="w-6 h-6 animate-spin text-(--accent-fg) mx-auto" />
         </div>
       </div>
     </div>

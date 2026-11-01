@@ -167,6 +167,7 @@
     "deleteError": "Failed to delete DEF record",
     "deleted": "DEF record deleted",
     "estimatedDays": "~{{count}} days",
+    "estimatedRemaining": "Est. {{unit}} Left",
     "estimates": "Estimates",
     "fillLevel": "Fill Level",
     "gallons": "Gallons",
@@ -212,6 +213,7 @@
       "logService": "Log Service",
       "addFuel": "Add Fuel",
       "reminder": "Reminder",
+      "quickActions": "Quick actions",
       "equipment": "Equipment",
       "standard": "Standard",
       "optional": "Optional"
@@ -774,6 +776,7 @@
       "tryDifferentRange": "Try selecting a different time range or parameters"
     },
     "dtcs": {
+      "addNotesFor": "Add notes for {{code}}",
       "addNotesPlaceholder": "Add notes...",
       "categories": {
         "body": "Body",
@@ -800,6 +803,7 @@
       "noActive": "No active diagnostic trouble codes",
       "noCleared": "No cleared diagnostic trouble codes",
       "noRecorded": "No diagnostic trouble codes recorded",
+      "notesFor": "Notes for {{code}}",
       "notesSaveError": "Failed to save notes",
       "notesSaved": "Notes saved",
       "searchHint": "Click the search icon on any code to look up causes and fixes online",
@@ -1372,7 +1376,9 @@
     "created": "Created vendor: {{name}}",
     "nameRequired": "Vendor name is required",
     "createFailed": "Failed to create vendor",
-    "createAction": "create the vendor"
+    "createAction": "create the vendor",
+    "clearNamed": "Clear vendor: {{name}}",
+    "searchFailed": "Couldn't search vendors. Keep typing to try again."
   },
   "vinDemo": {
     "enterVIN": "Enter VIN"
@@ -1485,6 +1491,7 @@
     "periodDismount": "Dismounted",
     "periodDismountDateRequired": "A closed period needs its dismount date. To reopen it, mount the tire again.",
     "periodEdit": "Edit",
+    "periodField": "{{group}} / {{field}}",
     "periodMount": "Mounted",
     "periodNeedsHours": "Needs the hour meter",
     "periodNeedsOdometer": "Needs an odometer",
@@ -1586,6 +1593,8 @@
     "suggestionNoneHours": "No hour meter readings yet",
     "suggestionSameDay": "same day",
     "suggestionUse": "Use",
+    "suggestionUseHours": "Use nearest hour meter reading, {{hours}}",
+    "suggestionUseOdometer": "Use nearest odometer reading, {{odometer}}",
     "title": "Tires",
     "tread": "Tread",
     "treadConverted": "Converted {{inches}} in to {{thirtySeconds}}/32 in.",

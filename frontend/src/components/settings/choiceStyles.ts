@@ -8,7 +8,7 @@ export function segmentClass(pressed: boolean, busy: boolean, size: 'sm' | 'md' 
     size === 'sm' ? 'gap-1.5 px-2 py-2 text-sm' : 'gap-2 px-4 py-3'
   } ${
     pressed
-      ? 'border-primary bg-primary/10 text-primary'
+      ? 'border-primary bg-primary/10 text-(--accent-fg)'
       : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
   } ${busy ? 'opacity-50 cursor-not-allowed' : ''}`
 }

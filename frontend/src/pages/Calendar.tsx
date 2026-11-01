@@ -497,10 +497,10 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
 
           <div className="bg-garage-surface border border-primary rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Clock className="w-5 h-5 text-primary" />
-              <span className="text-sm text-primary">{t('calendar.next30Days')}</span>
+              <Clock className="w-5 h-5 text-(--accent-fg)" />
+              <span className="text-sm text-(--accent-fg)">{t('calendar.next30Days')}</span>
             </div>
-            <p className="text-2xl font-bold text-primary">{summary.upcoming_30_days}</p>
+            <p className="text-2xl font-bold text-(--accent-fg)">{summary.upcoming_30_days}</p>
           </div>
         </div>
 
@@ -508,7 +508,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
         <div className="bg-garage-surface border border-garage-border rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-primary" />
+              <Filter className="w-5 h-5 text-(--accent-fg)" />
               <h2 className="text-lg font-semibold text-garage-text">{t('calendar.filtersActions')}</h2>
             </div>
 
@@ -730,7 +730,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                       {bulkMode && (
                         <div className="flex items-center pt-1">
                           {selectedEvents.includes(event.id) ? (
-                            <CheckSquare className="w-5 h-5 text-primary" />
+                            <CheckSquare className="w-5 h-5 text-(--accent-fg)" />
                           ) : (
                             <Square className="w-5 h-5 text-garage-text-muted" />
                           )}
@@ -739,7 +739,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
 
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          {event.is_recurring && <RotateCw className="w-3 h-3 text-primary" />}
+                          {event.is_recurring && <RotateCw className="w-3 h-3 text-(--accent-fg)" />}
                           {/* Phase 3: Estimated badge */}
                           {event.is_estimated && (
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">
@@ -823,7 +823,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                               className="p-1 hover:bg-primary/20 rounded transition-colors"
                               title={t('calendar.misc.viewNotes')}
                             >
-                              <MessageCircle className="w-4 h-4 text-primary" />
+                              <MessageCircle className="w-4 h-4 text-(--accent-fg)" />
                             </button>
                           )}
                           {/* Quick complete button */}
@@ -867,7 +867,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
               <span className="text-sm text-garage-text">{t('serviceList.title')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <RotateCw className="w-4 h-4 text-primary" />
+              <RotateCw className="w-4 h-4 text-(--accent-fg)" />
               <span className="text-sm text-garage-text">{t('calendar.misc.legendRecurring')}</span>
             </div>
             {/* Phase 3: New legend items */}
@@ -879,7 +879,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
               <span className="text-sm text-garage-text">{t('calendar.misc.legendEstimated')}</span>
             </div>
             <div className="flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-primary" />
+              <MessageCircle className="w-4 h-4 text-(--accent-fg)" />
               <span className="text-sm text-garage-text">{t('calendar.misc.legendHasNotes')}</span>
             </div>
           </div>
@@ -915,7 +915,7 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
                         {t(EVENT_TYPE_KEYS[selectedEventForNotes.type] ?? EVENT_TYPE_FALLBACK_KEY)}
                       </span>
                       {selectedEventForNotes.is_recurring && (
-                        <RotateCw className="w-3 h-3 text-primary" />
+                        <RotateCw className="w-3 h-3 text-(--accent-fg)" />
                       )}
                       {selectedEventForNotes.is_estimated && (
                         <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-500">

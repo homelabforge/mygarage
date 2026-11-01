@@ -185,7 +185,8 @@
     "autoArchiveDescription": "Archive vehicles with no fuel, service, odometer, or hours activity after N days. 0 disables. Runs daily when the scheduler is enabled, and applies to every vehicle on this instance, including other users'.",
     "autoArchiveDays": "Days of inactivity",
     "autoArchiveSaved": "Auto-archive setting saved",
-    "autoArchiveError": "Failed to save auto-archive setting"
+    "autoArchiveError": "Failed to save auto-archive setting",
+    "autoArchiveInvalid": "Enter a whole number of days, 0 or more"
   },
   "secretKey": {
     "label": "Secret Key:",
@@ -317,6 +318,7 @@
     "mqttUnit": "Unit",
     "mqttAddMapping": "Add mapping",
     "mqttRemoveMapping": "Remove mapping",
+    "mqttRemoveMappingFor": "Remove mapping: {{topic}} to {{key}}",
     "mqttDiscoverHeading": "Discover topics",
     "mqttDiscoverPrefix": "Topic prefix",
     "mqttDiscover": "Discover",
@@ -338,6 +340,7 @@
     "sourceSettings": "{{source}} settings",
     "integrationsLoadError": "Could not load integrations.",
     "sourceVehicle": "Vehicle",
+    "sourceVehicleFor": "Vehicle for {{name}}",
     "sourceVehicleUnset": "Not linked",
     "sourceVehicleHint": "Readings are stored only once the source is linked to a vehicle.",
     "deviceIdHint": "Letters, digits, underscore, dot and hyphen, starting with a letter or digit.",
@@ -364,6 +367,7 @@
     "readingsLoadError": "Could not load readings.",
     "readingSwitchAction": "change what the dashboard shows",
     "advancedMappings": "Advanced: topic mappings",
+    "advancedMappingsFor": "Advanced: topic mappings for {{name}}",
     "deleteSource": "Delete source",
     "deleteSourceAction": "delete the source",
     "mappingAction": "change the mapping",
@@ -429,7 +433,8 @@
   "notifications": {
     "loading": "Loading notification settings...",
     "loadError": "Failed to load notification settings",
-    "testFailed": "Failed to send test notification via {{service}}"
+    "testFailed": "Failed to send test notification via {{service}}",
+    "fixNumbers": "Not saved: a number setting is out of range. Fix it and your changes save."
   },
   "ntfy": {
     "enable": "Enable ntfy notifications",
@@ -786,5 +791,9 @@
     "red": "Racing Red",
     "violet": "Violet",
     "green": "Green"
+  },
+  "numberField": {
+    "between": "Enter a number from {{min}} to {{max}}",
+    "wholeBetween": "Enter a whole number from {{min}} to {{max}}"
   }
 }

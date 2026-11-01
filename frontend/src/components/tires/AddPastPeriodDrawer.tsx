@@ -5,11 +5,12 @@ import { toast } from 'sonner'
 
 import { useCreateMountPeriod } from '../../hooks/queries/useTires'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
+import { useRefuseUnreadableNumbers } from '../../hooks/useRefuseUnreadableNumbers'
 import { POSITIONS } from '../../types/tire'
 import type { MountedPosition, Tire, TirePosition } from '../../types/tire'
 import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
-import { canonicalFromUnitField } from '../../utils/unitFormat'
+import { canonicalFromTypedUnitField } from '../../utils/unitFormat'
 import { Button, Chip, Drawer, Field, Input } from '../ui'
 import MountEventFields, { EMPTY_ODOMETER, type OdometerFieldValue } from './MountEventFields'
 import { withUnitSession } from '../../contexts/UnitSession'
@@ -50,6 +51,7 @@ function AddPastPeriodDrawer({
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
   const create = useCreateMountPeriod(vin)
+  const refuseUnreadable = useRefuseUnreadableNumbers()
 
   const [position, setPosition] = useState<MountedPosition | null>(null)
   const [mountedOn, setMountedOn] = useState('')
@@ -61,6 +63,10 @@ function AddPastPeriodDrawer({
   const [notes, setNotes] = useState('')
 
   const odometerLabel = t('tireList.odometerWithUnit', { unit: u.distance.label })
+  // The two halves have the same boxes, so a refusal says which half.
+  const mountLabel = (field: string): string => t('tireList.periodField', { group: t('tireList.periodMount'), field })
+  const dismountLabel = (field: string): string =>
+    t('tireList.periodField', { group: t('tireList.periodDismount'), field })
 
   const save = (): void => {
     if (position === null) {
@@ -71,6 +77,15 @@ function AddPastPeriodDrawer({
       toast.error(t('tireList.pastPeriodDatesRequired'))
       return
     }
+    if (
+      refuseUnreadable([
+        [mountLabel(odometerLabel), tracksDistance && mountedOdometer.typed],
+        [mountLabel(t('common:engineHours')), tracksHours && mountedHours],
+        [dismountLabel(odometerLabel), tracksDistance && dismountedOdometer.typed],
+        [dismountLabel(t('common:engineHours')), tracksHours && dismountedHours],
+      ])
+    )
+      return
     create.mutate(
       {
         tireId: tire.id,
@@ -79,12 +94,12 @@ function AddPastPeriodDrawer({
         dismounted_on: dismountedOn,
         ...(tracksDistance
           ? {
-              mounted_odometer_km: canonicalFromUnitField(
+              mounted_odometer_km: canonicalFromTypedUnitField(
                 mountedOdometer.typed,
                 mountedOdometer.origin,
                 u.distance
               ),
-              dismounted_odometer_km: canonicalFromUnitField(
+              dismounted_odometer_km: canonicalFromTypedUnitField(
                 dismountedOdometer.typed,
                 dismountedOdometer.origin,
                 u.distance
@@ -143,6 +158,7 @@ function AddPastPeriodDrawer({
         <MountEventFields
           vin={vin}
           idPrefix="past-mount"
+          groupLabel={t('tireList.periodMount')}
           dateLabel={t('tireList.periodMount')}
           date={mountedOn}
           onDateChange={setMountedOn}
@@ -157,6 +173,7 @@ function AddPastPeriodDrawer({
         <MountEventFields
           vin={vin}
           idPrefix="past-dismount"
+          groupLabel={t('tireList.periodDismount')}
           dateLabel={t('tireList.periodDismount')}
           date={dismountedOn}
           onDateChange={setDismountedOn}

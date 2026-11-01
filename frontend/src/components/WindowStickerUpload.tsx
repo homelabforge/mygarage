@@ -307,10 +307,11 @@ function WindowStickerUpload({
         disabled={!editMode}
         placeholder={placeholder}
         aria-invalid={fieldErrors[key] ? true : undefined}
+        aria-describedby={fieldErrors[key] ? `sticker-${key}-error` : undefined}
         className="w-full px-3 py-2 bg-garage-surface border border-garage-border rounded text-garage-text text-sm disabled:opacity-60"
       />
       {fieldErrors[key] && (
-        <p role="alert" className="mt-1 text-xs text-danger-500">{fieldErrors[key]}</p>
+        <p id={`sticker-${key}-error`} role="alert" className="mt-1 text-xs text-danger-500">{fieldErrors[key]}</p>
       )}
     </div>
   )
@@ -332,19 +333,19 @@ function WindowStickerUpload({
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="bg-danger-500/10 border border-danger-500 rounded-lg p-3">
+          <div role="alert" className="bg-danger-500/10 border border-danger-500 rounded-lg p-3">
             <p className="text-sm text-danger-500">{error}</p>
           </div>
         )}
 
         {success && (
-          <div className="bg-success-500/10 border border-success-500 rounded-lg p-3">
+          <div role="status" className="bg-success-500/10 border border-success-500 rounded-lg p-3">
             <p className="text-sm text-success-500">{success}</p>
           </div>
         )}
 
         {notice && (
-          <div className="bg-warning-500/10 border border-warning-500 rounded-lg p-3">
+          <div role="status" className="bg-warning-500/10 border border-warning-500 rounded-lg p-3">
             <p className="text-sm text-warning-500">{notice}</p>
           </div>
         )}
@@ -425,7 +426,7 @@ function WindowStickerUpload({
             {file && (
               <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
                 <div className="flex items-center gap-3">
-                  <FileText className="w-8 h-8 text-primary" />
+                  <FileText className="w-8 h-8 text-(--accent-fg)" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-garage-text">{file.name}</p>
                     <p className="text-xs text-garage-text-muted">
@@ -493,7 +494,7 @@ function WindowStickerUpload({
                 {/* MSRP Section */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-garage-text font-medium">
-                    <DollarSign className="w-5 h-5 text-primary" />
+                    <DollarSign className="w-5 h-5 text-(--accent-fg)" />
                     <span>{t('windowSticker.msrpPricing')}</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 ml-7">
@@ -508,7 +509,7 @@ function WindowStickerUpload({
                 {/* Colors Section */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-garage-text font-medium">
-                    <Palette className="w-5 h-5 text-primary" />
+                    <Palette className="w-5 h-5 text-(--accent-fg)" />
                     <span>{t('windowSticker.misc.colors')}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3 ml-7">
@@ -520,7 +521,7 @@ function WindowStickerUpload({
                 {/* Vehicle Specs Section */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-garage-text font-medium">
-                    <Cog className="w-5 h-5 text-primary" />
+                    <Cog className="w-5 h-5 text-(--accent-fg)" />
                     <span>{t('windowSticker.misc.vehicleSpecs')}</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 ml-7">
@@ -535,7 +536,7 @@ function WindowStickerUpload({
                 {/* Fuel Economy Section: always shown, so you can add what the OCR missed. */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-garage-text font-medium">
-                    <Fuel className="w-5 h-5 text-primary" />
+                    <Fuel className="w-5 h-5 text-(--accent-fg)" />
                     <span>{t('windowSticker.misc.fuelEconomyUnit', { unit: u.consumption.label })}</span>
                   </div>
                   <div className="grid grid-cols-3 gap-3 ml-7">
@@ -548,7 +549,7 @@ function WindowStickerUpload({
                 {/* Warranty Section */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-garage-text font-medium">
-                    <Shield className="w-5 h-5 text-primary" />
+                    <Shield className="w-5 h-5 text-(--accent-fg)" />
                     <span>{t('detail.warranty')}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3 ml-7">
@@ -560,7 +561,7 @@ function WindowStickerUpload({
                 {/* Environmental Ratings Section: always shown, same as fuel economy. */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-garage-text font-medium">
-                    <Leaf className="w-5 h-5 text-primary" />
+                    <Leaf className="w-5 h-5 text-(--accent-fg)" />
                     <span>{t('windowSticker.misc.environmentalRatings')}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3 ml-7">
@@ -572,7 +573,7 @@ function WindowStickerUpload({
                 {/* Assembly Location */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-garage-text font-medium">
-                    <Car className="w-5 h-5 text-primary" />
+                    <Car className="w-5 h-5 text-(--accent-fg)" />
                     <span>{t('windowSticker.misc.assemblyAndVin')}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3 ml-7">
@@ -595,7 +596,7 @@ function WindowStickerUpload({
                 {Object.keys(optionsDetail).length > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-garage-text font-medium">
-                      <DollarSign className="w-5 h-5 text-primary" />
+                      <DollarSign className="w-5 h-5 text-(--accent-fg)" />
                       <span>{t('windowSticker.misc.optionsDetail')}</span>
                     </div>
                     <div className="ml-7 bg-garage-surface rounded p-3 border border-garage-border">
@@ -620,7 +621,7 @@ function WindowStickerUpload({
                 {standardItems.length > 0 && (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-garage-text font-medium">
-                      <FileText className="w-5 h-5 text-primary" />
+                      <FileText className="w-5 h-5 text-(--accent-fg)" />
                       <span>
                         {t('windowSticker.misc.standardEquipmentCount', {
                           count: standardItems.length,
@@ -633,7 +634,7 @@ function WindowStickerUpload({
                           <li key={i} className="truncate">{item}</li>
                         ))}
                         {standardItems.length > 20 && (
-                          <li className="text-primary">
+                          <li className="text-(--accent-fg)">
                             {t('windowSticker.misc.andMore', {
                               count: standardItems.length - 20,
                             })}

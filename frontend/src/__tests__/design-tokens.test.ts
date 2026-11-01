@@ -973,6 +973,66 @@ describe('accent foreground', () => {
   })
 })
 
+// text-primary paints the base accent, which is under 4.5:1 on light surfaces
+// for every accent. Text and icons use --accent-fg, which swaps per theme.
+const BASE_ACCENT_TEXT_PATTERNS: readonly RegExp[] = [
+  /(?<![a-z0-9-])text-(?:garage-)?primary(?![a-z0-9])/g,
+  /(?<![a-z0-9-])text-(?:\((?:color:)?--(?:accent|color-primary)\)|\[(?:color:)?var\(--(?:accent|color-primary)\)\])/g,
+]
+
+// Brand marks keep the base accent on purpose (logotypes are exempt from 1.4.3).
+// Exact counts, so a new base-accent span in these files still trips the guard.
+const BASE_ACCENT_TEXT_ALLOWLIST: Readonly<Record<string, number>> = {
+  'components/shell/Logo.tsx': 2, // logo glyph + "My" wordmark
+  'components/AuthPageLayout.tsx': 1, // "My" wordmark
+  'pages/About.tsx': 1, // "My" wordmark
+}
+
+/** Every base-accent text class in string literals under src, as file:line class. */
+function collectBaseAccentTextHits(): Map<string, string[]> {
+  const hits = new Map<string, string[]>()
+  for (const file of walk(SRC)) {
+    const rel = relative(SRC, file)
+    const sf = parseSourceFile(file)
+    const visit = (node: ts.Node): void => {
+      if (isLiteralTextNode(node)) {
+        const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
+        for (const pattern of BASE_ACCENT_TEXT_PATTERNS) {
+          for (const m of node.text.matchAll(pattern)) {
+            hits.set(rel, [...(hits.get(rel) ?? []), `${rel}:${line} ${m[0]}`])
+          }
+        }
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(sf)
+  }
+  return hits
+}
+
+describe('accent text contrast', () => {
+  it('uses --accent-fg for accent text, never the base accent outside the brand marks', () => {
+    const offenders: string[] = []
+    const allowlisted: Record<string, number> = {}
+    for (const [rel, found] of collectBaseAccentTextHits()) {
+      for (const hit of found) {
+        if (rel in BASE_ACCENT_TEXT_ALLOWLIST && hit.endsWith(' text-(--accent)')) {
+          allowlisted[rel] = (allowlisted[rel] ?? 0) + 1
+        } else {
+          offenders.push(hit)
+        }
+      }
+    }
+    expect(
+      offenders,
+      'Accent text must use text-(--accent-fg) (hover:text-(--accent-fg), and ' +
+        'accent-(--accent-solid) for native checkboxes). The base accent fails ' +
+        '4.5:1 in light mode.\n' + offenders.join('\n'),
+    ).toEqual([])
+    expect(allowlisted, 'brand-mark allowlist drifted').toEqual(BASE_ACCENT_TEXT_ALLOWLIST)
+  })
+})
+
 describe('nav breakpoint token', () => {
   const css = readFileSync(resolve(__dirname, '../index.css'), 'utf-8')
   const theme = stripCssComments(css)

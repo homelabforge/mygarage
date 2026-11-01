@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -18,7 +18,7 @@ import {
   WifiOff,
 } from 'lucide-react'
 
-import { Select, Toggle } from '@/components/ui'
+import { IconButton, Select, Toggle } from '@/components/ui'
 import { livelinkService } from '@/services/livelinkService'
 import type {
   BackfillResultResponse,
@@ -93,6 +93,7 @@ export default function DeviceRow({
   onUnskipFirmware,
 }: Props): ReactElement {
   const { t } = useTranslation('forms')
+  const idBase = useId()
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(device.label ?? '')
   const [showSdConfig, setShowSdConfig] = useState(false)
@@ -179,6 +180,10 @@ export default function DeviceRow({
   // reports a status, and a disabled device freezes at its last one.
   const status = deviceStatusWord(device)
   const ecu = ecuStatusWord(device.ecu_status)
+  // Every row has the same buttons, so each name says which device it's for.
+  // The tooltip keeps the short action.
+  const name = device.label || device.device_id
+  const forDevice = (actionKey: string): string => t('modal.livelink.actionFor', { action: t(actionKey), name })
 
   return (
     <>
@@ -191,15 +196,20 @@ export default function DeviceRow({
                 type="text"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
+                aria-label={t('modal.livelink.labelPlaceholder')}
                 placeholder={t('modal.livelink.labelPlaceholder')}
                 className="px-2 py-1 bg-garage-surface border border-garage-border rounded text-xs text-garage-text w-24"
               />
-              <button onClick={handleSaveLabel} className="text-green-500 hover:text-green-400">
-                <CheckCircle className="w-4 h-4" />
-              </button>
+              <IconButton
+                icon={CheckCircle}
+                label={t('modal.livelink.save')}
+                size="sm"
+                className="text-green-500! hover:text-green-400!"
+                onClick={handleSaveLabel}
+              />
             </div>
           ) : (
-            <button onClick={() => setEditing(true)} className="text-garage-text hover:text-primary text-sm">
+            <button onClick={() => setEditing(true)} className="text-garage-text hover:text-(--accent-fg) text-sm">
               {device.label || device.device_id.substring(0, 8) + '...'}
             </button>
           )}
@@ -224,7 +234,7 @@ export default function DeviceRow({
         {/* The empty option UNLINKS: the API reads vin "" as "clear the link",
             where null would mean "leave it" and never unlinked anything. */}
         <Select
-          aria-label={t('modal.vehicle')}
+          aria-label={forDevice('modal.vehicle')}
           value={device.vin ?? ''}
           onChange={(e) => void onUpdate(device.device_id, { vin: e.target.value })}
           placeholder={t('modal.livelink.unlinked')}
@@ -244,13 +254,14 @@ export default function DeviceRow({
               <span className="ml-1 px-1 py-0.5 bg-garage-border/50 text-garage-text-muted text-xs rounded">
                 {t('modal.livelink.skippedBadge', { version: deviceFirmware.latest_version })}
               </span>
-              <button
-                onClick={() => onUnskipFirmware(device.device_id)}
-                className="ml-1 p-0.5 text-garage-text-muted hover:text-yellow-500"
+              <IconButton
+                icon={Bell}
+                label={forDevice('modal.livelink.unskip')}
                 title={t('modal.livelink.unskip')}
-              >
-                <Bell className="w-3 h-3" />
-              </button>
+                size="sm"
+                className="ml-1 hover:text-yellow-500!"
+                onClick={() => onUnskipFirmware(device.device_id)}
+              />
             </>
           )}
           {deviceFirmware?.update_available && !firmwareSkipped && (
@@ -258,16 +269,17 @@ export default function DeviceRow({
               <span className="ml-1 px-1 py-0.5 bg-yellow-500/20 text-yellow-500 text-xs rounded">
                 {t('modal.livelink.updateBadge')}
               </span>
-              <button
+              <IconButton
+                icon={BellOff}
+                label={forDevice('modal.livelink.skipVersion')}
+                title={t('modal.livelink.skipVersion')}
+                size="sm"
+                className="ml-1 hover:text-yellow-500!"
                 onClick={() =>
                   deviceFirmware.latest_version &&
                   onSkipFirmware(device.device_id, deviceFirmware.latest_version)
                 }
-                className="ml-1 p-0.5 text-garage-text-muted hover:text-yellow-500"
-                title={t('modal.livelink.skipVersion')}
-              >
-                <BellOff className="w-3 h-3" />
-              </button>
+              />
             </>
           )}
         </td>
@@ -275,61 +287,68 @@ export default function DeviceRow({
       <td className="py-2 px-3 text-right">
         <div className="flex items-center justify-end gap-1">
           {capabilities.has('commands') && mqttConnected && device.online && (
-            <button
-              onClick={() => onSendCommand(device.device_id, 'get_vbatt')}
-              className="p-1 text-garage-text-muted hover:text-green-500"
+            <IconButton
+              icon={Battery}
+              label={forDevice('modal.livelink.checkBatteryVoltage')}
               title={t('modal.livelink.checkBatteryVoltage')}
-            >
-              <Battery className="w-4 h-4" />
-            </button>
+              size="sm"
+              className="hover:text-green-500!"
+              onClick={() => onSendCommand(device.device_id, 'get_vbatt')}
+            />
           )}
           {device.sta_ip && (
             <a
               href={`http://${device.sta_ip}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1 text-garage-text-muted hover:text-primary"
+              className="p-1 text-garage-text-muted hover:text-(--accent-fg)"
               title={t('modal.livelink.openDeviceUi')}
+              aria-label={forDevice('modal.livelink.openDeviceUi')}
             >
-              <ExternalLink className="w-4 h-4" />
+              <ExternalLink aria-hidden="true" className="w-4 h-4" />
             </a>
           )}
           {wicanWire &&
             (device.has_device_token ? (
-              <button
-                onClick={() => onRevokeToken(device.device_id)}
-                className="p-1 text-yellow-500 hover:text-yellow-400"
+              // Yellow says the device has its own token. The ! beats the ghost
+              // variant's own colour, which would otherwise win or lose by CSS order.
+              <IconButton
+                icon={Key}
+                label={forDevice('modal.livelink.revokeDeviceToken')}
                 title={t('modal.livelink.revokeDeviceToken')}
-              >
-                <Key className="w-4 h-4" />
-              </button>
+                size="sm"
+                className="text-yellow-500! hover:text-yellow-400!"
+                onClick={() => onRevokeToken(device.device_id)}
+              />
             ) : (
-              <button
-                onClick={() => onGenerateToken(device.device_id)}
-                className="p-1 text-garage-text-muted hover:text-primary"
+              <IconButton
+                icon={Key}
+                label={forDevice('modal.livelink.generateDeviceToken')}
                 title={t('modal.livelink.generateDeviceToken')}
-              >
-                <Key className="w-4 h-4" />
-              </button>
+                size="sm"
+                className="hover:text-(--accent-fg)!"
+                onClick={() => onGenerateToken(device.device_id)}
+              />
             ))}
           {(hasSd || hasOdometer) && (
-            <button
-              onClick={() => setShowSdConfig(!showSdConfig)}
-              className={`p-1 ${showSdConfig ? 'text-primary' : 'text-garage-text-muted hover:text-primary'}`}
+            <IconButton
+              icon={SlidersHorizontal}
+              label={forDevice('modal.livelink.deviceSettings')}
               title={t('modal.livelink.deviceSettings')}
-              aria-label={t('modal.livelink.deviceSettings')}
+              size="sm"
+              className={showSdConfig ? 'text-(--accent-fg)!' : 'hover:text-(--accent-fg)!'}
               aria-expanded={showSdConfig}
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
+              onClick={() => setShowSdConfig(!showSdConfig)}
+            />
           )}
-          <button
-            onClick={() => onDelete(device.device_id)}
-            className="p-1 text-garage-text-muted hover:text-red-500"
+          <IconButton
+            icon={Trash2}
+            label={forDevice('modal.livelink.deleteDevice')}
             title={t('modal.livelink.deleteDevice')}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+            variant="danger"
+            size="sm"
+            onClick={() => onDelete(device.device_id)}
+          />
         </div>
       </td>
     </tr>
@@ -340,10 +359,11 @@ export default function DeviceRow({
             {hasSd && (
               <>
                 <div>
-                  <label className="block text-xs font-medium text-garage-text mb-1">
+                  <label htmlFor={`${idBase}-address`} className="block text-xs font-medium text-garage-text mb-1">
                     {t('modal.livelink.deviceAddress')}
                   </label>
                   <input
+                    id={`${idBase}-address`}
                     type="text"
                     value={sdAddress}
                     onChange={(e) => setSdAddress(e.target.value)}
@@ -362,10 +382,11 @@ export default function DeviceRow({
             )}
             {hasOdometer && (
               <div>
-                <label className="block text-xs font-medium text-garage-text mb-1">
+                <label htmlFor={`${idBase}-odometer-unit`} className="block text-xs font-medium text-garage-text mb-1">
                   {t('modal.livelink.odometerUnit')}
                 </label>
                 <Select
+                  id={`${idBase}-odometer-unit`}
                   value={odometerUnit}
                   onChange={(e) => void changeOdometerUnit(e.target.value as 'km' | 'mi' | 'auto')}
                   disabled={torqueKmOdometer}
@@ -395,10 +416,11 @@ export default function DeviceRow({
             )}
             {choosesOdometerParam && (
               <div>
-                <label className="block text-xs font-medium text-garage-text mb-1">
+                <label htmlFor={`${idBase}-odometer-param`} className="block text-xs font-medium text-garage-text mb-1">
                   {t('modal.livelink.odometerParam')}
                 </label>
                 <Select
+                  id={`${idBase}-odometer-param`}
                   value={odometerParamKey}
                   onChange={(e) => void changeOdometerParamKey(e.target.value)}
                   options={[

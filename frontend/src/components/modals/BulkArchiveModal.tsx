@@ -92,7 +92,7 @@ export default function BulkArchiveModal({ isOpen, vins, onClose, onConfirm }: B
         <div className="p-6 space-y-4">
           <div className="flex items-center gap-3">
             <div className="rounded-full bg-primary/10 p-2">
-              <Archive className="h-5 w-5 text-primary" />
+              <Archive className="h-5 w-5 text-(--accent-fg)" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-garage-text">{t('modal.bulkArchiveTitle')}</h2>
@@ -176,11 +176,11 @@ export default function BulkArchiveModal({ isOpen, vins, onClose, onConfirm }: B
                 type="checkbox"
                 checked={visible}
                 onChange={(e) => setVisible(e.target.checked)}
-                className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
+                className="w-4 h-4 accent-(--accent-solid) bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
               />
               <div className="flex items-center gap-2">
                 {visible ? (
-                  <Eye className="w-4 h-4 text-primary" />
+                  <Eye className="w-4 h-4 text-(--accent-fg)" />
                 ) : (
                   <EyeOff className="w-4 h-4 text-garage-text-muted" />
                 )}

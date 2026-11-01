@@ -282,7 +282,7 @@ test.describe('Tires', () => {
     await drawer.locator('#tire-mount-date').fill('2026-04-10')
     // The suggestion names the reading's own date, so the user can judge it.
     await expect(drawer.getByText(/Nearest reading/)).toBeVisible({ timeout: 5000 })
-    await drawer.getByRole('button', { name: 'Use' }).click()
+    await drawer.getByRole('button', { name: /^Use nearest odometer reading/ }).click()
     await expect(drawer.locator('#tire-mount-odometer')).toHaveValue(/100000|62137/)
     await drawer.getByRole('button', { name: 'Save' }).click()
     await expect(drawer).toBeHidden({ timeout: 10000 })

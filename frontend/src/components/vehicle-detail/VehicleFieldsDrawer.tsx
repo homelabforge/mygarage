@@ -1,17 +1,24 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Info, FileText, Gauge, Shield, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import FormModalWrapper from '../FormModalWrapper'
-import { Button, Field, Input, Textarea } from '../ui'
+import { Button, Field, Input, NumberInput, Textarea } from '../ui'
 import vehicleService from '../../services/vehicleService'
 import { str, emptyToNull } from '../../utils/formUtils'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
+import { getActiveLocale } from '../../constants/i18n'
+import { parseDecimalInput } from '../../utils/decimalInput'
+import { INVALID_NUMBER } from '../../schemas/shared'
+import { makeVehicleWholeNumberFields } from '../../schemas/vehicle'
 
 /** The four Overview info cards that open this shared editor sidecar. */
 export type VehicleCardKey = 'basic' | 'details' | 'powertrain' | 'warranty'
 
 type FieldKind = 'text' | 'number' | 'multiline'
+
+/** The number fields here, each checked by the edit form's own rule. */
+type WholeNumberKey = keyof ReturnType<typeof makeVehicleWholeNumberFields>
 
 interface FieldSpec {
   /** Vehicle column — present on both the update and response schemas. */
@@ -22,8 +29,6 @@ interface FieldSpec {
   /** Seed fallback order (first non-empty wins). Defaults to `[key]`. Used so
    *  "Exterior color" seeds from the sticker field, then the legacy `color`. */
   seedKeys?: (keyof Vehicle)[]
-  min?: string
-  max?: string
 }
 
 interface CardConfig {
@@ -40,7 +45,7 @@ function getCardConfig(card: VehicleCardKey): CardConfig {
         titleKey: 'detail.basicInformation',
         icon: Info,
         fields: [
-          { key: 'year', label: 'edit.year', kind: 'number', min: '1900', max: '2100' },
+          { key: 'year', label: 'edit.year', kind: 'number' },
           { key: 'make', label: 'edit.make', kind: 'text' },
           { key: 'model', label: 'edit.model', kind: 'text' },
           { key: 'license_plate', label: 'edit.licensePlate', kind: 'text' },
@@ -153,6 +158,8 @@ export default function VehicleFieldsDrawer({
   const { t } = useTranslation('vehicles')
   const [form, setForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const wholeNumbers = useMemo(() => makeVehicleWholeNumberFields(t), [t])
   // Snapshot of the seeded values, so save can send only the fields the user
   // actually changed (a true partial PUT). Load-bearing for the exterior-color
   // duality: `exterior_color` seeds from the legacy `color`, so an untouched
@@ -169,6 +176,7 @@ export default function VehicleFieldsDrawer({
     if (open && config) {
       const seeded = seedForm(config, vehicle)
       setForm(seeded)
+      setErrors({})
       initialRef.current = seeded
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,12 +192,23 @@ export default function VehicleFieldsDrawer({
     // Dirty-diff: only changed fields go in the payload; unchanged ones are
     // omitted and left untouched server-side (exclude_unset).
     const payload: Record<string, string | number | null> = {}
+    const found: Record<string, string> = {}
     for (const f of config.fields) {
       const current = form[f.key] ?? ''
       if (current === (initialRef.current[f.key] ?? '')) continue
-      const raw = current.trim()
-      payload[f.key] = f.kind === 'number' ? (raw === '' ? null : Number(raw)) : emptyToNull(current)
+      if (f.kind !== 'number') {
+        payload[f.key] = emptyToNull(current)
+        continue
+      }
+      // Read in the user's language, then the edit form's own year/doors/cylinders rule.
+      const parsed = parseDecimalInput(current, getActiveLocale())
+      const typed = parsed.kind === 'value' ? parsed.value : parsed.kind === 'invalid' ? INVALID_NUMBER : null
+      const checked = wholeNumbers[f.key as WholeNumberKey].safeParse(typed)
+      if (checked.success) payload[f.key] = checked.data ?? null
+      else found[f.key] = checked.error.issues[0]?.message ?? ''
     }
+    setErrors(found)
+    if (Object.keys(found).length > 0) return
     // This field IS the overview's colour (`exterior_color || color`), so a
     // clear has to take the legacy `color` with it or that comes straight back.
     // The sticker review doesn't do this: there a clear means the OCR was wrong.
@@ -232,18 +251,13 @@ export default function VehicleFieldsDrawer({
             const value = form[f.key] ?? ''
             return (
               <div key={f.key} className={f.kind === 'multiline' ? 'sm:col-span-2' : ''}>
-                <Field id={id} label={t(f.label)}>
+                <Field id={id} label={t(f.label)} error={errors[f.key]}>
                   {f.kind === 'multiline' ? (
                     <Textarea id={id} rows={2} value={value} onChange={set(f.key)} />
+                  ) : f.kind === 'number' ? (
+                    <NumberInput id={id} value={value} onChange={set(f.key)} invalid={!!errors[f.key]} />
                   ) : (
-                    <Input
-                      id={id}
-                      type={f.kind === 'number' ? 'number' : 'text'}
-                      min={f.min}
-                      max={f.max}
-                      value={value}
-                      onChange={set(f.key)}
-                    />
+                    <Input id={id} type="text" value={value} onChange={set(f.key)} />
                   )}
                 </Field>
               </div>

@@ -446,11 +446,9 @@
       "stopped": "Arrêté",
       "tokenConfigured": "Jeton configuré",
       "tokenForDevice": "Jeton pour l'appareil {{deviceId}}",
-      "tokenLabel": "Jeton",
       "unknown": "Inconnu",
       "unlinked": "Non lié",
       "updateBadge": "Mise à jour",
-      "urlLabel": "URL",
       "viewRelease": "Voir la version"
     },
     "transfer": {
@@ -601,8 +599,6 @@
     "suppliesLoadFailed": "Impossible de charger les fournitures. L'enregistrement est désactivé pour éviter de perdre les fournitures déjà saisies pour cette visite — veuillez réessayer.",
     "suppliesLoading": "Chargement des fournitures…",
     "suppliesNone": "Aucune fourniture utilisée pour cet élément.",
-    "suppliesQuantity": "Quantité",
-    "suppliesRemoveRow": "Supprimer la fourniture",
     "suppliesUsed": "Fournitures utilisées",
     "tax": "Taxe",
     "taxAndFees": "Taxes et frais",

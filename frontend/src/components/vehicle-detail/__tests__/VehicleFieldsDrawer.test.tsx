@@ -53,7 +53,7 @@ describe('VehicleFieldsDrawer', () => {
 
   it('seeds the Basic Information fields, with exterior color falling back to color', () => {
     renderDrawer({ card: 'basic' })
-    expect(screen.getByLabelText('edit.year')).toHaveValue(2019)
+    expect(screen.getByLabelText('edit.year')).toHaveValue('2019')
     expect(screen.getByLabelText('edit.make')).toHaveValue('Mitsubishi')
     // exterior_color is null, so the field seeds from the legacy `color`.
     expect(screen.getByLabelText('detail.misc.exteriorColor')).toHaveValue('Red')
@@ -114,7 +114,7 @@ describe('VehicleFieldsDrawer', () => {
     // diff that fired on an untouched field would write the column.
     const nullYear = { ...baseVehicle, year: null } as unknown as Vehicle
     renderDrawer({ card: 'basic', vehicle: nullYear })
-    expect(screen.getByLabelText('edit.year')).toHaveValue(null)
+    expect(screen.getByLabelText('edit.year')).toHaveValue('')
 
     fireEvent.change(screen.getByLabelText('edit.make'), { target: { value: 'Nissan' } })
     fireEvent.click(screen.getByRole('button', { name: 'common:save' }))

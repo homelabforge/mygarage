@@ -128,10 +128,64 @@ describe('WindowStickerUpload — server-side error wiring (final-review I4)', (
     await editAndSave(user)
 
     await vi.waitFor(() => expect(apiPatch).toHaveBeenCalledTimes(1))
-    await screen.findByRole('alert')
+    // Two alerts now: the field's own and the banner (G1b-78).
+    await vi.waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
     expect(
       await screen.findByText('Failed to {{action}}. Please check your input.')
     ).toBeInTheDocument()
+  })
+})
+
+// The banners and field errors have to reach a screen reader, not just the
+// eye (G1b-78).
+describe('WindowStickerUpload: errors and results are announced', () => {
+  it('a field error is the description of its box, so it is heard on return', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+    await uploadAndReachEditScreen(user)
+    const price = screen.getByLabelText('detail.misc.basePrice ($)')
+    expect(price).not.toHaveAccessibleDescription()
+
+    await user.clear(price)
+    await user.type(price, 'abc')
+    await user.click(screen.getByRole('button', { name: 'windowSticker.misc.saveData' }))
+
+    await vi.waitFor(() => expect(price).toHaveAccessibleDescription('common:validation.amount.invalid'))
+  })
+
+  it('the error banner is an alert', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    apiPatch.mockRejectedValueOnce({
+      isAxiosError: true,
+      message: 'Request failed with status code 422',
+      response: {
+        status: 422,
+        data: { detail: [{ type: 'greater_than_equal', loc: ['body', 'fuel_economy_city'], msg: 'Input should be >= 0' }] },
+      },
+    })
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+    await uploadAndReachEditScreen(user)
+    await editAndSave(user)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to {{action}}. Please check your input.')
+  })
+
+  it('the upload success line is a status', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    apiPost.mockResolvedValueOnce({ data: { msrp_base: 30000, scan_read_nothing: false } })
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+    await uploadAndReachEditScreen(user)
+
+    expect(screen.getByRole('status')).toHaveTextContent('windowSticker.misc.uploadSuccess')
+  })
+
+  it('the read-nothing notice is a status', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    apiPost.mockResolvedValueOnce({ data: { msrp_base: null, scan_read_nothing: true } })
+    render(<WindowStickerUpload vin="V1" onSuccess={vi.fn()} onClose={vi.fn()} />)
+    await uploadAndReachEditScreen(user)
+
+    expect(screen.getByRole('status')).toHaveTextContent('windowSticker.scanReadNothing')
   })
 })
 

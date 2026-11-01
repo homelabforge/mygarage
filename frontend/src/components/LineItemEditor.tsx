@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Trash2, ChevronDown, ChevronUp, Clipboard, Wrench, Bell } from 'lucide-react'
 import type { ServiceVisitFormLineItem } from '../types/serviceVisit'
@@ -6,13 +6,13 @@ import type { RecurrenceDraft, ReminderDraft, ReminderDraftMode } from '../types
 import type { Supply } from '../types/supplies'
 import type { SupplyUnit } from '../utils/supplyUnits'
 import InspectionResult from './InspectionResult'
-import CurrencyInputPrefix from './common/CurrencyInputPrefix'
+import CurrencyInput from './common/CurrencyInput'
 import SupplyUsedPicker from './SupplyUsedPicker'
 import MaintenanceTypeSelect from './MaintenanceTypeSelect'
 import RecurrenceFields from './RecurrenceFields'
-import { Select, affixStyle, useAffixWidth } from './ui'
+import { Select, useCombobox } from './ui'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
-import { useCurrencySymbol } from '../hooks/useCurrencySymbol'
+import { readTypedNumber } from '../utils/decimalInput'
 
 // Service suggestions per category. Module scope can't reach `t`, so these are
 // translation-key suffixes under `lineItemEditor.misc.suggestions.*`, resolved
@@ -68,10 +68,12 @@ export default function LineItemEditor({
 }: LineItemEditorProps) {
   const { t } = useTranslation('vehicles')
   const { formatCurrency } = useCurrencyPreference()
-  // The cost field pads past the currency symbol at its drawn width.
-  const [symbolRef, symbolWidth] = useAffixWidth(useCurrencySymbol())
+  // The cost as typed. The item holds the number it reads as (NaN when it
+  // doesn't), and ServiceVisitForm's line-item check says so on save.
+  const [costText, setCostText] = useState(() => (item.cost == null ? '' : String(item.cost)))
   const [expanded, setExpanded] = useState(true)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const descriptionWrapRef = useRef<HTMLDivElement>(null)
   // ★ The reminder draft's `interval_km` is canonical kilometres, converted
   // by RecurrenceFields through `units.distance` (a litres-and-miles account
   // typing 500 stores 804.672, not 500). The backend anchors the reminder on
@@ -89,6 +91,32 @@ export default function LineItemEditor({
   const filteredSuggestions = suggestions.filter(s =>
     s.toLowerCase().includes(item.description.toLowerCase())
   )
+  const visibleSuggestions = filteredSuggestions.slice(0, 8)
+  const suggestionsOpen =
+    showSuggestions && !!item.category && visibleSuggestions.length > 0 && item.description.length < 50
+  const descriptionBox = useCombobox({
+    id: `line-item-${index}-description`,
+    inputValue: item.description,
+    open: suggestionsOpen,
+    count: visibleSuggestions.length,
+    onSelect: (i) => {
+      onChange(index, 'description', visibleSuggestions[i])
+      setShowSuggestions(false)
+    },
+    onClose: () => setShowSuggestions(false),
+    onOpen: () => setShowSuggestions(true),
+  })
+
+  // A press anywhere else closes the suggestions. A tap on one can blur the box
+  // before its click lands, so the blur itself only closes when focus went elsewhere.
+  useEffect(() => {
+    if (!showSuggestions) return
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (!descriptionWrapRef.current?.contains(event.target as Node)) setShowSuggestions(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [showSuggestions])
 
   const handleReminderToggle = (enabled: boolean) => {
     if (enabled) {
@@ -130,7 +158,7 @@ export default function LineItemEditor({
 
         <div className="flex-1 flex items-center gap-2">
           {item.is_inspection ? (
-            <Clipboard className="w-4 h-4 text-primary" />
+            <Clipboard className="w-4 h-4 text-(--accent-fg)" />
           ) : (
             <Wrench className="w-4 h-4 text-garage-text-muted" />
           )}
@@ -138,7 +166,7 @@ export default function LineItemEditor({
             {item.description || t('lineItemEditor.misc.lineItem', { number: index + 1 })}
           </span>
           {item.is_inspection && (
-            <span className="px-2 py-0.5 text-xs bg-primary/20 text-primary rounded">{t('lineItemEditor.misc.inspectionBadge')}</span>
+            <span className="px-2 py-0.5 text-xs bg-primary/20 text-(--accent-fg) rounded">{t('lineItemEditor.misc.inspectionBadge')}</span>
           )}
           {item.category && (
             <span className="px-2 py-0.5 text-xs bg-garage-bg text-garage-text-muted rounded">{item.category}</span>
@@ -178,62 +206,73 @@ export default function LineItemEditor({
               />
             </div>
 
-            <div className="md:col-span-2 relative">
-              <label className="block text-sm font-medium text-garage-text mb-1">
+            <div ref={descriptionWrapRef} className="md:col-span-2 relative">
+              <label htmlFor={`line-item-${index}-description`} className="block text-sm font-medium text-garage-text mb-1">
                 {t('lineItemEditor.misc.descriptionLabel')} <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
+                {...descriptionBox.inputProps}
                 value={item.description}
                 onChange={(e) => {
                   onChange(index, 'description', e.target.value)
                   setShowSuggestions(true)
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                // Tab to another field closes it now (a delay here ate the next Tab). A blur
+                // to nowhere, like a tap that lost its mousedown guard, waits for the click.
+                onBlur={(e) => {
+                  const next = e.relatedTarget
+                  if (next instanceof Node && !descriptionWrapRef.current?.contains(next)) setShowSuggestions(false)
+                }}
                 placeholder={
                   item.category
                     ? t('lineItemEditor.misc.typeOrSelect')
                     : t('lineItemEditor.misc.selectCategoryFirst')
                 }
                 disabled={disabled}
+                autoComplete="off"
                 className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
               />
               {/* Service suggestions dropdown */}
-              {showSuggestions && item.category && filteredSuggestions.length > 0 && item.description.length < 50 && (
-                <div className="absolute z-10 w-full mt-1 bg-garage-surface border border-garage-border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                  {filteredSuggestions.slice(0, 8).map((suggestion) => (
-                    <button
+              {descriptionBox.expanded && (
+                <div
+                  {...descriptionBox.listProps}
+                  className="absolute z-10 w-full mt-1 bg-garage-surface border border-garage-border rounded-md shadow-lg max-h-48 overflow-y-auto"
+                >
+                  {visibleSuggestions.map((suggestion, i) => (
+                    <div
                       key={suggestion}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        onChange(index, 'description', suggestion)
-                        setShowSuggestions(false)
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-garage-text hover:bg-primary/10 transition-colors"
+                      {...descriptionBox.optionProps(i)}
+                      className={`w-full text-left px-3 py-2 text-sm text-garage-text cursor-pointer hover:bg-primary/10 transition-colors ${
+                        i === descriptionBox.activeIndex ? 'bg-primary/10' : ''
+                      }`}
                     >
                       {suggestion}
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
+              <div role="status" className="sr-only">
+                {descriptionBox.expanded ? t('common:combobox.results', { count: visibleSuggestions.length }) : ''}
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">{t('lineItemEditor.cost')}</label>
-              <div className="relative">
-                <CurrencyInputPrefix ref={symbolRef} />
-                <input
-                  type="number"
-                  value={item.cost ?? ''}
-                  onChange={(e) => onChange(index, 'cost', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  placeholder="0.00"
-                  disabled={disabled}
-                  className="w-full pl-affix pr-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
-                  style={affixStyle(symbolWidth)}
-                />
-              </div>
+              <label htmlFor={`line-item-${index}-cost`} className="block text-sm font-medium text-garage-text mb-1">
+                {t('lineItemEditor.cost')}
+              </label>
+              <CurrencyInput
+                id={`line-item-${index}-cost`}
+                value={costText}
+                onChange={(e) => {
+                  setCostText(e.target.value)
+                  onChange(index, 'cost', readTypedNumber(e.target.value))
+                }}
+                placeholder="0.00"
+                disabled={disabled}
+                parsedOnChange
+              />
               {partsCost > 0 && (
                 <p className="text-xs text-garage-text-muted mt-1">
                   {t('lineItemEditor.partsCost', { amount: formatCurrency(partsCost) })}
@@ -256,7 +295,7 @@ export default function LineItemEditor({
                 }
               }}
               disabled={disabled}
-              className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary border-garage-border rounded"
+              className="w-4 h-4 accent-(--accent-solid) focus:ring-2 focus:ring-primary border-garage-border rounded"
             />
             <label htmlFor={`inspection-${index}`} className="text-sm text-garage-text">
               {t('lineItemEditor.misc.isInspectionItem')}
@@ -345,7 +384,7 @@ export default function LineItemEditor({
                   checked={item.reminderDraft?.enabled ?? false}
                   onChange={(e) => handleReminderToggle(e.target.checked)}
                   disabled={disabled}
-                  className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary border-garage-border rounded"
+                  className="w-4 h-4 accent-(--accent-solid) focus:ring-2 focus:ring-primary border-garage-border rounded"
                 />
                 <Bell className="w-4 h-4 text-garage-text-muted" />
                 <label htmlFor={`reminder-${index}`} className="text-sm text-garage-text">

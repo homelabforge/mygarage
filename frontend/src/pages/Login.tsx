@@ -155,7 +155,7 @@ export default function Login() {
       footerExtra={
         <div className="mt-6 text-center text-sm text-garage-text-muted">
           {t('login.noAccount')}{' '}
-          <Link to="/register" className="text-primary hover:underline font-medium">
+          <Link to="/register" className="text-(--accent-fg) hover:underline font-medium">
             {t('login.registerLink')}
           </Link>
         </div>

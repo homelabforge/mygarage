@@ -1,4 +1,5 @@
 import { getActiveLocale } from '../constants/i18n'
+import { numberFromField } from './decimalInput'
 
 /**
  * An engine-hours figure as the tire screens show it: one decimal, grouped
@@ -13,10 +14,7 @@ export function formatHours(value: number | string): string {
   return `${shown} hr`
 }
 
-/** An hour meter field as typed, for a payload: blank is null, and 0 stays 0. */
+/** An hour meter field as typed, for a payload: blank is null, 0 stays 0, and "812,5" reads in de. */
 export function hoursFromField(typed: string): number | null {
-  const trimmed = typed.trim()
-  if (trimmed === '') return null
-  const n = Number(trimmed)
-  return Number.isFinite(n) ? n : null
+  return numberFromField(typed)
 }

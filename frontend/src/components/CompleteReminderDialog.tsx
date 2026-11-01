@@ -285,6 +285,7 @@ function CompleteReminderDialog({
           <>
             <Field id="complete-vendor" label={t('completeReminder.vendor')}>
               <VendorSearch
+                id="complete-vendor"
                 value={vendorId}
                 onSelect={(vendor) => setVendorId(vendor?.id)}
                 disabled={submitting}

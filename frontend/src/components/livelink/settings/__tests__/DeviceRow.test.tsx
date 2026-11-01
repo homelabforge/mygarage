@@ -189,7 +189,7 @@ describe('DeviceRow controls by source', () => {
   it('unlinks with an empty VIN, which the API reads as "clear"', () => {
     const onUpdate = vi.fn()
     renderRow(undefined, { device: { ...device, vin: VEHICLE.vin }, vehicles: [VEHICLE], onUpdate })
-    fireEvent.change(screen.getByRole('combobox', { name: 'modal.vehicle' }), {
+    fireEvent.change(screen.getByRole('combobox', { name: 'modal.livelink.actionFor' }), {
       target: { value: '' },
     })
     expect(onUpdate).toHaveBeenCalledWith(device.device_id, { vin: '' })

@@ -230,7 +230,7 @@ describe('ServiceVisitForm: clearing a line item field on edit', () => {
   it('sends null for each line-item field the user cleared', async () => {
     await renderEdit(inspectionVisit)
 
-    const cost = found(screen.getAllByText('lineItemEditor.cost')[1].parentElement?.querySelector('input[type="number"]'))
+    const cost = screen.getAllByLabelText('lineItemEditor.cost')[1]
     const notes = screen.getAllByPlaceholderText('lineItemEditor.misc.notesPlaceholder')[1]
     const category = found(screen.getAllByText('lineItemEditor.misc.categoryLabel')[1].parentElement?.querySelector('select'))
     const triggeredBy = found(screen.getByText('lineItemEditor.misc.triggeredByFailedInspection').parentElement?.querySelector('select'))

@@ -26,7 +26,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
         {/* Header */}
         <div className="sticky top-0 bg-garage-surface border-b border-garage-border p-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Info className="w-6 h-6 text-garage-primary" />
+            <Info className="w-6 h-6 text-(--accent-fg)" />
             <h2 className="text-2xl font-bold text-garage-text">{t('vehicleHelp.title')}</h2>
           </div>
           <button

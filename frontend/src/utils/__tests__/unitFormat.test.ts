@@ -280,17 +280,6 @@ describe('cost per distance', () => {
   })
 })
 
-describe('step', () => {
-  it('follows the unit precision rather than a fixed 0.1', () => {
-    // The tread inputs carried step="0.1" while in32 is a whole-number unit,
-    // so the spinner offered tenths of a thirty-second of an inch.
-    expect(makeUnitFormat(IMPERIAL).tread.step).toBe('1')
-    expect(makeUnitFormat(METRIC).tread.step).toBe('0.01')
-    expect(makeUnitFormat(IMPERIAL).pressure.step).toBe('0.1')
-    expect(makeUnitFormat(METRIC).pressure.step).toBe('1')
-  })
-})
-
 describe('toDisplayText', () => {
   it('renders the converted number grouped, at the unit precision, with no label', () => {
     // The label is composed by the caller. LiveLink renders the number and the

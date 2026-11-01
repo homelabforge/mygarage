@@ -98,7 +98,7 @@ export default function LinkAccount() {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="p-4 bg-primary/10 rounded-full">
-              <Car className="w-12 h-12 text-primary" />
+              <Car className="w-12 h-12 text-(--accent-fg)" />
             </div>
           </div>
           <h1 className="text-3xl font-bold text-garage-text mb-2">
@@ -114,8 +114,8 @@ export default function LinkAccount() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Error Message */}
             {error && (
-              <div className="p-4 bg-danger-500/10 border border-danger-500 rounded-lg flex items-start gap-2">
-                <AlertCircle className="w-5 h-5 text-danger-500 flex-shrink-0 mt-0.5" />
+              <div role="alert" className="p-4 bg-danger-500/10 border border-danger-500 rounded-lg flex items-start gap-2">
+                <AlertCircle aria-hidden="true" className="w-5 h-5 text-danger-500 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-danger-500">{error}</div>
               </div>
             )}
@@ -174,7 +174,7 @@ export default function LinkAccount() {
                 {t('linkAccountPage.forgotPassword')}{' '}
                 <a
                   href={withBase('/login')}
-                  className="text-primary hover:underline"
+                  className="text-(--accent-fg) hover:underline"
                 >
                   {t('linkAccountPage.returnToLogin')}
                 </a>

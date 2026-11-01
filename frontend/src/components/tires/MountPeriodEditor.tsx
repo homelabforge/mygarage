@@ -5,10 +5,11 @@ import { toast } from 'sonner'
 
 import { useUpdateMountPeriod } from '../../hooks/queries/useTires'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
+import { useRefuseUnreadableNumbers } from '../../hooks/useRefuseUnreadableNumbers'
 import type { MountedPosition, Tire, TireMountPeriod, TirePosition } from '../../types/tire'
 import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
-import { canonicalFromUnitField, seedUnitField } from '../../utils/unitFormat'
+import { canonicalFromTypedUnitField, seedUnitField } from '../../utils/unitFormat'
 import { num } from '../../utils/wireNumber'
 import { Button, Drawer, Field, Input } from '../ui'
 import MountEventFields, { type OdometerFieldValue } from './MountEventFields'
@@ -61,6 +62,7 @@ function MountPeriodEditor({
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
   const update = useUpdateMountPeriod(vin)
+  const refuseUnreadable = useRefuseUnreadableNumbers()
   const closed = period.dismounted_on != null
 
   const [form, setForm] = useState<EditorState>(() => {
@@ -78,19 +80,32 @@ function MountPeriodEditor({
   })
 
   const odometerLabel = t('tireList.odometerWithUnit', { unit: u.distance.label })
+  // The two halves have the same boxes, so a refusal says which half.
+  const mountLabel = (field: string): string => t('tireList.periodField', { group: t('tireList.periodMount'), field })
+  const dismountLabel = (field: string): string =>
+    t('tireList.periodField', { group: t('tireList.periodDismount'), field })
 
   const save = () => {
     if (closed && form.dismounted_on === '') {
       toast.error(t('tireList.periodDismountDateRequired'))
       return
     }
+    if (
+      refuseUnreadable([
+        [mountLabel(odometerLabel), tracksDistance && form.mounted_odometer_km.typed],
+        [mountLabel(t('common:engineHours')), tracksHours && form.mounted_hours],
+        [dismountLabel(odometerLabel), closed && tracksDistance && form.dismounted_odometer_km.typed],
+        [dismountLabel(t('common:engineHours')), closed && tracksHours && form.dismounted_hours],
+      ])
+    )
+      return
     const payload = {
       tireId: tire.id,
       periodId: period.id,
       mounted_on: form.mounted_on || null,
       ...(tracksDistance
         ? {
-            mounted_odometer_km: canonicalFromUnitField(
+            mounted_odometer_km: canonicalFromTypedUnitField(
               form.mounted_odometer_km.typed,
               form.mounted_odometer_km.origin,
               u.distance
@@ -104,7 +119,7 @@ function MountPeriodEditor({
             dismounted_on: form.dismounted_on,
             ...(tracksDistance
               ? {
-                  dismounted_odometer_km: canonicalFromUnitField(
+                  dismounted_odometer_km: canonicalFromTypedUnitField(
                     form.dismounted_odometer_km.typed,
                     form.dismounted_odometer_km.origin,
                     u.distance
@@ -153,6 +168,7 @@ function MountPeriodEditor({
         <MountEventFields
           vin={vin}
           idPrefix="period-mount"
+          groupLabel={t('tireList.periodMount')}
           dateLabel={t('tireList.periodMount')}
           date={form.mounted_on}
           onDateChange={(next) => setForm({ ...form, mounted_on: next })}
@@ -168,6 +184,7 @@ function MountPeriodEditor({
           <MountEventFields
             vin={vin}
             idPrefix="period-dismount"
+            groupLabel={t('tireList.periodDismount')}
             dateLabel={t('tireList.periodDismount')}
             date={form.dismounted_on}
             onDateChange={(next) => setForm({ ...form, dismounted_on: next })}

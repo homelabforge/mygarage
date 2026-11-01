@@ -151,4 +151,15 @@ describe('AddPastPeriodDrawer', () => {
     expect(payload).not.toHaveProperty('mounted_odometer_km')
     expect(payload).not.toHaveProperty('dismounted_odometer_km')
   })
+
+  it('groups each half under its own name, so the two odometers and hour meters are told apart', () => {
+    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} tracksHours />)
+    const mount = drawer().getByRole('group', { name: 'tireList.periodMount' })
+    const dismount = drawer().getByRole('group', { name: 'tireList.periodDismount' })
+    expect(mount).toContainElement(input('past-mount-odometer'))
+    expect(mount).toContainElement(input('past-mount-hours'))
+    expect(mount).not.toContainElement(input('past-dismount-odometer'))
+    expect(dismount).toContainElement(input('past-dismount-odometer'))
+    expect(dismount).toContainElement(input('past-dismount-hours'))
+  })
 })

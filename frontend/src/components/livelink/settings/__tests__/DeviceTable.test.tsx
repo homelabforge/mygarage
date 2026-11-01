@@ -113,7 +113,7 @@ describe('DeviceTable', () => {
     const vehicle = { vin: '1HGBH41JXMN109186', nickname: 'Durango', year: 2023, make: 'KZ', model: 'RV' }
     render(<DeviceTable devices={[make('d1')]} vehicles={[vehicle as never]} onChanged={vi.fn()} />)
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'modal.vehicle' }), { target: { value: vehicle.vin } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'modal.livelink.actionFor' }), { target: { value: vehicle.vin } })
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith('Only an admin can manage an unlinked device'),

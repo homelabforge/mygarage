@@ -8,7 +8,7 @@
  * system again:
  *
  *     const u = useUnitFormat()
- *     <Input type="number" step={u.pressure.step} value={form.pressure} ... />
+ *     <NumberInput value={form.pressure} ... />
  *     <dd>{u.pressure.format(tire.pressure_kpa)}</dd>
  *
  * A label goes through the caller's own translation, interpolating

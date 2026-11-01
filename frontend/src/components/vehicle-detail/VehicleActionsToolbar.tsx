@@ -47,15 +47,25 @@ export default function VehicleActionsToolbar({
   const canShare = authMode !== 'none'
   return (
     <>
-      {/* Mobile overflow trigger (phones) */}
-      <button
-        onClick={onOpenMobileMenu}
-        className="md:hidden mt-4 inline-flex items-center gap-2 rounded-control border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text-dim cursor-pointer"
-        title={t('detail.misc.moreActions')}
-      >
-        <MoreVertical className="h-5 w-5" />
-        <span>{t('detail.actions')}</span>
-      </button>
+      {/* Phones: the routine actions are one tap, right beside Actions. Remove
+          and Transfer stay in the sheet, away from them (G2c-53). */}
+      <div className="md:hidden mt-4 flex flex-wrap items-center gap-2">
+        <div role="group" aria-label={t('detail.hero.quickActions')} className="flex flex-wrap items-center gap-2">
+          <Button variant="primary" icon={Wrench} onClick={onLogService}>{t('detail.hero.logService')}</Button>
+          {showFuelAction && (
+            <Button variant="primary" icon={Fuel} onClick={onAddFuel}>{t('detail.hero.addFuel')}</Button>
+          )}
+          <Button variant="primary" icon={Bell} onClick={onReminder}>{t('detail.hero.reminder')}</Button>
+        </div>
+        <button
+          onClick={onOpenMobileMenu}
+          className="inline-flex items-center gap-2 rounded-control border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text-dim cursor-pointer"
+          title={t('detail.misc.moreActions')}
+        >
+          <MoreVertical className="h-5 w-5" />
+          <span>{t('detail.actions')}</span>
+        </button>
+      </div>
 
       {/* Primary actions row (desktop) */}
       <div className="mt-4 hidden md:flex flex-wrap items-center gap-2.5">

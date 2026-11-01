@@ -3,7 +3,7 @@
  * Optionally shows admin action icons when showActions is true.
  */
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ChevronDown, ChevronRight, ChevronUp, Car, AlertTriangle, Bell, User,
@@ -18,7 +18,8 @@ import { formatTime, parseAPITimestamp } from '@/utils/parseAPITimestamp'
 import { useDateLocale } from '@/hooks/useDateLocale'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { withBase } from '@/utils/basePath'
-import { unlessSelectingText } from '@/utils/textSelection'
+import { isSelectingText } from '@/utils/textSelection'
+import { cameFromNestedControl } from './ClickableCard'
 
 /** Matches a bare ISO calendar date (YYYY-MM-DD). */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -173,34 +174,35 @@ export default function FamilyMemberCard({
   const canToggleRelink = showActions && ((isOidc && !isInactive) || relinkOpen) && !!onToggleRelink
   const canReorder = showActions && !isInactive && membersLoaded && !!(onMoveUp || onMoveDown)
 
-  const handleHeaderKeyDown = (e: React.KeyboardEvent): void => {
-    // A key pressed on one of the header's buttons belongs to that button.
-    // Catching it here ate Enter on Edit and toggled the card instead.
-    if (e.target !== e.currentTarget) return
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      setIsExpanded(!isExpanded)
-    }
-  }
+  const nameId = useId()
+  // Icon-only actions repeat on every card, so each one says whose card it is.
+  const actionLabel = (action: string): string => t('familyCard.actionFor', { action, name: displayName })
 
   return (
     <div className={`bg-garage-surface border border-garage-border rounded-lg overflow-hidden ${isInactive ? 'opacity-60' : ''}`}>
-      {/* Header */}
+      {/* Header. Same split as ServiceVisitList: the whole row toggles, but only
+          the chevron is the disclosure button, so the action buttons aren't
+          nested inside a role=button and their own clicks stay their own. */}
       <div
-        role="button"
-        tabIndex={0}
-        onClick={unlessSelectingText(() => setIsExpanded(!isExpanded))}
-        onKeyDown={handleHeaderKeyDown}
+        onClick={(e) => {
+          if (cameFromNestedControl(e) || isSelectingText()) return
+          setIsExpanded(!isExpanded)
+        }}
         className="w-full flex items-center gap-4 p-4 hover:bg-garage-bg transition-colors cursor-pointer"
       >
-        {/* Expand Icon */}
-        <div className="flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          aria-expanded={isExpanded}
+          aria-labelledby={nameId}
+          className="flex-shrink-0 cursor-pointer rounded-row ui-focus-ring"
+        >
           {isExpanded ? (
-            <ChevronDown className="w-5 h-5 text-garage-text-muted" />
+            <ChevronDown aria-hidden="true" className="w-5 h-5 text-garage-text-muted" />
           ) : (
-            <ChevronRight className="w-5 h-5 text-garage-text-muted" />
+            <ChevronRight aria-hidden="true" className="w-5 h-5 text-garage-text-muted" />
           )}
-        </div>
+        </button>
 
         {/* Avatar */}
         <div className="w-12 h-12 rounded-full bg-garage-border flex items-center justify-center flex-shrink-0">
@@ -210,14 +212,14 @@ export default function FamilyMemberCard({
         {/* Member Info */}
         <div className="flex-1 text-left min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-semibold text-garage-text truncate">{displayName}</p>
+            <p id={nameId} className="font-semibold text-garage-text truncate">{displayName}</p>
             {relationshipLabel && (
               <span className="px-2 py-0.5 text-xs bg-info/20 text-info rounded">
                 {relationshipLabel}
               </span>
             )}
             {showActions && user?.is_admin && (
-              <span className="px-2 py-0.5 text-xs bg-primary/20 text-primary rounded">
+              <span className="px-2 py-0.5 text-xs bg-primary/20 text-(--accent-fg) rounded">
                 {t('admin')}
               </span>
             )}
@@ -262,7 +264,7 @@ export default function FamilyMemberCard({
 
         {/* Action Icons */}
         {showActions && (
-          <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-1 flex-shrink-0">
             {/* Dashboard Visibility */}
             {canToggleDashboard && (
               <button
@@ -275,11 +277,12 @@ export default function FamilyMemberCard({
                     : 'hover:bg-garage-border'
                 }`}
                 title={member.show_on_family_dashboard ? t('familyCard.hideFromDashboard') : t('familyCard.showOnDashboard')}
+                aria-label={actionLabel(member.show_on_family_dashboard ? t('familyCard.hideFromDashboard') : t('familyCard.showOnDashboard'))}
               >
                 {member.show_on_family_dashboard ? (
-                  <Eye className="w-4 h-4 text-success" />
+                  <Eye aria-hidden="true" className="w-4 h-4 text-success" />
                 ) : (
-                  <EyeOff className="w-4 h-4 text-garage-text-muted" />
+                  <EyeOff aria-hidden="true" className="w-4 h-4 text-garage-text-muted" />
                 )}
               </button>
             )}
@@ -292,8 +295,9 @@ export default function FamilyMemberCard({
                 disabled={isUpdating}
                 className="p-1.5 hover:bg-garage-border rounded transition-colors disabled:opacity-50"
                 title={t('familyCard.editUser')}
+                aria-label={actionLabel(t('familyCard.editUser'))}
               >
-                <Edit className="w-4 h-4 text-garage-text-muted" />
+                <Edit aria-hidden="true" className="w-4 h-4 text-garage-text-muted" />
               </button>
             )}
 
@@ -305,8 +309,9 @@ export default function FamilyMemberCard({
                 disabled={isUpdating}
                 className="p-1.5 hover:bg-garage-border rounded transition-colors disabled:opacity-50"
                 title={t('familyCard.resetPassword')}
+                aria-label={actionLabel(t('familyCard.resetPassword'))}
               >
-                <Key className="w-4 h-4 text-garage-text-muted" />
+                <Key aria-hidden="true" className="w-4 h-4 text-garage-text-muted" />
               </button>
             )}
 
@@ -320,11 +325,12 @@ export default function FamilyMemberCard({
                   relinkOpen ? 'bg-warning/20 hover:bg-warning/30' : 'hover:bg-garage-border'
                 }`}
                 title={relinkOpen ? t('familyCard.cancelSsoRelink') : t('familyCard.allowSsoRelink')}
+                aria-label={actionLabel(relinkOpen ? t('familyCard.cancelSsoRelink') : t('familyCard.allowSsoRelink'))}
               >
                 {relinkOpen ? (
-                  <Link2Off className="w-4 h-4 text-warning" />
+                  <Link2Off aria-hidden="true" className="w-4 h-4 text-warning" />
                 ) : (
-                  <Link2 className="w-4 h-4 text-garage-text-muted" />
+                  <Link2 aria-hidden="true" className="w-4 h-4 text-garage-text-muted" />
                 )}
               </button>
             )}
@@ -337,11 +343,12 @@ export default function FamilyMemberCard({
                 disabled={isUpdating}
                 className="p-1.5 hover:bg-garage-border rounded transition-colors disabled:opacity-50"
                 title={isInactive ? t('familyCard.enableUser') : t('familyCard.disableUser')}
+                aria-label={actionLabel(isInactive ? t('familyCard.enableUser') : t('familyCard.disableUser'))}
               >
                 {isInactive ? (
-                  <Power className="w-4 h-4 text-garage-text-muted" />
+                  <Power aria-hidden="true" className="w-4 h-4 text-garage-text-muted" />
                 ) : (
-                  <PowerOff className="w-4 h-4 text-garage-text-muted" />
+                  <PowerOff aria-hidden="true" className="w-4 h-4 text-garage-text-muted" />
                 )}
               </button>
             )}
@@ -354,8 +361,9 @@ export default function FamilyMemberCard({
                 disabled={isUpdating}
                 className="p-1.5 hover:bg-danger/20 rounded transition-colors disabled:opacity-50"
                 title={t('familyCard.deleteUser')}
+                aria-label={actionLabel(t('familyCard.deleteUser'))}
               >
-                <Trash2 className="w-4 h-4 text-danger" />
+                <Trash2 aria-hidden="true" className="w-4 h-4 text-danger" />
               </button>
             )}
           </div>
@@ -363,15 +371,16 @@ export default function FamilyMemberCard({
 
         {/* Reorder Arrows */}
         {canReorder && (
-          <div className="flex flex-col gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+          <div className="flex flex-col gap-0.5 flex-shrink-0">
             <button
               type="button"
               onClick={() => onMoveUp?.()}
               disabled={!canMoveUp || isUpdating}
               className="p-1 hover:bg-garage-border rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               title={t('familyCard.moveUp')}
+              aria-label={actionLabel(t('familyCard.moveUp'))}
             >
-              <ChevronUp className="w-4 h-4 text-garage-text-muted" />
+              <ChevronUp aria-hidden="true" className="w-4 h-4 text-garage-text-muted" />
             </button>
             <button
               type="button"
@@ -379,8 +388,9 @@ export default function FamilyMemberCard({
               disabled={!canMoveDown || isUpdating}
               className="p-1 hover:bg-garage-border rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               title={t('familyCard.moveDown')}
+              aria-label={actionLabel(t('familyCard.moveDown'))}
             >
-              <ChevronDown className="w-4 h-4 text-garage-text-muted" />
+              <ChevronDown aria-hidden="true" className="w-4 h-4 text-garage-text-muted" />
             </button>
           </div>
         )}

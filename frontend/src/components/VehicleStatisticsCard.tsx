@@ -142,7 +142,7 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
             onChange={() => onToggleSelect?.(stats.vin)}
             onClick={(e) => e.stopPropagation()}
             aria-label={t('dashboard.selectVehicles')}
-            className="h-5 w-5 rounded border-border text-primary"
+            className="h-5 w-5 rounded border-border accent-(--accent-solid)"
           />
         </div>
       )}

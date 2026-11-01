@@ -42,7 +42,7 @@ export function NotificationSubTabs({ activeSubTab, onSubTabChange, enabledServi
             onClick={() => onSubTabChange(tab.id)}
             className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
               isActive
-                ? 'bg-primary/20 text-primary'
+                ? 'bg-primary/20 text-(--accent-fg)'
                 : 'text-garage-text-muted hover:text-garage-text hover:bg-garage-surface'
             }`}
           >

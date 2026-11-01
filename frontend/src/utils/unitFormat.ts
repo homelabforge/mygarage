@@ -72,13 +72,11 @@ export interface QuantityFormat {
   readonly label: string
   /** Decimal places this unit is read and entered at. */
   readonly precision: number
-  /** The `step` an `<input type="number">` in this unit should carry. */
-  readonly step: string
   /** Canonical to this unit. Exact; the conversion layer's answer, unrounded. */
   toDisplay(canonical: number | null | undefined): number | null
   /** This unit to canonical. Exact; the conversion layer's answer, unrounded. */
   toCanonical(typed: number | null | undefined): number | null
-  /** Canonical to the ungrouped string an `<input type="number">` accepts. */
+  /** Canonical to the ungrouped JS-notation string a NumberInput is seeded with. */
   toInputValue(canonical: number | null | undefined): string
   /**
    * Canonical to the grouped number a reader sees, with NO label.
@@ -218,13 +216,6 @@ export function formatForAdapter(
     unit: adapter.unit,
     label: adapter.label,
     precision: adapter.precision,
-    // 0 -> '1', 1 -> '0.1', 2 -> '0.01'. `toFixed` is for readability, not for
-    // safety: no adapter in the table has a precision above 2, and `10 ** -1`
-    // and `10 ** -2` both stringify exactly, so this line has no reachable case
-    // where the two spellings differ. Replacing it with `String(...)` survives
-    // mutation for that reason, which is a fact about the vocabulary rather
-    // than a hole in the tests.
-    step: adapter.precision === 0 ? '1' : (10 ** -adapter.precision).toFixed(adapter.precision),
     toDisplay: (canonical) => adapter.toDisplay(canonical),
     toCanonical: (typed) => adapter.toCanonical(typed),
     toInputValue(canonical) {

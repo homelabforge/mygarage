@@ -120,12 +120,12 @@ export default function QuickEntry() {
       {/* Minimal header */}
       <header className="bg-garage-surface border-b border-garage-border px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Car className="w-5 h-5 text-primary" />
+          <Car className="w-5 h-5 text-(--accent-fg)" />
           <span className="font-semibold text-garage-text">{t('common:appName')}</span>
         </div>
         <Link
           to="/"
-          className="flex items-center gap-1 text-sm text-primary hover:underline"
+          className="flex items-center gap-1 text-sm text-(--accent-fg) hover:underline"
         >
           <LayoutDashboard className="w-4 h-4" />
           {t('common:dashboard')}
@@ -145,7 +145,7 @@ export default function QuickEntry() {
             <button
               onClick={() => void refetch()}
               disabled={isFetching}
-              className="text-primary hover:underline disabled:opacity-50"
+              className="text-(--accent-fg) hover:underline disabled:opacity-50"
             >
               {isFetching ? t('quickEntry.loadingVehicles') : t('quickEntry.retry')}
             </button>
@@ -155,7 +155,7 @@ export default function QuickEntry() {
         {!isLoading && !isError && vehicles.length === 0 && (
           <div className="text-center py-12">
             <p className="text-garage-text-muted mb-4">{t('quickEntry.noVehicles')}</p>
-            <Link to="/" className="text-primary hover:underline">
+            <Link to="/" className="text-(--accent-fg) hover:underline">
               {t('quickEntry.goToDashboard')}
             </Link>
           </div>

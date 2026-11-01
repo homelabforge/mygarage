@@ -27,7 +27,7 @@ export function GotifyConfig({
   return (
     <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
       <div className="flex items-center gap-3 mb-6">
-        <Radio className="w-6 h-6 text-primary" />
+        <Radio className="w-6 h-6 text-(--accent-fg)" />
         <div>
           <h2 className="text-lg font-semibold text-garage-text">{t('gotify.misc.title')}</h2>
           <p className="text-sm text-garage-text-muted">{t('gotify.misc.subtitle')}</p>

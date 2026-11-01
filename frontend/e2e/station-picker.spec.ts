@@ -73,11 +73,11 @@ function pickerAround(input: Locator): Locator {
  */
 async function pickAndWatch(page: Page, input: Locator, name: string): Promise<void> {
   const picker = pickerAround(input)
-  // Both panels the list can show: the results, or "no matches" with its add footer.
+  // The one panel under the box: results, "Searching", or "no matches" with its + Add option.
   const list = picker.locator(':scope > div.z-50')
 
   await input.pressSequentially(name.slice(0, 3), { delay: 50 })
-  const option = picker.getByRole('button', { name })
+  const option = picker.getByRole('option', { name })
   await expect(option, `${name} was not offered`).toBeVisible({ timeout: 5000 })
   // The list locator has to see the open list, or "shut" below proves nothing.
   await expect(list).toHaveCount(1)

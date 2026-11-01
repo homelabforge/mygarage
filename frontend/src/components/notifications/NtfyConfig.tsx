@@ -27,7 +27,7 @@ export function NtfyConfig({
   return (
     <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
       <div className="flex items-center gap-3 mb-6">
-        <Bell className="w-6 h-6 text-primary" />
+        <Bell className="w-6 h-6 text-(--accent-fg)" />
         <div>
           <h2 className="text-lg font-semibold text-garage-text">{t('ntfy.misc.title')}</h2>
           <p className="text-sm text-garage-text-muted">{t('ntfy.misc.subtitle')}</p>
