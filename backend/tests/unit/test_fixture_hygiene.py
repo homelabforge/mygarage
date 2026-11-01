@@ -150,6 +150,16 @@ def test_nothing_shadows_own_vehicle() -> None:
 
 #: How a test file gets at the shared database.
 DB_HANDLES = re.compile(r"\b(db_session|test_sessionmaker|test_engine|get_db)\b")
+#: Fixtures that reach it through the API. Matched as parameters, not words:
+#: plenty of tests say "client" in prose.
+API_HANDLES = {"client"}
+
+
+def _reaches_the_database(text: str) -> bool:
+    """A database handle anywhere in the file, or a test that takes the API client."""
+    if DB_HANDLES.search(text):
+        return True
+    return any(arg.arg in API_HANDLES for fn in _functions(ast.parse(text)) for arg in fn.args.args)
 
 
 def _vin_spellers(files: dict[str, str]) -> list[str]:
@@ -163,7 +173,7 @@ def _vin_spellers(files: dict[str, str]) -> list[str]:
         name
         for name, text in files.items()
         if pattern.search(text)
-        and not (name.startswith("tests/unit/") and not DB_HANDLES.search(text))
+        and not (name.startswith("tests/unit/") and not _reaches_the_database(text))
     ]
 
 
@@ -183,11 +193,14 @@ def test_a_unit_file_with_a_database_handle_cant_spell_the_shared_vin() -> None:
         "tests/unit/test_pure.py": f"r = Reminder(vin={vin})\n",
         "tests/unit/test_writes.py": f"async def test_w(db_session):\n    add(Fuel(vin={vin}))\n",
         "tests/unit/test_engine.py": f"async def test_w(test_engine):\n    run({vin})\n",
+        "tests/unit/test_api.py": f"async def test_w(client):\n    await client.post(json={{'vin': {vin}}})\n",
+        "tests/unit/test_prose.py": f"# the client never sees this\nr = Reminder(vin={vin})\n",
         "tests/integration/test_any.py": f"r = Reminder(vin={vin})\n",
     }
     assert _vin_spellers(files) == [
         "tests/unit/test_writes.py",
         "tests/unit/test_engine.py",
+        "tests/unit/test_api.py",
         "tests/integration/test_any.py",
     ]
 
