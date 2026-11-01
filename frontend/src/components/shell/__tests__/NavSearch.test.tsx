@@ -32,6 +32,17 @@ describe('NavSearch', () => {
     expect(screen.getByText('searchHint')).toBeInTheDocument()
   })
 
+  it('puts focus in the search field when the drawer opens', async () => {
+    render(
+      <MemoryRouter>
+        <NavSearch placeholder="search" />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'search' }))
+    await screen.findByRole('dialog', { name: 'search' })
+    expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'searchPlaceholder' }))
+  })
+
   it('forwards a band className onto the trigger', () => {
     render(
       <MemoryRouter>

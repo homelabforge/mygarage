@@ -175,14 +175,6 @@ export default function Drawer({
     }
 
     document.addEventListener('keydown', onKey, nested)
-    // Focus the first focusable node *in the body slot* — not the header's
-    // Close button, which a whole-panel, document-order query would always
-    // hit first, since the header renders before the body in every
-    // instance (Finding 1). Falls back to the panel itself so focus never
-    // escapes to <body> when the body has no focusable control; this
-    // deliberately does not fall further to the footer.
-    const first = bodyRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-    ;(first ?? panelRef.current)?.focus()
 
     // Next frame, so the browser paints the off-screen start state first and
     // the transition actually runs instead of being skipped.
@@ -255,6 +247,43 @@ export default function Drawer({
       panel.removeEventListener('transitionend', onTransitionEnd)
     }
   }, [open])
+
+  // Initial focus. `rendered` is in the deps so this runs again once the
+  // panel exists: a drawer that stays mounted closed renders null on the
+  // render that flips `open`, so the refs are still empty the first time.
+  // Declared after the first effect so restoreRef grabs the trigger before
+  // focus moves. Still no children in the deps: a re-render must never move
+  // focus (see onCloseRef).
+  useEffect(() => {
+    if (!open) return
+    const body = bodyRef.current
+    const panel = panelRef.current
+    if (!body || !panel) return
+    // Body slot first, never the header's Close (Finding 1). The panel is
+    // the fallback so focus never drops to <body>; the footer never gets it.
+    const first = body.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    if (first) {
+      first.focus()
+      return
+    }
+    panel.focus()
+    // Body is still a spinner. Step in once, when the first field shows up
+    // (or a disabled one comes alive), and only if focus is still parked on
+    // the panel.
+    const observer = new MutationObserver(() => {
+      const late = body.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+      if (!late) return
+      observer.disconnect()
+      if (document.activeElement === panel) late.focus()
+    })
+    observer.observe(body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['disabled'],
+    })
+    return () => observer.disconnect()
+  }, [open, rendered])
 
   if (!rendered) return null
 
