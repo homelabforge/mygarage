@@ -2,7 +2,9 @@ import { useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useUnitFormat } from '../../hooks/useUnitFormat'
-import { thirtySecondsFromDecimalInches } from '../../utils/treadEntry'
+import { getActiveLocale } from '../../constants/i18n'
+import { parseDecimalInput } from '../../utils/decimalInput'
+import { gaugeDecimal, thirtySecondsFromDecimalInches } from '../../utils/treadEntry'
 import { Field, NumberInput } from '../ui'
 
 interface TreadFieldProps {
@@ -44,11 +46,23 @@ export default function TreadField({
         ? t('tireList.treadDecimalHint')
         : undefined
 
+  // The box's own "Read as" hint would read a German 0.346 as 346. A /32 field
+  // reads it as gauge inches, so say that instead, and only where the two differ.
+  const gauge = u.tread.unit === 'in32' ? gaugeDecimal(value) : null
+  const plain = gauge === null ? null : parseDecimalInput(value, getActiveLocale())
+  const gaugeReadAs =
+    gauge !== null && plain?.kind === 'value' && plain.value !== gauge
+      ? t('common:numberInput.readAs', {
+          value: new Intl.NumberFormat(getActiveLocale(), { maximumFractionDigits: 20 }).format(gauge),
+        })
+      : undefined
+
   return (
     <Field id={id} label={label} hint={hint}>
       <NumberInput
         id={id}
         value={value}
+        ambiguityHint={gaugeReadAs}
         onChange={(e) => {
           setConvertedFrom(null)
           onChange(e.target.value)

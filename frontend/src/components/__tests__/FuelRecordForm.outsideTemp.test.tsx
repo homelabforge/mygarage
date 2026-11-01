@@ -121,6 +121,27 @@ describe('FuelRecordForm: outside temperature is typed text', () => {
     expect(mockedApiPut).not.toHaveBeenCalled()
   })
 
+  it('a lone minus sign, the first key of a negative, is not an error yet', async () => {
+    // It read as text that isn't a number, so the error and aria-invalid flashed on the first keystroke.
+    const user = await openForm()
+    await user.type(temperature(), '-')
+    expect(temperature()).not.toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByText(/^common:validation\.fuel\.outsideTempInvalid\b/)).toBeNull()
+    await user.type(temperature(), '5')
+    await user.click(save())
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    expect(putBody().outside_temp_c).toBe(-5)
+  })
+
+  it('a lone minus sign left in the box is refused at save, not saved as blank', async () => {
+    // Guard: passes on main too. Map the sign-only text to undefined and the save goes through blank.
+    const user = await openForm()
+    await user.type(temperature(), '-')
+    await user.click(save())
+    expect(await screen.findByText(/^common:validation\.fuel\.outsideTempInvalid\b/)).toBeInTheDocument()
+    expect(mockedApiPut).not.toHaveBeenCalled()
+  })
+
   it('a Fahrenheit user is told the bounds in Fahrenheit', async () => {
     // The API takes -60..70 C, which is -76..158 F.
     units = { ...IMPERIAL_UNITS, temperature: 'f' }

@@ -80,6 +80,10 @@ function MountPeriodEditor({
   })
 
   const odometerLabel = t('tireList.odometerWithUnit', { unit: u.distance.label })
+  // The two halves have the same boxes, so a refusal says which half.
+  const mountLabel = (field: string): string => t('tireList.periodField', { group: t('tireList.periodMount'), field })
+  const dismountLabel = (field: string): string =>
+    t('tireList.periodField', { group: t('tireList.periodDismount'), field })
 
   const save = () => {
     if (closed && form.dismounted_on === '') {
@@ -88,10 +92,10 @@ function MountPeriodEditor({
     }
     if (
       refuseUnreadable([
-        [odometerLabel, tracksDistance && form.mounted_odometer_km.typed],
-        [t('common:engineHours'), tracksHours && form.mounted_hours],
-        [odometerLabel, closed && tracksDistance && form.dismounted_odometer_km.typed],
-        [t('common:engineHours'), closed && tracksHours && form.dismounted_hours],
+        [mountLabel(odometerLabel), tracksDistance && form.mounted_odometer_km.typed],
+        [mountLabel(t('common:engineHours')), tracksHours && form.mounted_hours],
+        [dismountLabel(odometerLabel), closed && tracksDistance && form.dismounted_odometer_km.typed],
+        [dismountLabel(t('common:engineHours')), closed && tracksHours && form.dismounted_hours],
       ])
     )
       return

@@ -1490,6 +1490,7 @@
     "periodDismount": "Dismounted",
     "periodDismountDateRequired": "A closed period needs its dismount date. To reopen it, mount the tire again.",
     "periodEdit": "Edit",
+    "periodField": "{{group}} / {{field}}",
     "periodMount": "Mounted",
     "periodNeedsHours": "Needs the hour meter",
     "periodNeedsOdometer": "Needs an odometer",

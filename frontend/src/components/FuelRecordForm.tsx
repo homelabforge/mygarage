@@ -318,6 +318,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
     getValues,
     subscribe,
     setError: setFieldError,
+    clearErrors,
   } = useForm<FuelRecordFormData>({
     resolver: zodResolver(schema) as Resolver<FuelRecordFormData>,
     defaultValues: {
@@ -1469,6 +1470,13 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
                     onChange={(e) => {
                       const raw = e.target.value
                       setOutsideTempDisplay(raw)
+                      // A lone sign is a negative on its way, so no error yet. It's
+                      // still not a number, so a save with it left there is refused.
+                      if (/^\s*[+-]\s*$/.test(raw)) {
+                        clearErrors('outside_temp_c')
+                        setValue('outside_temp_c', INVALID_NUMBER as unknown as number)
+                        return
+                      }
                       // Re-typing the seeded reading isn't an edit of the quantity,
                       // so it hands back the stored Celsius, not a round trip.
                       const next =

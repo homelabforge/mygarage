@@ -14,6 +14,17 @@ import { UnitConverter } from './units'
 const MM_PER_M = 1000
 
 /**
+ * The number a gauge-shaped entry ("0.346" or ".346") reads as, or null for anything else.
+ *
+ * A leading zero is never a thousands group, so that's a decimal with either
+ * separator in any language; de would otherwise read 0.346 as 346.
+ */
+export function gaugeDecimal(typed: string): number | null {
+  const gauge = /^\s*0?[.,](\d+)\s*$/.exec(typed)
+  return gauge ? Number(`0.${gauge[1]}`) : null
+}
+
+/**
  * The 32nds a decimal-inch entry means, or null when the entry means itself.
  *
  * Rounded by the field's own formatter, so 0.346 lands on 11 the way any value does.
@@ -23,11 +34,8 @@ export function thirtySecondsFromDecimalInches(
   tread: QuantityFormat
 ): string | null {
   if (tread.unit !== 'in32') return null
-  // A gauge reads "0.346" or ".346". A leading zero is never a thousands group,
-  // so that's a decimal with either separator in any language; de would
-  // otherwise read 0.346 as 346. Anything else reads in the user's language.
-  const gauge = /^\s*0?[.,](\d+)\s*$/.exec(typed)
-  const inches = gauge ? Number(`0.${gauge[1]}`) : numberFromField(typed)
+  // Anything not gauge-shaped reads in the user's language.
+  const inches = gaugeDecimal(typed) ?? numberFromField(typed)
   if (inches === null || inches <= 0 || inches >= 1) return null
   return tread.toInputValue(inches * UnitConverter.INCH_TO_METERS * MM_PER_M)
 }

@@ -63,6 +63,10 @@ function AddPastPeriodDrawer({
   const [notes, setNotes] = useState('')
 
   const odometerLabel = t('tireList.odometerWithUnit', { unit: u.distance.label })
+  // The two halves have the same boxes, so a refusal says which half.
+  const mountLabel = (field: string): string => t('tireList.periodField', { group: t('tireList.periodMount'), field })
+  const dismountLabel = (field: string): string =>
+    t('tireList.periodField', { group: t('tireList.periodDismount'), field })
 
   const save = (): void => {
     if (position === null) {
@@ -75,10 +79,10 @@ function AddPastPeriodDrawer({
     }
     if (
       refuseUnreadable([
-        [odometerLabel, tracksDistance && mountedOdometer.typed],
-        [t('common:engineHours'), tracksHours && mountedHours],
-        [odometerLabel, tracksDistance && dismountedOdometer.typed],
-        [t('common:engineHours'), tracksHours && dismountedHours],
+        [mountLabel(odometerLabel), tracksDistance && mountedOdometer.typed],
+        [mountLabel(t('common:engineHours')), tracksHours && mountedHours],
+        [dismountLabel(odometerLabel), tracksDistance && dismountedOdometer.typed],
+        [dismountLabel(t('common:engineHours')), tracksHours && dismountedHours],
       ])
     )
       return
