@@ -11,7 +11,8 @@
  * - solid    solid button/badge background
  * - onSolid  text/icons ON solid — dark ink for light accents
  * - fgDark   accent-coloured TEXT on the dark surface
- * - fgLight  accent-coloured TEXT on the light surface (darkened base)
+ * - fgLight  accent-coloured TEXT on the light surface (darkened base), dark
+ *            enough for a /20 chip tint over the light page background
  * - soft/line 15% and 45% tonal fills, derived from `accent`
  */
 export type AccentKey = 'blue' | 'amber' | 'teal' | 'red' | 'violet' | 'green'
@@ -53,10 +54,11 @@ export const ACCENTS: Record<AccentKey, AccentRoles> = {
     //    #f9aa0b (H37→40°, S91%→95%, L55%→51%): 48.1 units clear of warning,
     //    but only 25.8 from warning-alt — the tightest of amber's six status
     //    gaps, clearing the >25 floor but only just. fgDark/fgLight are
-    //    untouched — SURFACE-relative, not status-relative, so the hue
-    //    nudge doesn't affect them.
+    //    SURFACE-relative, not status-relative, so the hue nudge doesn't
+    //    affect them. fgLight went a shade darker (#92600a -> #8c5c0a) for
+    //    the /20 chip tint over the light page.
     accent: '#f9aa0b', solid: '#f9aa0b', onSolid: '#3a2600',
-    fgDark: '#f7b953', fgLight: '#92600a',
+    fgDark: '#f7b953', fgLight: '#8c5c0a',
     soft: 'rgba(249,170,11,.15)', line: 'rgba(249,170,11,.45)',
   },
   teal: {
@@ -65,10 +67,10 @@ export const ACCENTS: Record<AccentKey, AccentRoles> = {
     // was a threshold artifact, not a real collision (see
     // accent-contrast.test.ts for why the floor moved). solid/onSolid/
     // fgDark/fgLight were always the handoff's own values, never
-    // status-gated, and already pass every contrast check against this
-    // base.
+    // status-gated. fgLight went a shade darker (#0f766e -> #0f726b) for
+    // the /20 chip tint over the light page.
     accent: '#2dd4bf', solid: '#2dd4bf', onSolid: '#04231d',
-    fgDark: '#5ce0d0', fgLight: '#0f766e',
+    fgDark: '#5ce0d0', fgLight: '#0f726b',
     soft: 'rgba(45,212,191,.15)', line: 'rgba(45,212,191,.45)',
   },
   red: {
@@ -78,9 +80,11 @@ export const ACCENTS: Record<AccentKey, AccentRoles> = {
     // accent-contrast.test.ts for why the floor moved). solid/fgDark/
     // fgLight are the natural Tailwind rose-600/400/700 steps, re-derived
     // so onSolid/fgDark/fgLight clear their contrast floors against this
-    // base rather than the abandoned magenta shift.
+    // base rather than the abandoned magenta shift. fgLight went a shade
+    // darker than rose-700 (#be123c -> #b8113a) for the /20 chip tint over
+    // the light page.
     accent: '#f43f5e', solid: '#e11d48', onSolid: '#ffffff',
-    fgDark: '#fb7185', fgLight: '#be123c',
+    fgDark: '#fb7185', fgLight: '#b8113a',
     soft: 'rgba(244,63,94,.15)', line: 'rgba(244,63,94,.45)',
   },
   violet: {
@@ -101,10 +105,10 @@ export const ACCENTS: Record<AccentKey, AccentRoles> = {
     // darkened in step (H138 L32% → #257e40) because the handoff's #1f9d64
     // was 3.46:1 against white, short of the 4.5:1 AA floor; #257e40 clears
     // it at 5.08:1. fgDark/fgLight re-derived at the same H138 hue
-    // (#88dda2 / #22773c) rather than kept at the old ~H150 tint/shade, so
+    // (#88dda2 / #21743b) rather than kept at the old ~H150 tint/shade, so
     // text and border/solid read as the same green instead of two.
     accent: '#51cd76', solid: '#257e40', onSolid: '#ffffff',
-    fgDark: '#88dda2', fgLight: '#22773c',
+    fgDark: '#88dda2', fgLight: '#21743b',
     soft: 'rgba(81,205,118,.15)', line: 'rgba(81,205,118,.45)',
   },
 }

@@ -12,11 +12,11 @@ import {
 /** Surface colours the accent roles are judged against, per theme (index.css). */
 const SURFACE = { dark: '#0f1319', light: '#ffffff' } as const
 
-// Every page/card surface accent text can sit on, plus the bg-primary/20 chip
-// tint over the card surface (the darkest tint chips use).
+// Every page/card surface accent text can sit on.
 const LIGHT_SURFACES = ['#ffffff', '#f6f8fb', '#f1f4f9', '#eef1f6'] as const
 const DARK_SURFACES = ['#07090c', '#0f1319', '#141922', '#12161d'] as const
-const CHIP_TINT_ALPHA = 0.2
+// The bg-primary/10, /15 and /20 chip tints accent text sits on.
+const CHIP_TINT_ALPHAS = [0.1, 0.15, 0.2] as const
 
 /** Fixed status colours (design §4.9) — accents must stay distinguishable. */
 const STATUS = [
@@ -62,6 +62,16 @@ function composite(fg: string, bg: string, alpha: number): string {
 }
 
 /** Crude perceptual distance in sRGB. Good enough to catch "identical". */
+/**
+ * Each surface, plus a translucent card on the page (`bg-garage-surface/50`,
+ * NotificationSubTabs), with every chip tint over each of them. The tint over
+ * the page background is the darkest a light chip gets.
+ */
+function chipBackgrounds(accent: string, surfaces: readonly string[], page: string, card: string): string[] {
+  const under = [...surfaces, composite(card, page, 0.5)]
+  return [...under, ...under.flatMap((bg) => CHIP_TINT_ALPHAS.map((alpha) => composite(accent, bg, alpha)))]
+}
+
 function colourDistance(a: string, b: string): number {
   const [ar, ag, ab] = parseHex(a)
   const [br, bg, bb] = parseHex(b)
@@ -85,19 +95,15 @@ describe('accent roles', () => {
 
     // --accent-fg is body-size text (links, stat values, chip labels), so it
     // needs the full 4.5:1, chip tints included.
-    it.each([
-      ...DARK_SURFACES,
-      composite(roles.accent, SURFACE.dark, CHIP_TINT_ALPHA),
-    ])('has readable accent text in dark mode on %s (4.5:1)', (bg) => {
+    const darkBackgrounds = chipBackgrounds(roles.accent, DARK_SURFACES, '#07090c', SURFACE.dark)
+    it.each(darkBackgrounds)('has readable accent text in dark mode on %s (4.5:1)', (bg) => {
       const ratio = contrastRatio(roles.fgDark, bg)
       expect(ratio, `${key}: fgDark ${roles.fgDark} on ${bg} = ${ratio.toFixed(2)}:1`)
         .toBeGreaterThanOrEqual(4.5)
     })
 
-    it.each([
-      ...LIGHT_SURFACES,
-      composite(roles.accent, SURFACE.light, CHIP_TINT_ALPHA),
-    ])('has readable accent text in light mode on %s (4.5:1)', (bg) => {
+    const lightBackgrounds = chipBackgrounds(roles.accent, LIGHT_SURFACES, '#eef1f6', SURFACE.light)
+    it.each(lightBackgrounds)('has readable accent text in light mode on %s (4.5:1)', (bg) => {
       const ratio = contrastRatio(roles.fgLight, bg)
       expect(ratio, `${key}: fgLight ${roles.fgLight} on ${bg} = ${ratio.toFixed(2)}:1`)
         .toBeGreaterThanOrEqual(4.5)
