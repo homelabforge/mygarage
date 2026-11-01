@@ -185,14 +185,16 @@ def _returns_today(fn: ast.AST, seed: Set[str] = frozenset()) -> bool:
 
 
 def _wiped_tables() -> tuple[frozenset[str], frozenset[str]]:
-    """Model and table names no test may empty: the leak guard's tables, and vehicles.
+    """Model and table names no test may empty: the leak guard's tables, vehicles,
+    and insurance policies (household rows, some with no vehicle to scope by).
 
     Read off FAR_FUTURE_GUARDED itself, so a table the guard gains is covered here too.
     """
+    from app.models.insurance import InsurancePolicy
     from app.models.vehicle import Vehicle
     from tests.conftest import FAR_FUTURE_GUARDED
 
-    models = [model for model, _ in FAR_FUTURE_GUARDED] + [Vehicle]
+    models = [model for model, _ in FAR_FUTURE_GUARDED] + [Vehicle, InsurancePolicy]
     return frozenset(m.__name__ for m in models), frozenset(m.__tablename__ for m in models)
 
 
@@ -264,8 +266,14 @@ def test_no_test_empties_a_guarded_table() -> None:
 
 def test_the_wipe_check_covers_the_guarded_tables_and_vehicles() -> None:
     models, tables = _wiped_tables()
-    assert {"WarrantyRecord", "Reminder", "FuelRecord", "Vehicle"} <= models
-    assert {"warranty_records", "vehicle_reminders", "fuel_records", "vehicles"} <= tables
+    assert {"WarrantyRecord", "Reminder", "FuelRecord", "Vehicle", "InsurancePolicy"} <= models
+    assert {
+        "warranty_records",
+        "vehicle_reminders",
+        "fuel_records",
+        "vehicles",
+        "insurance_policies",
+    } <= tables
 
 
 WIPES = {
@@ -275,11 +283,16 @@ WIPES = {
     "__table__.delete()": "await db.execute(FuelRecord.__table__.delete())\n",
     "raw DELETE FROM": "await db.execute(text('DELETE FROM warranty_records'))\n",
     "raw lowercase": "await db.execute(text('delete from vehicles'))\n",
+    "insurance policies": "await db.execute(delete(InsurancePolicy))\n",
+    "raw insurance policies": "await db.execute(text('DELETE FROM insurance_policies'))\n",
 }
 NOT_WIPES = {
     "narrowed delete": "await db.execute(delete(WarrantyRecord).where(WarrantyRecord.vin == v))\n",
     "narrowed __table__": "await db.execute(FuelRecord.__table__.delete().where(c))\n",
-    "unguarded table": "await db.execute(delete(InsurancePolicy))\n",
+    "unguarded table": "await db.execute(delete(Setting))\n",
+    "insurance policies narrowed": (
+        "await db.execute(delete(InsurancePolicy).where(InsurancePolicy.id > floor))\n"
+    ),
     "one ORM row": "await db.delete(vehicle)\n",
     "raw with WHERE": "await db.execute(text('DELETE FROM vehicles WHERE vin = :vin'))\n",
     "raw unguarded": "await db.execute(text('DELETE FROM settings'))\n",

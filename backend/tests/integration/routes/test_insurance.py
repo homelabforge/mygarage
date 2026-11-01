@@ -19,20 +19,25 @@ from app.models.insurance import InsuranceCoverage, InsurancePolicy
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.utils.household_time import household_today
+from tests._policy_scope import PolicyScope
 
 SECOND_VIN = "INS2NDVEH00000001"
 FOREIGN_VIN = "INSFOREIGN0000001"
 API = "/api/insurance/policies"
 
 
+policies = PolicyScope()
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _clean_slate(db_session: AsyncSession):
-    """Tests share one database, and a leftover policy would change another
-    test's list, totals and successor lookups."""
-    await db_session.execute(delete(InsurancePolicy))
-    await db_session.commit()
+    """Every policy a test makes goes afterwards, and the tests read only their
+    own. Emptying the table instead would also delete other tests' leaked rows
+    before the leak guard saw them."""
+    await policies.start(db_session)
     yield
-    await db_session.execute(delete(InsurancePolicy))
+    await db_session.rollback()
+    await policies.drop(db_session)
     # Every row these tests add goes again: a leftover vehicle changes other
     # suites' lists and counts.
     await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_([SECOND_VIN, FOREIGN_VIN])))
@@ -278,7 +283,8 @@ class TestAccessDerivesFromTheVehicles:
             assert (await client.get(url, headers=headers)).status_code == 200
         # 404, not 403: to someone with no covered vehicle the policy does not exist.
         assert (await client.get(url, headers=unrelated_headers)).status_code == 404
-        assert (await client.get(API, headers=unrelated_headers)).json() == []
+        listed = (await client.get(API, headers=unrelated_headers)).json()
+        assert policy["id"] not in [p["id"] for p in listed]
 
     async def test_a_vehicle_the_caller_cannot_see_is_only_a_count(
         self, client, owner_headers, reader_headers, owned_vehicle, second_vehicle
@@ -457,7 +463,7 @@ class TestRenewReplaceAndHistory:
         self, client, owner_headers, owned_vehicle
     ):
         today = household_today()
-        await _create(
+        old = await _create(
             client,
             owner_headers,
             [_on(owned_vehicle.vin)],
@@ -465,13 +471,15 @@ class TestRenewReplaceAndHistory:
             start_date=(today - timedelta(days=400)).isoformat(),
             end_date=(today - timedelta(days=35)).isoformat(),
         )
-        await _create(client, owner_headers, [_on(owned_vehicle.vin)], policy_number="NOW")
+        now = await _create(client, owner_headers, [_on(owned_vehicle.vin)], policy_number="NOW")
 
+        # The owner's list may hold other tests' policies on the shared authz vehicle.
+        ours = {old["id"], now["id"]}
         current = (await client.get(API, headers=owner_headers)).json()
         everything = (await client.get(f"{API}?status=all", headers=owner_headers)).json()
 
-        assert [p["policy_number"] for p in current] == ["NOW"]
-        assert sorted(p["policy_number"] for p in everything) == ["NOW", "OLD"]
+        assert [p["policy_number"] for p in current if p["id"] in ours] == ["NOW"]
+        assert sorted(p["policy_number"] for p in everything if p["id"] in ours) == ["NOW", "OLD"]
 
 
 @pytest.mark.integration

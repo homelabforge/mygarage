@@ -27,18 +27,44 @@ from __future__ import annotations
 
 import csv
 import io
+from collections.abc import AsyncIterator
 from datetime import date
 from decimal import Decimal
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.vehicle import Vehicle
+from tests._policy_scope import PolicyScope
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
-async def _make_vehicle(db_session, test_user, vin: str, model: str) -> None:
-    from app.models.vehicle import Vehicle
+#: VINs `_make_vehicle` made in the running test, deleted after it.
+_made_vins: list[str] = []
+policies = PolicyScope()
 
+
+@pytest_asyncio.fixture(autouse=True)
+async def _drop_what_each_test_made(db_session: AsyncSession) -> AsyncIterator[None]:
+    """Each vehicle goes after its test, with every row on it (FK cascade), and so
+    does any policy the test made: a policy is a household row and would
+    outlive its vehicle."""
+    await policies.start(db_session)
+    yield
+    await db_session.rollback()
+    await policies.drop(db_session)
+    if _made_vins:
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_(_made_vins)))
+    await db_session.commit()
+    _made_vins.clear()
+
+
+async def _make_vehicle(db_session, test_user, vin: str, model: str) -> None:
+    _made_vins.append(vin)
     db_session.add(
         Vehicle(
             vin=vin,
