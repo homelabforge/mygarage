@@ -1,12 +1,43 @@
 """Unit tests for the Ask My Garage context builder."""
 
 import re
+import uuid
+from collections.abc import AsyncIterator
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+import pytest_asyncio
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.vehicle import Vehicle
 from app.services.garage_context_service import extract_dtc_codes
+
+
+@pytest_asyncio.fixture
+async def own_vin(db_session: AsyncSession, test_user: dict[str, object]) -> AsyncIterator[str]:
+    """A vehicle for one test, deleted after with its visits, tires and trailer.
+
+    These tests rewrite the vehicle's specs and units and add 2099 visits, which
+    on the shared test_vehicle turned up in every later test.
+    """
+    vin = "CTX" + uuid.uuid4().hex[:14].upper()
+    db_session.add(
+        Vehicle(
+            vin=vin,
+            user_id=test_user["id"],
+            nickname="Context",
+            vehicle_type="Car",
+            year=2018,
+            make="Honda",
+            model="Accord",
+        )
+    )
+    await db_session.commit()
+    yield vin
+    await db_session.rollback()
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+    await db_session.commit()
 
 
 def test_extract_dtc_codes_normalizes_and_dedupes():
@@ -31,13 +62,12 @@ class TestContextRendersInTheReadersUnits:
     """
 
     @pytest.mark.asyncio
-    async def test_renders_specs_in_the_readers_units(self, db_session, test_vehicle):
+    async def test_renders_specs_in_the_readers_units(self, db_session, own_vin):
         from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET
-        from app.models.vehicle import Vehicle
         from app.services.garage_context_service import build_garage_context
         from app.utils.render_context import RenderContext
 
-        vehicle = await db_session.get(Vehicle, test_vehicle["vin"])
+        vehicle = await db_session.get(Vehicle, own_vin)
         assert vehicle is not None
         vehicle.oil_capacity_liters = Decimal("4.7")
         vehicle.lug_nut_torque_nm = Decimal("135")
@@ -45,12 +75,12 @@ class TestContextRendersInTheReadersUnits:
 
         imperial = await build_garage_context(
             db_session,
-            test_vehicle["vin"],
+            own_vin,
             ctx=RenderContext(units=IMPERIAL_PRESET, show_both=False),
         )
         metric = await build_garage_context(
             db_session,
-            test_vehicle["vin"],
+            own_vin,
             ctx=RenderContext(units=METRIC_PRESET, show_both=False),
         )
 
@@ -64,16 +94,13 @@ class TestContextRendersInTheReadersUnits:
         assert met["oil_capacity"].endswith(" L")
 
     @pytest.mark.asyncio
-    async def test_mixed_set_renders_torque_the_binary_flag_would_miss(
-        self, db_session, test_vehicle
-    ):
+    async def test_mixed_set_renders_torque_the_binary_flag_would_miss(self, db_session, own_vin):
         """Litres with lb-ft: the pair a single imperial/metric flag cannot hold."""
         from app.constants.units import IMPERIAL_PRESET
-        from app.models.vehicle import Vehicle
         from app.services.garage_context_service import build_garage_context
         from app.utils.render_context import RenderContext
 
-        vehicle = await db_session.get(Vehicle, test_vehicle["vin"])
+        vehicle = await db_session.get(Vehicle, own_vin)
         assert vehicle is not None
         vehicle.oil_capacity_liters = Decimal("4.7")
         vehicle.lug_nut_torque_nm = Decimal("135")
@@ -82,7 +109,7 @@ class TestContextRendersInTheReadersUnits:
         mixed = IMPERIAL_PRESET.model_copy(update={"volume": "L"})
         context = await build_garage_context(
             db_session,
-            test_vehicle["vin"],
+            own_vin,
             ctx=RenderContext(units=mixed, show_both=False),
         )
         specs = context["maintenance_specs"]
@@ -93,7 +120,7 @@ class TestContextRendersInTheReadersUnits:
         assert "Nm" not in specs["lug_nut_torque"]
 
     @pytest.mark.asyncio
-    async def test_no_canonical_measurement_reaches_the_model(self, db_session, test_vehicle):
+    async def test_no_canonical_measurement_reaches_the_model(self, db_session, own_vin):
         """Every unit-bearing row, not just the two specs #237 was reported on."""
         import datetime as dt
         import json
@@ -102,19 +129,17 @@ class TestContextRendersInTheReadersUnits:
         from app.models.reminder import Reminder
         from app.models.service_visit import ServiceVisit
         from app.models.tire import Tire
-        from app.models.vehicle import TrailerDetails, Vehicle
+        from app.models.vehicle import TrailerDetails
         from app.services.garage_context_service import build_garage_context
         from app.utils.render_context import RenderContext
 
-        vin = test_vehicle["vin"]
+        vin = own_vin
         vehicle = await db_session.get(Vehicle, vin)
         assert vehicle is not None
         vehicle.oil_capacity_liters = Decimal("4.73")
         vehicle.lug_nut_torque_nm = Decimal("135.6")
         vehicle.def_tank_capacity_liters = Decimal("18.93")
-        # The test vehicle is shared, so other tests' rows sit beside these. The
-        # far-off dates keep ours inside each capped, ordered query on both
-        # dialects, and the lookups below find ours instead of trusting [0].
+        # The lookups below find ours by value instead of trusting [0].
         db_session.add_all(
             [
                 ServiceVisit(vin=vin, date=dt.date(2099, 12, 31), odometer_km=Decimal("16093.44")),
@@ -190,35 +215,27 @@ class TestContextRendersInTheReadersUnits:
         assert [k for k in keys(context) if unit_suffix.search(k)] == []
 
     @pytest.mark.asyncio
-    async def test_odometer_follows_the_vehicles_own_distance_unit(self, db_session, test_vehicle):
+    async def test_odometer_follows_the_vehicles_own_distance_unit(self, db_session, own_vin):
         """A km-odometer import read by an imperial user still reads in km (#172)."""
         import datetime as dt
 
         from app.constants.units import IMPERIAL_PRESET
         from app.models.service_visit import ServiceVisit
-        from app.models.vehicle import Vehicle
         from app.services.garage_context_service import build_garage_context
         from app.utils.render_context import RenderContext
 
-        vin = test_vehicle["vin"]
+        vin = own_vin
         vehicle = await db_session.get(Vehicle, vin)
         assert vehicle is not None
-        previous = vehicle.distance_unit
         vehicle.distance_unit = "km"
         db_session.add(
             ServiceVisit(vin=vin, date=dt.date(2099, 12, 30), odometer_km=Decimal("16093.44"))
         )
         await db_session.commit()
 
-        try:
-            context = await build_garage_context(
-                db_session, vin, ctx=RenderContext(units=IMPERIAL_PRESET, show_both=False)
-            )
-        finally:
-            # Shared fixture: a km vehicle leaks into every later test that
-            # expects the account's miles (it broke the Telegram fuel tests).
-            vehicle.distance_unit = previous
-            await db_session.commit()
+        context = await build_garage_context(
+            db_session, vin, ctx=RenderContext(units=IMPERIAL_PRESET, show_both=False)
+        )
 
         visit = next(v for v in context["service_visits"] if v["date"] == "2099-12-30")
         assert visit["odometer"] == "16,093 km"

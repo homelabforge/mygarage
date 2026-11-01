@@ -56,16 +56,16 @@ class TestNoteRoutes:
         assert data["title"] == "Test Note"
         assert data["content"] == "This is a test note content."
 
-    async def test_create_note(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_create_note(self, client: AsyncClient, auth_headers, own_vehicle):
         """Test creating a new note."""
         payload = {
-            "vin": test_vehicle["vin"],
+            "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
             "title": "Maintenance Reminder",
             "content": "Need to check tire pressure next week.",
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/notes",
+            f"/api/vehicles/{own_vehicle.vin}/notes",
             json=payload,
             headers=auth_headers,
         )
@@ -181,15 +181,15 @@ class TestNoteRoutes:
 
         assert response.status_code == 404
 
-    async def test_create_note_without_title(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_create_note_without_title(self, client: AsyncClient, auth_headers, own_vehicle):
         """Test creating a note without a title (title is optional)."""
         payload = {
-            "vin": test_vehicle["vin"],
+            "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
             "content": "Note without a title - just content.",
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/notes",
+            f"/api/vehicles/{own_vehicle.vin}/notes",
             json=payload,
             headers=auth_headers,
         )
@@ -259,17 +259,17 @@ class TestNoteRoutes:
         # Title updated
         assert data["title"] == "New Title Only"
 
-    async def test_note_with_long_content(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_note_with_long_content(self, client: AsyncClient, auth_headers, own_vehicle):
         """Test creating a note with long content."""
         long_content = "This is a detailed note. " * 100  # ~2500 characters
         payload = {
-            "vin": test_vehicle["vin"],
+            "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
             "title": "Long Note",
             "content": long_content,
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/notes",
+            f"/api/vehicles/{own_vehicle.vin}/notes",
             json=payload,
             headers=auth_headers,
         )
@@ -278,18 +278,18 @@ class TestNoteRoutes:
         data = response.json()
         assert data["content"] == long_content
 
-    async def test_note_title_max_length(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_note_title_max_length(self, client: AsyncClient, auth_headers, own_vehicle):
         """Test that title respects max length constraint."""
         # Title max length is 100 characters
         long_title = "A" * 101  # 101 characters
         payload = {
-            "vin": test_vehicle["vin"],
+            "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
             "title": long_title,
             "content": "Content for long title test.",
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/notes",
+            f"/api/vehicles/{own_vehicle.vin}/notes",
             json=payload,
             headers=auth_headers,
         )

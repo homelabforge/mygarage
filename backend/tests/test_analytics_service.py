@@ -42,7 +42,7 @@ def _make_fuel_record(**kwargs):
 
     defaults = {
         "id": 1,
-        "vin": "1HGBH41JXMN109186",
+        "vin": "1HGCM82633A004352",
         "date": date(2024, 1, 15),
         "odometer_km": Decimal("80467.20"),  # 50000 mi
         "engine_hours": None,
@@ -1066,7 +1066,7 @@ def _make_service_visit(**kwargs):
         )
     defaults = {
         "id": 1,
-        "vin": "1HGBH41JXMN109186",
+        "vin": "1HGCM82633A004352",
         "date": date(2024, 1, 15),
         "odometer_km": Decimal("80467.20"),
         "total_cost": None,
@@ -1109,7 +1109,7 @@ def _make_def_record(**kwargs):
         )
     defaults = {
         "id": 1,
-        "vin": "1HGBH41JXMN109186",
+        "vin": "1HGCM82633A004352",
         "date": date(2024, 1, 15),
         "odometer_km": Decimal("80467.20"),
         "liters": Decimal("9.46"),  # 2.5 gal
@@ -1128,7 +1128,7 @@ def _make_financing_record(**kwargs):
     """Create a mock FinancingRecord-like object."""
     defaults = {
         "id": 1,
-        "vin": "1HGBH41JXMN109186",
+        "vin": "1HGCM82633A004352",
         "date": date(2024, 1, 1),
         "amount": Decimal("450.00"),
         "category": "lease_payment",

@@ -28,7 +28,7 @@ def _device(**over) -> LiveLinkDevice:
         "device_id": "d1",
         "kind": "wican",
         "enabled": True,
-        "vin": "1HGBH41JXMN109186",
+        "vin": "1HGCM82633A004352",
         "device_status": "online",
         "last_seen": NOW,
     }

@@ -199,19 +199,24 @@ async def owned_vehicle(
 
 @pytest_asyncio.fixture
 async def own_vehicle(
-    db_session: AsyncSession, test_user: dict[str, object]
+    request: pytest.FixtureRequest, db_session: AsyncSession, test_user: dict[str, object]
 ) -> AsyncGenerator[Vehicle]:
     """A fresh vehicle, deleted afterwards with every record on it. What a test
-    writes here would otherwise land in the test user's garage-wide totals."""
-    vehicle = Vehicle(
-        vin="LEG" + uuid.uuid4().hex[:14].upper(),
-        user_id=test_user["id"],
-        nickname="Legacy Money",
-        vehicle_type="Car",
-        year=2015,
-        make="Honda",
-        model="Fit",
-    )
+    writes here would otherwise land in the test user's garage-wide totals.
+
+    `@pytest.mark.own_vehicle(fuel_type="diesel", ...)` on a test, class or
+    module overrides any of its columns.
+    """
+    marker = request.node.get_closest_marker("own_vehicle")
+    fields: dict[str, object] = {
+        "nickname": "Legacy Money",
+        "vehicle_type": "Car",
+        "year": 2015,
+        "make": "Honda",
+        "model": "Fit",
+        **(marker.kwargs if marker is not None else {}),
+    }
+    vehicle = Vehicle(vin="LEG" + uuid.uuid4().hex[:14].upper(), user_id=test_user["id"], **fields)
     db_session.add(vehicle)
     await db_session.commit()
     vin = vehicle.vin

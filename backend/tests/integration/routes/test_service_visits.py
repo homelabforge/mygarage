@@ -62,7 +62,7 @@ class TestServiceVisitRoutes:
         assert float(data["odometer_km"]) == 80467.0
         assert data["service_category"] == "Maintenance"
 
-    async def test_create_service_visit(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_create_service_visit(self, client: AsyncClient, auth_headers, own_vehicle):
         """Test creating a new service visit."""
         payload = {
             "date": datetime.now().date().isoformat(),
@@ -85,7 +85,7 @@ class TestServiceVisitRoutes:
             ],
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/service-visits",
+            f"/api/vehicles/{own_vehicle.vin}/service-visits",
             json=payload,
             headers=auth_headers,
         )
@@ -296,7 +296,7 @@ class TestServiceVisitRoutes:
         assert len(updated_visit["line_items"]) == 1
 
     async def test_service_visit_with_inspection(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """Test creating a service visit with inspection items."""
         payload = {
@@ -315,7 +315,7 @@ class TestServiceVisitRoutes:
             ],
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/service-visits",
+            f"/api/vehicles/{own_vehicle.vin}/service-visits",
             json=payload,
             headers=auth_headers,
         )
@@ -328,7 +328,7 @@ class TestServiceVisitRoutes:
         assert data["line_items"][0]["is_failed_inspection"] is True
 
     async def test_service_visit_cost_calculation(
-        self, client: AsyncClient, auth_headers, test_vehicle
+        self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """Test that service visit costs are calculated correctly."""
         payload = {
@@ -342,7 +342,7 @@ class TestServiceVisitRoutes:
             ],
         }
         response = await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/service-visits",
+            f"/api/vehicles/{own_vehicle.vin}/service-visits",
             json=payload,
             headers=auth_headers,
         )

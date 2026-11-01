@@ -27,19 +27,25 @@ if "TEST_DATABASE_URL" in os.environ:
     os.environ["MYGARAGE_DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 
 from collections.abc import AsyncGenerator, Generator, Iterator
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from slowapi import Limiter
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 from app.main import limiter as main_limiter
+from app.models.financing import FinancingRecord
+from app.models.fuel import FuelRecord
+from app.models.hours import HoursRecord
+from app.models.odometer import OdometerRecord
+from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.routes.analytics import limiter as analytics_limiter
@@ -112,16 +118,63 @@ async def test_sessionmaker(test_engine):
     )
 
 
+#: Dated records the leak guard checks. A row on any of these a year out lands
+#: in every later test's "latest reading" and trend window.
+FAR_FUTURE_GUARDED = (FinancingRecord, FuelRecord, HoursRecord, OdometerRecord, ServiceVisit)
+
+
+def far_future_horizon() -> date:
+    """Rows dated after this are far-future: a year past today, in UTC.
+
+    UTC, not household time: no request is running at session end, so there's
+    no household zone to read, and the container's TZ moves under
+    `local_clock_off_utc`. A day either way is nothing against a year.
+    """
+    return datetime.now(UTC).date() + timedelta(days=365)
+
+
+async def far_future_survivors(engine: AsyncEngine) -> list[str]:
+    """One line per guarded row dated past the horizon: table, id, VIN and date."""
+    horizon = far_future_horizon()
+    found: list[str] = []
+    async with engine.connect() as conn:
+        for model in FAR_FUTURE_GUARDED:
+            rows = await conn.execute(
+                select(model.id, model.vin, model.date)
+                .where(model.date > horizon)
+                .order_by(model.vin, model.date, model.id)
+            )
+            found += [
+                f"{model.__tablename__} id={row.id} vin={row.vin} date={row.date}" for row in rows
+            ]
+    return found
+
+
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def init_test_db(test_engine):
-    """Initialize test database schema."""
+    """Initialize test database schema.
+
+    At the end it fails the run if any far-future row survived its test's
+    teardown (R5), then drops the tables either way.
+    """
     async with test_engine.begin() as conn:
         # Create all tables from SQLAlchemy models
         await conn.run_sync(Base.metadata.create_all)
     yield
-    # Cleanup after tests
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    try:
+        survivors = await far_future_survivors(test_engine)
+    finally:
+        async with test_engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    if survivors:
+        # This lands on whichever test ran last, so say it isn't that one's fault.
+        pytest.fail(
+            f"{len(survivors)} row(s) dated after {far_future_horizon()} outlived their "
+            "tests (checked at session end; the last test isn't necessarily the culprit). "
+            "Find the test that writes this VIN and give its vehicle a teardown:\n"
+            + "\n".join(f"  {line}" for line in survivors),
+            pytrace=False,
+        )
 
 
 @pytest.fixture(autouse=True)

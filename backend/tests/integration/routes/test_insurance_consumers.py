@@ -6,13 +6,13 @@ records behind that pushed these months out of the trend window.
 """
 
 import uuid
-from collections.abc import AsyncGenerator
-from datetime import timedelta
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete
+from sqlalchemy import Delete, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
@@ -30,6 +30,14 @@ RAM, MIRAGE = "INSCONSUM00000001", "INSCONSUM00000002"
 _PASSWORD_HASH = "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI"
 
 
+def _delete_garage_policies() -> Delete:
+    """Policies on the Ram or the Mirage. Anything else belongs to another test."""
+    linked = select(InsurancePolicyVehicle.policy_id).where(
+        InsurancePolicyVehicle.vin.in_([RAM, MIRAGE])
+    )
+    return delete(InsurancePolicy).where(InsurancePolicy.id.in_(linked))
+
+
 @pytest_asyncio.fixture
 async def garage_headers(db_session: AsyncSession) -> AsyncGenerator[dict[str, str]]:
     """Auth headers for a fresh non-admin user who owns just the Ram and the Mirage."""
@@ -42,7 +50,7 @@ async def garage_headers(db_session: AsyncSession) -> AsyncGenerator[dict[str, s
         is_admin=False,
     )
     db_session.add(user)
-    await db_session.execute(delete(InsurancePolicy))
+    await db_session.execute(_delete_garage_policies())
     await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_([RAM, MIRAGE])))
     await db_session.flush()
     for vin, nickname in ((RAM, "Ram"), (MIRAGE, "Mirage")):
@@ -51,10 +59,34 @@ async def garage_headers(db_session: AsyncSession) -> AsyncGenerator[dict[str, s
     token = create_access_token(data={"sub": str(user.id), "username": username})
     yield {"Authorization": f"Bearer {token}"}
     await db_session.rollback()
-    await db_session.execute(delete(InsurancePolicy))
+    await db_session.execute(_delete_garage_policies())
     await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_([RAM, MIRAGE])))
     await db_session.execute(delete(User).where(User.username == username))
     await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def bystander_policy(
+    db_session: AsyncSession, new_vehicle: Callable[..., Awaitable[str]]
+) -> AsyncGenerator[int]:
+    """A policy on some other test's vehicle, which this module must leave alone."""
+    vin = await new_vehicle()
+    policy = InsurancePolicy(
+        provider="Bystander",
+        policy_number="P-BY",
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 12, 31),
+    )
+    policy.vehicle_links.append(InsurancePolicyVehicle(vin=vin, policy_type="Liability"))
+    db_session.add(policy)
+    await db_session.commit()
+    policy_id = policy.id
+    yield policy_id
+    await db_session.rollback()
+    gone = await db_session.execute(delete(InsurancePolicy).where(InsurancePolicy.id == policy_id))
+    await db_session.commit()
+    # garage_headers tears down first, so this also catches its teardown wiping it.
+    assert gone.rowcount == 1, "garage_headers deleted a policy that isn't on its vehicles"
 
 
 def _policy(
@@ -134,3 +166,11 @@ async def test_the_calendar_shows_a_household_policy_once(client, db_session, ga
     events = [e for e in response.json()["events"] if e["id"] == f"insurance-{policy.id}"]
     assert len(events) == 1, "one event per policy, not one per covered vehicle"
     assert "Ram" in events[0]["description"] and "Mirage" in events[0]["description"]
+
+
+async def test_another_vehicles_policy_survives_the_garage(
+    db_session, bystander_policy, garage_headers
+):
+    """Requested before garage_headers, so its setup runs over a live policy."""
+    db_session.expire_all()
+    assert await db_session.get(InsurancePolicy, bystander_policy) is not None

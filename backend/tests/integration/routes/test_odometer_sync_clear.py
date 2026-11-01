@@ -7,38 +7,14 @@ cleared on edit, left 724,200 as the vehicle's highest reading for reminders
 to project from. The hours track has always deleted its row on a clear.
 """
 
-import uuid
-
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.vehicle import Vehicle
-
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
-
-
-@pytest_asyncio.fixture
-async def own_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> dict:
-    """A fresh diesel vehicle per test. These readings are high and dated 2031,
-    so on the shared test_vehicle they became every later test's latest
-    odometer."""
-    vin = "CLR" + uuid.uuid4().hex[:14].upper()
-    db_session.add(
-        Vehicle(
-            vin=vin,
-            user_id=test_user["id"],
-            nickname="Clear Test",
-            vehicle_type="Truck",
-            year=2020,
-            make="Ram",
-            model="2500",
-            fuel_type="diesel",
-        )
-    )
-    await db_session.commit()
-    return {"vin": vin}
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.asyncio,
+    pytest.mark.own_vehicle(vehicle_type="Truck", make="Ram", model="2500", fuel_type="diesel"),
+]
 
 
 async def _odometer_rows(client: AsyncClient, headers: dict, vin: str) -> list[dict]:
@@ -68,7 +44,7 @@ class TestServiceVisitClear:
     async def test_clearing_the_odometer_removes_the_synced_reading(
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         visit = await _visit(client, auth_headers, vin, on="2031-08-10", odometer_km=724200)
         rows = await _odometer_rows(client, auth_headers, vin)
         assert len(_marked(rows, "service_visit", visit["id"])) == 1
@@ -89,7 +65,7 @@ class TestServiceVisitClear:
     ):
         """The visit syncs first, so there IS a row to delete; the manual one
         added after it on the same day must be the one that stays."""
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         visit = await _visit(client, auth_headers, vin, on="2031-08-11", odometer_km=724100)
         r = await client.post(
             f"/api/vehicles/{vin}/odometer",
@@ -116,7 +92,7 @@ class TestServiceVisitClear:
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
         """A create with 0 never syncs, so an edit to 0 must not keep the old reading."""
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         visit = await _visit(client, auth_headers, vin, on="2031-08-13", odometer_km=724500)
 
         r = await client.put(
@@ -132,7 +108,7 @@ class TestServiceVisitClear:
     async def test_an_edit_that_leaves_the_odometer_alone_keeps_the_reading(
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         visit = await _visit(client, auth_headers, vin, on="2031-08-12", odometer_km=724300)
 
         r = await client.put(
@@ -152,7 +128,7 @@ class TestFuelClear:
     async def test_clearing_the_odometer_removes_the_synced_reading(
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         r = await client.post(
             f"/api/vehicles/{vin}/fuel",
             json={
@@ -188,7 +164,7 @@ class TestDefClear:
     async def test_clearing_the_odometer_removes_the_synced_reading(
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         r = await client.post(
             f"/api/vehicles/{vin}/def",
             json={"vin": vin, "date": "2031-09-11", "odometer_km": 725100, "liters": 9.5},
@@ -214,7 +190,7 @@ class TestEditToZero:
     """A create with 0 never syncs, so an edit to 0 must not keep the old reading."""
 
     async def test_a_fill_up_edited_to_zero(self, client: AsyncClient, auth_headers, own_vehicle):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         r = await client.post(
             f"/api/vehicles/{vin}/fuel",
             json={"vin": vin, "date": "2031-09-12", "liters": 40.0, "odometer_km": 725200},
@@ -235,7 +211,7 @@ class TestEditToZero:
     async def test_a_def_record_edited_to_zero(
         self, client: AsyncClient, auth_headers, own_vehicle
     ):
-        vin = own_vehicle["vin"]
+        vin = own_vehicle.vin
         r = await client.post(
             f"/api/vehicles/{vin}/def",
             json={"vin": vin, "date": "2031-09-13", "odometer_km": 725300, "liters": 9.5},

@@ -18,10 +18,10 @@ class TestThirdPartyFuelImport:
     """Side effects, duplicate identity, and per-row failure isolation."""
 
     async def test_csv_import_syncs_odometer(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session
     ):
         """The importer had the same missing-side-effects defect as the webhook."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         csv_data = "Date,Odometer,Liters,Price,Total cost\n2027-05-01,88123,40,1.50,60.00\n"
         files = {"file": ("fuelio.csv", csv_data, "text/csv")}
         response = await client.post(
@@ -42,10 +42,10 @@ class TestThirdPartyFuelImport:
         assert result.scalars().first() is not None, "CSV import did not sync odometer"
 
     async def test_same_date_syncs_only_the_highest_odometer(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session
     ):
         """Two fill-ups on one date must not let CSV order pick the stored value."""
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         csv_data = (
             "Date,Odometer,Liters,Price,Total cost\n"
             "2027-05-09,90500,20,1.50,30.00\n"
@@ -69,7 +69,7 @@ class TestThirdPartyFuelImport:
         assert len(rows) == 1
         assert Decimal(str(rows[0].odometer_km)) == Decimal("90500")
 
-    async def test_one_bad_row_does_not_abort_the_file(self, test_vehicle, db_session, monkeypatch):
+    async def test_one_bad_row_does_not_abort_the_file(self, own_vehicle, db_session, monkeypatch):
         """A row that fails to flush must not poison the rest of the batch."""
         from app.routes import import_data
 
@@ -89,23 +89,19 @@ class TestThirdPartyFuelImport:
             {"date": date(2027, 6, 2), "odometer_km": Decimal("1100"), "liters": Decimal("40")},
             {"date": date(2027, 6, 3), "odometer_km": Decimal("1200"), "liters": Decimal("40")},
         ]
-        result = await import_data._persist_parsed_fuel(
-            test_vehicle["vin"], parsed, False, db_session
-        )
+        result = await import_data._persist_parsed_fuel(own_vehicle.vin, parsed, False, db_session)
         assert result["success_count"] == 2
         assert result["error_count"] == 1
 
         rows = await db_session.execute(
-            select(FuelRecord.date).where(FuelRecord.vin == test_vehicle["vin"])
+            select(FuelRecord.date).where(FuelRecord.vin == own_vehicle.vin)
         )
         dates = {d for (d,) in rows}
         assert date(2027, 6, 1) in dates
         assert date(2027, 6, 3) in dates
         assert date(2027, 6, 2) not in dates
 
-    async def test_sync_failure_keeps_the_imported_rows(
-        self, test_vehicle, db_session, monkeypatch
-    ):
+    async def test_sync_failure_keeps_the_imported_rows(self, own_vehicle, db_session, monkeypatch):
         """A failed derived odometer write must not cost the user their import."""
         from app.routes import import_data
 
@@ -125,9 +121,7 @@ class TestThirdPartyFuelImport:
             {"date": date(2027, 7, 1), "odometer_km": Decimal("1000"), "liters": Decimal("40")},
             {"date": date(2027, 7, 2), "odometer_km": Decimal("1100"), "liters": Decimal("40")},
         ]
-        result = await import_data._persist_parsed_fuel(
-            test_vehicle["vin"], parsed, False, db_session
-        )
+        result = await import_data._persist_parsed_fuel(own_vehicle.vin, parsed, False, db_session)
         assert result["success_count"] == 2
         # The patch reached the sync: a moved target would leave this test vacuous.
         assert called == [date(2027, 7, 1), date(2027, 7, 2)]
@@ -136,13 +130,13 @@ class TestThirdPartyFuelImport:
             select(func.count())
             .select_from(FuelRecord)
             .where(
-                FuelRecord.vin == test_vehicle["vin"],
+                FuelRecord.vin == own_vehicle.vin,
                 FuelRecord.date == date(2027, 7, 1),
             )
         )
         assert count == 1, "sync failure rolled back the fuel rows"
 
-    async def test_same_date_different_energy_both_import(self, test_vehicle, db_session):
+    async def test_same_date_different_energy_both_import(self, own_vehicle, db_session):
         """Two charge sessions can share a date and an odometer reading.
 
         Matching on (vin, date, odometer_km) alone silently dropped the second.
@@ -163,11 +157,11 @@ class TestThirdPartyFuelImport:
                 "price_basis": "per_kwh",
             },
         ]
-        result = await _persist_parsed_fuel(test_vehicle["vin"], parsed, True, db_session)
+        result = await _persist_parsed_fuel(own_vehicle.vin, parsed, True, db_session)
         assert result["success_count"] == 2
         assert result["skipped_count"] == 0
 
-    async def test_same_day_sessions_are_told_apart_by_time(self, test_vehicle, db_session):
+    async def test_same_day_sessions_are_told_apart_by_time(self, own_vehicle, db_session):
         """Two charge sessions on one day differ by time, not by metadata.
 
         The adapters used to truncate the timestamp to a date, which left cost
@@ -186,11 +180,11 @@ class TestThirdPartyFuelImport:
             {**base, "filled_at": datetime(2027, 3, 3, 8, 15), "cost": Decimal("9.00")},
             {**base, "filled_at": datetime(2027, 3, 3, 19, 40), "cost": Decimal("18.00")},
         ]
-        result = await _persist_parsed_fuel(test_vehicle["vin"], parsed, True, db_session)
+        result = await _persist_parsed_fuel(own_vehicle.vin, parsed, True, db_session)
         assert result["success_count"] == 2
         assert result["skipped_count"] == 0
 
-    async def test_reimport_of_a_corrected_file_still_dedupes(self, test_vehicle, db_session):
+    async def test_reimport_of_a_corrected_file_still_dedupes(self, own_vehicle, db_session):
         """Editing cost or notes in the source app must not create duplicates.
 
         This is why identity is the natural key of the event rather than every
@@ -206,12 +200,12 @@ class TestThirdPartyFuelImport:
             "price_basis": "per_kwh",
         }
         first = await _persist_parsed_fuel(
-            test_vehicle["vin"], [{**base, "cost": Decimal("9.00")}], True, db_session
+            own_vehicle.vin, [{**base, "cost": Decimal("9.00")}], True, db_session
         )
         assert first["success_count"] == 1
 
         corrected = await _persist_parsed_fuel(
-            test_vehicle["vin"],
+            own_vehicle.vin,
             [{**base, "cost": Decimal("9.55"), "notes": "corrected in Tesla app"}],
             True,
             db_session,
@@ -285,7 +279,7 @@ class TestThirdPartyFuelImport:
         rows = parse_fuelio("Date,Odometer,Liters\n2027-03-03,45000,40\n")
         assert rows[0]["filled_at"] is None
 
-    async def test_truly_identical_rows_still_dedupe(self, test_engine, test_vehicle):
+    async def test_truly_identical_rows_still_dedupe(self, test_engine, own_vehicle):
         """Regression guard, expected to pass before and after this task.
 
         Uses an explicitly non-autoflushing session, pinning production's
@@ -307,15 +301,15 @@ class TestThirdPartyFuelImport:
         }
         async with maker() as session:
             result = await _persist_parsed_fuel(
-                test_vehicle["vin"], [dict(row), dict(row)], True, session
+                own_vehicle.vin, [dict(row), dict(row)], True, session
             )
         assert result["success_count"] == 1
         assert result["skipped_count"] == 1
 
     async def test_miles_form_field_converts_odometer(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session
     ):
-        vin = test_vehicle["vin"]
+        vin = own_vehicle.vin
         csv_data = "Date,Odometer,Gallons,Price,Total cost\n2027-04-01,10000,10,3.50,35.00\n"
         files = {"file": ("fuelio.csv", csv_data, "text/csv")}
         response = await client.post(
@@ -334,10 +328,10 @@ class TestThirdPartyFuelImport:
         # 10000 mi -> 16093.44 km
         assert Decimal(str(result.scalars().first())) == Decimal("16093.44")
 
-    async def test_bad_unit_is_rejected(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_bad_unit_is_rejected(self, client: AsyncClient, auth_headers, own_vehicle):
         files = {"file": ("f.csv", "Date,Odometer,Liters\n2027-04-01,1,1\n", "text/csv")}
         response = await client.post(
-            f"/api/import/vehicles/{test_vehicle['vin']}/fuel/fuelio",
+            f"/api/import/vehicles/{own_vehicle.vin}/fuel/fuelio",
             files=files,
             data={"odometer_unit": "furlongs"},
             headers=auth_headers,
