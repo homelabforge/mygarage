@@ -49,6 +49,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 
 ### Added
 - South African Rand (ZAR) currency
+- A collapsible Advanced statistics block on a motorized vehicle's Analytics page, between the seasonal cards and Period Comparison, closed until you open it and remembered per browser. It lists Overall (running cost with insurance and registration, per day and per distance, purchase price and total cost of ownership), Fuel-Ups (economy, price per volume, cost per fill-up) and Services & Expenses, in your units. Insurance counts over the days it has been in force by default, and an "Insurance counted" switch (shown when the figures differ) counts each billing period that has begun in full instead (a monthly policy counts the months that have started, a single-payment term counts whole from its start date), the way trackers that log each payment on the day it is paid read; the existing Total Cost card is unchanged
 - LiveLink offline alerts cover sensors with no status topic, such as a Mopeka gateway: a live reading marks the sensor online, and it alerts once when it goes quiet
 - LiveLink device responses carry `online`, and the device list's status reads it
 - `tools/repair_wican_odometer_unit.py` repairs a WiCAN odometer read in the wrong unit, either way (`--to km` or `--to mi`), or a Torque odometer read as miles (`--key TORQUE_ODOMETER --to km`), and the 409 on a unit change names it. Repaired readings, latest values and trip odometers keep their fraction, and the daily summaries are rescaled too
