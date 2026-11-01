@@ -19,6 +19,8 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // On CI a pass on retry still fails the run, so a flake gets fixed, and the retry leaves its trace.
+  failOnFlakyTests: !!process.env.CI,
   workers: 1,
   reporter: process.env.CI
     ? [['html', { open: 'never' }], ['github']]
