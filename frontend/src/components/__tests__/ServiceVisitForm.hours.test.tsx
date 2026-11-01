@@ -286,7 +286,7 @@ describe('ServiceVisitForm — server-side error wiring (Task 10 addendum)', () 
     fireEvent.submit(drawerForm())
 
     await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getByText('Failed to {{action}}. {{message}}')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Failed to service.saveAction. Network Error')).toBeInTheDocument())
   })
 
   // Final-review I4 regression fence: `vendor_id` has no fieldErrors-wired
@@ -305,7 +305,7 @@ describe('ServiceVisitForm — server-side error wiring (Task 10 addendum)', () 
     fireEvent.submit(drawerForm())
 
     await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
-    expect(await screen.findByText('Failed to {{action}}. Please check your input.')).toBeInTheDocument()
+    expect(await screen.findByText('Failed to service.saveAction. Please check your input.')).toBeInTheDocument()
   })
 
   it('a 422 with one mapped field and one unmapped field shows BOTH the field message and the banner', async () => {
@@ -322,6 +322,6 @@ describe('ServiceVisitForm — server-side error wiring (Task 10 addendum)', () 
     await waitFor(() =>
       expect(screen.getByText('Notes must be 5000 characters or fewer')).toBeInTheDocument()
     )
-    expect(screen.getByText('Failed to {{action}}. Please check your input.')).toBeInTheDocument()
+    expect(screen.getByText('Failed to service.saveAction. Please check your input.')).toBeInTheDocument()
   })
 })

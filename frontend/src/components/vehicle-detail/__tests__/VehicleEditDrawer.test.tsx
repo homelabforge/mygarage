@@ -588,13 +588,10 @@ describe('VehicleEditDrawer — conversion behaviour', () => {
     await screen.findByLabelText('edit.nickname *')
     fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }))
 
-    // i18next isn't initialized in this test environment (only the
-    // react-i18next hook is mocked), so getActionErrorMessage's generic
-    // fallback resolves to i18next's unresolved defaultValue template rather
-    // than an interpolated string. This still proves the toast fired via the
-    // generic-failure branch, which is what this test is verifying.
+    // The generic-failure branch, with the save action key and the error
+    // message filled in by the en singleton from setup.ts.
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith('Failed to {{action}}. {{message}}')
+      expect(toast.error).toHaveBeenCalledWith('Failed to vehicleEditPage.saveAction. Boom')
     )
     expect(onUpdated).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
