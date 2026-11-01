@@ -7,6 +7,8 @@ the three ways that kept happening.
 
 import ast
 import re
+from collections.abc import Set
+from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy import Date, DateTime
@@ -71,13 +73,14 @@ def _bindings(node: ast.AST) -> list[tuple[ast.expr, ast.AST]]:
     return []
 
 
-def _today_names(fn: ast.AST) -> set[str]:
+def _today_names(fn: ast.AST, seed: Set[str] = frozenset()) -> set[str]:
     """Local names holding today, followed through reassignments (`d = today`).
 
     Plain, annotated (`d: date = date.today()`) and walrus (`(d := date.today())`)
-    bindings all count.
+    bindings all count. `seed` names hold today from the start, like a parameter
+    filled by a fixture whose value is today.
     """
-    names: set[str] = set()
+    names: set[str] = set(seed)
     while True:
         found = {
             target.id
@@ -130,10 +133,26 @@ def _date_values(fn: ast.AST) -> list[ast.AST]:
     return values
 
 
-def _dates_a_row_today(fn: ast.AST) -> bool:
+def _dates_a_row_today(fn: ast.AST, seed: Set[str] = frozenset()) -> bool:
     """A row with a date column reading today, in any of the forms `_date_values` knows."""
-    names = _today_names(fn)
+    names = _today_names(fn, seed)
     return any(_is_today(value, names) for value in _date_values(fn))
+
+
+def _returns_today(fn: ast.AST, seed: Set[str] = frozenset()) -> bool:
+    """A function whose returned or yielded value is today: `return date.today()`.
+
+    A container that holds today (a payload) isn't a date itself;
+    `_dates_a_row_today` sees those as rows.
+    """
+    names = _today_names(fn, seed)
+    return any(
+        isinstance(node, ast.Return | ast.Yield)
+        and node.value is not None
+        and not isinstance(node.value, ast.Dict | ast.List | ast.Tuple | ast.Set)
+        and _is_today(node.value, names)
+        for node in ast.walk(fn)
+    )
 
 
 def test_nothing_shadows_own_vehicle() -> None:
@@ -229,49 +248,101 @@ def _calls_any(fn: ast.AST, names: set[str]) -> bool:
     )
 
 
-def _today_fixtures(tree: ast.Module) -> set[str]:
-    """Fixtures here whose body builds a today-dated row, like a payload with today's date."""
-    return {fn.name for fn in _functions(tree) if _is_fixture(fn) and _dates_a_row_today(fn)}
+Fn = ast.FunctionDef | ast.AsyncFunctionDef
 
 
-def _conftest_today_fixtures() -> frozenset[str]:
-    """Every conftest's today-dated fixtures, which any test below it can take."""
-    return frozenset(
-        name
-        for path in sorted(TESTS_DIR.rglob("conftest.py"))
-        for name in _today_fixtures(_parse(path))
+def _fixture_name(fn: Fn) -> str:
+    """The name a test asks for: `@pytest.fixture(name="x")` wins over the function's."""
+    for decorator in fn.decorator_list:
+        if isinstance(decorator, ast.Call) and "fixture" in ast.unparse(decorator.func):
+            for keyword in decorator.keywords:
+                if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
+                    return str(keyword.value.value)
+    return fn.name
+
+
+def _params(fn: Fn) -> set[str]:
+    return {a.arg for a in [*fn.args.posonlyargs, *fn.args.args, *fn.args.kwonlyargs]}
+
+
+@dataclass(frozen=True)
+class TodaySources:
+    """Fixtures that hand a test today: as a value (`date.today()`), or as a row
+    already dated today (a payload with today's date)."""
+
+    values: frozenset[str]
+    rows: frozenset[str]
+
+
+NO_SOURCES = TodaySources(frozenset(), frozenset())
+
+
+def _today_sources(fixtures: list[Fn], known: TodaySources = NO_SOURCES) -> TodaySources:
+    """Which fixtures hand out today, followed through fixtures built on fixtures.
+    `known` are sources already found, like the conftests' for a module."""
+    values: set[str] = set(known.values)
+    rows: set[str] = set(known.rows)
+    while True:
+        new_values = {
+            _fixture_name(fn) for fn in fixtures if _returns_today(fn, _params(fn) & values)
+        }
+        new_rows = {
+            _fixture_name(fn)
+            for fn in fixtures
+            if _dates_a_row_today(fn, _params(fn) & values) or _params(fn) & rows
+        }
+        if new_values <= values and new_rows <= rows:
+            return TodaySources(frozenset(values), frozenset(rows))
+        values |= new_values
+        rows |= new_rows
+
+
+def _fixtures(tree: ast.Module) -> list[Fn]:
+    return [fn for fn in _functions(tree) if _is_fixture(fn)]
+
+
+def _conftest_sources() -> TodaySources:
+    """Every conftest's today sources, which any test below it can take. A conftest
+    fixture can't take a test module's, so these settle on their own."""
+    return _today_sources(
+        [fn for path in sorted(TESTS_DIR.rglob("conftest.py")) for fn in _fixtures(_parse(path))]
     )
 
 
-def _shared_vehicle_today_writers(
-    tree: ast.Module, conftest_fixtures: frozenset[str] = frozenset()
-) -> list[str]:
-    """Tests taking test_vehicle that date a row today: themselves, through a helper,
-    or with a fixture that hands them a today-dated value."""
+def _shared_vehicle_today_writers(tree: ast.Module, known: TodaySources = NO_SOURCES) -> list[str]:
+    """Tests, and fixtures, that take test_vehicle and date a row today: themselves,
+    through a helper, or with a fixture that hands them today."""
     helpers = _today_helpers(tree)
-    fixtures = _today_fixtures(tree) | conftest_fixtures
-    return [
-        fn.name
-        for fn in _functions(tree)
-        if fn.name.startswith("test_")
-        and "test_vehicle" in (params := {a.arg for a in fn.args.args})
-        and (_dates_a_row_today(fn) or _calls_any(fn, helpers) or bool(params & fixtures))
-    ]
+    sources = _today_sources(_fixtures(tree), known)
+    found = []
+    for fn in _functions(tree):
+        is_fixture = _is_fixture(fn)
+        params = _params(fn)
+        if not (fn.name.startswith("test_") or is_fixture) or "test_vehicle" not in params:
+            continue
+        if (
+            _dates_a_row_today(fn, params & sources.values)
+            or _calls_any(fn, helpers)
+            or params & sources.rows
+        ):
+            found.append(_fixture_name(fn) if is_fixture else fn.name)
+    return found
 
 
 def test_no_test_dates_a_shared_vehicle_row_today() -> None:
     """A row dated today on test_vehicle turns up in every later test's latest figures."""
-    conftest_fixtures = _conftest_today_fixtures()
+    conftest_sources = _conftest_sources()
     found = [
         f"{_rel(path)}::{name}"
         for path in _today_scan_files()
-        for name in _shared_vehicle_today_writers(_parse(path), conftest_fixtures)
+        for name in _shared_vehicle_today_writers(_parse(path), conftest_sources)
     ]
     assert found == [], "write today's rows on own_vehicle"
 
 
 def _today_scan_files() -> list[Path]:
-    return sorted(TESTS_DIR.rglob("test_*.py"))
+    """Every test module, and every conftest, whose fixtures can write rows too."""
+    return sorted([*TESTS_DIR.rglob("test_*.py"), *TESTS_DIR.rglob("conftest.py")])
 
 
 def test_the_today_check_reads_every_test_file() -> None:
@@ -281,6 +352,8 @@ def test_the_today_check_reads_every_test_file() -> None:
         TESTS_DIR / "unit" / "services" / "test_hours_service.py",
         TESTS_DIR / "integration" / "test_reminder_notified_at_naive.py",
         TESTS_DIR / "test_analytics_routes.py",
+        # Fixtures write rows too, and the conftests hold most of them.
+        TESTS_DIR / "integration" / "conftest.py",
     } <= scanned
 
 
@@ -359,18 +432,101 @@ def test_the_today_check_sees_every_form() -> None:
 
 def test_the_today_check_sees_a_conftest_fixtures_today() -> None:
     """A payload fixture in a conftest hands its today to every test that takes it."""
-    conftest = ast.parse(
-        "@pytest.fixture\ndef sample_payload():\n    return {'date': datetime.now().date().isoformat()}\n"
-        "@pytest.fixture\ndef fixed_payload():\n    return {'date': '2024-05-15'}\n"
+    conftest = _fixtures(
+        ast.parse(
+            "@pytest.fixture\ndef sample_payload():\n"
+            "    return {'date': datetime.now().date().isoformat()}\n"
+            "@pytest.fixture\ndef fixed_payload():\n    return {'date': '2024-05-15'}\n"
+        )
     )
-    conftest_fixtures = frozenset(_today_fixtures(conftest))
-    assert conftest_fixtures == {"sample_payload"}
+    sources = _today_sources(conftest)
+    assert sources == TodaySources(frozenset(), frozenset({"sample_payload"}))
     tests = ast.parse(
         "async def test_today(test_vehicle, sample_payload):\n    post(json=sample_payload)\n"
         "async def test_fixed(test_vehicle, fixed_payload):\n    post(json=fixed_payload)\n"
         "async def test_own(own_vehicle, sample_payload):\n    post(json=sample_payload)\n"
     )
-    assert _shared_vehicle_today_writers(tests, conftest_fixtures) == ["test_today"]
+    assert _shared_vehicle_today_writers(tests, sources) == ["test_today"]
+
+
+# The fixture shapes the check follows (R5). Each source has one writer, `test_w`
+# or a fixture named `writer`, and nothing else it should flag.
+FIXTURE_SHAPES = {
+    "registered name": (
+        "@pytest.fixture(name='payload')\n"
+        "def _payload_fixture():\n    return {'date': date.today().isoformat()}\n"
+        "async def test_w(test_vehicle, payload):\n    post(json=payload)\n"
+    ),
+    "bare today value": (
+        "@pytest.fixture\ndef today():\n    return date.today()\n"
+        "async def test_w(test_vehicle, today):\n    add(Fuel(date=today))\n"
+    ),
+    "bare datetime value": (
+        "@pytest.fixture\ndef now():\n    return datetime.now()\n"
+        "async def test_w(test_vehicle, now):\n    add(Fuel(date=now.date()))\n"
+    ),
+    "app helper value, yielded": (
+        "@pytest.fixture\ndef today():\n    yield household_today()\n"
+        "async def test_w(test_vehicle, today):\n    add(Reminder(due_date=today))\n"
+    ),
+    "value built on a value": (
+        "@pytest.fixture\ndef today():\n    return date.today()\n"
+        "@pytest.fixture\ndef soon(today):\n    return today + timedelta(days=3)\n"
+        "async def test_w(test_vehicle, soon):\n    add(Reminder(due_date=soon))\n"
+    ),
+    "payload built on a value": (
+        "@pytest.fixture\ndef today():\n    return date.today()\n"
+        "@pytest.fixture\ndef payload(today):\n    return {'date': today.isoformat()}\n"
+        "async def test_w(test_vehicle, payload):\n    post(json=payload)\n"
+    ),
+    "payload built on a payload": (
+        "@pytest.fixture\ndef base():\n    return {'date': date.today().isoformat()}\n"
+        "@pytest.fixture\ndef payload(base):\n    return {**base, 'cost': 1}\n"
+        "async def test_w(test_vehicle, payload):\n    post(json=payload)\n"
+    ),
+    "fixture that writes on test_vehicle": (
+        "@pytest_asyncio.fixture\n"
+        "async def writer(db_session, test_vehicle):\n"
+        "    db_session.add(Fuel(vin=test_vehicle['vin'], date=date.today()))\n"
+        "    await db_session.commit()\n"
+    ),
+}
+
+# And the near misses each shape must leave alone.
+FIXTURE_NEAR_MISSES = {
+    "today value used in a query": (
+        "@pytest.fixture\ndef today():\n    return date.today()\n"
+        "async def test_w(test_vehicle, today):\n    get(params={'start': today.isoformat()})\n"
+    ),
+    "today value on own_vehicle": (
+        "@pytest.fixture\ndef today():\n    return date.today()\n"
+        "async def test_w(own_vehicle, today):\n    add(Fuel(date=today))\n"
+    ),
+    "fixture that writes a fixed date": (
+        "@pytest_asyncio.fixture\n"
+        "async def writer(db_session, test_vehicle):\n"
+        "    db_session.add(Fuel(vin=test_vehicle['vin'], date=date(2024, 3, 1)))\n"
+    ),
+}
+
+
+def test_the_today_check_follows_every_fixture_shape() -> None:
+    missed = {
+        shape: found
+        for shape, source in FIXTURE_SHAPES.items()
+        if (found := _shared_vehicle_today_writers(ast.parse(source)))
+        not in (["test_w"], ["writer"])
+    }
+    assert missed == {}
+
+
+def test_the_today_check_leaves_fixture_near_misses_alone() -> None:
+    flagged = {
+        shape: found
+        for shape, source in FIXTURE_NEAR_MISSES.items()
+        if (found := _shared_vehicle_today_writers(ast.parse(source)))
+    }
+    assert flagged == {}
 
 
 def test_the_today_check_leaves_the_rest_alone() -> None:
