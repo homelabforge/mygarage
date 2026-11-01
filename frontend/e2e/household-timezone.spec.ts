@@ -40,27 +40,36 @@ test('a dateless API mount and an untouched UI dismount agree on "today" across 
   request,
 }) => {
   // Pin the household zone to UTC for this spec, remembering what was there.
+  // Only a 404 means "no row". Anything else and the finally below would delete
+  // a zone that was there all along.
   const current = await request.get(`${API_BASE}/settings/timezone`, {
     headers: admin.headers,
   })
-  previousTimezoneRow = current.ok() ? ((await current.json()).value ?? null) : null
-  const pinned = await request.post(`${API_BASE}/settings/batch`, {
-    headers: admin.headers,
-    data: { settings: { timezone: 'UTC' } },
-  })
-  expect(pinned.status(), await pinned.text()).toBe(200)
+  if (current.ok()) {
+    previousTimezoneRow = (await current.json()).value ?? null
+  } else {
+    expect(current.status(), `read household zone: ${await current.text()}`).toBe(404)
+    previousTimezoneRow = null
+  }
 
   const vin = ('THHZ' + Math.random().toString(36).slice(2).toUpperCase())
     .replace(/[IOQ]/g, 'X')
     .padEnd(17, '0')
     .slice(0, 17)
-  const made = await request.post(`${API_BASE}/vehicles`, {
-    headers: admin.headers,
-    data: { vin, nickname: 'E2E TZ Rig', vehicle_type: 'Car', year: 2020, make: 'Honda', model: 'Civic' },
-  })
-  expect(made.status(), await made.text()).toBe(201)
 
   try {
+    const pinned = await request.post(`${API_BASE}/settings/batch`, {
+      headers: admin.headers,
+      data: { settings: { timezone: 'UTC' } },
+    })
+    expect(pinned.status(), await pinned.text()).toBe(200)
+
+    const made = await request.post(`${API_BASE}/vehicles`, {
+      headers: admin.headers,
+      data: { vin, nickname: 'E2E TZ Rig', vehicle_type: 'Car', year: 2020, make: 'Honda', model: 'Civic' },
+    })
+    expect(made.status(), await made.text()).toBe(201)
+
     // The mount takes the SERVER's household default; no date in the seed.
     const created = await request.post(`${API_BASE}/vehicles/${vin}/tires/create-and-mount`, {
       headers: admin.headers,
@@ -82,15 +91,22 @@ test('a dateless API mount and an untouched UI dismount agree on "today" across 
     await expect(card).toBeVisible({ timeout: 10000 })
     await expect(card.getByText('In storage', { exact: true })).toBeVisible()
   } finally {
-    // Return the instance's zone to what it was.
+    // Return the instance's zone to what it was, and drop the rig even if that
+    // fails. A zone left on UTC skews "today" for every spec after this one.
+    const failures: string[] = []
     if (previousTimezoneRow === null) {
-      await request.delete(`${API_BASE}/settings/timezone`, { headers: admin.headers })
+      const cleared = await request.delete(`${API_BASE}/settings/timezone`, { headers: admin.headers })
+      if (!cleared.ok() && cleared.status() !== 404) failures.push(`delete household zone: ${cleared.status()}`)
     } else {
-      await request.post(`${API_BASE}/settings/batch`, {
+      const restored = await request.post(`${API_BASE}/settings/batch`, {
         headers: admin.headers,
         data: { settings: { timezone: previousTimezoneRow } },
       })
+      if (!restored.ok()) failures.push(`restore household zone ${previousTimezoneRow}: ${restored.status()}`)
     }
-    await request.delete(`${API_BASE}/vehicles/${vin}`, { headers: admin.headers })
+    const gone = await request.delete(`${API_BASE}/vehicles/${vin}`, { headers: admin.headers })
+    if (!gone.ok() && gone.status() !== 404) failures.push(`vehicle ${vin}: ${gone.status()}`)
+    // Soft, so a failure in the test body above still reports as itself.
+    expect.soft(failures, 'cleanup left rows behind').toEqual([])
   }
 })

@@ -7,35 +7,9 @@
  * and lets us evolve the form contracts in one place.
  */
 
-import type { APIRequestContext, Page, Request } from '@playwright/test'
+import type { Page, Request } from '@playwright/test'
 
 import { expect } from './fixtures'
-
-/** Seed N fuel records for a vehicle via the API.
- *
- * Used by pagination tests (Phase 3.8): the records list is
- * client-paginated, so we need a known-large dataset to verify
- * page controls behave correctly.
- */
-export async function seedFuelRecords(
-  request: APIRequestContext,
-  vin: string,
-  count: number,
-  authHeader: string
-): Promise<void> {
-  for (let i = 0; i < count; i++) {
-    const date = new Date(2026, 0, 1 + i).toISOString().split('T')[0]
-    await request.post(`/api/vehicles/${vin}/fuel`, {
-      headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-      data: {
-        date,
-        liters: 40 + i,
-        cost: 50 + i,
-        odometer_km: 10000 + i * 500,
-      },
-    })
-  }
-}
 
 /** Capture the next API request matching method + URL pattern.
  *
