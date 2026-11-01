@@ -5,23 +5,18 @@
 import logging
 import shutil
 from decimal import Decimal
-from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.constants.fuel import has_def_capacity, is_diesel_vehicle
-from app.models.attachment import Attachment
-from app.models.fuel import FuelRecord
-from app.models.note import Note
-from app.models.service_visit import ServiceVisit
-from app.models.tax import TaxRecord
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.vehicle import VehicleCreate, VehicleUpdate
+from app.services.attachment_cleanup import purge_vehicle_attachments, unlink_contained
 from app.services.hours_service import set_manual_current_hours
 from app.utils.logging_utils import sanitize_for_log
 
@@ -318,9 +313,7 @@ class VehicleService:
             # Attachments are polymorphic (record_type/record_id, no vehicle
             # FK), so no cascade reaches them. Resolve rows + file paths for
             # this vehicle's records before the parent rows disappear.
-            attachment_ids, attachment_paths = await self._collect_vehicle_attachments(vin)
-            if attachment_ids:
-                await self.db.execute(delete(Attachment).where(Attachment.id.in_(attachment_ids)))
+            attachment_paths = await purge_vehicle_attachments(self.db, [vin])
 
             # Insurance is a household record: the cascade below would remove
             # this vehicle's LINK but leave the policy's premium counting it, so
@@ -342,7 +335,7 @@ class VehicleService:
 
             # Filesystem cleanup only after a successful commit — a rolled-back
             # delete must not lose files.
-            self._remove_vehicle_files(vin, attachment_paths, sticker_path)
+            self.remove_vehicle_files(vin, attachment_paths, sticker_path)
 
             logger.info("Deleted vehicle: %s", sanitize_for_log(vin))
 
@@ -367,32 +360,9 @@ class VehicleService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def _collect_vehicle_attachments(self, vin: str) -> tuple[list[int], list[str]]:
-        """Attachment row ids + file paths belonging to a vehicle's records.
-
-        Covers the record types that still have live parent tables
-        (service_visit, fuel, tax, note). Legacy types whose parent tables
-        were dropped (service, upgrade, collision) cannot be resolved to a
-        VIN and are left alone.
-        """
-        parent_id_queries = {
-            "service_visit": select(ServiceVisit.id).where(ServiceVisit.vin == vin),
-            "fuel": select(FuelRecord.id).where(FuelRecord.vin == vin),
-            "tax": select(TaxRecord.id).where(TaxRecord.vin == vin),
-            "note": select(Note.id).where(Note.vin == vin),
-        }
-        conditions = [
-            and_(Attachment.record_type == record_type, Attachment.record_id.in_(id_query))
-            for record_type, id_query in parent_id_queries.items()
-        ]
-        result = await self.db.execute(
-            select(Attachment.id, Attachment.file_path).where(or_(*conditions))
-        )
-        rows = result.all()
-        return [row.id for row in rows], [row.file_path for row in rows]
-
-    def _remove_vehicle_files(
-        self, vin: str, attachment_paths: list[str], sticker_path: str | None
+    @staticmethod
+    def remove_vehicle_files(
+        vin: str, attachment_paths: list[str], sticker_path: str | None
     ) -> None:
         """Best-effort filesystem cleanup for a deleted vehicle.
 
@@ -410,23 +380,7 @@ class VehicleService:
                 logger.warning("Skipping file cleanup for non-alphanumeric VIN")
                 return
 
-            allowed_roots = [
-                settings.data_dir.resolve(),
-                settings.photos_dir.resolve(),
-                settings.documents_dir.resolve(),
-                settings.attachments_dir.resolve(),
-            ]
-            for raw in [*attachment_paths, sticker_path]:
-                if not raw:
-                    continue
-                candidate = Path(raw)
-                if not candidate.is_absolute():
-                    candidate = settings.data_dir / candidate
-                resolved = candidate.resolve()
-                if resolved.is_file() and any(
-                    resolved.is_relative_to(root) for root in allowed_roots
-                ):
-                    resolved.unlink(missing_ok=True)
+            unlink_contained([*attachment_paths, sticker_path])
 
             for base in (settings.photos_dir, settings.documents_dir, settings.attachments_dir):
                 vin_dir = (base / vin).resolve()

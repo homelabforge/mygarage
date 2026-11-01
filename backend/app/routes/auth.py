@@ -733,6 +733,19 @@ async def delete_user(
         update(FuelRecord).where(FuelRecord.driver_user_id == user_id).values(driver_user_id=None)
     )
 
+    # Their vehicles go by FK cascade, which never reaches the attachment rows
+    # or anything on disk, so clean up the way a vehicle delete does.
+    from app.models.vehicle import Vehicle
+    from app.services.attachment_cleanup import purge_vehicle_attachments, remove_attachment_files
+    from app.services.vehicle_service import VehicleService
+
+    owned = (
+        await db.execute(
+            select(Vehicle.vin, Vehicle.window_sticker_file_path).where(Vehicle.user_id == user_id)
+        )
+    ).all()
+    attachment_paths = await purge_vehicle_attachments(db, [v.vin for v in owned])
+
     await db.delete(user)
 
     if active_admins >= 1:
@@ -742,6 +755,11 @@ async def delete_user(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_LAST_ADMIN_DELETE)
 
     await db.commit()
+
+    # Files only after the commit, so a refused or rolled-back delete keeps them.
+    remove_attachment_files(attachment_paths)
+    for v in owned:
+        VehicleService.remove_vehicle_files(v.vin, [], v.window_sticker_file_path)
 
     logger.info(
         "Admin %s deleted user: %s",
