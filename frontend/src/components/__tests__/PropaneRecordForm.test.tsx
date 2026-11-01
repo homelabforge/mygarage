@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
-import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands } from '../../__tests__/serverErrors'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
 
 const createMock = vi.fn().mockResolvedValue({})
 const updateMock = vi.fn().mockResolvedValue({})
@@ -47,6 +47,9 @@ beforeEach(() => {
   unitPrefMock.units = null
   UnitConverter.setGallonStandard('us')
 })
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(createMock, updateMock))
 
 describe('PropaneRecordForm — structure', () => {
   it('shows no stray "NaN" before a tank size is chosen', () => {

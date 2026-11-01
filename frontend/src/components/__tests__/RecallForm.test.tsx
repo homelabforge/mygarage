@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
-import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands } from '../../__tests__/serverErrors'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
 import type { Recall } from '../../types/recall'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -14,6 +14,9 @@ vi.mock('../../hooks/queries/useRecallRecords', () => ({
 import RecallForm from '../RecallForm'
 
 beforeEach(() => vi.clearAllMocks())
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(createMutateAsync, updateMutateAsync))
 
 describe('RecallForm — routing + checkbox wiring + exact payload', () => {
   it('create submits the COMPLETE payload (all fields + stamped vin, is_resolved:false) to createRecallRecord and NEVER calls update (fails if any field is dropped, vin is missing, or it misroutes)', async () => {

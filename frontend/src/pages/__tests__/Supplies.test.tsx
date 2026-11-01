@@ -6,7 +6,7 @@ import { presetUnitsFor, type UnitSet } from '../../types/units'
 import { setActiveLocale } from '../../constants/i18n'
 import i18next from 'i18next'
 import commonEn from '../../locales/en/common.json'
-import { registeredFieldNames, validationError } from '../../__tests__/serverErrors'
+import { registeredFieldNames, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
 
 // Mock the supplies query hooks so this stays a unit test — no real network
 // calls needed. The api layer itself is already mocked globally (setup.ts
@@ -137,6 +137,9 @@ beforeEach(() => {
     variables: undefined,
   })
 })
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(createSupplyMock, updateSupplyMock))
 
 describe('Supplies page', () => {
   it('renders the supply list from useSupplies', () => {
@@ -929,9 +932,11 @@ describe('SupplyForm: a rejected save', () => {
     expect(banner()).toBeNull()
   })
 
-  // Named controls that aren't payload fields go here. None today: the active
-  // toggle is controlled and carries no name, and the scan button is a button.
+  // Named controls that aren't payload fields go here. None today.
   const UI_ONLY: string[] = []
+  // Submitted but held in state with no name, so the sweep below can't see it.
+  // A toggle has no inline error, so its 422 goes to the banner.
+  const BANNER_ROUTED = ['is_active']
 
   // Guard for knownFields drift: a 422 on any field the form registers has to
   // attach, never fall through to the banner. Edit mode on a volume supply shows
@@ -951,5 +956,21 @@ describe('SupplyForm: a rejected save', () => {
       expect(names.filter((n) => !document.getElementById(`${n}-error`)?.textContent?.includes(`bad ${n}`))).toEqual([])
     )
     expect(banner()).toBeNull()
+  })
+
+  // Guard for the nameless toggle: its 422 has to reach the banner. Mutant: put
+  // is_active in knownFields with no error slot and it goes silent.
+  it('guard: a 422 on the active toggle shows the banner', async () => {
+    render(<Supplies />)
+    fireEvent.click(screen.getByLabelText('common:edit'))
+
+    const wrong: string[] = []
+    for (const name of BANNER_ROUTED) {
+      const got = await whereA422Lands(supplyForm(), updateSupplyMock, name, `bad ${name}`, banner)
+      // It has to be a field the save really sends, or the sweep proves nothing.
+      expect(updateSupplyMock.mock.calls.at(-1)?.[0]).toHaveProperty(name)
+      if (got !== 'banner') wrong.push(`${name}: ${got}`)
+    }
+    expect(wrong).toEqual([])
   })
 })

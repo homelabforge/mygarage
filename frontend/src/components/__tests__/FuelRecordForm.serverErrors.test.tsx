@@ -3,10 +3,10 @@
  * field with no banner, and anything else shows the banner. Plus the guard that
  * every field a 422 can name shows it somewhere.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, waitFor, fireEvent, cleanup } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
-import { registeredFieldNames, validationError } from '../../__tests__/serverErrors'
+import { registeredFieldNames, validationError, whereA422Lands, type Landing, dropQueuedOnces } from '../../__tests__/serverErrors'
 import FuelRecordForm from '../FuelRecordForm'
 import type { Vehicle } from '../../types/vehicle'
 
@@ -80,6 +80,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
 })
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(mockedApiGet, mockedApiPost, mockedApiPut))
 
 describe('FuelRecordForm: a rejected save', () => {
   it('a non-422 failure shows the banner and no field error', async () => {
@@ -173,20 +176,6 @@ describe('FuelRecordForm: every field a 422 can name shows it', () => {
   // error shows under that box.
   const CONTROLLED = ['outside_temp_c']
 
-  type Outcome = 'field' | 'banner' | 'silent'
-  /** Where a 422 on `name` ended up. Each message is unique, so an older one can't answer. */
-  const rejectOne = async (name: string, msg: string): Promise<Outcome> => {
-    const calls = mockedApiPost.mock.calls.length
-    mockedApiPost.mockRejectedValueOnce(validationError({ [name]: msg }))
-    fireEvent.submit(drawerForm())
-    await waitFor(() => expect(mockedApiPost).toHaveBeenCalledTimes(calls + 1))
-    try {
-      await waitFor(() => expect(screen.queryByText(msg) ?? banner()).toBeTruthy(), { timeout: 300 })
-    } catch {
-      return 'silent'
-    }
-    return screen.queryByText(msg) ? 'field' : 'banner'
-  }
 
   it('guard: a 422 on each field shows under it, or in the banner for a checkbox', async () => {
     const checked = new Set<string>()
@@ -208,8 +197,9 @@ describe('FuelRecordForm: every field a 422 can name shows it', () => {
       const names = [...registeredFieldNames(drawerForm(), UI_ONLY), ...CONTROLLED].filter((n) => !checked.has(n))
       for (const [i, name] of names.entries()) {
         checked.add(name)
-        const want: Outcome = BANNER_ROUTED.includes(name) ? 'banner' : 'field'
-        const got = await rejectOne(name, `bad ${name} ${shape} ${i}`)
+        const want: Landing = BANNER_ROUTED.includes(name) ? 'banner' : 'field'
+        // Waits for the save to settle, not a timer, so a slow run can't read as silent.
+        const got = await whereA422Lands(drawerForm(), mockedApiPost, name, `bad ${name} ${shape} ${i}`, banner)
         if (got !== want) wrong.push(`${name}: ${got}`)
       }
       cleanup()

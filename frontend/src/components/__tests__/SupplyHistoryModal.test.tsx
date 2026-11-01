@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { render, screen } from '../../__tests__/test-utils'
 import type { Supply } from '../../types/supplies'
 import { setActiveLocale } from '../../constants/i18n'
-import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands } from '../../__tests__/serverErrors'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
 
 // Mock the supplies query hooks so this stays a unit test — no real network
 // calls needed. The api layer itself is already mocked globally (setup.ts
@@ -114,6 +114,9 @@ beforeEach(() => {
   addPurchaseMock.mockResolvedValue({ id: 99 })
   addAdjustmentMock.mockResolvedValue({ id: 98 })
 })
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(addPurchaseMock, addAdjustmentMock))
 
 afterEach(() => {
   vi.restoreAllMocks()

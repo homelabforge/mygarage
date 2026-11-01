@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ComponentProps } from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -39,7 +39,7 @@ import { IMPERIAL_UNITS, UK_IMPERIAL_UNITS, makeDetailStats } from '../../../__t
 import { binarySystemFor } from '../../../types/units'
 import { UnitConverter } from '../../../utils/units'
 import { toast } from 'sonner'
-import { registeredFieldNames, validationError } from '../../../__tests__/serverErrors'
+import { registeredFieldNames, submitAndSettle, validationError, dropQueuedOnces } from '../../../__tests__/serverErrors'
 import api from '../../../services/api'
 import VehicleEditDrawer from '../VehicleEditDrawer'
 
@@ -117,6 +117,9 @@ function renderVehicleEdit(
 function renderVehicleEditWithStats(vehicle: Vehicle, detailStats: VehicleDetailStats): void {
   renderVehicleEdit(vehicle, detailStats)
 }
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(mockedApi.put))
 
 describe('VehicleEditDrawer — canonical fuel-type select', () => {
   beforeEach(() => {
@@ -1106,9 +1109,12 @@ describe('VehicleEditDrawer: a 422 lands under the field it names', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  // Named controls that aren't payload fields go here. None today: the two
-  // toggles are controlled and carry no name.
+  // Named controls that aren't payload fields go here. None today.
   const UI_ONLY: string[] = []
+  // Submitted but controlled and nameless, so the sweep below can't see them. A
+  // toggle has no inline error, so it stays out of knownFields and its 422
+  // toasts. The DEF toggle is display-only and never sent.
+  const BANNER_ROUTED = ['secondary_usage_enabled']
 
   // Guard for knownFields drift: every control the drawer registers has to be in
   // the server-error list, or a 422 on it turns into a generic toast.
@@ -1127,5 +1133,25 @@ describe('VehicleEditDrawer: a 422 lands under the field it names', () => {
     await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
     await waitFor(() => expect(namesWithoutTheirError(names)).toEqual([]))
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  // Guard for the nameless toggles: each one's 422 has to toast. Mutant: put
+  // secondary_usage_enabled in knownFields with no error slot and it goes silent.
+  it('guard: a 422 on each toggle toasts, since a toggle has nowhere to show it', async () => {
+    renderVehicleEdit(everyField, { ...baseDetailStats, secondary_usage_enabled: true })
+    await screen.findByLabelText('edit.currentHours')
+
+    const silent: string[] = []
+    for (const name of BANNER_ROUTED) {
+      vi.mocked(toast.error).mockClear()
+      const calls = mockedApi.put.mock.calls.length
+      mockedApi.put.mockRejectedValueOnce(validationError({ [name]: `bad ${name}` }))
+      await submitAndSettle(drawerForm())
+      const [, payload] = mockedApi.put.mock.calls[calls] as [string, Record<string, unknown>]
+      // It has to be a field the save really sends, or the sweep proves nothing.
+      expect(payload).toHaveProperty(name)
+      if (vi.mocked(toast.error).mock.calls.length === 0) silent.push(name)
+    }
+    expect(silent).toEqual([])
   })
 })

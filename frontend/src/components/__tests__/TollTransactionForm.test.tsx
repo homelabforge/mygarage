@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
-import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands } from '../../__tests__/serverErrors'
+import { registeredFieldNames, submitAndSettle, validationError, whereA422Lands, dropQueuedOnces } from '../../__tests__/serverErrors'
 import type { TollTag, TollTransaction } from '../../types/toll'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -23,6 +23,9 @@ import TollTransactionForm from '../TollTransactionForm'
 const activeTag = { id: 7, toll_system: 'E-ZPass', tag_number: 'ABC123', status: 'active' } as unknown as TollTag
 
 beforeEach(() => vi.clearAllMocks())
+
+// A rejection a failed test queued but never used mustn't reach the next one.
+afterEach(dropQueuedOnces(createMutateAsync, updateMutateAsync))
 
 describe('TollTransactionForm — routing + exact payload (SDQ-C)', () => {
   it('create — MANUAL-payment (toll_tag_id UNTOUCHED) submits the COMPLETE payload with toll_tag_id: null + vin, and NEVER calls update (fails if a field is dropped, the amount stays a string, vin is omitted, toll_tag_id is missing/wrong, or it misroutes)', async () => {

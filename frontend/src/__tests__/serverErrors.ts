@@ -7,6 +7,7 @@
  * form, which is what the knownFields guards compare against.
  * `submitAndSettle` and `whereA422Lands` let a guard wait for the save to
  * finish instead of guessing with a timer.
+ * `dropQueuedOnces` keeps a rejection a failed test never used out of the next test.
  */
 import { fireEvent, waitFor, within } from '@testing-library/react'
 import { expect, type Mock } from 'vitest'
@@ -88,4 +89,23 @@ export async function whereA422Lands(
   expect(save, `${name}: the save never ran`).toHaveBeenCalledTimes(calls + 1)
   if (within(form).queryByText(msg)) return 'field'
   return banner() ? 'banner' : 'silent'
+}
+
+/**
+ * An afterEach hook that drops any one-off result a test queued and never used,
+ * keeping each mock's default. `vi.clearAllMocks()` keeps a queued
+ * `mockRejectedValueOnce`, so a test that failed before its submit would hand
+ * its 422 to the next test's save. Call it at module level, where nothing is
+ * queued yet: `getMockImplementation()` hands back a queued one-off instead of
+ * the default, so the defaults are read now, not in the hook.
+ */
+export function dropQueuedOnces(...mocks: Mock[]): () => void {
+  const defaults = mocks.map((mock) => mock.getMockImplementation())
+  return () => {
+    mocks.forEach((mock, i) => {
+      mock.mockReset()
+      const fallback = defaults[i]
+      if (fallback) mock.mockImplementation(fallback)
+    })
+  }
 }
