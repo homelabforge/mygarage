@@ -6,7 +6,8 @@ seasonal analytics, and period comparison endpoints.
 """
 
 import uuid
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from datetime import date
 from decimal import Decimal
 
@@ -30,30 +31,15 @@ from app.services.auth import create_access_token
 from tests._users import TEST_PASSWORD_HASH
 
 
-@pytest_asyncio.fixture
-async def financing_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> dict:
-    """A vehicle no other test writes to, so monthly/rolling assertions are exact."""
-    vin = "1FTFW1ET5EKE00001"
-    vehicle = await db_session.get(Vehicle, vin)
-    if vehicle is None:
-        vehicle = Vehicle(
-            vin=vin,
-            user_id=test_user["id"],
-            nickname="Financing Rollup Vehicle",
-            vehicle_type="Car",
-            year=2020,
-            make="Ford",
-            model="F-150",
-            fuel_type="gas",
-        )
-        db_session.add(vehicle)
-        await db_session.commit()
-    return {"vin": vin, "name": "2020 Ford F-150"}
-
-
-async def _make_fresh_vehicle(
+@asynccontextmanager
+async def _fresh_vehicle(
     db_session: AsyncSession, test_user: dict[str, object], nickname: str
-) -> dict:
+) -> AsyncIterator[dict]:
+    """A vehicle on a fresh VIN, deleted afterwards with every record on it.
+
+    These tests write financing and fuel rows years ahead, and the shared DB
+    would otherwise keep them for every later test's totals and trend windows.
+    """
     vin = "FIN" + uuid.uuid4().hex[:14].upper()
     db_session.add(
         Vehicle(
@@ -68,36 +54,48 @@ async def _make_fresh_vehicle(
         )
     )
     await db_session.commit()
-    return {"vin": vin}
+    yield {"vin": vin}
+    # A failed request can leave the session mid-transaction.
+    await db_session.rollback()
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == vin))
+    await db_session.commit()
 
 
 @pytest_asyncio.fixture
-async def financing_only_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> dict:
-    """A dedicated vehicle with a freshly generated VIN, used only by
-    test_average_rolling_and_trend_exclude_financing so its exact-value
-    assertions can't be polluted by another test's leftover records on the
-    shared, fixed-VIN financing_vehicle fixture."""
-    return await _make_fresh_vehicle(db_session, test_user, "Financing Only Vehicle")
+async def financing_vehicle(
+    db_session: AsyncSession, test_user: dict[str, object]
+) -> AsyncGenerator[dict]:
+    """A vehicle no other test writes to, so monthly/rolling assertions are exact."""
+    async with _fresh_vehicle(db_session, test_user, "Financing Rollup Vehicle") as vehicle:
+        yield vehicle
+
+
+@pytest_asyncio.fixture
+async def financing_only_vehicle(
+    db_session: AsyncSession, test_user: dict[str, object]
+) -> AsyncGenerator[dict]:
+    """Used only by test_average_rolling_and_trend_exclude_financing."""
+    async with _fresh_vehicle(db_session, test_user, "Financing Only Vehicle") as vehicle:
+        yield vehicle
 
 
 @pytest_asyncio.fixture
 async def financing_and_fuel_vehicle(
     db_session: AsyncSession, test_user: dict[str, object]
-) -> dict:
-    """A dedicated vehicle with a freshly generated VIN, used only by
-    test_averages_exclude_financing_only_months_but_not_running_cost_months so
-    its exact months_tracked/average_monthly_cost assertions can't be polluted
-    by another test's leftover records on the shared financing_vehicle."""
-    return await _make_fresh_vehicle(db_session, test_user, "Financing And Fuel Vehicle")
+) -> AsyncGenerator[dict]:
+    """Used only by
+    test_averages_exclude_financing_only_months_but_not_running_cost_months."""
+    async with _fresh_vehicle(db_session, test_user, "Financing And Fuel Vehicle") as vehicle:
+        yield vehicle
 
 
 @pytest_asyncio.fixture
 async def financing_interleaved_vehicle(
     db_session: AsyncSession, test_user: dict[str, object]
-) -> dict:
-    """A dedicated vehicle for the rolling-average/trend test, whose exact
-    figures would be thrown off by another test's records."""
-    return await _make_fresh_vehicle(db_session, test_user, "Financing Interleaved Vehicle")
+) -> AsyncGenerator[dict]:
+    """Used only by the rolling-average/trend test."""
+    async with _fresh_vehicle(db_session, test_user, "Financing Interleaved Vehicle") as vehicle:
+        yield vehicle
 
 
 async def _add_financing(client, headers, vin, on, amount, category="lease_payment"):
@@ -338,7 +336,7 @@ class TestVehicleFinancingRollup:
         resp = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
         ca = resp.json()["cost_analysis"]
 
-        assert float(ca["total_financing_cost"]) >= 500.00
+        assert float(ca["total_financing_cost"]) == pytest.approx(500.00)
         assert ca["cost_per_km"] == baseline_cost_per_km
 
 

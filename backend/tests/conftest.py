@@ -27,7 +27,6 @@ if "TEST_DATABASE_URL" in os.environ:
     os.environ["MYGARAGE_DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 
 from collections.abc import AsyncGenerator, Generator, Iterator
-from typing import NoReturn
 
 import pytest
 import pytest_asyncio
@@ -41,8 +40,6 @@ from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 from app.main import limiter as main_limiter
-from app.models.fuel import FuelRecord
-from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.routes.analytics import limiter as analytics_limiter
@@ -57,12 +54,6 @@ from app.services.widget_auth import widget_limiter
 from app.utils.pg_session import create_utc_async_engine
 from tests._shard import apply_shard
 from tests._users import TEST_PASSWORD_HASH
-
-
-def skip_test(reason: str) -> NoReturn:
-    """Skip test with given reason - typed to indicate it never returns."""
-    pytest.skip(reason)
-    raise AssertionError("pytest.skip should have raised")
 
 
 @pytest.hookimpl(trylast=True)
@@ -505,73 +496,6 @@ async def test_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -
         "make": vehicle.make,
         "model": vehicle.model,
     }
-
-
-@pytest_asyncio.fixture
-async def vehicle_with_service_records(
-    db_session: AsyncSession, test_user: dict[str, object]
-) -> Vehicle:
-    """Get a vehicle that has service records."""
-    user_id = test_user["id"]
-    # Find a vehicle with service records
-    result = await db_session.execute(select(Vehicle).where(Vehicle.user_id == user_id).limit(10))
-    vehicles = result.scalars().all()
-
-    for vehicle in vehicles:
-        service_result = await db_session.execute(
-            select(ServiceVisit).where(ServiceVisit.vin == vehicle.vin).limit(1)
-        )
-        if service_result.scalar_one_or_none():
-            return vehicle
-
-    # skip_test() never returns - it raises Skipped exception
-    skip_test("No vehicles with service visits found. Please add service visits first.")
-
-
-@pytest_asyncio.fixture
-async def vehicle_with_fuel_records(
-    db_session: AsyncSession, test_user: dict[str, object]
-) -> Vehicle:
-    """Get a vehicle that has fuel records."""
-    user_id = test_user["id"]
-    # Find a vehicle with fuel records
-    result = await db_session.execute(select(Vehicle).where(Vehicle.user_id == user_id).limit(10))
-    vehicles = result.scalars().all()
-
-    for vehicle in vehicles:
-        fuel_result = await db_session.execute(
-            select(FuelRecord).where(FuelRecord.vin == vehicle.vin).limit(1)
-        )
-        if fuel_result.scalar_one_or_none():
-            return vehicle
-
-    # skip_test() never returns - it raises Skipped exception
-    skip_test("No vehicles with fuel records found. Please add fuel records first.")
-
-
-@pytest_asyncio.fixture
-async def vehicle_with_analytics_data(
-    db_session: AsyncSession, test_user: dict[str, object]
-) -> Vehicle:
-    """Get a vehicle that has sufficient data for analytics (service + fuel records)."""
-    user_id = test_user["id"]
-    # Find a vehicle with both service and fuel records
-    result = await db_session.execute(select(Vehicle).where(Vehicle.user_id == user_id).limit(10))
-    vehicles = result.scalars().all()
-
-    for vehicle in vehicles:
-        service_result = await db_session.execute(
-            select(ServiceVisit).where(ServiceVisit.vin == vehicle.vin).limit(1)
-        )
-        fuel_result = await db_session.execute(
-            select(FuelRecord).where(FuelRecord.vin == vehicle.vin).limit(1)
-        )
-
-        if service_result.scalar_one_or_none() and fuel_result.scalar_one_or_none():
-            return vehicle
-
-    # skip_test() never returns - it raises Skipped exception
-    skip_test("No vehicles with both service visits and fuel records found.")
 
 
 @pytest.fixture

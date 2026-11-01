@@ -1,11 +1,24 @@
 """Integration tests for analytics API routes."""
 
+import uuid
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
+
 import fitz  # PyMuPDF
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.models.fuel import FuelRecord
+from app.models.service_line_item import ServiceLineItem
+from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.vendor import Vendor
 
 
 def _extract_pdf_text(pdf_bytes: bytes) -> str:
@@ -18,6 +31,84 @@ def _extract_pdf_text(pdf_bytes: bytes) -> str:
     return text
 
 
+@dataclass(frozen=True)
+class SeededVehicle:
+    """What the seed wrote, so tests can assert against it."""
+
+    vin: str
+    nickname: str
+    vendor_name: str
+
+
+def _fuel(vin: str, on: date, cost: str, odometer_km: str | None = None) -> FuelRecord:
+    return FuelRecord(
+        vin=vin,
+        date=on,
+        liters=Decimal("40.000"),
+        cost=Decimal(cost),
+        odometer_km=Decimal(odometer_km) if odometer_km else None,
+        is_full_tank=True,
+    )
+
+
+@pytest_asyncio.fixture
+async def seeded_vehicle(
+    db_session: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    test_user: dict[str, object],
+) -> AsyncGenerator[SeededVehicle]:
+    """A fresh vehicle with a known spend, deleted afterwards with all of it.
+
+    One service visit and one fill-up in Feb 2024 (120.00) and again in May 2024
+    (200.00), both visits at one named shop. These tests used to borrow whatever
+    vehicle had leftovers, so they skipped on a clean DB and asserted nothing.
+    """
+    suffix = uuid.uuid4().hex[:14].upper()
+    seed = SeededVehicle(
+        vin=f"ANL{suffix}",
+        nickname=f"Seed {suffix[:6]}",
+        vendor_name=f"Shop {suffix[:8]}",
+    )
+    # Its own session, so the routes read the rows cold.
+    async with test_sessionmaker() as session:
+        vendor = Vendor(name=seed.vendor_name)
+        session.add(vendor)
+        session.add(
+            Vehicle(
+                vin=seed.vin,
+                user_id=test_user["id"],
+                nickname=seed.nickname,
+                vehicle_type="Car",
+                year=2019,
+                make="Toyota",
+                model="Tacoma",
+            )
+        )
+        for on, description, cost, odometer in (
+            (date(2024, 2, 10), "Oil change", "80.00", "20000.00"),
+            (date(2024, 5, 10), "Brake pads", "150.00", "21000.00"),
+        ):
+            visit = ServiceVisit(vin=seed.vin, date=on, odometer_km=Decimal(odometer))
+            visit.vendor = vendor
+            visit.line_items.append(ServiceLineItem(description=description, cost=Decimal(cost)))
+            session.add(visit)
+        session.add_all(
+            [
+                _fuel(seed.vin, date(2024, 2, 20), "40.00", "20300.00"),
+                _fuel(seed.vin, date(2024, 5, 20), "50.00", "21400.00"),
+            ]
+        )
+        await session.commit()
+
+    yield seed
+
+    # A failed request can leave the shared session mid-transaction.
+    await db_session.rollback()
+    await db_session.execute(delete(Vehicle).where(Vehicle.vin == seed.vin))
+    await db_session.execute(delete(Vendor).where(Vendor.name == seed.vendor_name))
+    await db_session.commit()
+
+
 @pytest.mark.integration
 @pytest.mark.analytics
 @pytest.mark.asyncio
@@ -27,35 +118,36 @@ class TestAnalyticsEndpoints:
     async def test_get_vehicle_analytics_success(
         self,
         client: AsyncClient,
-        vehicle_with_analytics_data: Vehicle,
+        seeded_vehicle: SeededVehicle,
         auth_headers: dict,
     ):
-        """Test getting vehicle analytics with sufficient data."""
+        """The cost analysis adds up the seeded visits and fill-ups."""
         response = await client.get(
-            f"/api/analytics/vehicles/{vehicle_with_analytics_data.vin}",
+            f"/api/analytics/vehicles/{seeded_vehicle.vin}",
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
+        assert data["vin"] == seeded_vehicle.vin
+        assert data["vehicle_name"] == "2019 Toyota Tacoma"
 
-        # Check response structure
-        assert "vin" in data
-        assert "vehicle_name" in data
-        assert "cost_analysis" in data
-        assert "cost_projection" in data
-        assert "fuel_economy" in data
-        assert "service_history" in data
-        assert "predictions" in data
-
-        # Validate cost_analysis structure
         cost_analysis = data["cost_analysis"]
-        assert "total_cost" in cost_analysis
-        assert "average_monthly_cost" in cost_analysis
-        assert "monthly_breakdown" in cost_analysis
-        assert "service_type_breakdown" in cost_analysis
-        assert "anomalies" in cost_analysis
-        assert isinstance(cost_analysis["anomalies"], list)
+        assert Decimal(str(cost_analysis["total_service_cost"])) == Decimal("230.00")
+        assert Decimal(str(cost_analysis["total_fuel_cost"])) == Decimal("90.00")
+        assert Decimal(str(cost_analysis["total_cost"])) == Decimal("320.00")
+        assert cost_analysis["service_count"] == 2
+        assert cost_analysis["fuel_count"] == 2
+        assert cost_analysis["months_tracked"] == 2
+        assert Decimal(str(cost_analysis["average_monthly_cost"])) == Decimal("160.00")
+        assert [
+            (m["year"], m["month"], Decimal(str(m["total_cost"])))
+            for m in cost_analysis["monthly_breakdown"]
+        ] == [(2024, 2, Decimal("120.00")), (2024, 5, Decimal("200.00"))]
+        assert {
+            row["service_type"]: Decimal(str(row["total_cost"]))
+            for row in cost_analysis["service_type_breakdown"]
+        } == {"Oil change": Decimal("80.00"), "Brake pads": Decimal("150.00")}
 
     async def test_get_vehicle_analytics_invalid_vin(self, client: AsyncClient, auth_headers: dict):
         """Test getting analytics for non-existent vehicle."""
@@ -66,54 +158,65 @@ class TestAnalyticsEndpoints:
     async def test_get_vendor_analytics(
         self,
         client: AsyncClient,
-        vehicle_with_service_records: Vehicle,
+        seeded_vehicle: SeededVehicle,
         auth_headers: dict,
     ):
-        """Test getting vendor analytics."""
+        """Both seeded visits roll up under the one shop; fuel stays out."""
         response = await client.get(
-            f"/api/analytics/vehicles/{vehicle_with_service_records.vin}/vendors",
+            f"/api/analytics/vehicles/{seeded_vehicle.vin}/vendors",
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        assert "vendors" in data
-        assert "total_vendors" in data
-        assert isinstance(data["vendors"], list)
+        assert data["total_vendors"] == 1
+        assert data["most_used_vendor"] == seeded_vehicle.vendor_name
+        assert data["highest_spending_vendor"] == seeded_vehicle.vendor_name
+        [vendor] = data["vendors"]
+        assert vendor["vendor_name"] == seeded_vehicle.vendor_name
+        assert Decimal(str(vendor["total_spent"])) == Decimal("230.00")
+        assert Decimal(str(vendor["average_cost"])) == Decimal("115.00")
+        assert vendor["service_count"] == 2
+        assert vendor["service_types"] == ["Brake pads", "Oil change"]
+        assert vendor["last_service_date"] == "2024-05-10"
 
     async def test_get_seasonal_analytics(
         self,
         client: AsyncClient,
-        vehicle_with_service_records: Vehicle,
+        seeded_vehicle: SeededVehicle,
         auth_headers: dict,
     ):
-        """Test getting seasonal analytics."""
+        """February lands in winter and May in spring, visits and fuel both."""
         response = await client.get(
-            f"/api/analytics/vehicles/{vehicle_with_service_records.vin}/seasonal",
+            f"/api/analytics/vehicles/{seeded_vehicle.vin}/seasonal",
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        assert "seasons" in data
-        assert "annual_average" in data
-        assert isinstance(data["seasons"], list)
-
-        # Should have 4 seasons
-        if data["seasons"]:
-            assert len(data["seasons"]) <= 4
+        assert [
+            (s["season"], Decimal(str(s["total_cost"])), s["service_count"])
+            for s in data["seasons"]
+        ] == [
+            ("Winter", Decimal("120.00"), 2),
+            ("Spring", Decimal("200.00"), 2),
+            ("Summer", Decimal("0.00"), 0),
+            ("Fall", Decimal("0.00"), 0),
+        ]
+        assert Decimal(str(data["annual_average"])) == Decimal("80.00")
+        assert data["highest_cost_season"] == "Spring"
 
     async def test_compare_periods(
         self,
         client: AsyncClient,
-        vehicle_with_analytics_data: Vehicle,
+        seeded_vehicle: SeededVehicle,
         auth_headers: dict,
     ):
-        """Test period comparison endpoint."""
+        """Q1 2024 holds the February spend and Q2 the May spend."""
         response = await client.get(
-            f"/api/analytics/vehicles/{vehicle_with_analytics_data.vin}/compare",
+            f"/api/analytics/vehicles/{seeded_vehicle.vin}/compare",
             params={
                 "period1_start": "2024-01-01",
                 "period1_end": "2024-03-31",
@@ -123,18 +226,23 @@ class TestAnalyticsEndpoints:
             headers=auth_headers,
         )
 
-        # May return 200 or 400 depending on data availability
-        assert response.status_code in [200, 400]
-
-        if response.status_code == 200:
-            data = response.json()
-            assert "period1_label" in data
-            assert "period2_label" in data
-            assert "period1_total_cost" in data
-            assert "period2_total_cost" in data
-            assert "cost_change_amount" in data
-            assert "cost_change_percent" in data
-            assert "category_changes" in data
+        assert response.status_code == 200
+        data = response.json()
+        assert data["period1_label"] == "Jan 2024 - Mar 2024"
+        assert data["period2_label"] == "Apr 2024 - Jun 2024"
+        assert Decimal(str(data["period1_total_cost"])) == Decimal("120.00")
+        assert Decimal(str(data["period2_total_cost"])) == Decimal("200.00")
+        assert Decimal(str(data["cost_change_amount"])) == Decimal("80.00")
+        assert Decimal(str(data["cost_change_percent"])) == Decimal("66.67")
+        assert data["period1_service_count"] == 1
+        assert data["period2_service_count"] == 1
+        assert {
+            c["category"]: (Decimal(str(c["period1_value"])), Decimal(str(c["period2_value"])))
+            for c in data["category_changes"]
+        } == {
+            "Oil change": (Decimal("80.00"), Decimal("0.00")),
+            "Brake pads": (Decimal("0.00"), Decimal("150.00")),
+        }
 
     async def test_compare_periods_missing_params(
         self, client: AsyncClient, test_vehicle: dict, auth_headers: dict
@@ -155,34 +263,35 @@ class TestAnalyticsEndpoints:
     async def test_export_analytics_pdf(
         self,
         client: AsyncClient,
-        vehicle_with_analytics_data: Vehicle,
+        seeded_vehicle: SeededVehicle,
         auth_headers: dict,
     ):
-        """Test PDF export endpoint."""
+        """The vehicle PDF carries the seeded vehicle and its shop."""
         response = await client.get(
-            f"/api/analytics/vehicles/{vehicle_with_analytics_data.vin}/export",
+            f"/api/analytics/vehicles/{seeded_vehicle.vin}/export",
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/pdf"
         assert "attachment" in response.headers.get("content-disposition", "")
-
-        # Validate PDF magic bytes and content
         assert response.content[:5] == b"%PDF-"
-        assert len(response.content) > 100
+
+        text = _extract_pdf_text(response.content)
+        assert "2019 Toyota Tacoma" in text
+        assert seeded_vehicle.vendor_name in text
 
     async def test_export_analytics_pdf_includes_pending_hours_reminder(
         self,
         client: AsyncClient,
-        vehicle_with_analytics_data: Vehicle,
+        seeded_vehicle: SeededVehicle,
         auth_headers: dict,
     ):
         """A pending hours reminder on the vehicle must render in the
         exported PDF's "Upcoming Reminders" section, proving
         `reminders_data` is wired end-to-end from the route (not just at
-        the PDF-builder-function level)."""
-        vin = vehicle_with_analytics_data.vin
+        the PDF-builder-function level). The reminder goes with the vehicle."""
+        vin = seeded_vehicle.vin
 
         create_resp = await client.post(
             f"/api/vehicles/{vin}/reminders",
@@ -211,10 +320,10 @@ class TestAnalyticsEndpoints:
     async def test_export_garage_analytics_pdf(
         self,
         client: AsyncClient,
-        vehicle_with_analytics_data: Vehicle,
+        seeded_vehicle: SeededVehicle,
         auth_headers: dict,
     ):
-        """Test garage-wide PDF export endpoint."""
+        """The garage PDF lists the seeded vehicle in its cost table."""
         response = await client.get(
             "/api/analytics/garage/export",
             headers=auth_headers,
@@ -223,10 +332,11 @@ class TestAnalyticsEndpoints:
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/pdf"
         assert "attachment" in response.headers.get("content-disposition", "")
-
-        # Validate PDF magic bytes and content
         assert response.content[:5] == b"%PDF-"
-        assert len(response.content) > 100
+
+        # The table wraps a name across lines, so compare without whitespace.
+        squashed = "".join(_extract_pdf_text(response.content).split())
+        assert "".join(seeded_vehicle.nickname.split()) in squashed
 
     async def test_garage_analytics(self, client: AsyncClient, test_user: User, auth_headers: dict):
         """Test garage-wide analytics endpoint."""
@@ -252,55 +362,67 @@ class TestAnalyticsEndpoints:
 @pytest.mark.analytics
 @pytest.mark.asyncio
 async def test_analytics_caching(
-    client: AsyncClient, vehicle_with_analytics_data: Vehicle, auth_headers: dict
+    client: AsyncClient,
+    seeded_vehicle: SeededVehicle,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    auth_headers: dict,
 ):
-    """Test that analytics results are cached."""
-    vin = vehicle_with_analytics_data.vin
+    """A second read comes from the cache until something invalidates it.
 
-    # First request - should hit database
+    The extra fill-up goes in behind the routes' back, so only a cache hit can
+    keep it out of the second answer.
+    """
+    from app.utils.cache import invalidate_cache_for_vehicle
+
+    vin = seeded_vehicle.vin
+
     response1 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
     assert response1.status_code == 200
     data1 = response1.json()
+    assert Decimal(str(data1["cost_analysis"]["total_cost"])) == Decimal("320.00")
 
-    # Second request - should be from cache (faster)
+    async with test_sessionmaker() as session:
+        session.add(_fuel(vin, date(2024, 8, 15), "30.00"))
+        await session.commit()
+
     response2 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
     assert response2.status_code == 200
-    data2 = response2.json()
+    assert response2.json() == data1
 
-    # Data should be identical
-    assert data1 == data2
+    await invalidate_cache_for_vehicle(vin)
+    response3 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
+    assert Decimal(str(response3.json()["cost_analysis"]["total_cost"])) == Decimal("350.00")
 
 
 @pytest.mark.integration
 @pytest.mark.analytics
 @pytest.mark.asyncio
 async def test_anomaly_detection(
-    client: AsyncClient, vehicle_with_analytics_data: Vehicle, auth_headers: dict
+    client: AsyncClient,
+    seeded_vehicle: SeededVehicle,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    auth_headers: dict,
 ):
-    """Test that anomaly detection is working."""
-    response = await client.get(
-        f"/api/analytics/vehicles/{vehicle_with_analytics_data.vin}",
-        headers=auth_headers,
-    )
+    """One 2000.00 month among eight quiet ones is flagged, and only that one.
+
+    Detection needs a 2-sigma outlier, which two months can never be, so the
+    test adds six 50.00 months and the spike to the seed.
+    """
+    vin = seeded_vehicle.vin
+    async with test_sessionmaker() as session:
+        session.add_all([_fuel(vin, date(2023, month, 10), "50.00") for month in range(1, 7)])
+        session.add(_fuel(vin, date(2023, 7, 10), "2000.00"))
+        await session.commit()
+
+    response = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
 
     assert response.status_code == 200
-    data = response.json()
-
-    cost_analysis = data["cost_analysis"]
-    assert "anomalies" in cost_analysis
-
-    # Anomalies may or may not exist depending on data
-    anomalies = cost_analysis["anomalies"]
-    if anomalies:
-        # Validate anomaly structure
-        for anomaly in anomalies:
-            assert "month" in anomaly
-            assert "amount" in anomaly
-            assert "baseline" in anomaly
-            assert "deviation_percent" in anomaly
-            assert "severity" in anomaly
-            assert anomaly["severity"] in ["warning", "critical"]
-            assert "message" in anomaly
+    [anomaly] = response.json()["cost_analysis"]["anomalies"]
+    assert anomaly["month"] == "2023-07"
+    assert Decimal(str(anomaly["amount"])) == Decimal("2000.00")
+    # Nine months, 2620.00 in all.
+    assert float(anomaly["baseline"]) == pytest.approx(2620 / 9)
+    assert anomaly["severity"] == "critical"
 
 
 @pytest.mark.integration
