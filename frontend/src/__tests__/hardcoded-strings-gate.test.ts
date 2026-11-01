@@ -48,6 +48,14 @@ describe('validate-hardcoded-strings: JSX text beside an {expression}', () => {
     expect(scan('<p>{name} as Owner<br />now</p>\n')).toEqual(['as Owner'])
   })
 
+  it('a tag right after "as Name" is a tag, not a generic, when text follows its >', () => {
+    // `Owner<b>` is byte for byte `Foo<Bar>`; only what comes after the `>` tells them apart.
+    expect(scan('<p>{name} as Owner<b>x</b></p>\n')).toEqual(['as Owner'])
+    // Guards: still a generic when the `>` ends the line or code carries on.
+    expect(scan('const m = ({ a: 1 } as Record<string, Array<number>>)\n')).toEqual([])
+    expect(scan('const m = { a: 1 } as Record<string, number>;\n')).toEqual([])
+  })
+
   it('a one-line segment beside a brace honours i18n-exempt only on its line or the one above', () => {
     // It got the multiline scanner's 200-character look-back, so a marker three lines up hid it.
     expect(scan('// i18n-exempt\n<b>Brand</b>\n<i>x</i>\n<span>Est. {x} Left</span>\n')).toEqual(['Est.', 'Left'])

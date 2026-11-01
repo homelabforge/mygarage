@@ -176,6 +176,34 @@ function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, blankOut).replace(/^[ \t]*\/\/.*$/gm, blankOut)
 }
 
+/** What may follow a generic's closing `>`: the end of the line, or code carrying on. */
+const AFTER_GENERIC = /^[ \t]*(?:$|[\r\n;),.[])/
+
+/**
+ * Whether the `<` just before `start` opens a TS generic rather than a JSX tag.
+ * `Owner<b>` reads exactly like `Foo<Bar>`, so it's what follows the matching
+ * `>` that decides: text means a tag, the end of the line or code means a type.
+ */
+function opensGeneric(source: string, start: number): boolean {
+  // `</p>` closes a tag.
+  if (source[start] === '/') return false
+  let depth = 1
+  // A type argument list is short; give up well before reading a whole file.
+  for (let i = start; i < source.length && i < start + 300; i++) {
+    const c = source[i]
+    if (c === '<') depth++
+    // `=>` in a function type isn't a closing bracket.
+    else if (c === '>' && source[i - 1] !== '=') {
+      depth--
+      if (depth > 0) continue
+      // `<br />` is a self-closing tag.
+      if (source[i - 1] === '/') return false
+      return AFTER_GENERIC.test(source.slice(i + 1, i + 40))
+    }
+  }
+  return false
+}
+
 function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
   const findings: Finding[] = []
   const source = stripComments(stripImports(rawSource))
@@ -195,14 +223,9 @@ function scanMultilineJsx(rawSource: string, rel: string): Finding[] {
     if (CODE_PUNCTUATION.test(raw)) continue
     // `} as Record<...>` is a TS assertion, not text after an expression: the
     // segment is just `as TypeName` and its `<` opens a generic. Anything more in
-    // it is prose, and so is a `<` that closes a tag or opens a self-closing one.
+    // it is prose, and so is a `<` that turns out to be a tag.
     const end = (m.index ?? 0) + m[0].length
-    if (
-      opener === '}' &&
-      closer === '<' &&
-      /^\s*as\s+[A-Z][\w.]*$/.test(raw) &&
-      !/^(?:\/|[A-Za-z][\w.-]*\s*\/>)/.test(source.slice(end))
-    )
+    if (opener === '}' && closer === '<' && /^\s*as\s+[A-Z][\w.]*$/.test(raw) && opensGeneric(source, end))
       continue
     // string literals and code identifiers, never JSX prose (which uses &apos;)
     if (/['"`]/.test(raw)) continue
