@@ -127,6 +127,9 @@ test.afterAll(async () => {
 })
 
 test.describe('Tires', () => {
+  // No retries: a retry's fresh worker starts after cleanup wiped every rig, so a real 409 passes second time.
+  test.describe.configure({ retries: 0 })
+
   test('create-and-mount, then dismount, keeps the tire and frees the corner', async ({
     page,
     request,
@@ -734,6 +737,9 @@ test.describe('Tires', () => {
 })
 
 test.describe('Tire rotation and retirement', () => {
+  // No retries: a retry's fresh worker starts after cleanup wiped every rig, so a real 409 passes second time.
+  test.describe.configure({ retries: 0 })
+
   test('an X-pattern rotation moves every tire', async ({ request }) => {
     const vin = await tireVehicle('rotation')
     // The two-phase write, end to end. `uq_tires_vin_position` is an IMMEDIATE
@@ -902,6 +908,9 @@ test.describe('Tire rotation and retirement', () => {
  * for that reason.
  */
 test.describe('Tire rotation and retirement, through the UI', () => {
+  // No retries: a retry's fresh worker starts after cleanup wiped every rig, so a real 409 passes second time.
+  test.describe.configure({ retries: 0 })
+
   test('the header rotate control moves every tire', async ({ page, request }) => {
     const vin = await tireVehicle('rotate-ui')
     const admin = await adminSession()
@@ -1046,6 +1055,9 @@ test.describe('Tire rotation and retirement, through the UI', () => {
  * have noticed.
  */
 test.describe('Tire sets', () => {
+  // No retries: a retry's fresh worker starts after cleanup wiped every rig, so a real 409 passes second time.
+  test.describe.configure({ retries: 0 })
+
   test('a seasonal set is named, filled and fitted', async ({ page, request }) => {
     const vin = await tireVehicle('sets-ui')
     const admin = await adminSession()
