@@ -60,6 +60,18 @@ async function resetLanguage(request: APIRequestContext): Promise<void> {
 }
 
 test.describe('NAV-fit phone tab bar', () => {
+  // e2e runs the Vite dev server, so React Query's devtools toggle floats in
+  // the bottom-right corner, right on top of More. Prod builds don't ship it.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      document.addEventListener('DOMContentLoaded', () => {
+        const style = document.createElement('style')
+        style.textContent = '.tsqd-parent-container { display: none !important; }'
+        document.head.append(style)
+      })
+    })
+  })
+
   for (const width of PHONES) {
     test(`fits a ${width}px phone`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 })
