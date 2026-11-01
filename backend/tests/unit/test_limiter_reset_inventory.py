@@ -10,6 +10,8 @@ import ast
 import importlib
 from pathlib import Path
 
+import pytest
+
 from tests.conftest import APP_LIMITERS
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -25,30 +27,70 @@ def _module_name(path: Path) -> str:
     return ".".join(parts)
 
 
-def _limiter_names(tree: ast.Module) -> tuple[set[str], set[str]]:
-    """What `Limiter` is called in this module: bare names, and module aliases for `slowapi`."""
-    bare: set[str] = set()
-    modules: set[str] = set()
+def _dotted(node: ast.AST) -> str | None:
+    """`a.b.c` as a string, or None if it isn't a plain name/attribute chain."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        head = _dotted(node.value)
+        return f"{head}.{node.attr}" if head else None
+    return None
+
+
+def _limiter_names(tree: ast.Module) -> set[str]:
+    """Every spelling of `Limiter` this module could call, bare or dotted.
+
+    slowapi re-exports it from `slowapi.extension`, so both homes count, and so
+    does any alias for either module.
+    """
+    homes = {"slowapi", "slowapi.extension"}
+    names: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "slowapi":
-            bare |= {a.asname or a.name for a in node.names if a.name == "Limiter"}
+        if isinstance(node, ast.ImportFrom) and node.module in homes:
+            for a in node.names:
+                if a.name == "Limiter":
+                    names.add(a.asname or a.name)
+                elif f"{node.module}.{a.name}" in homes:
+                    names.add(f"{a.asname or a.name}.Limiter")
         elif isinstance(node, ast.Import):
-            modules |= {a.asname or a.name for a in node.names if a.name == "slowapi"}
-    return bare, modules
+            for a in node.names:
+                if a.name not in homes:
+                    continue
+                if a.asname:
+                    names.add(f"{a.asname}.Limiter")
+                else:
+                    # `import slowapi.extension` binds `slowapi`, which reaches both homes.
+                    names |= {f"{home}.Limiter" for home in homes}
+    return names
 
 
-def _is_limiter_call(node: ast.AST, bare: set[str], modules: set[str]) -> bool:
-    if not isinstance(node, ast.Call):
-        return False
-    func = node.func
-    if isinstance(func, ast.Name):
-        return func.id in bare
-    return (
-        isinstance(func, ast.Attribute)
-        and func.attr == "Limiter"
-        and isinstance(func.value, ast.Name)
-        and func.value.id in modules
-    )
+def _is_limiter_call(node: ast.AST, names: set[str]) -> bool:
+    return isinstance(node, ast.Call) and _dotted(node.func) in names
+
+
+def _scan_source(source: str, module: str, filename: str) -> tuple[set[str], list[str]]:
+    """One module's limiters: dotted paths of module-level ones, and `file:line` of any other."""
+    tree = ast.parse(source, filename=filename)
+    names = _limiter_names(tree)
+    if not names:
+        return set(), []
+    found: set[str] = set()
+    module_level: set[int] = set()
+    for stmt in tree.body:
+        value = stmt.value if isinstance(stmt, ast.Assign | ast.AnnAssign) else None
+        if value is None or not _is_limiter_call(value, names):
+            continue
+        targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
+        for target in targets:
+            assert isinstance(target, ast.Name), f"{filename}:{stmt.lineno} unpacks a Limiter"
+            found.add(f"{module}.{target.id}")
+        module_level.add(id(value))
+    stray = [
+        f"{filename}:{node.lineno}"
+        for node in ast.walk(tree)
+        if _is_limiter_call(node, names) and id(node) not in module_level
+    ]
+    return found, stray
 
 
 def _scan_app() -> tuple[set[str], list[str]]:
@@ -56,26 +98,50 @@ def _scan_app() -> tuple[set[str], list[str]]:
     found: set[str] = set()
     stray: list[str] = []
     for path in sorted(APP_DIR.rglob("*.py")):
-        tree = ast.parse(path.read_text(), filename=str(path))
-        bare, modules = _limiter_names(tree)
-        if not bare and not modules:
-            continue
-        module_level: set[int] = set()
-        for stmt in tree.body:
-            value = stmt.value if isinstance(stmt, ast.Assign | ast.AnnAssign) else None
-            if value is None or not _is_limiter_call(value, bare, modules):
-                continue
-            targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
-            for target in targets:
-                assert isinstance(target, ast.Name), f"{path}:{stmt.lineno} unpacks a Limiter"
-                found.add(f"{_module_name(path)}.{target.id}")
-            module_level.add(id(value))
-        stray += [
-            f"{path.relative_to(BACKEND_DIR)}:{node.lineno}"
-            for node in ast.walk(tree)
-            if _is_limiter_call(node, bare, modules) and id(node) not in module_level
-        ]
+        f, s = _scan_source(
+            path.read_text(), _module_name(path), str(path.relative_to(BACKEND_DIR))
+        )
+        found |= f
+        stray += s
     return found, stray
+
+
+# Every import form the scan must see through, so a limiter built any of these
+# ways can't dodge the reset list.
+IMPORT_FORMS = {
+    "from slowapi": "from slowapi import Limiter\n{target} = Limiter(key_func=k)\n",
+    "from slowapi alias": "from slowapi import Limiter as L\n{target} = L(key_func=k)\n",
+    "import slowapi": "import slowapi\n{target} = slowapi.Limiter(key_func=k)\n",
+    "import slowapi alias": "import slowapi as s\n{target} = s.Limiter(key_func=k)\n",
+    "from slowapi.extension": "from slowapi.extension import Limiter\n{target} = Limiter(key_func=k)\n",
+    "import slowapi.extension": (
+        "import slowapi.extension\n{target} = slowapi.extension.Limiter(key_func=k)\n"
+    ),
+    "import slowapi.extension alias": (
+        "import slowapi.extension as ext\n{target} = ext.Limiter(key_func=k)\n"
+    ),
+    "from slowapi import extension": (
+        "from slowapi import extension\n{target} = extension.Limiter(key_func=k)\n"
+    ),
+}
+
+
+@pytest.mark.parametrize("form", sorted(IMPORT_FORMS))
+def test_the_scan_sees_a_module_level_limiter_in_every_import_form(form: str) -> None:
+    source = IMPORT_FORMS[form].format(target="limiter")
+    assert _scan_source(source, "app.fake", "fake.py") == ({"app.fake.limiter"}, [])
+
+
+@pytest.mark.parametrize("form", sorted(IMPORT_FORMS))
+def test_the_scan_flags_a_function_built_limiter_in_every_import_form(form: str) -> None:
+    body = IMPORT_FORMS[form].format(target="    limiter").splitlines()
+    source = f"{body[0]}\ndef build():\n{body[1]}\n"
+    assert _scan_source(source, "app.fake", "fake.py") == (set(), ["fake.py:3"])
+
+
+def test_the_scan_ignores_an_unrelated_limiter_class() -> None:
+    source = "from mylib import Limiter\nlimiter = Limiter()\n"
+    assert _scan_source(source, "app.fake", "fake.py") == (set(), [])
 
 
 def test_every_app_limiter_is_in_the_reset_list() -> None:
