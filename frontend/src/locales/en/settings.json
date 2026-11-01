@@ -185,7 +185,8 @@
     "autoArchiveDescription": "Archive vehicles with no fuel, service, odometer, or hours activity after N days. 0 disables. Runs daily when the scheduler is enabled, and applies to every vehicle on this instance, including other users'.",
     "autoArchiveDays": "Days of inactivity",
     "autoArchiveSaved": "Auto-archive setting saved",
-    "autoArchiveError": "Failed to save auto-archive setting"
+    "autoArchiveError": "Failed to save auto-archive setting",
+    "autoArchiveInvalid": "Enter a whole number of days, 0 or more"
   },
   "secretKey": {
     "label": "Secret Key:",
@@ -786,5 +787,9 @@
     "red": "Racing Red",
     "violet": "Violet",
     "green": "Green"
+  },
+  "numberField": {
+    "between": "Enter a number from {{min}} to {{max}}",
+    "wholeBetween": "Enter a whole number from {{min}} to {{max}}"
   }
 }

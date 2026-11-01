@@ -158,3 +158,23 @@ export function readTypedNumber(raw: string): number | undefined {
   if (result.kind === 'empty') return undefined
   return result.kind === 'value' ? result.value : Number.NaN
 }
+
+/**
+ * A controlled box's text as a payload number, read in the user's language.
+ * Blank is null, and so is text that isn't a number, so check `firstUnreadable`
+ * before the save or that text quietly saves as blank.
+ */
+export function numberFromField(raw: string): number | null {
+  const result = parseDecimalInput(raw, getActiveLocale())
+  return result.kind === 'value' ? result.value : null
+}
+
+/** A box to check before a save: its label, and its text or `false` when it isn't shown. */
+export type LabelledNumberText = readonly [label: string, text: string | false]
+
+/** The label of the first box holding text that isn't a number. Blank is fine. */
+export function firstUnreadable(fields: readonly LabelledNumberText[]): string | undefined {
+  return fields.find(
+    ([, text]) => text !== false && parseDecimalInput(text, getActiveLocale()).kind === 'invalid'
+  )?.[0]
+}

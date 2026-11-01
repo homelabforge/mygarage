@@ -105,9 +105,9 @@ describe('ReadingEditor', () => {
   it('seeds every field from the reading and sends them all back', () => {
     renderEditor({ ...TYPO, odometer_km: '15000.00', notes: 'cold morning' })
     expect(input('reading-edit-date')).toHaveValue('2026-10-11')
-    expect(input('reading-edit-odometer')).toHaveValue(15000)
-    expect(input('reading-edit-tread')).toHaveValue(0.27)
-    expect(input('reading-edit-pressure')).toHaveValue(448)
+    expect(input('reading-edit-odometer')).toHaveValue('15000')
+    expect(input('reading-edit-tread')).toHaveValue('0.27')
+    expect(input('reading-edit-pressure')).toHaveValue('448')
     expect(input('reading-edit-notes')).toHaveValue('cold morning')
 
     fireEvent.change(input('reading-edit-tread'), { target: { value: '8.73' } })
@@ -126,7 +126,7 @@ describe('ReadingEditor', () => {
 
   it('adds an odometer to a reading logged without one', () => {
     renderEditor()
-    expect(input('reading-edit-odometer')).toHaveValue(null)
+    expect(input('reading-edit-odometer')).toHaveValue('')
     fireEvent.change(input('reading-edit-odometer'), { target: { value: '15000' } })
     fireEvent.click(drawer().getByText('common:save'))
     expect(mutate.mock.calls[0][0].odometer_km).toBe(15000)
@@ -181,7 +181,7 @@ describe('ReadingEditor', () => {
       expect(drawer().queryByText('tireList.treadConverted')).toBeNull()
       fireEvent.change(input('reading-edit-tread'), { target: { value: '.346' } })
       fireEvent.blur(input('reading-edit-tread'))
-      expect(input('reading-edit-tread')).toHaveValue(11)
+      expect(input('reading-edit-tread')).toHaveValue('11')
       expect(drawer().getByText('tireList.treadConverted')).toBeInTheDocument()
     })
 
@@ -192,7 +192,7 @@ describe('ReadingEditor', () => {
       'stores a gauge decimal that lands on the seeded 32nd as the new reading (blur: %s)',
       (blur) => {
         renderEditor(GAUGED)
-        expect(input('reading-edit-tread')).toHaveValue(11)
+        expect(input('reading-edit-tread')).toHaveValue('11')
         fireEvent.change(input('reading-edit-tread'), { target: { value: '0.346' } })
         if (blur) fireEvent.blur(input('reading-edit-tread'))
         fireEvent.click(drawer().getByText('common:save'))
@@ -210,7 +210,7 @@ describe('ReadingEditor', () => {
     it('sends an untouched pressure back exactly, not a rounded round trip', () => {
       renderEditor()
       // 448 kPa reads 65.0 PSI; 65.0 PSI converted back is 448.16 kPa.
-      expect(input('reading-edit-pressure')).toHaveValue(65)
+      expect(input('reading-edit-pressure')).toHaveValue('65.0')
       fireEvent.change(input('reading-edit-tread'), { target: { value: '11' } })
       fireEvent.click(drawer().getByText('common:save'))
       expect(mutate.mock.calls[0][0].pressure_kpa).toBe(448)
@@ -221,7 +221,7 @@ describe('ReadingEditor', () => {
     it('an hours-only vehicle edits the hour meter and never sends a junk odometer', () => {
       renderEditor({ ...TYPO, odometer_km: '170.00', engine_hours: '150.0' }, { tracksDistance: false, tracksHours: true })
       expect(input('reading-edit-odometer')).toBeNull()
-      expect(input('reading-edit-hours')).toHaveValue(150)
+      expect(input('reading-edit-hours')).toHaveValue('150.0')
       fireEvent.change(input('reading-edit-hours'), { target: { value: '155' } })
       fireEvent.click(drawer().getByText('common:save'))
       const payload = mutate.mock.calls[0][0]

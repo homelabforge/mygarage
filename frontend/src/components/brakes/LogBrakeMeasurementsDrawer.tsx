@@ -5,13 +5,15 @@ import { toast } from 'sonner'
 
 import { useLogBrakeMeasurements } from '../../hooks/queries/useBrakes'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
+import { useRefuseUnreadableNumbers } from '../../hooks/useRefuseUnreadableNumbers'
 import { AXLE_OF, BRAKE_POSITIONS, type BrakeMeasurementCorner, type BrakeOverview, type BrakePosition } from '../../types/brake'
 import { formatDateForInput } from '../../utils/dateUtils'
 import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
-import { canonicalFromUnitField } from '../../utils/unitFormat'
+import { canonicalFromTypedUnitField } from '../../utils/unitFormat'
+import { numberFromField } from '../../utils/decimalInput'
 import MountEventFields, { EMPTY_ODOMETER, type OdometerFieldValue } from '../tires/MountEventFields'
-import { Button, Drawer, Field, Input } from '../ui'
+import { Button, Drawer, Field, NumberInput } from '../ui'
 import { useBrakeText } from './useBrakeText'
 import { withUnitSession } from '../../contexts/UnitSession'
 
@@ -35,14 +37,6 @@ const EMPTY_CORNER: CornerFields = {
 const DISC_FIELDS = ['inner_pad_mm', 'outer_pad_mm', 'rotor_mm'] as const
 const DRUM_FIELDS = ['shoe_mm', 'drum_mm'] as const
 
-/** A blank field is left out, so the corner's other figures are kept; 0 stays 0. */
-function mmFromField(typed: string): number | null {
-  const trimmed = typed.trim()
-  if (trimmed === '') return null
-  const n = Number(trimmed)
-  return Number.isFinite(n) ? n : null
-}
-
 interface LogBrakeMeasurementsDrawerProps {
   vin: string
   overview: BrakeOverview
@@ -65,6 +59,7 @@ function LogBrakeMeasurementsDrawer({
   const u = useUnitFormat()
   const text = useBrakeText()
   const log = useLogBrakeMeasurements(vin)
+  const refuseUnreadable = useRefuseUnreadableNumbers()
   const [date, setDate] = useState(() => formatDateForInput())
   const [odometer, setOdometer] = useState<OdometerFieldValue>(EMPTY_ODOMETER)
   const [hours, setHours] = useState('')
@@ -94,12 +89,26 @@ function LogBrakeMeasurementsDrawer({
       toast.error(t('tireList.eventDateRequired'))
       return
     }
+    const odometerLabel = t('brakes.odometerWithUnit', { unit: u.distance.label })
+    if (
+      refuseUnreadable([
+        [odometerLabel, overview.tracks_distance && odometer.typed],
+        [t('common:engineHours'), overview.tracks_hours && hours],
+        ...BRAKE_POSITIONS.flatMap((position) =>
+          (typeOf(position) === 'drum' ? DRUM_FIELDS : DISC_FIELDS).map(
+            (name) => [`${text.labelFor(position)} · ${fieldLabels[name]}`, corners[position][name]] as const
+          )
+        ),
+      ])
+    )
+      return
     const measured: BrakeMeasurementCorner[] = []
     for (const position of BRAKE_POSITIONS) {
       const names = typeOf(position) === 'drum' ? DRUM_FIELDS : DISC_FIELDS
       const figures: Partial<Record<keyof CornerFields, number>> = {}
       for (const name of names) {
-        const value = mmFromField(corners[position][name])
+        // A blank figure is left out, so the corner's other figures are kept; 0 stays 0.
+        const value = numberFromField(corners[position][name])
         if (value !== null) figures[name] = value
       }
       if (Object.keys(figures).length > 0) measured.push({ position, ...figures })
@@ -113,7 +122,7 @@ function LogBrakeMeasurementsDrawer({
         recorded_at: date,
         corners: measured,
         ...(overview.tracks_distance
-          ? { odometer_km: canonicalFromUnitField(odometer.typed, odometer.origin, u.distance) }
+          ? { odometer_km: canonicalFromTypedUnitField(odometer.typed, odometer.origin, u.distance) }
           : {}),
         ...(overview.tracks_hours ? { engine_hours: hoursFromField(hours) } : {}),
       },
@@ -174,10 +183,8 @@ function LogBrakeMeasurementsDrawer({
                   const id = `brake-log-${position}-${name}`
                   return (
                     <Field key={name} id={id} label={fieldLabels[name]} unit="mm">
-                      <Input
+                      <NumberInput
                         id={id}
-                        type="number"
-                        step="0.1"
                         value={corners[position][name]}
                         onChange={(e) => setField(position, name, e.target.value)}
                       />

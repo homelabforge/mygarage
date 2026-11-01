@@ -60,9 +60,9 @@ describe('MountPeriodEditor', () => {
   it('seeds every field from a closed period and sends all five', () => {
     render(<MountPeriodEditor vin={VIN} tire={TIRE as never} period={CLOSED as never} open onClose={vi.fn()} labelFor={labelFor} />)
     expect(input('period-mount-date')).toHaveValue('2026-01-10')
-    expect(input('period-mount-odometer')).toHaveValue(10000)
+    expect(input('period-mount-odometer')).toHaveValue('10000')
     expect(input('period-dismount-date')).toHaveValue('2026-03-10')
-    expect(input('period-dismount-odometer')).toHaveValue(12000)
+    expect(input('period-dismount-odometer')).toHaveValue('12000')
     expect(input('period-notes')).toHaveValue('first winter')
     fireEvent.change(input('period-mount-odometer'), { target: { value: '10500' } })
     fireEvent.click(drawer().getByText('common:save'))
@@ -138,7 +138,7 @@ describe('MountPeriodEditor', () => {
       <MountPeriodEditor vin={VIN} tire={TIRE as never} period={HOURS_CLOSED as never} open onClose={vi.fn()} labelFor={labelFor} tracksDistance={false} tracksHours />
     )
     expect(document.getElementById('period-mount-odometer')).toBeNull()
-    expect(input('period-mount-hours')).toHaveValue(100)
+    expect(input('period-mount-hours')).toHaveValue('100.0')
     fireEvent.change(input('period-dismount-hours'), { target: { value: '155' } })
     fireEvent.click(drawer().getByText('common:save'))
     expect(mutate.mock.calls[0][0]).toEqual({

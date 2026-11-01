@@ -133,7 +133,7 @@ describe('TireList', () => {
     expect(payload).not.toHaveProperty('position')
   })
 
-  it('posts a blank reading odometer as null, stepping the field in whole units', () => {
+  it('posts a blank reading odometer as null', () => {
     // Replaces a test that asserted `tireList.odometerMi` present and
     // `tireList.odometerKm` absent. One interpolated key plus a mock `t` that
     // returns the key made both assertions unit-independent, so the name
@@ -145,9 +145,7 @@ describe('TireList', () => {
     render(<TireList vin="1HGCM82633A004352" />)
     fireEvent.click(screen.getByText('tireList.addReading'))
 
-    // mi renders at 0 decimals, so the spinner steps in whole miles.
     const odo = screen.getByLabelText('tireList.odometerWithUnit') as HTMLInputElement
-    expect(odo.step).toBe('1')
     expect(odo.value).toBe('')
 
     // Tread is seeded from the tire, so this saves without touching anything.
@@ -495,19 +493,16 @@ describe('TireList', () => {
       expect(payload.odometer_km).toBe(160.9344)
     })
 
-    it('steps the tread inputs by whole thirty-seconds', () => {
+    it('takes the tread and pressure as typed text, with no native step to trip', () => {
       render(<TireList vin="1HGCM82633A004352" />)
       fireEvent.click(screen.getByLabelText('tireList.edit'))
 
-      // in32 has no decimals, so the fixed step="0.1" offered tenths of a
-      // thirty-second of an inch.
-      expect((screen.getByLabelText('tireList.treadWithUnit') as HTMLInputElement).step).toBe('1')
-      expect(
-        (screen.getByLabelText('tireList.minTreadWithUnit') as HTMLInputElement).step
-      ).toBe('1')
-      expect(
-        (screen.getByLabelText('tireList.pressureWithUnit') as HTMLInputElement).step
-      ).toBe('0.1')
+      // G1b-21: a native number box refuses a decimal off its step and reads a comma as blank.
+      for (const label of ['tireList.treadWithUnit', 'tireList.minTreadWithUnit', 'tireList.pressureWithUnit']) {
+        const box = screen.getByLabelText(label)
+        expect(box).toHaveAttribute('type', 'text')
+        expect(box).not.toHaveAttribute('step')
+      }
     })
 
     /** Seeded as 11 and 2: the 32nds a gauge's 0.346 and 0.0625 in round to. */

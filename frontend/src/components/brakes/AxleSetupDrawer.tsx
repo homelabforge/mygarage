@@ -6,7 +6,9 @@ import { toast } from 'sonner'
 import { useUpdateBrakeAxle } from '../../hooks/queries/useBrakes'
 import type { BrakeAxle, BrakeAxleName, BrakeType } from '../../types/brake'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
-import { Button, Chip, Drawer, Field, Input } from '../ui'
+import { Button, Chip, Drawer, Field, NumberInput } from '../ui'
+import { useRefuseUnreadableNumbers } from '../../hooks/useRefuseUnreadableNumbers'
+import { numberFromField } from '../../utils/decimalInput'
 
 /** What a fresh axle of each type starts from: the server's defaults. */
 const DEFAULTS: Record<BrakeType, { min: string; new: string }> = {
@@ -45,12 +47,8 @@ const MAX_MM = { thickness: 50, rotor: 100, drum: 1000 } as const
    both 1.50. toPrecision drops the float noise (1.005 * 100 is 100.4999...). */
 const hundredths = (n: number): number => Math.round(Number((n * 100).toPrecision(12)))
 
-const mm = (typed: string): number | null => {
-  const trimmed = typed.trim()
-  if (trimmed === '') return null
-  const n = Number(trimmed)
-  return Number.isFinite(n) ? n : null
-}
+/* Read in the user's language. Unreadable text reads as blank, so Save refuses it first. */
+const mm = numberFromField
 
 interface AxleSetupDrawerProps {
   vin: string
@@ -63,6 +61,7 @@ interface AxleSetupDrawerProps {
 export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetupDrawerProps): ReactElement {
   const { t } = useTranslation('vehicles')
   const update = useUpdateBrakeAxle(vin)
+  const refuseUnreadable = useRefuseUnreadableNumbers()
   /* What each axle opened with, so Save writes only an axle that changed: an
      untouched axle keeps having no setup of its own (`configured: false`). */
   const [seeded] = useState<Record<BrakeAxleName, AxleForm>>(() => {
@@ -95,7 +94,31 @@ export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetup
     )
   }
 
+  const labels = (axle: BrakeAxleName) => {
+    const drum = forms[axle].brake_type === 'drum'
+    const side = axle === 'front' ? t('brakes.frontAxle') : t('brakes.rearAxle')
+    return {
+      new: `${side} · ${drum ? t('brakes.newShoe') : t('brakes.newPad')}`,
+      min: `${side} · ${drum ? t('brakes.minShoe') : t('brakes.minPad')}`,
+      limit: `${side} · ${drum ? t('brakes.drumMax') : t('brakes.rotorMin')}`,
+    }
+  }
+
   const handleSave = async (): Promise<void> => {
+    if (
+      refuseUnreadable(
+        (['front', 'rear'] as const).flatMap((axle) => {
+          const label = labels(axle)
+          const form = forms[axle]
+          return [
+            [label.new, form.new],
+            [label.min, form.min],
+            [label.limit, form.limit],
+          ] as const
+        })
+      )
+    )
+      return
     const toSave = (['front', 'rear'] as const).filter(changed)
     if (toSave.length === 0) {
       onClose()
@@ -192,10 +215,8 @@ export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetup
                   label={drum ? t('brakes.newShoe') : t('brakes.newPad')}
                   unit="mm"
                 >
-                  <Input
+                  <NumberInput
                     id={`brake-setup-${axle}-new`}
-                    type="number"
-                    step="0.1"
                     value={form.new}
                     onChange={(e) => set(axle, { new: e.target.value })}
                   />
@@ -205,10 +226,8 @@ export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetup
                   label={drum ? t('brakes.minShoe') : t('brakes.minPad')}
                   unit="mm"
                 >
-                  <Input
+                  <NumberInput
                     id={`brake-setup-${axle}-min`}
-                    type="number"
-                    step="0.1"
                     value={form.min}
                     onChange={(e) => set(axle, { min: e.target.value })}
                   />
@@ -220,10 +239,8 @@ export default function AxleSetupDrawer({ vin, axles, open, onClose }: AxleSetup
                 unit="mm"
                 hint={drum ? t('brakes.drumMaxHint') : t('brakes.rotorMinHint')}
               >
-                <Input
+                <NumberInput
                   id={`brake-setup-${axle}-limit`}
-                  type="number"
-                  step="0.01"
                   value={form.limit}
                   onChange={(e) => set(axle, { limit: e.target.value })}
                 />

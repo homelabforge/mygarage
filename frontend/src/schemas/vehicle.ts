@@ -165,6 +165,16 @@ const cylindersSchema = (t: TFunction) =>
     integerKey: 'common:validation.vehicle.cylindersNotWhole',
   })
 
+/**
+ * Year, doors and cylinders on their own, for VehicleFieldsDrawer, which edits
+ * them outside this form. Same bounds and messages as the edit form.
+ */
+export const makeVehicleWholeNumberFields = (t: TFunction) => ({
+  year: yearSchema(t),
+  doors: doorsSchema(t),
+  cylinders: cylindersSchema(t),
+})
+
 // Both prices are money: floor 0 and the API's MONEY_MAX (money-fits). The
 // wizard used to take a negative purchase price, which the API now refuses.
 // The keys stay literal, one call each, so validate-i18n-usage can see them.

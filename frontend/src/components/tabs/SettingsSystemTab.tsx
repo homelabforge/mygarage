@@ -13,7 +13,9 @@ import OIDCModal from '@/components/modals/OIDCModal'
 import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
 import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
 import InstanceUnitDefaultsCard from '@/components/settings/InstanceUnitDefaultsCard'
-import { Select, Toggle } from '../ui'
+import { NumberInput, Select, Toggle } from '../ui'
+import { getActiveLocale } from '@/constants/i18n'
+import { parseDecimalInput } from '@/utils/decimalInput'
 
 type RawSetting = {
   key: string
@@ -255,14 +257,18 @@ export default function SettingsSystemTab() {
     }
   }, [formData, loadedFormData, refreshPublicSettings])
 
-  const handleAutoArchiveDaysChange = (raw: string) => {
-    setAutoArchiveDays(raw.replace(/[^\d]/g, ''))
-  }
-
   const saveAutoArchiveDays = async () => {
+    // Blank means off, as before. Anything else has to be a whole number of
+    // days, read in the user's language, or it's refused rather than guessed at.
+    const parsed = parseDecimalInput(autoArchiveDays, getActiveLocale())
+    const days = parsed.kind === 'empty' ? 0 : parsed.kind === 'value' ? parsed.value : Number.NaN
+    if (!Number.isInteger(days) || days < 0) {
+      toast.error(t('archive.autoArchiveInvalid'))
+      return
+    }
     setAutoArchiveSaving(true)
     try {
-      const value = String(Math.max(0, parseInt(autoArchiveDays || '0', 10) || 0))
+      const value = String(days)
       setAutoArchiveDays(value)
       await api.post('/settings/batch', {
         settings: { auto_archive_inactive_days: value },
@@ -506,17 +512,15 @@ export default function SettingsSystemTab() {
           </label>
           <div className="flex gap-3 items-end">
             <div className="flex-1">
-              <label className="block text-xs text-garage-text-muted mb-1">
+              <label htmlFor="auto-archive-days" className="block text-xs text-garage-text-muted mb-1">
                 {t('archive.autoArchiveDays')}
               </label>
-              <input
-                type="number"
-                min={0}
+              <NumberInput
+                id="auto-archive-days"
                 value={autoArchiveDays}
-                onChange={(e) => handleAutoArchiveDaysChange(e.target.value)}
+                onChange={(e) => setAutoArchiveDays(e.target.value)}
                 onBlur={() => void saveAutoArchiveDays()}
                 disabled={autoArchiveSaving}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text"
               />
             </div>
           </div>

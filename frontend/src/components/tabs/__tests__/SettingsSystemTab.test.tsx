@@ -678,3 +678,42 @@ describe('SettingsSystemTab: a switch stored as another on word', () => {
     await waitFor(() => expect(screen.getByLabelText('garageSections.familyFriends')).toBeChecked())
   })
 })
+
+// The days box stripped everything but digits, so "12.5" saved as 125 days.
+describe('SettingsSystemTab: auto-archive days', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedApi.post.mockResolvedValue({ data: { settings: [], total: 0 } })
+  })
+
+  // By the label's text, so this goes red on main for the parsing, not the label wiring.
+  const daysBox = (): HTMLInputElement =>
+    screen.getByText('archive.autoArchiveDays').parentElement?.querySelector('input') as HTMLInputElement
+
+  it('refuses 12.5 days instead of saving 125', async () => {
+    serveSettings('local')
+    renderTab()
+    await waitFor(() => expect(daysBox()).toBeEnabled())
+
+    fireEvent.change(daysBox(), { target: { value: '12.5' } })
+    fireEvent.blur(daysBox())
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('archive.autoArchiveInvalid'))
+    expect(mockedApi.post).not.toHaveBeenCalledWith('/settings/batch', {
+      settings: { auto_archive_inactive_days: expect.anything() },
+    })
+  })
+
+  it('saves a whole number of days', async () => {
+    serveSettings('local')
+    renderTab()
+    await waitFor(() => expect(daysBox()).toBeEnabled())
+
+    fireEvent.change(daysBox(), { target: { value: '90' } })
+    fireEvent.blur(daysBox())
+
+    await waitFor(() =>
+      expect(mockedApi.post).toHaveBeenCalledWith('/settings/batch', { settings: { auto_archive_inactive_days: '90' } }),
+    )
+  })
+})

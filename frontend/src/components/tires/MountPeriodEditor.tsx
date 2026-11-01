@@ -5,10 +5,11 @@ import { toast } from 'sonner'
 
 import { useUpdateMountPeriod } from '../../hooks/queries/useTires'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
+import { useRefuseUnreadableNumbers } from '../../hooks/useRefuseUnreadableNumbers'
 import type { MountedPosition, Tire, TireMountPeriod, TirePosition } from '../../types/tire'
 import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
-import { canonicalFromUnitField, seedUnitField } from '../../utils/unitFormat'
+import { canonicalFromTypedUnitField, seedUnitField } from '../../utils/unitFormat'
 import { num } from '../../utils/wireNumber'
 import { Button, Drawer, Field, Input } from '../ui'
 import MountEventFields, { type OdometerFieldValue } from './MountEventFields'
@@ -61,6 +62,7 @@ function MountPeriodEditor({
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
   const update = useUpdateMountPeriod(vin)
+  const refuseUnreadable = useRefuseUnreadableNumbers()
   const closed = period.dismounted_on != null
 
   const [form, setForm] = useState<EditorState>(() => {
@@ -84,13 +86,22 @@ function MountPeriodEditor({
       toast.error(t('tireList.periodDismountDateRequired'))
       return
     }
+    if (
+      refuseUnreadable([
+        [odometerLabel, tracksDistance && form.mounted_odometer_km.typed],
+        [t('common:engineHours'), tracksHours && form.mounted_hours],
+        [odometerLabel, closed && tracksDistance && form.dismounted_odometer_km.typed],
+        [t('common:engineHours'), closed && tracksHours && form.dismounted_hours],
+      ])
+    )
+      return
     const payload = {
       tireId: tire.id,
       periodId: period.id,
       mounted_on: form.mounted_on || null,
       ...(tracksDistance
         ? {
-            mounted_odometer_km: canonicalFromUnitField(
+            mounted_odometer_km: canonicalFromTypedUnitField(
               form.mounted_odometer_km.typed,
               form.mounted_odometer_km.origin,
               u.distance
@@ -104,7 +115,7 @@ function MountPeriodEditor({
             dismounted_on: form.dismounted_on,
             ...(tracksDistance
               ? {
-                  dismounted_odometer_km: canonicalFromUnitField(
+                  dismounted_odometer_km: canonicalFromTypedUnitField(
                     form.dismounted_odometer_km.typed,
                     form.dismounted_odometer_km.origin,
                     u.distance

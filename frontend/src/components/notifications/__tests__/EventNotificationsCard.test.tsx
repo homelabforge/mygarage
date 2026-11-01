@@ -40,10 +40,10 @@ describe('EventNotificationsCard — DEF-low event (Task 17)', () => {
     const checkbox = screen.getByRole('checkbox', { name: 'events.defLow.label' })
     expect(checkbox).not.toBeChecked()
 
-    const percentInput = screen.getByDisplayValue('25')
-    expect(percentInput).toHaveAttribute('type', 'number')
-    expect(percentInput).toHaveAttribute('min', '1')
-    expect(percentInput).toHaveAttribute('max', '99')
+    // Typed text with its own range check (G1b-21), named for its event.
+    const percentInput = screen.getByRole('textbox', { name: 'events.defLow.label: %' })
+    expect(percentInput).toHaveValue('25')
+    expect(percentInput).not.toHaveAttribute('max')
     // No setting yet -> toggle off -> percent field disabled.
     expect(percentInput).toBeDisabled()
   })
@@ -116,7 +116,7 @@ describe('EventNotificationsCard: Service due has no lead-time fields (D1c)', ()
     )
 
     // Only insurance days, warranty days and the DEF percent are left.
-    const inputs = screen.getAllByRole('spinbutton')
+    const inputs = screen.getAllByRole('textbox')
     expect(inputs.map((i) => (i as HTMLInputElement).value)).toStrictEqual(['30', '30', '25'])
     expect(screen.getAllByText('events.card.daysBefore')).toHaveLength(2)
     expect(screen.queryByText('events.card.milesBefore')).not.toBeInTheDocument()

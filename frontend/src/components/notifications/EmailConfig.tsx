@@ -2,6 +2,7 @@ import { Mail, Send, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 import { Toggle } from '@/components/ui'
 import { isSettingOn } from '@/utils/settingSwitch'
+import { SettingNumberInput } from './SettingNumberInput'
 
 interface EmailConfigProps {
   settings: Record<string, unknown>;
@@ -68,14 +69,15 @@ export function EmailConfig({
             <label htmlFor="email_smtp_port" className="block text-sm font-medium text-garage-text mb-1">
               {t('email.misc.port')}
             </label>
-            <input
-              type="number"
+            <SettingNumberInput
               id="email_smtp_port"
               value={String(settings.email_smtp_port ?? '587')}
-              onChange={(e) => onTextChange('email_smtp_port', e.target.value)}
-              placeholder="587"
+              onCommit={(value) => onTextChange('email_smtp_port', value)}
               disabled={saving || !isEnabled}
-              className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              min={1}
+              max={65535}
+              integer
+              size="md"
             />
           </div>
         </div>

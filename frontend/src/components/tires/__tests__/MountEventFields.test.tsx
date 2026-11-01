@@ -80,7 +80,7 @@ describe('MountEventFields', () => {
     const { onOdometerChange } = renderField({
       odometer: { typed: '123', origin: EMPTY_ODOMETER.origin },
     })
-    expect(screen.getByLabelText('tireList.odometer')).toHaveValue(123)
+    expect(screen.getByLabelText('tireList.odometer')).toHaveValue('123')
     expect(onOdometerChange).not.toHaveBeenCalled()
   })
 

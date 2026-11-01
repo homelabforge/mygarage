@@ -6,7 +6,8 @@
  * 32nds and every millimetre entry stay as typed.
  */
 
-import { canonicalFromUnitField, type QuantityFormat, type UnitFieldOrigin } from './unitFormat'
+import { numberFromField } from './decimalInput'
+import { canonicalFromTypedUnitField, type QuantityFormat, type UnitFieldOrigin } from './unitFormat'
 import { UnitConverter } from './units'
 
 /** Canonical tread is millimetres; the inch factor is in metres. */
@@ -21,9 +22,10 @@ export function thirtySecondsFromDecimalInches(
   typed: string,
   tread: QuantityFormat
 ): string | null {
-  if (tread.unit !== 'in32' || typed.trim() === '') return null
-  const inches = Number(typed)
-  if (!Number.isFinite(inches) || inches <= 0 || inches >= 1) return null
+  if (tread.unit !== 'in32') return null
+  // Read in the user's language, so a German gauge's 0,346 converts too.
+  const inches = numberFromField(typed)
+  if (inches === null || inches <= 0 || inches >= 1) return null
   return tread.toInputValue(inches * UnitConverter.INCH_TO_METERS * MM_PER_M)
 }
 
@@ -32,7 +34,8 @@ export function thirtySecondsFromDecimalInches(
  *
  * A converted entry skips the origin. 8.40 mm seeds the field as 11 and 0.346 in
  * is 11 too, so going through the origin would keep the old 8.40 for a reading
- * the user just took. Anything else goes through `canonicalFromUnitField` as before.
+ * the user just took. Anything else goes through `canonicalFromTypedUnitField`,
+ * which reads the box's text in the user's language.
  */
 export function canonicalFromTreadField(
   typed: string,
@@ -41,5 +44,5 @@ export function canonicalFromTreadField(
 ): number | null {
   const thirtySeconds = thirtySecondsFromDecimalInches(typed, tread)
   if (thirtySeconds !== null) return tread.toCanonical(Number(thirtySeconds))
-  return canonicalFromUnitField(typed, origin, tread)
+  return canonicalFromTypedUnitField(typed, origin, tread)
 }

@@ -7,7 +7,7 @@ import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../../utils/dateUtils'
 import { formatHours } from '../../utils/hoursFormat'
 import { seedUnitField, type UnitFieldOrigin } from '../../utils/unitFormat'
-import { Button, Field, Input } from '../ui'
+import { Button, Field, Input, NumberInput } from '../ui'
 
 /**
  * An odometer as typed, with the canonical value it was seeded from.
@@ -76,9 +76,9 @@ function dayOffset(t: TFunction, daysAway: number): string {
  * a tire mounted at 100,000 km used to store 99,999.56 km, because the
  * "62,137 mi" it displayed was converted back to kilometres with no memory of
  * the value it came from. Typing keeps carrying the current origin forward
- * unchanged -- only Use ever replaces it -- so `canonicalFromUnitField` can
+ * unchanged -- only Use ever replaces it -- so `canonicalFromTypedUnitField` can
  * still tell an untouched field from an edited one after a suggestion has
- * been accepted.
+ * been accepted. Both boxes are typed text, read in the user's language.
  */
 export default function MountEventFields({
   vin,
@@ -155,10 +155,8 @@ function OdometerField({ vin, idPrefix, date, label, hint, odometer, onChange }:
   return (
     <>
       <Field id={`${idPrefix}-odometer`} label={label} hint={hint}>
-        <Input
+        <NumberInput
           id={`${idPrefix}-odometer`}
-          type="number"
-          step={u.distance.step}
           value={odometer.typed}
           onChange={(e) => onChange({ typed: e.target.value, origin: odometer.origin })}
         />
@@ -211,10 +209,8 @@ function HoursField({ vin, idPrefix, date, hint, hours, onChange }: HoursFieldPr
   return (
     <>
       <Field id={`${idPrefix}-hours`} label={t('common:engineHours')} unit="hr" hint={hint}>
-        <Input
+        <NumberInput
           id={`${idPrefix}-hours`}
-          type="number"
-          step="0.1"
           value={hours}
           onChange={(e) => onChange(e.target.value)}
         />

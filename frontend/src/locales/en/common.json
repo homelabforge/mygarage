@@ -723,6 +723,7 @@
   "tooManyDecimals": "At most {{count}} decimal places",
   "ofMax": "{{value}} of {{max}}",
   "numberInput": {
-    "readAs": "Read as {{value}}"
+    "readAs": "Read as {{value}}",
+    "invalidField": "{{field}}: enter a valid number"
   }
 }

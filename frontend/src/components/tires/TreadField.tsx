@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { thirtySecondsFromDecimalInches } from '../../utils/treadEntry'
-import { Field, Input } from '../ui'
+import { Field, NumberInput } from '../ui'
 
 interface TreadFieldProps {
   id: string
@@ -46,10 +46,8 @@ export default function TreadField({
 
   return (
     <Field id={id} label={label} hint={hint}>
-      <Input
+      <NumberInput
         id={id}
-        type="number"
-        step={u.tread.step}
         value={value}
         onChange={(e) => {
           setConvertedFrom(null)
