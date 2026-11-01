@@ -251,6 +251,59 @@ class FuelEfficiencyAlert(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OwnershipStatistics(BaseModel):
+    """At-a-glance ownership statistics (Overall / Fuel-Ups / Services & Expenses).
+
+    Metric canonical, like the rest of analytics: distances in km, volumes in
+    litres, money per km / per litre. The client converts to the reader's units.
+    Money is in the account currency, like the rest of analytics. Insurance is
+    accrued over each policy's elapsed days (cost to date), or, in the
+    `statistics_as_paid` copy, counted in full for each billing period that has
+    begun.
+    """
+
+    # Overall
+    total_running_cost: Decimal = Field(default=Decimal("0.00"))  # all-in, no purchase
+    purchase_price: Decimal | None = None
+    sold_price: Decimal | None = None
+    total_ownership_cost: Decimal | None = None  # all-in + purchase - sold
+    days_owned: int | None = None
+    km_driven: Decimal | None = None
+    km_per_day: Decimal | None = None
+    running_cost_per_day: Decimal | None = None
+    running_cost_per_km: Decimal | None = None
+    ownership_cost_per_day: Decimal | None = None
+    ownership_cost_per_km: Decimal | None = None
+
+    # Fuel-ups
+    fuel_count: int = 0
+    avg_l_per_100km: Decimal | None = None
+    best_l_per_100km: Decimal | None = None
+    worst_l_per_100km: Decimal | None = None
+    recent_l_per_100km: Decimal | None = None
+    avg_price_per_liter: Decimal | None = None
+    min_price_per_liter: Decimal | None = None
+    max_price_per_liter: Decimal | None = None
+    last_price_per_liter: Decimal | None = None
+    fuel_total_cost: Decimal = Field(default=Decimal("0.00"))
+    fuel_total_liters: Decimal | None = None
+    fuel_cost_per_km: Decimal | None = None
+    fuel_cost_per_day: Decimal | None = None
+    km_per_currency_unit: Decimal | None = None
+    avg_cost_per_fillup: Decimal | None = None
+    avg_liters_per_fillup: Decimal | None = None
+    avg_km_per_fillup: Decimal | None = None
+    avg_days_per_fillup: Decimal | None = None
+    liters_per_day: Decimal | None = None
+
+    # Services & expenses (everything that is not fuel)
+    expenses_total_cost: Decimal = Field(default=Decimal("0.00"))
+    expenses_cost_per_day: Decimal | None = None
+    expenses_cost_per_km: Decimal | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class VehicleAnalytics(BaseModel):
     """Complete vehicle analytics."""
 
@@ -285,6 +338,11 @@ class VehicleAnalytics(BaseModel):
     total_km_driven: Decimal | None = None
     average_km_per_month: Decimal | None = None
     days_owned: int | None = None
+
+    # Ownership statistics block (motorized vehicles; None otherwise)
+    statistics: OwnershipStatistics | None = None
+    # Same block with insurance counted in full for each term that has started
+    statistics_as_paid: OwnershipStatistics | None = None
 
     # Fifth Wheel / RV Specific (optional)
     propane_analysis: dict[str, Any] | None = None  # For fifth wheels with propane tracking

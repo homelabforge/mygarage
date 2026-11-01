@@ -68,6 +68,7 @@ import type {
   SpotRentalAnalysis,
   DEFAnalysis,
 } from '../types/analytics'
+import AdvancedStatistics from '../components/AdvancedStatistics'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
 import TireAnalyticsSection from '../components/TireAnalyticsSection'
 import ExportMenu from '../components/ExportMenu'
@@ -2010,6 +2011,14 @@ export default function Analytics() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Optional, collapsed by default; additive to the cards above */}
+      {isMotorized && analytics.statistics && (
+        <AdvancedStatistics
+          statistics={analytics.statistics}
+          statisticsAsPaid={analytics.statistics_as_paid}
+        />
       )}
 
       {/* Period Comparison */}

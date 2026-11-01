@@ -14005,6 +14005,97 @@ export interface components {
             odometer_km?: number | string | null;
         };
         /**
+         * OwnershipStatistics
+         * @description At-a-glance ownership statistics (Overall / Fuel-Ups / Services & Expenses).
+         *
+         *     Metric canonical, like the rest of analytics: distances in km, volumes in
+         *     litres, money per km / per litre. The client converts to the reader's units.
+         *     Money is in the account currency, like the rest of analytics. Insurance is
+         *     accrued over each policy's elapsed days (cost to date), or, in the
+         *     `statistics_as_paid` copy, counted in full for each billing period that has
+         *     begun.
+         */
+        OwnershipStatistics: {
+            /** Avg Cost Per Fillup */
+            avg_cost_per_fillup?: string | null;
+            /** Avg Days Per Fillup */
+            avg_days_per_fillup?: string | null;
+            /** Avg Km Per Fillup */
+            avg_km_per_fillup?: string | null;
+            /** Avg L Per 100Km */
+            avg_l_per_100km?: string | null;
+            /** Avg Liters Per Fillup */
+            avg_liters_per_fillup?: string | null;
+            /** Avg Price Per Liter */
+            avg_price_per_liter?: string | null;
+            /** Best L Per 100Km */
+            best_l_per_100km?: string | null;
+            /** Days Owned */
+            days_owned?: number | null;
+            /** Expenses Cost Per Day */
+            expenses_cost_per_day?: string | null;
+            /** Expenses Cost Per Km */
+            expenses_cost_per_km?: string | null;
+            /**
+             * Expenses Total Cost
+             * @default 0.00
+             */
+            expenses_total_cost: string;
+            /** Fuel Cost Per Day */
+            fuel_cost_per_day?: string | null;
+            /** Fuel Cost Per Km */
+            fuel_cost_per_km?: string | null;
+            /**
+             * Fuel Count
+             * @default 0
+             */
+            fuel_count: number;
+            /**
+             * Fuel Total Cost
+             * @default 0.00
+             */
+            fuel_total_cost: string;
+            /** Fuel Total Liters */
+            fuel_total_liters?: string | null;
+            /** Km Driven */
+            km_driven?: string | null;
+            /** Km Per Currency Unit */
+            km_per_currency_unit?: string | null;
+            /** Km Per Day */
+            km_per_day?: string | null;
+            /** Last Price Per Liter */
+            last_price_per_liter?: string | null;
+            /** Liters Per Day */
+            liters_per_day?: string | null;
+            /** Max Price Per Liter */
+            max_price_per_liter?: string | null;
+            /** Min Price Per Liter */
+            min_price_per_liter?: string | null;
+            /** Ownership Cost Per Day */
+            ownership_cost_per_day?: string | null;
+            /** Ownership Cost Per Km */
+            ownership_cost_per_km?: string | null;
+            /** Purchase Price */
+            purchase_price?: string | null;
+            /** Recent L Per 100Km */
+            recent_l_per_100km?: string | null;
+            /** Running Cost Per Day */
+            running_cost_per_day?: string | null;
+            /** Running Cost Per Km */
+            running_cost_per_km?: string | null;
+            /** Sold Price */
+            sold_price?: string | null;
+            /** Total Ownership Cost */
+            total_ownership_cost?: string | null;
+            /**
+             * Total Running Cost
+             * @default 0.00
+             */
+            total_running_cost: string;
+            /** Worst L Per 100Km */
+            worst_l_per_100km?: string | null;
+        };
+        /**
          * POIProviderCreate
          * @description Adding a POI provider. The route keeps its own 400s for the name and key.
          */
@@ -18820,6 +18911,8 @@ export interface components {
             spot_rental_analysis?: {
                 [key: string]: unknown;
             } | null;
+            statistics?: components["schemas"]["OwnershipStatistics"] | null;
+            statistics_as_paid?: components["schemas"]["OwnershipStatistics"] | null;
             /** Total Km Driven */
             total_km_driven?: string | null;
             /** Vehicle Name */
