@@ -7,8 +7,15 @@ Tests cache operations, TTL expiration, decorator behavior, and statistics.
 import asyncio
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.utils.cache import InMemoryCache, cache, cached, clear_analytics_cache
+from app.utils.cache import (
+    InMemoryCache,
+    cache,
+    cached,
+    clear_analytics_cache,
+    invalidate_cache_for_vehicle,
+)
 
 
 @pytest.mark.unit
@@ -294,6 +301,39 @@ class TestCachedDecorator:
         result3 = await expensive_function(5, y=30)
         assert result3 == 35
         assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_the_key_ignores_which_session_asks(self):
+        """Two live sessions for one VIN share an entry; another VIN doesn't; a write clears it.
+
+        It keyed on id(session), so a hit depended on whether a new session
+        reused a freed one's address: usually, but not always.
+        """
+        calls: list[str] = []
+
+        @cached(ttl_seconds=300)
+        async def per_vin(db: AsyncSession, vin: str) -> str:
+            calls.append(vin)
+            return f"total for {vin}"
+
+        await cache.clear()
+        # Both alive at once, so they can't share an address.
+        first, second = AsyncSession(), AsyncSession()
+        try:
+            assert await per_vin(first, "VIN1") == "total for VIN1"
+            assert await per_vin(second, "VIN1") == "total for VIN1"
+            assert calls == ["VIN1"]
+
+            await per_vin(second, "VIN2")
+            assert calls == ["VIN1", "VIN2"]
+
+            await invalidate_cache_for_vehicle("VIN1")
+            await per_vin(first, "VIN1")
+            assert calls == ["VIN1", "VIN2", "VIN1"]
+        finally:
+            await first.close()
+            await second.close()
+            await cache.clear()
 
 
 @pytest.mark.unit

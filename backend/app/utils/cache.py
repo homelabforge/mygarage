@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
+
 
 class InMemoryCache:
     """Thread-safe in-memory cache with TTL support."""
@@ -20,11 +23,12 @@ class InMemoryCache:
         # Convert args and kwargs to a stable string representation
         key_parts = [func_name]
 
-        # Add positional args
+        # Positional args, minus the session. Results depend on the data, not on
+        # which session read it, and keying on id(session) only made a hit depend
+        # on whether a new session happened to reuse a freed one's address.
+        # Writes clear the cache instead (invalidate_cache_for_vehicle).
         for arg in args:
-            if hasattr(arg, "id"):  # For database sessions, use id
-                key_parts.append(f"session_{id(arg)}")
-            else:
+            if not isinstance(arg, AsyncSession | Session):
                 key_parts.append(str(arg))
 
         # Add keyword args (sorted for consistency)

@@ -387,7 +387,8 @@ async def test_analytics_caching(
 
     response2 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
     assert response2.status_code == 200
-    assert response2.json() == data1
+    # The part the extra fill-up would move, not the whole payload.
+    assert response2.json()["cost_analysis"] == data1["cost_analysis"]
 
     await invalidate_cache_for_vehicle(vin)
     response3 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
