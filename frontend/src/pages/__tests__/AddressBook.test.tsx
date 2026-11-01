@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, fireEvent, waitFor, screen, within } from '../../__tests__/test-utils' // selects by id (i18n mock renders keys)
 import AddressBook, { AddressBookForm, displayCategory } from '../AddressBook'
+import { validationError } from '../../__tests__/serverErrors'
 
 // vi.mock is hoisted above module-level consts, so spies must be created with vi.hoisted.
 const { get, post, put, del } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn() }))
@@ -395,5 +396,32 @@ describe('AddressBookForm: an untouched edit writes nothing it did not load', ()
     fireEvent.submit(formEl())
     await waitFor(() => expect(post).toHaveBeenCalled())
     expect((post.mock.calls.at(-1)?.[1] as Record<string, unknown>).source).toBe('manual')
+  })
+})
+
+describe('AddressBookForm: a rejected save', () => {
+  const banner = (): HTMLElement | null => screen.queryByText(/^Failed to addressBook\.saveAction\./)
+  const openAdd = (): void => {
+    render(<AddressBookForm entry={null} onClose={() => {}} onSuccess={() => {}} />)
+    fireEvent.change(businessInput(), { target: { value: 'Corner Fuel' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    post.mockRejectedValueOnce(new Error('Network Error'))
+    openAdd()
+    fireEvent.submit(formEl())
+
+    expect(await screen.findByText('Failed to addressBook.saveAction. Network Error')).toBeInTheDocument()
+    expect(document.getElementById('business_name-error')).toBeNull()
+  })
+
+  it('a 422 on business_name shows under it and no banner', async () => {
+    post.mockRejectedValueOnce(validationError({ business_name: 'String should have at most 150 characters' }))
+    openAdd()
+    fireEvent.submit(formEl())
+
+    await waitFor(() => expect(document.getElementById('business_name-error')).not.toBeNull())
+    expect(document.getElementById('business_name-error')).toHaveTextContent('String should have at most 150 characters')
+    expect(banner()).toBeNull()
   })
 })

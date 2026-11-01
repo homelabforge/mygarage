@@ -327,6 +327,7 @@ function VehicleEditForm({
         'vehicle_type',
         'fuel_type',
         'usage_unit',
+        'distance_unit',
         'current_hours',
         'def_tank_capacity_liters',
       ])

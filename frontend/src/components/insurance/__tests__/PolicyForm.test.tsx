@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import { render } from '../../../__tests__/test-utils'
 import type { InsurancePDFParseResponse, InsurancePolicy } from '../../../types/insurance'
 
@@ -520,3 +521,50 @@ describe('PolicyForm — code-review regressions', () => {
   })
 })
 
+describe('PolicyForm: a rejected submit (G1b-69)', () => {
+  const premiumRejected = {
+    isAxiosError: true,
+    message: 'Request failed with status code 422',
+    response: {
+      status: 422,
+      data: { detail: [{ type: 'decimal_parsing', loc: ['body', 'premium_amount'], msg: 'Input should be a valid decimal' }] },
+    },
+  }
+
+  it('toasts on a non-422 failure instead of staying silent', async () => {
+    createMutateAsync.mockRejectedValueOnce(new Error('Network Error'))
+    const user = userEvent.setup()
+    render(<PolicyForm mode="create" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await fillPolicy(user)
+    await addVehicle(user, RAM, 'Full Coverage', 0)
+    await user.click(screen.getByRole('button', { name: 'common:create' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    expect(toast.error).toHaveBeenCalledWith('Failed to insurance.saveAction. Network Error')
+    expect(document.getElementById('premium_amount-error')).toBeNull()
+  })
+
+  it('shows a bad premium under its own field and does not toast', async () => {
+    createMutateAsync.mockRejectedValueOnce(premiumRejected)
+    const user = userEvent.setup()
+    render(<PolicyForm mode="create" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await fillPolicy(user)
+    await addVehicle(user, RAM, 'Full Coverage', 0)
+    await user.click(screen.getByRole('button', { name: 'common:create' }))
+
+    await waitFor(() => expect(document.getElementById('premium_amount-error')).not.toBeNull())
+    expect(document.getElementById('premium_amount-error')).toHaveTextContent('Input should be a valid decimal')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('saves a comma-decimal premium as a number', async () => {
+    const user = userEvent.setup()
+    render(<PolicyForm mode="create" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    await fillPolicy(user, '1234,50')
+    await addVehicle(user, RAM, 'Full Coverage', 0)
+    await user.click(screen.getByRole('button', { name: 'common:create' }))
+
+    await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
+    expect(createMutateAsync.mock.calls[0][0]).toMatchObject({ premium_amount: 1234.5 })
+  })
+})

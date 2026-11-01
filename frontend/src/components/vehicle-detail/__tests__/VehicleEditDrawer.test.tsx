@@ -39,6 +39,7 @@ import { IMPERIAL_UNITS, UK_IMPERIAL_UNITS, makeDetailStats } from '../../../__t
 import { binarySystemFor } from '../../../types/units'
 import { UnitConverter } from '../../../utils/units'
 import { toast } from 'sonner'
+import { registeredFieldNames, validationError } from '../../../__tests__/serverErrors'
 import api from '../../../services/api'
 import VehicleEditDrawer from '../VehicleEditDrawer'
 
@@ -1074,5 +1075,57 @@ describe('VehicleEditDrawer: an untouched save writes nothing new', () => {
     await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
     const [, payload] = mockedApi.put.mock.calls[0] as [string, Record<string, unknown>]
     expect(payload.secondary_usage_enabled).toBe(true)
+  })
+})
+
+describe('VehicleEditDrawer: a 422 lands under the field it names', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // Diesel with a stored DEF capacity and both usages on, so every field the
+  // drawer can show is on screen at once.
+  const everyField: Vehicle = {
+    ...baseVehicle,
+    fuel_type: 'diesel',
+    def_tank_capacity_liters: '19.0',
+    secondary_usage_enabled: true,
+  }
+  const drawerForm = (): HTMLFormElement => document.getElementById('vehicle-edit-form') as HTMLFormElement
+  const namesWithoutTheirError = (names: string[]): string[] =>
+    names.filter((n) => !document.getElementById(`${n}-error`)?.textContent?.includes(`bad ${n}`))
+
+  it('a 422 on distance_unit shows under the odometer unit select and does not toast', async () => {
+    mockedApi.put.mockRejectedValueOnce(validationError({ distance_unit: 'Input should be km or mi' }))
+    renderVehicleEdit(everyField, { ...baseDetailStats, secondary_usage_enabled: true })
+    await screen.findByLabelText('edit.distanceUnit')
+    fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }))
+
+    await waitFor(() => expect(document.getElementById('distance_unit-error')).not.toBeNull())
+    expect(document.getElementById('distance_unit-error')).toHaveTextContent('Input should be km or mi')
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  // Named controls that aren't payload fields go here. None today: the two
+  // toggles are controlled and carry no name.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift: every control the drawer registers has to be in
+  // the server-error list, or a 422 on it turns into a generic toast.
+  // Mutant: drop any name from knownFields and this toasts.
+  it('guard: a 422 on every registered field attaches, so none is missing from knownFields', async () => {
+    renderVehicleEdit(everyField, { ...baseDetailStats, secondary_usage_enabled: true })
+    await screen.findByLabelText('edit.distanceUnit')
+    await screen.findByLabelText('edit.currentHours')
+    const names = registeredFieldNames(drawerForm(), UI_ONLY)
+    // The fields that drifted before have to be in the sweep, or it proves nothing.
+    expect(names).toEqual(expect.arrayContaining(['distance_unit', 'current_hours', 'def_tank_capacity_liters']))
+
+    mockedApi.put.mockRejectedValueOnce(validationError(Object.fromEntries(names.map((n) => [n, `bad ${n}`]))))
+    fireEvent.click(screen.getByRole('button', { name: 'edit.saveChanges' }))
+
+    await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
+    await waitFor(() => expect(namesWithoutTheirError(names)).toEqual([]))
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

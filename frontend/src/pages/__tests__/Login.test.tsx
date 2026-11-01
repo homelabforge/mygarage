@@ -4,6 +4,7 @@ import { cleanup, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
 import commonEn from '../../locales/en/common.json'
+import { validationError } from '../../__tests__/serverErrors'
 
 // The SSO sentences resolve against the real English bundle, so these tests read
 // what a person sees and a typo in common.json fails here. Every other key stays
@@ -26,10 +27,12 @@ vi.mock('react-i18next', () => {
   }
 })
 
-// Bypass AuthProvider by mocking the hook directly.
+// Bypass AuthProvider by mocking the hook directly. Hoisted so a test can
+// make the sign-in fail.
+const loginMock = vi.hoisted(() => vi.fn())
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({
-    login: vi.fn().mockResolvedValue({ id: 1, username: 'test' }),
+    login: loginMock,
     user: null,
   }),
 }))
@@ -64,6 +67,7 @@ let originalFetch: typeof globalThis.fetch
 
 beforeEach(() => {
   originalFetch = globalThis.fetch
+  loginMock.mockReset().mockResolvedValue({ id: 1, username: 'test' })
 })
 
 afterEach(() => {
@@ -225,5 +229,40 @@ describe('Login Page: SSO error from the redirect', () => {
     })
     expect(window.location.pathname).toBe('/login')
     expect(screen.getByText(SSO_SENTENCES.expired)).toBeInTheDocument()
+  })
+})
+
+describe('Login Page: a rejected sign-in', () => {
+  const signIn = async (): Promise<void> => {
+    const user = userEvent.setup()
+    await user.type(await screen.findByPlaceholderText(USERNAME_PLACEHOLDER), 'jamey')
+    await user.type(screen.getByPlaceholderText(PASSWORD_PLACEHOLDER), 'hunter22')
+    await user.click(screen.getByRole('button', { name: 'login.submit' }))
+  }
+  // The field messages are alerts too, so the banner is the alert that isn't one of them.
+  const banner = (): HTMLElement | null =>
+    screen.queryAllByRole('alert').find((el) => el.tagName !== 'P') ?? null
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    mockOidcConfig({ enabled: false })
+    loginMock.mockRejectedValueOnce(new Error('Network Error'))
+    render(<Login />)
+    await signIn()
+
+    await waitFor(() => expect(banner()).toHaveTextContent('Failed to login.signInAction. Network Error'))
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+  })
+
+  it('a 422 on username shows under username and no banner', async () => {
+    mockOidcConfig({ enabled: false })
+    loginMock.mockRejectedValueOnce(validationError({ username: 'String should have at most 100 characters' }))
+    render(<Login />)
+    await signIn()
+
+    const username = screen.getByPlaceholderText(USERNAME_PLACEHOLDER)
+    await waitFor(() =>
+      expect(username.parentElement).toHaveTextContent('String should have at most 100 characters')
+    )
+    expect(banner()).toBeNull()
   })
 })

@@ -6,6 +6,7 @@ import { presetUnitsFor, type UnitSet } from '../../types/units'
 import { setActiveLocale } from '../../constants/i18n'
 import i18next from 'i18next'
 import commonEn from '../../locales/en/common.json'
+import { registeredFieldNames, validationError } from '../../__tests__/serverErrors'
 
 // Mock the supplies query hooks so this stays a unit test — no real network
 // calls needed. The api layer itself is already mocked globally (setup.ts
@@ -885,5 +886,70 @@ describe('SupplyForm: the volume unit picker', () => {
 
     await waitFor(() => expect(updateSupplyMock).toHaveBeenCalled())
     expect('volume_unit' in lastPayload(updateSupplyMock)).toBe(false)
+  })
+})
+
+describe('SupplyForm: a rejected save', () => {
+  const supplyForm = (): HTMLFormElement => document.getElementById('supply-form') as HTMLFormElement
+  const banner = (): HTMLElement | null => screen.queryByText(/^Failed to supplies\.saveAction\./)
+  const openAdd = (): void => {
+    render(<Supplies />)
+    fireEvent.click(screen.getByText('supplies.addSupply'))
+    fireEvent.change(document.getElementById('name')!, { target: { value: 'Brake Fluid' } })
+  }
+
+  it('a non-422 failure shows the banner and no field error', async () => {
+    createSupplyMock.mockRejectedValueOnce(new Error('Network Error'))
+    openAdd()
+    fireEvent.submit(supplyForm())
+
+    expect(await screen.findByText('Failed to supplies.saveAction. Network Error')).toBeInTheDocument()
+    expect(document.getElementById('name-error')).toBeNull()
+  })
+
+  it('a 422 on name shows under name and no banner', async () => {
+    createSupplyMock.mockRejectedValueOnce(validationError({ name: 'Name already in use' }))
+    openAdd()
+    fireEvent.submit(supplyForm())
+
+    await waitFor(() => expect(document.getElementById('name-error')).not.toBeNull())
+    expect(document.getElementById('name-error')).toHaveTextContent('Name already in use')
+    expect(banner()).toBeNull()
+  })
+
+  it('a 422 on barcode shows under barcode and no banner', async () => {
+    createSupplyMock.mockRejectedValueOnce(validationError({ barcode: 'String should have at most 64 characters' }))
+    openAdd()
+    fireEvent.change(document.getElementById('barcode')!, { target: { value: '0123456789012' } })
+    fireEvent.submit(supplyForm())
+
+    await waitFor(() => expect(createSupplyMock).toHaveBeenCalled())
+    await waitFor(() => expect(document.getElementById('barcode-error')).not.toBeNull())
+    expect(document.getElementById('barcode-error')).toHaveTextContent('String should have at most 64 characters')
+    expect(banner()).toBeNull()
+  })
+
+  // Named controls that aren't payload fields go here. None today: the active
+  // toggle is controlled and carries no name, and the scan button is a button.
+  const UI_ONLY: string[] = []
+
+  // Guard for knownFields drift: a 422 on any field the form registers has to
+  // attach, never fall through to the banner. Edit mode on a volume supply shows
+  // every field. Mutant: drop any name from knownFields and the banner shows.
+  it('guard: a 422 on every registered field attaches, so none is missing from knownFields', async () => {
+    render(<Supplies />)
+    fireEvent.click(screen.getByLabelText('common:edit'))
+    const names = registeredFieldNames(supplyForm(), UI_ONLY)
+    // The field that drifted before has to be in the sweep, or it proves nothing.
+    expect(names).toEqual(expect.arrayContaining(['barcode', 'volume_unit']))
+
+    updateSupplyMock.mockRejectedValueOnce(validationError(Object.fromEntries(names.map((n) => [n, `bad ${n}`]))))
+    fireEvent.submit(supplyForm())
+
+    await waitFor(() => expect(updateSupplyMock).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(names.filter((n) => !document.getElementById(`${n}-error`)?.textContent?.includes(`bad ${n}`))).toEqual([])
+    )
+    expect(banner()).toBeNull()
   })
 })
