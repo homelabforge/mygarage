@@ -120,4 +120,21 @@ describe('TireList drawers hold their units while open', () => {
     // 50000 mi x 1.609344 = 80467.2 km.
     expect(h.mutate.mock.calls[0][0].dismounted_odometer_km).toBe(80467.2)
   })
+
+  it('a flip while the reading drawer is closed reaches its next open: label, seed and save', () => {
+    render(<TireList vin="1HGCM82633A004352" />)
+    flipToMetric()
+
+    fireEvent.click(screen.getByText('tireList.addReading'))
+
+    expect(labelOf('reading-pressure')).toMatch(/\(kPa\)/)
+    expect(labelOf('reading-tread')).toMatch(/\(mm\)/)
+    expect((document.getElementById('reading-pressure') as HTMLInputElement).value).toBe('240')
+    fireEvent.change(document.getElementById('reading-pressure')!, { target: { value: '250' } })
+    fireEvent.click(screen.getByText('common:save'))
+    const payload = h.mutate.mock.calls[0][0]
+    // Typed in kPa, stored as kPa; the untouched tread keeps its 7.5 mm.
+    expect(payload.pressure_kpa).toBe(250)
+    expect(payload.tread_depth_mm).toBe(7.5)
+  })
 })

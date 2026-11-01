@@ -248,10 +248,13 @@ const SpecsEditor = withUnitSession(function SpecsEditor({
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<SpecForm>(() => seedForm(vehicle, u, oilFormat))
 
-  // The pin only moves on an open, so a units change mid-edit keeps the draft.
+  // Seed on open, or if the editor lands on another vehicle. Not on a fresh
+  // vehicle object or a units change mid-edit: either would wipe the draft.
+  // The units come from the pin taken on this open, same as the save.
   useEffect(() => {
     if (open) setForm(seedForm(vehicle, u, oilFormat))
-  }, [open, vehicle, u, oilFormat])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, vin])
 
   /** `origins` is excluded from the key type so a field write cannot replace it. */
   const setField = (key: Exclude<keyof SpecForm, 'origins'>, value: string) => {
