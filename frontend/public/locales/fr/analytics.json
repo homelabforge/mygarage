@@ -436,7 +436,6 @@
   },
   "reports": {
     "title": "Rapports et exportation",
-    "dateRangeTitle": "Sélection de la plage de dates",
     "startDate": "Date de début",
     "endDate": "Date de fin",
     "pdfReports": "Rapports PDF",

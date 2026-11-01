@@ -776,6 +776,7 @@
       "tryDifferentRange": "Try selecting a different time range or parameters"
     },
     "dtcs": {
+      "addNotesFor": "Add notes for {{code}}",
       "addNotesPlaceholder": "Add notes...",
       "categories": {
         "body": "Body",

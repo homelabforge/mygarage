@@ -71,12 +71,16 @@ describe('MobileTabBar', () => {
 
   it.each(['/address-book', '/insurance', '/poi-finder', '/settings'])('More shows active on %s', (path) => {
     at(path)
-    expect(screen.getByRole('button', { name: 'More' })).toHaveClass('text-(--accent-fg)', 'bg-(--accent-soft)')
+    const more = screen.getByRole('button', { name: 'More' })
+    expect(more).toHaveClass('text-(--accent-fg)', 'bg-(--accent-soft)')
+    // Colour alone told a screen reader nothing about where it was.
+    expect(more).toHaveAttribute('aria-current', 'true')
   })
 
   it('More is not active on a bar route', () => {
     at('/supplies')
     expect(screen.getByRole('button', { name: 'More' })).not.toHaveClass('bg-(--accent-soft)')
+    expect(screen.getByRole('button', { name: 'More' })).not.toHaveAttribute('aria-current')
   })
 
   it('applies the retokenized accent active class on the current route', () => {
@@ -94,6 +98,8 @@ describe('MobileTabBar', () => {
   it('shares the row evenly, truncates labels and pads for the home indicator', () => {
     at('/')
     expect(bar()).toHaveClass('pb-safe-bottom')
+    // Tight enough that ru "Календарь" fits its slot at 360.
+    expect(bar().firstElementChild).toHaveClass('px-1', 'gap-0.5')
     const items = [...within(bar()).getAllByRole('link'), within(bar()).getByRole('button')]
     for (const item of items) {
       expect(item).toHaveClass('flex-1', 'min-w-0')

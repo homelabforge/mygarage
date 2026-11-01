@@ -498,7 +498,7 @@
   },
   "reports": {
     "title": "Reports & Export",
-    "dateRangeTitle": "Date Range Selection",
+    "rangeAndYearTitle": "Date Range and Year",
     "startDate": "Start Date",
     "endDate": "End Date",
     "pdfReports": "PDF Reports",

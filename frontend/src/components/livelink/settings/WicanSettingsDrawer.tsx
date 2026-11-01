@@ -260,7 +260,7 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
                   />
                   <button
                     type="button"
-                    onClick={() => void copyToClipboard(settings.ingestion_url ?? '', t('modal.livelink.urlLabel'))}
+                    onClick={() => void copyToClipboard(settings.ingestion_url ?? '', t('modal.ingestionUrl'))}
                     className="px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text hover:bg-garage-bg"
                     aria-label={t('modal.copyValue', { label: t('modal.ingestionUrl') })}
                   >
@@ -293,7 +293,7 @@ export default function WicanSettingsDrawer({ open, tab, onClose, onChanged }: P
                       </button>
                       <button
                         type="button"
-                        onClick={() => void copyToClipboard(newToken, t('modal.livelink.tokenLabel'))}
+                        onClick={() => void copyToClipboard(newToken, t('modal.globalApiToken'))}
                         aria-label={t('modal.copyValue', { label: t('modal.globalApiToken') })}
                         className="px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text hover:bg-garage-bg"
                       >

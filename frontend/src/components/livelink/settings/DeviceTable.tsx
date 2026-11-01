@@ -267,7 +267,12 @@ export default function DeviceTable({
                 />
                 <button
                   type="button"
-                  onClick={() => void copyToClipboard(deviceTokenModal.token ?? '', t('modal.livelink.tokenLabel'))}
+                  onClick={() =>
+                    void copyToClipboard(
+                      deviceTokenModal.token ?? '',
+                      t('modal.livelink.tokenForDevice', { deviceId: deviceTokenModal.deviceId }),
+                    )
+                  }
                   aria-label={t('modal.copyValue', {
                     label: t('modal.livelink.tokenForDevice', { deviceId: deviceTokenModal.deviceId }),
                   })}

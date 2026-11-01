@@ -153,7 +153,7 @@ describe('LiveLinkDTCsTab — notes edit + filter + a11y', () => {
     render(<LiveLinkDTCsTab vin="V1" />)
     await screen.findByText('P0301')
     // trigger button reads the placeholder (no notes yet)
-    fireEvent.click(screen.getByRole('button', { name: 'livelink.dtcs.addNotesPlaceholder P0301' }))
+    fireEvent.click(screen.getByRole('button', { name: 'livelink.dtcs.addNotesFor P0301' }))
     await user.type(screen.getByPlaceholderText('livelink.dtcs.addNotesPlaceholder'), 'oil leak')
     fireEvent.click(screen.getByRole('button', { name: 'livelinkDtcs.saveNotes' }))
     await waitFor(() => expect(updateVehicleDTC.mock.calls).toStrictEqual([['V1', 42, { user_notes: 'oil leak' }]]))
@@ -177,12 +177,13 @@ describe('LiveLinkDTCsTab — notes edit + filter + a11y', () => {
 describe('LiveLinkDTCsTab: the notes controls name their DTC (G2b-20)', () => {
   const twoCodes = () => list({ dtcs: [activeCriticalDtc, activeInfoDtc], active_count: 2, critical_count: 1, total: 2 })
 
+  // An empty trigger read "Add notes... P0420"; it says "Add notes for P0420" now.
   it('each notes trigger names its code, so two empty ones sound different', async () => {
     getVehicleDTCs.mockResolvedValue(twoCodes())
     render(<LiveLinkDTCsTab vin="V1" />)
     await screen.findByText('P0301')
-    expect(screen.getByRole('button', { name: 'livelink.dtcs.addNotesPlaceholder P0301' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'livelink.dtcs.addNotesPlaceholder P0420' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'livelink.dtcs.addNotesFor P0301' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'livelink.dtcs.addNotesFor P0420' })).toBeInTheDocument()
   })
 
   it('a trigger with notes reads the notes first, then the code', async () => {
@@ -195,7 +196,7 @@ describe('LiveLinkDTCsTab: the notes controls name their DTC (G2b-20)', () => {
     getVehicleDTCs.mockResolvedValue(twoCodes())
     render(<LiveLinkDTCsTab vin="V1" />)
     await screen.findByText('P0420')
-    fireEvent.click(screen.getByRole('button', { name: 'livelink.dtcs.addNotesPlaceholder P0420' }))
+    fireEvent.click(screen.getByRole('button', { name: 'livelink.dtcs.addNotesFor P0420' }))
     expect(screen.getByRole('textbox', { name: 'livelink.dtcs.notesFor P0420' })).toHaveFocus()
   })
 })

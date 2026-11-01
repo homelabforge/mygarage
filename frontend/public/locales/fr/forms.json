@@ -446,11 +446,9 @@
       "stopped": "Arrêté",
       "tokenConfigured": "Jeton configuré",
       "tokenForDevice": "Jeton pour l'appareil {{deviceId}}",
-      "tokenLabel": "Jeton",
       "unknown": "Inconnu",
       "unlinked": "Non lié",
       "updateBadge": "Mise à jour",
-      "urlLabel": "URL",
       "viewRelease": "Voir la version"
     },
     "transfer": {

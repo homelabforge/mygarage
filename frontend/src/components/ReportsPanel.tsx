@@ -101,11 +101,11 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
         <h2 className="text-2xl font-bold text-text">{t('reports.title')}</h2>
       </div>
 
-      {/* Date Range Selector */}
+      {/* Date range and year */}
       <Card>
         <h3 className="text-lg font-semibold text-text mb-4 flex items-center gap-2">
           <Calendar aria-hidden="true" className="w-5 h-5 text-(--accent-fg)" />
-          {t('reports.dateRangeTitle')}
+          {t('reports.rangeAndYearTitle')}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field id="report-start-date" label={t('reports.startDate')}>
@@ -160,7 +160,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
                 {t('reports.annualCostDesc')}
               </p>
             </div>
-            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('cost-summary')} disabled={isGenerating || selectedYear === null} aria-label={t('reports.downloadPdfFor', { report: t('reports.annualCostTitle') })} className="ml-4">
+            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('cost-summary')} disabled={isGenerating || selectedYear === null} aria-label={t('reports.downloadPdfFor', { report: t('reports.annualCostTitle') })} aria-describedby="report-year-hint" className="ml-4">
               <span className="hidden sm:inline">{t('reports.downloadPdf')}</span>
             </Button>
           </div>
@@ -173,7 +173,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
                 {t('reports.taxDeductionDesc')}
               </p>
             </div>
-            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('tax-deduction')} disabled={isGenerating || selectedYear === null} aria-label={t('reports.downloadPdfFor', { report: t('reports.taxDeductionTitle') })} className="ml-4">
+            <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('tax-deduction')} disabled={isGenerating || selectedYear === null} aria-label={t('reports.downloadPdfFor', { report: t('reports.taxDeductionTitle') })} aria-describedby="report-year-hint" className="ml-4">
               <span className="hidden sm:inline">{t('reports.downloadPdf')}</span>
             </Button>
           </div>

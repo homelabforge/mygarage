@@ -7,6 +7,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import type { IntegrationTab, LiveLinkDevice } from '@/types/livelink'
+import { toast } from 'sonner'
+import { Drawer } from '@/components/ui'
 
 vi.mock('react-i18next', async () => (await import('@/__tests__/i18nEn')).reactI18nextEn())
 
@@ -81,6 +83,13 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks()
 })
+
+/** jsdom has no clipboard. */
+function stubClipboard(): ReturnType<typeof vi.fn> {
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  return writeText
+}
 
 describe('DeviceRow names', () => {
   const renderTable = (): void => {
@@ -181,6 +190,32 @@ describe('DeviceTable token dialog', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Device Token Generated' })).toBeNull())
   })
+
+  it('says it copied the token for that device', async () => {
+    // The toast said "Token copied" for a button named "Copy Token for device d1".
+    const writeText = stubClipboard()
+    const dialog = await generate()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy Token for device d1' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Token for device d1 copied to clipboard'))
+    expect(writeText).toHaveBeenCalledWith('dev-tok-1')
+  })
+
+  it('opened inside a settings drawer, Escape closes only the token dialog', async () => {
+    // Guard: passes on main too. Drop `nested` from the token Drawer and Escape closes the settings drawer as well.
+    const closeSettings = vi.fn()
+    render(
+      <Drawer open onClose={closeSettings} title="WiCAN settings">
+        <DeviceTable devices={[wican('d1', 'Garage dongle')]} vehicles={[]} onChanged={vi.fn()} />
+      </Drawer>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate device token: Garage dongle' }))
+    const token = await screen.findByRole('dialog', { name: 'Device Token Generated' })
+    // From inside the token dialog, the way a real keypress on its focused field arrives.
+    fireEvent.keyDown(within(token).getByRole('textbox', { name: 'Token for device d1' }), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Device Token Generated' })).toBeNull())
+    expect(closeSettings).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'WiCAN settings' })).toBeInTheDocument()
+  })
 })
 
 describe('TopicMapEditor names', () => {
@@ -253,9 +288,13 @@ describe('WicanSettingsDrawer names', () => {
     const tab = { id: 'wican', label: 'WiCAN', kind: 'wican' } as unknown as IntegrationTab
     render(<WicanSettingsDrawer open tab={tab} onClose={vi.fn()} onChanged={vi.fn()} />)
 
-    expect(await screen.findByRole('button', { name: 'Copy Ingestion URL' })).toBeInTheDocument()
+    stubClipboard()
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy Ingestion URL' }))
+    // The toast said "URL copied" for a button named "Copy Ingestion URL".
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Ingestion URL copied to clipboard'))
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate' }))
-    expect(await screen.findByRole('button', { name: 'Copy Global API Token' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy Global API Token' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Global API Token copied to clipboard'))
     // A fresh global token arrives shown.
     fireEvent.click(screen.getByRole('button', { name: 'Hide Global API Token' }))
     expect(screen.getByRole('button', { name: 'Show Global API Token' })).toBeInTheDocument()

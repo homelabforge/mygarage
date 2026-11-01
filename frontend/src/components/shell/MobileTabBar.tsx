@@ -29,7 +29,8 @@ export default function MobileTabBar() {
   return (
     <>
       <nav data-tab-bar className="fixed bottom-0 left-0 right-0 z-nav border-t border-hair bg-(--color-nav) pb-safe-bottom backdrop-blur-[12px] md:hidden">
-        <div className="flex h-16 items-center gap-1 px-2">
+        {/* Tight gaps so ru "Календарь" fits its fifth of a 360 px row. */}
+        <div className="flex h-16 items-center gap-0.5 px-1">
           {MOBILE_NAV_ITEMS.map((item) => {
             const Icon = item.icon
             return (
@@ -48,6 +49,8 @@ export default function MobileTabBar() {
             type="button"
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
+            // The page is one of More's, so More is where you are.
+            aria-current={onMoreRoute ? 'true' : undefined}
             onClick={() => setMoreOpen(true)}
             className={`${SLOT} ${onMoreRoute ? ACTIVE : IDLE}`}
           >

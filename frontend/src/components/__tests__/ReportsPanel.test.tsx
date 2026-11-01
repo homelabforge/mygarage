@@ -183,4 +183,19 @@ describe('ReportsPanel: one year control for the yearly reports (D4)', () => {
     expect(screen.getByRole('button', { name: ALL_CSV })).toBeEnabled()
     expect(year).toHaveAccessibleDescription(en.allYearsCsvOnly)
   })
+
+  it('the held-back PDFs point at the note that says why', () => {
+    // Disabled with no reason a screen reader could reach.
+    render(<ReportsPanel vin="V1" />)
+    fireEvent.change(screen.getByRole('combobox', { name: en.selectYear }), { target: { value: '' } })
+    expect(screen.getByRole('button', { name: COST_PDF })).toHaveAccessibleDescription(en.allYearsCsvOnly)
+    expect(screen.getByRole('button', { name: TAX_PDF })).toHaveAccessibleDescription(en.allYearsCsvOnly)
+  })
+
+  it('the card holding the year control is headed for both', () => {
+    // It was still "Date Range Selection" with a year select in it.
+    render(<ReportsPanel vin="V1" />)
+    expect(screen.getByRole('heading', { name: 'Date Range and Year' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Date Range Selection' })).toBeNull()
+  })
 })

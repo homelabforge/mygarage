@@ -280,11 +280,14 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                     </Button>
                   </div>
                 ) : (
-                  // Named by its own text then the code: every empty one reads
-                  // "Add notes..." otherwise.
+                  // Notes read their own text then the code; an empty one reads
+                  // "Add notes for P0420". Every empty one is "Add notes..." otherwise.
                   <Button
                     id={`${rowIdPrefix}-notes-${dtc.id}`}
-                    aria-labelledby={`${rowIdPrefix}-notes-${dtc.id} ${rowIdPrefix}-code-${dtc.id}`}
+                    aria-labelledby={
+                      dtc.user_notes ? `${rowIdPrefix}-notes-${dtc.id} ${rowIdPrefix}-code-${dtc.id}` : undefined
+                    }
+                    aria-label={dtc.user_notes ? undefined : t('livelink.dtcs.addNotesFor', { code: dtc.code })}
                     size="sm"
                     variant="ghost"
                     icon={FileText}
