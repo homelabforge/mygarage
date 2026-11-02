@@ -149,6 +149,27 @@ def clean_vin(value: Any) -> str | None:
     return candidate if _VIN_RE.match(candidate) else None
 
 
+#: What a pre-VIN chassis number in field E may look like (#226): shorter
+#: than a VIN, with a digit, as printed.
+_CHASSIS_RE = re.compile(r"^[A-Z0-9][A-Z0-9 ./-]*[A-Z0-9]$")
+CHASSIS_NOTE = "E: not a 17-character VIN, read as the chassis number"
+
+
+def clean_chassis(value: Any) -> str | None:
+    """Field E when it's an old chassis number rather than a VIN, or None.
+
+    Only a SHORT value counts: 17 or more characters that fail the VIN check
+    are a misread VIN the person should type, not a chassis number.
+    """
+    if not isinstance(value, str):
+        return None
+    printed = " ".join(value.split()).upper()
+    compact = re.sub(r"[^A-Z0-9]", "", printed)
+    if not 3 <= len(compact) < 17 or not any(ch.isdigit() for ch in compact):
+        return None
+    return printed if len(printed) <= 64 and _CHASSIS_RE.match(printed) else None
+
+
 def iso_date(value: Any) -> str | None:
     """``YYYY-MM-DD`` from a printed ``dd/mm/yyyy``, ``dd.mm.yyyy`` or ISO date."""
     if isinstance(value, date):
@@ -353,6 +374,8 @@ class RegistrationData(DocumentData):
     type_variant_version: str | None = None
     commercial_name: str | None = None
     vin: str | None = None
+    #: Field E when it's a short pre-VIN chassis number (#226); never the VIN.
+    chassis_number: str | None = None
     max_mass_kg: int | None = None
     mass_in_service_kg: int | None = None
     eu_category: str | None = None
@@ -389,6 +412,7 @@ class RegistrationData(DocumentData):
                 "type_variant_version": self.type_variant_version,
                 "commercial_name": self.commercial_name,
                 "vin": self.vin,
+                "chassis_number": self.chassis_number,
                 "max_mass_kg": self.max_mass_kg,
                 "mass_in_service_kg": self.mass_in_service_kg,
                 "eu_category": self.eu_category,
@@ -411,7 +435,7 @@ class RegistrationData(DocumentData):
 
     def get_validation_warnings(self) -> list[str]:
         warnings = list(self.warnings)
-        if not self.vin:
+        if not self.vin and not self.chassis_number:
             warnings.append("VIN (E) not found")
         if not self.first_registration:
             warnings.append("Date of first registration (B) not found")
@@ -453,6 +477,13 @@ def _assign(data: RegistrationData, code: str, raw: Any) -> bool:
     value: Any
     if name == "vin":
         value = clean_vin(raw)
+        if value is None and data.chassis_number is None:
+            chassis = clean_chassis(raw)
+            if chassis is not None:
+                data.chassis_number = chassis
+                data.field_confidence["chassis_number"] = "medium"
+                data.warnings.append(CHASSIS_NOTE)
+                return True
     elif name in ("first_registration", "last_inspection"):
         value = iso_date(raw)
     elif name == "plate":

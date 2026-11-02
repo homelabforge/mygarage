@@ -50,6 +50,7 @@ from app.services.vehicle_service import VehicleService
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.vehicle_columns import fit_to_column
+from app.utils.vehicle_key import display_identifier, has_real_vin, identifier_text
 
 logger = logging.getLogger(__name__)
 
@@ -382,6 +383,10 @@ class ApplyOutcome:
     inspection_recorded: bool = False
 
 
+def _compact(value: str | None) -> str:
+    return "".join(ch for ch in (value or "").upper() if ch.isalnum())
+
+
 def _is_empty(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
 
@@ -403,12 +408,20 @@ async def apply_to_vehicle(
     """
     outcome = ApplyOutcome()
     update: dict[str, Any] = {}
+    # Named by what people see: a vehicle without a VIN (#226) shows its
+    # serial, never its generated key.
+    own_id = identifier_text(vehicle) or "it has no identifier"
+    chassis = result.data.chassis_number
+    if chassis and _compact(chassis) != _compact(display_identifier(vehicle)[1]):
+        result.warnings.append(
+            f"The certificate's chassis number {chassis} is not this vehicle's ({own_id})"
+        )
     for key, value in result.vehicle_patch.items():
         if key == "vin":
-            if value != vehicle.vin:
+            if not has_real_vin(vehicle) or value != vehicle.vin:
                 outcome.skipped.append("vin")
                 result.warnings.append(
-                    f"The certificate's VIN {value} is not this vehicle's ({vehicle.vin})"
+                    f"The certificate's VIN {value} is not this vehicle's ({own_id})"
                 )
             continue
         if key == "vehicle_type":

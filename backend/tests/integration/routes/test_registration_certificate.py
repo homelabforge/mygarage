@@ -428,6 +428,89 @@ class TestImport:
         assert vehicle["make"] == "RENAULT"
         assert vehicle["model"] == "CLIO"
 
+    @pytest.mark.parametrize(
+        ("e_value", "warning"),
+        [
+            pytest.param(
+                "VF1RFB00X56123456",
+                "The certificate's VIN VF1RFB00X56123456 is not this vehicle's (Serial KBT-9)",
+                id="a-vin",
+            ),
+            pytest.param(
+                "1121234567",
+                "The certificate's chassis number 1121234567 is not this vehicle's (Serial KBT-9)",
+                id="a-chassis-number",
+            ),
+        ],
+    )
+    async def test_a_vehicle_without_a_vin_keeps_its_key_and_identifier(
+        self, client: AsyncClient, auth_headers, e_value: str, warning: str
+    ):
+        """#226 / F-6(a): the import never writes the certificate's E into the
+        key or the identifier, and the mismatch note names the serial, never
+        the generated key."""
+        created = await client.post(
+            "/api/vehicles",
+            headers=auth_headers,
+            json={
+                "nickname": "rct-tractor",
+                "vehicle_type": "Tractor",
+                "identifier_type": "serial",
+                "identifier": "KBT-9",
+            },
+        )
+        assert created.status_code == 201, created.text
+        key = created.json()["vin"]
+        text = _certificate_text(e_value, first_registration="12/03/2023", last_inspection=None)
+        try:
+            with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
+                r = await client.post(
+                    f"/api/vehicles/{key}/registration-certificate?overwrite=true",
+                    headers=auth_headers,
+                    files=_upload(_text_pdf(text)),
+                )
+            assert r.status_code == 201, r.text
+            warnings = r.json()["parse"]["warnings"]
+            assert warning in warnings
+            assert not any(key in w for w in warnings)
+            vehicle = (await client.get(f"/api/vehicles/{key}", headers=auth_headers)).json()
+            assert vehicle["vin"] == key
+            assert vehicle["identifier_type"] == "serial"
+            assert vehicle["identifier"] == "KBT-9"
+            assert vehicle["make"] == "RENAULT"
+        finally:
+            await client.delete(f"/api/vehicles/{key}", headers=auth_headers)
+
+    async def test_the_matching_chassis_number_says_nothing(
+        self, client: AsyncClient, auth_headers
+    ):
+        created = await client.post(
+            "/api/vehicles",
+            headers=auth_headers,
+            json={
+                "nickname": "rct-4l",
+                "vehicle_type": "Car",
+                "identifier_type": "chassis",
+                "identifier": "1121234567",
+            },
+        )
+        assert created.status_code == 201, created.text
+        key = created.json()["vin"]
+        text = _certificate_text(
+            "1121234567", first_registration="12/03/2023", last_inspection=None
+        )
+        try:
+            with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
+                r = await client.post(
+                    f"/api/vehicles/{key}/registration-certificate",
+                    headers=auth_headers,
+                    files=_upload(_text_pdf(text)),
+                )
+            assert r.status_code == 201, r.text
+            assert not any("is not this vehicle's" in w for w in r.json()["parse"]["warnings"])
+        finally:
+            await client.delete(f"/api/vehicles/{key}", headers=auth_headers)
+
     async def test_reader_409_files_nothing(self, client: AsyncClient, auth_headers, db_session):
         vin = await _create_vehicle(client, auth_headers)
         with patch(

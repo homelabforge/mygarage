@@ -183,6 +183,61 @@ class TestFrenchCertificate:
         assert "VIN (E) not found" in data.get_validation_warnings()
 
 
+class TestShortChassisNumber:
+    """#226: an old vehicle's field E is a chassis number, not a 17-character
+    VIN. It comes back as `chassis_number` (the wizard goes to No VIN with it)
+    instead of being dropped, with a note rather than a "dropped" warning."""
+
+    def test_the_text_path_keeps_a_short_e_as_the_chassis_number(self, parser):
+        data = parser.parse(FR_SIV.replace("E VF1RFB00X56123456", "E R1121 1234567"))
+        assert data.vin is None
+        assert data.chassis_number == "R1121 1234567"
+        assert data.to_dict()["chassis_number"] == "R1121 1234567"
+        assert data.to_dict()["vin"] is None
+        warnings = data.get_validation_warnings()
+        assert warnings == ["E: not a 17-character VIN, read as the chassis number"]
+        assert not any("dropped" in w or "not found" in w for w in warnings)
+
+    def test_the_model_path_keeps_a_short_e_as_the_chassis_number(self):
+        data = from_llm_fields({"country": "FR", "D1": "Renault", "E": "1121234567"})
+        assert data.vin is None
+        assert data.chassis_number == "1121234567"
+        assert data.warnings == ["E: not a 17-character VIN, read as the chassis number"]
+        assert "VIN (E) not found" not in data.get_validation_warnings()
+
+    def test_a_full_vin_is_never_a_chassis_number(self, parser):
+        data = parser.parse(FR_SIV)
+        assert data.vin == "VF1RFB00X56123456"
+        assert data.chassis_number is None
+        assert data.to_dict()["chassis_number"] is None
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            pytest.param("VF1RFB00X5612345O", id="17-chars-misread-vin"),
+            pytest.param("VF1RFB00X561234567", id="18-chars"),
+            pytest.param("AB", id="too-short"),
+            pytest.param("INCONNU", id="no-digit"),
+        ],
+    )
+    def test_what_is_not_a_chassis_number_is_still_dropped(self, raw):
+        """A 17- or 18-character near-VIN is a misread VIN the person should
+        type, not an old chassis number; a word or a stub is noise."""
+        data = from_llm_fields({"E": raw})
+        assert data.vin is None
+        assert data.chassis_number is None
+        assert [w.split(":")[0] for w in data.warnings] == ["E"]
+        assert "dropped" in data.warnings[0]
+
+    def test_the_chassis_number_never_enters_the_vehicle_patch(self, parser):
+        patch, dropped = vehicle_patch(
+            parser.parse(FR_SIV.replace("E VF1RFB00X56123456", "E 1121234567"))
+        )
+        assert dropped == []
+        assert "vin" not in patch
+        assert "1121234567" not in patch.values()
+
+
 class TestOtherCountries:
     def test_luxembourg_label_above_value(self, parser):
         data = parser.parse(LU_SNCA)
