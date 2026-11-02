@@ -176,12 +176,10 @@ export default function RegistrationCertificateImport({
     setConsentHost(null)
     try {
       if (vin) {
-        const result = await registrationCertificateService.importForVehicle(
-          vin,
-          file,
+        const result = await registrationCertificateService.importForVehicle(vin, file, {
           overwrite,
           allowExternalVision,
-        )
+        })
         setParse(result.parse)
         setOutcome(result)
         onImported?.(result)

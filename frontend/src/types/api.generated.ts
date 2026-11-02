@@ -3600,6 +3600,9 @@ export interface paths {
         /**
          * Parse Registration Certificate
          * @description Read a certificate and return what it would fill. Writes nothing.
+         *
+         *     The read is kept for 30 minutes under ``parse_token``, so the import that
+         *     files the certificate on the new vehicle does not read it a second time.
          */
         post: operations["parse_registration_certificate_api_registration_certificate_parse_post"];
         delete?: never;
@@ -6476,11 +6479,14 @@ export interface paths {
         put?: never;
         /**
          * Import Registration Certificate
-         * @description Store the certificate as a document, fill the vehicle, record X.1.
+         * @description Store the certificate as a document, fill the vehicle, record X.1,
+         *     and create the suggested tax records named in ``tax_codes``.
          *
          *     Owner only: it writes the vehicle row. The file is kept under the
          *     vehicle's documents whatever the read found, so a certificate a model
-         *     could not read is still filed.
+         *     could not read is still filed. With a ``parse_token`` from this user's
+         *     parse of this same file, that read is reused; otherwise (expired, another
+         *     file) the file is read again, consent included.
          */
         post: operations["import_registration_certificate_api_vehicles__vin__registration_certificate_post"];
         delete?: never;
@@ -8905,6 +8911,16 @@ export interface components {
         Body_import_registration_certificate_api_vehicles__vin__registration_certificate_post: {
             /** File */
             file: string;
+            /**
+             * Parse Token
+             * @description The parse route's token for this same file: reuse that read
+             */
+            parse_token?: string | null;
+            /**
+             * Tax Codes
+             * @description The suggested tax records to create, by code (Y.1, Y.3, Y.6)
+             */
+            tax_codes?: string[] | null;
         };
         /** Body_import_service_csv_api_import_vehicles__vin__service_csv_post */
         Body_import_service_csv_api_import_vehicles__vin__service_csv_post: {
@@ -15525,6 +15541,11 @@ export interface components {
              * @description The vehicle fields left alone (already set, and overwrite was off)
              */
             skipped: string[];
+            /**
+             * Taxes Created
+             * @description The certificate codes (Y.1, Y.3, Y.6) whose suggested tax record was created
+             */
+            taxes_created?: string[];
         };
         /**
          * RegistrationParseResponse
@@ -15571,6 +15592,11 @@ export interface components {
              * @default 0
              */
             pages: number;
+            /**
+             * Parse Token
+             * @description On the parse route: present it with the same file to the vehicle import within 30 minutes and the server reuses this read instead of reading again
+             */
+            parse_token?: string | null;
             /**
              * Source
              * @description text: the PDF's own text layer; llm: images read by the vision model

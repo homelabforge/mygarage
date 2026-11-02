@@ -295,17 +295,18 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
       // File the certificate on the new vehicle (it records the last
       // inspection) and create the taxes ticked on the review step. The
-      // vehicle exists either way: a failure here is a toast, and the
+      // parse token lets the server reuse its step-1 read of this same file
+      // (no second model call), and the taxes come from that read, by code.
+      // The vehicle exists either way: a failure here is a toast, and the
       // import can be redone from the vehicle's settings.
       if (certificate) {
         try {
-          await registrationCertificateService.importForVehicle(createdVehicle.vin, certificate.file, false)
-          const chosen = (certificate.parse.suggested_tax_records ?? []).filter((record) =>
-            selectedTaxes.has(record.code)
-          )
-          if (chosen.length > 0) {
-            await registrationCertificateService.createTaxRecords(createdVehicle.vin, chosen)
-          }
+          await registrationCertificateService.importForVehicle(createdVehicle.vin, certificate.file, {
+            parseToken: certificate.parse.parse_token,
+            taxCodes: (certificate.parse.suggested_tax_records ?? [])
+              .map((record) => record.code)
+              .filter((code) => selectedTaxes.has(code)),
+          })
         } catch {
           toast.warning(t('registrationImport.importFailedAfterCreate'))
         }

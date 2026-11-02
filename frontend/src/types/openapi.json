@@ -1801,6 +1801,34 @@
             "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
+          },
+          "parse_token": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The parse route's token for this same file: reuse that read",
+            "title": "Parse Token"
+          },
+          "tax_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The suggested tax records to create, by code (Y.1, Y.3, Y.6)",
+            "title": "Tax Codes"
           }
         },
         "required": [
@@ -17987,6 +18015,14 @@
             },
             "title": "Skipped",
             "type": "array"
+          },
+          "taxes_created": {
+            "description": "The certificate codes (Y.1, Y.3, Y.6) whose suggested tax record was created",
+            "items": {
+              "type": "string"
+            },
+            "title": "Taxes Created",
+            "type": "array"
           }
         },
         "required": [
@@ -18063,6 +18099,18 @@
             "description": "How many images were sent, on the llm path",
             "title": "Pages",
             "type": "integer"
+          },
+          "parse_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On the parse route: present it with the same file to the vehicle import within 30 minutes and the server reuses this read instead of reading again",
+            "title": "Parse Token"
           },
           "source": {
             "description": "text: the PDF's own text layer; llm: images read by the vision model",
@@ -43698,7 +43746,7 @@
     },
     "/api/registration-certificate/parse": {
       "post": {
-        "description": "Read a certificate and return what it would fill. Writes nothing.",
+        "description": "Read a certificate and return what it would fill. Writes nothing.\n\nThe read is kept for 30 minutes under ``parse_token``, so the import that\nfiles the certificate on the new vehicle does not read it a second time.",
         "operationId": "parse_registration_certificate_api_registration_certificate_parse_post",
         "parameters": [
           {
@@ -51848,7 +51896,7 @@
     },
     "/api/vehicles/{vin}/registration-certificate": {
       "post": {
-        "description": "Store the certificate as a document, fill the vehicle, record X.1.\n\nOwner only: it writes the vehicle row. The file is kept under the\nvehicle's documents whatever the read found, so a certificate a model\ncould not read is still filed.",
+        "description": "Store the certificate as a document, fill the vehicle, record X.1,\nand create the suggested tax records named in ``tax_codes``.\n\nOwner only: it writes the vehicle row. The file is kept under the\nvehicle's documents whatever the read found, so a certificate a model\ncould not read is still filed. With a ``parse_token`` from this user's\nparse of this same file, that read is reused; otherwise (expired, another\nfile) the file is read again, consent included.",
         "operationId": "import_registration_certificate_api_vehicles__vin__registration_certificate_post",
         "parameters": [
           {

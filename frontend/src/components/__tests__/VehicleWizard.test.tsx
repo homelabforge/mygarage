@@ -228,7 +228,6 @@ vi.mock('../../services/registrationCertificateService', () => {
   const service = {
     parse: vi.fn(),
     importForVehicle: vi.fn(),
-    createTaxRecords: vi.fn(),
   }
   return {
   default: service,
@@ -238,11 +237,13 @@ vi.mock('../../services/registrationCertificateService', () => {
   CERTIFICATE_MIME_TYPES: ['application/pdf'],
   CERTIFICATE_MAX_BYTES: 25 * 1024 * 1024,
   isAiNotConfigured: () => false,
+  visionConsentHost: () => null,
   isPdf: (file: File) => file.type === 'application/pdf',
   }
 })
 
 import registrationCertificateService from '../../services/registrationCertificateService'
+import vehicleService from '../../services/vehicleService'
 
 describe('VehicleWizard — registration certificate (#211)', () => {
   const CERTIFICATE_VIN = 'VF1RFB00X56123456'
@@ -287,5 +288,39 @@ describe('VehicleWizard — registration certificate (#211)', () => {
     expect(screen.getByLabelText('wizard.fuelType')).toHaveValue('gasoline')
     // No country resolves here (no account, no instance default): the hint is absent.
     expect(registrationCertificateService.parse).toHaveBeenCalledWith(file, undefined, false)
+  })
+
+  it('files the certificate with the parse token and only the ticked taxes (B5)', async () => {
+    vi.mocked(registrationCertificateService.parse).mockResolvedValue({
+      ...PARSE,
+      parse_token: 'tok-1',
+      suggested_tax_records: [
+        { code: 'Y.1', tax_type: 'registration_tax', amount: '162.50', date: '2023-03-12' },
+        { code: 'Y.3', tax_type: 'co2_malus', amount: '50.00', date: '2023-03-12' },
+      ],
+    } as never)
+    vi.mocked(vehicleService.create).mockResolvedValue({ vin: CERTIFICATE_VIN } as never)
+    vi.mocked(registrationCertificateService.importForVehicle).mockResolvedValue({} as never)
+    render(<VehicleWizard onClose={vi.fn()} />)
+
+    const file = new File(['%PDF-1.4'], 'carte-grise.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByTestId('registration-certificate-file'), { target: { files: [file] } })
+    fireEvent.click(screen.getByRole('button', { name: 'registrationImport.read' }))
+    await screen.findByText('registrationImport.checkFields')
+
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+    await screen.findByLabelText('wizard.misc.uploadPhotos')
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+    const review = await screen.findByTestId('wizard-certificate-review')
+    const boxes = review.querySelectorAll('input[type="checkbox"]')
+    expect(boxes).toHaveLength(2)
+    fireEvent.click(boxes[0]) // untick Y.1
+    fireEvent.click(screen.getByRole('button', { name: /wizard\.misc\.createVehicle/ }))
+
+    await waitFor(() => expect(registrationCertificateService.importForVehicle).toHaveBeenCalled())
+    expect(registrationCertificateService.importForVehicle).toHaveBeenCalledWith(CERTIFICATE_VIN, file, {
+      parseToken: 'tok-1',
+      taxCodes: ['Y.3'],
+    })
   })
 })

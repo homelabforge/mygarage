@@ -47,6 +47,17 @@ export function isPdf(file: File): boolean {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
 }
 
+export interface ImportOptions {
+  /** Replace values already set on the vehicle (never the VIN). */
+  overwrite?: boolean
+  /** The person's yes to a vision model outside the network. */
+  allowExternalVision?: boolean
+  /** The parse route's token for this same file. */
+  parseToken?: string | null
+  /** The suggested tax records to create, by certificate code. */
+  taxCodes?: string[]
+}
+
 export const registrationCertificateService = {
   /** Read a certificate and get what it would fill. Writes nothing. */
   async parse(
@@ -67,18 +78,24 @@ export const registrationCertificateService = {
     return response.data
   },
 
-  /** Store the certificate on the vehicle, fill its empty fields, record X.1. */
+  /**
+   * Store the certificate on the vehicle, fill its empty fields, record X.1
+   * and create the suggested taxes named in `taxCodes`. With the parse
+   * route's `parseToken` for this same file, the server reuses that read
+   * instead of reading the file again; it never takes parsed values from here.
+   */
   async importForVehicle(
     vin: string,
     file: File,
-    overwrite = false,
-    allowExternalVision = false,
+    options: ImportOptions = {},
   ): Promise<RegistrationImportResponse> {
     const form = new FormData()
     form.append('file', file)
+    if (options.parseToken) form.append('parse_token', options.parseToken)
+    for (const code of options.taxCodes ?? []) form.append('tax_codes', code)
     const params = {
-      ...(overwrite ? { overwrite: true } : {}),
-      ...(allowExternalVision ? { allow_external_vision: true } : {}),
+      ...(options.overwrite ? { overwrite: true } : {}),
+      ...(options.allowExternalVision ? { allow_external_vision: true } : {}),
     }
     const response = await api.post<RegistrationImportResponse>(
       `/vehicles/${vin}/registration-certificate`,
@@ -89,19 +106,6 @@ export const registrationCertificateService = {
       }
     )
     return response.data
-  },
-
-  /** The tax records the person ticked on the wizard's review step. */
-  async createTaxRecords(vin: string, records: SuggestedTaxRecord[]): Promise<void> {
-    for (const record of records) {
-      await api.post(`/vehicles/${vin}/tax-records`, {
-        vin,
-        date: record.date,
-        tax_type: record.tax_type,
-        amount: record.amount,
-        notes: `Registration certificate, field ${record.code}`,
-      })
-    }
   },
 }
 

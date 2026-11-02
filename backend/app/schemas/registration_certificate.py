@@ -44,6 +44,13 @@ class RegistrationParseResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     model: str | None = Field(None, description="The vision model that read it, on the llm path")
     pages: int = Field(0, description="How many images were sent, on the llm path")
+    parse_token: str | None = Field(
+        None,
+        description=(
+            "On the parse route: present it with the same file to the vehicle import "
+            "within 30 minutes and the server reuses this read instead of reading again"
+        ),
+    )
 
 
 class RegistrationImportResponse(BaseModel):
@@ -56,5 +63,9 @@ class RegistrationImportResponse(BaseModel):
     )
     inspection_recorded: bool = Field(
         description="Whether field X.1 was recorded as a service visit"
+    )
+    taxes_created: list[str] = Field(
+        default_factory=list,
+        description="The certificate codes (Y.1, Y.3, Y.6) whose suggested tax record was created",
     )
     parse: RegistrationParseResponse

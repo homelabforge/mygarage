@@ -20,7 +20,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -89,7 +89,9 @@ async def _read_certificate(file: UploadFile) -> bytes:
     return content
 
 
-def _to_response(result: certificates.RegistrationParseResult) -> RegistrationParseResponse:
+def _to_response(
+    result: certificates.RegistrationParseResult, *, parse_token: str | None = None
+) -> RegistrationParseResponse:
     return RegistrationParseResponse(
         source=result.source,  # type: ignore[arg-type]  # "text" | "llm" from the reader
         country=result.data.country,
@@ -110,6 +112,7 @@ def _to_response(result: certificates.RegistrationParseResult) -> RegistrationPa
         warnings=list(result.warnings),
         model=result.model,
         pages=result.pages,
+        parse_token=parse_token,
     )
 
 
@@ -125,7 +128,11 @@ async def parse_registration_certificate(
     ),
     allow_external_vision: AllowExternalVision = False,
 ) -> RegistrationParseResponse:
-    """Read a certificate and return what it would fill. Writes nothing."""
+    """Read a certificate and return what it would fill. Writes nothing.
+
+    The read is kept for 30 minutes under ``parse_token``, so the import that
+    files the certificate on the new vehicle does not read it a second time.
+    """
     content = await _read_certificate(file)
     result = await certificates.parse_upload(
         db,
@@ -135,7 +142,12 @@ async def parse_registration_certificate(
         country=country,
         allow_external_vision=allow_external_vision,
     )
-    return _to_response(result)
+    token = certificates.remember_parse(
+        result,
+        user_id=current_user.id if current_user is not None else None,
+        file_sha256=certificates.file_digest(content),
+    )
+    return _to_response(result, parse_token=token)
 
 
 @router.post(
@@ -152,25 +164,47 @@ async def import_registration_certificate(
         False, description="Replace values already set on the vehicle (never the VIN)"
     ),
     allow_external_vision: AllowExternalVision = False,
+    parse_token: Annotated[
+        str | None,
+        Form(
+            description="The parse route's token for this same file: reuse that read",
+            max_length=64,
+        ),
+    ] = None,
+    tax_codes: Annotated[
+        list[str] | None,
+        Form(description="The suggested tax records to create, by code (Y.1, Y.3, Y.6)"),
+    ] = None,
 ) -> RegistrationImportResponse:
-    """Store the certificate as a document, fill the vehicle, record X.1.
+    """Store the certificate as a document, fill the vehicle, record X.1,
+    and create the suggested tax records named in ``tax_codes``.
 
     Owner only: it writes the vehicle row. The file is kept under the
     vehicle's documents whatever the read found, so a certificate a model
-    could not read is still filed.
+    could not read is still filed. With a ``parse_token`` from this user's
+    parse of this same file, that read is reused; otherwise (expired, another
+    file) the file is read again, consent included.
     """
     vin = vin.upper().strip()
     vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
     content = await _read_certificate(file)
     assert file.filename is not None  # _read_certificate refused a nameless upload
-    result = await certificates.parse_upload(
-        db,
-        file_bytes=content,
-        filename=file.filename,
-        content_type=file.content_type,
-        country=vehicle.registration_country,
-        allow_external_vision=allow_external_vision,
-    )
+    result = None
+    if parse_token:
+        result = certificates.recall_parse(
+            parse_token,
+            user_id=current_user.id if current_user is not None else None,
+            file_sha256=certificates.file_digest(content),
+        )
+    if result is None:
+        result = await certificates.parse_upload(
+            db,
+            file_bytes=content,
+            filename=file.filename,
+            content_type=file.content_type,
+            country=vehicle.registration_country,
+            allow_external_vision=allow_external_vision,
+        )
 
     destination_dir = Path(settings.documents_dir) / vin
     destination_dir.mkdir(parents=True, exist_ok=True)
@@ -205,6 +239,11 @@ async def import_registration_certificate(
     outcome = await certificates.apply_to_vehicle(
         db, vehicle, result, overwrite=overwrite, current_user=current_user
     )
+    taxes_created = (
+        await certificates.create_suggested_taxes(db, vin, result, tax_codes, current_user)
+        if tax_codes
+        else []
+    )
     logger.info(
         "Registration certificate imported for %s: applied=%s skipped=%s inspection=%s",
         sanitize_for_log(vin),
@@ -217,5 +256,6 @@ async def import_registration_certificate(
         applied=outcome.applied,
         skipped=outcome.skipped,
         inspection_recorded=outcome.inspection_recorded,
+        taxes_created=taxes_created,
         parse=_to_response(result),
     )

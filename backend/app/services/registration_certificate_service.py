@@ -7,15 +7,26 @@ through the ordinary vehicle update (which also re-plans the periodic
 inspection), and records field X.1, the last inspection, as a service visit
 the maintenance lifecycle then anchors on. Nothing here overwrites a value
 a person typed unless asked to, and the VIN is never written.
+
+The wizard reads a certificate before the vehicle exists and files it once
+the vehicle does. So the document is read once (B5), the parse is kept in
+memory under an opaque token bound to the user and the file's SHA-256 for
+``PARSE_TOKEN_TTL_SECONDS``; the import presents the file and the token and
+reuses the server's own read. The client never sends parsed values the
+server trusts. In-process is enough: the app runs one worker.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import secrets
+import time
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,12 +37,14 @@ from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.service_visit import ServiceLineItemCreate, ServiceVisitCreate
+from app.schemas.tax import TaxRecordCreate
 from app.schemas.vehicle import VehicleUpdate
 from app.services import document_reader_service, maintenance_service
 from app.services.country_profile_service import profile_for_country
 from app.services.document_parsers.registration import RegistrationData, from_llm_fields
 from app.services.document_parsers.registry import DocumentParserRegistry
 from app.services.service_visit_service import ServiceVisitService
+from app.services.tax_service import TaxRecordService
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.services.vehicle_service import VehicleService
 from app.utils.logging_utils import sanitize_for_log
@@ -249,6 +262,116 @@ async def parse_upload(
         model=read.model,
         pages=read.pages,
     )
+
+
+# --- One read per wizard (B5) --------------------------------------------------
+
+#: How long a parse stays reusable: long enough to fill in the wizard.
+PARSE_TOKEN_TTL_SECONDS = 30 * 60
+#: More live parses than this and the oldest are dropped.
+_PARSE_CACHE_MAX = 256
+
+
+@dataclass
+class _CachedParse:
+    user_id: int | None
+    file_sha256: str
+    result: RegistrationParseResult
+    expires_at: float
+
+
+_parse_cache: dict[str, _CachedParse] = {}
+
+
+def file_digest(content: bytes) -> str:
+    """The SHA-256 a parse token is bound to."""
+    return hashlib.sha256(content).hexdigest()
+
+
+def _prune(now: float) -> None:
+    for token in [t for t, entry in _parse_cache.items() if entry.expires_at <= now]:
+        del _parse_cache[token]
+    while len(_parse_cache) >= _PARSE_CACHE_MAX:
+        del _parse_cache[next(iter(_parse_cache))]
+
+
+def remember_parse(
+    result: RegistrationParseResult, *, user_id: int | None, file_sha256: str
+) -> str:
+    """Keep ``result`` for the import that follows; return its opaque token."""
+    now = time.monotonic()
+    _prune(now)
+    token = secrets.token_urlsafe(24)
+    _parse_cache[token] = _CachedParse(
+        user_id=user_id,
+        file_sha256=file_sha256,
+        result=result,
+        expires_at=now + PARSE_TOKEN_TTL_SECONDS,
+    )
+    return token
+
+
+def recall_parse(
+    token: str, *, user_id: int | None, file_sha256: str
+) -> RegistrationParseResult | None:
+    """The parse ``token`` names, used up, when it is this user's and this file's.
+
+    Another user's token is a 403. An unknown or expired token, or a file
+    that is not the one parsed, is None: the caller reads the file afresh.
+    """
+    entry = _parse_cache.get(token)
+    if entry is None:
+        return None
+    if entry.expires_at <= time.monotonic():
+        del _parse_cache[token]
+        return None
+    if entry.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This certificate was read by another user",
+        )
+    if entry.file_sha256 != file_sha256:
+        return None
+    del _parse_cache[token]
+    return entry.result
+
+
+def clear_parse_cache() -> None:
+    """Forget every kept parse (tests)."""
+    _parse_cache.clear()
+
+
+async def create_suggested_taxes(
+    db: AsyncSession,
+    vin: str,
+    result: RegistrationParseResult,
+    codes: list[str],
+    current_user: User | None,
+) -> list[str]:
+    """Create the suggested tax records whose code the person ticked.
+
+    The amounts come from the server's own parse, never from the request:
+    a code the parse did not suggest creates nothing.
+    """
+    wanted = {code.strip().upper() for code in codes if code and code.strip()}
+    created: list[str] = []
+    service = TaxRecordService(db)
+    for suggestion in result.suggested_tax_records:
+        if suggestion["code"] not in wanted:
+            continue
+        await service.create_record(
+            vin,
+            TaxRecordCreate(
+                vin=vin,
+                date=date.fromisoformat(suggestion["date"]),
+                tax_type=suggestion["tax_type"],
+                amount=suggestion["amount"],
+                notes=f"Registration certificate, field {suggestion['code']}",
+            ),
+            current_user,
+        )
+        created.append(suggestion["code"])
+    return created
 
 
 @dataclass

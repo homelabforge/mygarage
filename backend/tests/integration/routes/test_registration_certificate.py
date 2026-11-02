@@ -27,6 +27,7 @@ from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
+from app.models.tax import TaxRecord
 from app.models.vehicle import Vehicle
 from app.services.document_reader_service import AI_READING_NOT_CONFIGURED, DocumentReadResult
 
@@ -63,6 +64,7 @@ async def _drop_vehicles(db_session):
         await db_session.execute(delete(Reminder).where(Reminder.vin.in_(vins)))
         await db_session.execute(delete(MaintenanceRule).where(MaintenanceRule.vin.in_(vins)))
         await db_session.execute(delete(Document).where(Document.vin.in_(vins)))
+        await db_session.execute(delete(TaxRecord).where(TaxRecord.vin.in_(vins)))
         await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_(vins)))
     await db_session.commit()
 
@@ -415,3 +417,172 @@ class TestImport:
         assert r.status_code == 409
         documents = await client.get(f"/api/vehicles/{vin}/documents", headers=auth_headers)
         assert documents.json()["documents"] == []
+
+
+class TestParseToken:
+    """B5: the wizard reads the certificate once. The parse hands back a
+    token bound to the user and the file; the import after the vehicle
+    exists presents the file and the token and reuses the server's own
+    read. The client never sends parsed values the server trusts."""
+
+    @staticmethod
+    def _text(vin: str) -> str:
+        today = date.today()
+        first = (today - relativedelta(years=5, days=10)).strftime("%d/%m/%Y")
+        inspection = (today - timedelta(days=30)).strftime("%d/%m/%Y")
+        return (
+            _certificate_text(vin, first_registration=first, last_inspection=inspection)
+            # Two components, so a choice between them means something.
+            .replace("Y.1 162,50   Y.3 0   Y.6 176,26", "Y.1 162,50   Y.3 50   Y.6 226,26")
+        )
+
+    async def _parse(self, client: AsyncClient, headers: dict, pdf: bytes, read: AsyncMock) -> dict:
+        with patch(READ_DOCUMENT, new=read):
+            r = await client.post(
+                "/api/registration-certificate/parse",
+                headers=headers,
+                files=_upload(pdf),
+            )
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    async def test_the_import_reuses_the_parse_and_creates_only_the_chosen_taxes(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        vin = _vin()
+        text = self._text(vin)
+        read = AsyncMock(return_value=_text_read(text))
+        pdf = _text_pdf(text)  # once: each build is stamped differently
+        parsed = await self._parse(client, auth_headers, pdf, read)
+        token = parsed["parse_token"]
+        assert token
+        assert [s["code"] for s in parsed["suggested_tax_records"]] == ["Y.1", "Y.3"]
+
+        r = await client.post(
+            "/api/vehicles",
+            headers=auth_headers,
+            json={"vin": vin, "nickname": f"rct-{vin[-4:]}", "vehicle_type": "Car"},
+        )
+        assert r.status_code == 201, r.text
+        with patch(READ_DOCUMENT, new=read):
+            r = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(pdf),
+                data={"parse_token": token, "tax_codes": ["Y.3"]},
+            )
+        assert r.status_code == 201, r.text
+        assert read.await_count == 1  # the parse's read, and no other
+        body = r.json()
+        assert "license_plate" in body["applied"]
+        assert body["inspection_recorded"] is True
+        assert body["taxes_created"] == ["Y.3"]
+        taxes = (
+            await db_session.execute(
+                select(TaxRecord.tax_type, TaxRecord.amount).where(TaxRecord.vin == vin)
+            )
+        ).all()
+        assert [(t, str(a)) for t, a in taxes] == [("co2_malus", "50.00")]
+
+        # Single use: presented again, the token reads the file afresh.
+        with patch(READ_DOCUMENT, new=read):
+            r = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(pdf),
+                data={"parse_token": token},
+            )
+        assert r.status_code == 201, r.text
+        assert read.await_count == 2
+
+    async def test_another_users_token_is_403(
+        self, client: AsyncClient, auth_headers, non_admin_headers, db_session
+    ):
+        text = self._text(_vin())
+        read = AsyncMock(return_value=_text_read(text))
+        pdf = _text_pdf(text)  # once: each build is stamped differently
+        token = (await self._parse(client, auth_headers, pdf, read))["parse_token"]
+        theirs = await _create_vehicle(client, non_admin_headers)
+        with patch(READ_DOCUMENT, new=read):
+            r = await client.post(
+                f"/api/vehicles/{theirs}/registration-certificate",
+                headers=non_admin_headers,
+                files=_upload(pdf),
+                data={"parse_token": token},
+            )
+        assert r.status_code == 403, r.text
+        assert read.await_count == 1
+        filed = (await db_session.execute(select(Document).where(Document.vin == theirs))).all()
+        assert filed == []
+
+    async def test_a_different_file_is_read_afresh(self, client: AsyncClient, auth_headers):
+        vin = await _create_vehicle(client, auth_headers)
+        text = self._text(vin)
+        read = AsyncMock(return_value=_text_read(text))
+        pdf = _text_pdf(text)  # once: each build is stamped differently
+        token = (await self._parse(client, auth_headers, pdf, read))["parse_token"]
+        other = text.replace("D.3 CLIO", "D.3 MEGANE")
+        with patch(READ_DOCUMENT, new=read):
+            r = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(_text_pdf(other)),
+                data={"parse_token": token},
+            )
+        assert r.status_code == 201, r.text
+        assert read.await_count == 2  # the hash did not match: no reuse
+
+    async def test_an_unknown_token_is_read_afresh(self, client: AsyncClient, auth_headers):
+        vin = await _create_vehicle(client, auth_headers)
+        text = self._text(vin)
+        read = AsyncMock(return_value=_text_read(text))
+        pdf = _text_pdf(text)  # once: each build is stamped differently
+        with patch(READ_DOCUMENT, new=read):
+            r = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(pdf),
+                data={"parse_token": "expired-or-never-issued"},
+            )
+        assert r.status_code == 201, r.text
+        assert read.await_count == 1
+
+    async def test_an_expired_token_is_read_afresh(
+        self, client: AsyncClient, auth_headers, monkeypatch: pytest.MonkeyPatch
+    ):
+        from app.services import registration_certificate_service as certificates
+
+        vin = await _create_vehicle(client, auth_headers)
+        text = self._text(vin)
+        read = AsyncMock(return_value=_text_read(text))
+        pdf = _text_pdf(text)  # once: each build is stamped differently
+        token = (await self._parse(client, auth_headers, pdf, read))["parse_token"]
+        later = certificates.time.monotonic() + certificates.PARSE_TOKEN_TTL_SECONDS + 1
+        monkeypatch.setattr(certificates.time, "monotonic", lambda: later)
+        with patch(READ_DOCUMENT, new=read):
+            r = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(pdf),
+                data={"parse_token": token},
+            )
+        assert r.status_code == 201, r.text
+        assert read.await_count == 2
+
+    async def test_an_unknown_tax_code_creates_nothing(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        vin = await _create_vehicle(client, auth_headers)
+        text = self._text(vin)
+        read = AsyncMock(return_value=_text_read(text))
+        pdf = _text_pdf(text)  # once: each build is stamped differently
+        with patch(READ_DOCUMENT, new=read):
+            r = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(pdf),
+                data={"tax_codes": ["Y.9"]},
+            )
+        assert r.status_code == 201, r.text
+        assert r.json()["taxes_created"] == []
+        assert (await db_session.execute(select(TaxRecord).where(TaxRecord.vin == vin))).all() == []
