@@ -3950,6 +3950,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/test/llm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Llm Endpoint
+         * @description Exercise the saved LLM settings once (admin only).
+         *
+         *     Sends a one-word text completion to ``llm_base_url`` with ``llm_model``
+         *     and, when document reading is enabled, a 64×64 image to the vision model,
+         *     so an operator sees "text OK / vision OK" (or the endpoint's own error)
+         *     before uploading a real document. Reads the stored settings: the card
+         *     saves first, then tests. Writes nothing.
+         */
+        post: operations["test_llm_endpoint_api_settings_test_llm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/upload-limits": {
         parameters: {
             query?: never;
@@ -4925,6 +4951,27 @@ export interface paths {
          * @description Delete one measurement.
          */
         delete: operations["delete_brake_measurement_api_vehicles__vin__brakes_measurements__measurement_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/compliance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Vehicle Compliance
+         * @description The low-emission-zone class, the next periodic inspection and the Euro
+         *     class of the vehicle under its country's rules. Read-only; indicative.
+         */
+        get: operations["get_vehicle_compliance_api_vehicles__vin__compliance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -9529,6 +9576,28 @@ export interface components {
              */
             period2_value: string;
         };
+        /** ComplianceResponse */
+        ComplianceResponse: {
+            /** Country */
+            country?: string | null;
+            /** Euro Class */
+            euro_class?: number | null;
+            /**
+             * Euro Class Estimated
+             * @default false
+             */
+            euro_class_estimated: boolean;
+            inspection?: components["schemas"]["InspectionStatus"] | null;
+            lez?: components["schemas"]["LezStatus"] | null;
+            /** Profile Country */
+            profile_country?: string | null;
+            /** Reason */
+            reason?: ("no_country" | "no_profile") | null;
+            /** Sources */
+            sources?: components["schemas"]["ProfileSource"][];
+            /** Vin */
+            vin: string;
+        };
         /**
          * CostAnalysis
          * @description Overall cost analysis.
@@ -12500,6 +12569,33 @@ export interface components {
             vehicle_types: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike")[];
         };
         /**
+         * InspectionStatus
+         * @description The periodic inspection as the automatic engine (#211) tracks it.
+         */
+        InspectionStatus: {
+            /** Anchor Kind */
+            anchor_kind?: ("service" | "completion" | "baseline") | null;
+            /** Automatic */
+            automatic: boolean;
+            /**
+             * From Registration
+             * @default false
+             */
+            from_registration: boolean;
+            /** Lead Days */
+            lead_days?: number | null;
+            /** Name */
+            name: string;
+            /** Next Due Date */
+            next_due_date?: string | null;
+            /** Reminder Id */
+            reminder_id?: number | null;
+            /** Rule Id */
+            rule_id?: number | null;
+            /** Window Opens On */
+            window_opens_on?: string | null;
+        };
+        /**
          * InspectionStep
          * @description One step of a roadworthiness cadence.
          *
@@ -12851,6 +12947,35 @@ export interface components {
             scheme?: ("critair" | "umweltplakette" | "lez_registration" | "ztl" | "dgt_label") | null;
             /** Url */
             url?: string | null;
+        };
+        /**
+         * LezStatus
+         * @description The country's low-emission scheme and the class this vehicle has in it.
+         */
+        LezStatus: {
+            /** Basis */
+            basis?: ("override" | "euro_class" | "first_registration" | "fuel") | null;
+            /**
+             * Computed
+             * @default false
+             */
+            computed: boolean;
+            /** Name */
+            name?: string | null;
+            /**
+             * Overridden
+             * @default false
+             */
+            overridden: boolean;
+            /**
+             * Scheme
+             * @enum {string}
+             */
+            scheme: "critair" | "umweltplakette" | "lez_registration" | "ztl" | "dgt_label";
+            /** Url */
+            url?: string | null;
+            /** Value */
+            value?: string | null;
         };
         /**
          * LinkOIDCAccountRequest
@@ -13367,6 +13492,46 @@ export interface components {
             max_value?: number | null;
             /** Param Key */
             param_key: string;
+        };
+        /**
+         * LlmTestResponse
+         * @description What ``POST /api/settings/test/llm`` reports (#211).
+         *
+         *     ``vision_ok`` is null when the vision check did not run, which is the case
+         *     while document reading is off; ``valid`` is the single verdict the card's
+         *     button colours on.
+         */
+        LlmTestResponse: {
+            /**
+             * Message
+             * @description A sentence for the operator, the endpoint's error included
+             */
+            message: string;
+            /**
+             * Model
+             * @description The text model that was tested
+             */
+            model: string;
+            /**
+             * Text Ok
+             * @description The text completion with llm_model succeeded
+             */
+            text_ok: boolean;
+            /**
+             * Valid
+             * @description True when every check that ran succeeded
+             */
+            valid: boolean;
+            /**
+             * Vision Model
+             * @description The vision model that was (or would be) tested
+             */
+            vision_model: string;
+            /**
+             * Vision Ok
+             * @description The vision completion succeeded; null when document reading is off
+             */
+            vision_ok?: boolean | null;
         };
         /**
          * LocationPointOut
@@ -17298,7 +17463,7 @@ export interface components {
             renewal_date?: string | null;
             /**
              * Tax Type
-             * @description Type of tax/fee, as a code. The pre-128 display strings (Registration, Inspection, Property Tax, Tolls) are accepted as their codes.
+             * @description Type of tax/fee, as a code. The pre-146 display strings (Registration, Inspection, Property Tax, Tolls) are accepted as their codes.
              */
             tax_type?: ("registration" | "registration_tax" | "co2_malus" | "weight_malus" | "circulation_tax" | "company_vehicle_tax" | "inspection" | "property_tax" | "tolls" | "vignette" | "lez_sticker" | "parking_permit" | "other") | null;
             /** Vin */
@@ -17371,7 +17536,7 @@ export interface components {
             renewal_date?: string | null;
             /**
              * Tax Type
-             * @description Type of tax/fee, as a code. The pre-128 display strings (Registration, Inspection, Property Tax, Tolls) are accepted as their codes.
+             * @description Type of tax/fee, as a code. The pre-146 display strings (Registration, Inspection, Property Tax, Tolls) are accepted as their codes.
              */
             tax_type?: ("registration" | "registration_tax" | "co2_malus" | "weight_malus" | "circulation_tax" | "company_vehicle_tax" | "inspection" | "property_tax" | "tolls" | "vignette" | "lez_sticker" | "parking_permit" | "other") | null;
             /** Vin */
@@ -19599,6 +19764,11 @@ export interface components {
              */
             brake_fluid_type?: string | null;
             /**
+             * Co2 G Km
+             * @description CO₂ emissions in g/km, field V.7
+             */
+            co2_g_km?: number | null;
+            /**
              * Color
              * @description Vehicle color
              */
@@ -19644,10 +19814,25 @@ export interface components {
              */
             drive_type?: string | null;
             /**
+             * Eu Category
+             * @description EU vehicle category, field J (M1, N1, L3e)
+             */
+            eu_category?: string | null;
+            /**
+             * Euro Emission Class
+             * @description Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)
+             */
+            euro_emission_class?: string | null;
+            /**
              * First Registration Date
              * @description Date of first registration (field B of an EU registration certificate)
              */
             first_registration_date?: string | null;
+            /**
+             * Fiscal Power
+             * @description National fiscal power, field P.6 (French CV)
+             */
+            fiscal_power?: number | null;
             /**
              * Fuel Filter Part Number
              * @description Fuel filter part number
@@ -19668,6 +19853,11 @@ export interface components {
              * @description GVWR class
              */
             gvwr_class?: string | null;
+            /**
+             * Lez Class
+             * @description Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); overrides the class computed from the fuel and the Euro class
+             */
+            lez_class?: string | null;
             /**
              * License Plate
              * @description License plate number
@@ -19694,6 +19884,11 @@ export interface components {
              */
             model?: string | null;
             /**
+             * National Category
+             * @description National vehicle kind, field J.1 (VP, CTTE, MTL)
+             */
+            national_category?: string | null;
+            /**
              * Nickname
              * @description User-friendly display name
              */
@@ -19713,6 +19908,11 @@ export interface components {
              * @description Engine oil viscosity grade (e.g. 5W-30)
              */
             oil_viscosity?: string | null;
+            /**
+             * Power Kw
+             * @description Maximum net power in kW, field P.2
+             */
+            power_kw?: number | null;
             /**
              * Purchase Date
              * @description Date purchased
@@ -20120,6 +20320,11 @@ export interface components {
              */
             brake_fluid_type?: string | null;
             /**
+             * Co2 G Km
+             * @description CO₂ emissions in g/km, field V.7
+             */
+            co2_g_km?: number | null;
+            /**
              * Color
              * @description Vehicle color
              */
@@ -20175,6 +20380,16 @@ export interface components {
             environmental_rating_ghg?: string | null;
             /** Environmental Rating Smog */
             environmental_rating_smog?: string | null;
+            /**
+             * Eu Category
+             * @description EU vehicle category, field J (M1, N1, L3e)
+             */
+            eu_category?: string | null;
+            /**
+             * Euro Emission Class
+             * @description Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)
+             */
+            euro_emission_class?: string | null;
             /** Exterior Color */
             exterior_color?: string | null;
             /**
@@ -20182,6 +20397,11 @@ export interface components {
              * @description Date of first registration (field B of an EU registration certificate)
              */
             first_registration_date?: string | null;
+            /**
+             * Fiscal Power
+             * @description National fiscal power, field P.6 (French CV)
+             */
+            fiscal_power?: number | null;
             /** Fuel Economy City L Per 100Km */
             fuel_economy_city_l_per_100km?: string | null;
             /** Fuel Economy Combined L Per 100Km */
@@ -20210,6 +20430,11 @@ export interface components {
             gvwr_class?: string | null;
             /** Interior Color */
             interior_color?: string | null;
+            /**
+             * Lez Class
+             * @description Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); overrides the class computed from the fuel and the Euro class
+             */
+            lez_class?: string | null;
             /**
              * License Plate
              * @description License plate number
@@ -20249,6 +20474,11 @@ export interface components {
             /** Msrp Total */
             msrp_total?: string | null;
             /**
+             * National Category
+             * @description National vehicle kind, field J.1 (VP, CTTE, MTL)
+             */
+            national_category?: string | null;
+            /**
              * Nickname
              * @description User-friendly display name
              */
@@ -20272,6 +20502,11 @@ export interface components {
             optional_equipment?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Power Kw
+             * @description Maximum net power in kW, field P.2
+             */
+            power_kw?: number | null;
             /**
              * Purchase Date
              * @description Date purchased
@@ -20616,6 +20851,11 @@ export interface components {
              */
             brake_fluid_type?: string | null;
             /**
+             * Co2 G Km
+             * @description CO₂ emissions in g/km, field V.7
+             */
+            co2_g_km?: number | null;
+            /**
              * Color
              * @description Vehicle color
              */
@@ -20666,6 +20906,16 @@ export interface components {
              */
             drive_type?: string | null;
             /**
+             * Eu Category
+             * @description EU vehicle category, field J (M1, N1, L3e)
+             */
+            eu_category?: string | null;
+            /**
+             * Euro Emission Class
+             * @description Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)
+             */
+            euro_emission_class?: string | null;
+            /**
              * Exterior Color
              * @description Exterior color
              */
@@ -20675,6 +20925,11 @@ export interface components {
              * @description Date of first registration (field B of an EU registration certificate)
              */
             first_registration_date?: string | null;
+            /**
+             * Fiscal Power
+             * @description National fiscal power, field P.6 (French CV)
+             */
+            fiscal_power?: number | null;
             /**
              * Fuel Filter Part Number
              * @description Fuel filter part number
@@ -20700,6 +20955,11 @@ export interface components {
              * @description Interior color
              */
             interior_color?: string | null;
+            /**
+             * Lez Class
+             * @description Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); overrides the class computed from the fuel and the Euro class
+             */
+            lez_class?: string | null;
             /**
              * License Plate
              * @description License plate number
@@ -20741,6 +21001,11 @@ export interface components {
              */
             msrp_total?: number | string | null;
             /**
+             * National Category
+             * @description National vehicle kind, field J.1 (VP, CTTE, MTL)
+             */
+            national_category?: string | null;
+            /**
              * Nickname
              * @description User-friendly display name
              */
@@ -20767,6 +21032,11 @@ export interface components {
             optional_equipment?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Power Kw
+             * @description Maximum net power in kW, field P.2
+             */
+            power_kw?: number | null;
             /**
              * Purchase Date
              * @description Date purchased
@@ -27526,6 +27796,26 @@ export interface operations {
             };
         };
     };
+    test_llm_endpoint_api_settings_test_llm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LlmTestResponse"];
+                };
+            };
+        };
+    };
     get_upload_limits_api_settings_upload_limits_get: {
         parameters: {
             query?: never;
@@ -29110,6 +29400,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_vehicle_compliance_api_vehicles__vin__compliance_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplianceResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
