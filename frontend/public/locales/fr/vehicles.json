@@ -178,7 +178,7 @@
     "exportData": "Exporter les données",
     "exportError": "Impossible d’exporter les données",
     "exportSuccess": "Données du véhicule exportées avec succès",
-    "exportTooltip": "Exporter toutes les données du véhicule au format JSON",
+    "exportTooltip": "Exporter ce véhicule et la plupart de ses enregistrements au format JSON",
     "exporting": "Export en cours…",
     "fuelEconomy": "Consommation",
     "hero": {
@@ -582,7 +582,7 @@
     "loadAction": "de charger les polices d’assurance"
   },
   "lineItemEditor": {
-    "cost": "Coût main-d'œuvre / atelier",
+    "cost": "Coût main-d’œuvre / atelier",
     "partsCost": "Pièces et fournitures : {{amount}}",
     "notes": "Notes",
     "misc": {

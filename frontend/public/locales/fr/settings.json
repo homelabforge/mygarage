@@ -570,8 +570,7 @@
       "retryDelayDesc": "Délai de base entre les tentatives",
       "retryNote": "Les nouvelles tentatives s’appliquent uniquement aux événements urgents/à haute priorité (rappels, entretien en retard, assurance expirant bientôt)",
       "enabledCount": "({{enabled}}/{{total}} activé(s))",
-      "milestonesDesc": "Notifier lorsque le compteur atteint un jalon kilométrique important.",
-      "milesBefore": "{{unit}} avant"
+      "milestonesDesc": "Notifier lorsque le compteur atteint un jalon kilométrique important."
     }
   },
   "backup": {

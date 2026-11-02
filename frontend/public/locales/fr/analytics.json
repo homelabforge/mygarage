@@ -66,11 +66,11 @@
       "defLabel": "DEF :",
       "defDesc": "Coût total du liquide d’échappement diesel (affiché si un véhicule utilise du DEF).",
       "financingLabel": "Financement :",
-      "financingDesc": "Total des loyers de leasing, des mensualités de prêt et des frais de financement initiaux (affiché si un véhicule a des enregistrements de financement).",
+      "financingDesc": "Total des loyers de leasing, des mensualités de prêt et des frais de financement initiaux (affiché si un véhicule a des coûts de financement).",
       "insuranceLabel": "Assurance :",
-      "insuranceDesc": "Coûts d’assurance combinés pour tous les véhicules.",
+      "insuranceDesc": "Coûts d’assurance combinés pour tous les véhicules (affichés si un véhicule a des coûts d’assurance).",
       "taxesLabel": "Taxes :",
-      "taxesDesc": "Dépenses totales d’immatriculation et de taxes."
+      "taxesDesc": "Dépenses totales d’immatriculation et de taxes (affichées si un véhicule a des coûts de taxes ou d’immatriculation)."
     },
     "categoryBreakdown": {
       "title": "Répartition des coûts par catégorie",
