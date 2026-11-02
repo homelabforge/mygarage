@@ -31428,6 +31428,37 @@
             "title": "Due Soon Maintenance Count",
             "type": "integer"
           },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifier"
+          },
+          "identifier_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "vin",
+                  "serial",
+                  "hin",
+                  "chassis",
+                  "asset_tag",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "vin",
+            "title": "Identifier Type"
+          },
           "is_shared_with_me": {
             "default": false,
             "title": "Is Shared With Me",
@@ -31523,6 +31554,17 @@
               }
             ],
             "title": "Model"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nickname"
           },
           "overdue_maintenance_count": {
             "title": "Overdue Maintenance Count",

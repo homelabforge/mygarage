@@ -20777,6 +20777,13 @@ export interface components {
             distance_unit?: ("km" | "mi") | null;
             /** Due Soon Maintenance Count */
             due_soon_maintenance_count: number;
+            /** Identifier */
+            identifier?: string | null;
+            /**
+             * Identifier Type
+             * @default vin
+             */
+            identifier_type: ("vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none") | null;
             /**
              * Is Shared With Me
              * @default false
@@ -20798,6 +20805,8 @@ export interface components {
             make?: string | null;
             /** Model */
             model?: string | null;
+            /** Nickname */
+            nickname?: string | null;
             /** Overdue Maintenance Count */
             overdue_maintenance_count: number;
             /** Owner Relationship */

@@ -29,7 +29,7 @@ import { yearMakeModel } from '../utils/vehicleLabel'
 import VehicleLiveLinkWidget from './livelink/VehicleLiveLinkWidget'
 import { ListRow, Tile, Badge, Mono } from './ui'
 import { unlessSelectingText } from '../utils/textSelection'
-import { vinForDisplay } from '../utils/vehicleIdentifier'
+import { identifierValue } from '../utils/vehicleIdentifier'
 
 /** How many tanks `recent_l_per_100km` covers: `_RECENT_WINDOW` in the backend's routes/dashboard.py. */
 const RECENT_TANKS = 3
@@ -91,6 +91,10 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
   const kinds = vehicleLogKinds(stats)
   const isTowableRv = kinds.propane && !kinds.motorized
   const towVehicleLabel = isTowableRv && stats.tow_vehicle ? yearMakeModel(stats.tow_vehicle) : null
+  // A tractor may have no year, make or model, only a nickname and a serial
+  // (#226), and its key is generated: title it by the nickname, show the serial.
+  const title = yearMakeModel(stats) || stats.nickname || ''
+  const identifier = identifierValue(stats)
   const propaneRate =
     isTowableRv && stats.propane_l_per_month != null ? parseFloat(String(stats.propane_l_per_month)) : null
   const recentPropaneRate =
@@ -134,7 +138,7 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
         {stats.main_photo_url ? (
           <img
             src={withBase(stats.main_photo_url)}
-            alt={`${stats.year} ${stats.make} ${stats.model}`}
+            alt={title}
             className="pointer-events-none h-full w-full object-cover"
           />
         ) : (
@@ -162,12 +166,12 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
         >
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-[19px] font-bold tracking-[-.01em] text-text">
-              {stats.year} {stats.make} {stats.model}
+              {title}
             </h3>
             <Badge>{typeLabel}</Badge>
           </div>
           <Mono size="sm" tone="muted" variant="vin" className="mt-1 block">
-            {vinForDisplay(stats.vin)}
+            {identifier}
           </Mono>
         </div>
 
