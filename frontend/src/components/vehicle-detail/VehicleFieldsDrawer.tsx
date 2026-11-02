@@ -13,11 +13,19 @@ import { getActiveLocale } from '../../constants/i18n'
 import { parseDecimalInput } from '../../utils/decimalInput'
 import { INVALID_NUMBER } from '../../schemas/shared'
 import { makeVehicleWholeNumberFields } from '../../schemas/vehicle'
+import { parseApiError } from '../../utils/httpErrorHandler'
+import { IDENTIFIER_TYPES, identifierTypeLabel, isSyntheticKey } from '../../utils/vehicleIdentifier'
 
 /** The four Overview info cards that open this shared editor sidecar. */
 export type VehicleCardKey = 'basic' | 'details' | 'powertrain' | 'warranty'
 
-type FieldKind = 'text' | 'number' | 'multiline' | 'date' | 'country'
+type FieldKind = 'text' | 'number' | 'multiline' | 'date' | 'country' | 'identifierType' | 'identifier'
+
+/** A key shaped like a VIN: the only kind that can switch (back) to type `vin` (#226). */
+const VIN_SHAPE = /^[A-HJ-NPR-Z0-9]{17}$/
+
+/** Identifier types that carry no identifier value of their own. */
+const NO_IDENTIFIER_VALUE = ['vin', 'none']
 
 /** The number fields here, each checked by the edit form's own rule. */
 type WholeNumberKey = keyof ReturnType<typeof makeVehicleWholeNumberFields>
@@ -47,6 +55,9 @@ function getCardConfig(card: VehicleCardKey): CardConfig {
         titleKey: 'detail.basicInformation',
         icon: Info,
         fields: [
+          // What identifies it (#226). The key never changes; only the label does.
+          { key: 'identifier_type', label: 'identifier.typeLabel', kind: 'identifierType' },
+          { key: 'identifier', label: 'identifier.valueLabel', kind: 'identifier' },
           { key: 'year', label: 'edit.year', kind: 'number' },
           { key: 'make', label: 'edit.make', kind: 'text' },
           { key: 'model', label: 'edit.model', kind: 'text' },
@@ -128,7 +139,7 @@ function seedForm(config: CardConfig, v: Vehicle): Record<string, string> {
         break
       }
     }
-    out[f.key] = value
+    out[f.key] = f.kind === 'identifierType' ? value || 'vin' : value
   }
   return out
 }
@@ -186,6 +197,21 @@ export default function VehicleFieldsDrawer({
   const initialRef = useRef<Record<string, string>>({})
 
   const config = card ? getCardConfig(card) : null
+  // A generated key (or anything not shaped like a VIN) can't become a VIN:
+  // that would rewrite the key under every table. The server refuses it too.
+  const canBeVin = !isSyntheticKey(vehicle.vin) && VIN_SHAPE.test(vehicle.vin)
+  const identifierChoices = useMemo(
+    () =>
+      IDENTIFIER_TYPES.map((kind) => ({
+        value: kind,
+        label: identifierTypeLabel(kind, t),
+        disabled: kind === 'vin' && !canBeVin,
+      })),
+    [t, canBeVin],
+  )
+  const identifierType = form.identifier_type ?? 'vin'
+  const showsField = (f: FieldSpec): boolean =>
+    f.kind !== 'identifier' || !NO_IDENTIFIER_VALUE.includes(identifierType)
 
   useEffect(() => {
     // Reseed from the vehicle each time the drawer opens on a card. Save closes
@@ -212,7 +238,18 @@ export default function VehicleFieldsDrawer({
     const found: Record<string, string> = {}
     for (const f of config.fields) {
       const current = form[f.key] ?? ''
+      // VIN and "none" carry no identifier: the server clears it itself.
+      if (!showsField(f)) continue
+      if (f.kind === 'identifier' && current.trim() === '') {
+        // Required whenever it's shown, changed or not (a type switch needs one).
+        found[f.key] = t('identifier.required')
+        continue
+      }
       if (current === (initialRef.current[f.key] ?? '')) continue
+      if (f.kind === 'identifier') {
+        payload[f.key] = current.trim()
+        continue
+      }
       if (f.kind !== 'number') {
         payload[f.key] = emptyToNull(current)
         continue
@@ -241,8 +278,10 @@ export default function VehicleFieldsDrawer({
       const updated = await vehicleService.update(vin, payload as VehicleUpdate)
       onUpdated(updated)
       onClose()
-    } catch {
-      toast.error(t('detail.cardEdit.saveError'))
+    } catch (err) {
+      // A refused identifier change says why (a Q-keyed vehicle can't take a VIN).
+      const parsed = parseApiError(err)
+      toast.error(parsed.status === 422 && parsed.detail ? parsed.detail : t('detail.cardEdit.saveError'))
     } finally {
       setSaving(false)
     }
@@ -263,13 +302,26 @@ export default function VehicleFieldsDrawer({
     >
       {config && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {config.fields.map((f) => {
+          {config.fields.filter(showsField).map((f) => {
             const id = `vfd_${f.key}`
             const value = form[f.key] ?? ''
+            const hint = f.kind === 'identifierType' && !canBeVin ? t('identifier.cannotAddVin') : undefined
             return (
               <div key={f.key} className={f.kind === 'multiline' ? 'sm:col-span-2' : ''}>
-                <Field id={id} label={t(f.label)} error={errors[f.key]}>
-                  {f.kind === 'multiline' ? (
+                <Field id={id} label={t(f.label)} error={errors[f.key]} hint={hint}>
+                  {f.kind === 'identifierType' ? (
+                    <Select id={id} value={value} onChange={set(f.key)} options={identifierChoices} />
+                  ) : f.kind === 'identifier' ? (
+                    <Input
+                      id={id}
+                      type="text"
+                      maxLength={64}
+                      value={value}
+                      onChange={set(f.key)}
+                      placeholder={t('identifier.valuePlaceholder')}
+                      invalid={!!errors[f.key]}
+                    />
+                  ) : f.kind === 'multiline' ? (
                     <Textarea id={id} rows={2} value={value} onChange={set(f.key)} />
                   ) : f.kind === 'number' ? (
                     <NumberInput id={id} value={value} onChange={set(f.key)} invalid={!!errors[f.key]} />
