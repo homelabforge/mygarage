@@ -10,7 +10,7 @@ import type { FuelRecord, FuelRecordCreate, FuelRecordUpdate } from '../types/fu
 import type { Vehicle } from '../types/vehicle'
 import type { UnitSet } from '../types/units'
 import type { AddressBookEntry } from '../types/addressBook'
-import { makeFuelRecordSchema, type FuelRecordFormData } from '../schemas/fuel'
+import { isOctaneScale, makeFuelRecordSchema, type FuelRecordFormData } from '../schemas/fuel'
 import {
   FUEL_TYPE_VALUES,
   PAYMENT_METHOD_VALUES,
@@ -367,6 +367,9 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
       // #164 — octane is dimensionless; the grade is an enum. Create-mode
       // prefill from the last fill-up happens in an effect below.
       octane: readNumber((record as { octane?: number | null })?.octane),
+      // B4 — an edit keeps the stored pair; a legacy null stays null until the
+      // person picks a scale. A new fill-up gets the profile's in an effect.
+      octane_scale: isOctaneScale(record?.octane_scale) ? record.octane_scale : undefined,
       diesel_grade: (record as { diesel_grade?: 'onroad' | 'offroad' | null })?.diesel_grade ?? undefined,
       // #211 — only a label the vocabulary knows; anything else is left
       // blank rather than failing validation on a field the user never saw.
@@ -467,6 +470,10 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   // change, including the form's own setValue calls, which is fine: those all
   // happen after (prefill itself, and the hidden-field clears below).
   const gradeTouchedRef = useRef({ octane: false, diesel_grade: false, fuel_grade: false })
+  // B4 — set only by the person picking a scale, never by the form's own
+  // seeding, so the profile default and the last fill-up's pair can still
+  // fill an untouched scale whichever of the two arrives first.
+  const scaleChosenRef = useRef(false)
   useEffect(() => {
     const subscription = watch((_, { name }) => {
       if (name === 'octane') gradeTouchedRef.current.octane = true
@@ -486,6 +493,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         const last = (res.data?.records ?? [])[0] as
           | {
               octane?: number | null
+              octane_scale?: string | null
               diesel_grade?: 'onroad' | 'offroad' | null
               fuel_grade?: string | null
             }
@@ -493,6 +501,10 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         if (!last) return
         if (last.octane != null && !gradeTouchedRef.current.octane && getValues('octane') == null) {
           setValue('octane', last.octane)
+          // B4 — the number and its scale travel together.
+          if (isOctaneScale(last.octane_scale) && !scaleChosenRef.current) {
+            setValue('octane_scale', last.octane_scale)
+          }
         }
         if (
           last.diesel_grade != null &&
@@ -910,6 +922,8 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         // #164 — null, not undefined, so a cleared value clears on update
         // (exclude_unset drops omitted keys; the issue-#108 convention).
         octane: data.octane ?? null,
+        // B4 — the scale only beside its number; null clears it on update.
+        octane_scale: data.octane != null ? (data.octane_scale ?? null) : null,
         diesel_grade: data.diesel_grade ?? null,
         fuel_grade: data.fuel_grade ?? null,
         is_full_tank: data.is_full_tank,
@@ -995,6 +1009,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
         'def_fill_level',
         'fuel_type_used',
         'octane',
+        'octane_scale',
         'diesel_grade',
         'fuel_grade',
         'driver_name_freetext',
@@ -1048,7 +1063,18 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   // that carries one: electricity has no label.
   const allowedGrades = gradesForFuelType(effectiveFuelType)
   const showFuelGrade = !!countryProfile && allowedGrades.length > 0
-  const octaneIsRon = countryProfile?.fuel?.octane_scale === 'RON'
+  // B4 — the profile's scale is only the DEFAULT for a new fill-up; the label
+  // follows the scale the record carries, so an old AKI fill-up stays AKI.
+  const profileOctaneScale = isOctaneScale(countryProfile?.fuel?.octane_scale)
+    ? countryProfile.fuel.octane_scale
+    : undefined
+  const watchedOctaneScale = watch('octane_scale')
+  const octaneIsRon = watchedOctaneScale === 'RON'
+  useEffect(() => {
+    if (record || !profileOctaneScale || scaleChosenRef.current) return
+    if (getValues('octane_scale')) return
+    setValue('octane_scale', profileOctaneScale)
+  }, [record, profileOctaneScale, getValues, setValue])
 
   // The pump names of the profile for the fuel dispensed (SP95-E10, Super
   // Plus…). Picking one writes the EN 16942 label and, for petrol, the
@@ -1093,6 +1119,10 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
     setValue('fuel_grade', preset.grade as FuelGrade, { shouldDirty: true, shouldValidate: true })
     if (showOctane) {
       setValue('octane', preset.octane ?? undefined, { shouldDirty: true, shouldValidate: true })
+      // A pump name's octane is printed on the profile's scale.
+      if (preset.octane != null && profileOctaneScale) {
+        setValue('octane_scale', profileOctaneScale, { shouldDirty: true })
+      }
     }
   }
 
@@ -1108,7 +1138,10 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
     const prev = prevGradeVisibilityRef.current
     prevGradeVisibilityRef.current = { octane: showOctane, grade: showDieselGrade, label: showFuelGrade }
     if (!prev) return
-    if (prev.octane && !showOctane) setValue('octane', undefined)
+    if (prev.octane && !showOctane) {
+      setValue('octane', undefined)
+      setValue('octane_scale', undefined)
+    }
     if (prev.grade && !showDieselGrade) setValue('diesel_grade', undefined)
     if (prev.label && !showFuelGrade) setValue('fuel_grade', undefined)
   }, [showOctane, showDieselGrade, showFuelGrade, setValue])
@@ -1535,6 +1568,25 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
                   hint={octaneIsRon ? t('fuel.octaneRonHint') : t('fuel.octaneHint')}
                 >
                   <NumberInput id="octane" {...registerDecimal(register, 'octane')} invalid={!!errors.octane} disabled={isSubmitting} />
+                </Field>
+              )}
+              {showOctane && (
+                <Field id="octane_scale" label={t('fuel.octaneScale')} error={errors.octane_scale}>
+                  <Select
+                    id="octane_scale"
+                    {...register('octane_scale', {
+                      onChange: () => {
+                        scaleChosenRef.current = true
+                      },
+                    })}
+                    disabled={isSubmitting}
+                    invalid={!!errors.octane_scale}
+                    placeholder={t('fuel.octaneScaleUnknown')}
+                    options={[
+                      { value: 'RON', label: t('fuel.octaneScaleRon') },
+                      { value: 'AKI', label: t('fuel.octaneScaleAki') },
+                    ]}
+                  />
                 </Field>
               )}
               {showDieselGrade && (

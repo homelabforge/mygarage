@@ -289,7 +289,9 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
     }] : []),
     ...(showOctaneColumn ? [{
       id: 'octane', header: t('fuelList.octane'), align: 'right' as const, mono: true,
-      render: (r: FuelRecord) => r.octane != null ? String(r.octane) : '-',
+      // B4 — "95 RON" / "91 AKI"; a legacy fill-up with no scale shows the number alone.
+      render: (r: FuelRecord) =>
+        r.octane != null ? (r.octane_scale ? `${r.octane} ${r.octane_scale}` : String(r.octane)) : '-',
     }] : []),
     // B8: generic truthful header — the row value already respects every price_basis
     // via priceToDisplay(…, r.price_basis), so a volume-only "Price/L" heading would

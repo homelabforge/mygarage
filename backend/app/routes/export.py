@@ -121,9 +121,10 @@ limiter = Limiter(key_func=get_remote_address)
 #   since they ship in the same release: a `Fuel Grade` column / `fuel_grade`
 #   key, the EN 16942 pump label of a fill-up (migration 144), and a
 #   `No-Claims Class` column / `no_claims_class` key on a vehicle's insurance
-#   row, the bonus-malus coefficient or class it is rated at (migration 149).
-#   Same additive treatment as the #164 grade columns: an older file imports
-#   with NULLs.
+#   row, the bonus-malus coefficient or class it is rated at (migration 149),
+#   and an `Octane Scale` column / `octane_scale` key, the RON or AKI scale a
+#   fill-up's octane was read on (migration 151). Same additive treatment as
+#   the #164 grade columns: an older file imports with NULLs.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -655,6 +656,7 @@ async def export_fuel_records_csv(
         "Is Hauling",
         "Fuel Type Used",
         "Octane",
+        "Octane Scale",
         "Diesel Grade",
         "Fuel Grade",
         "Station ID",
@@ -709,6 +711,7 @@ async def export_fuel_records_csv(
                 # Dimensionless grade fields (#164) — an octane is an int label,
                 # not a unit-bearing quantity, so no csv_emission conversion.
                 record.octane if record.octane is not None else "",
+                record.octane_scale or "",
                 record.diesel_grade or "",
                 record.fuel_grade or "",
                 record.station_address_book_id or "",

@@ -11476,6 +11476,11 @@ export interface components {
              */
             octane?: number | null;
             /**
+             * Octane Scale
+             * @description The scale `octane` was read on: 'RON' or 'AKI'; null when unknown
+             */
+            octane_scale?: string | null;
+            /**
              * Odometer Km
              * @description Odometer reading in kilometers
              */
@@ -11751,6 +11756,11 @@ export interface components {
              */
             octane?: number | null;
             /**
+             * Octane Scale
+             * @description The scale `octane` was read on: 'RON' or 'AKI'; null when unknown
+             */
+            octane_scale?: string | null;
+            /**
              * Odometer Km
              * @description Odometer reading in kilometers
              */
@@ -11928,6 +11938,11 @@ export interface components {
              * @description Octane rating for gasoline/E85 fill-ups (AKI or RON)
              */
             octane?: number | null;
+            /**
+             * Octane Scale
+             * @description The scale `octane` was read on: 'RON' or 'AKI'; null when unknown
+             */
+            octane_scale?: string | null;
             /**
              * Odometer Km
              * @description Odometer reading in kilometers

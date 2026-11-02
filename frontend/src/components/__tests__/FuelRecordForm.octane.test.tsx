@@ -130,6 +130,8 @@ const DEFAULT_PROPS = {
 
 const octaneInput = (): HTMLInputElement | null =>
   document.getElementById('octane') as HTMLInputElement | null
+const scaleSelect = (): HTMLSelectElement | null =>
+  document.getElementById('octane_scale') as HTMLSelectElement | null
 const gradeSelect = (): HTMLSelectElement | null =>
   document.getElementById('diesel_grade') as HTMLSelectElement | null
 
@@ -333,7 +335,6 @@ describe('FuelRecordForm — EN 16942 fuel grade from the country profile (#211)
       />,
     )
     await waitFor(() => expect(presetSelect()).toBeInTheDocument())
-    expect(screen.getByText('fuel.octaneRon')).toBeInTheDocument()
     const names = Array.from(presetSelect()!.options).map((o) => o.value)
     expect(names).toEqual(['', 'sp95_e10', 'sp95', 'sp98', 'other'])
     // Only petrol pumps: the diesel names stay out of a petrol fill-up.
@@ -343,11 +344,14 @@ describe('FuelRecordForm — EN 16942 fuel grade from the country profile (#211)
 
     fireEvent.change(presetSelect()!, { target: { value: 'sp98' } })
     await waitFor(() => expect(octaneInput()?.value).toBe('98'))
+    // A pump name's octane is on the profile's scale, so it brings the scale.
+    expect(scaleSelect()?.value).toBe('RON')
     fireEvent.submit(drawerForm())
     await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
     const body = mockedApiPut.mock.calls.at(-1)?.[1] as Record<string, unknown>
     expect(body.fuel_grade).toBe('E5')
     expect(body.octane).toBe(98)
+    expect(body.octane_scale).toBe('RON')
   })
 
   it('a French diesel fill-up hides the US on/off-road grade and offers B7 / XTL', async () => {
@@ -445,5 +449,87 @@ describe('FuelRecordForm — EN 16942 fuel grade from the country profile (#211)
     const body = mockedApiPut.mock.calls.at(-1)?.[1] as Record<string, unknown>
     expect(body.fuel_grade).toBeNull()
     expect(body.fuel_type_used).toBe('diesel')
+  })
+})
+
+describe('FuelRecordForm — the octane scale travels with its number (B4)', () => {
+  it('a new French fill-up defaults to RON, labels the field RON and sends the pair', async () => {
+    profileState.country = 'FR'
+    profileState.profile = FR_PROFILE
+    mockGets(mockVehicle({ fuel_type: 'gasoline' }))
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+    await waitFor(() => expect(scaleSelect()?.value).toBe('RON'))
+    expect(screen.getByText('fuel.octaneRon')).toBeInTheDocument()
+  })
+
+  it('without a profile a new fill-up records no scale', async () => {
+    mockGets(mockVehicle({ fuel_type: 'gasoline' }))
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+    await waitFor(() => expect(scaleSelect()).toBeInTheDocument())
+    expect(scaleSelect()?.value).toBe('')
+  })
+
+  it('a new fill-up seeded from the last one takes its scale with its octane', async () => {
+    profileState.country = 'FR'
+    profileState.profile = FR_PROFILE
+    mockGets(mockVehicle({ fuel_type: 'gasoline' }), [{ id: 9, octane: 91, octane_scale: 'AKI' }])
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+    await waitFor(() => expect(octaneInput()?.value).toBe('91'))
+    await waitFor(() => expect(scaleSelect()?.value).toBe('AKI'))
+  })
+
+  it('editing the notes after a move to France keeps the stored AKI pair', async () => {
+    profileState.country = 'FR'
+    profileState.profile = FR_PROFILE
+    mockGets(mockVehicle({ fuel_type: 'gasoline' }))
+    render(
+      <FuelRecordForm
+        {...DEFAULT_PROPS}
+        record={{ id: 5, vin: DEFAULT_PROPS.vin, date: '2026-05-01', octane: 91, octane_scale: 'AKI' } as never}
+      />,
+    )
+    await waitFor(() => expect(scaleSelect()?.value).toBe('AKI'))
+    expect(screen.queryByText('fuel.octaneRon')).not.toBeInTheDocument()
+    fireEvent.change(document.getElementById('notes')!, { target: { value: 'moved to Lyon' } })
+    fireEvent.submit(drawerForm())
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    const body = mockedApiPut.mock.calls.at(-1)?.[1] as Record<string, unknown>
+    expect(body.octane).toBe(91)
+    expect(body.octane_scale).toBe('AKI')
+  })
+
+  it('a legacy fill-up with no scale stays without one on edit, even in France', async () => {
+    profileState.country = 'FR'
+    profileState.profile = FR_PROFILE
+    mockGets(mockVehicle({ fuel_type: 'gasoline' }))
+    render(
+      <FuelRecordForm
+        {...DEFAULT_PROPS}
+        record={{ id: 5, vin: DEFAULT_PROPS.vin, date: '2026-05-01', octane: 95, octane_scale: null } as never}
+      />,
+    )
+    await waitFor(() => expect(octaneInput()?.value).toBe('95'))
+    expect(scaleSelect()?.value).toBe('')
+    fireEvent.submit(drawerForm())
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    const body = mockedApiPut.mock.calls.at(-1)?.[1] as Record<string, unknown>
+    expect(body.octane).toBe(95)
+    expect(body.octane_scale).toBeNull()
+  })
+
+  it('picking a scale on a legacy fill-up sends it', async () => {
+    mockGets(mockVehicle({ fuel_type: 'gasoline' }))
+    render(
+      <FuelRecordForm
+        {...DEFAULT_PROPS}
+        record={{ id: 5, vin: DEFAULT_PROPS.vin, date: '2026-05-01', octane: 87, octane_scale: null } as never}
+      />,
+    )
+    await waitFor(() => expect(scaleSelect()).toBeInTheDocument())
+    fireEvent.change(scaleSelect()!, { target: { value: 'AKI' } })
+    fireEvent.submit(drawerForm())
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    const body = mockedApiPut.mock.calls.at(-1)?.[1] as Record<string, unknown>
+    expect(body.octane_scale).toBe('AKI')
   })
 })

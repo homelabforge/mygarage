@@ -87,6 +87,7 @@ from app.schemas.fuel import (
     _validate_diesel_grade,
     _validate_fuel_grade,
     _validate_octane,
+    _validate_octane_scale,
 )
 from app.schemas.hours import HoursRecordCreate
 from app.schemas.odometer import OdometerRecordCreate
@@ -378,6 +379,13 @@ async def import_fuel_csv(
             # the per-row error handler, never silently persisted (R1-M2).
             raw_octane = (row.get("Octane", "") or "").strip()
             octane = _validate_octane(int(raw_octane)) if raw_octane else None
+            # B4 — the scale it was read on (absent/blank = NULL, as is a
+            # scale with no octane beside it).
+            octane_scale = (
+                _validate_octane_scale(row.get("Octane Scale") or "")
+                if octane is not None
+                else None
+            )
             raw_grade = (row.get("Diesel Grade", "") or "").strip()
             diesel_grade = _validate_diesel_grade(raw_grade) if raw_grade else None
             # #211 — EN 16942 label (v8 column; absent/blank = NULL).
@@ -515,6 +523,7 @@ async def import_fuel_csv(
                     normalized_fuel_type.value if normalized_fuel_type is not None else None
                 ),
                 octane=octane,
+                octane_scale=octane_scale,
                 diesel_grade=diesel_grade,
                 fuel_grade=fuel_grade,
                 outside_temp_c=outside_temp_c,

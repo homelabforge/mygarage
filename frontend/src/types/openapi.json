@@ -8580,6 +8580,19 @@
             "description": "Octane rating for gasoline/E85 fill-ups (AKI or RON)",
             "title": "Octane"
           },
+          "octane_scale": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
+            "title": "Octane Scale"
+          },
           "odometer_km": {
             "anyOf": [
               {
@@ -9186,6 +9199,18 @@
             "description": "Octane rating for gasoline/E85 fill-ups (AKI or RON)",
             "title": "Octane"
           },
+          "octane_scale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
+            "title": "Octane Scale"
+          },
           "odometer_km": {
             "anyOf": [
               {
@@ -9706,6 +9731,19 @@
             ],
             "description": "Octane rating for gasoline/E85 fill-ups (AKI or RON)",
             "title": "Octane"
+          },
+          "octane_scale": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
+            "title": "Octane Scale"
           },
           "odometer_km": {
             "anyOf": [

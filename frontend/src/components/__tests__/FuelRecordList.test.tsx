@@ -252,6 +252,20 @@ describe('FuelRecordList — conditional propane column', () => {
     expect(await screen.findByRole('columnheader', { name: 'fuelList.propaneUnit (L)' })).toBeInTheDocument()
   })
 
+  it('labels each octane with its own scale, and a legacy one without (B4)', async () => {
+    const rows = [
+      { ...record, id: 1, octane: 95, octane_scale: 'RON' },
+      { ...record, id: 2, date: '2026-02-01', octane: 91, octane_scale: 'AKI' },
+      { ...record, id: 3, date: '2026-01-01', octane: 89, octane_scale: null },
+    ] as FuelRecord[]
+    useFuelRecordsMock.mockReturnValue({ data: { records: rows, total: 3, average_l_per_100km: null }, isLoading: false, error: null })
+    render(<FuelRecordList {...DEFAULT_PROPS} />)
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalled())
+    expect(within(table()).getByText('95 RON')).toBeInTheDocument()
+    expect(within(table()).getByText('91 AKI')).toBeInTheDocument()
+    expect(within(table()).getByText('89')).toBeInTheDocument()
+  })
+
   it('omits the propane column for a non-propane vehicle', async () => {
     render(<FuelRecordList {...DEFAULT_PROPS} />)
     await waitFor(() => expect(apiGetMock).toHaveBeenCalled())

@@ -103,6 +103,7 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "Is Hauling": "is_hauling",
             "Fuel Type Used": "fuel_type_used",
             "Octane": "octane",
+            "Octane Scale": "octane_scale",
             "Diesel Grade": "diesel_grade",
             "Fuel Grade": "fuel_grade",
             "Station ID": "station_address_book_id",

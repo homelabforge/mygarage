@@ -42,6 +42,15 @@ export const PRICE_BASIS_VALUES = ['per_volume', 'per_weight', 'per_kwh', 'per_t
 // #164 — the US clear-vs-dyed (farm) diesel distinction.
 export const DIESEL_GRADE_VALUES = ['onroad', 'offroad'] as const
 
+// B4 — the scale an octane was read on: RON on European pumps, AKI on
+// North American ones. Stored per fill-up, never inferred from the country.
+export const OCTANE_SCALE_VALUES = ['RON', 'AKI'] as const
+export type OctaneScale = (typeof OCTANE_SCALE_VALUES)[number]
+
+export function isOctaneScale(value: unknown): value is OctaneScale {
+  return typeof value === 'string' && (OCTANE_SCALE_VALUES as readonly string[]).includes(value)
+}
+
 // Drop empty strings before validating an optional enum — HTML <select>
 // elements without a chosen value submit "" by default, and zod's enum
 // validator would reject that. Coerce empty -> undefined first.
@@ -108,6 +117,7 @@ export const makeFuelRecordSchema = (t: TFunction, units: UnitSet, temperature: 
       invalidKey: 'common:validation.fuel.octaneInvalid',
       integerKey: 'common:validation.fuel.octaneInvalid',
     }),
+    octane_scale: optionalEnum(OCTANE_SCALE_VALUES),
     diesel_grade: optionalEnum(DIESEL_GRADE_VALUES),
     // #211 — the EN 16942 pump label; the backend upper-cases and validates
     // the same vocabulary.

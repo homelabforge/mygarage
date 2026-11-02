@@ -272,6 +272,7 @@ SECTIONS = [
                 "price_basis",
                 "fuel_type_used",
                 "octane",
+                "octane_scale",
                 "diesel_grade",
                 "fuel_grade",
                 "is_full_tank",
