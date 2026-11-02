@@ -1,6 +1,7 @@
 """The vehicle key: a real VIN, or a generated Q-key for a vehicle without one (#226)."""
 
 import pytest
+
 from app.utils.vehicle_key import (
     IDENTIFIER_TYPES,
     display_identifier,
@@ -10,7 +11,6 @@ from app.utils.vehicle_key import (
     is_synthetic_key,
     is_vehicle_key,
 )
-
 from app.utils.vin import validate_vin
 
 

@@ -160,6 +160,9 @@ SECTIONS = [
                 "eu_category",
                 "national_category",
                 "lez_class",
+                # A vehicle without a VIN (#226): what its key stands for.
+                "identifier_type",
+                "identifier",
                 "window_sticker_packages",
                 "exterior_color",
                 "interior_color",
