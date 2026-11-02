@@ -33,7 +33,15 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 # containers don't always have.
 _PASSWORD_HASH = "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI"
 
-_COLUMNS_AFTER_AMOUNT = ["Location", "Toll System", "Tag Number", "Notes", "Vehicle", "VIN"]
+_COLUMNS_AFTER_AMOUNT = [
+    "Location",
+    "Toll System",
+    "Tag Number",
+    "Notes",
+    "Vehicle",
+    "VIN",
+    "Identifier",
+]
 
 
 async def _set_setting(db: AsyncSession, key: str, value: str | None) -> None:
@@ -134,9 +142,9 @@ async def test_the_amount_is_bare_and_the_header_names_the_users_currency(
         assert header == ["Date", "Amount (HUF)", *_COLUMNS_AFTER_AMOUNT]
         assert len(data) == 1
         assert data[0][:3] == ["2026-03-04", "12500.50", "M1 Motorway"]
-        # Same column count as before: the currency moved into the header, it
-        # didn't grow its own column.
-        assert len(data[0]) == len(header) == 8
+        # The currency moved into the header, it didn't grow its own column;
+        # the ninth is the identifier of a vehicle without a VIN (#226).
+        assert len(data[0]) == len(header) == 9
         assert "$" not in response.text
     finally:
         await _cleanup(db_session, user_id, vin)

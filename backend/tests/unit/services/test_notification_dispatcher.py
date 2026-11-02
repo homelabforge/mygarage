@@ -416,7 +416,7 @@ class TestConvenienceMethods:
         """
         await dispatcher.notify_def_low(
             vehicle_name="My Truck",
-            vin="1FTFW1ET5DFC10312",
+            identifier="1FTFW1ET5DFC10312",
             percent=Decimal("25"),
             remaining_liters=Decimal("2.50"),
             as_of_date=date(2026, 6, 15),
