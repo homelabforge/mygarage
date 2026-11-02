@@ -14,6 +14,8 @@ import pytest_asyncio
 from httpx import AsyncClient, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tests._policy_scope import PolicyScope
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -198,28 +200,37 @@ AAA,Roadside,2024-01-01,2025-01-01,150.00,0,Annual membership"""
         assert "error_count" in data
         assert "total_processed" in data
 
-    async def test_import_insurance_csv(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_import_insurance_csv(
+        self, client: AsyncClient, auth_headers, own_vehicle, db_session: AsyncSession
+    ):
         """Test importing insurance records from CSV.
 
         Note: Import code may have field mapping issues. Verifying endpoint
-        handles requests properly and returns valid structure.
+        handles requests properly and returns valid structure. The imported
+        policies are household rows that outlive the vehicle, so they go too.
         """
         csv_content = """Provider,Policy Number,Type,Start Date,End Date,Deductible,Notes
 State Farm,SF-12345,Full Coverage,2024-01-01,2024-07-01,500.00,6 month policy
 GEICO,GK-67890,Liability,2024-07-01,2025-01-01,250.00,Switched providers"""
+        policies = PolicyScope()
+        await policies.start(db_session)
+        try:
+            response = await client.post(
+                f"/api/import/vehicles/{own_vehicle.vin}/insurance/csv",
+                headers=auth_headers,
+                files={"file": ("insurance.csv", BytesIO(csv_content.encode()), "text/csv")},
+            )
 
-        response = await client.post(
-            f"/api/import/vehicles/{test_vehicle['vin']}/insurance/csv",
-            headers=auth_headers,
-            files={"file": ("insurance.csv", BytesIO(csv_content.encode()), "text/csv")},
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        # Verify response structure is correct
-        assert "success_count" in data
-        assert "error_count" in data
-        assert "total_processed" in data
+            assert response.status_code == 200
+            data = response.json()
+            # Verify response structure is correct
+            assert "success_count" in data
+            assert "error_count" in data
+            assert "total_processed" in data
+        finally:
+            await db_session.rollback()
+            await policies.drop(db_session)
+            await db_session.commit()
 
     async def test_import_tax_csv(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test importing tax records from CSV.

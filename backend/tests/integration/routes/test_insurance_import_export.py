@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.vehicle import Vehicle
 from app.schemas._money import MONEY_MAX
+from tests._policy_scope import PolicyScope
 
 RAM = "INSIMPEXP00000001"
 MIRAGE = "INSIMPEXP00000002"
@@ -31,9 +32,13 @@ HEADER = (
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
+#: The running test's policies: each test reads and deletes only its own.
+scope = PolicyScope()
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def garage(db_session: AsyncSession, test_user):
-    await db_session.execute(delete(InsurancePolicy))
+    await scope.start(db_session)
     for vin, nickname in ((RAM, "Ram"), (MIRAGE, "Mirage")):
         existing = (
             await db_session.execute(select(Vehicle).where(Vehicle.vin == vin))
@@ -44,7 +49,8 @@ async def garage(db_session: AsyncSession, test_user):
             )
     await db_session.commit()
     yield
-    await db_session.execute(delete(InsurancePolicy))
+    await db_session.rollback()
+    await scope.drop(db_session)
     await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_([RAM, MIRAGE])))
     await db_session.commit()
 
@@ -61,8 +67,10 @@ async def _import_csv(client: AsyncClient, headers, vin: str, *rows: str) -> dic
 
 
 async def _policies(db: AsyncSession) -> list[InsurancePolicy]:
+    """This test's policies. Other tests' may sit in the table too."""
     result = await db.execute(
         select(InsurancePolicy)
+        .where(scope.mine())
         .order_by(InsurancePolicy.id)
         .execution_options(populate_existing=True)
     )
@@ -121,7 +129,7 @@ async def test_the_export_round_trips_each_vehicles_own_numbers(client, db_sessi
         f"/api/export/vehicles/{MIRAGE}/insurance/csv", headers=auth_headers
     )
     assert exported.status_code == 200
-    await db_session.execute(delete(InsurancePolicy))
+    await scope.drop(db_session)
     await db_session.commit()
 
     response = await client.post(
@@ -240,7 +248,7 @@ async def test_the_json_backup_carries_insurance_with_named_fields_at_both_level
     (entry,) = backup["insurance_policies"]
     assert entry["premium_share"] == 300.0, "the vehicle's EFFECTIVE share, not the policy total"
 
-    await db_session.execute(delete(InsurancePolicy))
+    await scope.drop(db_session)
     await db_session.commit()
     restored = await client.post(
         f"/api/import/vehicles/{RAM}/json",
@@ -298,7 +306,7 @@ async def test_an_import_never_joins_another_owners_policy(
         untouched = next(p for p in policies if other in _shares(p))
         assert untouched.premium_amount == Decimal("500.00")
     finally:
-        await db_session.execute(delete(InsurancePolicy))
+        await scope.drop(db_session)
         await db_session.execute(delete(Vehicle).where(Vehicle.vin == other))
         await db_session.commit()
 
@@ -323,7 +331,7 @@ async def test_the_json_backup_keeps_the_date_a_vehicle_left_the_policy(
     backup = (await client.get(f"/api/export/vehicles/{RAM}/json", headers=auth_headers)).json()
     assert backup["insurance_policies"][0]["effective_to"] == "2026-03-01"
 
-    await db_session.execute(delete(InsurancePolicy))
+    await scope.drop(db_session)
     await db_session.commit()
     await client.post(
         f"/api/import/vehicles/{RAM}/json",
@@ -421,7 +429,7 @@ async def test_the_json_backup_carries_the_standard_coverages(
         "roadside_assistance",
     ]
 
-    await db_session.execute(delete(InsurancePolicy))
+    await scope.drop(db_session)
     await db_session.commit()
     restored = await client.post(
         f"/api/import/vehicles/{RAM}/json",
@@ -508,7 +516,7 @@ async def test_the_csv_column_round_trips_the_coverages(
         "Bodily Injury Liability 100000.00 each person/300000.00 each accident"
     )
 
-    await db_session.execute(delete(InsurancePolicy))
+    await scope.drop(db_session)
     await db_session.commit()
     response = await client.post(
         f"/api/import/vehicles/{RAM}/insurance/csv",
@@ -609,10 +617,15 @@ BIG_LIMITS = "Bodily Injury Liability $100,000,000,000 each person/$300,000 each
 
 
 async def _fresh_policies(sessionmaker) -> list[tuple[Decimal | None, set[str]]]:
-    """(premium, vins) per policy, read through a session the import never touched."""
+    """(premium, vins) per policy this test made, read through a session the import
+    never touched."""
     async with sessionmaker() as session:
         policies = (
-            (await session.execute(select(InsurancePolicy).order_by(InsurancePolicy.id)))
+            (
+                await session.execute(
+                    select(InsurancePolicy).where(scope.mine()).order_by(InsurancePolicy.id)
+                )
+            )
             .scalars()
             .unique()
             .all()

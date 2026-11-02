@@ -26,14 +26,17 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.insurance import PolicyVehicleUpdate
 from app.services.insurance_service import InsuranceService
+from tests._policy_scope import PolicyScope
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 RAM, MIRAGE = "INSRACE0000000001", "INSRACE0000000002"
+policies = PolicyScope()
 
 
 async def _seed(db_session, test_user) -> tuple[User, int, int, int]:
-    await db_session.execute(delete(InsurancePolicy))
+    # Only the policies this test makes go afterwards, never the whole table.
+    await policies.start(db_session)
     for vin in (RAM, MIRAGE):
         if (await db_session.execute(select(Vehicle).where(Vehicle.vin == vin))).first() is None:
             db_session.add(
@@ -112,6 +115,7 @@ async def test_two_racing_share_edits_cannot_together_overspend_the_premium(
         assert explicit <= Decimal("600.00"), f"shares {shares} overspend the premium"
     finally:
         monkeypatch.undo()
-        await db_session.execute(delete(InsurancePolicy))
+        await db_session.rollback()
+        await policies.drop(db_session)
         await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_([RAM, MIRAGE])))
         await db_session.commit()

@@ -16,10 +16,15 @@ from app.models.warranty import WarrantyRecord
 from app.tasks import scheduled
 from app.utils.datetime_utils import utc_now
 from app.utils.household_time import household_today
+from tests._policy_scope import PolicyScope
 
 pytestmark = [pytest.mark.asyncio]
 
 RAM, MIRAGE, SOLD = "INSEXPIRE00000001", "INSEXPIRE00000002", "INSEXPIRE00000003"
+#: Every policy here is this insurer's, so the stub can tell this file's notices
+#: from the ones the sweep sends for other tests' leftover policies.
+PROVIDER = "Expiry Check Mutual"
+policies = PolicyScope()
 
 
 class _PassthroughSessionContext:
@@ -35,8 +40,12 @@ class _PassthroughSessionContext:
 
 @pytest_asyncio.fixture
 async def sent(db_session: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch):
-    """Three vehicles (one archived), a stub dispatcher, and the calls it got."""
-    await db_session.execute(delete(InsurancePolicy))
+    """Three vehicles (one archived), a stub dispatcher, and the calls it got.
+
+    Only this test's policies go afterwards: emptying the table would also
+    delete other tests' leaked rows before the leak guard saw them.
+    """
+    await policies.start(db_session)
     for vin, nickname, archived in (
         (RAM, "Ram", False),
         (MIRAGE, "Mirage", False),
@@ -63,7 +72,9 @@ async def sent(db_session: AsyncSession, test_user, monkeypatch: pytest.MonkeyPa
             return True
 
         async def notify_insurance_expiring(self, **kwargs):
-            calls.append(kwargs)
+            # The sweep covers every policy in the database, not just this test's.
+            if kwargs["policy_name"].startswith(f"{PROVIDER} #"):
+                calls.append(kwargs)
             return {"discord": True}
 
         async def notify_warranty_expiring(self, **kwargs):
@@ -74,7 +85,8 @@ async def sent(db_session: AsyncSession, test_user, monkeypatch: pytest.MonkeyPa
         scheduled, "AsyncSessionLocal", lambda: _PassthroughSessionContext(db_session)
     )
     yield calls
-    await db_session.execute(delete(InsurancePolicy))
+    await db_session.rollback()
+    await policies.drop(db_session)
     await db_session.execute(delete(Vehicle).where(Vehicle.vin.in_([RAM, MIRAGE, SOLD])))
     await db_session.commit()
 
@@ -82,7 +94,7 @@ async def sent(db_session: AsyncSession, test_user, monkeypatch: pytest.MonkeyPa
 def _expiring(*vins: str, number: str = "P-1", **over) -> InsurancePolicy:
     today = household_today()
     policy = InsurancePolicy(
-        provider="Progressive",
+        provider=PROVIDER,
         policy_number=number,
         start_date=today - timedelta(days=170),
         end_date=today + timedelta(days=10),
@@ -103,7 +115,7 @@ async def test_a_three_vehicle_policy_is_one_notification_naming_the_live_vehicl
 
     assert len(sent) == 1, "one per POLICY, not one per vehicle"
     assert sent[0]["vehicle_name"] == "Ram, Mirage"
-    assert sent[0]["policy_name"] == "Progressive #P-1"
+    assert sent[0]["policy_name"] == f"{PROVIDER} #P-1"
     assert sent[0]["days_until_expiry"] == 10
 
 
@@ -122,7 +134,7 @@ async def test_a_policy_with_no_vehicles_still_expires(db_session, sent):
 
     await scheduled.check_expiring_documents()
 
-    assert [c["policy_name"] for c in sent] == ["Progressive #UMBRELLA"]
+    assert [c["policy_name"] for c in sent] == [f"{PROVIDER} #UMBRELLA"]
 
 
 async def test_a_policy_whose_renewal_is_already_entered_stops_asking(db_session, sent):
@@ -132,7 +144,7 @@ async def test_a_policy_whose_renewal_is_already_entered_stops_asking(db_session
     today = household_today()
     db_session.add(
         InsurancePolicy(
-            provider="Progressive",
+            provider=PROVIDER,
             policy_number="P-1",
             start_date=old.end_date,
             end_date=today + timedelta(days=190),
