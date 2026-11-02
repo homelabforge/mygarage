@@ -102,3 +102,18 @@ def test_identifier_text() -> None:
     assert identifier_text(_V("1HGCM82633A004352")) == "VIN 1HGCM82633A004352"
     assert identifier_text(_V(generate_vehicle_key(), "hin", "ABC12345D404")) == "HIN ABC12345D404"
     assert identifier_text(_V(generate_vehicle_key(), "none")) is None
+
+
+class _Named:
+    def __init__(self, year=None, make=None, model=None, nickname=None):
+        self.year, self.make, self.model, self.nickname = year, make, model, nickname
+
+
+def test_export_basename_skips_unknowns_and_falls_back_to_the_nickname() -> None:
+    from app.utils.vehicle_key import export_basename
+
+    assert export_basename(_Named(2021, "Kubota", "BX23S")) == "2021_Kubota_BX23S"
+    assert export_basename(_Named(None, "Stihl", "KM 131 R")) == "Stihl_KM-131-R"
+    assert export_basename(_Named(nickname="Kombi head")) == "Kombi-head"
+    assert export_basename(_Named()) == "vehicle"
+    assert "None" not in export_basename(_Named(nickname="Mower"))

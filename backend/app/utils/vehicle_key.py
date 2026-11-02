@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 import secrets
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 IdentifierType = Literal["vin", "serial", "hin", "chassis", "asset_tag", "none"]
 IDENTIFIER_TYPES: tuple[str, ...] = ("vin", "serial", "hin", "chassis", "asset_tag", "none")
@@ -98,6 +98,20 @@ def download_tag(vehicle: _HasIdentity, nickname: str | None = None) -> str:
     if kind == "vin" and value:
         return value
     return (_filename_safe(value) or _filename_safe(nickname) or "vehicle")[:40]
+
+
+def export_basename(vehicle: Any) -> str:
+    """Year_Make_Model for export filenames, skipping what's unknown.
+
+    A mower entered with only a nickname used to download as
+    `None_None_None_...`; it falls back to the nickname, then "vehicle". Only
+    [A-Za-z0-9-] survive, so make/model text can't break Content-Disposition.
+    """
+    parts = [_filename_safe(str(p)) for p in (vehicle.year, vehicle.make, vehicle.model) if p]
+    parts = [p for p in parts if p]
+    if parts:
+        return "_".join(parts)
+    return _filename_safe(getattr(vehicle, "nickname", None)) or "vehicle"
 
 
 def filename_fragment(vehicle: _HasIdentity, length: int = 6) -> str:

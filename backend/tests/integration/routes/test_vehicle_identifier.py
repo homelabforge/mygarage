@@ -273,3 +273,30 @@ class TestFilesForAVehicleWithoutAVin:
             assert key not in disposition
         finally:
             await _drop(db_session, key)
+
+
+class TestExportNames:
+    async def test_a_nickname_only_mower_exports_without_none_in_the_name(
+        self, client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession
+    ) -> None:
+        created = (
+            await _post(
+                client,
+                auth_headers,
+                nickname="Back Mower",
+                vehicle_type="Mower",
+                identifier_type="none",
+            )
+        ).json()
+        key = created["vin"]
+        try:
+            response = await client.get(
+                f"/api/export/vehicles/{key}/fuel/csv", headers=auth_headers
+            )
+            assert response.status_code == 200, response.text
+            disposition = response.headers["content-disposition"]
+            assert "Back-Mower_fuel_records_" in disposition
+            assert "None" not in disposition
+            assert key not in disposition
+        finally:
+            await _drop(db_session, key)

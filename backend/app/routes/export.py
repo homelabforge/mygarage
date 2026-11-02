@@ -52,6 +52,7 @@ from app.utils.csv_safe import sanitize_csv_row
 from app.utils.insurance_coverages import coverage_text
 from app.utils.insurance_shares import effective_shares
 from app.utils.render_context import render_context_for_request
+from app.utils.vehicle_key import export_basename
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -593,7 +594,7 @@ async def export_service_records_csv(
     )
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_service_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_service_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -741,7 +742,7 @@ async def export_fuel_records_csv(
     )
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_fuel_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_fuel_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -803,7 +804,7 @@ async def export_def_records_csv(
         headers, rows, await resolve_export_units(units, current_user, db, vehicle=vehicle)
     )
 
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_def_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_def_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -855,7 +856,9 @@ async def export_odometer_records_csv(
     )
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_odometer_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = (
+        f"{export_basename(vehicle)}_odometer_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    )
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -911,7 +914,7 @@ async def export_hours_records_csv(
     output = generate_csv_stream(headers, rows)
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_hours_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_hours_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -983,7 +986,7 @@ async def export_warranties_csv(
     )
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_warranties_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_warranties_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -1080,7 +1083,7 @@ async def export_insurance_csv(
     output = generate_csv_stream(headers, rows)
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_insurance_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_insurance_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -1131,7 +1134,7 @@ async def export_tax_records_csv(
     output = generate_csv_stream(headers, rows)
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_tax_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_tax_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -1176,7 +1179,7 @@ async def export_notes_csv(
     output = generate_csv_stream(headers, rows)
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_notes_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_notes_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -1587,7 +1590,7 @@ async def export_vehicle_json(
     }
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_complete_data_{datetime.now().strftime('%Y%m%d')}.json"
+    filename = f"{export_basename(vehicle)}_complete_data_{datetime.now().strftime('%Y%m%d')}.json"
 
     # Convert to JSON string
     json_str = json.dumps(export_data, indent=2)
