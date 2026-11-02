@@ -25,11 +25,15 @@ vi.mock('react-i18next', () => {
   }
 })
 
-import { IMPERIAL_UNITS } from '@/__tests__/factories'
+import { IMPERIAL_UNITS, METRIC_UNITS } from '@/__tests__/factories'
+import type { UnitSet } from '../../types/units'
+
+// The account's units, set per test; null reads as imperial like the vehicle's.
+const accountUnits = vi.hoisted(() => ({ current: null as UnitSet | null }))
 
 vi.mock('../../hooks/useUnitPreference', () => ({
   useUnitPreference: () => ({ showBoth: false, units: IMPERIAL_UNITS }),
-  useAccountUnitPreference: () => ({ units: IMPERIAL_UNITS }),
+  useAccountUnitPreference: () => ({ units: accountUnits.current ?? IMPERIAL_UNITS }),
 }))
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US' }),
@@ -84,6 +88,7 @@ describe('AdvancedStatistics', () => {
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
+    accountUnits.current = null
   })
 
   it('is collapsed on first load, with only the header and switch showing', () => {
@@ -159,6 +164,34 @@ describe('AdvancedStatistics', () => {
     expect(
       within(screen.getByTestId('stats-overall')).getByText('vehicle.statsDuration (1 | 1)')
     ).toBeInTheDocument()
+  })
+
+  it('never reads 12 months for the last few days of a year', () => {
+    // 362 days is 12 x 30 + 2, so the raw month count would be 12.
+    render(<AdvancedStatistics statistics={{ ...STATS, days_owned: 362 }} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'vehicle.statsToggle' }))
+    expect(
+      within(screen.getByTestId('stats-overall')).getByText('vehicle.statsDuration (0 | 11)')
+    ).toBeInTheDocument()
+  })
+
+  it('labels distance per fill-up in the same unit as its figure', () => {
+    // A metric account looking at a vehicle that reads in miles.
+    accountUnits.current = METRIC_UNITS
+    render(<AdvancedStatistics statistics={STATS} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'vehicle.statsToggle' }))
+    const fuel = within(screen.getByTestId('stats-fuel'))
+    expect(fuel.getByText('vehicle.statsDistancePerFillup (mi)')).toBeInTheDocument()
+    expect(fuel.queryByText('vehicle.statsDistancePerFillup (km)')).not.toBeInTheDocument()
+  })
+
+  it('names the revealed figures after the block title', () => {
+    render(<AdvancedStatistics statistics={STATS} />)
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'vehicle.statsToggle' }))
+    expect(screen.getByRole('region', { name: 'vehicle.statsTitle' })).toContainElement(
+      screen.getByTestId('stats-overall')
+    )
   })
 
   it('writes the days-per-fill-up figure in the reader\'s locale', () => {

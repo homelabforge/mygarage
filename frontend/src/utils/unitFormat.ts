@@ -635,7 +635,7 @@ export function formatPricePerVolumeUnit(
 export function formatVolumeWithUnit(units: UnitSet, liters: number | null | undefined, digits = 2): string {
   const adapter = adapterFor(units, 'volume')
   const value = adapter.toDisplay(liters)
-  return value == null || Number.isNaN(value) ? 'N/A' : `${formatAtPrecision(value, digits)} ${adapter.label}`
+  return value == null || Number.isNaN(value) ? NOT_AVAILABLE : `${formatAtPrecision(value, digits)} ${adapter.label}`
 }
 
 /**
@@ -650,7 +650,7 @@ export function formatVolumeWithUnit(units: UnitSet, liters: number | null | und
  */
 export function formatDistancePerCurrencyUnit(units: UnitSet, kmPerCurrencyUnit: number | null | undefined): string {
   const value = adapterFor(units, 'distance').toDisplay(kmPerCurrencyUnit)
-  return value == null || Number.isNaN(value) ? 'N/A' : formatAtPrecision(value, 3)
+  return value == null || Number.isNaN(value) ? NOT_AVAILABLE : formatAtPrecision(value, 3)
 }
 
 /**

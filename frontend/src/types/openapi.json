@@ -3835,6 +3835,17 @@
             "title": "Fuel Count",
             "type": "integer"
           },
+          "km_driven": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Km Driven"
+          },
           "monthly_breakdown": {
             "default": [],
             "items": {

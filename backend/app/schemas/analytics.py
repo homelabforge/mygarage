@@ -203,6 +203,8 @@ class CostAnalysis(BaseModel):
     fuel_count: int = 0
     def_count: int = 0
     months_tracked: int = 0
+    # Odometer span cost_per_km divides by; ownership statistics reuse it.
+    km_driven: Decimal | None = None
     cost_per_km: Decimal | None = None
 
     # Rolling averages

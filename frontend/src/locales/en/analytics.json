@@ -417,12 +417,12 @@
     "statsExpensesTotal": "Total cost",
     "statsExpensesPerDay": "Cost/day",
     "statsExpensesPerUnit": "Cost/{{unit}}",
-    "statsNote": "Insurance is counted over the days it has been in force, so upcoming premiums are not included yet.",
+    "statsNote": "Insurance is counted over the days it has been in force, so upcoming premiums are not included yet. Running costs include taxes and registration; loan and lease payments are not included.",
     "statsToggle": "Show advanced statistics",
     "statsBasisLabel": "Insurance counted",
     "statsBasisAccrued": "Over days in force",
     "statsBasisPaid": "In full when paid",
-    "statsNotePaid": "Insurance is counted in full for each billing period that has begun, the way it reads when each payment is logged on the day it is paid. Periods still to come are not included."
+    "statsNotePaid": "Insurance is counted in full for each billing period that has begun, the way it reads when each payment is logged on the day it is paid. Periods still to come are not included. Running costs include taxes and registration; loan and lease payments are not included."
   },
   "vehicleHelp": {
     "anomalies": {

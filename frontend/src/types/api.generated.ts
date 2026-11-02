@@ -9644,6 +9644,8 @@ export interface components {
              * @default 0
              */
             fuel_count: number;
+            /** Km Driven */
+            km_driven?: string | null;
             /**
              * Monthly Breakdown
              * @default []

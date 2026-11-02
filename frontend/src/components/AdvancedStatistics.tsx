@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BarChart3 } from 'lucide-react'
 import { Card, Tabs, Toggle } from './ui'
@@ -19,7 +19,7 @@ import {
 import type { OwnershipStatistics } from '../types/analytics'
 
 /** Per-browser memory of whether the block is open. Collapsed unless opened once. */
-export const ADVANCED_STATS_STORAGE_KEY = 'mygarage.analytics.advancedStatistics'
+export const ADVANCED_STATS_STORAGE_KEY = 'analytics_advanced_stats_open'
 
 function readOpen(): boolean {
   try {
@@ -38,7 +38,7 @@ function writeOpen(open: boolean): void {
 }
 
 /** Per-browser memory of how insurance is counted. Over the days in force unless changed. */
-export const ADVANCED_STATS_BASIS_KEY = 'mygarage.analytics.advancedStatistics.insurance'
+export const ADVANCED_STATS_BASIS_KEY = 'analytics_advanced_stats_insurance'
 
 type InsuranceBasis = 'accrued' | 'paid'
 
@@ -113,6 +113,7 @@ export default function AdvancedStatistics({
   const currencySymbol = useCurrencySymbol()
   const [open, setOpen] = useState(readOpen)
   const [basis, setBasis] = useState<InsuranceBasis>(readBasis)
+  const titleId = useId()
   // Only insurance differs between the two blocks, and it flows into the running,
   // ownership and expenses totals alike, so the running total is enough to tell
   // whether the switch has anything to show. Compared as numbers, not strings.
@@ -152,7 +153,8 @@ export default function AdvancedStatistics({
   const duration =
     days === null
       ? na
-      : t('vehicle.statsDuration', { years: Math.floor(days / 365), months: Math.floor((days % 365) / 30) })
+      : // 360-364 days would read "0 yr, 12 mo" without the clamp.
+        t('vehicle.statsDuration', { years: Math.floor(days / 365), months: Math.min(11, Math.floor((days % 365) / 30)) })
   const perCurrency = num(s.km_per_currency_unit)
   const daysPerFillup = num(s.avg_days_per_fillup)
 
@@ -205,7 +207,8 @@ export default function AdvancedStatistics({
     [
       row(t('vehicle.statsFuelPerDay'), money(s.fuel_cost_per_day)),
       row(t('vehicle.statsPerFillup'), money(s.avg_cost_per_fillup)),
-      row(t('vehicle.statsDistancePerFillup', { unit: distUnit }), distance(s.avg_km_per_fillup)),
+      // The value is in the vehicle's distance unit, so the label has to be too.
+      row(t('vehicle.statsDistancePerFillup', { unit: u.distance.label }), distance(s.avg_km_per_fillup)),
       row(t('vehicle.statsVolumePerDay', { unit: volUnit }), volume(s.liters_per_day)),
     ],
     [row(t('vehicle.statsFuelVolume', { unit: volUnit }), volume(s.fuel_total_liters, 1))],
@@ -225,12 +228,12 @@ export default function AdvancedStatistics({
     <Card className="mb-8">
       <div className="flex items-center gap-3">
         <BarChart3 className="w-5 h-5 text-text-mute" />
-        <h2 className="text-xl font-bold text-text">{t('vehicle.statsTitle')}</h2>
+        <h2 id={titleId} className="text-xl font-bold text-text">{t('vehicle.statsTitle')}</h2>
         <Toggle label={t('vehicle.statsToggle')} hideLabel checked={open} onChange={toggle} />
       </div>
 
       {open && (
-        <>
+        <div role="region" aria-labelledby={titleId}>
         {basisDiffers && (
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <span className="text-sm text-text-mute">{t('vehicle.statsBasisLabel')}</span>
@@ -281,7 +284,7 @@ export default function AdvancedStatistics({
           </StatCard>
 
         </div>
-        </>
+        </div>
       )}
     </Card>
   )

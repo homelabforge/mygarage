@@ -6,16 +6,19 @@ Expenses). Every figure is checked against arithmetic done by hand from a small
 fixture, so a change to what is counted, or to the denominator, fails here.
 """
 
+import datetime as dt
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import timedelta
 from decimal import Decimal
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import FuelRecord, ServiceVisit, Vehicle
+from app.models import FuelRecord, OdometerRecord, ServiceVisit, Vehicle
 from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.service_line_item import ServiceLineItem
 from app.models.tax import TaxRecord
@@ -27,44 +30,105 @@ def _dec(value: str | None) -> Decimal:
     return Decimal(value)
 
 
-async def _vehicle(
-    db_session: AsyncSession,
-    test_user: dict[str, object],
-    *,
-    vehicle_type: str = "Car",
-    purchase_price: Decimal | None = Decimal("1000.00"),
-    purchase_days_ago: int | None = 100,
-) -> str:
-    today = household_today()
-    vin = "STA" + uuid.uuid4().hex[:14].upper()
-    db_session.add(
-        Vehicle(
-            vin=vin,
-            user_id=test_user["id"],
-            nickname="Statistics Vehicle",
-            vehicle_type=vehicle_type,
-            year=2012,
-            make="Chevrolet",
-            model="Cruze",
-            fuel_type="gas",
-            purchase_price=purchase_price,
-            purchase_date=today - timedelta(days=purchase_days_ago)
-            if purchase_days_ago is not None
-            else None,
+class _Garage:
+    """Makes the vehicles and policies a test needs and deletes them afterwards.
+
+    Policies are household-wide, so one left behind would land in every later
+    test's insurance totals.
+    """
+
+    def __init__(self, db: AsyncSession, user: dict[str, object]) -> None:
+        self.db = db
+        self.user = user
+        self.vins: list[str] = []
+        self.policy_ids: list[int] = []
+
+    async def vehicle(
+        self,
+        *,
+        vehicle_type: str = "Car",
+        purchase_price: Decimal | None = Decimal("1000.00"),
+        purchase_days_ago: int | None = 100,
+    ) -> str:
+        today = household_today()
+        vin = "STA" + uuid.uuid4().hex[:14].upper()
+        self.db.add(
+            Vehicle(
+                vin=vin,
+                user_id=self.user["id"],
+                nickname="Statistics Vehicle",
+                vehicle_type=vehicle_type,
+                year=2012,
+                make="Chevrolet",
+                model="Cruze",
+                fuel_type="gas",
+                purchase_price=purchase_price,
+                purchase_date=today - timedelta(days=purchase_days_ago)
+                if purchase_days_ago is not None
+                else None,
+            )
         )
-    )
-    await db_session.commit()
-    return vin
+        await self.db.commit()
+        self.vins.append(vin)
+        return vin
+
+    async def policy(
+        self,
+        vin: str,
+        *,
+        number: str,
+        start: dt.date,
+        end: dt.date,
+        premium: Decimal,
+        frequency: str,
+    ) -> None:
+        policy = InsurancePolicy(
+            provider="Test Insurer",
+            policy_number=number,
+            start_date=start,
+            end_date=end,
+            premium_amount=premium,
+            premium_frequency=frequency,
+        )
+        self.db.add(policy)
+        await self.db.flush()
+        self.policy_ids.append(policy.id)
+        self.db.add(
+            InsurancePolicyVehicle(
+                policy_id=policy.id, vin=vin, policy_type="Full Coverage", premium_share=premium
+            )
+        )
+        await self.db.commit()
+
+    async def cleanup(self) -> None:
+        # A failed request can leave the session mid-transaction.
+        await self.db.rollback()
+        if self.policy_ids:
+            await self.db.execute(
+                delete(InsurancePolicy).where(InsurancePolicy.id.in_(self.policy_ids))
+            )
+        for vin in self.vins:
+            stored = await self.db.get(Vehicle, vin)
+            if stored is not None:
+                await self.db.delete(stored)
+        await self.db.commit()
 
 
 @pytest_asyncio.fixture
-async def stats_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> str:
+async def garage(db_session: AsyncSession, test_user: dict[str, object]) -> AsyncGenerator[_Garage]:
+    made = _Garage(db_session, test_user)
+    yield made
+    await made.cleanup()
+
+
+@pytest_asyncio.fixture
+async def stats_vehicle(db_session: AsyncSession, garage: _Garage) -> str:
     """A vehicle with fuel, one service, one registration and one live policy.
 
     Fills (day offset, odometer km, litres, cost) give prices per litre of
     1.00, 1.20, 1.10 and 1.20, a 1,600 km span, 115 L and $127.00 of fuel.
     """
-    vin = await _vehicle(db_session, test_user)
+    vin = await garage.vehicle()
     today = household_today()
 
     for days_ago, odo, liters, cost in [
@@ -99,28 +163,18 @@ async def stats_vehicle(db_session: AsyncSession, test_user: dict[str, object]) 
             amount=Decimal("30.00"),
         )
     )
+    await db_session.commit()
 
     # A 180-day term, 100 days elapsed. Accrual counts "up to and including
     # today", so 101 of the 180 days: 180 * 101 / 180 = 101.00.
-    policy = InsurancePolicy(
-        provider="Test Insurer",
-        policy_number="P-1",
-        start_date=today - timedelta(days=100),
-        end_date=today + timedelta(days=80),
-        premium_amount=Decimal("180.00"),
-        premium_frequency="Semi-Annual",
+    await garage.policy(
+        vin,
+        number="P-1",
+        start=today - timedelta(days=100),
+        end=today + timedelta(days=80),
+        premium=Decimal("180.00"),
+        frequency="Semi-Annual",
     )
-    db_session.add(policy)
-    await db_session.flush()
-    db_session.add(
-        InsurancePolicyVehicle(
-            policy_id=policy.id,
-            vin=vin,
-            policy_type="Full Coverage",
-            premium_share=Decimal("180.00"),
-        )
-    )
-    await db_session.commit()
     return vin
 
 
@@ -200,9 +254,9 @@ class TestOwnershipStatistics:
         )
 
     async def test_ownership_absent_without_purchase_price(
-        self, client: AsyncClient, auth_headers, db_session: AsyncSession, test_user
+        self, client: AsyncClient, auth_headers, garage: _Garage
     ):
-        vin = await _vehicle(db_session, test_user, purchase_price=None)
+        vin = await garage.vehicle(purchase_price=None)
         s = await self._stats(client, auth_headers, vin)
         assert s["total_ownership_cost"] is None
         assert s["ownership_cost_per_km"] is None
@@ -210,9 +264,9 @@ class TestOwnershipStatistics:
         assert s["avg_price_per_liter"] is None
 
     async def test_sold_price_is_subtracted(
-        self, client: AsyncClient, auth_headers, db_session: AsyncSession, test_user
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession, garage: _Garage
     ):
-        vin = await _vehicle(db_session, test_user)
+        vin = await garage.vehicle()
         vehicle = await db_session.get(Vehicle, vin)
         vehicle.sold_price = Decimal("400.00")
         vehicle.sold_date = household_today() - timedelta(days=10)
@@ -223,13 +277,127 @@ class TestOwnershipStatistics:
         assert s["days_owned"] == 90  # stops at the sale, not today
 
     async def test_not_present_for_a_trailer(
-        self, client: AsyncClient, auth_headers, db_session: AsyncSession, test_user
+        self, client: AsyncClient, auth_headers, garage: _Garage
     ):
-        vin = await _vehicle(db_session, test_user, vehicle_type="Trailer")
+        vin = await garage.vehicle(vehicle_type="Trailer")
         resp = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["statistics"] is None
         assert resp.json()["statistics_as_paid"] is None
+
+    async def test_charging_and_propane_stay_out_of_per_fill_figures(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession, stats_vehicle: str
+    ):
+        """A PHEV's charging and an RV's propane are fuel spend, not fill-ups."""
+        today = household_today()
+        db_session.add(
+            FuelRecord(
+                vin=stats_vehicle,
+                date=today - timedelta(days=20),
+                kwh=Decimal("40.000"),
+                cost=Decimal("20.00"),
+            )
+        )
+        db_session.add(
+            FuelRecord(
+                vin=stats_vehicle,
+                date=today - timedelta(days=15),
+                propane_liters=Decimal("20.000"),
+                cost=Decimal("15.00"),
+            )
+        )
+        await db_session.commit()
+
+        s = await self._stats(client, auth_headers, stats_vehicle)
+        # Totals take every kind of fuel, like the cost card: 127 + 20 + 15.
+        assert _dec(s["fuel_total_cost"]) == Decimal("162.00")
+        # Per-fill figures stay on the four gasoline fills.
+        assert s["fuel_count"] == 4
+        assert _dec(s["avg_cost_per_fillup"]) == pytest.approx(Decimal("31.75"))
+        assert _dec(s["avg_price_per_liter"]) == pytest.approx(Decimal("1.125"))
+
+    async def test_a_fill_with_no_or_zero_cost_still_counts(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession, stats_vehicle: str
+    ):
+        today = household_today()
+        for days_ago, cost in ((20, Decimal("0.00")), (15, None)):
+            db_session.add(
+                FuelRecord(
+                    vin=stats_vehicle,
+                    date=today - timedelta(days=days_ago),
+                    liters=Decimal("10.000"),
+                    cost=cost,
+                    is_full_tank=True,
+                )
+            )
+        await db_session.commit()
+
+        s = await self._stats(client, auth_headers, stats_vehicle)
+        assert s["fuel_count"] == 6
+        assert _dec(s["fuel_total_liters"]) == Decimal("135.000")
+        # Prices skip the unpriced fill; the free one is a real price of 0.
+        assert _dec(s["min_price_per_liter"]) == Decimal("0")
+        assert _dec(s["avg_price_per_liter"]) == pytest.approx(Decimal("4.5") / Decimal("5"))
+        assert _dec(s["avg_cost_per_fillup"]) == pytest.approx(Decimal("127") / Decimal("5"))
+        assert _dec(s["last_price_per_liter"]) == pytest.approx(Decimal("1.20"))
+
+    async def test_a_vehicle_archived_as_sold_reads_its_sale(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession, stats_vehicle: str
+    ):
+        vehicle = await db_session.get(Vehicle, stats_vehicle)
+        assert vehicle is not None
+        vehicle.archive_sale_price = Decimal("400.00")
+        vehicle.archive_sale_date = household_today() - timedelta(days=10)
+        await db_session.commit()
+
+        s = await self._stats(client, auth_headers, stats_vehicle)
+        assert _dec(s["sold_price"]) == Decimal("400.00")
+        assert s["days_owned"] == 90
+        # 50 + 127 + 30 + 91 days of insurance, + 1000 purchase - 400 sale
+        assert _dec(s["total_ownership_cost"]) == Decimal("898.00")
+
+    async def test_days_owned_without_a_purchase_date_starts_at_the_first_record(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession, garage: _Garage
+    ):
+        vin = await garage.vehicle(purchase_days_ago=None)
+        today = household_today()
+        db_session.add(
+            FuelRecord(
+                vin=vin,
+                date=today - timedelta(days=90),
+                liters=Decimal("40.000"),
+                cost=Decimal("40.00"),
+            )
+        )
+        db_session.add(ServiceVisit(vin=vin, date=today - timedelta(days=120)))
+        db_session.add(
+            OdometerRecord(vin=vin, date=today - timedelta(days=150), odometer_km=Decimal("900"))
+        )
+        await db_session.commit()
+
+        s = await self._stats(client, auth_headers, vin)
+        # The odometer reading is the oldest record, not the first fill-up.
+        assert s["days_owned"] == 150
+
+    async def test_distance_is_the_cost_card_span(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession, stats_vehicle: str
+    ):
+        """Charging carries an odometer the card counts, so the block must too."""
+        db_session.add(
+            FuelRecord(
+                vin=stats_vehicle,
+                date=household_today() - timedelta(days=2),
+                odometer_km=Decimal("3000.00"),
+                kwh=Decimal("40.000"),
+                cost=Decimal("20.00"),
+            )
+        )
+        await db_session.commit()
+
+        resp = await client.get(f"/api/analytics/vehicles/{stats_vehicle}", headers=auth_headers)
+        body = resp.json()
+        assert _dec(body["cost_analysis"]["km_driven"]) == Decimal("2000.00")
+        assert _dec(body["statistics"]["km_driven"]) == Decimal("2000.00")
 
 
 @pytest.mark.asyncio
@@ -278,71 +446,52 @@ class TestInsuranceAsPaid:
         await db_session.commit()
 
         accrued, paid = await self._both(client, auth_headers, stats_vehicle)
-        # running cost + 1000 purchase - 400 sale; only insurance differs
-        assert _dec(accrued["total_ownership_cost"]) == Decimal("908.00")
+        # running cost + 1000 purchase - 400 sale; only insurance differs. Cover
+        # stops counting at the sale: 91 of the 180 days (100 days ago up to and
+        # including the sale 10 days ago), where today would have given 101. As
+        # paid, the term began before the sale, so it counts whole either way.
+        assert _dec(accrued["total_ownership_cost"]) == Decimal("898.00")
         assert _dec(paid["total_ownership_cost"]) == Decimal("987.00")
         assert _dec(accrued["sold_price"]) == _dec(paid["sold_price"]) == Decimal("400.00")
         assert accrued["days_owned"] == paid["days_owned"] == 90
 
     async def test_a_term_that_has_not_started_is_not_counted(
-        self, client: AsyncClient, auth_headers, db_session: AsyncSession, stats_vehicle: str
+        self, client: AsyncClient, auth_headers, garage: _Garage, stats_vehicle: str
     ):
         today = household_today()
-        policy = InsurancePolicy(
-            provider="Renewal Insurer",
-            policy_number="P-2",
-            start_date=today + timedelta(days=10),
-            end_date=today + timedelta(days=190),
-            premium_amount=Decimal("90.00"),
-            premium_frequency="Semi-Annual",
+        await garage.policy(
+            stats_vehicle,
+            number="P-2",
+            start=today + timedelta(days=10),
+            end=today + timedelta(days=190),
+            premium=Decimal("90.00"),
+            frequency="Semi-Annual",
         )
-        db_session.add(policy)
-        await db_session.flush()
-        db_session.add(
-            InsurancePolicyVehicle(
-                policy_id=policy.id,
-                vin=stats_vehicle,
-                policy_type="Full Coverage",
-                premium_share=Decimal("90.00"),
-            )
-        )
-        await db_session.commit()
 
         accrued, paid = await self._both(client, auth_headers, stats_vehicle)
         assert _dec(accrued["total_running_cost"]) == Decimal("308.00")
         assert _dec(paid["total_running_cost"]) == Decimal("387.00")
 
     async def test_an_active_monthly_policy_counts_only_the_months_that_have_begun(
-        self, client: AsyncClient, auth_headers, db_session: AsyncSession, stats_vehicle: str
+        self, client: AsyncClient, auth_headers, garage: _Garage, stats_vehicle: str
     ):
         """A twelve-month policy paid monthly is not twelve payments on day one,
         and the renewal queued behind it has not begun at all."""
         today = household_today()
         start = today - timedelta(days=70)  # 70 days in: the third monthly period has begun
         end = start + timedelta(days=365)
-        for provider, number, s, e in (
-            ("Monthly Insurer", "P-M1", start, end),
-            ("Monthly Insurer", "P-M2", end, end + timedelta(days=365)),  # the renewal
+        for number, s, e in (
+            ("P-M1", start, end),
+            ("P-M2", end, end + timedelta(days=365)),  # the renewal
         ):
-            policy = InsurancePolicy(
-                provider=provider,
-                policy_number=number,
-                start_date=s,
-                end_date=e,
-                premium_amount=Decimal("10.00"),
-                premium_frequency="Monthly",
+            await garage.policy(
+                stats_vehicle,
+                number=number,
+                start=s,
+                end=e,
+                premium=Decimal("10.00"),
+                frequency="Monthly",
             )
-            db_session.add(policy)
-            await db_session.flush()
-            db_session.add(
-                InsurancePolicyVehicle(
-                    policy_id=policy.id,
-                    vin=stats_vehicle,
-                    policy_type="Full Coverage",
-                    premium_share=Decimal("10.00"),
-                )
-            )
-        await db_session.commit()
 
         accrued, paid = await self._both(client, auth_headers, stats_vehicle)
         # accrued: 308 from the fixture + 71 of 365 days of the $120 term = 23.34
@@ -371,8 +520,8 @@ class TestInsuranceAsPaid:
         assert _dec(paid["total_running_cost"]) == Decimal("297.00")
 
     async def test_same_when_there_is_no_insurance(
-        self, client: AsyncClient, auth_headers, db_session: AsyncSession, test_user
+        self, client: AsyncClient, auth_headers, garage: _Garage
     ):
-        vin = await _vehicle(db_session, test_user)
+        vin = await garage.vehicle()
         accrued, paid = await self._both(client, auth_headers, vin)
         assert accrued == paid
