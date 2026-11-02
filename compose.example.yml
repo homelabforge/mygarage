@@ -2,6 +2,8 @@ services:
   mygarage:
     image: ghcr.io/homelabforge/mygarage:latest
     container_name: mygarage
+    # Runs as UID 1000 by default. To use another account, set its UID:GID here and chown ./data to match.
+    # user: "1001:1001"
     ports:
       - "8686:8686"
     volumes:

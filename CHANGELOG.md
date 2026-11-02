@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.10.0-rc1] - 2026-11-02
+
+_Pre-release; promoting to stable will keep these entries._
+
 ### Upgrade note
 
 Back up `settings.key` after you upgrade, and keep it apart from your backups. Secret settings (the SSO client secret, the notification tokens, webhook URLs and SMTP password, the LLM and POI provider keys, the LiveLink MQTT password, and the webhook ingest token) are now encrypted at rest. The key is generated on the first start at `/data/settings.key`, unless `MYGARAGE_SETTINGS_KEY` holds it or `MYGARAGE_SETTINGS_KEY_FILE` names the absolute path of a file that does. Neither settings backups nor full backups include it, on purpose: on a new host without it, a full restore brings every secret back unreadable and a settings restore skips them, so you re-enter them. Once either variable is set, MyGarage uses it instead of the file, even when its key is wrong, so put the key already in use into it.
@@ -26,6 +30,8 @@ The scheduled recall check now follows the Recall Check Interval in Settings > I
 Back up before you upgrade. Migration 133 is FATAL: if it fails, MyGarage refuses to start. Make a full backup from Settings > Backup > Create Full Backup, or as an admin call `POST /api/backup/create-full`. Migration 133 records how each odometer key was read before (km for a standard PID key like `A6-ODOMETER`, miles for a named one like `ODOMETER` or `MILEAGE`) on each WiCAN with no odometer unit set that already sent it, so its odometer reads as it did before, whatever its config declares now.
 
 Migrations 134 and 135 are FATAL too, so the same backup covers them. A full backup on PostgreSQL runs `pg_dump`; to back up by hand, use `sqlite3 /data/mygarage.db ".backup /path/to/copy.db"` on SQLite (never a plain copy of the live file) or `pg_dump` on PostgreSQL.
+
+Migrations 143 to 152 are FATAL as well, all but 146, so the same backup covers them.
 
 On PostgreSQL, MyGarage now pins every database session to UTC. Before, a server whose timezone wasn't UTC (a `TZ` on its container is enough) stored the times the database stamps itself, like most created and updated times, in its own zone, hours off. Migration 134 converts those stored times to UTC once, apart from seven columns the app also writes itself (such as users' and vehicles' updated times): it can't tell those rows apart, so it leaves them alone. A UTC server has nothing to convert. If the session zone came from MyGarage's side instead (`PGTZ`, `PGOPTIONS` or a connection option), nothing is converted, the log warns and names the zone, and the migration doesn't run again: times stamped before the upgrade stay in that zone and new ones are UTC. To have them converted, restore the backup you took, take the zone setting out of MyGarage's environment so 134 reads the server's own zone (the one the app wrote in, since its driver ignores `PGTZ` and `PGOPTIONS`), and start this version again.
 
@@ -69,6 +75,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Country setting (#211): per person, per vehicle (registration country and first registration date) and an instance default, with profiles for France, Luxembourg, Germany, Belgium, Italy, the Netherlands, Spain and an EU baseline
 - Periodic technical inspection reminders from the country profile (#211)
 - EU registration certificate import in Add Vehicle and on existing vehicles (#211); the holder's name is never read
+- A French registration certificate's next inspection date (X.1) sets when the inspection reminder is due (#211)
 - Optional document reading with a vision model for scanned certificates and insurance papers (#211); text PDFs stay offline, and MyGarage asks before sending a document to a model outside your network
 - European VINs: a bundled WMI table fills in what NHTSA leaves out (#211)
 - EN 16942 fuel labels on fill-ups, and octane recorded as RON or AKI (#211)
@@ -82,12 +89,12 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 
 ### Changed
 - An engine-off stop shorter than the drive gap no longer splits a drive
-- The NHTSA recalls switch in Settings > Integrations is honoured. Off, the scheduled recall check skips, Check NHTSA on the Recalls tab is disabled with a line saying where to switch it on, and the API answers 409
+- The NHTSA recalls switch in Settings > Integrations is honoured. Off, NHTSA isn't asked: the Recalls tab says where to switch it on, the scheduled check skips NHTSA, and the old check-nhtsa endpoint answers 409
 - The Recall Check Interval is honoured. The scheduled check runs daily at 2 AM UTC and checks your vehicles once the interval has passed since the last check. If NHTSA fails to answer for any vehicle (no connection, an error status, or a response that can't be read), the last check time stays put and the next day's run tries again
-- The window sticker upload switch in Settings > Files is honoured. Off, uploading or replacing a sticker and the OCR test answer 409, and the vehicle's edit drawer hides upload and replace. The sticker already saved can still be viewed and downloaded
+- The window sticker upload switch in Settings > File Management is honoured. Off, uploading or replacing a sticker and the OCR test answer 409, and the vehicle's edit drawer hides upload and replace. The sticker already saved can still be viewed and downloaded
 - The window sticker OCR switch is honoured. Off, an upload saves the file without a scan and says so, and leaves the sticker's details (MSRP, options and so on) as they are. Every such upload clears the previous scan's parser, confidence score and extracted VIN, since they would describe a file that wasn't scanned. The OCR test answers 409
 - Every on/off setting is read the same way by the backend and the UI: true, 1, yes and on, in any case, are on, so they no longer disagree about a switch stored as "1" or "yes". A switch saved through the settings API or a settings restore as true/false, 1/0, yes/no or on/off is stored as "true" or "false"
-- Settings > Files shows the upload limits in force, read-only: the size cap and file types for photos, attachments and documents, the two environment variables that set the sizes, and the storage directories. Admins can read the same from `GET /api/settings/upload-limits`
+- Settings > File Management shows the upload limits in force, read-only: the size cap and file types for photos, attachments and documents, the two environment variables that set the sizes, and the storage directories. Admins can read the same from `GET /api/settings/upload-limits`
 - The NHTSA, CarComplaints and window sticker switches are readable from `/api/settings/public`, so non-admins see the CarComplaints link on the Recalls tab, and the UI follows the switches for them too
 - WiCAN odometers follow upstream: `ODOMETER` is km and `ODOMETER_MI` is mi, and a unit the device declares in its HTTPS config wins. Existing devices keep their reading of every odometer key (migration 133)
 - `ODOMETER_MI` is read as miles and stored as km from every source, not just a WiCAN, so a topic mapped to it shows what was sent. Readings stored raw before are moved to km (migration 133); a vehicle where another device may also have sent it keeps its latest value and daily summaries as they were
