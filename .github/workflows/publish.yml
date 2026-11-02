@@ -14,6 +14,8 @@ jobs:
   publish:
     uses: homelabforge/shared-workflows/.github/workflows/python-react-publish.yml@v1.7.0
     with:
+      # Must match the Dockerfile's python:X-slim; the shared default lags.
+      python-version: "3.15"
       enable-translations: true
       security-tripwire-script: .github/scripts/security-tripwire.sh
       # Same splits as ci.yml; publish has no PG job.

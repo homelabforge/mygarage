@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "mygarage"
 version = "3.9.0"
 description = "Self-hosted vehicle maintenance tracking application"
-requires-python = ">=3.14"
+requires-python = ">=3.15"
 dependencies = [
     "fastapi>=0.140.13",
     "granian>=2.7.9",
@@ -60,7 +60,7 @@ include = ["app*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+target-version = "py315"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
@@ -87,7 +87,7 @@ exclude = [
     "**/.venv",
     "**/venv",
 ]
-pythonVersion = "3.14"
+pythonVersion = "3.15"
 pythonPlatform = "Linux"
 
 # Type Checking Mode: Strict
