@@ -990,3 +990,30 @@ class TestBannerIdentifier:
         text = _extract_text(generate_vehicle_analytics_pdf(data, render_context=METRIC_CTX).read())
         assert "Mower <b>deck</b>" in text
         assert "Serial <img src='/etc/passwd'/> & co" in text
+
+    def test_markup_in_table_cells_prints_as_text(self) -> None:
+        """FB-1: the tables carry typed values too: a vendor, a service
+        type, a reminder title and an hours reading's note. An unbalanced
+        tag in any of them used to fail the whole build."""
+        data = _make_analytics_data()
+        data["cost_analysis"]["service_type_breakdown"][0]["service_type"] = "Brake <b>job"
+        data["hours_accumulated"] = [
+            {"date": "2025-01-01", "engine_hours": Decimal("10"), "notes": "Read <i>by hand"}
+        ]
+        vendors = _make_vendor_data()
+        vendors["vendors"][0]["vendor_name"] = "Bob <i>& Sons"
+        reminders = [_make_reminder("Check <font>belt", "date", due_date="2027-01-01")]
+        text = " ".join(
+            _extract_text(
+                generate_vehicle_analytics_pdf(
+                    data,
+                    vendor_data=vendors,
+                    reminders_data=reminders,
+                    render_context=METRIC_CTX,
+                ).read()
+            ).split()
+        )
+        assert "Brake <b>job" in text
+        assert "Bob <i>& Sons" in text
+        assert "Check <font>belt" in text
+        assert "Read <i>by hand" in text

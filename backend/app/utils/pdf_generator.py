@@ -194,7 +194,7 @@ class PDFReportGenerator:
         # Vehicle Info
         vehicle_text = f"""
         <b>Vehicle:</b> {_esc(vehicle_info["year"])} {_esc(vehicle_info["make"])} {_esc(vehicle_info["model"])}<br/>
-        <b>{vehicle_info.get("identifier_label", "VIN")}:</b> {_esc(vehicle_info.get("identifier", vehicle_info.get("vin"))) or "N/A"}<br/>
+        <b>{_esc(vehicle_info.get("identifier_label", "VIN"))}:</b> {_esc(vehicle_info.get("identifier", vehicle_info.get("vin"))) or "N/A"}<br/>
         <b>License Plate:</b> {_esc(vehicle_info.get("license_plate")) or "N/A"}<br/>
         """
         if start_date and end_date:
@@ -234,15 +234,15 @@ class PDFReportGenerator:
                         self._format_date(record.get("date")),
                         self._format_odometer(record.get("odometer_km")),
                         Paragraph(
-                            str(record.get("service_category") or "Service"),
+                            _esc(record.get("service_category") or "Service"),
                             self.styles["Normal"],
                         ),
                         Paragraph(
-                            str(record.get("service_type") or "N/A")[:50],
+                            _esc(str(record.get("service_type") or "N/A")[:50]),
                             self.styles["Normal"],
                         ),
                         self._format_currency(cost),
-                        Paragraph(str(record.get("vendor_name") or "N/A"), self.styles["Normal"]),
+                        Paragraph(_esc(record.get("vendor_name") or "N/A"), self.styles["Normal"]),
                     ]
                 )
 
@@ -330,7 +330,7 @@ class PDFReportGenerator:
         vin_tail = vin[-6:] if len(vin) >= 6 else vin
         vehicle_text = f"""
         <b>Vehicle:</b> {_esc(vehicle_info.get("year"))} {_esc(vehicle_info.get("make"))} {_esc(vehicle_info.get("model"))}<br/>
-        <b>{vehicle_info.get("identifier_label", "VIN")} (last 6):</b> {_esc(vin_tail) or "N/A"}<br/>
+        <b>{_esc(vehicle_info.get("identifier_label", "VIN"))} (last 6):</b> {_esc(vin_tail) or "N/A"}<br/>
         <b>Report Generated:</b> {self._generated_at()}<br/>
         <i>Sanitized for prospective buyers — costs, vendors, plate, and full VIN omitted.</i>
         """
@@ -347,7 +347,7 @@ class PDFReportGenerator:
                     [
                         self._format_date(record.get("date")),
                         self._format_odometer(record.get("odometer_km")),
-                        Paragraph(str(desc)[:80], self.styles["Normal"]),
+                        Paragraph(_esc(str(desc)[:80]), self.styles["Normal"]),
                     ]
                 )
             table = Table(table_data, colWidths=[1.2 * inch, 1.4 * inch, 4.2 * inch])
@@ -396,7 +396,7 @@ class PDFReportGenerator:
         # Vehicle Info
         vehicle_text = f"""
         <b>Vehicle:</b> {_esc(vehicle_info["year"])} {_esc(vehicle_info["make"])} {_esc(vehicle_info["model"])}<br/>
-        <b>{vehicle_info.get("identifier_label", "VIN")}:</b> {_esc(vehicle_info.get("identifier", vehicle_info.get("vin"))) or "N/A"}<br/>
+        <b>{_esc(vehicle_info.get("identifier_label", "VIN"))}:</b> {_esc(vehicle_info.get("identifier", vehicle_info.get("vin"))) or "N/A"}<br/>
         <b>Report Generated:</b> {self._generated_at()}
         """
         story.append(Paragraph(vehicle_text, self.styles["InfoText"]))
@@ -550,7 +550,7 @@ class PDFReportGenerator:
         # Vehicle Info
         vehicle_text = f"""
         <b>Vehicle:</b> {_esc(vehicle_info["year"])} {_esc(vehicle_info["make"])} {_esc(vehicle_info["model"])}<br/>
-        <b>{vehicle_info.get("identifier_label", "VIN")}:</b> {_esc(vehicle_info.get("identifier", vehicle_info.get("vin"))) or "N/A"}<br/>
+        <b>{_esc(vehicle_info.get("identifier_label", "VIN"))}:</b> {_esc(vehicle_info.get("identifier", vehicle_info.get("vin"))) or "N/A"}<br/>
         <b>Tax Year:</b> {year}<br/>
         <b>Report Generated:</b> {self._generated_at()}
         """
@@ -573,7 +573,10 @@ class PDFReportGenerator:
                     [
                         self._format_date(record.get("date")),
                         record.get("category", "Service"),
-                        Paragraph(record.get("description", "")[:60], self.styles["Normal"]),
+                        Paragraph(
+                            _esc(str(record.get("description") or "")[:60]),
+                            self.styles["Normal"],
+                        ),
                         self._format_currency(amount),
                     ]
                 )

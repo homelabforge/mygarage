@@ -10,6 +10,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from typing import Any
+from xml.sax.saxutils import escape
 
 from reportlab.lib.units import inch
 from reportlab.platypus import (
@@ -269,7 +270,7 @@ def _build_hours_history_table(
             [
                 Paragraph(_format_date(_parse_date(point.get("date"))), cell_style),
                 Paragraph(format_hours(engine_hours), amt_style),
-                Paragraph(str(source), cell_style),
+                Paragraph(escape(str(source)), cell_style),
             ]
         )
 
@@ -329,9 +330,9 @@ def _build_reminders_table(
     for reminder in reminders_data:
         rows.append(
             [
-                Paragraph(str(reminder.get("title", "")), cell_style),
-                Paragraph(str(reminder.get("reminder_type", "")).title(), cell_style),
-                Paragraph(_reminder_due_text(reminder, render_context), cell_style),
+                Paragraph(escape(str(reminder.get("title") or "")), cell_style),
+                Paragraph(escape(str(reminder.get("reminder_type") or "").title()), cell_style),
+                Paragraph(escape(_reminder_due_text(reminder, render_context)), cell_style),
             ]
         )
 
@@ -606,7 +607,7 @@ def generate_vehicle_analytics_pdf(
         for svc in service_breakdown:
             table_rows.append(
                 [
-                    Paragraph(str(svc.get("service_type", "")), cell_style),
+                    Paragraph(escape(str(svc.get("service_type") or "")), cell_style),
                     Paragraph(str(svc.get("count", 0)), cell_style),
                     Paragraph(
                         format_currency_compact(svc.get("total_cost", 0), currency_code, locale),
@@ -763,7 +764,7 @@ def generate_vehicle_analytics_pdf(
         story.append(Spacer(1, 8))
         assumptions = str(projection.get("assumptions", ""))
         if assumptions:
-            story.append(Paragraph(assumptions, styles["ProjectionLabel"]))
+            story.append(Paragraph(escape(assumptions), styles["ProjectionLabel"]))
 
     # Build PDF
     doc.build(story)

@@ -347,3 +347,109 @@ class TestSaleHistoryPrivacy:
         assert "claim #55" not in text
         # The service still appears, by category.
         assert "Maintenance" in text
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestTypedMarkupPrintsAsText:
+    """FB-1: ReportLab parses a Paragraph's text as markup, so a typed
+    `Brake <b>job` either renders bold or, unbalanced, 500s the whole PDF.
+    Every typed value must reach the page as the characters typed."""
+
+    VIN = "PDFMARKUP00000001"
+    DESCRIPTION = "Brake <b>job & rotors"
+    VENDOR = "Bob <i>& Sons"
+    CATEGORY = "Maintenance"
+
+    @pytest.fixture
+    async def marked_up_vehicle(self, db_session, test_user):
+        from datetime import date
+        from decimal import Decimal
+
+        from sqlalchemy import delete, select
+
+        from app.models.service_line_item import ServiceLineItem
+        from app.models.service_visit import ServiceVisit
+        from app.models.vehicle import Vehicle
+        from app.models.vendor import Vendor
+
+        vendor = Vendor(name=self.VENDOR)
+        db_session.add(vendor)
+        db_session.add(
+            Vehicle(
+                vin=self.VIN,
+                user_id=test_user["id"],
+                nickname="Markup",
+                vehicle_type="Car",
+                year=2020,
+                make="Test",
+                model="Markup",
+            )
+        )
+        await db_session.flush()
+        visit = ServiceVisit(
+            vin=self.VIN,
+            date=date(2026, 1, 15),
+            service_category=self.CATEGORY,
+            vendor_id=vendor.id,
+        )
+        db_session.add(visit)
+        await db_session.flush()
+        db_session.add(
+            ServiceLineItem(visit_id=visit.id, description=self.DESCRIPTION, cost=Decimal("120"))
+        )
+        await db_session.commit()
+        yield self.VIN
+        await db_session.rollback()
+        ids = (
+            (await db_session.execute(select(ServiceVisit.id).where(ServiceVisit.vin == self.VIN)))
+            .scalars()
+            .all()
+        )
+        if ids:
+            await db_session.execute(
+                delete(ServiceLineItem).where(ServiceLineItem.visit_id.in_(ids))
+            )
+            await db_session.execute(delete(ServiceVisit).where(ServiceVisit.id.in_(ids)))
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin == self.VIN))
+        await db_session.execute(delete(Vendor).where(Vendor.name == self.VENDOR))
+        await db_session.commit()
+
+    @staticmethod
+    def _text(content: bytes) -> str:
+        import pymupdf
+
+        with pymupdf.open(stream=content, filetype="pdf") as doc:
+            return " ".join(" ".join(page.get_text().split()) for page in doc)
+
+    async def _pdf(self, client: AsyncClient, headers: dict, path: str, **params) -> str:
+        response = await client.get(
+            f"/api/vehicles/{self.VIN}/reports/{path}", headers=headers, params=params
+        )
+        assert response.status_code == 200, response.text
+        assert response.content[:4] == b"%PDF"
+        return self._text(response.content)
+
+    async def test_a_line_item_description_in_the_service_history(
+        self, client: AsyncClient, auth_headers, marked_up_vehicle
+    ):
+        text = await self._pdf(client, auth_headers, "service-history-pdf")
+        assert self.DESCRIPTION in text
+
+    async def test_a_vendor_name_in_the_service_history(
+        self, client: AsyncClient, auth_headers, marked_up_vehicle
+    ):
+        text = await self._pdf(client, auth_headers, "service-history-pdf")
+        assert self.VENDOR in text
+
+    async def test_a_line_item_description_in_the_sale_history(
+        self, client: AsyncClient, auth_headers, marked_up_vehicle
+    ):
+        text = await self._pdf(client, auth_headers, "sale-history-pdf")
+        assert self.DESCRIPTION in text
+
+    async def test_a_line_item_description_in_the_tax_deduction_report(
+        self, client: AsyncClient, auth_headers, marked_up_vehicle
+    ):
+        text = await self._pdf(client, auth_headers, "tax-deduction-pdf", year=2026)
+        assert self.DESCRIPTION in text
