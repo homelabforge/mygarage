@@ -490,11 +490,17 @@ class TestWebhooksReachEquipment:
             # Longer than 17, so it could never fit the old `vin` field.
             response = await client.post(
                 "/api/v1/webhooks/fuel",
-                json={"vehicle": "bx23s-webhook-0001", "engine_hours": "12", "liters": "8"},
+                json={"vehicle": "bx23s-webhook-0001", "liters": "8"},
                 headers={"X-Webhook-Token": "secret-webhook"},
             )
             assert response.status_code == 200, response.text
             assert response.json()["vin"] == key
+            stored = (
+                (await db_session.execute(select(FuelRecord.liters).where(FuelRecord.vin == key)))
+                .scalars()
+                .all()
+            )
+            assert [str(v) for v in stored] == ["8.000"]
             missing = await client.post(
                 "/api/v1/webhooks/fuel",
                 json={"liters": "8"},
