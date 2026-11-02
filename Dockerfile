@@ -38,7 +38,7 @@ RUN bun run build
 RUN test -d dist && test -f dist/index.html
 
 # Stage 2: Build backend
-FROM python:3.14-slim AS backend-builder
+FROM python:3.15-slim AS backend-builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -66,7 +66,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system --no-cache --no-deps .
 
 # Stage 3: Production image
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # Build arguments for metadata
 ARG BUILD_DATE
