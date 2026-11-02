@@ -161,6 +161,8 @@ import VehicleDetail from '../VehicleDetail'
 const VIN = 'TEST12345678901234'
 const vehicle: Vehicle = {
   vin: VIN,
+  identifier_type: 'vin',
+  has_vin: true,
   nickname: 'Test Car',
   vehicle_type: 'Car' as VehicleType,
   usage_unit: 'distance',

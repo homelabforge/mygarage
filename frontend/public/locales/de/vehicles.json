@@ -1485,7 +1485,13 @@
     "UTV": "UTV / SxS",
     "Snowmobile": "Motorschlitten",
     "Bicycle": "Fahrrad",
-    "EBike": "E-Bike"
+    "EBike": "E-Bike",
+    "Tractor": "Traktor",
+    "Mower": "Rasenmäher",
+    "Generator": "Stromerzeuger",
+    "SmallEngine": "Kleinmotor",
+    "Attachment": "Anbaugerät",
+    "Equipment": "Gerät"
   },
   "externalVehicles": {
     "addReferenceTitle": "Referenzfahrzeug hinzufügen",
@@ -1547,5 +1553,24 @@
     "size": "Größe",
     "title": "Reifen",
     "tread": "Profil"
+  },
+  "identifier": {
+    "types": {
+      "vin": "VIN",
+      "serial": "Seriennummer",
+      "hin": "HIN",
+      "chassis": "Fahrgestellnummer",
+      "asset_tag": "Inventarnummer",
+      "none": "Keine Kennung"
+    },
+    "noVin": "Ohne VIN",
+    "hasVin": "VIN",
+    "noVinHelp": "Traktoren, Rasenmäher, Stromerzeuger, Anbaugeräte, Boote mit HIN und Fahrzeuge von vor 1981 haben keine 17-stellige VIN. Verwenden Sie, was sie stattdessen kennzeichnet.",
+    "typeLabel": "Gekennzeichnet durch",
+    "valueLabel": "Kennung",
+    "valuePlaceholder": "z. B. BX23S-10234",
+    "required": "Kennung eingeben oder „Keine Kennung“ wählen",
+    "cannotAddVin": "Ohne VIN angelegt, kann nicht auf VIN umgestellt werden",
+    "archivedColumn": "VIN / ID"
   }
 }

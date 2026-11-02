@@ -29,6 +29,14 @@ export const VEHICLE_TYPES = [
   'Snowmobile',
   'Bicycle',
   'EBike',
+  // Equipment without a VIN (#226). Attachment has no engine of its own but
+  // isn't NON_MOTORIZED: that group means "towed", with a tow vehicle.
+  'Tractor',
+  'Mower',
+  'Generator',
+  'SmallEngine',
+  'Attachment',
+  'Equipment',
 ] as const
 
 /**
@@ -55,10 +63,21 @@ export function vehicleTypeOptions(
 export const NON_MOTORIZED_TYPES = ['Trailer', 'FifthWheel', 'TravelTrailer'] as const
 
 /** Distance-tracked but typically no liquid/charge fuel log (EBike uses Electric fuel). */
-export const NO_FUEL_TYPES = ['Bicycle'] as const
+export const NO_FUEL_TYPES = ['Bicycle', 'Attachment'] as const
 
 /** Types that default to engine-hours usage tracking on create / type change. */
-export const HOURS_DEFAULT_TYPES = ['ATV', 'UTV', 'Boat', 'Snowmobile'] as const
+export const HOURS_DEFAULT_TYPES = [
+  'ATV',
+  'UTV',
+  'Boat',
+  'Snowmobile',
+  'Tractor',
+  'Mower',
+  'Generator',
+  'SmallEngine',
+  'Attachment',
+  'Equipment',
+] as const
 
 export function defaultUsageUnitForType(
   vehicleType: string | null | undefined,

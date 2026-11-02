@@ -188,6 +188,14 @@ export const makeVinSchema = (t: TFunction) =>
     .length(17, t('common:validation.vin.length'))
     .regex(/^[A-HJ-NPR-Z0-9]{17}$/, t('common:validation.vin.invalidFormat'))
 
+// A vehicle picked from a list: its key, which is a VIN or the generated "Q"
+// key of a vehicle without one (#226). Not for typed VINs: use makeVinSchema.
+export const makeVehicleKeySchema = (t: TFunction) =>
+  z
+    .string()
+    .length(17, t('common:validation.vin.length'))
+    .regex(/^(?:[A-HJ-NPR-Z0-9]{17}|Q[A-HJ-NPR-Z0-9]{16})$/, t('common:validation.vin.invalidFormat'))
+
 // Optional numeric fields
 // Forms use valueAsNumber: true, so empty fields become NaN; NumberInput can
 // also emit INVALID_NUMBER for genuinely unparseable text.

@@ -7,6 +7,7 @@ import { vehicleService } from '@/services/vehicleService'
 import { useQuery } from '@tanstack/react-query'
 import type { WidgetKeyCreated, WidgetKeyScope } from '@/types/widgetKey'
 import { parseApiError, getActionErrorMessage } from '@/services/api'
+import { identifierValue } from '../../utils/vehicleIdentifier'
 
 interface Props {
   isOpen: boolean
@@ -233,7 +234,7 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
                           {v.year ? `${v.year} ` : ''}
                           {v.make ?? ''} {v.model ?? ''}
                         </span>
-                        <code className="ml-auto text-xs text-garage-text-muted">{vin}</code>
+                        <code className="ml-auto text-xs text-garage-text-muted">{identifierValue(v)}</code>
                       </label>
                     )
                   })}

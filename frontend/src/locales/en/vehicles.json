@@ -1395,7 +1395,13 @@
     "UTV": "UTV / SxS",
     "Snowmobile": "Snowmobile",
     "Bicycle": "Bicycle",
-    "EBike": "E-Bike"
+    "EBike": "E-Bike",
+    "Tractor": "Tractor",
+    "Mower": "Mower",
+    "Generator": "Generator",
+    "SmallEngine": "Small Engine",
+    "Attachment": "Attachment",
+    "Equipment": "Equipment"
   },
   "vendorSearch": {
     "noResults": "No vendors found",
@@ -2368,5 +2374,24 @@
       "last_inspection": "Last inspection (X.1)",
       "taxes": "Tax ({{code}})"
     }
+  },
+  "identifier": {
+    "types": {
+      "vin": "VIN",
+      "serial": "Serial number",
+      "hin": "HIN",
+      "chassis": "Chassis number",
+      "asset_tag": "Asset tag",
+      "none": "No identifier"
+    },
+    "noVin": "No VIN",
+    "hasVin": "VIN",
+    "noVinHelp": "Tractors, mowers, generators, attachments, boats with a HIN, and vehicles built before 1981 don't have a 17-character VIN. Use whatever identifies it instead.",
+    "typeLabel": "Identified by",
+    "valueLabel": "Identifier",
+    "valuePlaceholder": "e.g. BX23S-10234",
+    "required": "Enter the identifier, or pick \"No identifier\"",
+    "cannotAddVin": "Added without a VIN, so it can't be switched to one",
+    "archivedColumn": "VIN / ID"
   }
 }

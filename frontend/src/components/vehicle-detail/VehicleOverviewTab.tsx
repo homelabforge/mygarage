@@ -19,6 +19,7 @@ import TrailerTowPanel from './TrailerTowPanel'
 import VehicleCompliancePanel from './VehicleCompliancePanel'
 import VehicleSpecsPanel from './VehicleSpecsPanel'
 import GarageAssistantPanel from './GarageAssistantPanel'
+import { identifierLabel, identifierValue } from '../../utils/vehicleIdentifier'
 
 // Lazy-load map component — keeps Leaflet's ~150KB out of the main bundle
 const LastLocationMap = lazy(() => import('../maps/LastLocationMap'))
@@ -108,7 +109,7 @@ export default function VehicleOverviewTab({
           {vehicle.assembly_location && (
             <div><p className="text-sm text-text-mute">{t('detail.misc.assemblyLocation')}</p><p className="font-medium text-text">{vehicle.assembly_location}</p></div>
           )}
-          <div><p className="text-sm text-text-mute">{t('wizard.vin')}</p><Mono size="sm" variant="vin" className="block">{vehicle.vin}</Mono></div>
+          <div><p className="text-sm text-text-mute">{identifierLabel(vehicle, t)}</p><Mono size="sm" variant="vin" className="block">{identifierValue(vehicle) ?? '-'}</Mono></div>
         </div>
       </EditableCard>
 

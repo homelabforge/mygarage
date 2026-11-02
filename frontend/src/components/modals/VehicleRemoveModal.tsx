@@ -17,6 +17,7 @@ import { NumberInput, Select } from '@/components/ui'
 import { moneyTextError } from '@/schemas/shared'
 import { parseOptionalDecimal } from '@/utils/decimalInput'
 import type { Vehicle } from '@/types/vehicle'
+import { identifierLabel, identifierValue } from '../../utils/vehicleIdentifier'
 
 interface VehicleRemoveModalProps {
   isOpen: boolean
@@ -143,7 +144,7 @@ export default function VehicleRemoveModal({ isOpen, onClose, vehicle, onConfirm
                   <strong>{t('modal.vehicle')}:</strong> {vehicle.year} {vehicle.make} {vehicle.model}
                 </p>
                 <p className="text-sm text-garage-text-muted font-mono text-xs mt-1">
-                  <strong>{t('modal.remove.vin')}:</strong> {vehicle.vin}
+                  <strong>{identifierLabel(vehicle, t)}:</strong> {identifierValue(vehicle) ?? '-'}
                 </p>
               </div>
 

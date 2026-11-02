@@ -12566,7 +12566,7 @@ export interface components {
             /** Steps */
             steps: components["schemas"]["InspectionStep"][];
             /** Vehicle Types */
-            vehicle_types: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike")[];
+            vehicle_types: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike" | "Tractor" | "Mower" | "Generator" | "SmallEngine" | "Attachment" | "Equipment")[];
         };
         /**
          * InspectionStatus
@@ -15209,7 +15209,7 @@ export interface components {
              */
             usage_unit: ("distance" | "hours") | null;
             /** Vehicle Type */
-            vehicle_type: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike") | null;
+            vehicle_type: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike" | "Tractor" | "Mower" | "Generator" | "SmallEngine" | "Attachment" | "Equipment") | null;
             /** Vin */
             vin: string;
             /** Year */
@@ -15897,7 +15897,7 @@ export interface components {
              * Vehicle Types
              * @description Applicable vehicle types; empty means all types
              */
-            vehicle_types?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike")[];
+            vehicle_types?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike" | "Tractor" | "Mower" | "Generator" | "SmallEngine" | "Attachment" | "Equipment")[];
             /**
              * Vin
              * @description Vehicle to read the rules from
@@ -19672,7 +19672,7 @@ export interface components {
             /** Vehicle Name */
             vehicle_name: string;
             /** Vehicle Type */
-            vehicle_type: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike") | null;
+            vehicle_type: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike" | "Tractor" | "Mower" | "Generator" | "SmallEngine" | "Attachment" | "Equipment") | null;
             /** Vin */
             vin: string;
         };
@@ -19854,6 +19854,18 @@ export interface components {
              */
             gvwr_class?: string | null;
             /**
+             * Identifier
+             * @description The serial / HIN / chassis number / asset tag (not used for 'vin' or 'none')
+             */
+            identifier?: string | null;
+            /**
+             * Identifier Type
+             * @description What identifies this vehicle: its VIN, or for equipment and vehicles without one a serial number, HIN, chassis number, asset tag, or none (#226)
+             * @default vin
+             * @enum {string}
+             */
+            identifier_type: "vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none";
+            /**
              * Lez Class
              * @description Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); overrides the class computed from the fuel and the Euro class
              */
@@ -19976,12 +19988,12 @@ export interface components {
              * @description Type of vehicle
              * @enum {string}
              */
-            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike";
+            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike" | "Tractor" | "Mower" | "Generator" | "SmallEngine" | "Attachment" | "Equipment";
             /**
              * Vin
-             * @description 17-character Vehicle Identification Number
+             * @description 17-character Vehicle Identification Number. Required when identifier_type is 'vin'; omitted otherwise (the server generates the vehicle's key).
              */
-            vin: string;
+            vin?: string | null;
             /**
              * Year
              * @description Model year
@@ -20428,6 +20440,22 @@ export interface components {
              * @description GVWR class
              */
             gvwr_class?: string | null;
+            /**
+             * Has Vin
+             * @description Whether `vin` is a real VIN (decode, recalls and VIN display apply).
+             */
+            readonly has_vin: boolean;
+            /**
+             * Identifier
+             * @description Serial / HIN / chassis number / asset tag
+             */
+            identifier?: string | null;
+            /**
+             * Identifier Type
+             * @description What identifies this vehicle
+             * @default vin
+             */
+            identifier_type: ("vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none") | null;
             /** Interior Color */
             interior_color?: string | null;
             /**
@@ -20582,8 +20610,11 @@ export interface components {
              * Vehicle Type
              * @description Type of vehicle
              */
-            vehicle_type: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike") | null;
-            /** Vin */
+            vehicle_type: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike" | "Tractor" | "Mower" | "Generator" | "SmallEngine" | "Attachment" | "Equipment") | null;
+            /**
+             * Vin
+             * @description The vehicle's key. The VIN when identifier_type is 'vin'; otherwise a generated key that is not a VIN and must not be shown (#226).
+             */
             vin: string;
             /** Warranty Basic */
             warranty_basic?: string | null;
@@ -20765,7 +20796,7 @@ export interface components {
              */
             usage_unit: ("distance" | "hours") | null;
             /** Vehicle Type */
-            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike") | null;
+            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike" | "Tractor" | "Mower" | "Generator" | "SmallEngine" | "Attachment" | "Equipment") | null;
             /** Vin */
             vin: string;
             /** Year */
@@ -20951,6 +20982,16 @@ export interface components {
              */
             gvwr_class?: string | null;
             /**
+             * Identifier
+             * @description Serial / HIN / chassis number / asset tag
+             */
+            identifier?: string | null;
+            /**
+             * Identifier Type
+             * @description vin, serial, hin, chassis, asset_tag or none (omit to leave unchanged)
+             */
+            identifier_type?: ("vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none") | null;
+            /**
              * Interior Color
              * @description Interior color
              */
@@ -21123,7 +21164,7 @@ export interface components {
              * Vehicle Type
              * @description Type of vehicle
              */
-            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike") | null;
+            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike" | "Tractor" | "Mower" | "Generator" | "SmallEngine" | "Attachment" | "Equipment") | null;
             /**
              * Warranty Basic
              * @description Basic warranty
@@ -21504,8 +21545,10 @@ export interface components {
         WebhookCompleteReminderPayload: {
             /** Reminder Id */
             reminder_id: number;
+            /** Vehicle */
+            vehicle?: string | null;
             /** Vin */
-            vin: string;
+            vin?: string | null;
         };
         /**
          * WebhookFuelPayload
@@ -21558,8 +21601,10 @@ export interface components {
             soc_end_pct?: number | string | null;
             /** Soc Start Pct */
             soc_start_pct?: number | string | null;
+            /** Vehicle */
+            vehicle?: string | null;
             /** Vin */
-            vin: string;
+            vin?: string | null;
         };
         /** WebhookOdometerPayload */
         WebhookOdometerPayload: {
@@ -21569,8 +21614,10 @@ export interface components {
             notes?: string | null;
             /** Odometer Km */
             odometer_km: number | string;
+            /** Vehicle */
+            vehicle?: string | null;
             /** Vin */
-            vin: string;
+            vin?: string | null;
         };
         /**
          * WiCANConfigEntry

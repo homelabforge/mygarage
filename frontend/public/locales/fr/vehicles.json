@@ -1293,7 +1293,13 @@
     "UTV": "UTV / SxS",
     "Snowmobile": "Motoneige",
     "Bicycle": "Vélo",
-    "EBike": "Vélo électrique"
+    "EBike": "Vélo électrique",
+    "Tractor": "Tracteur",
+    "Mower": "Tondeuse",
+    "Generator": "Groupe électrogène",
+    "SmallEngine": "Petit moteur",
+    "Attachment": "Accessoire",
+    "Equipment": "Équipement"
   },
   "vendorSearch": {
     "noResults": "Aucun fournisseur trouvé",
@@ -2173,5 +2179,24 @@
       "last_inspection": "Dernier contrôle (X.1)",
       "taxes": "Taxe ({{code}})"
     }
+  },
+  "identifier": {
+    "types": {
+      "vin": "VIN",
+      "serial": "Numéro de série",
+      "hin": "HIN",
+      "chassis": "Numéro de châssis",
+      "asset_tag": "Numéro d’inventaire",
+      "none": "Aucun identifiant"
+    },
+    "noVin": "Sans VIN",
+    "hasVin": "VIN",
+    "noVinHelp": "Les tracteurs, tondeuses, groupes électrogènes, accessoires, bateaux avec un HIN et véhicules construits avant 1981 n’ont pas de VIN à 17 caractères. Utilisez ce qui les identifie.",
+    "typeLabel": "Identifié par",
+    "valueLabel": "Identifiant",
+    "valuePlaceholder": "ex. BX23S-10234",
+    "required": "Saisissez l’identifiant ou choisissez « Aucun identifiant »",
+    "cannotAddVin": "Ajouté sans VIN : impossible d’en attribuer un",
+    "archivedColumn": "VIN / ID"
   }
 }

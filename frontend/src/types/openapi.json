@@ -10940,7 +10940,13 @@
                 "UTV",
                 "Snowmobile",
                 "Bicycle",
-                "EBike"
+                "EBike",
+                "Tractor",
+                "Mower",
+                "Generator",
+                "SmallEngine",
+                "Attachment",
+                "Equipment"
               ],
               "type": "string"
             },
@@ -17242,7 +17248,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -19150,7 +19162,13 @@
                 "UTV",
                 "Snowmobile",
                 "Bicycle",
-                "EBike"
+                "EBike",
+                "Tractor",
+                "Mower",
+                "Generator",
+                "SmallEngine",
+                "Attachment",
+                "Equipment"
               ],
               "type": "string"
             },
@@ -28597,7 +28615,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -29055,6 +29079,33 @@
             "description": "GVWR class",
             "title": "Gvwr Class"
           },
+          "identifier": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The serial / HIN / chassis number / asset tag (not used for 'vin' or 'none')",
+            "title": "Identifier"
+          },
+          "identifier_type": {
+            "default": "vin",
+            "description": "What identifies this vehicle: its VIN, or for equipment and vehicles without one a serial number, HIN, chassis number, asset tag, or none (#226)",
+            "enum": [
+              "vin",
+              "serial",
+              "hin",
+              "chassis",
+              "asset_tag",
+              "none"
+            ],
+            "title": "Identifier Type",
+            "type": "string"
+          },
           "lez_class": {
             "anyOf": [
               {
@@ -29374,17 +29425,30 @@
               "UTV",
               "Snowmobile",
               "Bicycle",
-              "EBike"
+              "EBike",
+              "Tractor",
+              "Mower",
+              "Generator",
+              "SmallEngine",
+              "Attachment",
+              "Equipment"
             ],
             "title": "Vehicle Type",
             "type": "string"
           },
           "vin": {
-            "description": "17-character Vehicle Identification Number",
-            "maxLength": 17,
-            "minLength": 17,
-            "title": "Vin",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "minLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "17-character Vehicle Identification Number. Required when identifier_type is 'vin'; omitted otherwise (the server generates the vehicle's key).",
+            "title": "Vin"
           },
           "year": {
             "anyOf": [
@@ -29403,8 +29467,7 @@
         },
         "required": [
           "nickname",
-          "vehicle_type",
-          "vin"
+          "vehicle_type"
         ],
         "title": "VehicleCreate",
         "type": "object"
@@ -30450,6 +30513,45 @@
             "description": "GVWR class",
             "title": "Gvwr Class"
           },
+          "has_vin": {
+            "description": "Whether `vin` is a real VIN (decode, recalls and VIN display apply).",
+            "readOnly": true,
+            "title": "Has Vin",
+            "type": "boolean"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Serial / HIN / chassis number / asset tag",
+            "title": "Identifier"
+          },
+          "identifier_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "vin",
+                  "serial",
+                  "hin",
+                  "chassis",
+                  "asset_tag",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "vin",
+            "description": "What identifies this vehicle",
+            "title": "Identifier Type"
+          },
           "interior_color": {
             "anyOf": [
               {
@@ -30879,7 +30981,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -30891,6 +30999,7 @@
             "title": "Vehicle Type"
           },
           "vin": {
+            "description": "The vehicle's key. The VIN when identifier_type is 'vin'; otherwise a generated key that is not a VIN and must not be shown (#226).",
             "title": "Vin",
             "type": "string"
           },
@@ -31024,7 +31133,8 @@
           "nickname",
           "vehicle_type",
           "vin",
-          "created_at"
+          "created_at",
+          "has_vin"
         ],
         "title": "VehicleResponse",
         "type": "object"
@@ -31486,7 +31596,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -31977,6 +32093,39 @@
             "description": "GVWR class",
             "title": "Gvwr Class"
           },
+          "identifier": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Serial / HIN / chassis number / asset tag",
+            "title": "Identifier"
+          },
+          "identifier_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "vin",
+                  "serial",
+                  "hin",
+                  "chassis",
+                  "asset_tag",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "vin, serial, hin, chassis, asset_tag or none (omit to leave unchanged)",
+            "title": "Identifier Type"
+          },
           "interior_color": {
             "anyOf": [
               {
@@ -32458,7 +32607,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -33319,14 +33474,32 @@
             "title": "Reminder Id",
             "type": "integer"
           },
+          "vehicle": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle"
+          },
           "vin": {
-            "maxLength": 17,
-            "title": "Vin",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
           }
         },
         "required": [
-          "vin",
           "reminder_id"
         ],
         "title": "WebhookCompleteReminderPayload",
@@ -33574,15 +33747,31 @@
             ],
             "title": "Soc Start Pct"
           },
+          "vehicle": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle"
+          },
           "vin": {
-            "maxLength": 17,
-            "title": "Vin",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
           }
         },
-        "required": [
-          "vin"
-        ],
         "title": "WebhookFuelPayload",
         "type": "object"
       },
@@ -33622,14 +33811,32 @@
             ],
             "title": "Odometer Km"
           },
+          "vehicle": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle"
+          },
           "vin": {
-            "maxLength": 17,
-            "title": "Vin",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
           }
         },
         "required": [
-          "vin",
           "odometer_km"
         ],
         "title": "WebhookOdometerPayload",

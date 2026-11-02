@@ -262,6 +262,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
       // Create vehicle with validated form data
       const vehicleData: VehicleCreate = {
         vin: vin,
+        identifier_type: 'vin',
         nickname: validatedData.nickname,
         vehicle_type: validatedData.vehicle_type,
         usage_unit: validatedData.usage_unit,

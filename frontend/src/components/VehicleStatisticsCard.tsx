@@ -29,6 +29,7 @@ import { yearMakeModel } from '../utils/vehicleLabel'
 import VehicleLiveLinkWidget from './livelink/VehicleLiveLinkWidget'
 import { ListRow, Tile, Badge, Mono } from './ui'
 import { unlessSelectingText } from '../utils/textSelection'
+import { vinForDisplay } from '../utils/vehicleIdentifier'
 
 /** How many tanks `recent_l_per_100km` covers: `_RECENT_WINDOW` in the backend's routes/dashboard.py. */
 const RECENT_TANKS = 3
@@ -104,28 +105,10 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
     stats.total_odometer_records > 0 ||
     (usage.tracksHours && stats.latest_hours != null)
 
-  const typeLabels: Record<string, string> = {
-    Car: t('vehicleTypeLabels.Car'),
-    SUV: t('vehicleTypeLabels.SUV'),
-    Truck: t('vehicleTypeLabels.Truck'),
-    Motorcycle: t('vehicleTypeLabels.Motorcycle'),
-    ATV: t('vehicleTypeLabels.ATV'),
-    RV: t('vehicleTypeLabels.RV'),
-    Trailer: t('vehicleTypeLabels.Trailer'),
-    FifthWheel: t('vehicleTypeLabels.FifthWheel'),
-    TravelTrailer: t('vehicleTypeLabels.TravelTrailer'),
-    Electric: t('vehicleTypeLabels.Electric'),
-    Hybrid: t('vehicleTypeLabels.Hybrid'),
-    Boat: t('vehicleTypeLabels.Boat'),
-    UTV: t('vehicleTypeLabels.UTV'),
-    Snowmobile: t('vehicleTypeLabels.Snowmobile'),
-    Bicycle: t('vehicleTypeLabels.Bicycle'),
-    EBike: t('vehicleTypeLabels.EBike'),
-  }
   // Null is a stored type the app doesn't know, so it says so rather than
   // dropping the badge.
   const typeLabel = stats.vehicle_type
-    ? (typeLabels[stats.vehicle_type] ?? stats.vehicle_type)
+    ? t(`vehicleTypeLabels.${stats.vehicle_type}`, { defaultValue: stats.vehicle_type })
     : t('common:unknown')
 
   return (
@@ -184,7 +167,7 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
             <Badge>{typeLabel}</Badge>
           </div>
           <Mono size="sm" tone="muted" variant="vin" className="mt-1 block">
-            {stats.vin}
+            {vinForDisplay(stats.vin)}
           </Mono>
         </div>
 

@@ -7,6 +7,7 @@ import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { Button, Field, Input, Select, Card } from './ui'
 import { todayInHousehold } from '@/constants/i18n'
+import { keyForFilename } from '../utils/vehicleIdentifier'
 
 interface ReportsPanelProps {
   vin: string
@@ -51,7 +52,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
       const downloadUrl = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = downloadUrl
-      a.download = `${reportType}_${vin}_${Date.now()}.pdf`
+      a.download = `${reportType}_${keyForFilename(vin)}_${Date.now()}.pdf`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -82,7 +83,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
       const downloadUrl = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = downloadUrl
-      a.download = `${reportType}_${vin}_${Date.now()}.csv`
+      a.download = `${reportType}_${keyForFilename(vin)}_${Date.now()}.csv`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
