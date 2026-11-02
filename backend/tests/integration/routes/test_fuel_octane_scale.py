@@ -124,6 +124,26 @@ class TestApi:
         assert r.status_code == 200, r.text
         assert (r.json()["octane"], r.json()["octane_scale"]) == (None, None)
 
+    async def test_a_scale_alone_on_a_record_without_an_octane_is_not_stored(
+        self, client, auth_headers, two_vehicles, db_session
+    ):
+        """FB-5: the merged record decides, not the request: a scale sent to a
+        fill-up whose stored octane is NULL has no number to qualify."""
+        vin = two_vehicles[0]
+        created = (await _create(client, auth_headers, vin)).json()
+        assert created["octane"] is None
+        r = await client.put(
+            f"/api/vehicles/{vin}/fuel/{created['id']}",
+            headers=auth_headers,
+            json={"octane_scale": "RON"},
+        )
+        assert r.status_code == 200, r.text
+        assert (r.json()["octane"], r.json()["octane_scale"]) == (None, None)
+        stored = await db_session.scalar(
+            select(FuelRecord.octane_scale).where(FuelRecord.id == created["id"])
+        )
+        assert stored is None
+
 
 class TestRoundTrip:
     async def test_csv_into_another_vehicle(self, client, auth_headers, two_vehicles):

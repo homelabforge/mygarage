@@ -1098,6 +1098,10 @@ class FuelRecordService:
 
             for field, value in update_data.items():
                 setattr(record, field, value)
+            # The schema only sees the request; a scale sent to a record with
+            # no stored octane has nothing to qualify either.
+            if record.octane is None:
+                record.octane_scale = None
 
             # ---- Single outer transaction begins ----
             await self.db.flush()  # apply field changes inside the same tx
