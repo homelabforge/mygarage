@@ -49,7 +49,14 @@ class Vehicle(Base):
 
     __tablename__ = "vehicles"
 
+    # The vehicle's key. The VIN for a vehicle that has one; for equipment and
+    # vehicles without one, a generated "Q" key (never a VIN, never shown).
+    # identifier_type says which (#226, migration 150); see app/utils/vehicle_key.py.
     vin: Mapped[str] = mapped_column(String(17), primary_key=True)
+    identifier_type: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="vin", server_default="vin"
+    )
+    identifier: Mapped[str | None] = mapped_column(String(64))
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
     vehicle_type: Mapped[str] = mapped_column(String(20), nullable=False)
     # Usage tracking dimension: 'distance' (odometer, km-canonical) or 'hours'

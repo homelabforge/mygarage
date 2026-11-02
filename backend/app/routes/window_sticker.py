@@ -26,7 +26,7 @@ from app.services.window_sticker_ocr import WindowStickerOCRService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.vehicle_columns import fit_to_column
-from app.utils.vin import validate_vin
+from app.utils.vehicle_key import is_vehicle_key
 
 logger = logging.getLogger(__name__)
 
@@ -357,10 +357,12 @@ async def upload_window_sticker(
     file_ext = Path(file.filename).suffix.lower()
     unique_filename = f"window_sticker_{uuid.uuid4()}{file_ext}"
 
-    # Validate VIN before using in path (prevent path traversal)
-    is_valid, error = validate_vin(vin)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=f"Invalid VIN format: {error}")
+    # Validate the key before using it in a path (prevent path traversal). A
+    # window sticker belongs to a VIN; a vehicle without one has none (#226).
+    if not is_vehicle_key(vin):
+        raise HTTPException(status_code=400, detail="Invalid vehicle key")
+    if vehicle.identifier_type != "vin":
+        raise HTTPException(status_code=409, detail="Window stickers need a vehicle with a VIN")
 
     # Create VIN-specific directory
     vin_dir = STICKER_STORAGE_PATH / vin
