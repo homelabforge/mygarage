@@ -1157,3 +1157,42 @@ describe('VehicleEditDrawer: a 422 lands under the field it names', () => {
     expect(silent).toEqual([])
   })
 })
+
+describe('VehicleEditDrawer: window sticker without a VIN (#226)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const noVin: Vehicle = {
+    ...baseVehicle,
+    vin: 'QABCDEFGH12345678',
+    identifier_type: 'serial',
+    identifier: 'KBT-1',
+    has_vin: false,
+  }
+
+  it('offers the upload for a vehicle with a VIN (guard)', async () => {
+    renderVehicleEdit(baseVehicle)
+    expect(await screen.findByRole('button', { name: 'detail.uploadWindowSticker' })).toBeInTheDocument()
+    expect(screen.getByText('detail.misc.testOcr')).toBeInTheDocument()
+  })
+
+  it('hides the whole section when there is no VIN and no sticker on file', async () => {
+    renderVehicleEdit(noVin)
+    await screen.findByLabelText(/^edit\.nickname/)
+    expect(screen.queryByText('detail.windowSticker')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'detail.uploadWindowSticker' })).not.toBeInTheDocument()
+  })
+
+  it('keeps a sticker already on file viewable, without replace or the VIN badge', async () => {
+    renderVehicleEdit({
+      ...noVin,
+      // A fake VIN switched to its serial keeps the sticker it had.
+      vin: '1FTFW1E50NFA00001',
+      window_sticker_file_path: '/data/stickers/x.pdf',
+      window_sticker_extracted_vin: '1FTFW1E50NFA00001',
+    })
+    expect(await screen.findByText('detail.viewWindowSticker')).toBeInTheDocument()
+    expect(screen.queryByText('detail.replaceSticker')).not.toBeInTheDocument()
+    expect(screen.queryByText(/detail\.misc\.vinVerified/)).not.toBeInTheDocument()
+    expect(screen.queryByText('detail.misc.testOcr')).not.toBeInTheDocument()
+  })
+})

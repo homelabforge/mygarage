@@ -269,3 +269,41 @@ describe('RecallList — recall sources (#211)', () => {
     expect(toast.info).toHaveBeenCalledWith('recallList.noProviderForCountry')
   })
 })
+
+describe('RecallList: a vehicle without a VIN (#226)', () => {
+  const Q_VEHICLE = { ...VEHICLE, vin: 'V1', identifier_type: 'serial', identifier: 'KBT-1', has_vin: false }
+
+  function serveVehicle(vehicle: object, publicSettings: { key: string; value: string }[] = []): void {
+    apiGet.mockImplementation((url: string) => {
+      if (url === '/settings/public') return Promise.resolve({ data: { settings: publicSettings } })
+      if (url === '/vehicles/V1') return Promise.resolve({ data: vehicle })
+      return Promise.reject({ response: { status: 403 } })
+    })
+  }
+
+  it('says NHTSA is not asked, instead of the switched-off line, and keeps the check', async () => {
+    serveVehicle(Q_VEHICLE, [{ key: 'nhtsa_enabled', value: 'false' }])
+    render(<RecallList {...PROPS} />)
+    expect(await screen.findByText('recallList.noVinNote')).toBeInTheDocument()
+    expect(screen.queryByText('recallList.nhtsaSwitchedOff')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'recallList.checkAll' })).toBeEnabled()
+  })
+
+  it('a check with no source says why for a vehicle without a VIN', async () => {
+    serveVehicle(Q_VEHICLE)
+    nhtsaMutate.mockImplementation((_arg: unknown, options: { onSuccess: (r: unknown) => void }) =>
+      options.onSuccess({ providers_checked: [], new_count: 0, warnings: [] }),
+    )
+    render(<RecallList {...PROPS} />)
+    await screen.findByText('recallList.noVinNote')
+    fireEvent.click(screen.getByRole('button', { name: /recallList.checkAll/ }))
+    expect(toast.info).toHaveBeenCalledWith('recallList.noVinNoProvider')
+  })
+
+  it('a vehicle with a VIN gets no such note', async () => {
+    serveVehicle({ ...VEHICLE, identifier_type: 'vin', has_vin: true })
+    render(<RecallList {...PROPS} />)
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/vehicles/V1'))
+    expect(screen.queryByText('recallList.noVinNote')).not.toBeInTheDocument()
+  })
+})

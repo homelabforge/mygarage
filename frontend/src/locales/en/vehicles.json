@@ -1087,7 +1087,9 @@
       "nhtsa": "NHTSA",
       "rappelconso": "RappelConso",
       "manual": "Manual"
-    }
+    },
+    "noVinNote": "NHTSA looks recalls up by VIN, so it isn't asked about this vehicle. Sources that match on make and model still are.",
+    "noVinNoProvider": "No recall source covers a vehicle without a VIN in this country."
   },
   "reminderList": {
     "addReminder": "Add Reminder",

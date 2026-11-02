@@ -897,7 +897,9 @@
     "nhtsaCheckAction": "Nach Rückrufen suchen",
     "deleteAction": "Rückruf löschen",
     "statusAction": "Rückrufstatus aktualisieren",
-    "loadAction": "Sicherheitsrückrufe laden"
+    "loadAction": "Sicherheitsrückrufe laden",
+    "noVinNote": "NHTSA sucht Rückrufe anhand der VIN und wird für dieses Fahrzeug daher nicht abgefragt. Quellen, die nach Marke und Modell suchen, schon.",
+    "noVinNoProvider": "Für ein Fahrzeug ohne VIN gibt es in diesem Land keine Rückrufquelle."
   },
   "reminderList": {
     "addReminder": "Erinnerung hinzufügen",

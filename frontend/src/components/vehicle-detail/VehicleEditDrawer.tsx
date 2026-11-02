@@ -22,6 +22,7 @@ import { applyServerErrors } from '../../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { usePublicSettings } from '../../hooks/usePublicSettings'
 import { isSettingOn } from '../../utils/settingSwitch'
+import { hasVin } from '../../utils/vehicleIdentifier'
 import { UnitSession } from '../../contexts/UnitSession'
 
 /** Vehicles with no engine, VIN-decoded drivetrain, or DEF system. */
@@ -153,7 +154,13 @@ function VehicleEditForm({
   // a real type is picked.
   const seedType = seedSource?.vehicle_type ?? null
   const isMotorized = seedSource ? seedType === null || !NON_MOTORIZED.includes(seedType) : false
-  const hasWindowSticker = seedType !== null && WINDOW_STICKER_TYPES.includes(seedType)
+  // A window sticker is matched to a VIN (#226): without one there's nothing
+  // to upload against, and a sticker already on file stays viewable only.
+  const vinFeatures = hasVin(vehicle)
+  const hasWindowSticker =
+    seedType !== null &&
+    WINDOW_STICKER_TYPES.includes(seedType) &&
+    (vinFeatures || !!vehicle.window_sticker_file_path)
   // Settings > Files can switch new stickers off. The one on file stays
   // viewable; only upload and replace go. On until the public read says off
   // (the backend's default), so a failed read hides nothing and the 409 rules.
@@ -595,12 +602,14 @@ function VehicleEditForm({
                 <FileText className="h-5 w-5" aria-hidden="true" />
                 {t('detail.windowSticker')}
               </h3>
-              <Link
-                to={`/vehicles/${vin}/window-sticker-test`}
-                className="rounded-control bg-surface-2 px-2 py-1 text-xs text-text-mute transition-colors hover:text-(--accent-fg)"
-              >
-                {t('detail.misc.testOcr')}
-              </Link>
+              {vinFeatures && (
+                <Link
+                  to={`/vehicles/${vin}/window-sticker-test`}
+                  className="rounded-control bg-surface-2 px-2 py-1 text-xs text-text-mute transition-colors hover:text-(--accent-fg)"
+                >
+                  {t('detail.misc.testOcr')}
+                </Link>
+              )}
             </div>
 
             {vehicle.window_sticker_file_path ? (
@@ -629,7 +638,8 @@ function VehicleEditForm({
                       })}
                     </span>
                   )}
-                  {vehicle.window_sticker_extracted_vin && (
+                  {/* Compared against the key, which isn't a VIN without one. */}
+                  {vinFeatures && vehicle.window_sticker_extracted_vin && (
                     <span
                       className={
                         vehicle.window_sticker_extracted_vin === vehicle.vin
@@ -643,7 +653,7 @@ function VehicleEditForm({
                     </span>
                   )}
                 </div>
-                {stickersOn && (
+                {stickersOn && vinFeatures && (
                   <button
                     type="button"
                     onClick={onUploadWindowSticker}

@@ -7,6 +7,7 @@ import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { isSettingOn } from '../utils/settingSwitch'
+import { hasVin } from '../utils/vehicleIdentifier'
 import { usePublicSettings } from '../hooks/usePublicSettings'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
@@ -49,6 +50,9 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
   const queryClient = useQueryClient()
 
   const recalls = data?.recalls ?? []
+  // NHTSA works from the VIN, so a vehicle without one (#226) is never sent
+  // there; the check still asks the sources that match on make and model.
+  const vinFeatures = vehicle ? hasVin(vehicle) : true
   const stats = {
     total: data?.total ?? 0,
     active_count: data?.active_count ?? 0,
@@ -90,7 +94,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
         const providers = result.providers_checked ?? []
         const warnings = result.warnings ?? []
         if (providers.length === 0) {
-          toast.info(t('recallList.noProviderForCountry'))
+          toast.info(vinFeatures ? t('recallList.noProviderForCountry') : t('recallList.noVinNoProvider'))
         } else if ((result.new_count ?? 0) > 0) {
           toast.success(t('recallList.checkAllSuccess', { count: result.new_count }))
         } else {
@@ -168,7 +172,9 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
         <div>
           <h2 className="text-2xl font-bold text-text">{t('recallList.title')}</h2>
           <p className="text-sm text-text-mute">{t('recallList.activeCount', { active: stats.active_count, resolved: stats.resolved_count })}</p>
-          {!nhtsaEnabled && (
+          {!vinFeatures ? (
+            <p className="mt-1 text-sm text-text-mute">{t('recallList.noVinNote')}</p>
+          ) : !nhtsaEnabled && (
             <p className="mt-1 text-sm text-text-mute">{t('recallList.nhtsaSwitchedOff')}</p>
           )}
         </div>

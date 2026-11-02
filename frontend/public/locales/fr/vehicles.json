@@ -1006,7 +1006,9 @@
       "nhtsa": "NHTSA",
       "rappelconso": "RappelConso",
       "manual": "Manuel"
-    }
+    },
+    "noVinNote": "La NHTSA recherche les rappels par VIN : elle n’est pas interrogée pour ce véhicule. Les sources qui comparent la marque et le modèle le sont toujours.",
+    "noVinNoProvider": "Aucune source de rappels ne couvre un véhicule sans VIN dans ce pays."
   },
   "reminderList": {
     "addReminder": "Ajouter un rappel",
