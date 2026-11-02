@@ -209,3 +209,67 @@ class TestPhotoRoutesTakeAQKey:
             "/api/vehicles/..%2F..%2Fetc/photos/x.jpg", headers=auth_headers
         )
         assert response.status_code in (400, 404)
+
+
+class TestFilesForAVehicleWithoutAVin:
+    """A tractor's downloads and uploads never lean on its generated key."""
+
+    async def test_a_window_sticker_upload_is_409(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        keep_rows,
+    ) -> None:
+        """FB-6: a window sticker belongs to a VIN."""
+        from app.services.settings_service import SettingsService
+
+        await keep_rows("window_sticker_enabled")
+        await SettingsService.set(db_session, "window_sticker_enabled", "true")
+        await db_session.commit()
+        key = (await _post(client, auth_headers, identifier_type="serial", identifier="S3")).json()[
+            "vin"
+        ]
+        try:
+            response = await client.post(
+                f"/api/vehicles/{key}/window-sticker/upload",
+                headers=auth_headers,
+                files={"file": ("sticker.pdf", b"%PDF-1.4 sticker", "application/pdf")},
+            )
+            assert response.status_code == 409, response.text
+            assert response.json()["detail"] == "Window stickers need a vehicle with a VIN"
+            row = await db_session.get(Vehicle, key)
+            await db_session.refresh(row)
+            assert row is not None and row.window_sticker_file_path is None
+        finally:
+            await _drop(db_session, key)
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "toll-transactions/export/csv",
+            "livelink/export/telemetry?start=2026-01-01T00:00:00&end=2026-01-02T00:00:00",
+            "livelink/export/telemetry?start=2026-01-01T00:00:00&end=2026-01-02T00:00:00&format=json",
+            "livelink/export/sessions",
+            "livelink/export/sessions?format=json",
+        ],
+    )
+    async def test_an_export_is_named_by_the_identifier(
+        self,
+        client: AsyncClient,
+        auth_headers: dict[str, str],
+        db_session: AsyncSession,
+        path: str,
+    ) -> None:
+        """FB-4: the filename carries the serial, never the Q key."""
+        key = (
+            await _post(client, auth_headers, identifier_type="serial", identifier="BX23S-77")
+        ).json()["vin"]
+        try:
+            response = await client.get(f"/api/vehicles/{key}/{path}", headers=auth_headers)
+            assert response.status_code == 200, response.text
+            disposition = response.headers["content-disposition"]
+            assert "BX23S-77" in disposition
+            assert key not in disposition
+        finally:
+            await _drop(db_session, key)
