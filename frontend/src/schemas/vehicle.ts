@@ -52,12 +52,21 @@ export const VEHICLE_TYPES = [
  */
 export function vehicleTypeOptions(
   translate: TFunction,
+  { equipmentFirst = false }: { equipmentFirst?: boolean } = {},
 ): { value: (typeof VEHICLE_TYPES)[number]; label: string }[] {
-  return VEHICLE_TYPES.map((value) => ({
+  const options = VEHICLE_TYPES.map((value) => ({
     value,
     label: translate(`vehicleTypeLabels.${value}`, { defaultValue: value }),
   })).sort((a, b) => a.label.localeCompare(b.label, getActiveLocale()))
+  if (!equipmentFirst) return options
+  // Something added without a VIN is usually equipment (#226): those types
+  // go on top, each group still alphabetical.
+  const isEquipment = (value: string): boolean => (EQUIPMENT_TYPES as readonly string[]).includes(value)
+  return [...options.filter((o) => isEquipment(o.value)), ...options.filter((o) => !isEquipment(o.value))]
 }
+
+/** The equipment types #226 added: no VIN as a rule, hour-tracked by default. */
+export const EQUIPMENT_TYPES = ['Tractor', 'Mower', 'Generator', 'SmallEngine', 'Attachment', 'Equipment'] as const
 
 /** Trailer-like types: no fuel / odometer as a primary motorized vehicle. */
 export const NON_MOTORIZED_TYPES = ['Trailer', 'FifthWheel', 'TravelTrailer'] as const

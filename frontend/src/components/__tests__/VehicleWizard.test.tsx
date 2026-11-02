@@ -324,3 +324,162 @@ describe('VehicleWizard — registration certificate (#211)', () => {
     })
   })
 })
+
+describe('VehicleWizard: No VIN (#226)', () => {
+  const Q_KEY = 'QABCDEFGH12345678'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedVinService.validate.mockResolvedValue({ valid: true, vin: TEST_VIN })
+    mockedVinService.exists.mockResolvedValue(false)
+  })
+
+  function chooseNoVin(): void {
+    fireEvent.click(screen.getByRole('tab', { name: 'identifier.noVin' }))
+  }
+
+  it('gates step 1 on the identifier unless the type is none', async () => {
+    render(<VehicleWizard onClose={vi.fn()} />)
+    const next = screen.getByRole('button', { name: 'wizard.next' })
+    expect(next).toBeDisabled()
+
+    chooseNoVin()
+    expect(screen.queryByPlaceholderText('vinInput.placeholder')).not.toBeInTheDocument()
+    expect(screen.getByText('identifier.noVinHelp')).toBeInTheDocument()
+    expect(next).toBeDisabled()
+
+    const value = screen.getByLabelText(/^identifier\.valueLabel/)
+    fireEvent.change(value, { target: { value: '   ' } })
+    expect(next).toBeDisabled()
+    fireEvent.change(value, { target: { value: 'BX23S-1' } })
+    expect(next).not.toBeDisabled()
+
+    fireEvent.change(value, { target: { value: '' } })
+    expect(next).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('identifier.typeLabel'), { target: { value: 'none' } })
+    expect(screen.queryByLabelText(/^identifier\.valueLabel/)).not.toBeInTheDocument()
+    expect(next).not.toBeDisabled()
+
+    // Back to VIN: the 17-character gate is back.
+    fireEvent.click(screen.getByRole('tab', { name: 'identifier.hasVin' }))
+    expect(screen.getByRole('button', { name: 'wizard.next' })).toBeDisabled()
+  })
+
+  it('offers the identifier types a vehicle without a VIN can have', () => {
+    render(<VehicleWizard onClose={vi.fn()} />)
+    chooseNoVin()
+    const select = screen.getByLabelText('identifier.typeLabel') as HTMLSelectElement
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['serial', 'hin', 'chassis', 'asset_tag', 'none'])
+    expect(Array.from(select.options).map((o) => o.textContent)).toContain('vehicles:identifier.types.hin')
+  })
+
+  it('creates without a vin and uploads the photos under the key the server returns', async () => {
+    vi.mocked(vehicleService.create).mockResolvedValue({ vin: Q_KEY } as never)
+    vi.mocked(vehicleService.uploadPhoto).mockResolvedValue({ filename: 'a.jpg' } as never)
+    vi.mocked(vehicleService.setMainPhoto).mockResolvedValue({} as never)
+    const onSuccess = vi.fn()
+    render(<VehicleWizard onClose={vi.fn()} onSuccess={onSuccess} />)
+
+    chooseNoVin()
+    fireEvent.change(screen.getByLabelText(/^identifier\.valueLabel/), { target: { value: '  BX23S-1 ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+
+    await screen.findByText('edit.vehicleDetails')
+    // Equipment types lead the type list when there's no VIN; the type itself is untouched.
+    const typeSelect = screen.getByLabelText(/^edit\.vehicleType/) as HTMLSelectElement
+    expect(typeSelect.value).toBe('Car')
+    expect(Array.from(typeSelect.options).slice(0, 6).map((o) => o.value).sort()).toEqual(
+      ['Attachment', 'Equipment', 'Generator', 'Mower', 'SmallEngine', 'Tractor'],
+    )
+    fireEvent.change(typeSelect, { target: { value: 'Tractor' } })
+    fireEvent.change(screen.getByLabelText(/^wizard\.nickname/), { target: { value: 'Kubota' } })
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+
+    const photo = new File(['jpg'], 'tractor.jpg', { type: 'image/jpeg' })
+    fireEvent.change(await screen.findByLabelText('wizard.misc.uploadPhotos'), { target: { files: [photo] } })
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+
+    const review = await screen.findByTestId('wizard-review-identifier')
+    expect(review).toHaveTextContent('vehicles:identifier.types.serial')
+    expect(review).toHaveTextContent('BX23S-1')
+    fireEvent.click(screen.getByRole('button', { name: /wizard\.misc\.createVehicle/ }))
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(Q_KEY))
+    const payload = vi.mocked(vehicleService.create).mock.calls[0][0]
+    expect(payload).not.toHaveProperty('vin')
+    expect(payload).toMatchObject({
+      identifier_type: 'serial',
+      identifier: 'BX23S-1',
+      vehicle_type: 'Tractor',
+      usage_unit: 'hours',
+    })
+    expect(vehicleService.uploadPhoto).toHaveBeenCalledWith(Q_KEY, photo)
+    expect(vehicleService.setMainPhoto).toHaveBeenCalledWith(Q_KEY, 'a.jpg')
+  })
+
+  it('sends a null identifier for "none"', async () => {
+    vi.mocked(vehicleService.create).mockResolvedValue({ vin: Q_KEY } as never)
+    render(<VehicleWizard onClose={vi.fn()} onSuccess={vi.fn()} />)
+    chooseNoVin()
+    fireEvent.change(screen.getByLabelText('identifier.typeLabel'), { target: { value: 'none' } })
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+    fireEvent.change(await screen.findByLabelText(/^wizard\.nickname/), { target: { value: 'Head' } })
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    expect(await screen.findByTestId('wizard-review-identifier')).toHaveTextContent(
+      'vehicles:identifier.types.none',
+    )
+    fireEvent.click(screen.getByRole('button', { name: /wizard\.misc\.createVehicle/ }))
+    await waitFor(() => expect(vehicleService.create).toHaveBeenCalled())
+    const payload = vi.mocked(vehicleService.create).mock.calls[0][0]
+    expect(payload).not.toHaveProperty('vin')
+    expect(payload).toMatchObject({ identifier_type: 'none', identifier: null })
+  })
+
+  it('a certificate whose field E is short lands in No VIN with the chassis number', async () => {
+    vi.mocked(registrationCertificateService.parse).mockResolvedValue({
+      source: 'text',
+      country: 'FR',
+      confidence: 70,
+      fields: { vin: null, chassis_number: '1121234567', plate: 'AB-123-CD', taxes: {} },
+      field_confidence: { chassis_number: 'medium' },
+      vehicle_patch: { license_plate: 'AB-123-CD', make: 'RENAULT', model: '4', registration_country: 'FR' },
+      last_inspection_date: null,
+      suggested_tax_records: [],
+      warnings: ['E: not a 17-character VIN, read as the chassis number'],
+      model: null,
+      pages: 0,
+      parse_token: 'tok-4l',
+    } as never)
+    vi.mocked(vehicleService.create).mockResolvedValue({ vin: Q_KEY } as never)
+    vi.mocked(registrationCertificateService.importForVehicle).mockResolvedValue({} as never)
+    render(<VehicleWizard onClose={vi.fn()} onSuccess={vi.fn()} />)
+
+    const file = new File(['%PDF-1.4'], 'carte-grise.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByTestId('registration-certificate-file'), { target: { files: [file] } })
+    fireEvent.click(screen.getByRole('button', { name: 'registrationImport.read' }))
+
+    expect(await screen.findByText('registrationImport.chassisRouted')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.misc.previous' }))
+    expect(screen.getByRole('tab', { name: 'identifier.noVin' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('identifier.typeLabel')).toHaveValue('chassis')
+    expect(screen.getByLabelText(/^identifier\.valueLabel/)).toHaveValue('1121234567')
+
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'wizard.next' }))
+    const review = await screen.findByTestId('wizard-review-identifier')
+    expect(review).toHaveTextContent('vehicles:identifier.types.chassis')
+    expect(review).toHaveTextContent('1121234567')
+    fireEvent.click(screen.getByRole('button', { name: /wizard\.misc\.createVehicle/ }))
+
+    await waitFor(() => expect(registrationCertificateService.importForVehicle).toHaveBeenCalled())
+    const payload = vi.mocked(vehicleService.create).mock.calls[0][0]
+    expect(payload).not.toHaveProperty('vin')
+    expect(payload).toMatchObject({ identifier_type: 'chassis', identifier: '1121234567', make: 'RENAULT' })
+    expect(registrationCertificateService.importForVehicle).toHaveBeenCalledWith(Q_KEY, file, {
+      parseToken: 'tok-4l',
+      taxCodes: [],
+    })
+  })
+})

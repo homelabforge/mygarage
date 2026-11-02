@@ -1305,7 +1305,9 @@
       "createVehicle": "Fahrzeug erstellen",
       "createFailed": "Fahrzeug konnte nicht erstellt werden",
       "progressLabel": "Fortschritt beim Hinzufügen",
-      "createAction": "Fahrzeug erstellen"
+      "createAction": "Fahrzeug erstellen",
+      "stepIdentifyTitle": "Identifizieren",
+      "stepNoVinDesc": "Kennung eingeben"
     },
     "stepOf": "Schritt {{current}} von {{total}}"
   },
@@ -1571,6 +1573,7 @@
     "valuePlaceholder": "z. B. BX23S-10234",
     "required": "Kennung eingeben oder „Keine Kennung“ wählen",
     "cannotAddVin": "Ohne VIN angelegt, kann nicht auf VIN umgestellt werden",
-    "archivedColumn": "VIN / ID"
+    "archivedColumn": "VIN / ID",
+    "modeLabel": "Hat es eine VIN?"
   }
 }

@@ -1950,7 +1950,9 @@
       "creating": "Creating...",
       "createVehicle": "Create Vehicle",
       "createFailed": "Failed to create vehicle",
-      "createAction": "create the vehicle"
+      "createAction": "create the vehicle",
+      "stepIdentifyTitle": "Identify",
+      "stepNoVinDesc": "Enter its identifier"
     }
   },
   "serviceVisitAttachments": {
@@ -2371,8 +2373,10 @@
       "co2_g_km": "CO₂, g/km (V.7)",
       "euro_class": "Euro class (V.9)",
       "last_inspection": "Last inspection (X.1)",
-      "taxes": "Tax ({{code}})"
-    }
+      "taxes": "Tax ({{code}})",
+      "chassis_number": "Chassis number (E)"
+    },
+    "chassisRouted": "Field E isn't a 17-character VIN, so the vehicle goes in under No VIN with its chassis number."
   },
   "identifier": {
     "types": {
@@ -2391,7 +2395,8 @@
     "valuePlaceholder": "e.g. BX23S-10234",
     "required": "Enter the identifier, or pick \"No identifier\"",
     "cannotAddVin": "Added without a VIN, so it can't be switched to one",
-    "archivedColumn": "VIN / ID"
+    "archivedColumn": "VIN / ID",
+    "modeLabel": "Does it have a VIN?"
   },
   "visionConsent": {
     "title": "Send this document outside your network?",

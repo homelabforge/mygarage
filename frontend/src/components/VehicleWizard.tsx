@@ -1,6 +1,7 @@
 /**
  * Vehicle Wizard - 4-step vehicle creation process
- * Step 1: VIN Entry & Decode
+ * Step 1: Identify: a VIN (entry, decode, certificate) or, for equipment and
+ *         vehicles without one, a serial / HIN / chassis number / asset tag (#226)
  * Step 2: Basic Info
  * Step 3: Photos (optional)
  * Step 4: Review & Create
@@ -14,7 +15,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import VINInput from './VINInput'
 import { FormError } from './FormError'
-import { Stepper, Drawer, Button, Select, NumberInput, registerDecimal } from './ui'
+import { Stepper, Drawer, Button, Select, NumberInput, Tabs, registerDecimal } from './ui'
 import type { VINDecodeResponse } from '../types/vin'
 import type { VehicleCreate } from '../types/vehicle'
 import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, type FuelType } from '../constants/fuel'
@@ -31,6 +32,7 @@ import registrationCertificateService, {
 } from '../services/registrationCertificateService'
 import { taxTypeLabel } from '../schemas/tax'
 import { VEHICLE_TYPES } from '../schemas/vehicle'
+import { NON_VIN_IDENTIFIER_TYPES, identifierTypeLabel, type IdentifierType } from '../utils/vehicleIdentifier'
 import { toast } from 'sonner'
 
 /** The certificate fields the wizard form edits; the rest ride in the payload. */
@@ -59,6 +61,9 @@ interface ParsedCertificate {
   parse: RegistrationParseResponse
   extras: CertificateExtras
 }
+
+/** VIN, or one of the identifiers a vehicle without a VIN has (#226). */
+type IdentifyMode = 'vin' | 'no_vin'
 
 interface VehicleWizardProps {
   onClose: () => void
@@ -98,6 +103,14 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
   // Wizard state
   const [vin, setVin] = useState('')
+  // No VIN (#226): the server keys the vehicle itself, so nothing typed here
+  // is ever the key. Everything after the create uses the key it returns.
+  const [identifyMode, setIdentifyMode] = useState<IdentifyMode>('vin')
+  const [identifierType, setIdentifierType] = useState<IdentifierType>('serial')
+  const [identifier, setIdentifier] = useState('')
+  // Set when a certificate's field E was a chassis number, not a VIN.
+  const [chassisFromCertificate, setChassisFromCertificate] = useState(false)
+  const noVin = identifyMode === 'no_vin'
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
   // A registration certificate read on step 1 (#211): its file is filed on
   // the vehicle after creation, its taxes are offered on the review step,
@@ -127,7 +140,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
   // Defined inside the component so `t` is in scope — module-scope arrays can't translate.
   const steps = [
-    { number: 1, title: t('wizard.vin'), description: t('vinDemo.enterVIN') },
+    {
+      number: 1,
+      title: t('wizard.misc.stepIdentifyTitle'),
+      description: noVin ? t('wizard.misc.stepNoVinDesc') : t('vinDemo.enterVIN'),
+    },
     { number: 2, title: t('wizard.misc.stepDetailsTitle'), description: t('wizard.misc.stepDetailsDesc') },
     { number: 3, title: t('detail.misc.photos'), description: t('wizard.misc.stepPhotosDesc') },
     { number: 4, title: t('wizard.misc.stepReviewTitle'), description: t('wizard.misc.stepReviewDesc') },
@@ -175,6 +192,17 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
     const certificateVin = text('vin')
     if (certificateVin && !vin) setVin(certificateVin)
+    // An old vehicle's field E is a chassis number (#226): it goes in as
+    // one, under No VIN, unless a full VIN was already typed.
+    const fields = parse.fields as Record<string, unknown>
+    const chassis = typeof fields.chassis_number === 'string' ? fields.chassis_number : null
+    const routeToChassis = !certificateVin && chassis !== null && vin.length !== 17
+    if (routeToChassis) {
+      setIdentifyMode('no_vin')
+      setIdentifierType('chassis')
+      setIdentifier(chassis)
+    }
+    setChassisFromCertificate(routeToChassis)
     for (const key of ['license_plate', 'registration_country', 'first_registration_date', 'make', 'model', 'displacement_l'] as const) {
       const value = text(key)
       if (value) setValue(key, value)
@@ -205,7 +233,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     }
     setCertificate({ file, parse, extras })
     setSelectedTaxes(new Set((parse.suggested_tax_records ?? []).map((record) => record.code)))
-    if ((certificateVin ?? vin).length === 17) setCurrentStep(2)
+    if (routeToChassis || (certificateVin ?? vin).length === 17) setCurrentStep(2)
   }
 
   const toggleTax = (code: string, checked: boolean) => {
@@ -227,6 +255,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   // Validate current step
   const canProceed = () => {
     if (currentStep === 1) {
+      if (noVin) return identifierType === 'none' || identifier.trim().length > 0
       return vin.length === 17
     }
     if (currentStep === 2) {
@@ -260,9 +289,12 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
     try {
       // Create vehicle with validated form data
+      // No VIN sends no `vin` at all: the server generates the key.
+      const identity: Pick<VehicleCreate, 'vin' | 'identifier_type' | 'identifier'> = noVin
+        ? { identifier_type: identifierType, identifier: identifierType === 'none' ? null : identifier.trim() }
+        : { vin, identifier_type: 'vin' }
       const vehicleData: VehicleCreate = {
-        vin: vin,
-        identifier_type: 'vin',
+        ...identity,
         nickname: validatedData.nickname,
         vehicle_type: validatedData.vehicle_type,
         usage_unit: validatedData.usage_unit,
@@ -431,31 +463,82 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
           </div>
         )}
 
-        {/* Step 1: VIN Entry */}
+        {/* Step 1: Identify. VIN, or No VIN for equipment and old vehicles (#226). */}
         {currentStep === 1 && (
           <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold text-text mb-4">
-                {t('wizard.misc.enterVinHeading')}
-              </h3>
-              <VINInput
-                value={vin}
-                onChange={setVin}
-                onDecode={handleVinDecode}
-                autoValidate={true}
-                checkDuplicate={true}
-                onImportCertificate={() =>
-                  certificateCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }
-              />
-            </div>
+            <Tabs
+              variant="segmented"
+              label={t('identifier.modeLabel')}
+              activeId={identifyMode}
+              onChange={(id) => setIdentifyMode(id as IdentifyMode)}
+              items={[
+                { id: 'vin', label: t('identifier.hasVin') },
+                { id: 'no_vin', label: t('identifier.noVin') },
+              ]}
+            />
 
-            {/* Or read the registration certificate (#211): fills the VIN
-                and the fields of step 2 from the document. */}
-            <div ref={certificateCardRef} className="rounded-panel border border-border bg-surface-2 p-4">
-              <h3 className="mb-2 text-base font-semibold text-text">{t('registrationImport.title')}</h3>
-              <RegistrationCertificateImport country={resolvedCountry} onParsed={handleCertificateParsed} />
-            </div>
+            {noVin ? (
+              <div className="space-y-4" data-testid="wizard-no-vin">
+                <p className="text-sm text-text-mute">{t('identifier.noVinHelp')}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="wizard-identifier-type" className="block text-sm font-medium text-text-mid mb-2">
+                      {t('identifier.typeLabel')}
+                    </label>
+                    <Select
+                      id="wizard-identifier-type"
+                      value={identifierType}
+                      onChange={(e) => setIdentifierType(e.target.value as IdentifierType)}
+                      options={NON_VIN_IDENTIFIER_TYPES.map((kind) => ({
+                        value: kind,
+                        label: identifierTypeLabel(kind, t),
+                      }))}
+                    />
+                  </div>
+                  {identifierType !== 'none' && (
+                    <div>
+                      <label htmlFor="wizard-identifier" className="block text-sm font-medium text-text-mid mb-2">
+                        {t('identifier.valueLabel')} <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        id="wizard-identifier"
+                        type="text"
+                        maxLength={64}
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
+                        placeholder={t('identifier.valuePlaceholder')}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <h3 className="text-lg font-semibold text-text mb-4">
+                    {t('wizard.misc.enterVinHeading')}
+                  </h3>
+                  <VINInput
+                    value={vin}
+                    onChange={setVin}
+                    onDecode={handleVinDecode}
+                    autoValidate={true}
+                    checkDuplicate={true}
+                    onImportCertificate={() =>
+                      certificateCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                  />
+                </div>
+
+                {/* Or read the registration certificate (#211): fills the VIN
+                    and the fields of step 2 from the document. */}
+                <div ref={certificateCardRef} className="rounded-panel border border-border bg-surface-2 p-4">
+                  <h3 className="mb-2 text-base font-semibold text-text">{t('registrationImport.title')}</h3>
+                  <RegistrationCertificateImport country={resolvedCountry} onParsed={handleCertificateParsed} />
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -470,6 +553,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 className="rounded-panel border border-(--accent-fg)/40 bg-(--accent-fg)/10 p-3 text-sm text-text"
               >
                 {t('registrationImport.checkFields')}
+                {noVin && chassisFromCertificate && (
+                  <span className="mt-1 block">{t('registrationImport.chassisRouted')}</span>
+                )}
               </div>
             )}
 
@@ -500,7 +586,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                     },
                   })}
                   invalid={!!errors.vehicle_type}
-                  options={vehicleTypeOptions(t)}
+                  options={vehicleTypeOptions(t, { equipmentFirst: noVin })}
                 />
                 <FormError error={errors.vehicle_type} />
               </div>
@@ -815,9 +901,23 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
             <div className="bg-surface border border-border rounded-panel p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-text-mute">{t('wizard.vin')}</p>
-                  <p className="text-text font-mono">{vin}</p>
+                <div data-testid="wizard-review-identifier">
+                  {!noVin ? (
+                    <>
+                      <p className="text-sm text-text-mute">{t('wizard.vin')}</p>
+                      <p className="text-text font-mono">{vin}</p>
+                    </>
+                  ) : identifierType === 'none' ? (
+                    <>
+                      <p className="text-sm text-text-mute">{t('identifier.typeLabel')}</p>
+                      <p className="text-text">{identifierTypeLabel('none', t)}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-text-mute">{identifierTypeLabel(identifierType, t)}</p>
+                      <p className="text-text font-mono">{identifier.trim()}</p>
+                    </>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm text-text-mute">{t('wizard.nickname')}</p>
