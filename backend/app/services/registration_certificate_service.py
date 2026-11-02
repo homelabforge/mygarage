@@ -207,6 +207,7 @@ async def parse_upload(
     filename: str | None,
     content_type: str | None,
     country: str | None = None,
+    allow_external_vision: bool = False,
 ) -> RegistrationParseResult:
     """Read the file and say what it fills. Raises the reader's 409/400/502."""
     read = await document_reader_service.read_document(
@@ -215,6 +216,7 @@ async def parse_upload(
         file_bytes=file_bytes,
         filename=filename,
         content_type=content_type,
+        allow_external_vision=allow_external_vision,
     )
     if read.source == "text":
         text = read.raw_text or ""

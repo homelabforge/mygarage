@@ -96,6 +96,48 @@ def vision_answer(monkeypatch: pytest.MonkeyPatch):
     return _install
 
 
+@pytest_asyncio.fixture
+async def external_endpoint(
+    reading_flag: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[AsyncSession]:
+    """Point the LLM at OpenRouter, resolved to a public address (B2)."""
+    db = reading_flag
+    row = (
+        await db.execute(select(Setting).where(Setting.key == llm_client.LLM_BASE_URL_SETTING))
+    ).scalar_one_or_none()
+    before = row.value if row is not None else None
+    if row is None:
+        db.add(
+            Setting(
+                key=llm_client.LLM_BASE_URL_SETTING,
+                value="https://openrouter.ai/api/v1",
+                category="integrations",
+            )
+        )
+    else:
+        row.value = "https://openrouter.ai/api/v1"
+    await db.commit()
+    monkeypatch.setattr(
+        llm_client.socket,
+        "getaddrinfo",
+        lambda *_a, **_k: [(2, 1, 6, "", ("104.18.2.115", 0))],
+    )
+    llm_client.clear_locality_cache()
+    try:
+        yield db
+    finally:
+        llm_client.clear_locality_cache()
+        row = (
+            await db.execute(select(Setting).where(Setting.key == llm_client.LLM_BASE_URL_SETTING))
+        ).scalar_one_or_none()
+        if before is None:
+            if row is not None:
+                await db.delete(row)
+        elif row is not None:
+            row.value = before
+        await db.commit()
+
+
 LONG_TEXT = "CERTIFICAT D'IMMATRICULATION  A AB-123-CD  B 12/03/2023  " * 3
 
 
@@ -208,6 +250,102 @@ class TestReadDocument:
                 content_type="image/jpeg",
             )
         assert exc.value.status_code == 502
+
+
+@pytest.mark.asyncio
+class TestExternalVisionConsent:
+    """B2: a document reaches a vision model outside the network only with
+    the person's consent, and the 409 that asks for it calls no model."""
+
+    async def test_photo_to_an_external_endpoint_needs_consent(
+        self, external_endpoint, vision_answer
+    ):
+        await _set_flag(external_endpoint, "true")
+        calls = vision_answer('{"A": "AB-123-CD"}')
+        with pytest.raises(HTTPException) as exc:
+            await reader.read_document(
+                external_endpoint,
+                kind="registration_certificate",
+                file_bytes=_jpeg(),
+                filename="cg.jpg",
+                content_type="image/jpeg",
+            )
+        assert exc.value.status_code == 409
+        assert exc.value.detail == {"code": "vision_consent_required", "host": "openrouter.ai"}
+        assert calls == []
+
+    async def test_scanned_pdf_to_an_external_endpoint_needs_consent(
+        self, external_endpoint, vision_answer
+    ):
+        await _set_flag(external_endpoint, "true")
+        calls = vision_answer('{"insurer": "MAIF"}')
+        with pytest.raises(HTTPException) as exc:
+            await reader.read_document(
+                external_endpoint,
+                kind="insurance_policy",
+                file_bytes=_pdf(None),
+                filename="scan.pdf",
+                content_type="application/pdf",
+            )
+        assert exc.value.status_code == 409
+        assert exc.value.detail["code"] == "vision_consent_required"
+        assert calls == []
+
+    async def test_consent_lets_the_document_through(self, external_endpoint, vision_answer):
+        await _set_flag(external_endpoint, "true")
+        calls = vision_answer('{"A": "AB-123-CD"}')
+        result = await reader.read_document(
+            external_endpoint,
+            kind="registration_certificate",
+            file_bytes=_jpeg(),
+            filename="cg.jpg",
+            content_type="image/jpeg",
+            allow_external_vision=True,
+        )
+        assert result.source == "llm"
+        assert len(calls) == 1
+
+    async def test_a_text_pdf_never_asks(self, external_endpoint, no_vision):
+        await _set_flag(external_endpoint, "true")
+        result = await reader.read_document(
+            external_endpoint,
+            kind="registration_certificate",
+            file_bytes=_pdf(LONG_TEXT),
+            filename="cg.pdf",
+            content_type="application/pdf",
+        )
+        assert result.source == "text"
+
+    async def test_reading_off_still_says_not_configured(self, external_endpoint, no_vision):
+        await _set_flag(external_endpoint, "false")
+        with pytest.raises(HTTPException) as exc:
+            await reader.read_document(
+                external_endpoint,
+                kind="registration_certificate",
+                file_bytes=_jpeg(),
+                filename="cg.jpg",
+                content_type="image/jpeg",
+            )
+        assert exc.value.detail == reader.AI_READING_NOT_CONFIGURED
+
+    async def test_a_local_endpoint_never_asks(self, reading_flag, vision_answer, monkeypatch):
+        # The default endpoint is 127.0.0.1: no lookup, no question.
+        monkeypatch.setattr(llm_client, "is_local_endpoint", _always_local)
+        await _set_flag(reading_flag, "true")
+        calls = vision_answer('{"A": "AB-123-CD"}')
+        result = await reader.read_document(
+            reading_flag,
+            kind="registration_certificate",
+            file_bytes=_jpeg(),
+            filename="cg.jpg",
+            content_type="image/jpeg",
+        )
+        assert result.source == "llm"
+        assert len(calls) == 1
+
+
+async def _always_local(_base_url: str) -> bool:
+    return True
 
 
 class TestCoerceFields:

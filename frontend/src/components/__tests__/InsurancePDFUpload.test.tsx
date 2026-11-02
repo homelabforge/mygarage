@@ -229,6 +229,47 @@ describe('InsurancePDFUpload — Europe and photos (#211)', () => {
     expect(await screen.findByText('insurancePdfUpload.aiNotConfigured')).toBeInTheDocument()
   })
 
+  it('asks before a scan goes to a vision model outside the network, and retries with consent', async () => {
+    const user = userEvent.setup()
+    postMock
+      .mockRejectedValueOnce({
+        response: { status: 409, data: { detail: { code: 'vision_consent_required', host: 'openrouter.ai' } } },
+      })
+      .mockResolvedValueOnce({
+        data: { success: true, source: 'llm', data: { ...emptyData, provider: 'MAIF' }, confidence: {}, vehicles: [], confidence_score: 60, parser_used: 'vision:llava', warnings: [] },
+      })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'scan.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent('openrouter.ai')
+    expect(postMock).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'visionConsent.send' }))
+    await screen.findByText('MAIF')
+    expect(postMock).toHaveBeenCalledTimes(2)
+    const [, , opts] = postMock.mock.calls[1] as [string, FormData, Record<string, unknown>]
+    expect(opts).toEqual({
+      headers: { 'Content-Type': 'multipart/form-data' },
+      params: { allow_external_vision: true },
+    })
+  })
+
+  it('cancelling the consent question sends nothing more', async () => {
+    const user = userEvent.setup()
+    postMock.mockRejectedValueOnce({
+      response: { status: 409, data: { detail: { code: 'vision_consent_required', host: 'openrouter.ai' } } },
+    })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'scan.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    await screen.findByRole('alertdialog')
+    await user.click(screen.getByRole('button', { name: 'visionConsent.cancel' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(postMock).toHaveBeenCalledTimes(1)
+  })
+
   it('shows the no-claims class, where the document was read from, and a vehicle matched by its plate', async () => {
     const user = userEvent.setup()
     postMock.mockResolvedValue({

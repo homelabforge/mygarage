@@ -157,6 +157,76 @@ describe('RegistrationCertificateImport', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('asks before a photo goes to a vision model outside the network, then retries with consent', async () => {
+    mockedApi.get.mockResolvedValue(publicSettings(true))
+    mockedApi.post
+      .mockRejectedValueOnce({
+        message: 'Request failed with status code 409',
+        response: { status: 409, data: { detail: { code: 'vision_consent_required', host: 'openrouter.ai' } } },
+      })
+      .mockResolvedValueOnce({ data: { ...PARSE, source: 'llm', model: 'llava', pages: 1 } })
+    const onParsed = vi.fn()
+    renderImport({ onParsed, country: 'FR' })
+    await screen.findByText('registrationImport.hint')
+
+    const file = pick('IMG_0001.jpg', 'image/jpeg')
+    fireEvent.click(screen.getByRole('button', { name: 'registrationImport.read' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent('openrouter.ai')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(mockedApi.post).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'visionConsent.send' }))
+    await waitFor(() => expect(onParsed).toHaveBeenCalled())
+    expect(onParsed.mock.calls[0][1]).toBe(file)
+    const [, , config] = mockedApi.post.mock.calls[1] as [string, FormData, { params?: unknown }]
+    expect(config.params).toEqual({ country: 'FR', allow_external_vision: true })
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('cancelling the consent question sends nothing more', async () => {
+    mockedApi.get.mockResolvedValue(publicSettings(true))
+    mockedApi.post.mockRejectedValueOnce({
+      response: { status: 409, data: { detail: { code: 'vision_consent_required', host: 'api.openai.com' } } },
+    })
+    const onParsed = vi.fn()
+    renderImport({ onParsed })
+    await screen.findByText('registrationImport.hint')
+
+    pick('IMG_0001.jpg', 'image/jpeg')
+    fireEvent.click(screen.getByRole('button', { name: 'registrationImport.read' }))
+    await screen.findByRole('alertdialog')
+    fireEvent.click(screen.getByRole('button', { name: 'visionConsent.cancel' }))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(mockedApi.post).toHaveBeenCalledTimes(1)
+    expect(onParsed).not.toHaveBeenCalled()
+  })
+
+  it('imports onto a vehicle with consent after the question', async () => {
+    mockedApi.get.mockResolvedValue(publicSettings(true))
+    mockedApi.post
+      .mockRejectedValueOnce({
+        response: { status: 409, data: { detail: { code: 'vision_consent_required', host: 'openrouter.ai' } } },
+      })
+      .mockResolvedValueOnce({
+        data: { document: { id: 1 }, applied: [], skipped: [], inspection_recorded: false, parse: PARSE },
+      })
+    const onImported = vi.fn()
+    renderImport({ vin: 'VF1RFB00X56123456', onImported })
+    await screen.findByText('registrationImport.hint')
+
+    pick('IMG_0001.jpg', 'image/jpeg')
+    fireEvent.click(screen.getByRole('button', { name: 'registrationImport.import' }))
+    await screen.findByRole('alertdialog')
+    fireEvent.click(screen.getByRole('button', { name: 'visionConsent.send' }))
+
+    await waitFor(() => expect(onImported).toHaveBeenCalled())
+    const [, , config] = mockedApi.post.mock.calls[1] as [string, FormData, { params?: unknown }]
+    expect(config.params).toEqual({ allow_external_vision: true })
+  })
+
   it('imports onto a vehicle, with the overwrite switch, and reports what was applied', async () => {
     mockedApi.get.mockResolvedValue(publicSettings(false))
     mockedApi.post.mockResolvedValue({

@@ -2197,5 +2197,12 @@
     "required": "Saisissez l’identifiant ou choisissez « Aucun identifiant »",
     "cannotAddVin": "Ajouté sans VIN : impossible d’en attribuer un",
     "archivedColumn": "VIN / ID"
+  },
+  "visionConsent": {
+    "title": "Envoyer ce document hors de votre réseau ?",
+    "body": "MyGarage ne peut pas lire ce fichier seul (c’est une photo ou un scan) : pour le lire, il faut l’envoyer au service d’IA ci-dessous, qui se trouve hors de votre réseau.",
+    "unknownHost": "le service d’IA configuré",
+    "send": "L’envoyer",
+    "cancel": "Annuler"
   }
 }

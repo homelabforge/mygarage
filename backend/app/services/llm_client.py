@@ -10,11 +10,15 @@ whether a feature is on; the services check their own flag first.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
+import ipaddress
 import json
 import logging
 import re
+import socket
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -46,6 +50,99 @@ OPENROUTER_HEADERS = {
     "HTTP-Referer": "https://github.com/homelabforge/mygarage",
     "X-Title": "MyGarage",
 }
+
+
+#: The 409 code a document read answers with when the vision model sits
+#: outside the household's network and the request carries no consent.
+VISION_CONSENT_REQUIRED = "vision_consent_required"
+
+#: Carrier-grade NAT space: Tailscale hands out addresses from it, and
+#: ``ipaddress`` does not count it as private.
+_SHARED_ADDRESS_SPACE = ipaddress.ip_network("100.64.0.0/10")
+#: How long a base URL's locality is believed before it is looked up again.
+_LOCALITY_TTL_SECONDS = 300.0
+#: More distinct base URLs than this and the cache starts over.
+_LOCALITY_CACHE_MAX = 32
+_locality_cache: dict[str, tuple[float, bool]] = {}
+
+
+def clear_locality_cache() -> None:
+    """Forget every cached locality answer (tests, and a settings change)."""
+    _locality_cache.clear()
+
+
+def endpoint_host(base_url: str) -> str | None:
+    """The host of ``base_url``, without port or credentials."""
+    try:
+        return urlparse(base_url.strip()).hostname
+    except ValueError:
+        return None
+
+
+def _is_local_address(address: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(address.split("%", 1)[0])
+    except ValueError:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    if ip.is_loopback or ip.is_private or ip.is_link_local:
+        return True
+    return isinstance(ip, ipaddress.IPv4Address) and ip in _SHARED_ADDRESS_SPACE
+
+
+def _host_is_local(host: str) -> bool:
+    """Blocking: an address literal is classified as is; ``.local`` and
+    single-label names (``ollama``, ``localhost``) are local by name; any
+    other name is resolved and is local only when EVERY address it resolves
+    to is. A name that does not resolve is external: fail closed."""
+    try:
+        ipaddress.ip_address(host.split("%", 1)[0])
+    except ValueError:
+        pass
+    else:
+        return _is_local_address(host)
+    name = host.rstrip(".").lower()
+    if not name:
+        return False
+    if name.endswith(".local") or "." not in name:
+        return True
+    try:
+        infos = socket.getaddrinfo(name, None, type=socket.SOCK_STREAM)
+    except OSError, UnicodeError:
+        return False
+    addresses = {str(info[4][0]) for info in infos}
+    return bool(addresses) and all(_is_local_address(a) for a in addresses)
+
+
+async def is_local_endpoint(base_url: str) -> bool:
+    """Whether the endpoint sits on the household's own network: loopback,
+    private, link-local or 100.64.0.0/10 addresses, so ``host.docker.internal``,
+    a ``*.lan`` name and a Tailscale address all count. Cached per base URL."""
+    now = time.monotonic()
+    cached = _locality_cache.get(base_url)
+    if cached is not None and now - cached[0] < _LOCALITY_TTL_SECONDS:
+        return cached[1]
+    host = endpoint_host(base_url)
+    local = False if not host else await asyncio.to_thread(_host_is_local, host)
+    if len(_locality_cache) >= _LOCALITY_CACHE_MAX:
+        _locality_cache.clear()
+    _locality_cache[base_url] = (now, local)
+    return local
+
+
+async def require_vision_consent(db: AsyncSession, *, allow_external: bool) -> None:
+    """409 ``vision_consent_required`` when the vision model is outside the
+    network and the person has not said yes; nothing is sent before it."""
+    if allow_external:
+        return
+    base_url = (await setting(db, LLM_BASE_URL_SETTING, DEFAULT_BASE_URL)).rstrip("/")
+    if await is_local_endpoint(base_url):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": VISION_CONSENT_REQUIRED, "host": endpoint_host(base_url) or ""},
+    )
 
 
 def is_http_url(value: str) -> bool:

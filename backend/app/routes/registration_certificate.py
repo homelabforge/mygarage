@@ -6,7 +6,9 @@ touching anything (the wizard uses it before the vehicle exists);
 document of the vehicle, fills its empty fields and records the last
 inspection. Both relay the document reader's 409
 ``ai_reading_not_configured`` as is: the form then says to configure AI
-document reading, or to type the values.
+document reading, or to type the values. Both also relay its 409
+``vision_consent_required`` (the vision model is outside the network): the
+form asks the person and retries with ``allow_external_vision=true``.
 """
 
 from __future__ import annotations
@@ -45,6 +47,13 @@ ALLOWED_MIMES = {"application/pdf", "image/jpeg", "image/png", "image/heic", "im
 HEIC_MIMES = {"image/heic", "image/heif"}
 #: A phone photo of a certificate is a few megabytes; a scan can be more.
 MAX_FILE_SIZE = 25 * 1024 * 1024
+
+#: The person's yes to sending the document to a vision model outside the
+#: household's network, after the 409 ``vision_consent_required`` asked.
+AllowExternalVision = Annotated[
+    bool,
+    Query(description="Consent to send the document to a vision model outside the network"),
+]
 
 
 async def _read_certificate(file: UploadFile) -> bytes:
@@ -114,6 +123,7 @@ async def parse_registration_certificate(
         description="A hint for the plate format and the energy codes; the document wins",
         max_length=2,
     ),
+    allow_external_vision: AllowExternalVision = False,
 ) -> RegistrationParseResponse:
     """Read a certificate and return what it would fill. Writes nothing."""
     content = await _read_certificate(file)
@@ -123,6 +133,7 @@ async def parse_registration_certificate(
         filename=file.filename,
         content_type=file.content_type,
         country=country,
+        allow_external_vision=allow_external_vision,
     )
     return _to_response(result)
 
@@ -140,6 +151,7 @@ async def import_registration_certificate(
     overwrite: bool = Query(
         False, description="Replace values already set on the vehicle (never the VIN)"
     ),
+    allow_external_vision: AllowExternalVision = False,
 ) -> RegistrationImportResponse:
     """Store the certificate as a document, fill the vehicle, record X.1.
 
@@ -157,6 +169,7 @@ async def import_registration_certificate(
         filename=file.filename,
         content_type=file.content_type,
         country=vehicle.registration_country,
+        allow_external_vision=allow_external_vision,
     )
 
     destination_dir = Path(settings.documents_dir) / vin

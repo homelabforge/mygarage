@@ -286,6 +286,6 @@ describe('VehicleWizard — registration certificate (#211)', () => {
     expect(screen.getByPlaceholderText('wizard.misc.nicknamePlaceholder')).toHaveValue('2023 RENAULT CLIO')
     expect(screen.getByLabelText('wizard.fuelType')).toHaveValue('gasoline')
     // No country resolves here (no account, no instance default): the hint is absent.
-    expect(registrationCertificateService.parse).toHaveBeenCalledWith(file, undefined)
+    expect(registrationCertificateService.parse).toHaveBeenCalledWith(file, undefined, false)
   })
 })

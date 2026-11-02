@@ -16,6 +16,13 @@ The strategy, in order:
    ``ai_reading_not_configured``, which the UI turns into "configure AI
    document reading in Settings, or type the values by hand".
 
+Before step 2 sends anything, an endpoint outside the household's network
+(``llm_client.is_local_endpoint``) needs the person's consent: without
+``allow_external_vision`` the read stops with 409
+``{"code": "vision_consent_required", "host": ...}`` and no model is called.
+Only the server can say whether a PDF has a text layer, so the question is
+asked here and not guessed by the browser.
+
 Never a required path: a document a person cannot have read is still a
 document they can type from.
 """
@@ -100,8 +107,11 @@ async def read_document(
     file_bytes: bytes,
     filename: str | None,
     content_type: str | None,
+    allow_external_vision: bool = False,
 ) -> DocumentReadResult:
-    """See the module docstring. Raises 409 when neither path can read the file."""
+    """See the module docstring. Raises 409 when neither path can read the
+    file, or when the vision model is outside the network and
+    ``allow_external_vision`` is not set."""
     prompt = prompt_for(kind)
 
     if is_pdf(filename, content_type) and await asyncio.to_thread(has_text_layer, file_bytes):
@@ -112,6 +122,8 @@ async def read_document(
 
     if not await reading_enabled(db):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=AI_READING_NOT_CONFIGURED)
+
+    await llm_client.require_vision_consent(db, allow_external=allow_external_vision)
 
     try:
         images = await asyncio.to_thread(to_images, file_bytes, filename, content_type)

@@ -2165,7 +2165,9 @@ export interface paths {
          *     A PDF with a text layer is read on the server (the North American
          *     parsers, the French one, the generic fallback); a photo or a scan goes
          *     to the vision model when document reading is on, else 409
-         *     `ai_reading_not_configured` (#211). `source` says which.
+         *     `ai_reading_not_configured` (#211). `source` says which. A vision model
+         *     outside the household's network answers 409 `vision_consent_required`
+         *     first, until the request carries `allow_external_vision=true`.
          *
          *     `vehicles` lists every VIN on the document with its own premium and
          *     deductible where the parser finds a per-vehicle section, and every
@@ -25220,6 +25222,8 @@ export interface operations {
             query?: {
                 /** @description Optional provider hint (progressive, statefarm, geico, allstate) */
                 provider?: string | null;
+                /** @description Consent to send the document to a vision model outside the network */
+                allow_external_vision?: boolean;
             };
             header?: never;
             path?: never;
@@ -27247,6 +27251,8 @@ export interface operations {
             query?: {
                 /** @description A hint for the plate format and the energy codes; the document wins */
                 country?: string | null;
+                /** @description Consent to send the document to a vision model outside the network */
+                allow_external_vision?: boolean;
             };
             header?: never;
             path?: never;
@@ -32094,6 +32100,8 @@ export interface operations {
             query?: {
                 /** @description Replace values already set on the vehicle (never the VIN) */
                 overwrite?: boolean;
+                /** @description Consent to send the document to a vision model outside the network */
+                allow_external_vision?: boolean;
             };
             header?: never;
             path: {

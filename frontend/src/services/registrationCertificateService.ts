@@ -17,11 +17,29 @@ export const CERTIFICATE_ACCEPT = 'application/pdf,image/jpeg,image/png,image/he
 export const CERTIFICATE_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif']
 export const CERTIFICATE_MAX_BYTES = 25 * 1024 * 1024
 
+/** The 409 code the reader answers with before sending a document to a
+ *  vision model outside the household's network: the person says yes first. */
+export const VISION_CONSENT_REQUIRED = 'vision_consent_required'
+
+type ErrorWithDetail = { response?: { status?: number; data?: { detail?: unknown } } }
+
+function conflictDetail(error: unknown): unknown {
+  if (!error || typeof error !== 'object' || !('response' in error)) return undefined
+  const response = (error as ErrorWithDetail).response
+  return response?.status === 409 ? response.data?.detail : undefined
+}
+
 /** Duck-typed on the response, like `httpErrorHandler`: no axios class check. */
 export function isAiNotConfigured(error: unknown): boolean {
-  if (!error || typeof error !== 'object' || !('response' in error)) return false
-  const response = (error as { response?: { status?: number; data?: { detail?: unknown } } }).response
-  return response?.status === 409 && response.data?.detail === AI_READING_NOT_CONFIGURED
+  return conflictDetail(error) === AI_READING_NOT_CONFIGURED
+}
+
+/** The host the document would go to, when the server asked for consent; else null. */
+export function visionConsentHost(error: unknown): string | null {
+  const detail = conflictDetail(error)
+  if (!detail || typeof detail !== 'object') return null
+  const { code, host } = detail as { code?: unknown; host?: unknown }
+  return code === VISION_CONSENT_REQUIRED ? (typeof host === 'string' ? host : '') : null
 }
 
 /** A PDF is read from its own text when it has one; a photo needs the vision model. */
@@ -31,26 +49,43 @@ export function isPdf(file: File): boolean {
 
 export const registrationCertificateService = {
   /** Read a certificate and get what it would fill. Writes nothing. */
-  async parse(file: File, country?: string | null): Promise<RegistrationParseResponse> {
+  async parse(
+    file: File,
+    country?: string | null,
+    allowExternalVision = false,
+  ): Promise<RegistrationParseResponse> {
     const form = new FormData()
     form.append('file', file)
+    const params = {
+      ...(country ? { country } : {}),
+      ...(allowExternalVision ? { allow_external_vision: true } : {}),
+    }
     const response = await api.post<RegistrationParseResponse>('/registration-certificate/parse', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      params: country ? { country } : undefined,
+      params: Object.keys(params).length > 0 ? params : undefined,
     })
     return response.data
   },
 
   /** Store the certificate on the vehicle, fill its empty fields, record X.1. */
-  async importForVehicle(vin: string, file: File, overwrite = false): Promise<RegistrationImportResponse> {
+  async importForVehicle(
+    vin: string,
+    file: File,
+    overwrite = false,
+    allowExternalVision = false,
+  ): Promise<RegistrationImportResponse> {
     const form = new FormData()
     form.append('file', file)
+    const params = {
+      ...(overwrite ? { overwrite: true } : {}),
+      ...(allowExternalVision ? { allow_external_vision: true } : {}),
+    }
     const response = await api.post<RegistrationImportResponse>(
       `/vehicles/${vin}/registration-certificate`,
       form,
       {
         headers: { 'Content-Type': 'multipart/form-data' },
-        params: overwrite ? { overwrite: true } : undefined,
+        params: Object.keys(params).length > 0 ? params : undefined,
       }
     )
     return response.data

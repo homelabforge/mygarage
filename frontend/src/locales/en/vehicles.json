@@ -2392,5 +2392,12 @@
     "required": "Enter the identifier, or pick \"No identifier\"",
     "cannotAddVin": "Added without a VIN, so it can't be switched to one",
     "archivedColumn": "VIN / ID"
+  },
+  "visionConsent": {
+    "title": "Send this document outside your network?",
+    "body": "MyGarage can't read this file on its own (it's a photo or a scan), so reading it means sending it to the AI service below, which is outside your network.",
+    "unknownHost": "the configured AI service",
+    "send": "Send it",
+    "cancel": "Cancel"
   }
 }

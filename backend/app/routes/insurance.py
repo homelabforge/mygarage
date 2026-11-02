@@ -216,6 +216,10 @@ async def parse_insurance_pdf(
     provider: str | None = Query(
         None, description="Optional provider hint (progressive, statefarm, geico, allstate)"
     ),
+    allow_external_vision: bool = Query(
+        False,
+        description="Consent to send the document to a vision model outside the network",
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ) -> dict[str, Any]:
@@ -224,7 +228,9 @@ async def parse_insurance_pdf(
     A PDF with a text layer is read on the server (the North American
     parsers, the French one, the generic fallback); a photo or a scan goes
     to the vision model when document reading is on, else 409
-    `ai_reading_not_configured` (#211). `source` says which.
+    `ai_reading_not_configured` (#211). `source` says which. A vision model
+    outside the household's network answers 409 `vision_consent_required`
+    first, until the request carries `allow_external_vision=true`.
 
     `vehicles` lists every VIN on the document with its own premium and
     deductible where the parser finds a per-vehicle section, and every
@@ -250,6 +256,7 @@ async def parse_insurance_pdf(
             file_bytes=contents,
             filename=file.filename,
             content_type=file.content_type,
+            allow_external_vision=allow_external_vision,
         )
     try:
         if read.source == "text":

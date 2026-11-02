@@ -10,13 +10,17 @@
  * A PDF with a text layer is read on the server without any model. A photo
  * or a scan needs the vision model an admin turns on in Settings →
  * Integrations; when it is off, the hint says so up front and the 409 the
- * server answers with says it again. Everything shown can still be typed.
+ * server answers with says it again. When that model is outside the
+ * household's network, the server asks first (409 `vision_consent_required`)
+ * and the read is retried only once the person says yes. Everything shown
+ * can still be typed.
  */
 
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FileText, Sparkles, Upload, AlertTriangle } from 'lucide-react'
 import { Button, Drawer } from './ui'
+import VisionConsentPrompt from './VisionConsentPrompt'
 import { useAiDocumentReading } from '@/hooks/queries/useAiDocumentReading'
 import { useDateLocale } from '@/hooks/useDateLocale'
 import { countryName, asCountryCode } from '@/constants/countries'
@@ -28,6 +32,7 @@ import {
   isAiNotConfigured,
   isPdf,
   registrationCertificateService,
+  visionConsentHost,
   type RegistrationImportResponse,
   type RegistrationParseResponse,
 } from '@/services/registrationCertificateService'
@@ -134,6 +139,8 @@ export default function RegistrationCertificateImport({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aiMissing, setAiMissing] = useState(false)
+  // Set while the server waits for a yes before sending the file to this host.
+  const [consentHost, setConsentHost] = useState<string | null>(null)
   const [overwrite, setOverwrite] = useState(false)
   const [parse, setParse] = useState<RegistrationParseResponse | null>(null)
   const [outcome, setOutcome] = useState<RegistrationImportResponse | null>(null)
@@ -143,6 +150,7 @@ export default function RegistrationCertificateImport({
     setOutcome(null)
     setError(null)
     setAiMissing(false)
+    setConsentHost(null)
     if (!selected) {
       setFile(null)
       return
@@ -160,24 +168,33 @@ export default function RegistrationCertificateImport({
     setFile(selected)
   }
 
-  const run = async () => {
+  const run = async (allowExternalVision = false) => {
     if (!file) return
     setBusy(true)
     setError(null)
     setAiMissing(false)
+    setConsentHost(null)
     try {
       if (vin) {
-        const result = await registrationCertificateService.importForVehicle(vin, file, overwrite)
+        const result = await registrationCertificateService.importForVehicle(
+          vin,
+          file,
+          overwrite,
+          allowExternalVision,
+        )
         setParse(result.parse)
         setOutcome(result)
         onImported?.(result)
       } else {
-        const result = await registrationCertificateService.parse(file, country)
+        const result = await registrationCertificateService.parse(file, country, allowExternalVision)
         setParse(result)
         onParsed?.(result, file)
       }
     } catch (err) {
-      if (isAiNotConfigured(err)) {
+      const host = visionConsentHost(err)
+      if (host !== null) {
+        setConsentHost(host)
+      } else if (isAiNotConfigured(err)) {
         setAiMissing(true)
       } else {
         setError(getActionErrorMessage(err, t(vin ? 'registrationImport.importAction' : 'registrationImport.readAction')))
@@ -222,8 +239,8 @@ export default function RegistrationCertificateImport({
         <Button
           variant="primary"
           icon={vin ? Upload : Sparkles}
-          disabled={!file || busy || needsAi}
-          onClick={run}
+          disabled={!file || busy || needsAi || consentHost !== null}
+          onClick={() => void run()}
         >
           {busy
             ? t('registrationImport.reading')
@@ -257,6 +274,14 @@ export default function RegistrationCertificateImport({
           <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <span>{t('registrationImport.aiNotConfigured')}</span>
         </div>
+      )}
+
+      {consentHost !== null && (
+        <VisionConsentPrompt
+          host={consentHost}
+          onConfirm={() => void run(true)}
+          onCancel={() => setConsentHost(null)}
+        />
       )}
 
       {error && (

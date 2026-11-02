@@ -3,12 +3,13 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
-import { isAiNotConfigured } from '../services/registrationCertificateService'
+import { isAiNotConfigured, visionConsentHost } from '../services/registrationCertificateService'
 import { useAiDocumentReading } from '../hooks/queries/useAiDocumentReading'
 import type { InsurancePDFParseResponse } from '../types/insurance'
 import { CloudUpload, X, AlertTriangle, CheckCircle } from 'lucide-react'
 import { Button, Card, IconButton, Chip } from './ui'
 import type { Tone } from './ui'
+import VisionConsentPrompt from './VisionConsentPrompt'
 
 // LD3: confidence is off-accent (§4.3); high→success, medium→warning, low→danger.
 // `rejected` is the vision model's value the validators refused (#211).
@@ -79,6 +80,8 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
   const [parseResult, setParseResult] = useState<InsurancePDFParseResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  // Set while the server waits for a yes before sending a scan to this host.
+  const [consentHost, setConsentHost] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { enabled: aiEnabled } = useAiDocumentReading()
 
@@ -108,6 +111,7 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
       if (acceptable(droppedFile)) {
         setFile(droppedFile)
         setError(null)
+        setConsentHost(null)
       } else {
         setError(invalidTypeMessage)
       }
@@ -120,18 +124,20 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
       if (acceptable(selectedFile)) {
         setFile(selectedFile)
         setError(null)
+        setConsentHost(null)
       } else {
         setError(invalidTypeMessage)
       }
     }
   }
 
-  const handleUpload = async () => {
+  const handleUpload = async (allowExternalVision = false) => {
     if (!file) return
 
     setUploading(true)
     setError(null)
     setParseResult(null)
+    setConsentHost(null)
 
     try {
       const formData = new FormData()
@@ -141,11 +147,16 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        // Only after the person said yes to the host the server named.
+        ...(allowExternalVision ? { params: { allow_external_vision: true } } : {}),
       })
 
       setParseResult(response.data)
     } catch (err) {
-      if (isAiNotConfigured(err)) {
+      const host = visionConsentHost(err)
+      if (host !== null) {
+        setConsentHost(host)
+      } else if (isAiNotConfigured(err)) {
         setError(t('insurancePdfUpload.aiNotConfigured'))
       } else {
         setError(getActionErrorMessage(err, t('insurancePdfUpload.parseAction')))
@@ -227,9 +238,25 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
 
               {file && (
                 <div className="mt-4">
-                  <Button variant="secondary" className="w-full" loading={uploading} onClick={handleUpload}>
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    loading={uploading}
+                    disabled={consentHost !== null}
+                    onClick={() => void handleUpload()}
+                  >
                     {uploading ? t('insurancePdfUpload.parsing') : t('insurancePdfUpload.parse')}
                   </Button>
+                </div>
+              )}
+
+              {consentHost !== null && (
+                <div className="mt-4">
+                  <VisionConsentPrompt
+                    host={consentHost}
+                    onConfirm={() => void handleUpload(true)}
+                    onCancel={() => setConsentHost(null)}
+                  />
                 </div>
               )}
 

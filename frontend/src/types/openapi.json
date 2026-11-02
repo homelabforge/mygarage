@@ -40506,7 +40506,7 @@
     },
     "/api/insurance/parse-pdf": {
       "post": {
-        "description": "Read a policy document and return what it says, persisting nothing.\n\nA PDF with a text layer is read on the server (the North American\nparsers, the French one, the generic fallback); a photo or a scan goes\nto the vision model when document reading is on, else 409\n`ai_reading_not_configured` (#211). `source` says which.\n\n`vehicles` lists every VIN on the document with its own premium and\ndeductible where the parser finds a per-vehicle section, and every\nregistration plate when the document names no VIN (`matched_by` is\n`vin` or `plate`). `matched` marks the ones the caller has WRITE access\nto, which is what attaching one takes.",
+        "description": "Read a policy document and return what it says, persisting nothing.\n\nA PDF with a text layer is read on the server (the North American\nparsers, the French one, the generic fallback); a photo or a scan goes\nto the vision model when document reading is on, else 409\n`ai_reading_not_configured` (#211). `source` says which. A vision model\noutside the household's network answers 409 `vision_consent_required`\nfirst, until the request carries `allow_external_vision=true`.\n\n`vehicles` lists every VIN on the document with its own premium and\ndeductible where the parser finds a per-vehicle section, and every\nregistration plate when the document names no VIN (`matched_by` is\n`vin` or `plate`). `matched` marks the ones the caller has WRITE access\nto, which is what attaching one takes.",
         "operationId": "parse_insurance_pdf_api_insurance_parse_pdf_post",
         "parameters": [
           {
@@ -40525,6 +40525,18 @@
               ],
               "description": "Optional provider hint (progressive, statefarm, geico, allstate)",
               "title": "Provider"
+            }
+          },
+          {
+            "description": "Consent to send the document to a vision model outside the network",
+            "in": "query",
+            "name": "allow_external_vision",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Consent to send the document to a vision model outside the network",
+              "title": "Allow External Vision",
+              "type": "boolean"
             }
           }
         ],
@@ -43652,6 +43664,18 @@
               ],
               "description": "A hint for the plate format and the energy codes; the document wins",
               "title": "Country"
+            }
+          },
+          {
+            "description": "Consent to send the document to a vision model outside the network",
+            "in": "query",
+            "name": "allow_external_vision",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Consent to send the document to a vision model outside the network",
+              "title": "Allow External Vision",
+              "type": "boolean"
             }
           }
         ],
@@ -51791,6 +51815,18 @@
               "default": false,
               "description": "Replace values already set on the vehicle (never the VIN)",
               "title": "Overwrite",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Consent to send the document to a vision model outside the network",
+            "in": "query",
+            "name": "allow_external_vision",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Consent to send the document to a vision model outside the network",
+              "title": "Allow External Vision",
               "type": "boolean"
             }
           }
