@@ -1620,6 +1620,43 @@ class TestLlmSettingsWriteValidation:
         finally:
             await _restore(db_session, key, before)
 
+    @pytest.mark.parametrize("endpoint", (*WRITE_ENDPOINTS, "delete_setting"))
+    async def test_a_base_url_write_forgets_cached_localities(
+        self, client: AsyncClient, auth_headers, db_session, endpoint: str
+    ):
+        """FB-3: saving the URL again is how an admin makes the consent check
+        look the host up afresh (a DNS move), not five minutes later."""
+        from app.services import llm_client
+
+        key = "llm_base_url"
+        url = "http://ollama.example.lan:11434/v1"
+        before = await _value_or_none(db_session, key)
+        try:
+            if endpoint == "create_setting":
+                await _delete_setting(db_session, key)
+            else:
+                await _set_setting(db_session, key, url)
+            llm_client._locality_cache.put(url, True)
+            if endpoint == "create_setting":
+                response = await client.post(
+                    "/api/settings", headers=auth_headers, json={"key": key, "value": url}
+                )
+            elif endpoint == "update_setting":
+                response = await client.put(
+                    f"/api/settings/{key}", headers=auth_headers, json={"value": url}
+                )
+            elif endpoint == "batch_update_settings":
+                response = await client.post(
+                    "/api/settings/batch", headers=auth_headers, json={"settings": {key: url}}
+                )
+            else:
+                response = await client.delete(f"/api/settings/{key}", headers=auth_headers)
+            assert response.status_code < 300, response.text
+            assert llm_client._locality_cache.get(url) is None
+        finally:
+            llm_client.clear_locality_cache()
+            await _restore(db_session, key, before)
+
     async def test_preset_is_a_vocabulary(self, client: AsyncClient, auth_headers, db_session):
         key = "llm_provider_preset"
         before = await _value_or_none(db_session, key)

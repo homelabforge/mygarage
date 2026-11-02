@@ -4,6 +4,7 @@ import logging
 import re
 import sys
 import time
+from collections.abc import Container
 from enum import Enum
 from typing import Final
 from zoneinfo import ZoneInfo
@@ -140,6 +141,16 @@ def _resolve_write_value[V: str | None](key: str, new_value: V) -> V | _KeepStor
     if key in SENSITIVE_SETTING_KEYS and new_value == MASKED_SECRET_PLACEHOLDER:
         return KEEP_STORED
     return new_value
+
+
+def _after_write(keys: Container[str]) -> None:
+    """What a committed write of ``keys`` changes outside the settings table.
+
+    A saved ``llm_base_url`` forgets the cached localities, so re-saving the
+    same URL after its host moved makes the next vision read look it up again.
+    """
+    if llm_client.LLM_BASE_URL_SETTING in keys:
+        llm_client.clear_locality_cache()
 
 
 def _reject_reserved_key(key: str) -> None:
@@ -866,6 +877,7 @@ async def create_setting(
 
     db.add(db_setting)
     await db.commit()
+    _after_write({setting.key})
     await db.refresh(db_setting)
 
     logger.info("Created setting: %s", sanitize_for_log(setting.key))
@@ -918,6 +930,7 @@ async def update_setting(
     setting.updated_at = utc_now()
 
     await db.commit()
+    _after_write({key})
     await db.refresh(setting)
 
     logger.info("Updated setting: %s", sanitize_for_log(key))
@@ -988,6 +1001,7 @@ async def batch_update_settings(
     updated_settings = [written[key] if key in written else kept[key] for key in batch.settings]
 
     await db.commit()
+    _after_write(written)
 
     # Refresh all settings
     for setting in updated_settings:
@@ -1021,6 +1035,7 @@ async def delete_setting(
 
     await db.delete(setting)
     await db.commit()
+    _after_write({key})
 
     logger.info("Deleted setting: %s", sanitize_for_log(key))
     return Response(status_code=204)
