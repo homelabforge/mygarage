@@ -88,6 +88,16 @@ def _is_local_address(address: str) -> bool:
     return isinstance(ip, ipaddress.IPv4Address) and ip in _SHARED_ADDRESS_SPACE
 
 
+def _resolve(name: str) -> list[tuple[Any, ...]]:
+    """``getaddrinfo`` for one endpoint name.
+
+    Its own seam so a test can answer for the endpoint without patching
+    ``socket.getaddrinfo`` for the whole process, which the database driver
+    resolves its own host through.
+    """
+    return socket.getaddrinfo(name, None, type=socket.SOCK_STREAM)
+
+
 def _host_is_local(host: str) -> bool:
     """Blocking: an address literal is classified as is; ``.local`` and
     single-label names (``ollama``, ``localhost``) are local by name; any
@@ -105,7 +115,7 @@ def _host_is_local(host: str) -> bool:
     if name.endswith(".local") or "." not in name:
         return True
     try:
-        infos = socket.getaddrinfo(name, None, type=socket.SOCK_STREAM)
+        infos = _resolve(name)
     except OSError, UnicodeError:
         return False
     addresses = {str(info[4][0]) for info in infos}

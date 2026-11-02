@@ -62,8 +62,10 @@ async def external_vision(
         before[key] = row.value if row is not None else None
     await _put(db_session, DOCUMENT_READING_SETTING, "true")
     await _put(db_session, llm_client.LLM_BASE_URL_SETTING, EXTERNAL_URL)
+    # The endpoint's own lookup only: patching socket.getaddrinfo would send
+    # the PostgreSQL driver's next connect to this address too.
     monkeypatch.setattr(
-        llm_client.socket, "getaddrinfo", lambda *_a, **_k: [(2, 1, 6, "", ("104.18.2.115", 0))]
+        llm_client, "_resolve", lambda *_a, **_k: [(2, 1, 6, "", ("104.18.2.115", 0))]
     )
     llm_client.clear_locality_cache()
 

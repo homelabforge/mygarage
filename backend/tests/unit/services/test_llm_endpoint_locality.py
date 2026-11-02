@@ -50,7 +50,7 @@ def resolver(monkeypatch: pytest.MonkeyPatch):
                 raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
             return _infos(*answer)
 
-        monkeypatch.setattr(llm_client.socket, "getaddrinfo", _fake)
+        monkeypatch.setattr(llm_client, "_resolve", _fake)
         return calls
 
     return _install

@@ -117,10 +117,10 @@ async def external_endpoint(
     else:
         row.value = "https://openrouter.ai/api/v1"
     await db.commit()
+    # The endpoint's own lookup only: patching socket.getaddrinfo would send
+    # the PostgreSQL driver's next connect to this address too.
     monkeypatch.setattr(
-        llm_client.socket,
-        "getaddrinfo",
-        lambda *_a, **_k: [(2, 1, 6, "", ("104.18.2.115", 0))],
+        llm_client, "_resolve", lambda *_a, **_k: [(2, 1, 6, "", ("104.18.2.115", 0))]
     )
     llm_client.clear_locality_cache()
     try:
@@ -343,10 +343,6 @@ class TestExternalVisionConsent:
         assert result.source == "llm"
         assert len(calls) == 1
 
-
-async def _always_local(_base_url: str) -> bool:
-    return True
-
     async def test_the_request_goes_where_consent_looked(
         self, external_endpoint, vision_answer, monkeypatch: pytest.MonkeyPatch
     ):
@@ -380,6 +376,10 @@ async def _always_local(_base_url: str) -> bool:
         )
         assert len(calls) == 1
         assert calls[0].get("base_url") == local
+
+
+async def _always_local(_base_url: str) -> bool:
+    return True
 
 
 class TestCoerceFields:
