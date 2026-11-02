@@ -67,6 +67,7 @@ from app.utils.insurance_shares import (
 )
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.money_fits import ensure_fits
+from app.utils.vehicle_key import display_identifier, is_synthetic_key
 
 logger = logging.getLogger(__name__)
 
@@ -135,12 +136,13 @@ def plate_key(value: str | None) -> str:
 
 
 def _vehicle_name(vehicle: Vehicle | None, vin: str) -> str:
+    # The last resort is the identifier, never a generated key (#226).
     if vehicle is None:
-        return vin
+        return "Vehicle" if is_synthetic_key(vin) else vin
     if vehicle.nickname:
         return vehicle.nickname
     parts = [str(p) for p in (vehicle.year, vehicle.make, vehicle.model) if p]
-    return " ".join(parts) or vin
+    return " ".join(parts) or display_identifier(vehicle)[1] or "Vehicle"
 
 
 def _coverage_tuples(rows: Iterable[Any]) -> list[tuple]:

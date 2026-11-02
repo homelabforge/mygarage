@@ -163,6 +163,27 @@ describe('InsurancePDFUpload — labelled dropzone: upload guard + parse + confi
     expect(screen.getByText('insurancePdfUpload.vehicleNotInGarage')).toHaveAttribute('data-tone', 'muted')
   })
 
+  it('a plate match with no name shows the plate, never a generated key (#226)', async () => {
+    const user = userEvent.setup()
+    postMock.mockResolvedValue({
+      data: {
+        success: true,
+        data: { ...emptyData, provider: 'MAIF' },
+        confidence: {},
+        vehicles: [
+          { vin: 'QABCDEFGH12345678', plate: 'AB-123-CD', matched: true, matched_by: 'plate', vehicle_name: null, premium_share: null, deductible: null },
+        ],
+        confidence_score: 60, parser_used: 'maif', warnings: [],
+      },
+    })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'policy.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    await screen.findByText('insurancePdfUpload.parseSuccess')
+    expect(screen.getByText('AB-123-CD')).toBeInTheDocument()
+    expect(screen.queryByText('QABCDEFGH12345678')).not.toBeInTheDocument()
+  })
+
   it('after a parse, "Use This Data" hands the extracted fields back and closes (fails if the apply-to-form wiring breaks)', async () => {
     const user = userEvent.setup()
     const onDataExtracted = vi.fn()

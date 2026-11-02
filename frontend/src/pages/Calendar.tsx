@@ -22,6 +22,7 @@ import { formatDateForDisplay } from '../utils/dateUtils'
 import { withBase } from '../utils/basePath'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { isSelectingText } from '../utils/textSelection'
+import { identifierValue, vinForDisplay } from '../utils/vehicleIdentifier'
 import { cameFromNestedControl } from '../components/ClickableCard'
 import { todayInHousehold } from '@/constants/i18n'
 import { useAuth } from '@/contexts/AuthContext'
@@ -245,18 +246,30 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
     calendarControls.setLocale(dateLocale)
   }, [calendarControls, dateLocale])
 
+  // What each event's vehicle is identified by: its VIN, or the serial / HIN a
+  // vehicle without one has (#226). Never the generated key.
+  const identifierByKey = useMemo(
+    () => new Map(vehicles.map((vehicle) => [vehicle.vin, identifierValue(vehicle)])),
+    [vehicles]
+  )
+
   // Phase 3: Filter events by search query
   const filteredEvents = useMemo(() => {
     if (!searchQuery.trim()) return events
 
     const query = searchQuery.toLowerCase()
-    return events.filter(e =>
-      e.title.toLowerCase().includes(query) ||
-      e.description?.toLowerCase().includes(query) ||
-      e.vehicle_nickname?.toLowerCase().includes(query) ||
-      e.vehicle_vin.toLowerCase().includes(query)
-    )
-  }, [events, searchQuery])
+    return events.filter(e => {
+      const identifier = identifierByKey.has(e.vehicle_vin)
+        ? identifierByKey.get(e.vehicle_vin)
+        : vinForDisplay(e.vehicle_vin)
+      return (
+        e.title.toLowerCase().includes(query) ||
+        e.description?.toLowerCase().includes(query) ||
+        e.vehicle_nickname?.toLowerCase().includes(query) ||
+        (identifier?.toLowerCase().includes(query) ?? false)
+      )
+    })
+  }, [events, searchQuery, identifierByKey])
 
   // Sync filtered events into Schedule-X events service
   useEffect(() => {

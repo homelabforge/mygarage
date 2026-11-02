@@ -10,6 +10,7 @@ import { CloudUpload, X, AlertTriangle, CheckCircle } from 'lucide-react'
 import { Button, Card, IconButton, Chip } from './ui'
 import type { Tone } from './ui'
 import VisionConsentPrompt from './VisionConsentPrompt'
+import { vinForDisplay } from '../utils/vehicleIdentifier'
 
 // LD3: confidence is off-accent (§4.3); high→success, medium→warning, low→danger.
 // `rejected` is the vision model's value the validators refused (#211).
@@ -348,7 +349,8 @@ export default function InsurancePDFUpload({ onDataExtracted, onClose }: Insuran
                           className="flex justify-between items-center gap-2"
                         >
                           <span className="text-text">
-                            {vehicle.vehicle_name ?? vehicle.vin ?? vehicle.plate}
+                            {/* A plate match carries the garage's key, which may be a generated one (#226). */}
+                            {vehicle.vehicle_name ?? vinForDisplay(vehicle.vin) ?? vehicle.plate}
                           </span>
                           <Chip tone={vehicle.matched ? 'success' : 'muted'}>
                             {vehicle.matched
