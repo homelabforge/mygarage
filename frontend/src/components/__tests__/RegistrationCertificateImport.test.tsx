@@ -97,7 +97,7 @@ describe('RegistrationCertificateImport', () => {
     expect(read).not.toBeDisabled()
     fireEvent.click(read)
 
-    await waitFor(() => expect(onParsed).toHaveBeenCalledWith(PARSE, file))
+    await waitFor(() => expect(onParsed).toHaveBeenCalledWith(PARSE, file, false))
     const [url, body, config] = mockedApi.post.mock.calls[0] as [string, FormData, { params?: unknown }]
     expect(url).toBe('/registration-certificate/parse')
     expect(body.get('file')).toBe(file)
@@ -180,6 +180,7 @@ describe('RegistrationCertificateImport', () => {
     fireEvent.click(screen.getByRole('button', { name: 'visionConsent.send' }))
     await waitFor(() => expect(onParsed).toHaveBeenCalled())
     expect(onParsed.mock.calls[0][1]).toBe(file)
+    expect(onParsed.mock.calls[0][2]).toBe(true)
     const [, , config] = mockedApi.post.mock.calls[1] as [string, FormData, { params?: unknown }]
     expect(config.params).toEqual({ country: 'FR', allow_external_vision: true })
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()

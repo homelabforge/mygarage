@@ -123,7 +123,8 @@ export interface RegistrationCertificateImportProps {
   vin?: string
   /** A hint for the plate format when the document says nothing. */
   country?: string | null
-  onParsed?: (result: RegistrationParseResponse, file: File) => void
+  /** `allowExternalVision`: the person said yes to an outside model for this read. */
+  onParsed?: (result: RegistrationParseResponse, file: File, allowExternalVision: boolean) => void
   onImported?: (result: RegistrationImportResponse) => void
 }
 
@@ -188,7 +189,7 @@ export default function RegistrationCertificateImport({
       } else {
         const result = await registrationCertificateService.parse(file, country, allowExternalVision)
         setParse(result)
-        onParsed?.(result, file)
+        onParsed?.(result, file, allowExternalVision)
       }
     } catch (err) {
       const host = visionConsentHost(err)

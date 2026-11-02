@@ -237,12 +237,12 @@ vi.mock('../../services/registrationCertificateService', () => {
   CERTIFICATE_MIME_TYPES: ['application/pdf'],
   CERTIFICATE_MAX_BYTES: 25 * 1024 * 1024,
   isAiNotConfigured: () => false,
-  visionConsentHost: () => null,
+  visionConsentHost: vi.fn(() => null),
   isPdf: (file: File) => file.type === 'application/pdf',
   }
 })
 
-import registrationCertificateService from '../../services/registrationCertificateService'
+import registrationCertificateService, { visionConsentHost } from '../../services/registrationCertificateService'
 import vehicleService from '../../services/vehicleService'
 
 describe('VehicleWizard — registration certificate (#211)', () => {
@@ -320,8 +320,42 @@ describe('VehicleWizard — registration certificate (#211)', () => {
     await waitFor(() => expect(registrationCertificateService.importForVehicle).toHaveBeenCalled())
     expect(registrationCertificateService.importForVehicle).toHaveBeenCalledWith(CERTIFICATE_VIN, file, {
       parseToken: 'tok-1',
+      allowExternalVision: false,
       taxCodes: ['Y.3'],
     })
+  })
+
+  it('forwards the consent given at the read to the import (FB-7)', async () => {
+    // The read went to a model outside the network after a yes. Should the
+    // import read the file again (an expired token), it must not ask again
+    // with nobody left to answer: the wizard's toast would be all that shows.
+    vi.mocked(visionConsentHost).mockReturnValueOnce('openrouter.ai')
+    vi.mocked(registrationCertificateService.parse)
+      .mockRejectedValueOnce(new Error('409'))
+      .mockResolvedValueOnce({ ...PARSE, parse_token: 'tok-2' } as never)
+    vi.mocked(vehicleService.create).mockResolvedValue({ vin: CERTIFICATE_VIN } as never)
+    vi.mocked(registrationCertificateService.importForVehicle).mockResolvedValue({} as never)
+    render(<VehicleWizard onClose={vi.fn()} />)
+
+    const file = new File(['%PDF-1.4'], 'carte-grise.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByTestId('registration-certificate-file'), { target: { files: [file] } })
+    fireEvent.click(screen.getByRole('button', { name: 'registrationImport.read' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'visionConsent.send' }))
+    await screen.findByText('registrationImport.checkFields')
+    expect(registrationCertificateService.parse).toHaveBeenLastCalledWith(file, undefined, true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+    await screen.findByLabelText('wizard.misc.uploadPhotos')
+    fireEvent.click(screen.getByRole('button', { name: 'wizard.next' }))
+    await screen.findByTestId('wizard-certificate-review')
+    fireEvent.click(screen.getByRole('button', { name: /wizard\.misc\.createVehicle/ }))
+
+    await waitFor(() => expect(registrationCertificateService.importForVehicle).toHaveBeenCalled())
+    expect(registrationCertificateService.importForVehicle).toHaveBeenCalledWith(
+      CERTIFICATE_VIN,
+      file,
+      expect.objectContaining({ parseToken: 'tok-2', allowExternalVision: true }),
+    )
   })
 })
 
@@ -479,6 +513,7 @@ describe('VehicleWizard: No VIN (#226)', () => {
     expect(payload).toMatchObject({ identifier_type: 'chassis', identifier: '1121234567', make: 'RENAULT' })
     expect(registrationCertificateService.importForVehicle).toHaveBeenCalledWith(Q_KEY, file, {
       parseToken: 'tok-4l',
+      allowExternalVision: false,
       taxCodes: [],
     })
   })

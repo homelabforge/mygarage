@@ -60,6 +60,9 @@ interface ParsedCertificate {
   file: File
   parse: RegistrationParseResponse
   extras: CertificateExtras
+  // The yes given to an outside model on step 1, so an import that has to
+  // read the file again doesn't ask with nobody there to answer.
+  allowExternalVision: boolean
 }
 
 /** VIN, or one of the identifiers a vehicle without a VIN has (#226). */
@@ -185,7 +188,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   // which opens with a notice to check them. The VIN is taken only when none
   // was typed. A patch value is `unknown` on the wire; each one is checked
   // against the form's own vocabulary before it is set.
-  const handleCertificateParsed = (parse: RegistrationParseResponse, file: File) => {
+  const handleCertificateParsed = (parse: RegistrationParseResponse, file: File, allowExternalVision: boolean) => {
     const patch = parse.vehicle_patch as Record<string, unknown>
     const text = (key: string): string | null => (typeof patch[key] === 'string' ? (patch[key] as string) : null)
     const whole = (key: string): number | null => (typeof patch[key] === 'number' ? (patch[key] as number) : null)
@@ -231,7 +234,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
         : whole(key)
       if (value !== null) (extras as Record<string, unknown>)[key] = value
     }
-    setCertificate({ file, parse, extras })
+    setCertificate({ file, parse, extras, allowExternalVision })
     setSelectedTaxes(new Set((parse.suggested_tax_records ?? []).map((record) => record.code)))
     if (routeToChassis || (certificateVin ?? vin).length === 17) setCurrentStep(2)
   }
@@ -335,6 +338,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
         try {
           await registrationCertificateService.importForVehicle(createdVehicle.vin, certificate.file, {
             parseToken: certificate.parse.parse_token,
+            allowExternalVision: certificate.allowExternalVision,
             taxCodes: (certificate.parse.suggested_tax_records ?? [])
               .map((record) => record.code)
               .filter((code) => selectedTaxes.has(code)),
