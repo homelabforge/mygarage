@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 
 from app.constants.units import METRIC_PRESET
@@ -162,7 +162,7 @@ def test_report_generated_is_the_household_time(
         currency_code="USD",
         locale="en_US",
     )
-    document = fitz.open(stream=build(generator).read(), filetype="pdf")
+    document = pymupdf.open(stream=build(generator).read(), filetype="pdf")
     text = " ".join(page.get_text() for page in document)  # type: ignore[operator]
     document.close()
     assert "07/15/2026 10:30 PM" in text, text

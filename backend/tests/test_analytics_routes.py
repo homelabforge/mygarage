@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
@@ -23,7 +23,7 @@ from app.models.vendor import Vendor
 
 def _extract_pdf_text(pdf_bytes: bytes) -> str:
     """Extract all text from PDF bytes using PyMuPDF."""
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     text = ""
     for page in doc:
         text += page.get_text()  # type: ignore[operator]
