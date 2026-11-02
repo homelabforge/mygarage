@@ -6,6 +6,7 @@ All components use the design system from pdf_styles.py.
 import logging
 from datetime import datetime
 from typing import Any
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
@@ -300,10 +301,11 @@ def make_vehicle_banner(
     tracking_text = f"{months} months tracked" if months > 0 else "New"
 
     # Vehicle info (left side)
-    name_para = Paragraph(vehicle_name, styles["VehicleName"])
+    # Both are typed by people; Paragraph parses <, > and & as markup.
+    name_para = Paragraph(escape(vehicle_name), styles["VehicleName"])
     # `vin` is the printed identifier line ("VIN …" / "Serial …"), never a
     # generated key (#226); an empty one prints nothing.
-    vin_para = Paragraph(vin, styles["VIN"])
+    vin_para = Paragraph(escape(vin), styles["VIN"])
 
     # Badges (right side)
     # reportlab can't measure None, and the PDFs are English-only.

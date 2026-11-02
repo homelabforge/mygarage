@@ -982,3 +982,11 @@ class TestBannerIdentifier:
         text = _extract_text(generate_vehicle_analytics_pdf(data, render_context=METRIC_CTX).read())
         assert "Serial BX23S-10234" in text
         assert "QABCDEFGH12345678" not in text
+
+    def test_markup_in_typed_values_prints_as_text(self) -> None:
+        data = _make_analytics_data()
+        data["vehicle_name"] = "Mower <b>deck</b>"
+        data["identifier_text"] = "Serial <img src='/etc/passwd'/> & co"
+        text = _extract_text(generate_vehicle_analytics_pdf(data, render_context=METRIC_CTX).read())
+        assert "Mower <b>deck</b>" in text
+        assert "Serial <img src='/etc/passwd'/> & co" in text
