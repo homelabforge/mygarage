@@ -37,9 +37,12 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from dateutil.relativedelta import relativedelta
+
 from app.constants.countries import is_country_code
 from app.constants.fuel import CARTE_GRISE_ENERGY_CODES
 from app.services.country_profile_service import available_profile_ids, load_profile
+from app.utils.household_time import household_today
 
 from .base import BaseDocumentParser, DocumentData, DocumentType
 
@@ -163,7 +166,9 @@ def iso_date(value: Any) -> str | None:
         parsed = date(year, month, day)
     except ValueError:
         return None
-    if parsed.year < 1900 or parsed > date.today().replace(year=date.today().year + 1):
+    today = household_today()
+    # A year past today, as a leap-day today has no 29 February next year.
+    if parsed.year < 1900 or parsed > today + relativedelta(years=1):
         return None
     return parsed.isoformat()
 

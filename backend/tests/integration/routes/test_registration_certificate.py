@@ -586,3 +586,70 @@ class TestParseToken:
         assert r.status_code == 201, r.text
         assert r.json()["taxes_created"] == []
         assert (await db_session.execute(select(TaxRecord).where(TaxRecord.vin == vin))).all() == []
+
+
+class TestRecordInspection:
+    """B8: the household's today, one transaction with the reconcile, and
+    the readings sync every other service-visit write runs."""
+
+    async def test_today_is_the_households(
+        self, client: AsyncClient, auth_headers, db_session, monkeypatch: pytest.MonkeyPatch
+    ):
+        from app.services import registration_certificate_service as certificates
+
+        vin = await _create_vehicle(client, auth_headers, registration_country="FR")
+        on = date.today() - timedelta(days=30)
+        # The household is behind the container: for it, `on` has not come yet.
+        monkeypatch.setattr(certificates, "household_today", lambda: on - timedelta(days=1))
+        assert await certificates.record_inspection(db_session, vin, on, country="FR") is False
+        visits = (
+            await db_session.execute(select(ServiceVisit).where(ServiceVisit.vin == vin))
+        ).all()
+        assert visits == []
+
+    async def test_the_visit_and_the_reconcile_are_one_transaction(
+        self, client: AsyncClient, auth_headers, db_session, monkeypatch: pytest.MonkeyPatch
+    ):
+        from app.services import maintenance_service
+        from app.services import registration_certificate_service as certificates
+
+        vin = await _create_vehicle(client, auth_headers, registration_country="FR")
+
+        async def _boom(*_args: Any, **_kwargs: Any) -> None:
+            raise RuntimeError("reconcile failed")
+
+        monkeypatch.setattr(maintenance_service, "reconcile_vehicle_unlocked", _boom)
+        with pytest.raises(RuntimeError):
+            await certificates.record_inspection(
+                db_session, vin, date.today() - timedelta(days=30), country="FR"
+            )
+        await db_session.rollback()
+        visits = (
+            await db_session.execute(select(ServiceVisit).where(ServiceVisit.vin == vin))
+        ).all()
+        assert visits == []
+
+    async def test_the_readings_sync_runs(
+        self, client: AsyncClient, auth_headers, db_session, monkeypatch: pytest.MonkeyPatch
+    ):
+        from app.services import registration_certificate_service as certificates
+        from app.services.service_visit_service import ServiceVisitService
+
+        vin = await _create_vehicle(client, auth_headers, registration_country="FR")
+        seen: list[bool] = []
+        real = ServiceVisitService.persist_visit_rows
+
+        async def _spy(self, vin, visit_data, *, sync_readings=False):  # noqa: ANN001
+            seen.append(sync_readings)
+            return await real(self, vin, visit_data, sync_readings=sync_readings)
+
+        monkeypatch.setattr(ServiceVisitService, "persist_visit_rows", _spy)
+        on = date.today() - timedelta(days=30)
+        assert await certificates.record_inspection(db_session, vin, on, country="FR") is True
+        assert seen == [True]
+        (visit,) = (
+            (await db_session.execute(select(ServiceVisit).where(ServiceVisit.vin == vin)))
+            .scalars()
+            .all()
+        )
+        assert visit.date == on

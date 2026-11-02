@@ -23,6 +23,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.constants.insurance import clean_no_claims_class
+from app.utils.household_time import household_today
 
 from .insurance import InsuranceData, InsuranceDocumentParser, classify_formula, plates_in
 from .registration import iso_date, to_decimal
@@ -253,7 +254,9 @@ class FrenchInsuranceParser(InsuranceDocumentParser):
             data.extracted_vin = target_vin.upper()
 
         data.confidence_score = self._calculate_confidence(data)
-        data.notes = f"Auto-imported from a French policy document on {date.today().isoformat()}"
+        data.notes = (
+            f"Auto-imported from a French policy document on {household_today().isoformat()}"
+        )
         return data
 
     # ------------------------------------------------------------------ parts

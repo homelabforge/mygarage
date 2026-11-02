@@ -47,6 +47,7 @@ from app.services.service_visit_service import ServiceVisitService
 from app.services.tax_service import TaxRecordService
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.services.vehicle_service import VehicleService
+from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.vehicle_columns import fit_to_column
 
@@ -453,9 +454,12 @@ async def record_inspection(
     A service visit with one ``state_inspection`` line item: the same record
     a person logs after a test, so the inspection engine anchors the next
     due date on it. Skipped when a typed inspection already sits on that
-    date, when the date is in the future, or before the first registration.
+    date, when the date is in the household's future, or before the first
+    registration. Written like any service visit (B8): under the vehicle
+    lock, with the readings sync, and reconciled in the same transaction, so
+    a failed reconcile leaves no visit behind.
     """
-    if on > date.today() or (first_registration is not None and on < first_registration):
+    if on > household_today() or (first_registration is not None and on < first_registration):
         return False
     profile = profile_for_country(country)
     title = (
@@ -492,9 +496,13 @@ async def record_inspection(
             )
         ],
     )
-    await ServiceVisitService(db).persist_visit_rows(vin, visit, sync_readings=False)
-    await db.commit()
-    await maintenance_service.reconcile_vehicle(db, vin)
+    try:
+        await ServiceVisitService(db).persist_visit_rows(vin, visit, sync_readings=True)
+        await maintenance_service.reconcile_vehicle_unlocked(db, vin)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     logger.info(
         "Registration certificate: recorded inspection on %s for %s",
         on.isoformat(),

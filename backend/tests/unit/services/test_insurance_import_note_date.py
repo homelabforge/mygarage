@@ -33,3 +33,19 @@ def test_the_import_note_is_dated_in_the_household_zone(
         household_zone_var.reset(token)
     assert notes is not None
     assert "on 2026-07-16" in notes, notes
+
+
+def test_the_french_note_is_dated_in_the_household_zone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """P3: the French parser stamped its note from a bare `date.today()`."""
+    from app.services.document_parsers.insurance_fr import FrenchInsuranceParser
+    from tests.unit.services.test_insurance_parser_fr import AVIS_ECHEANCE
+
+    frozen = frozen_at(datetime(2026, 7, 15, 23, 30, tzinfo=UTC))
+    monkeypatch.setattr(household_time, "datetime", frozen)
+    token = household_zone_var.set(ZoneInfo("Pacific/Auckland"))
+    try:
+        notes = FrenchInsuranceParser().parse_document(AVIS_ECHEANCE).notes
+    finally:
+        household_zone_var.reset(token)
+    assert notes is not None
+    assert "on 2026-07-16" in notes, notes

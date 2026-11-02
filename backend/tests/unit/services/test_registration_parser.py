@@ -319,6 +319,16 @@ class TestModelPath:
         assert data.field_confidence["country"] == "medium"
 
 
+class TestHouseholdToday:
+    def test_a_date_past_next_year_is_refused_against_the_households_today(self, monkeypatch):
+        """P3: the bound is the household's today, not the container's."""
+        from app.services.document_parsers import registration
+
+        monkeypatch.setattr(registration, "household_today", lambda: date(2020, 1, 1))
+        assert iso_date("15/06/2020") == "2020-06-15"
+        assert iso_date("15/06/2023") is None
+
+
 class TestNoHolder:
     """Field C.1 (the holder's name) is personal data the import has no use
     for: it is neither asked of the model nor read from the text (#211)."""

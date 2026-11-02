@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated
@@ -38,6 +37,7 @@ from app.schemas.registration_certificate import (
 from app.services import registration_certificate_service as certificates
 from app.services.auth import get_vehicle_for_owner_or_403, require_auth
 from app.utils.file_validation import verify_file_content_type
+from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -234,7 +234,7 @@ async def import_registration_certificate(
         mime_type=(file.content_type or "application/octet-stream")[:100],
         document_type=certificates.DOCUMENT_TYPE,
         title=title[:200],
-        description=f"Imported {datetime.now().date().isoformat()} ({result.source})",
+        description=f"Imported {household_today().isoformat()} ({result.source})",
     )
     db.add(document)
     await db.commit()
