@@ -182,10 +182,10 @@ class DocumentOCRService:
     async def _extract_text_from_pdf(self, file_path: str) -> str:
         """Extract text from a PDF file using PyMuPDF."""
         try:
-            import fitz  # PyMuPDF
+            import pymupdf
 
             text_content = []
-            with fitz.open(file_path) as doc:
+            with pymupdf.open(file_path) as doc:
                 for page in doc:
                     text_content.append(page.get_text())
 
@@ -208,10 +208,10 @@ class DocumentOCRService:
     async def _extract_text_from_pdf_bytes(self, pdf_bytes: bytes) -> str:
         """Extract text from PDF bytes."""
         try:
-            import fitz  # PyMuPDF
+            import pymupdf
 
             text_content = []
-            with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
                 for page in doc:
                     text_content.append(page.get_text())
 
@@ -234,12 +234,12 @@ class DocumentOCRService:
     async def _ocr_pdf(self, file_path: str) -> str:
         """OCR a PDF by converting to images first."""
         try:
-            import fitz  # PyMuPDF
+            import pymupdf
 
             text_content = []
-            with fitz.open(file_path) as doc:
+            with pymupdf.open(file_path) as doc:
                 for _page_num, page in enumerate(doc):
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))
                     img_data = pix.tobytes("png")
                     text = await self._ocr_image_bytes(img_data)
                     if text:
@@ -253,12 +253,12 @@ class DocumentOCRService:
     async def _ocr_pdf_bytes(self, pdf_bytes: bytes) -> str:
         """OCR a PDF from bytes."""
         try:
-            import fitz
+            import pymupdf
 
             text_content = []
-            with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
                 for page in doc:
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))
                     img_data = pix.tobytes("png")
                     text = await self._ocr_image_bytes(img_data)
                     if text:
@@ -392,7 +392,7 @@ class DocumentOCRService:
         }
 
         try:
-            import fitz  # noqa: F401  # type: ignore[reportUnusedImport]
+            import pymupdf  # noqa: F401  # type: ignore[reportUnusedImport]
 
             status["pymupdf_available"] = True
         except ImportError:

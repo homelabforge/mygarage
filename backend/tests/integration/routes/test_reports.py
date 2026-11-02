@@ -291,7 +291,7 @@ class TestSaleHistoryPrivacy:
 
     Asserting on raw response bytes would be a test that cannot fail: ReportLab
     writes text into compressed content streams, so a plain substring check
-    passes whether or not the string was rendered. Text is extracted with fitz,
+    passes whether or not the string was rendered. Text is extracted with pymupdf,
     the same way tests/unit/utils/test_pdf_generator.py does it.
     """
 
@@ -300,7 +300,7 @@ class TestSaleHistoryPrivacy:
     ):
         from datetime import date
 
-        import fitz
+        import pymupdf
 
         from app.models.service_visit import ServiceVisit
         from app.models.vehicle import Vehicle
@@ -337,7 +337,7 @@ class TestSaleHistoryPrivacy:
         assert response.status_code == 200
         assert response.content[:4] == b"%PDF"
 
-        with fitz.open(stream=response.content, filetype="pdf") as doc:
+        with pymupdf.open(stream=response.content, filetype="pdf") as doc:
             text = "".join(page.get_text() for page in doc)
 
         # The header promises costs, vendors and plates are omitted.

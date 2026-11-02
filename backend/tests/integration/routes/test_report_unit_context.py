@@ -24,7 +24,7 @@ import json
 from datetime import date
 from decimal import Decimal
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select
@@ -71,7 +71,7 @@ def _pdf_text(pdf_bytes: bytes) -> str:
     extracts with a newline inside it. Collapsing whitespace asserts on the
     rendered content rather than on the layout.
     """
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
         return " ".join("".join(page.get_text() for page in doc).split())
 
 

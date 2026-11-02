@@ -4,7 +4,7 @@
 # Backend: Python 3.14-slim
 # ==============================================================================
 
-ARG BUN_VERSION=1.4.2
+ARG BUN_VERSION=1.4.4
 
 # Stage 1: Build frontend with Bun
 #

@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-import fitz  # PyMuPDF
+import pymupdf
 
 from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET
 from app.utils.pdf_generator import PDFReportGenerator
@@ -18,7 +18,7 @@ METRIC_CTX = RenderContext(units=METRIC_PRESET, show_both=False)
 
 def _extract_text(pdf_bytes: bytes) -> str:
     """Extract all text from PDF bytes using PyMuPDF."""
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     text = ""
     for page in doc:
         text += page.get_text()  # type: ignore[operator]

@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from decimal import Decimal
 
-import fitz  # PyMuPDF
+import pymupdf
 
 from app.utils.pdf_garage_report import generate_garage_analytics_pdf
 
@@ -17,7 +17,7 @@ def _extract_text(pdf_bytes: bytes, normalize: bool = False) -> str:
         pdf_bytes: Raw PDF bytes.
         normalize: If True, collapse newlines to spaces for wrapped text matching.
     """
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     text = ""
     for page in doc:
         text += page.get_text()  # type: ignore[operator]

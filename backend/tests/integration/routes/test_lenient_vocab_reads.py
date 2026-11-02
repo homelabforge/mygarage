@@ -15,7 +15,7 @@ from collections.abc import Callable
 from datetime import date
 from typing import Any
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 import pytest_asyncio
 from sqlalchemy import delete, text
@@ -160,7 +160,7 @@ async def test_the_analytics_pdf_of_a_vehicle_with_an_unknown_type_still_exports
 
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "application/pdf"
-    with fitz.open(stream=response.content, filetype="pdf") as doc:
+    with pymupdf.open(stream=response.content, filetype="pdf") as doc:
         text = "".join(page.get_text() for page in doc)
     assert "Unknown" in text
     assert "Hovercraft" not in text

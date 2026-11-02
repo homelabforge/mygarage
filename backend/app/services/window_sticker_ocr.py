@@ -183,10 +183,10 @@ class WindowStickerOCRService:
             Extracted text content
         """
         try:
-            import fitz  # PyMuPDF
+            import pymupdf
 
             text_content = []
-            with fitz.open(file_path) as doc:
+            with pymupdf.open(file_path) as doc:
                 for page in doc:
                     text_content.append(page.get_text())
 
@@ -209,13 +209,13 @@ class WindowStickerOCRService:
     async def _ocr_pdf(self, file_path: str) -> str:
         """OCR a PDF by converting to images first."""
         try:
-            import fitz  # PyMuPDF
+            import pymupdf
 
             text_content = []
-            with fitz.open(file_path) as doc:
+            with pymupdf.open(file_path) as doc:
                 for _page_num, page in enumerate(doc):
                     # Render page to image
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x scale for better OCR
+                    pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))  # 2x scale for better OCR
                     img_data = pix.tobytes("png")
 
                     # OCR the image
@@ -457,7 +457,7 @@ class WindowStickerOCRService:
         }
 
         try:
-            import fitz  # noqa: F401  # type: ignore[reportUnusedImport]
+            import pymupdf  # noqa: F401  # type: ignore[reportUnusedImport]
 
             status["pymupdf_available"] = True
         except ImportError:
