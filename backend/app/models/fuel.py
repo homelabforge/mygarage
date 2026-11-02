@@ -69,7 +69,15 @@ class FuelRecord(Base):
     # inputs accept 50-150); diesel_grade is the US clear-vs-dyed distinction
     # ('onroad' | 'offroad'). Both prefilled client-side from the last fillup.
     octane: Mapped[int | None] = mapped_column(Integer)
+    # B4 — the scale that octane was read on, 'RON' or 'AKI' (migration 151).
+    # NULL on every pre-existing row and never inferred: the form defaults a
+    # NEW fill-up to the country profile's scale and an edit keeps the pair.
+    octane_scale: Mapped[str | None] = mapped_column(String(3))
     diesel_grade: Mapped[str | None] = mapped_column(String(10))
+    # #211 — the EN 16942 pump label (E10, B7, XTL…), a FuelGradeEnum value
+    # validated by Pydantic (migration 144). Prefilled from the last fill-up
+    # like the two above; NULL on every pre-existing row.
+    fuel_grade: Mapped[str | None] = mapped_column(String(10))
     is_full_tank: Mapped[bool] = mapped_column(Boolean, default=True)
     missed_fillup: Mapped[bool] = mapped_column(Boolean, default=False)
     is_hauling: Mapped[bool] = mapped_column(

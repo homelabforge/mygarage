@@ -7,7 +7,9 @@ backup's top-level `"export_version"` field. Bumping it for the CSV surface
 silently moved the JSON backup contract too, since both endpoints read one
 name. This module proves the fix: `CSV_SCHEMA_VERSION` and
 `JSON_SCHEMA_VERSION` are independent, `EXPORT_SCHEMA_VERSION` is gone,
-(current literals: CSV "8" / JSON "9" since batch 3a's whole service visits)
+(current literals: CSV "8" / JSON "9" since batch 3a's whole service visits,
+which also carry the #211 EN 16942 fuel grade and insurance no-claims class;
+CSV "7" / JSON "6" were the #164 octane / diesel grade columns)
 and the five dimensionless CSV pairs (hours, warranties, insurance, tax,
 notes -- the ones that call `generate_csv_stream` directly rather than going
 through `build_csv`) change ONLY in the version cell.
@@ -140,7 +142,7 @@ class TestDimensionlessCSVPairsVersionCellOnly:
             TaxRecord(
                 vin=vin,
                 date=date(2026, 5, 2),
-                tax_type="Registration",
+                tax_type="registration",
                 amount=Decimal("120.50"),
                 renewal_date=date(2027, 5, 2),
                 notes="Annual renewal",
@@ -167,7 +169,7 @@ class TestDimensionlessCSVPairsVersionCellOnly:
         assert row["units_version"] == "8"
         assert row["unit_system"] == "metric"
         assert row["Date"] == "2026-05-02"
-        assert row["Type"] == "Registration"
+        assert row["Type"] == "registration"
         assert row["Amount"] == "120.50"
         assert row["Renewal Date"] == "2027-05-02"
         assert row["Notes"] == "Annual renewal"
@@ -327,8 +329,10 @@ class TestCSVSchemaVersionAlsoAppliesToUnitBearingPairs:
 
 class TestJSONExportVersionUnchanged:
     """The JSON backup's `export_version` is the current JSON literal ("9" since
-    every section is complete; "8" was insurance entries carrying `coverages`,
-    "7" the household `insurance_policies` list, "6" the #164 fuel-grade keys).
+    every section is complete, fuel records carry the EN 16942 `fuel_grade` and
+    insurance rows the `no_claims_class`, #211; "8" was insurance entries
+    carrying `coverages`, "7" the household `insurance_policies` list, "6" the
+    #164 fuel-grade keys).
 
     Proves JSON_SCHEMA_VERSION did not silently move alongside CSV_SCHEMA_VERSION.
     """

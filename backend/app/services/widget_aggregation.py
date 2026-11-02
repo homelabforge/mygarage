@@ -55,6 +55,7 @@ from app.services.reminder_service import classify_pending_reminders, get_curren
 from app.utils.household_time import household_today
 from app.utils.unit_adapters import ADAPTERS, UnitAdapter
 from app.utils.unit_counterparts import forced_mpg_adapter
+from app.utils.vehicle_key import display_identifier
 
 RECENT_MPG_WINDOW = 3
 AVERAGE_MPG_WINDOW = 10
@@ -98,13 +99,19 @@ def _as_float(adapter: UnitAdapter, canonical: Decimal | None) -> float | None:
 
 
 def _vehicle_label(vehicle: Vehicle) -> str:
-    """Human-readable label (falls back to VIN if year/make/model missing)."""
+    """Human-readable label: year/make/model, else the nickname, else the identifier.
+
+    Never the key: a vehicle without a VIN is keyed by a generated value that
+    means nothing to anyone (#226).
+    """
     parts = [str(vehicle.year)] if vehicle.year else []
     if vehicle.make:
         parts.append(vehicle.make)
     if vehicle.model:
         parts.append(vehicle.model)
-    return " ".join(parts) if parts else vehicle.vin
+    if parts:
+        return " ".join(parts)
+    return vehicle.nickname or display_identifier(vehicle)[1] or "Vehicle"
 
 
 def _visible_vehicle_filter():

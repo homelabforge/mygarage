@@ -397,12 +397,26 @@ CHECK_BACKED_VALIDATORS: dict[tuple[str, str], tuple[str, str | None, tuple[str,
     ),
 }
 #: Input models a response reuses on purpose: model -> why its own rules stay.
+_COUNTRY_PROFILE_SHIPPED_DATA = (
+    "the country profile format, read from the JSON files shipped in "
+    "app/data/country_profiles and validated when they load; never a stored row, "
+    "so nothing a user writes can reach these rules (test_country_profile_service "
+    "loads every shipped file)"
+)
 INPUT_MODELS_REUSED: dict[str, str] = {
     "ReminderPackItem": (
         "the pack format the apply pipeline consumes, reused as the response. Apply "
         "must fail closed on a bad type, and a saved pack copies its type from a rule "
         "that only validated schemas write"
     ),
+    "CountryProfile": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "InspectionStep": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "InspectionSchedule": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "InspectionRules": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "FuelGradePreset": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "TaxRules": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "RegistrationCertificateRules": _COUNTRY_PROFILE_SHIPPED_DATA,
+    "InsuranceRules": _COUNTRY_PROFILE_SHIPPED_DATA,
 }
 
 
@@ -510,14 +524,52 @@ CHECK_BACKED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
     ("SupplyResponse", "unit_type"): ("supplies", "check_supply_unit_type"),
     # The usage's own row has no unit type: it reads the joined supply's.
     ("SupplyUsageResponse", "unit_type"): ("supplies", "check_supply_unit_type"),
-    ("TaxRecordResponse", "tax_type"): ("tax_records", "check_tax_type"),
+    # TaxRecordResponse.tax_type: its CHECK went with migration 146 (#211);
+    # the field reads leniently (LenientTaxType) and the inputs stay strict.
 }
 #: Vocabulary fields the app works out rather than reads: (model, field) ->
 #: (the producer's dotted path, why every branch lands in the vocabulary).
+_COUNTRY_PROFILE_LOADER = "app.services.country_profile_service.load_profile"
 COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
     ("AnchorProposal", "origin"): (
         "app.services.maintenance_service._plan_item",
         "every branch sets a constant",
+    ),
+    # Country profiles are shipped JSON validated at load time, never a stored
+    # row: a value outside the vocabulary fails the profile test, not a read.
+    ("FuelRules", "octane_scale"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
+    # The compliance view (#211) copies the scheme off the loaded profile and
+    # sets the basis and the reason to constants on every branch.
+    ("LezStatus", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
+    ("LezStatus", "basis"): (
+        "app.services.compliance_service.compliance_for_vehicle",
+        "a constant per branch, its own and critair_class's",
+    ),
+    ("ComplianceResponse", "reason"): (
+        "app.services.compliance_service.compliance_for_vehicle",
+        "a constant per branch",
+    ),
+    # The certificate import (#211) copies the reader's source, itself a
+    # constant per branch ("text" for a PDF's own text, "llm" for the model).
+    ("RegistrationParseResponse", "source"): (
+        "app.services.document_reader_service.read_document",
+        "a constant per branch",
+    ),
+    # The VIN decoder (#211) sets the quality to a constant per branch and
+    # never reads it from a row.
+    ("VINDecodeResponse", "decode_quality"): (
+        "app.services.vin_decoder.quality_of",
+        "a constant per branch",
+    ),
+    ("VINDecodeResponse", "make_source"): (
+        "app.services.vin_decoder.enrich",
+        "a constant per branch",
+    ),
+    ("LezRules", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
+    ("NoClaimsScheme", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
+    ("InspectionSchedule", "vehicle_types"): (
+        _COUNTRY_PROFILE_LOADER,
+        "shipped data, validated on load",
     ),
     ("AnomalyAlert", "severity"): (
         "app.routes.analytics.build_anomalies_from_monthly_df",

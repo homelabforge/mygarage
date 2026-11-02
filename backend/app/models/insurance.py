@@ -25,10 +25,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
+from app.constants.insurance import POLICY_TYPE_VALUES
 from app.database import Base
 from app.models._types import ScaledNumeric
 
-POLICY_TYPES = ("Liability", "Comprehensive", "Collision", "Full Coverage", "Minimum", "Other")
+#: Kept under its old name for the callers that import it; the list itself
+#: lives in `app.constants.insurance` (#211).
+POLICY_TYPES = POLICY_TYPE_VALUES
 PREMIUM_FREQUENCIES = ("Monthly", "Quarterly", "Semi-Annual", "Annual")
 
 
@@ -102,11 +105,18 @@ class InsurancePolicyVehicle(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
+    #: One of `app.constants.insurance.POLICY_TYPE_VALUES`, held by the
+    #: schemas: the CHECK that used to carry the list was dropped by migration
+    #: 149 when the European formulas joined it (#211).
     policy_type: Mapped[str] = mapped_column(String(30), nullable=False)
     #: NULL = this vehicle takes an even split of whatever the explicit shares
     #: leave (see `app.utils.insurance_shares`).
     premium_share: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
     deductible: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))
+    #: The no-claims class this vehicle is rated at: a bonus-malus coefficient
+    #: (FR, LU: « 0.50 »), a Schadenfreiheitsklasse (DE: « SF 12 »), a classe
+    #: di merito (IT: « 1 »)… Plain text; the country profile names the scheme.
+    no_claims_class: Mapped[str | None] = mapped_column(String(10))
     notes: Mapped[str | None] = mapped_column(Text)
     #: Set when the vehicle leaves the policy mid-term; NULL = the whole term.
     effective_to: Mapped[date | None] = mapped_column(Date)
@@ -137,10 +147,8 @@ class InsurancePolicyVehicle(Base):
 
     __table_args__ = (
         UniqueConstraint("policy_id", "vin", name="uq_insurance_policy_vehicle"),
-        CheckConstraint(
-            "policy_type IN ('Liability', 'Comprehensive', 'Collision', 'Full Coverage', 'Minimum', 'Other')",
-            name="check_policy_vehicle_type",
-        ),
+        # No CHECK on policy_type: `check_policy_vehicle_type` was dropped by
+        # migration 149 (#211), the vocabulary is `POLICY_TYPE_VALUES`.
         Index("idx_insurance_policy_vehicles_vin", "vin"),
         Index("idx_insurance_policy_vehicles_policy", "policy_id"),
     )

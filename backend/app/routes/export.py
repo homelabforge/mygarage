@@ -52,6 +52,7 @@ from app.utils.csv_safe import sanitize_csv_row
 from app.utils.insurance_coverages import coverage_text
 from app.utils.insurance_shares import effective_shares
 from app.utils.render_context import render_context_for_request
+from app.utils.vehicle_key import export_basename
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -117,6 +118,14 @@ limiter = Limiter(key_func=get_remote_address)
 #   `purchases`, standalone `usages` and `used_elsewhere`, its uses on
 #   another vehicle's visits; a line item carries its own `supply_usages`)
 #   to v9 without a bump: a 3a file simply has none.
+# - The European additions (#211) ride CSV "8" / JSON "9" without a bump,
+#   since they ship in the same release: a `Fuel Grade` column / `fuel_grade`
+#   key, the EN 16942 pump label of a fill-up (migration 144), and a
+#   `No-Claims Class` column / `no_claims_class` key on a vehicle's insurance
+#   row, the bonus-malus coefficient or class it is rated at (migration 149),
+#   and an `Octane Scale` column / `octane_scale` key, the RON or AKI scale a
+#   fill-up's octane was read on (migration 151). Same additive treatment as
+#   the #164 grade columns: an older file imports with NULLs.
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -585,7 +594,7 @@ async def export_service_records_csv(
     )
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_service_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_service_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -648,7 +657,9 @@ async def export_fuel_records_csv(
         "Is Hauling",
         "Fuel Type Used",
         "Octane",
+        "Octane Scale",
         "Diesel Grade",
+        "Fuel Grade",
         "Station ID",
         "Station",
         "Driver ID",
@@ -701,7 +712,9 @@ async def export_fuel_records_csv(
                 # Dimensionless grade fields (#164) — an octane is an int label,
                 # not a unit-bearing quantity, so no csv_emission conversion.
                 record.octane if record.octane is not None else "",
+                record.octane_scale or "",
                 record.diesel_grade or "",
+                record.fuel_grade or "",
                 record.station_address_book_id or "",
                 station_names.get(record.id) or "",
                 record.driver_user_id or "",
@@ -729,7 +742,7 @@ async def export_fuel_records_csv(
     )
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_fuel_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_fuel_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -791,7 +804,7 @@ async def export_def_records_csv(
         headers, rows, await resolve_export_units(units, current_user, db, vehicle=vehicle)
     )
 
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_def_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_def_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -843,7 +856,9 @@ async def export_odometer_records_csv(
     )
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_odometer_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = (
+        f"{export_basename(vehicle)}_odometer_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    )
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -899,7 +914,7 @@ async def export_hours_records_csv(
     output = generate_csv_stream(headers, rows)
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_hours_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_hours_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -971,7 +986,7 @@ async def export_warranties_csv(
     )
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_warranties_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_warranties_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -1038,6 +1053,7 @@ async def export_insurance_csv(
         "Premium",
         "Premium Frequency",
         "Deductible",
+        "No-Claims Class",
         "Coverage Limits",
         "Notes",
     ]
@@ -1058,6 +1074,7 @@ async def export_insurance_csv(
                 f"{share:.2f}" if share is not None else "",
                 policy.premium_frequency or "",
                 f"{link.deductible:.2f}" if link.deductible is not None else "",
+                link.no_claims_class or "",
                 coverage_text(link.coverages),
                 link.notes or "",
             ]
@@ -1066,7 +1083,7 @@ async def export_insurance_csv(
     output = generate_csv_stream(headers, rows)
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_insurance_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_insurance_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -1117,7 +1134,7 @@ async def export_tax_records_csv(
     output = generate_csv_stream(headers, rows)
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_tax_records_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_tax_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -1162,7 +1179,7 @@ async def export_notes_csv(
     output = generate_csv_stream(headers, rows)
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_notes_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"{export_basename(vehicle)}_notes_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -1495,6 +1512,7 @@ async def export_vehicle_json(
                 "policy_type": link.policy_type,
                 "premium_share": _insurance_share(link),
                 "deductible": float(link.deductible) if link.deductible is not None else None,
+                "no_claims_class": link.no_claims_class,
                 "coverages": [
                     {
                         "coverage_key": c.coverage_key,
@@ -1572,7 +1590,7 @@ async def export_vehicle_json(
     }
 
     # Generate filename
-    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_complete_data_{datetime.now().strftime('%Y%m%d')}.json"
+    filename = f"{export_basename(vehicle)}_complete_data_{datetime.now().strftime('%Y%m%d')}.json"
 
     # Convert to JSON string
     json_str = json.dumps(export_data, indent=2)

@@ -67,6 +67,7 @@ from app.services.torque_service import TorqueService
 from app.utils.csv_safe import sanitize_csv_row
 from app.utils.datetime_utils import utc_now
 from app.utils.request_scheme import get_external_base_url
+from app.utils.vehicle_key import download_tag
 
 logger = logging.getLogger(__name__)
 
@@ -707,8 +708,9 @@ async def export_telemetry(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_access(db, vin, current_user)
+    vehicle = await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
+    tag = download_tag(vehicle, vehicle.nickname)
 
     telemetry_service = TelemetryService(db)
 
@@ -739,7 +741,7 @@ async def export_telemetry(
             iter([json.dumps(export_data, indent=2)]),
             media_type="application/json",
             headers={
-                "Content-Disposition": f"attachment; filename=telemetry_{vin}_{start.date()}_{end.date()}.json"
+                "Content-Disposition": f"attachment; filename=telemetry_{tag}_{start.date()}_{end.date()}.json"
             },
         )
 
@@ -757,7 +759,7 @@ async def export_telemetry(
         iter([output.getvalue()]),
         media_type="text/csv",
         headers={
-            "Content-Disposition": f"attachment; filename=telemetry_{vin}_{start.date()}_{end.date()}.csv"
+            "Content-Disposition": f"attachment; filename=telemetry_{tag}_{start.date()}_{end.date()}.csv"
         },
     )
 
@@ -782,8 +784,9 @@ async def export_sessions(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_access(db, vin, current_user)
+    vehicle = await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
+    tag = download_tag(vehicle, vehicle.nickname)
 
     session_service = SessionService(db)
 
@@ -813,7 +816,7 @@ async def export_sessions(
         return StreamingResponse(
             iter([json.dumps(export_data, indent=2)]),
             media_type="application/json",
-            headers={"Content-Disposition": f"attachment; filename=sessions_{vin}.json"},
+            headers={"Content-Disposition": f"attachment; filename=sessions_{tag}.json"},
         )
 
     # CSV export
@@ -858,7 +861,7 @@ async def export_sessions(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=sessions_{vin}.csv"},
+        headers={"Content-Disposition": f"attachment; filename=sessions_{tag}.csv"},
     )
 
 

@@ -19,6 +19,17 @@ THE PARSER (`parse_coverage_lines`) has two callers that must never disagree:
 migration 108, converting the free text this catalogue replaced, and the PDF
 route, converting a declarations page. Keeping it here, beside the phrases it
 matches on, is what keeps them the same parser.
+
+EUROPE (#211). The catalogue's second half is the garanties a French, German,
+Italian or Spanish policy prints (responsabilité civile, garantie du
+conducteur, vol, incendie, catastrophes naturelles, dommages tous accidents,
+protection juridique, assistance, véhicule de remplacement), with their
+phrases in those languages, and the slot words that pin an amount (franchise,
+plafond, cotisation, jours…). A line that prices itself in euros is read with
+European figures (`1 234,56 €`, `1.234,56`, `300,00`); a line without a euro
+mark is read exactly as before, so migration 108's conversion of the text it
+replaced is unchanged. `Coverage.regions` says which market lists a coverage;
+a country profile's `insurance.coverage_keys` picks what its form shows first.
 """
 
 from __future__ import annotations
@@ -41,15 +52,41 @@ class Slot:
     qualifiers: tuple[str, ...] = ()
 
 
-EACH_PERSON = Slot("money", ("each person", "per person"))
-EACH_ACCIDENT = Slot("money", ("each accident", "per accident"))
-EACH_DAY = Slot("money", ("each day", "per day", "a day"))
-MAXIMUM_DAYS = Slot("count", ("maximum days", "maximum", "days"))
-LIMIT = Slot("money")
+#: The first qualifier is the English word the flat exports write; the rest
+#: are read only (French, German, Italian, Spanish declarations, #211).
+EACH_PERSON = Slot("money", ("each person", "per person", "par personne", "pro person"))
+EACH_ACCIDENT = Slot(
+    "money",
+    (
+        "each accident",
+        "per accident",
+        "par accident",
+        "par sinistre",
+        "pro schadenfall",
+        "per sinistro",
+        "por siniestro",
+    ),
+)
+EACH_DAY = Slot(
+    "money", ("each day", "per day", "a day", "par jour", "pro tag", "al giorno", "por día")
+)
+MAXIMUM_DAYS = Slot(
+    "count",
+    ("maximum days", "maximum", "days", "jours maximum", "jours", "tage", "giorni", "días"),
+)
+LIMIT = Slot("money", ("limit", "plafond", "limite", "massimale", "límite"))
 #: Deductible and premium are slots like any other, not special cases: that is
 #: what lets one loop read, write, validate and render all four amounts.
-DEDUCTIBLE = Slot("money", ("deductible",))
-PREMIUM = Slot("money", ("premium",))
+DEDUCTIBLE = Slot(
+    "money",
+    ("deductible", "franchise", "selbstbeteiligung", "selbstbehalt", "franchigia", "franquicia"),
+)
+PREMIUM = Slot("money", ("premium", "prime", "cotisation", "beitrag", "prämie", "premio", "prima"))
+
+#: Where a coverage is sold: the North American declarations page, the
+#: European policy schedule, or both (glass).
+REGION_US = "US"
+REGION_EU = "EU"
 
 
 @dataclass(frozen=True)
@@ -66,8 +103,10 @@ class Coverage:
     has_premium: bool = True
     #: Openings that identify this coverage on a declarations line. Matching is
     #: longest-first across the WHOLE catalogue, so "comprehensive window
-    #: glass" reaches `glass` rather than `comprehensive`.
+    #: glass" reaches `glass` rather than `comprehensive`, and stops at a word
+    #: boundary, so « vol » (theft) never opens « Volkswagen ».
     phrases: tuple[str, ...] = ()
+    regions: tuple[str, ...] = (REGION_US,)
 
     def slots(self) -> tuple[tuple[str, Slot], ...]:
         """Column name -> slot, in the order a declarations page prints them.
@@ -148,12 +187,32 @@ COVERAGES: tuple[Coverage, ...] = (
     Coverage(
         "comprehensive", label="Comprehensive", has_deductible=True, phrases=("comprehensive",)
     ),
-    Coverage("collision", label="Collision", has_deductible=True, phrases=("collision",)),
+    Coverage(
+        "collision",
+        label="Collision",
+        has_deductible=True,
+        # « Dommages collision » is the French coverage for a collision with
+        # an identified third party; it is this row, not « tous accidents ».
+        phrases=("dommages collision", "dommage collision", "collision"),
+    ),
     Coverage(
         "glass",
         label="Glass",
         has_deductible=True,
-        phrases=("comprehensive window glass", "window glass", "full glass", "glass"),
+        phrases=(
+            "comprehensive window glass",
+            "window glass",
+            "full glass",
+            "glass",
+            "bris de glaces",
+            "bris de glace",
+            "glasbruch",
+            "cristalli",
+            "lunas",
+            "windscreen",
+            "windshield",
+        ),
+        regions=(REGION_US, REGION_EU),
     ),
     Coverage(
         "rental_reimbursement",
@@ -190,6 +249,169 @@ COVERAGES: tuple[Coverage, ...] = (
         has_deductible=True,
         phrases=("custom parts and equipment", "custom equipment", "custom parts"),
     ),
+    # --- Europe (#211) ------------------------------------------------------
+    # The compulsory motor liability: unlimited for injury in France, with a
+    # ceiling for damage to property, hence one limit slot.
+    Coverage(
+        "third_party_liability",
+        label="Third Party Liability",
+        primary=LIMIT,
+        phrases=(
+            "responsabilité civile automobile",
+            "responsabilité civile circulation",
+            "responsabilité civile",
+            "responsabilite civile",
+            "rc automobile",
+            "rc circulation",
+            "rc auto",
+            "kfz-haftpflicht",
+            "kfz haftpflicht",
+            "haftpflicht",
+            "responsabilità civile",
+            "responsabilidad civil",
+            "third party liability",
+            "third-party liability",
+        ),
+        regions=(REGION_EU,),
+    ),
+    Coverage(
+        "driver_protection",
+        label="Driver Protection",
+        primary=LIMIT,
+        phrases=(
+            "garantie du conducteur",
+            "garantie conducteur",
+            "protection du conducteur",
+            "sécurité du conducteur",
+            "securite du conducteur",
+            "fahrerschutz",
+            "infortuni del conducente",
+            "infortuni conducente",
+            "accidentes del conductor",
+            "driver protection",
+            "driver injury",
+        ),
+        regions=(REGION_EU,),
+    ),
+    Coverage(
+        "theft",
+        label="Theft",
+        has_deductible=True,
+        phrases=(
+            "vol et tentative de vol",
+            "vol",
+            "diebstahl",
+            "furto",
+            "robo",
+            "theft",
+        ),
+        regions=(REGION_EU,),
+    ),
+    Coverage(
+        "fire",
+        label="Fire",
+        has_deductible=True,
+        phrases=("incendie et explosion", "incendie", "brand", "incendio", "fire"),
+        regions=(REGION_EU,),
+    ),
+    Coverage(
+        "natural_disasters",
+        label="Natural Disasters",
+        has_deductible=True,
+        phrases=(
+            "catastrophes naturelles et technologiques",
+            "catastrophes naturelles",
+            "catastrophe naturelle",
+            "cat nat",
+            "elementarschäden",
+            "elementarschaden",
+            "calamità naturali",
+            "eventi naturali",
+            "fenómenos de la naturaleza",
+            "natural disasters",
+            "natural disaster",
+            "acts of nature",
+        ),
+        regions=(REGION_EU,),
+    ),
+    # « Tous risques » proper: damage to the vehicle whoever is at fault.
+    Coverage(
+        "all_accidents_damage",
+        label="All Accidents Damage",
+        has_deductible=True,
+        phrases=(
+            "dommages tous accidents",
+            "dommage tous accidents",
+            "tous dommages accidentels",
+            "dommages au véhicule",
+            "vollkasko",
+            "kasko",
+            "danni al veicolo",
+            "daños propios",
+            "all accidents damage",
+            "own damage",
+        ),
+        regions=(REGION_EU,),
+    ),
+    Coverage(
+        "legal_protection",
+        label="Legal Protection",
+        primary=LIMIT,
+        phrases=(
+            "protection juridique",
+            "défense pénale et recours",
+            "defense penale et recours",
+            "défense et recours",
+            "defense et recours",
+            "défense-recours",
+            "rechtsschutz",
+            "tutela legale",
+            "defensa jurídica",
+            "defensa juridica",
+            "legal protection",
+            "legal expenses",
+        ),
+        regions=(REGION_EU,),
+    ),
+    Coverage(
+        "assistance",
+        label="Assistance",
+        phrases=(
+            "assistance 0 km",
+            "assistance 0km",
+            "assistance panne",
+            "assistance dépannage",
+            "assistance depannage",
+            "assistance",
+            "schutzbrief",
+            "pannenhilfe",
+            "assistenza stradale",
+            "assistenza",
+            "asistencia en viaje",
+            "asistencia en carretera",
+            "asistencia",
+        ),
+        regions=(REGION_EU,),
+    ),
+    Coverage(
+        "replacement_vehicle",
+        label="Replacement Vehicle",
+        primary=MAXIMUM_DAYS,
+        phrases=(
+            "véhicule de remplacement",
+            "vehicule de remplacement",
+            "prêt de véhicule",
+            "pret de vehicule",
+            "ersatzwagen",
+            "mietwagen",
+            "auto sostitutiva",
+            "vehículo de sustitución",
+            "vehiculo de sustitucion",
+            "replacement vehicle",
+            "courtesy car",
+        ),
+        regions=(REGION_EU,),
+    ),
 )
 
 COVERAGE_KEYS: tuple[str, ...] = tuple(c.key for c in COVERAGES)
@@ -210,6 +432,27 @@ _PHRASES: tuple[tuple[str, str], ...] = tuple(
 #: flattened column ("Comprehensive Actual Cash Value 1000 146.00") loses it.
 #: Keep accepting it: CSV exports wrote one before they went bare.
 _AMOUNT = re.compile(r"\$?\s?(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)")
+
+#: A line priced in euros, which is the ONLY line read with European figures.
+#: Without the mark the text is read as it always was, so the free text
+#: migration 108 converts and every US page keep their meaning.
+_EURO_MARK = re.compile(r"€|\beuros?\b|\beur\b", re.IGNORECASE)
+#: `1 234,56`, `1.234,56`, `1 000 000`, `300,00`, `300`: groups of three
+#: separated by a space (plain, no-break or narrow) or a point, then an
+#: optional decimal comma with exactly two digits.
+_EURO_FIGURE = re.compile(r"(?<![\d.,])(\d{1,3}(?:[   .]\d{3})+|\d+)(?:,(\d{2})(?!\d))?")
+
+
+def europeanize(text: str) -> str:
+    """European figures as plain `1234.56`, when the text is priced in euros."""
+    if not _EURO_MARK.search(text):
+        return text
+
+    def plain(match: re.Match[str]) -> str:
+        whole = re.sub(r"[   .]", "", match.group(1))
+        return f"{whole}.{match.group(2)}" if match.group(2) else whole
+
+    return _EURO_FIGURE.sub(plain, text)
 
 
 @dataclass
@@ -259,7 +502,9 @@ def _normalize(line: str) -> str:
 #: instead of being read as a coverage.
 _NOT_CARRIED = re.compile(
     r"\b(?:not\s+(?:covered|included|carried|applicable|purchased)|no\s+coverage|declined|"
-    r"excluded|waived\s+entirely)\b"
+    r"excluded|waived\s+entirely|"
+    # French: « non souscrite », « non incluse », « sans objet », « exclue ».
+    r"non\s+(?:souscrite?s?|inclus(?:e|es)?|garanti(?:e|es)?)|sans\s+objet|exclue?s?)\b"
 )
 
 
@@ -277,10 +522,18 @@ def _names_another_coverage(remainder: str, key: str) -> bool:
 
 
 def _match_phrase(normalized: str) -> tuple[str, str] | None:
-    """The coverage a line opens with, and the text left after its phrase."""
+    """The coverage a line opens with, and the text left after its phrase.
+
+    The phrase must end the line or be followed by something other than a
+    letter or a digit: « vol » is theft, « volkswagen » is a make.
+    """
     for phrase, key in _PHRASES:
-        if normalized.startswith(phrase):
-            return key, normalized[len(phrase) :].lstrip(" :-")
+        if not normalized.startswith(phrase):
+            continue
+        rest = normalized[len(phrase) :]
+        if rest and rest[0].isalnum():
+            continue
+        return key, rest.lstrip(" :-")
     return None
 
 
@@ -412,6 +665,7 @@ def parse_coverage_lines(text: str | None) -> CoverageParse:
             continue
 
         key, remainder = matched
+        remainder = europeanize(remainder)
         existing = by_key.get(key)
         if existing is None:
             parsed = ParsedCoverage(key)

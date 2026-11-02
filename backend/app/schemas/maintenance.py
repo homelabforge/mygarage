@@ -108,6 +108,9 @@ class MaintenanceRuleSummary(BaseModel):
     interval_months: int | None
     interval_days: int | None
     interval_hours: Decimal | None
+    #: Days before the due date from which the work may be done (#211); the
+    #: inspection engine sets it from the country profile. Null: no window.
+    lead_days: int | None = None
     source: str
     source_pack_id: str | None
     is_active: bool

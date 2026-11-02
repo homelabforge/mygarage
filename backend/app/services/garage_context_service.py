@@ -21,6 +21,7 @@ from app.models.vehicle_dtc import VehicleDTC
 from app.services.dtc_service import DTCService
 from app.utils.render_context import RenderContext, render_context_default, with_vehicle
 from app.utils.unit_formatting import format_quantity
+from app.utils.vehicle_key import display_identifier
 
 # SAE-style OBD codes: P/B/C/U + 4 hex digits (e.g. P0420, B0001).
 _DTC_CODE_RE = re.compile(r"\b([PBCUpbcu][0-9A-Fa-f]{4})\b")
@@ -62,6 +63,16 @@ def extract_dtc_codes(text: str) -> list[str]:
             seen.add(code)
             out.append(code)
     return out
+
+
+async def _tow_vehicle_name(db: AsyncSession, key: str | None) -> str | None:
+    """The tow vehicle as people know it: nickname, else year/make/model,
+    else its identifier. Never its key."""
+    tow = await db.get(Vehicle, key) if key else None
+    if tow is None:
+        return None
+    described = " ".join(str(p) for p in (tow.year, tow.make, tow.model) if p)
+    return tow.nickname or described or display_identifier(tow)[1]
 
 
 async def build_garage_context(
@@ -209,7 +220,10 @@ async def build_garage_context(
 
     context: dict[str, Any] = {
         "vehicle": {
-            "vin": vehicle.vin,
+            # A real VIN, or the serial / HIN a tractor or boat has instead. A
+            # generated key is never sent to the model as a VIN (#226).
+            "identifier_type": display_identifier(vehicle)[0],
+            "identifier": display_identifier(vehicle)[1],
             "nickname": vehicle.nickname,
             "year": vehicle.year,
             "make": vehicle.make,
@@ -311,7 +325,8 @@ async def build_garage_context(
             "length": _measure(trailer.length_m, ctx, "length"),
             "width": _measure(trailer.width_m, ctx, "length"),
             "height": _measure(trailer.height_m, ctx, "length"),
-            "tow_vehicle_vin": trailer.tow_vehicle_vin,
+            # By name: the tow vehicle's key may be a generated one (#226).
+            "tow_vehicle": await _tow_vehicle_name(db, trailer.tow_vehicle_vin),
         }
 
     serialized = json.dumps(context, default=str)

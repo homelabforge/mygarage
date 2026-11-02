@@ -58,10 +58,78 @@ class FuelTypeEnum(StrEnum):
     OTHER = "other"
 
 
+class FuelGradeEnum(StrEnum):
+    """EN 16942 pump labels, the fuel grade of one fill-up (#211).
+
+    The European label on the pump and on the filler flap: a circle for
+    petrol (E5, E10, E85 — the maximum ethanol share), a square for diesel
+    (B7, B10, B20, B30, B100 — the maximum FAME share; XTL for paraffinic
+    diesel such as HVO), a diamond for gaseous fuels. Stored next to
+    ``octane`` (RON in Europe, AKI in North America) and ``diesel_grade``
+    (the US clear-vs-dyed distinction) on ``fuel_records.fuel_grade``.
+    """
+
+    E5 = "E5"
+    E10 = "E10"
+    E85 = "E85"
+    B7 = "B7"
+    B10 = "B10"
+    B20 = "B20"
+    B30 = "B30"
+    B100 = "B100"
+    XTL = "XTL"
+    H2 = "H2"
+    CNG = "CNG"
+    LPG = "LPG"
+    LNG = "LNG"
+
+
 # Convenience tuples for schema validators (avoids re-iterating the enum).
 PAYMENT_METHOD_VALUES: tuple[str, ...] = tuple(m.value for m in PaymentMethod)
 TRIP_TYPE_VALUES: tuple[str, ...] = tuple(t.value for t in TripType)
 FUEL_TYPE_VALUES: tuple[str, ...] = tuple(f.value for f in FuelTypeEnum)
+FUEL_GRADE_VALUES: tuple[str, ...] = tuple(g.value for g in FuelGradeEnum)
+
+#: Which EN 16942 labels a fuel type can be dispensed as. A hybrid refuels
+#: with petrol; a flex vehicle on E85 picks E85 through ``fuel_type_used``.
+GRADES_FOR_FUEL_TYPE: dict[FuelTypeEnum, tuple[FuelGradeEnum, ...]] = {
+    FuelTypeEnum.GASOLINE: (FuelGradeEnum.E5, FuelGradeEnum.E10),
+    FuelTypeEnum.HYBRID: (FuelGradeEnum.E5, FuelGradeEnum.E10),
+    FuelTypeEnum.PLUGIN_HYBRID: (FuelGradeEnum.E5, FuelGradeEnum.E10),
+    FuelTypeEnum.E85: (FuelGradeEnum.E85,),
+    FuelTypeEnum.DIESEL: (
+        FuelGradeEnum.B7,
+        FuelGradeEnum.B10,
+        FuelGradeEnum.B20,
+        FuelGradeEnum.B30,
+        FuelGradeEnum.B100,
+        FuelGradeEnum.XTL,
+    ),
+    FuelTypeEnum.PROPANE_LPG: (FuelGradeEnum.LPG,),
+    FuelTypeEnum.CNG: (FuelGradeEnum.CNG, FuelGradeEnum.LNG),
+    FuelTypeEnum.HYDROGEN: (FuelGradeEnum.H2,),
+}
+
+#: Field P.3 of a French registration certificate (energy code) → the
+#: vehicle's primary and secondary fuel capability. The harmonised code is the
+#: same on every EU certificate, but the two-letter values are France's.
+CARTE_GRISE_ENERGY_CODES: dict[str, tuple[FuelTypeEnum, FuelTypeEnum | None]] = {
+    "ES": (FuelTypeEnum.GASOLINE, None),
+    "GO": (FuelTypeEnum.DIESEL, None),
+    "EL": (FuelTypeEnum.ELECTRIC, None),
+    "EE": (FuelTypeEnum.PLUGIN_HYBRID, FuelTypeEnum.ELECTRIC),  # essence, rechargeable
+    "EH": (FuelTypeEnum.HYBRID, FuelTypeEnum.ELECTRIC),  # essence, non rechargeable
+    "GL": (FuelTypeEnum.PLUGIN_HYBRID, FuelTypeEnum.ELECTRIC),  # gazole, rechargeable
+    "GH": (FuelTypeEnum.HYBRID, FuelTypeEnum.ELECTRIC),  # gazole, non rechargeable
+    "GP": (FuelTypeEnum.PROPANE_LPG, None),
+    "GN": (FuelTypeEnum.CNG, None),
+    "FE": (FuelTypeEnum.E85, None),
+    "H2": (FuelTypeEnum.HYDROGEN, None),
+    "EG": (FuelTypeEnum.GASOLINE, FuelTypeEnum.PROPANE_LPG),  # bicarburation essence-GPL
+    "EN": (FuelTypeEnum.GASOLINE, FuelTypeEnum.CNG),  # bicarburation essence-GNV
+    "ET": (FuelTypeEnum.E85, None),
+    "FG": (FuelTypeEnum.E85, FuelTypeEnum.PROPANE_LPG),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +228,71 @@ _NORMALIZATION_MAP: dict[str, FuelTypeEnum] = {
     # Russian (бензин/дизель/газ shared with Ukrainian above) ----
     "электрический": FuelTypeEnum.ELECTRIC,
     "гибрид": FuelTypeEnum.HYBRID,
+    # ---- Western European aliases (#211): pump names and the words a French,
+    # German, Italian, Dutch or Spanish CSV export uses for a fuel type.
+    # French ----
+    "essence": FuelTypeEnum.GASOLINE,
+    "sans plomb": FuelTypeEnum.GASOLINE,
+    "sp95": FuelTypeEnum.GASOLINE,
+    "sp 95": FuelTypeEnum.GASOLINE,
+    "sp95-e10": FuelTypeEnum.GASOLINE,
+    "sp95 e10": FuelTypeEnum.GASOLINE,
+    "e10": FuelTypeEnum.GASOLINE,
+    "e5": FuelTypeEnum.GASOLINE,
+    "sp98": FuelTypeEnum.GASOLINE,
+    "sp 98": FuelTypeEnum.GASOLINE,
+    "gazole": FuelTypeEnum.DIESEL,
+    "gasoil": FuelTypeEnum.DIESEL,
+    "b7": FuelTypeEnum.DIESEL,
+    "b10": FuelTypeEnum.DIESEL,
+    "hvo": FuelTypeEnum.DIESEL,
+    "hvo100": FuelTypeEnum.DIESEL,
+    "xtl": FuelTypeEnum.DIESEL,
+    "électrique": FuelTypeEnum.ELECTRIC,
+    "electrique": FuelTypeEnum.ELECTRIC,
+    "hybride": FuelTypeEnum.HYBRID,
+    "hybride rechargeable": FuelTypeEnum.PLUGIN_HYBRID,
+    "superéthanol": FuelTypeEnum.E85,
+    "superethanol": FuelTypeEnum.E85,
+    "superéthanol e85": FuelTypeEnum.E85,
+    "éthanol": FuelTypeEnum.E85,
+    "gpl": FuelTypeEnum.PROPANE_LPG,
+    "gnv": FuelTypeEnum.CNG,
+    "hydrogène": FuelTypeEnum.HYDROGEN,
+    "hydrogene": FuelTypeEnum.HYDROGEN,
+    # German ----
+    "benzin": FuelTypeEnum.GASOLINE,
+    "super": FuelTypeEnum.GASOLINE,
+    "super e10": FuelTypeEnum.GASOLINE,
+    "super e5": FuelTypeEnum.GASOLINE,
+    "super plus": FuelTypeEnum.GASOLINE,
+    "elektro": FuelTypeEnum.ELECTRIC,
+    "elektrisch": FuelTypeEnum.ELECTRIC,
+    "erdgas": FuelTypeEnum.CNG,
+    "autogas": FuelTypeEnum.PROPANE_LPG,
+    "wasserstoff": FuelTypeEnum.HYDROGEN,
+    # Italian ----
+    "benzina": FuelTypeEnum.GASOLINE,
+    "gasolio": FuelTypeEnum.DIESEL,
+    "metano": FuelTypeEnum.CNG,
+    "elettrica": FuelTypeEnum.ELECTRIC,
+    "elettrico": FuelTypeEnum.ELECTRIC,
+    "ibrida": FuelTypeEnum.HYBRID,
+    "ibrido": FuelTypeEnum.HYBRID,
+    # Dutch ----
+    "benzine": FuelTypeEnum.GASOLINE,
+    "aardgas": FuelTypeEnum.CNG,
+    "waterstof": FuelTypeEnum.HYDROGEN,
+    # Spanish ----
+    "gasolina": FuelTypeEnum.GASOLINE,
+    "gasóleo": FuelTypeEnum.DIESEL,
+    "gasoleo": FuelTypeEnum.DIESEL,
+    "eléctrico": FuelTypeEnum.ELECTRIC,
+    "electrico": FuelTypeEnum.ELECTRIC,
+    "híbrido": FuelTypeEnum.HYBRID,
+    "hibrido": FuelTypeEnum.HYBRID,
+    "glp": FuelTypeEnum.PROPANE_LPG,
+    "gnc": FuelTypeEnum.CNG,
 }
 
 

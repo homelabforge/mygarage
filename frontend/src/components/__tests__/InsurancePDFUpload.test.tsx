@@ -7,6 +7,11 @@ import api from '../../services/api'
 
 vi.mock('../../services/api', () => ({ default: { post: vi.fn() } }))
 const postMock = api.post as unknown as ReturnType<typeof vi.fn>
+// #211: a photo is accepted only when the vision model can read it.
+const aiState = { enabled: false }
+vi.mock('../../hooks/queries/useAiDocumentReading', () => ({
+  useAiDocumentReading: () => ({ enabled: aiState.enabled, isLoading: false }),
+}))
 
 // B5: the component imports Chip from './ui'. Keep the REAL Button/IconButton (importOriginal)
 // and replace ONLY Chip with a probe that surfaces its `tone` prop as data-tone, so the LD3
@@ -158,6 +163,27 @@ describe('InsurancePDFUpload — labelled dropzone: upload guard + parse + confi
     expect(screen.getByText('insurancePdfUpload.vehicleNotInGarage')).toHaveAttribute('data-tone', 'muted')
   })
 
+  it('a plate match with no name shows the plate, never a generated key (#226)', async () => {
+    const user = userEvent.setup()
+    postMock.mockResolvedValue({
+      data: {
+        success: true,
+        data: { ...emptyData, provider: 'MAIF' },
+        confidence: {},
+        vehicles: [
+          { vin: 'QABCDEFGH12345678', plate: 'AB-123-CD', matched: true, matched_by: 'plate', vehicle_name: null, premium_share: null, deductible: null },
+        ],
+        confidence_score: 60, parser_used: 'maif', warnings: [],
+      },
+    })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'policy.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    await screen.findByText('insurancePdfUpload.parseSuccess')
+    expect(screen.getByText('AB-123-CD')).toBeInTheDocument()
+    expect(screen.queryByText('QABCDEFGH12345678')).not.toBeInTheDocument()
+  })
+
   it('after a parse, "Use This Data" hands the extracted fields back and closes (fails if the apply-to-form wiring breaks)', async () => {
     const user = userEvent.setup()
     const onDataExtracted = vi.fn()
@@ -175,5 +201,131 @@ describe('InsurancePDFUpload — labelled dropzone: upload guard + parse + confi
     expect(handed.data).toMatchObject({ provider: 'Geico', policy_number: 'POL-9' })
     expect(handed.vehicles).toEqual([])
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+describe('InsurancePDFUpload — Europe and photos (#211)', () => {
+  const parsed = (over: Record<string, unknown> = {}) => ({
+    success: true,
+    source: 'text',
+    data: { ...emptyData, provider: 'MAIF', policy_type: 'Third Party Extended', no_claims_class: '0.50' },
+    confidence: { provider: 'high', no_claims_class: 'high' },
+    vehicles: [],
+    plates: [],
+    coverages: [],
+    confidence_score: 80,
+    parser_used: 'FrenchInsurance',
+    warnings: [],
+    ...over,
+  })
+
+  it('rejects a photo while AI document reading is off, and accepts it once it is on', async () => {
+    const user = userEvent.setup({ applyAccept: false })
+    aiState.enabled = false
+    const { unmount } = render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    expect(fileInput().accept).toBe('.pdf,application/pdf')
+    await user.upload(fileInput(), new File(['x'], 'avis.jpg', { type: 'image/jpeg' }))
+    expect(screen.getByText('insurancePdfUpload.errorInvalidType')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'insurancePdfUpload.parse' })).not.toBeInTheDocument()
+    unmount()
+
+    aiState.enabled = true
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    expect(fileInput().accept).toContain('image/heic')
+    expect(screen.getByText('insurancePdfUpload.dragDropAny')).toBeInTheDocument()
+    await user.upload(fileInput(), new File(['x'], 'avis.jpg', { type: 'image/jpeg' }))
+    expect(screen.queryByText('insurancePdfUpload.errorInvalidTypeAny')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'insurancePdfUpload.parse' })).toBeInTheDocument()
+    await user.upload(fileInput(), new File(['x'], 'notes.txt', { type: 'text/plain' }))
+    expect(screen.getByText('insurancePdfUpload.errorInvalidTypeAny')).toBeInTheDocument()
+    aiState.enabled = false
+  })
+
+  it('says what to do when the reader answers that no vision model is configured', async () => {
+    const user = userEvent.setup()
+    postMock.mockRejectedValue({ response: { status: 409, data: { detail: 'ai_reading_not_configured' } } })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'scan.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    expect(await screen.findByText('insurancePdfUpload.aiNotConfigured')).toBeInTheDocument()
+  })
+
+  it('asks before a scan goes to a vision model outside the network, and retries with consent', async () => {
+    const user = userEvent.setup()
+    postMock
+      .mockRejectedValueOnce({
+        response: { status: 409, data: { detail: { code: 'vision_consent_required', host: 'openrouter.ai' } } },
+      })
+      .mockResolvedValueOnce({
+        data: { success: true, source: 'llm', data: { ...emptyData, provider: 'MAIF' }, confidence: {}, vehicles: [], confidence_score: 60, parser_used: 'vision:llava', warnings: [] },
+      })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'scan.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent('openrouter.ai')
+    expect(postMock).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'visionConsent.send' }))
+    await screen.findByText('MAIF')
+    expect(postMock).toHaveBeenCalledTimes(2)
+    const [, , opts] = postMock.mock.calls[1] as [string, FormData, Record<string, unknown>]
+    expect(opts).toEqual({
+      headers: { 'Content-Type': 'multipart/form-data' },
+      params: { allow_external_vision: true },
+    })
+  })
+
+  it('cancelling the consent question sends nothing more', async () => {
+    const user = userEvent.setup()
+    postMock.mockRejectedValueOnce({
+      response: { status: 409, data: { detail: { code: 'vision_consent_required', host: 'openrouter.ai' } } },
+    })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'scan.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    await screen.findByRole('alertdialog')
+    await user.click(screen.getByRole('button', { name: 'visionConsent.cancel' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(postMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the no-claims class, where the document was read from, and a vehicle matched by its plate', async () => {
+    const user = userEvent.setup()
+    postMock.mockResolvedValue({
+      data: parsed({
+        source: 'llm',
+        plates: ['AB-123-CD', 'EF-456-GH'],
+        vehicles: [
+          { vin: 'RAMVIN00000000001', plate: 'AB-123-CD', matched: true, matched_by: 'plate', vehicle_name: 'Zoe', premium_share: null, deductible: '300', no_claims_class: '0.50', coverages: [] },
+          { vin: null, plate: 'EF-456-GH', matched: false, matched_by: 'plate', vehicle_name: null, premium_share: null, deductible: null, no_claims_class: null, coverages: [] },
+        ],
+      }),
+    })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'avis.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    await screen.findByText('insurancePdfUpload.parseSuccess')
+    expect(screen.getByText('insuranceFields.noClaimsClass:')).toBeInTheDocument()
+    expect(screen.getByText('0.50')).toBeInTheDocument()
+    expect(screen.getByText('insurancePdfUpload.readByAi')).toHaveAttribute('data-tone', 'accent')
+    expect(screen.getByText('Zoe')).toBeInTheDocument()
+    expect(screen.getByText('insurancePdfUpload.vehicleMatchedByPlate')).toBeInTheDocument()
+    expect(screen.getByText('EF-456-GH')).toBeInTheDocument()
+    expect(screen.getByText('insurancePdfUpload.vehicleNotInGarage')).toBeInTheDocument()
+  })
+
+  it('a value the vision model gave that the validators refused is marked rejected', async () => {
+    const user = userEvent.setup()
+    postMock.mockResolvedValue({
+      data: parsed({ confidence: { provider: 'high', policy_type: 'rejected' } }),
+    })
+    render(<InsurancePDFUpload onDataExtracted={vi.fn()} onClose={vi.fn()} />)
+    await user.upload(fileInput(), new File(['%PDF-1.4'], 'avis.pdf', { type: 'application/pdf' }))
+    await user.click(screen.getByRole('button', { name: 'insurancePdfUpload.parse' }))
+    await screen.findByText('insurancePdfUpload.parseSuccess')
+    expect(screen.getByText('insurancePdfUpload.confidenceRejected')).toHaveAttribute('data-tone', 'danger')
+    expect(screen.getByText('insurancePdfUpload.readFromPdf')).toBeInTheDocument()
   })
 })

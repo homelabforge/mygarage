@@ -93,6 +93,8 @@ def _make_analytics_data(
 
     return {
         "vin": vin,
+        # The route adds the printed identifier line (#226).
+        "identifier_text": f"VIN {vin}",
         "vehicle_name": vehicle_name,
         "vehicle_type": "Car",
         "days_owned": 365,
@@ -968,3 +970,50 @@ def test_every_chart_labels_money_in_the_report_currency(
     for texts in drawn:
         assert any("Ft" in t for t in texts), texts
         assert not any("$" in t for t in texts), texts
+
+
+class TestBannerIdentifier:
+    """#226: the banner prints the VIN or the serial, never a generated key."""
+
+    def test_prints_the_identifier_line_and_not_the_key(self) -> None:
+        data = _make_analytics_data()
+        data["vin"] = "QABCDEFGH12345678"
+        data["identifier_text"] = "Serial BX23S-10234"
+        text = _extract_text(generate_vehicle_analytics_pdf(data, render_context=METRIC_CTX).read())
+        assert "Serial BX23S-10234" in text
+        assert "QABCDEFGH12345678" not in text
+
+    def test_markup_in_typed_values_prints_as_text(self) -> None:
+        data = _make_analytics_data()
+        data["vehicle_name"] = "Mower <b>deck</b>"
+        data["identifier_text"] = "Serial <img src='/etc/passwd'/> & co"
+        text = _extract_text(generate_vehicle_analytics_pdf(data, render_context=METRIC_CTX).read())
+        assert "Mower <b>deck</b>" in text
+        assert "Serial <img src='/etc/passwd'/> & co" in text
+
+    def test_markup_in_table_cells_prints_as_text(self) -> None:
+        """FB-1: the tables carry typed values too: a vendor, a service
+        type, a reminder title and an hours reading's note. An unbalanced
+        tag in any of them used to fail the whole build."""
+        data = _make_analytics_data()
+        data["cost_analysis"]["service_type_breakdown"][0]["service_type"] = "Brake <b>job"
+        data["hours_accumulated"] = [
+            {"date": "2025-01-01", "engine_hours": Decimal("10"), "notes": "Read <i>by hand"}
+        ]
+        vendors = _make_vendor_data()
+        vendors["vendors"][0]["vendor_name"] = "Bob <i>& Sons"
+        reminders = [_make_reminder("Check <font>belt", "date", due_date="2027-01-01")]
+        text = " ".join(
+            _extract_text(
+                generate_vehicle_analytics_pdf(
+                    data,
+                    vendor_data=vendors,
+                    reminders_data=reminders,
+                    render_context=METRIC_CTX,
+                ).read()
+            ).split()
+        )
+        assert "Brake <b>job" in text
+        assert "Bob <i>& Sons" in text
+        assert "Check <font>belt" in text
+        assert "Read <i>by hand" in text

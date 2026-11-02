@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import OIDCModal from '@/components/modals/OIDCModal'
 import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
 import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
+import InstanceCountryDefaultCard from '@/components/settings/InstanceCountryDefaultCard'
 import InstanceUnitDefaultsCard from '@/components/settings/InstanceUnitDefaultsCard'
 import { NumberInput, Select, Toggle } from '../ui'
 import { getActiveLocale } from '@/constants/i18n'
@@ -505,6 +506,10 @@ export default function SettingsSystemTab() {
         {/* The instance default an admin sets for everyone who has not
             chosen. Each person's own units are in Quick Settings. */}
         <InstanceUnitDefaultsCard />
+
+        {/* The country whose national defaults (inspection cadence, pump
+            names, tax types) apply to everyone who has not chosen one. */}
+        <InstanceCountryDefaultCard />
 
         <div>
           <label className="block text-sm font-medium text-garage-text mb-2">

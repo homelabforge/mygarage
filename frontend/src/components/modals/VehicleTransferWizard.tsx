@@ -14,6 +14,7 @@ import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { familyService } from '@/services/familyService'
 import type { EligibleRecipient, VehicleTransferResponse } from '@/types/family'
 import { formatRelationship } from '@/types/family'
+import { vinForDisplay } from '@/utils/vehicleIdentifier'
 
 interface VehicleTransferWizardProps {
   isOpen: boolean
@@ -396,7 +397,7 @@ export default function VehicleTransferWizard({
                 </div>
                 <div className="flex justify-between py-2 border-b border-border">
                   <span className="text-text-mute">{t('modal.transfer.vin')}</span>
-                  <span className="font-mono text-text">{vin}</span>
+                  <span className="font-mono text-text">{vinForDisplay(vin) ?? '-'}</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-border">
                   <span className="text-text-mute">{t('modal.newOwner')}</span>

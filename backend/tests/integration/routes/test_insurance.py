@@ -8,9 +8,11 @@ and its vehicles' shares from drifting apart.
 
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
+from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.insurance import InsuranceCoverage, InsurancePolicy
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.services.document_reader_service import AI_READING_NOT_CONFIGURED, DocumentReadResult
 from app.utils.household_time import household_today
 from tests._policy_scope import PolicyScope
 
@@ -1124,3 +1127,223 @@ class TestStandardCoverages:
         )
         assert response.status_code == 200, response.text
         assert response.json()["provider"] == "Progressive Direct"
+
+
+# ---------------------------------------------------------------------------
+# Europe (#211): the formulas, the no-claims class, the document parse
+# ---------------------------------------------------------------------------
+
+AVIS_ECHEANCE = """MAIF
+Avis d'échéance
+Contrat n° 1234567 A
+Immatriculation : AB-123-CD
+Période de garantie : du 01/01/2026 au 31/12/2026
+Formule : Tiers étendu
+Coefficient de réduction-majoration (bonus-malus) : 0,50
+Responsabilité civile : illimitée
+Bris de glace : franchise 80 €
+Vol et tentative de vol : franchise 300 €
+Cotisation annuelle TTC : 612,40 €
+Franchise : 300 €
+"""
+
+READ_DOCUMENT = "app.routes.insurance.document_reader_service.read_document"
+
+
+def _text_read(text: str) -> DocumentReadResult:
+    return DocumentReadResult(kind="insurance_policy", source="text", raw_text=text)
+
+
+def _llm_read(fields: dict) -> DocumentReadResult:
+    return DocumentReadResult(
+        kind="insurance_policy", source="llm", fields=fields, model="llava", pages=1
+    )
+
+
+def _upload(name: str = "avis.pdf", mime: str = "application/pdf"):
+    return {"file": (name, b"%PDF-1.4 not really", mime)}
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestEuropeanPolicies:
+    async def test_a_third_party_vehicle_carries_its_no_claims_class(
+        self, client: AsyncClient, auth_headers, owned_vehicle
+    ):
+        policy = await _create(
+            client,
+            auth_headers,
+            [_on(owned_vehicle.vin, policy_type="Third Party Extended", no_claims_class="0,50")],
+            provider="MAIF",
+        )
+        (vehicle,) = policy["vehicles"]
+        assert vehicle["policy_type"] == "Third Party Extended"
+        # Typed with its French comma, stored with a point.
+        assert vehicle["no_claims_class"] == "0.50"
+
+        # A link edit changes it, and '' clears it.
+        link = f"{API}/{policy['id']}/vehicles/{vehicle['id']}"
+        response = await client.patch(link, json={"no_claims_class": "SF 12"}, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        assert response.json()["vehicles"][0]["no_claims_class"] == "SF 12"
+        response = await client.patch(link, json={"no_claims_class": ""}, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        assert response.json()["vehicles"][0]["no_claims_class"] is None
+
+    async def test_the_vocabulary_is_held(self, client: AsyncClient, auth_headers, owned_vehicle):
+        vin = owned_vehicle.vin
+        for bad in (
+            {"policy_type": "Gold"},
+            {"no_claims_class": "a class name far too long"},
+            {"no_claims_class": "0.50€"},
+        ):
+            response = await client.post(API, json=_body([_on(vin) | bad]), headers=auth_headers)
+            assert response.status_code == 422, (bad, response.text)
+
+    async def test_the_class_follows_a_renewal_and_a_switch(
+        self, client: AsyncClient, auth_headers, owned_vehicle
+    ):
+        vin = owned_vehicle.vin
+        policy = await _create(
+            client, auth_headers, [_on(vin, policy_type="Third Party", no_claims_class="0.50")]
+        )
+        renewed = await client.post(
+            f"{API}/{policy['id']}/renew", json={"premium_amount": "640.00"}, headers=auth_headers
+        )
+        assert renewed.status_code == 201, renewed.text
+        assert renewed.json()["vehicles"][0]["no_claims_class"] == "0.50"
+
+        # Carried over by VIN only: no vehicle list, so the new insurer's
+        # coverages are not entered here.
+        switch = _body(
+            provider="MACIF",
+            policy_number="M-1",
+            start_date=renewed.json()["end_date"],
+            end_date=(household_today() + timedelta(days=900)).isoformat(),
+        )
+        del switch["vehicles"]
+        switched = await client.post(
+            f"{API}/{renewed.json()['id']}/replace",
+            json=switch | {"vins": [vin]},
+            headers=auth_headers,
+        )
+        assert switched.status_code == 201, switched.text
+        # The relevé d'information carries the coefficient to the new insurer.
+        assert switched.json()["vehicles"][0]["no_claims_class"] == "0.50"
+
+    async def test_a_french_pdf_is_matched_by_its_plate(
+        self, client: AsyncClient, auth_headers, owned_vehicle, db_session: AsyncSession
+    ):
+        owned_vehicle.license_plate = "ab 123 cd"
+        await db_session.commit()
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(AVIS_ECHEANCE))):
+            response = await client.post(
+                "/api/insurance/parse-pdf", files=_upload(), headers=auth_headers
+            )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["source"] == "text"
+        assert body["parser_used"] == "FrenchInsurance"
+        assert body["data"]["provider"] == "MAIF"
+        assert body["data"]["policy_type"] == "Third Party Extended"
+        assert body["data"]["no_claims_class"] == "0.50"
+        assert body["data"]["premium_amount"] == "612.40"
+        assert body["data"]["start_date"] == "2026-01-01"
+        assert body["plates"] == ["AB-123-CD"]
+        (vehicle,) = body["vehicles"]
+        assert vehicle["matched"] is True
+        assert vehicle["matched_by"] == "plate"
+        assert vehicle["vin"] == owned_vehicle.vin
+        assert vehicle["plate"] == "AB-123-CD"
+        assert vehicle["no_claims_class"] == "0.50"
+        assert vehicle["deductible"] == "300"
+        assert [c["coverage_key"] for c in vehicle["coverages"]] == [
+            "glass",
+            "third_party_liability",
+            "theft",
+        ]
+        assert body["coverages"] == vehicle["coverages"]
+
+    async def test_a_plate_the_garage_does_not_know_is_listed_unmatched(
+        self, client: AsyncClient, auth_headers, owned_vehicle, db_session: AsyncSession
+    ):
+        owned_vehicle.license_plate = None
+        await db_session.commit()
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(AVIS_ECHEANCE))):
+            response = await client.post(
+                "/api/insurance/parse-pdf", files=_upload(), headers=auth_headers
+            )
+        assert response.status_code == 200, response.text
+        (vehicle,) = response.json()["vehicles"]
+        assert (vehicle["matched"], vehicle["vin"], vehicle["plate"]) == (
+            False,
+            None,
+            "AB-123-CD",
+        )
+
+    async def test_a_photo_is_read_by_the_model(
+        self, client: AsyncClient, auth_headers, owned_vehicle
+    ):
+        fields = {
+            "insurer": "MACIF",
+            "policy_number": "M-77",
+            "start_date": "2026-01-01",
+            "end_date": "2026-12-31",
+            "premium": "480",
+            "payment_frequency": "annual",
+            "deductible": None,
+            "policy_type": "tous risques",
+            "coverages": [
+                {"name": "Dommages tous accidents", "limit": None},
+                {"name": "Protection des bagages", "limit": 500},
+            ],
+            "plates": [],
+            "vins": [owned_vehicle.vin],
+            "no_claims_class": "0.64",
+            "currency": "EUR",
+        }
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_llm_read(fields))):
+            response = await client.post(
+                "/api/insurance/parse-pdf",
+                files=_upload("avis.jpg", "image/jpeg"),
+                headers=auth_headers,
+            )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["source"] == "llm"
+        assert body["parser_used"] == "vision:llava"
+        assert body["data"]["policy_type"] == "Full Coverage"
+        assert body["data"]["premium_frequency"] == "Annual"
+        (vehicle,) = body["vehicles"]
+        assert (vehicle["matched"], vehicle["matched_by"], vehicle["vin"]) == (
+            True,
+            "vin",
+            owned_vehicle.vin,
+        )
+        assert [c["coverage_key"] for c in vehicle["coverages"]] == ["all_accidents_damage"]
+        assert "Coverage not in the catalogue: Protection des bagages" in body["warnings"]
+
+    async def test_the_reader_409_is_relayed(self, client: AsyncClient, auth_headers):
+        with patch(
+            READ_DOCUMENT,
+            new=AsyncMock(
+                side_effect=HTTPException(status_code=409, detail=AI_READING_NOT_CONFIGURED)
+            ),
+        ):
+            response = await client.post(
+                "/api/insurance/parse-pdf",
+                files=_upload("avis.jpg", "image/jpeg"),
+                headers=auth_headers,
+            )
+        assert response.status_code == 409
+        assert response.json()["detail"] == AI_READING_NOT_CONFIGURED
+
+    async def test_a_heic_photo_is_an_accepted_upload(self, client: AsyncClient, auth_headers):
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_llm_read({"insurer": "AXA"}))):
+            response = await client.post(
+                "/api/insurance/parse-pdf",
+                files=_upload("avis.heic", "image/heic"),
+                headers=auth_headers,
+            )
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["provider"] == "AXA"

@@ -186,6 +186,13 @@ class TestGenerateGarageAnalyticsPdf:
         assert "Ram" in text
         assert "Mirage" in text
 
+    def test_markup_in_a_nickname_prints_as_text(self) -> None:
+        """FB-1: a nickname is typed; an unbalanced tag must not fail the build."""
+        data = _make_garage_data()
+        data["cost_by_vehicle"][0]["nickname"] = "<b>Ram"
+        text = _extract_text(generate_garage_analytics_pdf(data).read(), normalize=True)
+        assert "<b>Ram" in text.replace(" ", "")
+
     def test_contains_all_cost_category_headers(self) -> None:
         """Regression: all GarageVehicleCost fields must have column headers."""
         data = _make_garage_data(include_all_cost_fields=True)

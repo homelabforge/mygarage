@@ -1795,6 +1795,48 @@
         "title": "Body_import_odometer_csv_api_import_vehicles__vin__odometer_csv_post",
         "type": "object"
       },
+      "Body_import_registration_certificate_api_vehicles__vin__registration_certificate_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "parse_token": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The parse route's token for this same file: reuse that read",
+            "title": "Parse Token"
+          },
+          "tax_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The suggested tax records to create, by code (Y.1, Y.3, Y.6)",
+            "title": "Tax Codes"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_registration_certificate_api_vehicles__vin__registration_certificate_post",
+        "type": "object"
+      },
       "Body_import_service_csv_api_import_vehicles__vin__service_csv_post": {
         "properties": {
           "file": {
@@ -1941,6 +1983,20 @@
           "file"
         ],
         "title": "Body_parse_insurance_pdf_api_insurance_parse_pdf_post",
+        "type": "object"
+      },
+      "Body_parse_registration_certificate_api_registration_certificate_parse_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_parse_registration_certificate_api_registration_certificate_parse_post",
         "type": "object"
       },
       "Body_test_parse_insurance_pdf_api_insurance_test_parse_post": {
@@ -3649,6 +3705,99 @@
         "title": "CategoryChange",
         "type": "object"
       },
+      "ComplianceResponse": {
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "euro_class": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Euro Class"
+          },
+          "euro_class_estimated": {
+            "default": false,
+            "title": "Euro Class Estimated",
+            "type": "boolean"
+          },
+          "inspection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InspectionStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lez": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LezStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "profile_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Country"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_country",
+                  "no_profile"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileSource"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "vin": {
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vin"
+        ],
+        "title": "ComplianceResponse",
+        "type": "object"
+      },
       "CostAnalysis": {
         "description": "Overall cost analysis.",
         "properties": {
@@ -3806,6 +3955,141 @@
         "title": "CostProjection",
         "type": "object"
       },
+      "CountryProfile": {
+        "additionalProperties": false,
+        "description": "A country's profile after ``extends`` has been resolved.",
+        "properties": {
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "data_sources": {
+            "$ref": "#/components/schemas/DataSources"
+          },
+          "default_reminder_packs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Default Reminder Packs",
+            "type": "array"
+          },
+          "extends": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extends"
+          },
+          "fuel": {
+            "$ref": "#/components/schemas/FuelRules"
+          },
+          "inspection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InspectionRules"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "insurance": {
+            "$ref": "#/components/schemas/InsuranceRules"
+          },
+          "lez": {
+            "$ref": "#/components/schemas/LezRules"
+          },
+          "names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "object"
+          },
+          "registration_certificate": {
+            "$ref": "#/components/schemas/RegistrationCertificateRules"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileSource"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "taxes": {
+            "$ref": "#/components/schemas/TaxRules"
+          },
+          "tolls": {
+            "$ref": "#/components/schemas/TollRules"
+          }
+        },
+        "required": [
+          "country"
+        ],
+        "title": "CountryProfile",
+        "type": "object"
+      },
+      "CountryProfileSummary": {
+        "description": "What the list endpoint returns: enough to build a picker.",
+        "properties": {
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "has_inspection": {
+            "title": "Has Inspection",
+            "type": "boolean"
+          },
+          "lez_scheme": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lez Scheme"
+          },
+          "names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "object"
+          },
+          "octane_scale": {
+            "title": "Octane Scale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "country",
+          "names",
+          "has_inspection",
+          "lez_scheme",
+          "octane_scale"
+        ],
+        "title": "CountryProfileSummary",
+        "type": "object"
+      },
       "CoverageEntry": {
         "description": "One standard coverage on one vehicle.\n\nSending the entry at all is what says the coverage is carried, so every\namount may be omitted (roadside assistance usually has none). A slot the\ncatalogue does not give this coverage is REJECTED rather than ignored: a\nstored \"each accident\" limit on a coverage whose card has no such line\nwould be money no screen ever shows.\n\n`premium` is what the declarations page charges for this coverage alone.\nIt is a record of the bill, NOT part of the allocation: the policy premium\nand the per-vehicle shares are what analytics and the even split work from,\nso editing it moves no money between vehicles and needs only write access\nto the vehicle it is on.",
         "properties": {
@@ -3823,7 +4107,16 @@
               "rental_reimbursement",
               "roadside_assistance",
               "loan_lease_gap",
-              "custom_equipment"
+              "custom_equipment",
+              "third_party_liability",
+              "driver_protection",
+              "theft",
+              "fire",
+              "natural_disasters",
+              "all_accidents_damage",
+              "legal_protection",
+              "assistance",
+              "replacement_vehicle"
             ],
             "title": "Coverage Key",
             "type": "string"
@@ -3898,7 +4191,83 @@
         ],
         "title": "CoverageEntry",
         "type": "object",
+        "x-coverage-regions": {
+          "all_accidents_damage": [
+            "EU"
+          ],
+          "assistance": [
+            "EU"
+          ],
+          "bodily_injury": [
+            "US"
+          ],
+          "collision": [
+            "US"
+          ],
+          "comprehensive": [
+            "US"
+          ],
+          "custom_equipment": [
+            "US"
+          ],
+          "driver_protection": [
+            "EU"
+          ],
+          "fire": [
+            "EU"
+          ],
+          "glass": [
+            "US",
+            "EU"
+          ],
+          "legal_protection": [
+            "EU"
+          ],
+          "loan_lease_gap": [
+            "US"
+          ],
+          "medical_payments": [
+            "US"
+          ],
+          "natural_disasters": [
+            "EU"
+          ],
+          "personal_injury_protection": [
+            "US"
+          ],
+          "property_damage": [
+            "US"
+          ],
+          "rental_reimbursement": [
+            "US"
+          ],
+          "replacement_vehicle": [
+            "EU"
+          ],
+          "roadside_assistance": [
+            "US"
+          ],
+          "theft": [
+            "EU"
+          ],
+          "third_party_liability": [
+            "EU"
+          ],
+          "uninsured_bodily_injury": [
+            "US"
+          ],
+          "uninsured_property_damage": [
+            "US"
+          ]
+        },
         "x-coverage-slots": {
+          "all_accidents_damage": {
+            "deductible": "money",
+            "premium": "money"
+          },
+          "assistance": {
+            "premium": "money"
+          },
           "bodily_injury": {
             "limit_primary": "money",
             "limit_secondary": "money",
@@ -3917,8 +4286,20 @@
             "limit_primary": "money",
             "premium": "money"
           },
+          "driver_protection": {
+            "limit_primary": "money",
+            "premium": "money"
+          },
+          "fire": {
+            "deductible": "money",
+            "premium": "money"
+          },
           "glass": {
             "deductible": "money",
+            "premium": "money"
+          },
+          "legal_protection": {
+            "limit_primary": "money",
             "premium": "money"
           },
           "loan_lease_gap": {
@@ -3926,6 +4307,10 @@
           },
           "medical_payments": {
             "limit_primary": "money",
+            "premium": "money"
+          },
+          "natural_disasters": {
+            "deductible": "money",
             "premium": "money"
           },
           "personal_injury_protection": {
@@ -3942,7 +4327,19 @@
             "limit_secondary": "count",
             "premium": "money"
           },
+          "replacement_vehicle": {
+            "limit_primary": "count",
+            "premium": "money"
+          },
           "roadside_assistance": {
+            "premium": "money"
+          },
+          "theft": {
+            "deductible": "money",
+            "premium": "money"
+          },
+          "third_party_liability": {
+            "limit_primary": "money",
             "premium": "money"
           },
           "uninsured_bodily_injury": {
@@ -3974,7 +4371,16 @@
               "rental_reimbursement",
               "roadside_assistance",
               "loan_lease_gap",
-              "custom_equipment"
+              "custom_equipment",
+              "third_party_liability",
+              "driver_protection",
+              "theft",
+              "fire",
+              "natural_disasters",
+              "all_accidents_damage",
+              "legal_protection",
+              "assistance",
+              "replacement_vehicle"
             ],
             "title": "Coverage Key",
             "type": "string"
@@ -4029,7 +4435,83 @@
         ],
         "title": "CoverageEntryResponse",
         "type": "object",
+        "x-coverage-regions": {
+          "all_accidents_damage": [
+            "EU"
+          ],
+          "assistance": [
+            "EU"
+          ],
+          "bodily_injury": [
+            "US"
+          ],
+          "collision": [
+            "US"
+          ],
+          "comprehensive": [
+            "US"
+          ],
+          "custom_equipment": [
+            "US"
+          ],
+          "driver_protection": [
+            "EU"
+          ],
+          "fire": [
+            "EU"
+          ],
+          "glass": [
+            "US",
+            "EU"
+          ],
+          "legal_protection": [
+            "EU"
+          ],
+          "loan_lease_gap": [
+            "US"
+          ],
+          "medical_payments": [
+            "US"
+          ],
+          "natural_disasters": [
+            "EU"
+          ],
+          "personal_injury_protection": [
+            "US"
+          ],
+          "property_damage": [
+            "US"
+          ],
+          "rental_reimbursement": [
+            "US"
+          ],
+          "replacement_vehicle": [
+            "EU"
+          ],
+          "roadside_assistance": [
+            "US"
+          ],
+          "theft": [
+            "EU"
+          ],
+          "third_party_liability": [
+            "EU"
+          ],
+          "uninsured_bodily_injury": [
+            "US"
+          ],
+          "uninsured_property_damage": [
+            "US"
+          ]
+        },
         "x-coverage-slots": {
+          "all_accidents_damage": {
+            "deductible": "money",
+            "premium": "money"
+          },
+          "assistance": {
+            "premium": "money"
+          },
           "bodily_injury": {
             "limit_primary": "money",
             "limit_secondary": "money",
@@ -4048,8 +4530,20 @@
             "limit_primary": "money",
             "premium": "money"
           },
+          "driver_protection": {
+            "limit_primary": "money",
+            "premium": "money"
+          },
+          "fire": {
+            "deductible": "money",
+            "premium": "money"
+          },
           "glass": {
             "deductible": "money",
+            "premium": "money"
+          },
+          "legal_protection": {
+            "limit_primary": "money",
             "premium": "money"
           },
           "loan_lease_gap": {
@@ -4057,6 +4551,10 @@
           },
           "medical_payments": {
             "limit_primary": "money",
+            "premium": "money"
+          },
+          "natural_disasters": {
+            "deductible": "money",
             "premium": "money"
           },
           "personal_injury_protection": {
@@ -4073,7 +4571,19 @@
             "limit_secondary": "count",
             "premium": "money"
           },
+          "replacement_vehicle": {
+            "limit_primary": "count",
+            "premium": "money"
+          },
           "roadside_assistance": {
+            "premium": "money"
+          },
+          "theft": {
+            "deductible": "money",
+            "premium": "money"
+          },
+          "third_party_liability": {
+            "limit_primary": "money",
             "premium": "money"
           },
           "uninsured_bodily_injury": {
@@ -4947,6 +5457,31 @@
           "fleet_health"
         ],
         "title": "DashboardResponse",
+        "type": "object"
+      },
+      "DataSources": {
+        "additionalProperties": false,
+        "properties": {
+          "fuel_prices": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Prices"
+          },
+          "recalls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recalls",
+            "type": "array"
+          }
+        },
+        "title": "DataSources",
         "type": "object"
       },
       "DeviceCommandRequest": {
@@ -7475,6 +8010,152 @@
         "title": "FuelEfficiencyAlert",
         "type": "object"
       },
+      "FuelGradePreset": {
+        "additionalProperties": false,
+        "description": "A pump name as drivers know it, mapped to its EN 16942 label.",
+        "properties": {
+          "fuel_type": {
+            "title": "Fuel Type",
+            "type": "string"
+          },
+          "grade": {
+            "title": "Grade",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "octane": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Octane"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "grade",
+          "fuel_type"
+        ],
+        "title": "FuelGradePreset",
+        "type": "object"
+      },
+      "FuelPriceResponse": {
+        "description": "One pump price at one station.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "grade": {
+            "description": "EN 16942 label (E5, E10, B7, E85, LPG\u2026)",
+            "title": "Grade",
+            "type": "string"
+          },
+          "octane": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "RON where the label alone is ambiguous",
+            "title": "Octane"
+          },
+          "price": {
+            "description": "Per litre (per kilogram for a gas)",
+            "title": "Price",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "grade",
+          "price",
+          "currency"
+        ],
+        "title": "FuelPriceResponse",
+        "type": "object"
+      },
+      "FuelPricesResponse": {
+        "description": "The stations near a point, from the provider the country names.\n\n`provider` is null when no profile applies to the country, when the\nprofile names no source, or when the source is turned off: the form then\nshows nothing rather than an error.",
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/StationPricesResponse"
+            },
+            "title": "Stations",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "title": "FuelPricesResponse",
+        "type": "object"
+      },
       "FuelReceiptDraft": {
         "description": "Draft fuel fields extracted from a receipt (never persisted automatically).",
         "properties": {
@@ -7778,6 +8459,19 @@
             "description": "Optional fill-up timestamp (naive local). Required for OBC auto-suggest from a matching DriveSession.",
             "title": "Filled At"
           },
+          "fuel_grade": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG\u2026)",
+            "title": "Fuel Grade"
+          },
           "fuel_type_used": {
             "anyOf": [
               {
@@ -7913,6 +8607,19 @@
             ],
             "description": "Octane rating for gasoline/E85 fill-ups (AKI or RON)",
             "title": "Octane"
+          },
+          "octane_scale": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
+            "title": "Octane Scale"
           },
           "odometer_km": {
             "anyOf": [
@@ -8366,6 +9073,18 @@
             "description": "Optional fill-up timestamp (naive local). Required for OBC auto-suggest from a matching DriveSession.",
             "title": "Filled At"
           },
+          "fuel_grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG\u2026)",
+            "title": "Fuel Grade"
+          },
           "fuel_type_used": {
             "anyOf": [
               {
@@ -8507,6 +9226,18 @@
             ],
             "description": "Octane rating for gasoline/E85 fill-ups (AKI or RON)",
             "title": "Octane"
+          },
+          "octane_scale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
+            "title": "Octane Scale"
           },
           "odometer_km": {
             "anyOf": [
@@ -8865,6 +9596,19 @@
             "description": "Optional fill-up timestamp",
             "title": "Filled At"
           },
+          "fuel_grade": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG\u2026)",
+            "title": "Fuel Grade"
+          },
           "fuel_type_used": {
             "anyOf": [
               {
@@ -9015,6 +9759,19 @@
             ],
             "description": "Octane rating for gasoline/E85 fill-ups (AKI or RON)",
             "title": "Octane"
+          },
+          "octane_scale": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
+            "title": "Octane Scale"
           },
           "odometer_km": {
             "anyOf": [
@@ -9236,6 +9993,34 @@
           }
         },
         "title": "FuelRecordUpdate",
+        "type": "object"
+      },
+      "FuelRules": {
+        "additionalProperties": false,
+        "properties": {
+          "diesel_dyed_distinction": {
+            "default": true,
+            "title": "Diesel Dyed Distinction",
+            "type": "boolean"
+          },
+          "grades": {
+            "items": {
+              "$ref": "#/components/schemas/FuelGradePreset"
+            },
+            "title": "Grades",
+            "type": "array"
+          },
+          "octane_scale": {
+            "default": "AKI",
+            "enum": [
+              "RON",
+              "AKI"
+            ],
+            "title": "Octane Scale",
+            "type": "string"
+          }
+        },
+        "title": "FuelRules",
         "type": "object"
       },
       "GarageAnalytics": {
@@ -10134,6 +10919,253 @@
         "title": "InboxResponse",
         "type": "object"
       },
+      "InspectionRules": {
+        "additionalProperties": false,
+        "properties": {
+          "lead_window_months": {
+            "default": 0,
+            "title": "Lead Window Months",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "retest_window_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retest Window Months"
+          },
+          "schedules": {
+            "items": {
+              "$ref": "#/components/schemas/InspectionSchedule"
+            },
+            "minItems": 1,
+            "title": "Schedules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "schedules"
+        ],
+        "title": "InspectionRules",
+        "type": "object"
+      },
+      "InspectionSchedule": {
+        "additionalProperties": false,
+        "description": "A cadence and the vehicles it applies to.",
+        "properties": {
+          "fuel_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fuel Types",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/InspectionStep"
+            },
+            "minItems": 2,
+            "title": "Steps",
+            "type": "array"
+          },
+          "vehicle_types": {
+            "items": {
+              "enum": [
+                "Car",
+                "Truck",
+                "SUV",
+                "Motorcycle",
+                "ATV",
+                "RV",
+                "Trailer",
+                "FifthWheel",
+                "TravelTrailer",
+                "Electric",
+                "Hybrid",
+                "Boat",
+                "UTV",
+                "Snowmobile",
+                "Bicycle",
+                "EBike",
+                "Tractor",
+                "Mower",
+                "Generator",
+                "SmallEngine",
+                "Attachment",
+                "Equipment"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Vehicle Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "vehicle_types",
+          "steps"
+        ],
+        "title": "InspectionSchedule",
+        "type": "object"
+      },
+      "InspectionStatus": {
+        "description": "The periodic inspection as the automatic engine (#211) tracks it.",
+        "properties": {
+          "anchor_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "service",
+                  "completion",
+                  "baseline"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Kind"
+          },
+          "automatic": {
+            "title": "Automatic",
+            "type": "boolean"
+          },
+          "from_registration": {
+            "default": false,
+            "title": "From Registration",
+            "type": "boolean"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "next_due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Due Date"
+          },
+          "reminder_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reminder Id"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "window_opens_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Opens On"
+          }
+        },
+        "required": [
+          "name",
+          "automatic"
+        ],
+        "title": "InspectionStatus",
+        "type": "object"
+      },
+      "InspectionStep": {
+        "additionalProperties": false,
+        "description": "One step of a roadworthiness cadence.\n\nThe first step says when the first inspection is due (``first_after_years``\nafter first registration); every later step says how often it recurs\n(``every_years``) and, optionally, until what vehicle age that rhythm\napplies (``until_age_years``, exclusive). The next due date is the\nprevious one plus ``every_years`` of the first step whose ``until_age_years``\nis null or above the vehicle's age at the previous due date.",
+        "properties": {
+          "every_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Every Years"
+          },
+          "first_after_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First After Years"
+          },
+          "until_age_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until Age Years"
+          }
+        },
+        "title": "InspectionStep",
+        "type": "object"
+      },
       "InsurancePolicyCreate": {
         "description": "Create a household policy, optionally with its vehicles.",
         "properties": {
@@ -10716,6 +11748,37 @@
         "title": "InsurancePolicyUpdate",
         "type": "object"
       },
+      "InsuranceRules": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Coverage Keys",
+            "type": "array"
+          },
+          "no_claims": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoClaimsScheme"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policy_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Policy Types",
+            "type": "array"
+          }
+        },
+        "title": "InsuranceRules",
+        "type": "object"
+      },
       "IntegrationListResponse": {
         "description": "The whole tab strip, in display order.",
         "properties": {
@@ -10949,6 +12012,134 @@
           "timestamp"
         ],
         "title": "LastLocationResponse",
+        "type": "object"
+      },
+      "LezRules": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "scheme": {
+            "anyOf": [
+              {
+                "enum": [
+                  "critair",
+                  "umweltplakette",
+                  "lez_registration",
+                  "ztl",
+                  "dgt_label"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheme"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "title": "LezRules",
+        "type": "object"
+      },
+      "LezStatus": {
+        "description": "The country's low-emission scheme and the class this vehicle has in it.",
+        "properties": {
+          "basis": {
+            "anyOf": [
+              {
+                "enum": [
+                  "override",
+                  "euro_class",
+                  "first_registration",
+                  "fuel"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "computed": {
+            "default": false,
+            "title": "Computed",
+            "type": "boolean"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "overridden": {
+            "default": false,
+            "title": "Overridden",
+            "type": "boolean"
+          },
+          "scheme": {
+            "enum": [
+              "critair",
+              "umweltplakette",
+              "lez_registration",
+              "ztl",
+              "dgt_label"
+            ],
+            "title": "Scheme",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "scheme"
+        ],
+        "title": "LezStatus",
         "type": "object"
       },
       "LinkOIDCAccountRequest": {
@@ -12076,6 +13267,57 @@
         "title": "LiveSensorReading",
         "type": "object"
       },
+      "LlmTestResponse": {
+        "description": "What ``POST /api/settings/test/llm`` reports (#211).\n\n``vision_ok`` is null when the vision check did not run, which is the case\nwhile document reading is off; ``valid`` is the single verdict the card's\nbutton colours on.",
+        "properties": {
+          "message": {
+            "description": "A sentence for the operator, the endpoint's error included",
+            "title": "Message",
+            "type": "string"
+          },
+          "model": {
+            "description": "The text model that was tested",
+            "title": "Model",
+            "type": "string"
+          },
+          "text_ok": {
+            "description": "The text completion with llm_model succeeded",
+            "title": "Text Ok",
+            "type": "boolean"
+          },
+          "valid": {
+            "description": "True when every check that ran succeeded",
+            "title": "Valid",
+            "type": "boolean"
+          },
+          "vision_model": {
+            "description": "The vision model that was (or would be) tested",
+            "title": "Vision Model",
+            "type": "string"
+          },
+          "vision_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The vision completion succeeded; null when document reading is off",
+            "title": "Vision Ok"
+          }
+        },
+        "required": [
+          "valid",
+          "message",
+          "text_ok",
+          "model",
+          "vision_model"
+        ],
+        "title": "LlmTestResponse",
+        "type": "object"
+      },
       "LocationPointOut": {
         "description": "A single GPS breadcrumb point, coordinates as float for map rendering.",
         "properties": {
@@ -12689,6 +13931,17 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          },
           "maintenance_type": {
             "anyOf": [
               {
@@ -12832,6 +14085,17 @@
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
+          },
+          "lead_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
           },
           "maintenance_type": {
             "anyOf": [
@@ -13480,6 +14744,41 @@
           "days_away"
         ],
         "title": "NearestOdometerResponse",
+        "type": "object"
+      },
+      "NoClaimsScheme": {
+        "additionalProperties": false,
+        "properties": {
+          "example": {
+            "title": "Example",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pattern": {
+            "title": "Pattern",
+            "type": "string"
+          },
+          "scheme": {
+            "enum": [
+              "crm",
+              "sf_klasse",
+              "classe_di_merito",
+              "bonus_malus"
+            ],
+            "title": "Scheme",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheme",
+          "name",
+          "pattern",
+          "example"
+        ],
+        "title": "NoClaimsScheme",
         "type": "object"
       },
       "NoteCreate": {
@@ -15302,6 +16601,20 @@
             "title": "Fields",
             "type": "array"
           },
+          "no_claims_class": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "pattern": "^[A-Za-z0-9 .,/%-]{1,10}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)\u2026 Ten characters of plain text",
+            "title": "No Claims Class"
+          },
           "notes": {
             "anyOf": [
               {
@@ -15320,7 +16633,9 @@
               "Collision",
               "Full Coverage",
               "Minimum",
-              "Other"
+              "Other",
+              "Third Party",
+              "Third Party Extended"
             ],
             "title": "Policy Type",
             "type": "string"
@@ -15416,6 +16731,18 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "no_claims_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)\u2026 Ten characters of plain text",
+            "title": "No Claims Class"
           },
           "notes": {
             "anyOf": [
@@ -15521,6 +16848,20 @@
             ],
             "title": "Fields"
           },
+          "no_claims_class": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "pattern": "^[A-Za-z0-9 .,/%-]{1,10}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)\u2026 Ten characters of plain text",
+            "title": "No Claims Class"
+          },
           "notes": {
             "anyOf": [
               {
@@ -15541,7 +16882,9 @@
                   "Collision",
                   "Full Coverage",
                   "Minimum",
-                  "Other"
+                  "Other",
+                  "Third Party",
+                  "Third Party Extended"
                 ],
                 "type": "string"
               },
@@ -15632,6 +16975,20 @@
             "description": "Omit to leave an existing vehicle's named fields alone",
             "title": "Fields"
           },
+          "no_claims_class": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "pattern": "^[A-Za-z0-9 .,/%-]{1,10}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), an SF-Klasse (SF 12), a classe di merito (1)\u2026 Ten characters of plain text",
+            "title": "No Claims Class"
+          },
           "notes": {
             "anyOf": [
               {
@@ -15650,7 +17007,9 @@
               "Collision",
               "Full Coverage",
               "Minimum",
-              "Other"
+              "Other",
+              "Third Party",
+              "Third Party Extended"
             ],
             "title": "Policy Type",
             "type": "string"
@@ -15812,6 +17171,32 @@
         "title": "PresetReadingInfo",
         "type": "object"
       },
+      "ProfileSource": {
+        "additionalProperties": false,
+        "description": "Where a figure in the profile comes from, so a reviewer can check it.",
+        "properties": {
+          "retrieved": {
+            "format": "date",
+            "title": "Retrieved",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "url",
+          "retrieved"
+        ],
+        "title": "ProfileSource",
+        "type": "object"
+      },
       "QuickEntryVehicle": {
         "description": "Lightweight vehicle summary for the Quick Entry selector.",
         "properties": {
@@ -15929,7 +17314,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -15984,6 +17375,60 @@
         "title": "QuickEntryVehicleList",
         "type": "object"
       },
+      "RecallCheckResponse": {
+        "description": "The list after a check of every source that covers the vehicle (#211).",
+        "properties": {
+          "active_count": {
+            "title": "Active Count",
+            "type": "integer"
+          },
+          "new_count": {
+            "default": 0,
+            "description": "How many recalls the check stored",
+            "title": "New Count",
+            "type": "integer"
+          },
+          "providers_checked": {
+            "description": "The sources asked, in order; empty when none covers the vehicle's country",
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers Checked",
+            "type": "array"
+          },
+          "recalls": {
+            "items": {
+              "$ref": "#/components/schemas/RecallResponse"
+            },
+            "title": "Recalls",
+            "type": "array"
+          },
+          "resolved_count": {
+            "title": "Resolved Count",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "warnings": {
+            "description": "A source that could not be asked, and why",
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recalls",
+          "total",
+          "active_count",
+          "resolved_count"
+        ],
+        "title": "RecallCheckResponse",
+        "type": "object"
+      },
       "RecallCreate": {
         "description": "Schema for creating a new recall.",
         "properties": {
@@ -16018,6 +17463,19 @@
             ],
             "description": "Date recall was announced",
             "title": "Date Announced"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link to the recall notice online",
+            "title": "External Url"
           },
           "is_resolved": {
             "default": false,
@@ -16154,6 +17612,30 @@
             "description": "Date recall was announced",
             "title": "Date Announced"
           },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The provider's own identifier",
+            "title": "External Id"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link to the recall notice online",
+            "title": "External Url"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -16161,6 +17643,18 @@
           "is_resolved": {
             "title": "Is Resolved",
             "type": "boolean"
+          },
+          "match_confidence": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "0 to 100: how surely the notice concerns this vehicle",
+            "title": "Match Confidence"
           },
           "nhtsa_campaign_number": {
             "anyOf": [
@@ -16209,6 +17703,23 @@
               }
             ],
             "title": "Resolved At"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nhtsa",
+                  "rappelconso",
+                  "manual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "nhtsa, rappelconso or manual",
+            "title": "Source"
           },
           "summary": {
             "description": "Summary of the recall issue",
@@ -16272,6 +17783,19 @@
             ],
             "description": "Date recall was announced",
             "title": "Date Announced"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link to the recall notice online",
+            "title": "External Url"
           },
           "is_resolved": {
             "anyOf": [
@@ -16425,6 +17949,207 @@
           }
         },
         "title": "RecurrenceSpec",
+        "type": "object"
+      },
+      "RegistrationCertificateRules": {
+        "additionalProperties": false,
+        "properties": {
+          "energy_codes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Energy Codes",
+            "type": "object"
+          },
+          "markers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Markers",
+            "type": "array"
+          },
+          "national_categories": {
+            "items": {
+              "type": "string"
+            },
+            "title": "National Categories",
+            "type": "array"
+          },
+          "plate_patterns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Plate Patterns",
+            "type": "array"
+          }
+        },
+        "title": "RegistrationCertificateRules",
+        "type": "object"
+      },
+      "RegistrationImportResponse": {
+        "description": "A certificate stored on a vehicle and applied to it.",
+        "properties": {
+          "applied": {
+            "description": "The vehicle fields written",
+            "items": {
+              "type": "string"
+            },
+            "title": "Applied",
+            "type": "array"
+          },
+          "document": {
+            "$ref": "#/components/schemas/DocumentResponse"
+          },
+          "inspection_due_recorded": {
+            "description": "Whether field X.1 became the vehicle's inspection deadline, which the inspection reminder is due no later than while no inspection is on record",
+            "title": "Inspection Due Recorded",
+            "type": "boolean"
+          },
+          "parse": {
+            "$ref": "#/components/schemas/RegistrationParseResponse"
+          },
+          "skipped": {
+            "description": "The vehicle fields left alone (already set, and overwrite was off)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "taxes_created": {
+            "description": "The certificate codes (Y.1, Y.3, Y.6) whose suggested tax record was created",
+            "items": {
+              "type": "string"
+            },
+            "title": "Taxes Created",
+            "type": "array"
+          }
+        },
+        "required": [
+          "document",
+          "applied",
+          "skipped",
+          "inspection_due_recorded",
+          "parse"
+        ],
+        "title": "RegistrationImportResponse",
+        "type": "object"
+      },
+      "RegistrationParseResponse": {
+        "description": "A certificate read, before anything is applied.",
+        "properties": {
+          "confidence": {
+            "description": "0 to 100, from the fields found",
+            "title": "Confidence",
+            "type": "number"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The issuing country, when recognised",
+            "title": "Country"
+          },
+          "field_confidence": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "high, medium or low per field that was read",
+            "title": "Field Confidence",
+            "type": "object"
+          },
+          "fields": {
+            "additionalProperties": true,
+            "description": "Every harmonised field read, by name",
+            "title": "Fields",
+            "type": "object"
+          },
+          "inspection_due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Field X.1, the date the next periodic inspection is due by (a deadline)",
+            "title": "Inspection Due Date"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The vision model that read it, on the llm path",
+            "title": "Model"
+          },
+          "pages": {
+            "default": 0,
+            "description": "How many images were sent, on the llm path",
+            "title": "Pages",
+            "type": "integer"
+          },
+          "parse_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On the parse route: present it with the same file to the vehicle import within 30 minutes and the server reuses this read instead of reading again",
+            "title": "Parse Token"
+          },
+          "source": {
+            "description": "text: the PDF's own text layer; llm: images read by the vision model",
+            "enum": [
+              "text",
+              "llm"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "suggested_tax_records": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestedTaxRecord"
+            },
+            "title": "Suggested Tax Records",
+            "type": "array"
+          },
+          "vehicle_patch": {
+            "additionalProperties": true,
+            "description": "The vehicle fields the certificate fills, already validated",
+            "title": "Vehicle Patch",
+            "type": "object"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "source",
+          "confidence",
+          "fields",
+          "field_confidence",
+          "vehicle_patch"
+        ],
+        "title": "RegistrationParseResponse",
         "type": "object"
       },
       "ReminderCompleteRequest": {
@@ -17523,7 +19248,13 @@
                 "UTV",
                 "Snowmobile",
                 "Bicycle",
-                "EBike"
+                "EBike",
+                "Tractor",
+                "Mower",
+                "Generator",
+                "SmallEngine",
+                "Attachment",
+                "Equipment"
               ],
               "type": "string"
             },
@@ -20439,6 +22170,119 @@
         "title": "SpotRentalUpdate",
         "type": "object"
       },
+      "StationPricesResponse": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "distance_km": {
+            "title": "Distance Km",
+            "type": "number"
+          },
+          "external_id": {
+            "title": "External Id",
+            "type": "string"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "postal_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postal Code"
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/FuelPriceResponse"
+            },
+            "title": "Prices",
+            "type": "array"
+          }
+        },
+        "required": [
+          "external_id",
+          "latitude",
+          "longitude",
+          "distance_km"
+        ],
+        "title": "StationPricesResponse",
+        "type": "object"
+      },
+      "SuggestedTaxRecord": {
+        "description": "A tax amount printed on the certificate (Y.1, Y.3, Y.6), offered as a\ntax record the person may create; nothing is created unasked.",
+        "properties": {
+          "amount": {
+            "description": "The amount as printed",
+            "title": "Amount",
+            "type": "string"
+          },
+          "code": {
+            "description": "The certificate field the amount comes from (Y.1, Y.3, Y.6)",
+            "title": "Code",
+            "type": "string"
+          },
+          "date": {
+            "description": "The date of first registration (field B)",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "tax_type": {
+            "description": "The tax type code the amount maps to",
+            "title": "Tax Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "tax_type",
+          "amount",
+          "date"
+        ],
+        "title": "SuggestedTaxRecord",
+        "type": "object"
+      },
       "SupplyAdjustmentCreate": {
         "description": "A standalone stock-out (not tied to a service line item).",
         "properties": {
@@ -21419,7 +23263,7 @@
             "date": "2025-01-15",
             "notes": "Annual vehicle registration renewal",
             "renewal_date": "2026-01-15",
-            "tax_type": "Registration",
+            "tax_type": "registration",
             "vin": "ML32A5HJ9KH009478"
           }
         ],
@@ -21472,10 +23316,19 @@
             "anyOf": [
               {
                 "enum": [
-                  "Registration",
-                  "Inspection",
-                  "Property Tax",
-                  "Tolls"
+                  "registration",
+                  "registration_tax",
+                  "co2_malus",
+                  "weight_malus",
+                  "circulation_tax",
+                  "company_vehicle_tax",
+                  "inspection",
+                  "property_tax",
+                  "tolls",
+                  "vignette",
+                  "lez_sticker",
+                  "parking_permit",
+                  "other"
                 ],
                 "type": "string"
               },
@@ -21483,7 +23336,7 @@
                 "type": "null"
               }
             ],
-            "description": "Type of tax/fee",
+            "description": "Type of tax/fee, as a code. The pre-146 display strings (Registration, Inspection, Property Tax, Tolls) are accepted as their codes.",
             "title": "Tax Type"
           },
           "vin": {
@@ -21512,7 +23365,7 @@
                 "id": 1,
                 "notes": "Annual vehicle registration renewal",
                 "renewal_date": "2026-01-15",
-                "tax_type": "Registration",
+                "tax_type": "registration",
                 "vin": "ML32A5HJ9KH009478"
               }
             ],
@@ -21549,7 +23402,7 @@
             "id": 1,
             "notes": "Annual vehicle registration renewal",
             "renewal_date": "2026-01-15",
-            "tax_type": "Registration",
+            "tax_type": "registration",
             "vin": "ML32A5HJ9KH009478"
           }
         ],
@@ -21602,10 +23455,19 @@
             "anyOf": [
               {
                 "enum": [
-                  "Registration",
-                  "Inspection",
-                  "Property Tax",
-                  "Tolls"
+                  "registration",
+                  "registration_tax",
+                  "co2_malus",
+                  "weight_malus",
+                  "circulation_tax",
+                  "company_vehicle_tax",
+                  "inspection",
+                  "property_tax",
+                  "tolls",
+                  "vignette",
+                  "lez_sticker",
+                  "parking_permit",
+                  "other"
                 ],
                 "type": "string"
               },
@@ -21613,7 +23475,7 @@
                 "type": "null"
               }
             ],
-            "description": "Type of tax/fee",
+            "description": "Type of tax/fee, as a code. The pre-146 display strings (Registration, Inspection, Property Tax, Tolls) are accepted as their codes.",
             "title": "Tax Type"
           },
           "vin": {
@@ -21689,10 +23551,19 @@
             "anyOf": [
               {
                 "enum": [
-                  "Registration",
-                  "Inspection",
-                  "Property Tax",
-                  "Tolls"
+                  "registration",
+                  "registration_tax",
+                  "co2_malus",
+                  "weight_malus",
+                  "circulation_tax",
+                  "company_vehicle_tax",
+                  "inspection",
+                  "property_tax",
+                  "tolls",
+                  "vignette",
+                  "lez_sticker",
+                  "parking_permit",
+                  "other"
                 ],
                 "type": "string"
               },
@@ -21704,6 +23575,27 @@
           }
         },
         "title": "TaxRecordUpdate",
+        "type": "object"
+      },
+      "TaxRules": {
+        "additionalProperties": false,
+        "properties": {
+          "names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Names",
+            "type": "object"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "title": "TaxRules",
         "type": "object"
       },
       "TelegramFuelStatus": {
@@ -23797,6 +25689,20 @@
         "title": "TokenInfoResponse",
         "type": "object"
       },
+      "TollRules": {
+        "additionalProperties": false,
+        "properties": {
+          "systems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Systems",
+            "type": "array"
+          }
+        },
+        "title": "TollRules",
+        "type": "object"
+      },
       "TollTagCreate": {
         "description": "Schema for creating a new toll tag.",
         "examples": [
@@ -25720,6 +27626,17 @@
             "title": "Auth Method",
             "type": "string"
           },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -25780,6 +27697,11 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "inspection_auto_schedule": {
+            "default": true,
+            "title": "Inspection Auto Schedule",
+            "type": "boolean"
           },
           "is_active": {
             "title": "Is Active",
@@ -26106,6 +28028,18 @@
             ],
             "title": "Accent Color"
           },
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
           "currency_code": {
             "anyOf": [
               {
@@ -26178,6 +28112,17 @@
               }
             ],
             "title": "Full Name"
+          },
+          "inspection_auto_schedule": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inspection Auto Schedule"
           },
           "language": {
             "anyOf": [
@@ -26301,6 +28246,24 @@
             "description": "Body class/style",
             "title": "Body Class"
           },
+          "decode_quality": {
+            "anyOf": [
+              {
+                "enum": [
+                  "full",
+                  "partial",
+                  "wmi_only",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How much NHTSA itself decoded, before the WMI table fills anything. full: make and model; partial: make only; wmi_only: NHTSA named no make and the VIN's first three characters did; none: nothing",
+            "title": "Decode Quality"
+          },
           "doors": {
             "anyOf": [
               {
@@ -26396,6 +28359,22 @@
             "description": "Vehicle make (manufacturer brand)",
             "title": "Make"
           },
+          "make_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nhtsa",
+                  "wmi"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where `make` came from: NHTSA's answer or the bundled WMI table",
+            "title": "Make Source"
+          },
           "manufacturer": {
             "anyOf": [
               {
@@ -26420,6 +28399,14 @@
             "description": "Vehicle model",
             "title": "Model"
           },
+          "notes": {
+            "description": "Why the answer is partial: eu_vin_no_model, year_unreliable, check_digit_not_applicable",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
           "plant_city": {
             "anyOf": [
               {
@@ -26443,6 +28430,18 @@
             ],
             "description": "Manufacturing plant country",
             "title": "Plant Country"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Region of the first character (ISO 3780): AF, AS, EU, NA, OC, SA",
+            "title": "Region"
           },
           "series": {
             "anyOf": [
@@ -26507,6 +28506,18 @@
             "description": "The decoded VIN",
             "title": "Vin",
             "type": "string"
+          },
+          "wmi_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Country of manufacture from the WMI (ISO 3166-1 alpha-2)",
+            "title": "Wmi Country"
           },
           "year": {
             "anyOf": [
@@ -26706,7 +28717,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -26920,6 +28937,20 @@
             "description": "Brake fluid type (e.g. DOT 4)",
             "title": "Brake Fluid Type"
           },
+          "co2_g_km": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CO\u2082 emissions in g/km, field V.7",
+            "title": "Co2 G Km"
+          },
           "color": {
             "anyOf": [
               {
@@ -27045,6 +29076,59 @@
             "description": "Drive type (FWD, RWD, AWD, etc.)",
             "title": "Drive Type"
           },
+          "eu_category": {
+            "anyOf": [
+              {
+                "maxLength": 5,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EU vehicle category, field J (M1, N1, L3e)",
+            "title": "Eu Category"
+          },
+          "euro_emission_class": {
+            "anyOf": [
+              {
+                "maxLength": 12,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)",
+            "title": "Euro Emission Class"
+          },
+          "first_registration_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date of first registration (field B of an EU registration certificate)",
+            "title": "First Registration Date"
+          },
+          "fiscal_power": {
+            "anyOf": [
+              {
+                "maximum": 200.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "National fiscal power, field P.6 (French CV)",
+            "title": "Fiscal Power"
+          },
           "fuel_filter_part_number": {
             "anyOf": [
               {
@@ -27096,6 +29180,46 @@
             ],
             "description": "GVWR class",
             "title": "Gvwr Class"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The serial / HIN / chassis number / asset tag (not used for 'vin' or 'none')",
+            "title": "Identifier"
+          },
+          "identifier_type": {
+            "default": "vin",
+            "description": "What identifies this vehicle: its VIN, or for equipment and vehicles without one a serial number, HIN, chassis number, asset tag, or none (#226)",
+            "enum": [
+              "vin",
+              "serial",
+              "hin",
+              "chassis",
+              "asset_tag",
+              "none"
+            ],
+            "title": "Identifier Type",
+            "type": "string"
+          },
+          "lez_class": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); overrides the class computed from the fuel and the Euro class",
+            "title": "Lez Class"
           },
           "license_plate": {
             "anyOf": [
@@ -27166,6 +29290,19 @@
             "description": "Model name",
             "title": "Model"
           },
+          "national_category": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "National vehicle kind, field J.1 (VP, CTTE, MTL)",
+            "title": "National Category"
+          },
           "nickname": {
             "description": "User-friendly display name",
             "maxLength": 100,
@@ -27216,6 +29353,20 @@
             "description": "Engine oil viscosity grade (e.g. 5W-30)",
             "title": "Oil Viscosity"
           },
+          "power_kw": {
+            "anyOf": [
+              {
+                "maximum": 2000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Maximum net power in kW, field P.2",
+            "title": "Power Kw"
+          },
           "purchase_date": {
             "anyOf": [
               {
@@ -27245,6 +29396,20 @@
             ],
             "description": "Purchase price",
             "title": "Purchase Price"
+          },
+          "registration_country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs from the owner's; drives inspection cadence, fuel pump names and tax types",
+            "title": "Registration Country"
           },
           "secondary_usage_enabled": {
             "default": false,
@@ -27362,17 +29527,30 @@
               "UTV",
               "Snowmobile",
               "Bicycle",
-              "EBike"
+              "EBike",
+              "Tractor",
+              "Mower",
+              "Generator",
+              "SmallEngine",
+              "Attachment",
+              "Equipment"
             ],
             "title": "Vehicle Type",
             "type": "string"
           },
           "vin": {
-            "description": "17-character Vehicle Identification Number",
-            "maxLength": 17,
-            "minLength": 17,
-            "title": "Vin",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "minLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "17-character Vehicle Identification Number. Required when identifier_type is 'vin'; omitted otherwise (the server generates the vehicle's key).",
+            "title": "Vin"
           },
           "year": {
             "anyOf": [
@@ -27391,8 +29569,7 @@
         },
         "required": [
           "nickname",
-          "vehicle_type",
-          "vin"
+          "vehicle_type"
         ],
         "title": "VehicleCreate",
         "type": "object"
@@ -28135,6 +30312,18 @@
             "description": "Brake fluid type (e.g. DOT 4)",
             "title": "Brake Fluid Type"
           },
+          "co2_g_km": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CO\u2082 emissions in g/km, field V.7",
+            "title": "Co2 G Km"
+          },
           "color": {
             "anyOf": [
               {
@@ -28285,6 +30474,30 @@
             ],
             "title": "Environmental Rating Smog"
           },
+          "eu_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EU vehicle category, field J (M1, N1, L3e)",
+            "title": "Eu Category"
+          },
+          "euro_emission_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)",
+            "title": "Euro Emission Class"
+          },
           "exterior_color": {
             "anyOf": [
               {
@@ -28295,6 +30508,31 @@
               }
             ],
             "title": "Exterior Color"
+          },
+          "first_registration_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date of first registration (field B of an EU registration certificate)",
+            "title": "First Registration Date"
+          },
+          "fiscal_power": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "National fiscal power, field P.6 (French CV)",
+            "title": "Fiscal Power"
           },
           "fuel_economy_city_l_per_100km": {
             "anyOf": [
@@ -28377,6 +30615,45 @@
             "description": "GVWR class",
             "title": "Gvwr Class"
           },
+          "has_vin": {
+            "description": "Whether `vin` is a real VIN (decode, recalls and VIN display apply).",
+            "readOnly": true,
+            "title": "Has Vin",
+            "type": "boolean"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Serial / HIN / chassis number / asset tag",
+            "title": "Identifier"
+          },
+          "identifier_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "vin",
+                  "serial",
+                  "hin",
+                  "chassis",
+                  "asset_tag",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "vin",
+            "description": "What identifies this vehicle",
+            "title": "Identifier Type"
+          },
           "interior_color": {
             "anyOf": [
               {
@@ -28387,6 +30664,18 @@
               }
             ],
             "title": "Interior Color"
+          },
+          "lez_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); overrides the class computed from the fuel and the Euro class",
+            "title": "Lez Class"
           },
           "license_plate": {
             "anyOf": [
@@ -28497,6 +30786,18 @@
             ],
             "title": "Msrp Total"
           },
+          "national_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "National vehicle kind, field J.1 (VP, CTTE, MTL)",
+            "title": "National Category"
+          },
           "nickname": {
             "description": "User-friendly display name",
             "title": "Nickname",
@@ -28550,6 +30851,18 @@
             ],
             "title": "Optional Equipment"
           },
+          "power_kw": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Maximum net power in kW, field P.2",
+            "title": "Power Kw"
+          },
           "purchase_date": {
             "anyOf": [
               {
@@ -28574,6 +30887,18 @@
             ],
             "description": "Purchase price",
             "title": "Purchase Price"
+          },
+          "registration_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs from the owner's; drives inspection cadence, fuel pump names and tax types",
+            "title": "Registration Country"
           },
           "secondary_usage_enabled": {
             "default": false,
@@ -28758,7 +31083,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -28770,6 +31101,7 @@
             "title": "Vehicle Type"
           },
           "vin": {
+            "description": "The vehicle's key. The VIN when identifier_type is 'vin'; otherwise a generated key that is not a VIN and must not be shown (#226).",
             "title": "Vin",
             "type": "string"
           },
@@ -28903,7 +31235,8 @@
           "nickname",
           "vehicle_type",
           "vin",
-          "created_at"
+          "created_at",
+          "has_vin"
         ],
         "title": "VehicleResponse",
         "type": "object"
@@ -29095,6 +31428,37 @@
             "title": "Due Soon Maintenance Count",
             "type": "integer"
           },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifier"
+          },
+          "identifier_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "vin",
+                  "serial",
+                  "hin",
+                  "chassis",
+                  "asset_tag",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "vin",
+            "title": "Identifier Type"
+          },
           "is_shared_with_me": {
             "default": false,
             "title": "Is Shared With Me",
@@ -29190,6 +31554,17 @@
               }
             ],
             "title": "Model"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nickname"
           },
           "overdue_maintenance_count": {
             "title": "Overdue Maintenance Count",
@@ -29365,7 +31740,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -29582,6 +31963,20 @@
             "description": "Brake fluid type (e.g. DOT 4)",
             "title": "Brake Fluid Type"
           },
+          "co2_g_km": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CO\u2082 emissions in g/km, field V.7",
+            "title": "Co2 G Km"
+          },
           "color": {
             "anyOf": [
               {
@@ -29724,6 +32119,32 @@
             "description": "Drive type (FWD, RWD, AWD, etc.)",
             "title": "Drive Type"
           },
+          "eu_category": {
+            "anyOf": [
+              {
+                "maxLength": 5,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "EU vehicle category, field J (M1, N1, L3e)",
+            "title": "Eu Category"
+          },
+          "euro_emission_class": {
+            "anyOf": [
+              {
+                "maxLength": 12,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)",
+            "title": "Euro Emission Class"
+          },
           "exterior_color": {
             "anyOf": [
               {
@@ -29736,6 +32157,33 @@
             ],
             "description": "Exterior color",
             "title": "Exterior Color"
+          },
+          "first_registration_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date of first registration (field B of an EU registration certificate)",
+            "title": "First Registration Date"
+          },
+          "fiscal_power": {
+            "anyOf": [
+              {
+                "maximum": 200.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "National fiscal power, field P.6 (French CV)",
+            "title": "Fiscal Power"
           },
           "fuel_filter_part_number": {
             "anyOf": [
@@ -29789,6 +32237,39 @@
             "description": "GVWR class",
             "title": "Gvwr Class"
           },
+          "identifier": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Serial / HIN / chassis number / asset tag",
+            "title": "Identifier"
+          },
+          "identifier_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "vin",
+                  "serial",
+                  "hin",
+                  "chassis",
+                  "asset_tag",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "vin, serial, hin, chassis, asset_tag or none (omit to leave unchanged)",
+            "title": "Identifier Type"
+          },
           "interior_color": {
             "anyOf": [
               {
@@ -29801,6 +32282,19 @@
             ],
             "description": "Interior color",
             "title": "Interior Color"
+          },
+          "lez_class": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); overrides the class computed from the fuel and the Euro class",
+            "title": "Lez Class"
           },
           "license_plate": {
             "anyOf": [
@@ -29922,6 +32416,19 @@
             "description": "MSRP total",
             "title": "Msrp Total"
           },
+          "national_category": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "National vehicle kind, field J.1 (VP, CTTE, MTL)",
+            "title": "National Category"
+          },
           "nickname": {
             "anyOf": [
               {
@@ -29992,6 +32499,20 @@
             "description": "Optional equipment (category -> list of items)",
             "title": "Optional Equipment"
           },
+          "power_kw": {
+            "anyOf": [
+              {
+                "maximum": 2000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Maximum net power in kW, field P.2",
+            "title": "Power Kw"
+          },
           "purchase_date": {
             "anyOf": [
               {
@@ -30021,6 +32542,20 @@
             ],
             "description": "Purchase price",
             "title": "Purchase Price"
+          },
+          "registration_country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs from the owner's; drives inspection cadence, fuel pump names and tax types",
+            "title": "Registration Country"
           },
           "secondary_usage_enabled": {
             "anyOf": [
@@ -30216,7 +32751,13 @@
                   "UTV",
                   "Snowmobile",
                   "Bicycle",
-                  "EBike"
+                  "EBike",
+                  "Tractor",
+                  "Mower",
+                  "Generator",
+                  "SmallEngine",
+                  "Attachment",
+                  "Equipment"
                 ],
                 "type": "string"
               },
@@ -31077,14 +33618,32 @@
             "title": "Reminder Id",
             "type": "integer"
           },
+          "vehicle": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle"
+          },
           "vin": {
-            "maxLength": 17,
-            "title": "Vin",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
           }
         },
         "required": [
-          "vin",
           "reminder_id"
         ],
         "title": "WebhookCompleteReminderPayload",
@@ -31172,6 +33731,18 @@
               }
             ],
             "title": "Diesel Grade"
+          },
+          "fuel_grade": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Grade"
           },
           "fuel_type_used": {
             "anyOf": [
@@ -31320,15 +33891,31 @@
             ],
             "title": "Soc Start Pct"
           },
+          "vehicle": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle"
+          },
           "vin": {
-            "maxLength": 17,
-            "title": "Vin",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
           }
         },
-        "required": [
-          "vin"
-        ],
         "title": "WebhookFuelPayload",
         "type": "object"
       },
@@ -31368,14 +33955,32 @@
             ],
             "title": "Odometer Km"
           },
+          "vehicle": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle"
+          },
           "vin": {
-            "maxLength": 17,
-            "title": "Vin",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
           }
         },
         "required": [
-          "vin",
           "odometer_km"
         ],
         "title": "WebhookOdometerPayload",
@@ -33298,6 +35903,96 @@
         "summary": "Update Entry",
         "tags": [
           "address-book"
+        ]
+      }
+    },
+    "/api/address-book/{entry_id}/fuel-prices": {
+      "get": {
+        "description": "The prices at (and right around) a saved station. 404 for an entry\nthe garage does not have; 422 for one without coordinates.",
+        "operationId": "address_book_fuel_prices_api_address_book__entry_id__fuel_prices_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "title": "Entry Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 2.0,
+              "exclusiveMinimum": 0,
+              "maximum": 25,
+              "title": "Radius Km",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FuelPricesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Address Book Fuel Prices",
+        "tags": [
+          "Fuel prices"
         ]
       }
     },
@@ -35700,6 +38395,86 @@
         ]
       }
     },
+    "/api/country-profiles": {
+      "get": {
+        "description": "Every shipped profile, the ``EU`` baseline included.",
+        "operationId": "list_country_profiles_api_country_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CountryProfileSummary"
+                  },
+                  "title": "Response List Country Profiles Api Country Profiles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Country Profiles",
+        "tags": [
+          "country-profiles"
+        ]
+      }
+    },
+    "/api/country-profiles/{country}": {
+      "get": {
+        "description": "The profile a country code resolves to.\n\nA member state without a file of its own answers with the ``EU`` baseline\n(its ``country`` field says ``EU``); a code with no profile is a 404.",
+        "operationId": "get_country_profile_api_country_profiles__country__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z]{2}$",
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Country Profile",
+        "tags": [
+          "country-profiles"
+        ]
+      }
+    },
     "/api/dashboard": {
       "get": {
         "description": "Get complete dashboard with statistics for all vehicles.\n\nFor authenticated users: Shows owned vehicles + shared vehicles.\nFor none-mode (auth disabled): Shows all active vehicles (legacy behavior).\nA no-token request in local/oidc now 401s at the dependency rather than\nfalling through to the all-vehicles branch (fail-open closed, R1-H1 class).\nShows active vehicles + archived vehicles where archived_visible=True.",
@@ -36969,6 +39744,109 @@
         ]
       }
     },
+    "/api/fuel-prices/nearby": {
+      "get": {
+        "description": "The stations near a point, nearest first, with their pump prices.",
+        "operationId": "fuel_prices_nearby_api_fuel_prices_nearby_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 2.0,
+              "exclusiveMinimum": 0,
+              "maximum": 25,
+              "title": "Radius Km",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FuelPricesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Fuel Prices Nearby",
+        "tags": [
+          "Fuel prices"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "description": "API health check endpoint with authenticator detection.",
@@ -37772,7 +40650,7 @@
     },
     "/api/insurance/parse-pdf": {
       "post": {
-        "description": "Read a declarations page and return what it says, persisting nothing.\n\n`vehicles` lists every VIN on the document with its own premium and\ndeductible where the parser finds a per-vehicle section. `matched` marks\nthe ones the caller has WRITE access to, which is what attaching one takes.",
+        "description": "Read a policy document and return what it says, persisting nothing.\n\nA PDF with a text layer is read on the server (the North American\nparsers, the French one, the generic fallback); a photo or a scan goes\nto the vision model when document reading is on, else 409\n`ai_reading_not_configured` (#211). `source` says which. A vision model\noutside the household's network answers 409 `vision_consent_required`\nfirst, until the request carries `allow_external_vision=true`.\n\n`vehicles` lists every VIN on the document with its own premium and\ndeductible where the parser finds a per-vehicle section, and every\nregistration plate when the document names no VIN (`matched_by` is\n`vin` or `plate`). `matched` marks the ones the caller has WRITE access\nto, which is what attaching one takes.",
         "operationId": "parse_insurance_pdf_api_insurance_parse_pdf_post",
         "parameters": [
           {
@@ -37791,6 +40669,18 @@
               ],
               "description": "Optional provider hint (progressive, statefarm, geico, allstate)",
               "title": "Provider"
+            }
+          },
+          {
+            "description": "Consent to send the document to a vision model outside the network",
+            "in": "query",
+            "name": "allow_external_vision",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Consent to send the document to a vision model outside the network",
+              "title": "Allow External Vision",
+              "type": "boolean"
             }
           }
         ],
@@ -40896,6 +43786,86 @@
         ]
       }
     },
+    "/api/registration-certificate/parse": {
+      "post": {
+        "description": "Read a certificate and return what it would fill. Writes nothing.\n\nThe read is kept for 30 minutes under ``parse_token``, so the import that\nfiles the certificate on the new vehicle does not read it a second time.",
+        "operationId": "parse_registration_certificate_api_registration_certificate_parse_post",
+        "parameters": [
+          {
+            "description": "A hint for the plate format and the energy codes; the document wins",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A hint for the plate format and the energy codes; the document wins",
+              "title": "Country"
+            }
+          },
+          {
+            "description": "Consent to send the document to a vision model outside the network",
+            "in": "query",
+            "name": "allow_external_vision",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Consent to send the document to a vision model outside the network",
+              "title": "Allow External Vision",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_parse_registration_certificate_api_registration_certificate_parse_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationParseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Parse Registration Certificate",
+        "tags": [
+          "registration-certificate"
+        ]
+      }
+    },
     "/api/reminder-packs": {
       "get": {
         "description": "List the reminder packs available to apply to a vehicle.\n\nBuilt-in and saved packs in one list. A saved pack is marked `is_custom`, and\n`can_edit` says whether this caller may change it.",
@@ -41739,6 +44709,33 @@
           }
         ],
         "summary": "Get System Info",
+        "tags": [
+          "Settings"
+        ]
+      }
+    },
+    "/api/settings/test/llm": {
+      "post": {
+        "description": "Exercise the saved LLM settings once (admin only).\n\nSends a one-word text completion to ``llm_base_url`` with ``llm_model``\nand, when document reading is enabled, a 64\u00d764 image to the vision model,\nso an operator sees \"text OK / vision OK\" (or the endpoint's own error)\nbefore uploading a real document. Reads the stored settings: the card\nsaves first, then tests. Writes nothing.",
+        "operationId": "test_llm_endpoint_api_settings_test_llm_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Test Llm Endpoint",
         "tags": [
           "Settings"
         ]
@@ -44266,6 +47263,54 @@
         "summary": "Update Brake Measurement",
         "tags": [
           "brakes"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/compliance": {
+      "get": {
+        "description": "The low-emission-zone class, the next periodic inspection and the Euro\nclass of the vehicle under its country's rules. Read-only; indicative.",
+        "operationId": "get_vehicle_compliance_api_vehicles__vin__compliance_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Vehicle Compliance",
+        "tags": [
+          "compliance"
         ]
       }
     },
@@ -48625,6 +51670,54 @@
         ]
       }
     },
+    "/api/vehicles/{vin}/recalls/check": {
+      "post": {
+        "description": "Check every recall source that covers the vehicle's country (#211):\nNHTSA where no country profile says otherwise, RappelConso in France.\nStores what is new; names the sources asked and the ones that failed.",
+        "operationId": "check_recalls_api_vehicles__vin__recalls_check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecallCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Check Recalls",
+        "tags": [
+          "Recalls"
+        ]
+      }
+    },
     "/api/vehicles/{vin}/recalls/check-nhtsa": {
       "post": {
         "description": "Fetch recalls from NHTSA API and store new ones in database.",
@@ -48840,6 +51933,88 @@
         "summary": "Update Recall",
         "tags": [
           "Recalls"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/registration-certificate": {
+      "post": {
+        "description": "Store the certificate as a document, fill the vehicle, keep X.1 as the\nvehicle's inspection deadline, and create the suggested tax records named\nin ``tax_codes``.\n\nOwner only: it writes the vehicle row. The file is kept under the\nvehicle's documents whatever the read found, so a certificate a model\ncould not read is still filed. With a ``parse_token`` from this user's\nparse of this same file, that read is reused; otherwise (expired, another\nfile) the file is read again, consent included.",
+        "operationId": "import_registration_certificate_api_vehicles__vin__registration_certificate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Replace values already set on the vehicle (never the VIN)",
+            "in": "query",
+            "name": "overwrite",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Replace values already set on the vehicle (never the VIN)",
+              "title": "Overwrite",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Consent to send the document to a vision model outside the network",
+            "in": "query",
+            "name": "allow_external_vision",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Consent to send the document to a vision model outside the network",
+              "title": "Allow External Vision",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_registration_certificate_api_vehicles__vin__registration_certificate_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationImportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Registration Certificate",
+        "tags": [
+          "registration-certificate"
         ]
       }
     },

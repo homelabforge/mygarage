@@ -49,7 +49,14 @@ class Vehicle(Base):
 
     __tablename__ = "vehicles"
 
+    # The vehicle's key. The VIN for a vehicle that has one; for equipment and
+    # vehicles without one, a generated "Q" key (never a VIN, never shown).
+    # identifier_type says which (#226, migration 150); see app/utils/vehicle_key.py.
     vin: Mapped[str] = mapped_column(String(17), primary_key=True)
+    identifier_type: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="vin", server_default="vin"
+    )
+    identifier: Mapped[str | None] = mapped_column(String(64))
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
     vehicle_type: Mapped[str] = mapped_column(String(20), nullable=False)
     # Usage tracking dimension: 'distance' (odometer, km-canonical) or 'hours'
@@ -69,6 +76,29 @@ class Vehicle(Base):
     make: Mapped[str | None] = mapped_column(String(50))
     model: Mapped[str | None] = mapped_column(String(50))
     license_plate: Mapped[str | None] = mapped_column(String(20))
+    # Where the vehicle is registered when that differs from the owner's
+    # country (ISO 3166-1 alpha-2, validated by Pydantic), and field B of its
+    # EU registration certificate, which inspection cadences count from
+    # (migration 143, #211). NULL = not set.
+    registration_country: Mapped[str | None] = mapped_column(String(2))
+    first_registration_date: Mapped[date | None] = mapped_column(Date)
+    # Field X.1 of the certificate: the date the next periodic inspection is
+    # due by (« visite avant le »), never a passed one. The inspection engine
+    # holds its reminder to it while no inspection is on record (migration
+    # 152, #211).
+    inspection_due_date: Mapped[date | None] = mapped_column(Date)
+    # The other EU registration-certificate fields (migration 147, #211):
+    # V.9 Euro class, P.6 fiscal power, V.7 CO₂ g/km, P.2 power kW, J EU
+    # category (M1, N1, L3e), J.1 national kind (VP, CTTE), and the
+    # low-emission-zone class a person sets by hand when the computed one
+    # is wrong. Bounds and vocabularies are Pydantic's, not a CHECK.
+    euro_emission_class: Mapped[str | None] = mapped_column(String(12))
+    fiscal_power: Mapped[int | None] = mapped_column(Integer)
+    co2_g_km: Mapped[int | None] = mapped_column(Integer)
+    power_kw: Mapped[int | None] = mapped_column(Integer)
+    eu_category: Mapped[str | None] = mapped_column(String(5))
+    national_category: Mapped[str | None] = mapped_column(String(10))
+    lez_class: Mapped[str | None] = mapped_column(String(10))
     color: Mapped[str | None] = mapped_column(String(30))
     purchase_date: Mapped[date | None] = mapped_column(Date)
     purchase_price: Mapped[Decimal | None] = mapped_column(ScaledNumeric(12, 2))

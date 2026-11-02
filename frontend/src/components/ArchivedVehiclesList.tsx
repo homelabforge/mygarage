@@ -14,6 +14,7 @@ import api from '@/services/api'
 import { toast } from 'sonner'
 import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 import type { Vehicle, VehicleListResponse } from '@/types/vehicle'
+import { identifierValue, keyForFilename } from '../utils/vehicleIdentifier'
 
 export default function ArchivedVehiclesList() {
   const { t } = useTranslation('vehicles')
@@ -89,7 +90,7 @@ export default function ArchivedVehiclesList() {
     const downloadUrl = window.URL.createObjectURL(response.data)
     const a = document.createElement('a')
     a.href = downloadUrl
-    a.download = `${reportType}_${vin}_${Date.now()}.pdf`
+    a.download = `${reportType}_${keyForFilename(vin)}_${Date.now()}.pdf`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -229,7 +230,7 @@ export default function ArchivedVehiclesList() {
                   className="w-4 h-4 accent-(--accent-solid) bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">{t('archivedList.vin')}</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">{t('identifier.archivedColumn')}</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">{t('archivedList.vehicle')}</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">{t('archivedList.reason')}</th>
               <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">{t('archivedList.archived')}</th>
@@ -248,7 +249,7 @@ export default function ArchivedVehiclesList() {
                   />
                 </td>
                 <td className="px-4 py-3 text-sm text-garage-text-muted font-mono">
-                  {vehicle.vin.slice(-8)}
+                  {(identifierValue(vehicle) ?? '-').slice(-8)}
                 </td>
                 <td className="px-4 py-3">
                   <div className="text-sm font-medium text-garage-text">{vehicle.nickname}</div>

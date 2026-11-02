@@ -525,10 +525,23 @@
     "usageDistance": "Distance (odometer)",
     "usageHours": "Hours (hour meter)",
     "currentHours": "Current Hours",
-    "year": "Year"
+    "year": "Year",
+    "registrationCountry": "Registration country",
+    "registrationCountryNone": "Not set",
+    "registrationCountryHint": "Where the vehicle is registered. Drives its inspection cadence, fuel pump names and tax types.",
+    "firstRegistrationDate": "First registration date",
+    "firstRegistrationDateHint": "Field B on an EU registration certificate.",
+    "euroClass": "Euro emission class (V.9)",
+    "fiscalPower": "Fiscal power (P.6, CV)",
+    "co2": "CO₂ (V.7, g/km)",
+    "powerKw": "Power (P.2, kW)",
+    "euCategory": "EU category (J)",
+    "nationalCategory": "National category (J.1)",
+    "lezClass": "Low-emission zone class (set by hand)"
   },
   "fuelList": {
     "octane": "Octane",
+    "fuelGrade": "Label",
     "actions": "Actions",
     "addFillUp": "Add Fill-up",
     "addFirstFillUp": "Add First Fill-up",
@@ -1060,7 +1073,23 @@
     "nhtsaCheckAction": "check for recalls",
     "deleteAction": "delete the recall",
     "statusAction": "update the recall status",
-    "loadAction": "load safety recalls"
+    "loadAction": "load safety recalls",
+    "checkAll": "Check recalls",
+    "checkAllTitle": "Check every recall source that covers this vehicle's country",
+    "checkAllSuccess": "{{count}} new recall(s) found",
+    "checkAllNone": "No new recall",
+    "checkAllWarning": "A source could not be checked: {{warnings}}",
+    "noProviderForCountry": "No recall source covers this vehicle's country yet; add recalls by hand.",
+    "viewNotice": "View the recall notice",
+    "confidence": "Match {{percent}}%",
+    "matchedByModel": "Matched on the make, the model and the dates: the register has no VIN. Check the notice.",
+    "source": {
+      "nhtsa": "NHTSA",
+      "rappelconso": "RappelConso",
+      "manual": "Manual"
+    },
+    "noVinNote": "NHTSA looks recalls up by VIN, so it isn't asked about this vehicle. Sources that match on make and model still are.",
+    "noVinNoProvider": "No recall source covers a vehicle without a VIN in this country."
   },
   "reminderList": {
     "addReminder": "Add Reminder",
@@ -1131,7 +1160,13 @@
     "daysLeft_other": "{{count}} days left",
     "daysOverdue": "{{count}} days overdue",
     "daysOverdue_one": "{{count}} day overdue",
-    "daysOverdue_other": "{{count}} days overdue"
+    "daysOverdue_other": "{{count}} days overdue",
+    "automaticInspection": "Automatic",
+    "inspectionFromRegistration": "Scheduled from the first registration date, by the country's cadence. Log an inspection to count from the real date.",
+    "inspectionFromLast": "Counted from the last inspection you logged, by the country's cadence.",
+    "inspectionRetest": "The last inspection failed: a re-test is due within the country's retest window.",
+    "inspectionWindowOpen": "Can be done from {{date}}",
+    "inspectionNeedsDate": "Add the vehicle's first registration date to schedule its {{name}} automatically."
   },
   "serviceList": {
     "attachments": "Attachments",
@@ -1362,7 +1397,13 @@
     "UTV": "UTV / SxS",
     "Snowmobile": "Snowmobile",
     "Bicycle": "Bicycle",
-    "EBike": "E-Bike"
+    "EBike": "E-Bike",
+    "Tractor": "Tractor",
+    "Mower": "Mower",
+    "Generator": "Generator",
+    "SmallEngine": "Small Engine",
+    "Attachment": "Attachment",
+    "Equipment": "Equipment"
   },
   "vendorSearch": {
     "noResults": "No vendors found",
@@ -1404,7 +1445,17 @@
     "fieldYear": "Year:",
     "invalidFormat": "Invalid VIN format",
     "mustBe17Characters": "VIN must be 17 characters",
-    "validateFailed": "Failed to validate VIN"
+    "validateFailed": "Failed to validate VIN",
+    "euPartial": "European VIN: the maker is {{make}}, but the VIN does not carry the model or the year. Type them, or import the registration certificate.",
+    "partialDecode": "Partial decode: the maker is {{make}}. Type the model and the year.",
+    "nothingDecoded": "This VIN could not be decoded. Type the vehicle's details, or import the registration certificate.",
+    "importCertificate": "Import the registration certificate",
+    "fieldWmiCountry": "Built in:",
+    "notes": {
+      "eu_vin_no_model": "European VINs do not encode the model.",
+      "year_unreliable": "Position 10 is not a model year for this maker; the year was left blank.",
+      "check_digit_not_applicable": "The check digit is a North American rule and does not apply to this VIN."
+    }
   },
   "tireList": {
     "add": "Add Tire",
@@ -1901,7 +1952,9 @@
       "creating": "Creating...",
       "createVehicle": "Create Vehicle",
       "createFailed": "Failed to create vehicle",
-      "createAction": "create the vehicle"
+      "createAction": "create the vehicle",
+      "stepIdentifyTitle": "Identify",
+      "stepNoVinDesc": "Enter its identifier"
     }
   },
   "serviceVisitAttachments": {
@@ -1958,7 +2011,14 @@
     "readBy": "{{parser}} parser, {{score}}% confidence",
     "vehiclesOnPolicy": "Vehicles on this document",
     "vehicleMatched": "Will be added",
-    "vehicleNotInGarage": "Not in your garage"
+    "vehicleNotInGarage": "Not in your garage",
+    "dragDropAny": "Drag and drop your insurance PDF or photo here",
+    "errorInvalidTypeAny": "Please upload a PDF, JPEG, PNG or HEIC file",
+    "aiNotConfigured": "Reading a photo needs AI document reading (Settings → Integrations). Upload a PDF, or type the values by hand.",
+    "readByAi": "Read by the vision model",
+    "readFromPdf": "Read from the PDF text",
+    "vehicleMatchedByPlate": "Will be added (matched by plate)",
+    "confidenceRejected": "Rejected"
   },
   "odometerRecordList": {
     "autoTrackedByLiveLink": "Auto-tracked by LiveLink",
@@ -2046,7 +2106,8 @@
     "premiumAmount": "Premium Amount",
     "premiumFrequency": "Premium Frequency",
     "deductible": "Deductible",
-    "notes": "Notes"
+    "notes": "Notes",
+    "noClaimsClass": "No-claims class"
   },
   "maintenanceTypeSelect": {
     "auto": "Detect from the description"
@@ -2171,7 +2232,8 @@
     "premiumChange": "{{amount}} {{percent}} vs the prior term",
     "showHistory": "Show past policies",
     "hideHistory": "Hide past policies",
-    "addToExisting": "Add to existing policy"
+    "addToExisting": "Add to existing policy",
+    "noClaimsClass": "No-claims class"
   },
   "savePack": {
     "title": "Save as pack",
@@ -2202,5 +2264,147 @@
     "deleteConfirm": "Delete the pack “{{name}}”? Reminders already created from it are not affected.",
     "deleted": "Pack deleted",
     "overwrite": "Save over"
+  },
+  "reminderPacks": {
+    "oil_and_filter": {
+      "name": "Oil & Filter Service",
+      "description": "DIY engine oil and oil filter change — typically every 8,000 km or 6 months."
+    },
+    "tire_rotation": {
+      "name": "Tire Rotation",
+      "description": "Rotate tires every 10,000 km or 6 months to even out wear."
+    },
+    "atv_utv_service": {
+      "name": "ATV / UTV Hours Service",
+      "description": "Engine oil and air filter intervals for hour-metered ATVs and side-by-sides."
+    },
+    "boat_winterization": {
+      "name": "Boat Winterization",
+      "description": "Starter checklist for seasonal boat winterization and spring recommission."
+    },
+    "snowmobile_season": {
+      "name": "Snowmobile Season Prep",
+      "description": "Pre-season and mid-season checks for snowmobiles."
+    }
+  },
+  "compliance": {
+    "title": "Compliance",
+    "lez": "Low-emission zone",
+    "lezBadge": "{{name}} {{value}}",
+    "lezUnclassified": "Unclassified",
+    "lezUnknown": "Class not computed for this scheme. Check the official site.",
+    "lezEstimated": "Estimated from the first registration date.",
+    "lezOverridden": "Set by hand on the vehicle.",
+    "officialSite": "Official site",
+    "inspectionWindow": "Can be done from {{date}}",
+    "inspectionFromRegistration": "Computed from the first registration date.",
+    "inspectionNone": "Nothing scheduled",
+    "euroClass": "Euro class",
+    "euroValue": "Euro {{n}}",
+    "estimated": "(estimated)",
+    "fiscalPower": "Fiscal power",
+    "fiscalPowerValue": "{{n}} CV",
+    "co2": "CO₂",
+    "co2Value": "{{n}} g/km",
+    "power": "Power",
+    "powerValue": "{{n}} kW",
+    "disclaimer": "Indicative. Check the official site before driving into a zone."
+  },
+  "registrationImport": {
+    "title": "Import a registration certificate",
+    "detailAction": "Import registration certificate",
+    "detailDesc": "Fill the empty vehicle fields from the EU registration certificate (carte grise, Zulassungsbescheinigung, kentekenbewijs…) and file it under Documents.",
+    "hint": "A PDF is read from its own text. A photo or a scan is read by the configured vision model; check every value before you keep it.",
+    "aiNotConfiguredHint": "A PDF with text is read on this server. A photo or a scan needs AI document reading, which an admin turns on in Settings → Integrations; until then, type the values.",
+    "aiNotConfigured": "Reading photos and scans needs AI document reading (Settings → Integrations). You can still type the values by hand.",
+    "choose": "Choose a certificate",
+    "fileTypes": "PDF, JPG, PNG or HEIC (max 25 MB)",
+    "invalidFileType": "Choose a PDF, JPG, PNG or HEIC file",
+    "fileTooLarge": "The file must be smaller than 25 MB",
+    "read": "Read the certificate",
+    "import": "Import",
+    "reading": "Reading…",
+    "readAction": "read the registration certificate",
+    "importAction": "import the registration certificate",
+    "readFromPdf": "Read from the PDF",
+    "readByAi": "Read by AI ({{model}})",
+    "confidence": "Confidence {{score}}%",
+    "detectedCountry": "Country: {{country}}",
+    "noFields": "No field could be read from this file.",
+    "fieldLabel": "Field",
+    "valueLabel": "Value",
+    "confidenceLabel": "Confidence",
+    "confidenceLevel": {
+      "high": "Sure",
+      "medium": "Check",
+      "low": "Doubtful"
+    },
+    "checkFields": "The certificate filled the fields below. Check each value before you continue.",
+    "appliedFields": "Applied: {{fields}}.",
+    "skippedFields": "Kept as they were: {{fields}}.",
+    "nothingApplied": "Nothing new to apply: every field read was already set.",
+    "overwrite": "Replace values already set",
+    "overwriteHint": "The VIN is never replaced.",
+    "recordedInspectionDue": "The next inspection is due by {{date}} (field X.1); the inspection reminder counts down to it until you log one.",
+    "inspectionDue": "Next inspection due by (X.1): {{date}}",
+    "suggestedTaxes": "Taxes printed on the certificate",
+    "suggestedTaxesHint": "Tick the ones to record as tax records dated the first registration.",
+    "certificateFile": "Certificate: {{name}}",
+    "importedToast": "Registration certificate imported",
+    "importFailedAfterCreate": "The vehicle was created, but the certificate could not be filed; import it again from the vehicle's settings.",
+    "vehicleFields": {
+      "fuel_type_secondary": "Secondary fuel"
+    },
+    "fields": {
+      "plate": "Plate (A)",
+      "first_registration": "First registration (B)",
+      "make": "Make (D.1)",
+      "type_variant_version": "Type, variant, version (D.2)",
+      "commercial_name": "Commercial name (D.3)",
+      "vin": "VIN (E)",
+      "max_mass_kg": "Maximum laden mass, kg (F.1)",
+      "mass_in_service_kg": "Mass in service, kg (G)",
+      "eu_category": "EU category (J)",
+      "national_category": "National category (J.1)",
+      "type_approval": "Type approval (K)",
+      "displacement_cc": "Displacement, cm³ (P.1)",
+      "power_kw": "Power, kW (P.2)",
+      "energy_code": "Energy (P.3)",
+      "fiscal_power": "Fiscal power (P.6)",
+      "seats": "Seats (S.1)",
+      "co2_g_km": "CO₂, g/km (V.7)",
+      "euro_class": "Euro class (V.9)",
+      "inspection_due": "Next inspection due by (X.1)",
+      "taxes": "Tax ({{code}})",
+      "chassis_number": "Chassis number (E)"
+    },
+    "chassisRouted": "Field E isn't a 17-character VIN, so the vehicle goes in under No VIN with its chassis number."
+  },
+  "identifier": {
+    "types": {
+      "vin": "VIN",
+      "serial": "Serial number",
+      "hin": "HIN",
+      "chassis": "Chassis number",
+      "asset_tag": "Asset tag",
+      "none": "No identifier"
+    },
+    "noVin": "No VIN",
+    "hasVin": "VIN",
+    "noVinHelp": "Tractors, mowers, generators, attachments, boats with a HIN, and vehicles built before 1981 don't have a 17-character VIN. Use whatever identifies it instead.",
+    "typeLabel": "Identified by",
+    "valueLabel": "Identifier",
+    "valuePlaceholder": "e.g. BX23S-10234",
+    "required": "Enter the identifier, or pick \"No identifier\"",
+    "cannotAddVin": "Added without a VIN, so it can't be switched to one",
+    "archivedColumn": "VIN / ID",
+    "modeLabel": "Does it have a VIN?"
+  },
+  "visionConsent": {
+    "title": "Send this document outside your network?",
+    "body": "MyGarage can't read this file on its own (it's a photo or a scan), so reading it means sending it to the AI service below, which is outside your network.",
+    "unknownHost": "the configured AI service",
+    "send": "Send it",
+    "cancel": "Cancel"
   }
 }

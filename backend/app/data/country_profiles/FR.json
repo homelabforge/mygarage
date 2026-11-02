@@ -1,0 +1,142 @@
+{
+  "country": "FR",
+  "extends": "EU",
+  "names": {
+    "inspection": "Contrôle technique",
+    "registration_certificate": "Certificat d'immatriculation (carte grise)",
+    "lez": "Crit'Air"
+  },
+  "currency": "EUR",
+  "inspection": {
+    "name": "Contrôle technique",
+    "lead_window_months": 6,
+    "retest_window_months": 2,
+    "schedules": [
+      {
+        "vehicle_types": ["Car", "SUV", "Truck", "Electric", "Hybrid", "RV"],
+        "steps": [{ "first_after_years": 4 }, { "every_years": 2 }],
+        "note": "Voitures et utilitaires légers : premier contrôle dans les six mois précédant le quatrième anniversaire de la première immatriculation, puis tous les deux ans ; contre-visite sous deux mois après un résultat défavorable."
+      },
+      {
+        "vehicle_types": ["Motorcycle"],
+        "steps": [{ "first_after_years": 5 }, { "every_years": 3 }],
+        "note": "Deux-roues, trois-roues et quadricycles à moteur (catégorie L, décret n° 2023-974) : premier contrôle dans les six mois précédant le cinquième anniversaire, puis tous les trois ans. Les véhicules déjà en circulation suivent un calendrier échelonné."
+      }
+    ]
+  },
+  "fuel": {
+    "octane_scale": "RON",
+    "diesel_dyed_distinction": false,
+    "grades": [
+      { "id": "sp95_e10", "label": "SP95-E10", "grade": "E10", "octane": 95, "fuel_type": "gasoline" },
+      { "id": "sp95", "label": "SP95", "grade": "E5", "octane": 95, "fuel_type": "gasoline" },
+      { "id": "sp98", "label": "SP98", "grade": "E5", "octane": 98, "fuel_type": "gasoline" },
+      { "id": "e85", "label": "Superéthanol E85", "grade": "E85", "octane": null, "fuel_type": "e85" },
+      { "id": "gazole", "label": "Gazole (B7)", "grade": "B7", "octane": null, "fuel_type": "diesel" },
+      { "id": "b10", "label": "Gazole B10", "grade": "B10", "octane": null, "fuel_type": "diesel" },
+      { "id": "hvo", "label": "HVO (XTL)", "grade": "XTL", "octane": null, "fuel_type": "diesel" },
+      { "id": "gpl", "label": "GPL", "grade": "LPG", "octane": null, "fuel_type": "propane_lpg" },
+      { "id": "gnv", "label": "GNV", "grade": "CNG", "octane": null, "fuel_type": "cng" },
+      { "id": "h2", "label": "Hydrogène", "grade": "H2", "octane": null, "fuel_type": "hydrogen" }
+    ]
+  },
+  "taxes": {
+    "types": [
+      "registration_tax",
+      "co2_malus",
+      "weight_malus",
+      "company_vehicle_tax",
+      "inspection",
+      "tolls",
+      "lez_sticker",
+      "parking_permit",
+      "vignette",
+      "registration",
+      "other"
+    ],
+    "names": {
+      "registration_tax": "Carte grise – taxe régionale (Y.1)",
+      "co2_malus": "Malus écologique (Y.3)",
+      "weight_malus": "Malus au poids",
+      "company_vehicle_tax": "Taxes annuelles sur les véhicules de société",
+      "inspection": "Contrôle technique",
+      "lez_sticker": "Vignette Crit'Air"
+    }
+  },
+  "lez": {
+    "scheme": "critair",
+    "name": "Crit'Air",
+    "url": "https://www.certificat-air.gouv.fr/"
+  },
+  "insurance": {
+    "policy_types": ["Third Party", "Third Party Extended", "Full Coverage", "Other"],
+    "coverage_keys": [
+      "third_party_liability",
+      "driver_protection",
+      "glass",
+      "theft",
+      "fire",
+      "natural_disasters",
+      "all_accidents_damage",
+      "legal_protection",
+      "assistance",
+      "replacement_vehicle"
+    ],
+    "no_claims": {
+      "scheme": "crm",
+      "name": "Bonus-malus (CRM)",
+      "pattern": "^[0-3][.,][0-9]{2}$",
+      "example": "0.50"
+    }
+  },
+  "tolls": { "systems": ["Bip&Go", "Fulli", "Ulys"] },
+  "default_reminder_packs": [],
+  "data_sources": { "recalls": ["rappelconso"], "fuel_prices": "fr_instantane" },
+  "registration_certificate": {
+    "markers": ["CERTIFICAT D'IMMATRICULATION", "RÉPUBLIQUE FRANÇAISE"],
+    "plate_patterns": ["^[A-Z]{2}-\\d{3}-[A-Z]{2}$", "^\\d{1,4} ?[A-Z]{1,3} ?\\d{2,3}$"],
+    "energy_codes": {
+      "ES": "gasoline",
+      "GO": "diesel",
+      "EL": "electric",
+      "EE": "plugin_hybrid",
+      "EH": "hybrid",
+      "GL": "plugin_hybrid",
+      "GH": "hybrid",
+      "GP": "propane_lpg",
+      "GN": "cng",
+      "FE": "e85",
+      "H2": "hydrogen",
+      "EG": "gasoline",
+      "EN": "gasoline"
+    },
+    "national_categories": ["VP", "CTTE", "VASP", "CAM", "TRR", "MTL", "MTT1", "MTT2", "CYCL", "CL", "QM", "REM", "SREM", "TM"]
+  },
+  "sources": [
+    {
+      "title": "Service-Public : Contrôle technique d'une voiture particulière",
+      "url": "https://www.service-public.gouv.fr/particuliers/vosdroits/F2863",
+      "retrieved": "2026-10-07"
+    },
+    {
+      "title": "Service-Public : Contrôle technique des deux-roues motorisés depuis le 15 avril 2024",
+      "url": "https://www.service-public.gouv.fr/particuliers/actualites/A16861",
+      "retrieved": "2026-10-07"
+    },
+    {
+      "title": "Service-Public : Vignette Crit'Air (certificat qualité de l'air), classes par énergie et norme Euro",
+      "url": "https://www.service-public.gouv.fr/particuliers/vosdroits/F33371",
+      "retrieved": "2026-10-07"
+    },
+    {
+      "title": "data.economie.gouv.fr : RappelConso V2 (rappels de produits, catégorie Automobiles)",
+      "url": "https://data.economie.gouv.fr/explore/dataset/rappelconso-v2-gtin-espaces/",
+      "retrieved": "2026-10-07"
+    },
+    {
+      "title": "data.economie.gouv.fr : Prix des carburants en France, flux instantané v2",
+      "url": "https://data.economie.gouv.fr/explore/dataset/prix-des-carburants-en-france-flux-instantane-v2/",
+      "retrieved": "2026-10-07"
+    }
+  ]
+}

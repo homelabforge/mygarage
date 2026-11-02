@@ -50,8 +50,9 @@ _REMINDER_TYPES: tuple[str, ...] = get_args(ReminderType)
 _ANCHOR_KINDS: tuple[str, ...] = get_args(AnchorKind)
 #: The check_reminder_status CHECK.
 _REMINDER_STATUSES = ("pending", "done", "dismissed")
-#: Where a rule came from (models/maintenance_rule.py).
-_RULE_SOURCES = ("pack", "manual", "service")
+#: Where a rule came from (models/maintenance_rule.py); 'inspection' is the
+#: country-profile engine's rule (#211).
+_RULE_SOURCES = ("pack", "manual", "service", "inspection")
 
 
 @dataclass(frozen=True)
@@ -202,6 +203,7 @@ def _rule_from_json(vin: str, row: Mapping[str, Any]) -> MaintenanceRule:
         interval_months=interval_months,
         interval_days=interval_days,
         interval_hours=interval_hours,
+        lead_days=_json_int(row, "lead_days"),
         source=required_word(row, "source", _RULE_SOURCES),
         # A soft link: the pack may not exist here, and the rule is the vehicle's own copy (N-8).
         source_pack_id=_json_text(row, "source_pack_id"),

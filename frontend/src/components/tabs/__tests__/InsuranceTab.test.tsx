@@ -39,6 +39,11 @@ vi.mock('../../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US', formatCurrency: vi.fn() }),
 }))
 vi.mock('../../../hooks/useDateLocale', () => ({ useDateLocale: () => undefined }))
+// #211: the policy card names the no-claims scheme from the country profile,
+// which needs no account here.
+vi.mock('../../../hooks/useInsuranceProfile', () => ({
+  useInsuranceProfile: () => ({ country: null, policyTypes: [], coverageKeys: [], noClaims: null }),
+}))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import InsuranceTab from '../InsuranceTab'

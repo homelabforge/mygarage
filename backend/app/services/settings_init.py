@@ -156,6 +156,44 @@ DEFAULT_SETTINGS = {
         "description": "NHTSA Recalls API base URL",
         "encrypted": False,
     },
+    # RappelConso, the French product recall register (#211)
+    "rappelconso_enabled": {
+        "value": "true",
+        "category": "integrations",
+        "description": "Check RappelConso (France) for recalls of vehicles registered in France",
+        "encrypted": False,
+    },
+    "rappelconso_api_url": {
+        "value": (
+            "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/"
+            "rappelconso-v2-gtin-espaces/records"
+        ),
+        "category": "integrations",
+        "description": "RappelConso records API URL (data.economie.gouv.fr)",
+        "encrypted": False,
+    },
+    "rappelconso_last_check": {
+        "value": "",
+        "category": "integrations",
+        "description": "Timestamp of last RappelConso recall check",
+        "encrypted": False,
+    },
+    # Fuel prices from the French open-data feed (#211)
+    "fuel_prices_enabled": {
+        "value": "true",
+        "category": "integrations",
+        "description": "Show the pump prices reported near a saved station (France: prix des carburants)",
+        "encrypted": False,
+    },
+    "fuel_prices_api_url": {
+        "value": (
+            "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/"
+            "prix-des-carburants-en-france-flux-instantane-v2/records"
+        ),
+        "category": "integrations",
+        "description": "Fuel prices records API URL (data.economie.gouv.fr)",
+        "encrypted": False,
+    },
     # Window Sticker Integration
     "window_sticker_enabled": {
         "value": "true",
@@ -479,6 +517,27 @@ DEFAULT_SETTINGS = {
         "description": "Enable opt-in Ask My Garage assistant (specs + diagnostics Q&A)",
         "encrypted": False,
     },
+    "llm_document_reading_enabled": {
+        "value": "false",
+        "category": "integrations",
+        "description": (
+            "Read uploaded documents (registration certificate, insurance) with a vision "
+            "model; images of the documents are sent to the configured LLM endpoint"
+        ),
+        "encrypted": False,
+    },
+    "llm_vision_model": {
+        "value": "",
+        "category": "integrations",
+        "description": "Vision-capable model for document reading; blank = llm_model",
+        "encrypted": False,
+    },
+    "llm_provider_preset": {
+        "value": "custom",
+        "category": "integrations",
+        "description": "Which preset the LLM card shows (custom, openrouter, ollama, openai); UI only",
+        "encrypted": False,
+    },
     # CarComplaints Integration
     "carcomplaints_enabled": {
         "value": "true",
@@ -563,6 +622,29 @@ DEFAULT_SETTINGS = {
         "value": "us",
         "category": "general",
         "description": "Imperial gallon standard: us (3.785 L) or uk (4.546 L)",
+        "encrypted": False,
+    },
+    # The country whose rules apply to users and vehicles that have none of
+    # their own (ISO 3166-1 alpha-2, blank = none). Drives defaults only:
+    # inspection cadence, fuel pump names, tax types. Never hides a feature.
+    "default_country": {
+        "value": "",
+        "category": "general",
+        "description": (
+            "Default country for users and vehicles without one "
+            "(ISO 3166-1 alpha-2 code, blank = none)"
+        ),
+        "encrypted": False,
+    },
+    # Instance-wide fallback for the per-user preference of the same name:
+    # vehicles without an owner (auth_mode=none) read this one.
+    "inspection_auto_schedule": {
+        "value": "true",
+        "category": "general",
+        "description": (
+            "Keep periodic technical inspection reminders up to date automatically "
+            "for vehicles whose owner has no preference"
+        ),
         "encrypted": False,
     },
     # No static "value": the seeded value is derived per instance below, from

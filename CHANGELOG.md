@@ -62,6 +62,22 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - Restoring only the supply's vehicle warns about the use it can't count
 - The fuel CSV (schema 8) carries kWh, Propane Volume, Tank Size, Tank Quantity and Price Basis, so an EV charge or a propane fill-up round-trips
 - Number fields say how they read a value like 1,234: "Read as 1,234" shows under the field
+- Vehicles without a VIN (#226): tractors, mowers, generators, small engines, attachments and other equipment go in with a serial number, HIN, chassis number, asset tag or nothing; the VIN step has a No VIN tab
+- Tractor, Mower, Generator, Small Engine, Attachment and Equipment vehicle types, hour-tracked by default, with Small Engine & Tractor Service and Attachment Lubrication reminder packs (#226)
+- A vehicle entered with a made-up VIN can switch to its real serial number in Basic Information (#226)
+- Country setting (#211): per person, per vehicle (registration country and first registration date) and an instance default, with profiles for France, Luxembourg, Germany, Belgium, Italy, the Netherlands, Spain and an EU baseline
+- Periodic technical inspection reminders from the country profile (#211)
+- EU registration certificate import in Add Vehicle and on existing vehicles (#211); the holder's name is never read
+- Optional document reading with a vision model for scanned certificates and insurance papers (#211); text PDFs stay offline, and MyGarage asks before sending a document to a model outside your network
+- European VINs: a bundled WMI table fills in what NHTSA leaves out (#211)
+- EN 16942 fuel labels on fill-ups, and octane recorded as RON or AKI (#211)
+- Euro class, fiscal power, CO₂, power and Crit'Air on the vehicle (#211)
+- Extensible tax types with EU codes (#211)
+- European insurance policy types, coverages and a no-claims class, plus a French policy reader (#211)
+- RappelConso recalls for vehicles registered in France (#211)
+- French fuel prices near a saved station (#211)
+- French, Spanish and Portuguese toll systems (#211)
+- Reminder pack names and descriptions are translated (French: « Vidange et filtre à huile », « Permutation des pneus »…); packs you saved keep the name you typed.
 
 ### Changed
 - An engine-off stop shorter than the drive gap no longer splits a drive
@@ -123,6 +139,9 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - The Reports tab has one Select year for the Annual Cost Summary, Tax Deduction Report and All Records CSV. All Years only applies to the CSV, so the two yearly PDFs wait for a year
 - **BREAKING (API):** `GET /api/analytics/vehicles/{vin}/tires` renames the readiness counts `can_report_distance` to `can_report_usage` and `needs_reading_odometer` to `needs_reading_usage`
 - **BREAKING (API):** `GET /api/analytics/garage` `monthly_trends[].total` no longer includes insurance, and `monthly_trends` always lists 12 months (still empty with no vehicles)
+- French translation brought up to date and revised for French typography and vouvoiement (#211)
+- **BREAKING (API):** tax records use type codes (`registration`, `registration_tax`, ...) instead of display names; the old names are still accepted on input (#211)
+- Export downloads are named Year_Make_Model with unknown parts skipped and spaces as hyphens, falling back to the nickname
 
 ### Removed
 - The Files settings for max upload size, allowed photo types and allowed attachment types, and the `date_format`, `distance_unit` and `fuel_unit` settings. None of them ever did anything. They are no longer seeded and the settings API refuses them (422); rows already stored stay and do nothing. A browser still running the old page gets a 422 when it saves the Files tab, until the page is reloaded

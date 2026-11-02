@@ -42,6 +42,8 @@ const mockedApi = vi.mocked(api)
 // 37.854 L is 10 US gal.
 const vehicle: Vehicle = {
   vin: 'TEST12345678901234',
+  identifier_type: 'vin',
+  has_vin: true,
   nickname: 'Test Truck',
   vehicle_type: 'Truck',
   usage_unit: 'distance',

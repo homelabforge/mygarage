@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from sqlalchemy import ColumnElement
 
+from app.constants.tax import normalize_tax_type
 from app.models import (
     FinancingRecord,
     SpotRental,
@@ -97,7 +98,13 @@ def _json_financing_key(record: FinancingRecord) -> list[ColumnElement[bool]]:
 def _tax_record_from_json(vin: str, row: Mapping[str, Any]) -> TaxRecord:
     """A v9 tax row as an unsaved record. No type is allowed: NULL passes the CHECK."""
     date = _json_row_date(row)
-    tax_type = _in_vocabulary(_blank_to_none(row.get("tax_type")), "tax_type", _TAX_TYPES)
+    # #211 — a pre-146 display string (`Property Tax`) means its code.
+    raw_type = row.get("tax_type")
+    tax_type = _in_vocabulary(
+        normalize_tax_type(raw_type) if isinstance(raw_type, str) else _blank_to_none(raw_type),
+        "tax_type",
+        _TAX_TYPES,
+    )
     amount = _json_amount(row)
     _within_api_bounds(TaxRecordCreate, amount=amount)
     return TaxRecord(

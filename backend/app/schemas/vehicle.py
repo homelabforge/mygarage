@@ -2,16 +2,41 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, BeforeValidator, Field, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
+from app.constants.countries import is_country_code, normalize_country_code
 from app.constants.fuel import FUEL_TYPE_VALUES, normalize_fuel_type
 from app.constants.units import DistanceUnit
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 from app.utils.unit_resolution import LenientDistanceUnit
+from app.utils.vehicle_key import IdentifierType
+
+
+def _normalize_country_input(v: Any) -> Any:
+    """Uppercase a country code and check it against ISO 3166-1 alpha-2.
+
+    Wired on Create/Update only, like the fuel-type normaliser: a stored row
+    reads back as it is, the input is what gets checked. Blank or null clears.
+    """
+    if v is None:
+        return None
+    code = normalize_country_code(str(v))
+    if code is None:
+        return None
+    if not is_country_code(code):
+        raise ValueError("registration_country must be an ISO 3166-1 alpha-2 code")
+    return code
 
 
 def _normalize_fuel_type_input(v: Any) -> Any:
@@ -59,6 +84,15 @@ VehicleType = Literal[
     "Snowmobile",
     "Bicycle",
     "EBike",
+    # Equipment without a VIN (#226): hour-metered by default, see the
+    # frontend's HOURS_DEFAULT_TYPES. Attachment is an implement or head with
+    # no engine of its own; it is not NON_MOTORIZED (that means "towed").
+    "Tractor",
+    "Mower",
+    "Generator",
+    "SmallEngine",
+    "Attachment",
+    "Equipment",
 ]
 
 # Trailer-like types: no engine, no odometer, towed by something else.
@@ -74,6 +108,17 @@ LenientVehicleType = Annotated[
 LenientUsageUnit = Annotated[
     UsageUnit | None, BeforeValidator(lenient_reader(UsageUnit)), LenientVocab(None)
 ]
+LenientIdentifierType = Annotated[
+    IdentifierType | None, BeforeValidator(lenient_reader(IdentifierType)), LenientVocab(None)
+]
+
+
+def _clean_identifier(v: Any) -> Any:
+    """Trim a typed identifier; a blank one is no identifier."""
+    if isinstance(v, str):
+        v = v.strip()
+        return v or None
+    return v
 
 
 class VehicleBase(BaseModel):
@@ -106,6 +151,47 @@ class VehicleBase(BaseModel):
     make: str | None = Field(None, description="Manufacturer brand", max_length=50)
     model: str | None = Field(None, description="Model name", max_length=50)
     license_plate: str | None = Field(None, description="License plate number", max_length=20)
+    registration_country: str | None = Field(
+        None,
+        description=(
+            "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs "
+            "from the owner's; drives inspection cadence, fuel pump names and tax types"
+        ),
+        min_length=2,
+        max_length=2,
+    )
+    first_registration_date: date | None = Field(
+        None,
+        description="Date of first registration (field B of an EU registration certificate)",
+    )
+    # The other EU registration-certificate fields (#211). Bounds are the
+    # input's; the response reads what is stored.
+    euro_emission_class: str | None = Field(
+        None,
+        description="Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)",
+        max_length=12,
+    )
+    fiscal_power: int | None = Field(
+        None, description="National fiscal power, field P.6 (French CV)", ge=0, le=200
+    )
+    co2_g_km: int | None = Field(None, description="CO₂ emissions in g/km, field V.7", ge=0, le=999)
+    power_kw: int | None = Field(
+        None, description="Maximum net power in kW, field P.2", ge=0, le=2000
+    )
+    eu_category: str | None = Field(
+        None, description="EU vehicle category, field J (M1, N1, L3e)", max_length=5
+    )
+    national_category: str | None = Field(
+        None, description="National vehicle kind, field J.1 (VP, CTTE, MTL)", max_length=10
+    )
+    lez_class: str | None = Field(
+        None,
+        description=(
+            "Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); "
+            "overrides the class computed from the fuel and the Euro class"
+        ),
+        max_length=10,
+    )
     color: str | None = Field(None, description="Vehicle color", max_length=30)
     purchase_date: date | None = Field(None, description="Date purchased")
     purchase_price: OptionalMoney = Field(None, description="Purchase price")
@@ -169,30 +255,79 @@ class VehicleBase(BaseModel):
 class VehicleCreate(VehicleBase):
     """Schema for creating a new vehicle."""
 
-    vin: str = Field(
-        ...,
-        description="17-character Vehicle Identification Number",
+    vin: str | None = Field(
+        None,
+        description=(
+            "17-character Vehicle Identification Number. Required when identifier_type "
+            "is 'vin'; omitted otherwise (the server generates the vehicle's key)."
+        ),
         min_length=17,
         max_length=17,
+    )
+    identifier_type: IdentifierType = Field(
+        "vin",
+        description=(
+            "What identifies this vehicle: its VIN, or for equipment and vehicles "
+            "without one a serial number, HIN, chassis number, asset tag, or none (#226)"
+        ),
+    )
+    identifier: str | None = Field(
+        None,
+        description="The serial / HIN / chassis number / asset tag (not used for 'vin' or 'none')",
+        max_length=64,
     )
 
     @field_validator("vin")
     @classmethod
-    def validate_vin_format(cls, v: str) -> str:
+    def validate_vin_format(cls, v: str | None) -> str | None:
         """Validate VIN format."""
         from app.utils.vin import validate_vin
 
+        if v is None:
+            return None
         v = v.strip().upper()
         is_valid, error = validate_vin(v)
         if not is_valid:
             raise ValueError(error or "Invalid VIN format")
         return v
 
+    @field_validator("identifier", mode="before")
+    @classmethod
+    def clean_identifier(cls, v: Any) -> Any:
+        """Trim a typed identifier; a blank one is no identifier."""
+        return _clean_identifier(v)
+
+    @model_validator(mode="after")
+    def _identity_matches_its_type(self) -> Self:
+        """A VIN vehicle sends a VIN; any other kind sends no VIN (#226)."""
+        if self.identifier_type == "vin":
+            if not self.vin:
+                raise ValueError("vin is required when identifier_type is 'vin'")
+            if self.identifier:
+                raise ValueError("identifier is only used when identifier_type is not 'vin'")
+            return self
+        if self.vin:
+            raise ValueError("vin must be omitted when identifier_type is not 'vin'")
+        if self.identifier_type == "none":
+            if self.identifier:
+                raise ValueError("identifier must be empty when identifier_type is 'none'")
+        elif not self.identifier:
+            raise ValueError(
+                f"identifier is required when identifier_type is '{self.identifier_type}'"
+            )
+        return self
+
     @field_validator("fuel_type", "fuel_type_secondary", mode="before")
     @classmethod
     def normalize_fuel_type_fields(cls, v: Any) -> Any:
         """Normalize free-text fuel-type input to the canonical vocabulary."""
         return _normalize_fuel_type_input(v)
+
+    @field_validator("registration_country", mode="before")
+    @classmethod
+    def normalize_registration_country(cls, v: Any) -> Any:
+        """Uppercase and check the country code (#211)."""
+        return _normalize_country_input(v)
 
     model_config = {
         "json_schema_extra": {
@@ -221,6 +356,14 @@ class VehicleUpdate(VehicleBase):
         None, description="User-friendly display name", min_length=1, max_length=100
     )
     vehicle_type: VehicleType | None = Field(None, description="Type of vehicle")
+    # The key never changes; what identifies the vehicle can (#226). The rules
+    # that need the stored key live in VehicleService.update_vehicle.
+    identifier_type: IdentifierType | None = Field(
+        None, description="vin, serial, hin, chassis, asset_tag or none (omit to leave unchanged)"
+    )
+    identifier: str | None = Field(
+        None, description="Serial / HIN / chassis number / asset tag", max_length=64
+    )
     # Overridden as optional: VehicleBase gives these non-null defaults, which
     # the generated OpenAPI otherwise marks REQUIRED — forcing every partial
     # update (equipment/pricing sidecars) to resend them. exclude_unset makes an
@@ -269,13 +412,27 @@ class VehicleUpdate(VehicleBase):
     assembly_location: str | None = Field(None, description="Assembly location", max_length=100)
 
     # NOT NULL columns: omitted keeps the stored value, null is a 422.
-    _no_null = reject_null("nickname", "vehicle_type", "usage_unit", "secondary_usage_enabled")
+    _no_null = reject_null(
+        "nickname", "vehicle_type", "usage_unit", "secondary_usage_enabled", "identifier_type"
+    )
+
+    @field_validator("identifier", mode="before")
+    @classmethod
+    def clean_identifier(cls, v: Any) -> Any:
+        """Trim a typed identifier; a blank one is no identifier."""
+        return _clean_identifier(v)
 
     @field_validator("fuel_type", "fuel_type_secondary", mode="before")
     @classmethod
     def normalize_fuel_type_fields(cls, v: Any) -> Any:
         """Normalize free-text fuel-type input to the canonical vocabulary."""
         return _normalize_fuel_type_input(v)
+
+    @field_validator("registration_country", mode="before")
+    @classmethod
+    def normalize_registration_country(cls, v: Any) -> Any:
+        """Uppercase and check the country code (#211)."""
+        return _normalize_country_input(v)
 
     model_config = {
         "json_schema_extra": {
@@ -323,7 +480,34 @@ class VehicleResponse(VehicleBase):
     make: str | None = Field(None, description="Manufacturer brand")
     model: str | None = Field(None, description="Model name")
     license_plate: str | None = Field(None, description="License plate number")
+    registration_country: str | None = Field(
+        None,
+        description=(
+            "Country the vehicle is registered in (ISO 3166-1 alpha-2) when it differs "
+            "from the owner's; drives inspection cadence, fuel pump names and tax types"
+        ),
+    )
     color: str | None = Field(None, description="Vehicle color")
+    euro_emission_class: str | None = Field(
+        None,
+        description="Euro emission class, field V.9 of an EU registration certificate (Euro 6d-TEMP)",
+    )
+    fiscal_power: int | None = Field(
+        None, description="National fiscal power, field P.6 (French CV)"
+    )
+    co2_g_km: int | None = Field(None, description="CO₂ emissions in g/km, field V.7")
+    power_kw: int | None = Field(None, description="Maximum net power in kW, field P.2")
+    eu_category: str | None = Field(None, description="EU vehicle category, field J (M1, N1, L3e)")
+    national_category: str | None = Field(
+        None, description="National vehicle kind, field J.1 (VP, CTTE, MTL)"
+    )
+    lez_class: str | None = Field(
+        None,
+        description=(
+            "Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); "
+            "overrides the class computed from the fuel and the Euro class"
+        ),
+    )
     trim: str | None = Field(None, description="Trim level")
     body_class: str | None = Field(None, description="Body class")
     drive_type: str | None = Field(None, description="Drive type (FWD, RWD, AWD, etc.)")
@@ -348,7 +532,24 @@ class VehicleResponse(VehicleBase):
     maintenance_specs_notes: str | None = Field(
         None, description="Freeform notes for other fluid/torque specs"
     )
-    vin: str
+    vin: str = Field(
+        ...,
+        description=(
+            "The vehicle's key. The VIN when identifier_type is 'vin'; otherwise a "
+            "generated key that is not a VIN and must not be shown (#226)."
+        ),
+    )
+    identifier_type: LenientIdentifierType = Field(
+        "vin", description="What identifies this vehicle"
+    )
+    identifier: str | None = Field(None, description="Serial / HIN / chassis number / asset tag")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def has_vin(self) -> bool:
+        """Whether `vin` is a real VIN (decode, recalls and VIN display apply)."""
+        return self.identifier_type == "vin"
+
     # Served, never refused: the column has no CHECK, and a strict Literal here
     # would turn one hand-edited row into a 500 for every response carrying it.
     distance_unit: LenientDistanceUnit = Field(

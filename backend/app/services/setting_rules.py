@@ -25,15 +25,30 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 
+from app.constants.countries import (
+    DEFAULT_COUNTRY_SETTING_KEY,
+    is_country_code,
+    normalize_country_code,
+)
 from app.schemas.livelink import TELEMETRY_RETENTION_MAX_DAYS, TELEMETRY_RETENTION_MIN_DAYS
+from app.services.fuel_prices.france import API_URL_SETTING as FUEL_PRICES_API_URL_SETTING
+from app.services.llm_client import (
+    LLM_BASE_URL_SETTING,
+    LLM_PRESET_SETTING,
+    LLM_PROVIDER_PRESETS,
+    is_http_url,
+)
+from app.services.recalls.rappelconso import API_URL_SETTING as RAPPELCONSO_API_URL_SETTING
 from app.services.settings_init import DEFAULT_SETTINGS
 from app.services.settings_service import SWITCH_OFF_VALUES, SWITCH_ON_VALUES
 from app.utils.household_time import TIMEZONE_SETTING_KEY
+from app.utils.url_validation import validate_data_economie_url
 
 #: Kept by the app itself, never by an admin: the running version, the last
-#: recall check, and how far the Telegram poller has read.
+#: recall checks (NHTSA, and RappelConso for #211), and how far the Telegram
+#: poller has read.
 SYSTEM_MAINTAINED_KEYS: frozenset[str] = frozenset(
-    {"app_version", "nhtsa_last_check", "telegram_update_offset"}
+    {"app_version", "nhtsa_last_check", "rappelconso_last_check", "telegram_update_offset"}
 )
 
 #: The LiveLink settings have their own typed routes (`routes/livelink_admin.py`),
@@ -163,3 +178,25 @@ def check_setting_value(key: str, value: object) -> None:
                 f"must be a whole number of days from {TELEMETRY_RETENTION_MIN_DAYS} "
                 f"to {TELEMETRY_RETENTION_MAX_DAYS}"
             )
+    elif key == DEFAULT_COUNTRY_SETTING_KEY:
+        # Blank clears it; anything else must be a code the profile loader
+        # and the frontend's Intl.DisplayNames both know (#211).
+        if text and not is_country_code(normalize_country_code(text)):
+            raise ValueError("must be an ISO 3166-1 alpha-2 country code")
+    elif key == LLM_BASE_URL_SETTING:
+        # The LLM client POSTs to it verbatim; a bare host or a typo would fail
+        # every receipt parse and document read with an opaque 502 (#211).
+        if text and not is_http_url(text):
+            raise ValueError("must be an http(s) URL")
+    elif key == LLM_PRESET_SETTING:
+        # A hint for the settings card, from a fixed vocabulary (#211).
+        if text and text not in LLM_PROVIDER_PRESETS:
+            raise ValueError(f"must be one of: {', '.join(LLM_PROVIDER_PRESETS)}")
+    elif key in (RAPPELCONSO_API_URL_SETTING, FUEL_PRICES_API_URL_SETTING):
+        # The provider would fall back to the default and log an error on
+        # every check; say so at the write instead (#211).
+        if text:
+            try:
+                validate_data_economie_url(text)
+            except Exception:  # noqa: BLE001 - SSRF or malformed, same answer
+                raise ValueError("must be an https URL on data.economie.gouv.fr") from None

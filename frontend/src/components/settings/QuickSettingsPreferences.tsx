@@ -9,8 +9,10 @@
  * open it.
  */
 
+import CountryControl from './CountryControl'
 import CurrencyControl from './CurrencyControl'
 import DashboardSortControl from './DashboardSortControl'
+import InspectionAutoScheduleControl from './InspectionAutoScheduleControl'
 import LanguageControl from './LanguageControl'
 import TimeFormatControl from './TimeFormatControl'
 import UnitPreferencesCard from './UnitPreferencesCard'
@@ -22,6 +24,8 @@ export default function QuickSettingsPreferences(): React.ReactElement {
       <TimeFormatControl />
       <LanguageControl />
       <CurrencyControl />
+      <CountryControl />
+      <InspectionAutoScheduleControl />
       <DashboardSortControl />
     </>
   )

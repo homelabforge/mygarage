@@ -37,17 +37,20 @@ def validate_vin(vin: str) -> tuple[bool, str | None]:
     if not re.match(r"^[A-HJ-NPR-Z0-9]{17}$", vin):
         return False, "VIN contains invalid characters"
 
-    # Validate check digit (9th position) for North American VINs
-    # This is optional but recommended for additional validation
+    # Validate check digit (9th position) for North American VINs. The rule
+    # exists only there (#211): a European or Asian VIN carries a plant or
+    # series character in position 9, so a mismatch says nothing about it
+    # and is not logged. A North American mismatch is still accepted (a
+    # typo is the person's to fix), just logged.
+    from app.utils.wmi import is_north_american
+
     check_digit = vin[8]
     calculated_check = calculate_check_digit(vin)
 
-    if calculated_check and check_digit != calculated_check:
-        # Note: Not all VINs use check digits (non-North American VINs may not follow this standard)
-        # We log a warning but still accept the VIN to support international vehicles
+    if calculated_check and check_digit != calculated_check and is_north_american(vin):
         logger.warning(
             f"VIN check digit mismatch for {vin}: expected '{calculated_check}', got '{check_digit}'. "
-            "This may be a non-North American VIN or a typo."
+            "This may be a typo."
         )
 
     return True, None

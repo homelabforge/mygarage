@@ -95,6 +95,35 @@ class TestDashboardRoutes:
         assert "vehicles" in data
         assert isinstance(data["vehicles"], list)
 
+    async def test_a_vehicle_without_a_vin_carries_its_name_and_serial(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession
+    ):
+        """CX-M2: a tractor with only a nickname and a serial; the card needs
+        both, since its key is generated and year/make/model are empty."""
+        created = await client.post(
+            "/api/vehicles",
+            headers=auth_headers,
+            json={
+                "nickname": "Back-field Kubota",
+                "vehicle_type": "Tractor",
+                "identifier_type": "serial",
+                "identifier": "BX23S-DASH-1",
+            },
+        )
+        assert created.status_code == 201, created.text
+        key = created.json()["vin"]
+        try:
+            response = await client.get("/api/dashboard", headers=auth_headers)
+            assert response.status_code == 200, response.text
+            card = next(v for v in response.json()["vehicles"] if v["vin"] == key)
+            assert card["nickname"] == "Back-field Kubota"
+            assert card["identifier_type"] == "serial"
+            assert card["identifier"] == "BX23S-DASH-1"
+        finally:
+            await db_session.rollback()
+            await db_session.execute(delete(Vehicle).where(Vehicle.vin == key))
+            await db_session.commit()
+
     async def test_dashboard_response_structure(
         self, client: AsyncClient, auth_headers, test_vehicle
     ):

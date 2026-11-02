@@ -59,12 +59,18 @@ class TestSettingsRoutes:
                 "imperial_gallon_standard",
                 "llm_receipt_parse_enabled",
                 "llm_garage_assistant_enabled",
+                # Whether a photo of a document may be read by a vision model
+                # (#211): the import cards hide behind it. A flag, not a key.
+                "llm_document_reading_enabled",
                 "default_unit_prefs",
                 # Feature flags the non-admin UI reads (batch 5, R3).
                 "nhtsa_enabled",
                 "carcomplaints_enabled",
                 "window_sticker_enabled",
                 "window_sticker_ocr_enabled",
+                # The country a client without a user resolves its national
+                # defaults from (#211): a preference, not a credential.
+                "default_country",
                 # Computed per request from the household-zone fallback chain,
                 # never a stored row (every write path rejects the key).
                 "effective_timezone",
@@ -1538,3 +1544,224 @@ class TestEncryptedFlagFollowsTheKey:
         assert listed.status_code == 200, listed.text
         flags = {s["key"]: s["encrypted"] for s in listed.json()["settings"]}
         assert flags[key] is expected
+
+
+# ---------------------------------------------------------------------------
+# LLM settings: URL and preset validation, and the connection test (#211)
+# ---------------------------------------------------------------------------
+
+
+async def _restore(db_session, key: str, before: str | None) -> None:
+    """Put a settings row back the way a test found it (shared DB, no rollback)."""
+    await db_session.rollback()
+    if before is None:
+        await db_session.execute(delete(Setting).where(Setting.key == key))
+    else:
+        await _set_setting(db_session, key, before)
+    await db_session.commit()
+
+
+async def _value_or_none(db_session, key: str) -> str | None:
+    result = await db_session.execute(select(Setting).where(Setting.key == key))
+    row = result.scalar_one_or_none()
+    return row.value if row is not None else None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestLlmSettingsWriteValidation:
+    """`llm_base_url` is POSTed to verbatim and `llm_provider_preset` is a vocabulary.
+
+    A bare host or a typo in the URL would fail every receipt parse and every
+    document read with the same opaque 502; the write is the place to say so.
+    """
+
+    @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
+    @pytest.mark.parametrize("bad", ["localhost:11434", "openrouter.ai/api/v1", "ftp://x/v1"])
+    async def test_base_url_must_be_http(
+        self, client: AsyncClient, auth_headers, db_session, endpoint: str, bad: str
+    ):
+        key = "llm_base_url"
+        before = await _value_or_none(db_session, key)
+        try:
+            if endpoint == "create_setting":
+                await _delete_setting(db_session, key)
+                response = await client.post(
+                    "/api/settings", headers=auth_headers, json={"key": key, "value": bad}
+                )
+            elif endpoint == "update_setting":
+                await _set_setting(db_session, key, "http://127.0.0.1:11434/v1")
+                response = await client.put(
+                    f"/api/settings/{key}", headers=auth_headers, json={"value": bad}
+                )
+            else:
+                await _set_setting(db_session, key, "http://127.0.0.1:11434/v1")
+                response = await client.post(
+                    "/api/settings/batch", headers=auth_headers, json={"settings": {key: bad}}
+                )
+            assert response.status_code == 422, response.text
+            assert "http(s) URL" in response.json()["detail"]
+            assert await _value_or_none(db_session, key) != bad
+        finally:
+            await _restore(db_session, key, before)
+
+    async def test_a_real_url_and_a_blank_are_accepted(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        key = "llm_base_url"
+        before = await _value_or_none(db_session, key)
+        try:
+            for value in ("https://openrouter.ai/api/v1", ""):
+                response = await client.post(
+                    "/api/settings/batch", headers=auth_headers, json={"settings": {key: value}}
+                )
+                assert response.status_code == 200, response.text
+                assert await _value_or_none(db_session, key) == value
+        finally:
+            await _restore(db_session, key, before)
+
+    @pytest.mark.parametrize("endpoint", (*WRITE_ENDPOINTS, "delete_setting"))
+    async def test_a_base_url_write_forgets_cached_localities(
+        self, client: AsyncClient, auth_headers, db_session, endpoint: str
+    ):
+        """FB-3: saving the URL again is how an admin makes the consent check
+        look the host up afresh (a DNS move), not five minutes later."""
+        from app.services import llm_client
+
+        key = "llm_base_url"
+        url = "http://ollama.example.lan:11434/v1"
+        before = await _value_or_none(db_session, key)
+        try:
+            if endpoint == "create_setting":
+                await _delete_setting(db_session, key)
+            else:
+                await _set_setting(db_session, key, url)
+            llm_client._locality_cache.put(url, True)
+            if endpoint == "create_setting":
+                response = await client.post(
+                    "/api/settings", headers=auth_headers, json={"key": key, "value": url}
+                )
+            elif endpoint == "update_setting":
+                response = await client.put(
+                    f"/api/settings/{key}", headers=auth_headers, json={"value": url}
+                )
+            elif endpoint == "batch_update_settings":
+                response = await client.post(
+                    "/api/settings/batch", headers=auth_headers, json={"settings": {key: url}}
+                )
+            else:
+                response = await client.delete(f"/api/settings/{key}", headers=auth_headers)
+            assert response.status_code < 300, response.text
+            assert llm_client._locality_cache.get(url) is None
+        finally:
+            llm_client.clear_locality_cache()
+            await _restore(db_session, key, before)
+
+    async def test_preset_is_a_vocabulary(self, client: AsyncClient, auth_headers, db_session):
+        key = "llm_provider_preset"
+        before = await _value_or_none(db_session, key)
+        try:
+            response = await client.post(
+                "/api/settings/batch", headers=auth_headers, json={"settings": {key: "anthropic"}}
+            )
+            assert response.status_code == 422, response.text
+            assert "custom, openrouter, ollama, openai" in response.json()["detail"]
+            for value in ("openrouter", "custom", "ollama", "openai", ""):
+                response = await client.post(
+                    "/api/settings/batch", headers=auth_headers, json={"settings": {key: value}}
+                )
+                assert response.status_code == 200, response.text
+        finally:
+            await _restore(db_session, key, before)
+
+
+def _llm_post_mock(answers: list[str]):
+    """A patched ``httpx.AsyncClient`` whose successive posts answer in order."""
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    responses = []
+    for answer in answers:
+        response = MagicMock()
+        response.raise_for_status = MagicMock()
+        response.json = MagicMock(return_value={"choices": [{"message": {"content": answer}}]})
+        responses.append(response)
+    instance = AsyncMock()
+    instance.post = AsyncMock(side_effect=responses)
+    instance.__aenter__ = AsyncMock(return_value=instance)
+    instance.__aexit__ = AsyncMock(return_value=None)
+    return patch("httpx.AsyncClient", return_value=instance), instance.post
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestLlmConnectionTest:
+    """`POST /api/settings/test/llm` reports, never raises, and writes nothing."""
+
+    async def test_admin_only(self, client: AsyncClient, non_admin_headers):
+        response = await client.post("/api/settings/test/llm", headers=non_admin_headers)
+        assert response.status_code == 403
+
+    async def test_text_only_when_document_reading_is_off(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        before = await _value_or_none(db_session, "llm_document_reading_enabled")
+        try:
+            await _set_setting(db_session, "llm_document_reading_enabled", "false")
+            patcher, post = _llm_post_mock(["OK"])
+            with patcher:
+                response = await client.post("/api/settings/test/llm", headers=auth_headers)
+            assert response.status_code == 200, response.text
+            body = response.json()
+            assert body["valid"] is True
+            assert body["text_ok"] is True
+            assert body["vision_ok"] is None
+            assert body["model"]
+            assert post.await_count == 1
+        finally:
+            await _restore(db_session, "llm_document_reading_enabled", before)
+
+    async def test_vision_is_checked_when_document_reading_is_on(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        before = await _value_or_none(db_session, "llm_document_reading_enabled")
+        before_vision = await _value_or_none(db_session, "llm_vision_model")
+        try:
+            await _set_setting(db_session, "llm_document_reading_enabled", "true")
+            await _set_setting(db_session, "llm_vision_model", "llava")
+            patcher, post = _llm_post_mock(["OK", "red"])
+            with patcher:
+                response = await client.post("/api/settings/test/llm", headers=auth_headers)
+            assert response.status_code == 200, response.text
+            body = response.json()
+            assert body["valid"] is True
+            assert body["vision_ok"] is True
+            assert body["vision_model"] == "llava"
+            assert "vision model OK" in body["message"]
+            assert post.await_count == 2
+        finally:
+            await _restore(db_session, "llm_document_reading_enabled", before)
+            await _restore(db_session, "llm_vision_model", before_vision)
+
+    async def test_endpoint_failure_is_a_200_with_the_reason(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        from unittest.mock import AsyncMock, patch
+
+        import httpx
+
+        before = await _value_or_none(db_session, "llm_document_reading_enabled")
+        try:
+            await _set_setting(db_session, "llm_document_reading_enabled", "false")
+            instance = AsyncMock()
+            instance.post = AsyncMock(side_effect=httpx.ConnectError("refused"))
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=None)
+            with patch("httpx.AsyncClient", return_value=instance):
+                response = await client.post("/api/settings/test/llm", headers=auth_headers)
+            assert response.status_code == 200, response.text
+            body = response.json()
+            assert body["valid"] is False
+            assert body["text_ok"] is False
+            assert body["message"]
+        finally:
+            await _restore(db_session, "llm_document_reading_enabled", before)

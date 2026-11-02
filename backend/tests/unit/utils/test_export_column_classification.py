@@ -53,7 +53,7 @@ EXPECTED_HEADER_LISTS: dict[str, int] = {
     # The four unit-bearing pairs, which go through `build_csv` ->
     # `apply_unit_set`. These are the ones a miss actually corrupts.
     "export_service_records_csv": 14,
-    "export_fuel_records_csv": 35,
+    "export_fuel_records_csv": 37,
     "export_def_records_csv": 9,
     "export_odometer_records_csv": 3,
     # The five dimensionless pairs, which call `generate_csv_stream` directly
@@ -62,7 +62,7 @@ EXPECTED_HEADER_LISTS: dict[str, int] = {
     # there is no conversion layer to have missed.
     "export_hours_records_csv": 4,
     "export_warranties_csv": 8,
-    "export_insurance_csv": 10,
+    "export_insurance_csv": 11,
     "export_tax_records_csv": 5,
     "export_notes_csv": 3,
 }
@@ -100,7 +100,13 @@ DIMENSIONLESS_HEADERS: frozenset[str] = frozenset(
         # #164 — an octane number is a rating on a scale (AKI/RON), not a
         # unit-bearing quantity, and the grade is an enum label.
         "Octane",
+        # B4 — the scale an octane was read on (RON / AKI) is a label too.
+        "Octane Scale",
         "Diesel Grade",
+        # #211 — the EN 16942 pump label (E5, E10, B7, XTL…) is an enum label too.
+        "Fuel Grade",
+        # #211 — a bonus-malus coefficient or class (0.50, SF 12) is a label.
+        "No-Claims Class",
         "Station ID",
         "Station",
         "Driver ID",

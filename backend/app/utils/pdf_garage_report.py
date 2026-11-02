@@ -7,6 +7,7 @@ matching the branded design system.
 import logging
 from io import BytesIO
 from typing import Any
+from xml.sax.saxutils import escape
 
 from reportlab.lib.units import inch
 from reportlab.platypus import (
@@ -232,7 +233,7 @@ def generate_garage_analytics_pdf(
             )
             table_rows.append(
                 [
-                    Paragraph(display_name, name_style),
+                    Paragraph(escape(display_name), name_style),
                     fc_compact(v.get("purchase_price", 0)),
                     fc_compact(v.get("total_maintenance", 0)),
                     fc_compact(v.get("total_upgrades", 0)),

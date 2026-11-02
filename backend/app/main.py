@@ -404,18 +404,22 @@ async def api_health_check(request: Request):
 
 # Import and include routers
 from app.routes import (
+    address_book_fuel_prices_router,
     address_book_router,
     analytics_router,
     attachments_router,
     backup_router,
     brakes_router,
     calendar_router,
+    compliance_router,
+    country_profiles_router,
     dashboard_router,
     def_router,
     documents_router,
     export_router,
     external_vehicles_router,
     financing_router,
+    fuel_prices_router,
     fuel_router,
     garage_assistant_router,
     hours_router,
@@ -428,6 +432,7 @@ from app.routes import (
     odometer_router,
     photos_router,
     recalls_router,
+    registration_certificate_router,
     reminder_packs_router,
     reminders_router,
     reports_router,
@@ -491,6 +496,8 @@ app.include_router(reports_router)
 app.include_router(toll_tags_router)
 app.include_router(toll_transactions_router)
 app.include_router(recalls_router)
+app.include_router(fuel_prices_router)
+app.include_router(address_book_fuel_prices_router)
 app.include_router(settings_router)
 app.include_router(backup_router)
 app.include_router(attachments_router)
@@ -509,6 +516,9 @@ app.include_router(vendors_router)
 app.include_router(service_visits_router)
 app.include_router(reminders_router)
 app.include_router(reminder_packs_router)
+app.include_router(country_profiles_router)
+app.include_router(compliance_router)
+app.include_router(registration_certificate_router)
 app.include_router(maintenance_types_router)
 app.include_router(maintenance_rules_router)
 app.include_router(supplies_router)

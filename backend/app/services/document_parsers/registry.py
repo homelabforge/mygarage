@@ -75,6 +75,15 @@ class DocumentParserRegistry:
         return GenericInsuranceParser()
 
     @classmethod
+    def get_registration_parser(cls) -> BaseDocumentParser:
+        """The one EU registration certificate parser (#211): every member
+        state prints the same harmonised codes, so there is no per-country
+        parser to detect."""
+        from .registration import EURegistrationCertificateParser
+
+        return EURegistrationCertificateParser()
+
+    @classmethod
     def list_insurance_parsers(cls) -> list[dict[str, Any]]:
         """List all registered insurance parsers."""
         cls._ensure_initialized()
@@ -95,12 +104,18 @@ class DocumentParserRegistry:
         if cls._initialized:
             return
 
-        # Register all insurance parsers
+        from .insurance_fr import FrenchInsuranceParser
+
+        # Register all insurance parsers. Detection runs in this order: the
+        # four North American insurers by name, then the French parser by
+        # its markers (#211), then the generic fallback.
         cls.register_insurance_parser("progressive", ProgressiveInsuranceParser)
         cls.register_insurance_parser("statefarm", StateFarmInsuranceParser)
         cls.register_insurance_parser("state farm", StateFarmInsuranceParser)
         cls.register_insurance_parser("geico", GeicoInsuranceParser)
         cls.register_insurance_parser("allstate", AllstateInsuranceParser)
+        cls.register_insurance_parser("french", FrenchInsuranceParser)
+        cls.register_insurance_parser("fr", FrenchInsuranceParser)
         cls.register_insurance_parser("generic", GenericInsuranceParser)
 
         cls._initialized = True

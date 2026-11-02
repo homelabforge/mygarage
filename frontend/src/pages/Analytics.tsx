@@ -68,6 +68,7 @@ import type {
   SpotRentalAnalysis,
   DEFAnalysis,
 } from '../types/analytics'
+import { keyForFilename, vinForDisplay } from '../utils/vehicleIdentifier'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
 import TireAnalyticsSection from '../components/TireAnalyticsSection'
 import ExportMenu from '../components/ExportMenu'
@@ -273,7 +274,7 @@ export default function Analytics() {
     // Header
     rows.push(['MyGarage Analytics Export'])
     rows.push(['Vehicle:', analytics.vehicle_name])
-    rows.push(['VIN:', analytics.vin])
+    if (vinForDisplay(analytics.vin)) rows.push(['VIN:', analytics.vin])
     rows.push(['Export Date:', new Date().toLocaleDateString()])
     rows.push([]) // Empty row
 
@@ -388,7 +389,7 @@ export default function Analytics() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = `mygarage-analytics-${analytics.vin}-${formatDateForInput()}.csv`
+    link.download = `mygarage-analytics-${keyForFilename(analytics.vin)}-${formatDateForInput()}.csv`
     link.click()
   }
 

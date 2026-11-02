@@ -54,7 +54,9 @@ from app.schemas.fuel import (
     FuelRecordCreate,
     _parse_obc_trip_duration,
     _validate_diesel_grade,
+    _validate_fuel_grade,
     _validate_octane,
+    _validate_octane_scale,
 )
 from app.utils.csv_units import MASS, PRICE_PER_VOLUME, CsvUnitContext
 from app.utils.odometer_tolerance import LITRE_STEP
@@ -271,6 +273,14 @@ def _fuel_record_from_json(
         )
         normalized_fuel_type = FuelTypeEnum.OTHER
 
+    # #164: direct ORM construction bypasses Pydantic, so the shared
+    # validators run here per row (R1-M2). _coerce_octane rejects a
+    # fractional value instead of silently truncating it the way a bare
+    # int() would (91.9 -> 91; codex review R1-M1). B4: a scale means nothing
+    # without its number, as on the API.
+    octane = _validate_octane(_coerce_octane(row.get("octane")))
+    octane_scale = _validate_octane_scale(row.get("octane_scale")) if octane is not None else None
+
     return FuelRecord(
         vin=vin,
         date=date,
@@ -296,12 +306,10 @@ def _fuel_record_from_json(
         price_per_unit=price_per_unit,
         price_basis=price_basis,
         fuel_type_used=normalized_fuel_type.value if normalized_fuel_type is not None else None,
-        # #164: direct ORM construction bypasses Pydantic, so the shared
-        # validators run here per row (R1-M2). _coerce_octane rejects a
-        # fractional value instead of silently truncating it the way a bare
-        # int() would (91.9 -> 91; codex review R1-M1).
-        octane=_validate_octane(_coerce_octane(row.get("octane"))),
+        octane=octane,
+        octane_scale=octane_scale,
         diesel_grade=_validate_diesel_grade(row.get("diesel_grade")),
+        fuel_grade=_validate_fuel_grade(row.get("fuel_grade")),
         is_full_tank=row.get("is_full_tank", True),
         missed_fillup=row.get("missed_fillup", False),
         is_hauling=row.get("is_hauling", False),
@@ -381,8 +389,13 @@ def _json_fuel_key(
         key.append(_same_figure(FuelRecord.price_per_unit, record.price_per_unit))
     if "octane" in row:
         key.append(_matches(FuelRecord.octane, record.octane))
+    # B4: 95 RON and 95 AKI are two different fuels, so two fill-ups.
+    if "octane_scale" in row:
+        key.append(_matches(FuelRecord.octane_scale, record.octane_scale))
     if "diesel_grade" in row:
         key.append(_matches(FuelRecord.diesel_grade, record.diesel_grade))
+    if "fuel_grade" in row:
+        key.append(_matches(FuelRecord.fuel_grade, record.fuel_grade))
     return key
 
 

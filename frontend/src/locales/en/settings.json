@@ -11,7 +11,11 @@
   },
   "systemConfig": {
     "title": "System Configuration",
-    "description": "Configure core system settings like the timezone and garage sections."
+    "description": "Configure core system settings like the timezone and garage sections.",
+    "defaultCountry": "Default country",
+    "defaultCountryDesc": "Applies to everyone who has not chosen a country, and to vehicles without one of their own.",
+    "defaultCountrySaved": "Default country saved",
+    "defaultCountryError": "Failed to save the default country"
   },
   "timezone": {
     "label": "Timezone",
@@ -310,6 +314,20 @@
     "llmApiKey": "API Key (Optional)",
     "llmReceiptHint": "Defaults to a local Ollama endpoint. Use the fuel form's Parse receipt control to fill a draft.",
     "llmHint": "Defaults to a local Ollama endpoint. Shared by receipt parse and Ask My Garage.",
+    "llmPreset": "Provider preset",
+    "llmPresetCustom": "Custom",
+    "llmPresetOpenRouter": "OpenRouter",
+    "llmPresetOllama": "Ollama (local)",
+    "llmPresetOpenAI": "OpenAI",
+    "enableLlmDocuments": "Read uploaded documents with a vision model",
+    "enableLlmDocumentsDesc": "A registration certificate or insurance document imported as a photo or scan is sent as images to the endpoint below. With a local Ollama they never leave your server. A PDF that contains text is read without any model.",
+    "llmVisionModel": "Vision model (optional)",
+    "llmVisionModelHint": "A model that accepts images (llava, qwen2.5vl, gemini, gpt-4o…). Blank uses the model above.",
+    "llmTest": "Test connection",
+    "llmTestOk": "Text model OK.",
+    "llmTestVisionOk": "Text model OK, vision model OK.",
+    "llmTestFailed": "Connection test failed. {{message}}",
+    "llmDocsLink": "What is sent, and how to set it up",
     "mqttDeviceId": "Device ID",
     "mqttDeviceLabel": "Label",
     "mqttCreateDevice": "Create device",
@@ -428,7 +446,19 @@
       }
     },
     "sensorStatusLoading": "Checking...",
-    "sensorStatusFailed": "Status unavailable"
+    "sensorStatusFailed": "Status unavailable",
+    "rappelconso": "RappelConso (France)",
+    "rappelconsoDesc": "Recalls from the French government's product recall register, for vehicles registered in France.",
+    "enableRappelConso": "Enable RappelConso",
+    "enableRappelConsoDesc": "Matched on the make, the model and the production dates (the register has no VIN); every match is shown with its confidence and is never marked resolved automatically.",
+    "rappelconsoApiUrl": "RappelConso API URL",
+    "rappelconsoApiUrlDesc": "The records endpoint on data.economie.gouv.fr. Only change it if the dataset moves.",
+    "fuelPrices": "Fuel prices (France)",
+    "fuelPricesDesc": "The pump prices every station in France reports to the government, shown on the fill-up form for the saved station you pick.",
+    "enableFuelPrices": "Enable fuel prices",
+    "enableFuelPricesDesc": "Asked for the station's coordinates only, about every ten minutes at most; nothing about your vehicle leaves the instance.",
+    "fuelPricesApiUrl": "Fuel prices API URL",
+    "fuelPricesApiUrlDesc": "The records endpoint on data.economie.gouv.fr. Only change it if the dataset moves."
   },
   "notifications": {
     "loading": "Loading notification settings...",
@@ -795,5 +825,19 @@
   "numberField": {
     "between": "Enter a number from {{min}} to {{max}}",
     "wholeBetween": "Enter a whole number from {{min}} to {{max}}"
+  },
+  "country": {
+    "label": "Country",
+    "none": "Not set",
+    "saved": "Country saved",
+    "error": "Failed to save the country",
+    "description": "Drives national defaults for your vehicles: inspection cadence, fuel pump names, tax types. A vehicle registered elsewhere can set its own country."
+  },
+  "inspection": {
+    "label": "Technical inspection reminders",
+    "autoSchedule": "Schedule the periodic technical inspection automatically",
+    "description": "With a country set, each vehicle with a first registration date gets a reminder for its periodic roadworthiness test (contrôle technique, HU, APK, ITV…), computed from the country's cadence and brought forward by the inspections you log. Turn it off to manage those reminders yourself.",
+    "saved": "Preference saved",
+    "error": "Failed to save the preference"
   }
 }

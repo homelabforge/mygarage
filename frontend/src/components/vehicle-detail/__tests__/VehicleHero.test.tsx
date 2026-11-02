@@ -116,6 +116,15 @@ describe('VehicleHero', () => {
     expect(screen.queryByText('FifthWheel')).not.toBeInTheDocument()
   })
 
+  it('shows a tractor\'s serial, never its generated key (#226)', () => {
+    render(<VehicleHero
+      vehicle={{ ...VEHICLE, vin: 'QABCDEFGH12345678', vehicle_type: 'Tractor',
+        identifier_type: 'serial', identifier: 'BX23S-10234', has_vin: false } as Vehicle}
+      photoUrl={null} fromCache={false} detailStats={null} />)
+    expect(screen.getByText('vehicles:identifier.types.serial BX23S-10234')).toBeInTheDocument()
+    expect(screen.queryByText('QABCDEFGH12345678')).not.toBeInTheDocument()
+  })
+
   it('omits the odometer reading for a non-motorized vehicle even with stats', () => {
     render(<VehicleHero vehicle={{ ...VEHICLE, vehicle_type: 'FifthWheel' } as Vehicle}
       photoUrl={null} fromCache={false} detailStats={STATS} />)

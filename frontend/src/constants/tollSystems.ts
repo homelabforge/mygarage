@@ -26,6 +26,22 @@ export interface TollCountry {
 
 export const TOLL_COUNTRIES: readonly TollCountry[] = [
   {
+    // Via-T is the interoperable Spanish tag (Bip&Go and Ulys are accepted on
+    // Spanish motorways too, under their French rows).
+    country: 'ES',
+    currencies: ['EUR'],
+    languages: [],
+    systems: ['Via-T'],
+  },
+  {
+    // The three French télépéage brands (Bip&Go by Sanef, Fulli by APRR/AREA,
+    // Ulys by Vinci Autoroutes), each accepted on every French motorway.
+    country: 'FR',
+    currencies: ['EUR'],
+    languages: ['fr'],
+    systems: ['Bip&Go', 'Fulli', 'Ulys'],
+  },
+  {
     country: 'IT',
     currencies: ['EUR'],
     languages: ['it'],
@@ -36,6 +52,14 @@ export const TOLL_COUNTRIES: readonly TollCountry[] = [
     currencies: ['MYR'],
     languages: ['ms'],
     systems: ['SmartTAG', 'Touch \'n Go Card', 'Touch \'n Go RFID'],
+  },
+  {
+    // Portuguese is spoken in Brazil too, so the language is left out and
+    // the country comes from the settings (#211) or the person's pick.
+    country: 'PT',
+    currencies: ['EUR'],
+    languages: [],
+    systems: ['Via Verde'],
   },
   {
     country: 'US',

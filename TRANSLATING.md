@@ -107,6 +107,22 @@ bun run validate:translations
 - **Brand names**: MyGarage, NHTSA, Authentik, WiCAN
 - **Toll system names**: E-ZPass, Touch 'n Go, Telepass. They're saved exactly as listed and shown as-is in every language, so don't relabel them in a locale file. To add your country's systems, see the next section.
 
+## French Conventions
+
+The French bundles follow French typography so the interface reads naturally:
+
+- Vouvoiement everywhere (« Enregistrez votre véhicule », never « tu »).
+- The typographic apostrophe `’` (U+2019), not `'`.
+- A non-breaking space (U+00A0) before `:`, `;`, `?` and `!`, and inside
+  `« »` quotes.
+- `…` (U+2026) instead of three dots.
+- Odometer is « compteur » (« relevé de compteur »), a reminder is « rappel »,
+  a safety recall is « rappel constructeur », a fill-up is « plein », a service
+  visit is « visite d’entretien », supplies are « fournitures », a toll tag is
+  « badge de péage ».
+
+Keep these when you edit an existing French string or add a new one.
+
 ## Adding Your Country's Toll Systems
 
 The toll tag form asks for a country, then lists that country's toll systems. The list lives in one file, `frontend/src/constants/tollSystems.ts`, and adding a country is one row. Malaysia's looks like this:

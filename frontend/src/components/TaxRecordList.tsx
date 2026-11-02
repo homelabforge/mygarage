@@ -8,6 +8,7 @@ import { formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import type { TaxRecord } from '../types/tax'
+import { taxTypeLabel } from '../schemas/tax'
 import TaxRecordForm from './TaxRecordForm'
 import { useTaxRecords, useDeleteTaxRecord } from '../hooks/queries/useTaxRecords'
 import { Button, IconButton, Card, Mono, EmptyState, DataTable } from './ui'
@@ -61,7 +62,8 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
 
   const columns: DataTableColumn<TaxRecord>[] = [
     { id: 'datePaid', header: t('taxList.datePaid'), mono: true, render: (r) => formatDateForDisplay(r.date) },
-    { id: 'type', header: t('taxList.type'), render: (r) => r.tax_type || '-' },
+    // #211 — the code's translated label; a pre-146 display string reads as its code.
+    { id: 'type', header: t('taxList.type'), render: (r) => taxTypeLabel(r.tax_type, t) || '-' },
     { id: 'amount', header: t('taxList.amount'), mono: true, align: 'right', render: (r) => formatCurrency(r.amount, { currencyCode, locale }) },
     { id: 'renewalDate', header: t('taxList.renewalDate'), mono: true, render: (r) => (r.renewal_date ? formatDateForDisplay(r.renewal_date) : '-') },
     {

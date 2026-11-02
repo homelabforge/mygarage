@@ -11,7 +11,7 @@ const invalidateQueries = vi.fn()
 vi.mock('../../hooks/queries/useRecallRecords', () => ({
   useRecallRecords: (...a: unknown[]) => useRecallRecordsMock(...a),
   useDeleteRecallRecord: () => ({ mutate: deleteMutate, isPending: false, variables: undefined }),
-  useCheckNHTSA: () => ({ mutate: nhtsaMutate, isPending: false }),
+  useCheckRecalls: () => ({ mutate: nhtsaMutate, isPending: false }),
   useToggleRecallResolved: () => ({ mutate: toggleMutate, isPending: false }),
 }))
 vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries }) }))
@@ -21,7 +21,7 @@ vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQue
 const apiGet = vi.hoisted(() => vi.fn())
 vi.mock('../../services/api', () => ({ default: { get: apiGet } }))
 vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() } }))
 
 import { toast } from 'sonner'
 import RecallList from '../RecallList'
@@ -127,24 +127,26 @@ describe('RecallList — resolved timestamp', () => {
 })
 
 describe('RecallList — the NHTSA and CarComplaints switches come from /settings/public', () => {
-  const checkButton = (): HTMLElement => screen.getByRole('button', { name: 'recallList.checkNHTSA' })
+  // One check for every source (#211); NHTSA off doesn't disable it, since
+  // another source may cover the vehicle's country. The backend skips NHTSA.
+  const checkButton = (): HTMLElement => screen.getByRole('button', { name: 'recallList.checkAll' })
 
-  it('with nhtsa_enabled "false", Check NHTSA is disabled and a line says where to switch it on', async () => {
+  it('with nhtsa_enabled "false", a line says where to switch it on and the check stays available', async () => {
     serve([{ key: 'nhtsa_enabled', value: 'false' }])
     render(<RecallList {...PROPS} />)
 
     expect(await screen.findByText('recallList.nhtsaSwitchedOff')).toBeInTheDocument()
-    expect(checkButton()).toBeDisabled()
+    expect(checkButton()).toBeEnabled()
   })
 
-  it('with nhtsa_enabled off, the empty state\'s Check NHTSA is disabled too', async () => {
+  it('with nhtsa_enabled off, the empty state\'s check stays available too', async () => {
     useRecallRecordsMock.mockReturnValue({ data: { recalls: [], total: 0, active_count: 0, resolved_count: 0 }, isLoading: false, error: null })
     serve([{ key: 'nhtsa_enabled', value: 'off' }])
     render(<RecallList {...PROPS} />)
 
     await screen.findByText('recallList.nhtsaSwitchedOff')
-    for (const button of screen.getAllByRole('button', { name: 'recallList.checkNHTSA' })) {
-      expect(button).toBeDisabled()
+    for (const button of screen.getAllByRole('button', { name: 'recallList.checkAll' })) {
+      expect(button).toBeEnabled()
     }
   })
 
@@ -153,7 +155,7 @@ describe('RecallList — the NHTSA and CarComplaints switches come from /setting
   it.each([
     ['absent', []],
     ['unreadable', new Error('down')],
-  ] as const)('with the switch %s, Check NHTSA stays enabled', async (_case, payload) => {
+  ] as const)('with the switch %s, the check stays enabled', async (_case, payload) => {
     serve(payload instanceof Error ? payload : [...payload])
     render(<RecallList {...PROPS} />)
 
@@ -193,5 +195,115 @@ describe('RecallList — the NHTSA and CarComplaints switches come from /setting
     await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/vehicles/V1'))
     await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/settings/public'))
     expect(screen.queryByText('recallList.viewOnCarComplaints')).not.toBeInTheDocument()
+  })
+})
+
+describe('RecallList — recall sources (#211)', () => {
+  it('shows the source, the match confidence and a link to the notice for a RappelConso recall', () => {
+    useRecallRecordsMock.mockReturnValue({
+      data: {
+        recalls: [
+          {
+            ...active,
+            id: 2,
+            nhtsa_campaign_number: null,
+            source: 'rappelconso',
+            external_id: '2024-03-0123',
+            external_url: 'https://rappel.conso.gouv.fr/fiche-rappel/12345/Interne',
+            match_confidence: 95,
+          },
+        ],
+        total: 1,
+        active_count: 1,
+        resolved_count: 0,
+      },
+      isLoading: false,
+      error: null,
+    })
+    render(<RecallList {...PROPS} />)
+    expect(screen.getByTestId('recall-source')).toHaveTextContent('recallList.source.rappelconso')
+    expect(screen.getByTestId('recall-confidence')).toBeInTheDocument()
+    expect(screen.getByText('recallList.matchedByModel')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /recallList.viewNotice/ })).toHaveAttribute(
+      'href',
+      'https://rappel.conso.gouv.fr/fiche-rappel/12345/Interne',
+    )
+  })
+
+  it('an NHTSA recall shows its source and no confidence chip', () => {
+    useRecallRecordsMock.mockReturnValue({
+      data: {
+        recalls: [{ ...active, source: 'nhtsa', external_id: '23V123000', external_url: null, match_confidence: 100 }],
+        total: 1,
+        active_count: 1,
+        resolved_count: 0,
+      },
+      isLoading: false,
+      error: null,
+    })
+    render(<RecallList {...PROPS} />)
+    expect(screen.getByTestId('recall-source')).toHaveTextContent('recallList.source.nhtsa')
+    expect(screen.queryByTestId('recall-confidence')).not.toBeInTheDocument()
+    expect(screen.queryByText('recallList.matchedByModel')).not.toBeInTheDocument()
+  })
+
+  it('« Check recalls » asks every source and reports what came back', async () => {
+    const { toast } = await import('sonner')
+    nhtsaMutate.mockImplementation((_arg: unknown, options: { onSuccess: (r: unknown) => void }) =>
+      options.onSuccess({ providers_checked: ['rappelconso'], new_count: 2, warnings: ['nhtsa: request failed'] }),
+    )
+    render(<RecallList {...PROPS} />)
+    fireEvent.click(screen.getByRole('button', { name: /recallList.checkAll/ }))
+    expect(nhtsaMutate).toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('recallList.checkAllSuccess')
+    expect(toast.warning).toHaveBeenCalledWith('recallList.checkAllWarning')
+  })
+
+  it('says so when no source covers the country', async () => {
+    const { toast } = await import('sonner')
+    nhtsaMutate.mockImplementation((_arg: unknown, options: { onSuccess: (r: unknown) => void }) =>
+      options.onSuccess({ providers_checked: [], new_count: 0, warnings: [] }),
+    )
+    render(<RecallList {...PROPS} />)
+    fireEvent.click(screen.getByRole('button', { name: /recallList.checkAll/ }))
+    expect(toast.info).toHaveBeenCalledWith('recallList.noProviderForCountry')
+  })
+})
+
+describe('RecallList: a vehicle without a VIN (#226)', () => {
+  const Q_VEHICLE = { ...VEHICLE, vin: 'V1', identifier_type: 'serial', identifier: 'KBT-1', has_vin: false }
+
+  function serveVehicle(vehicle: object, publicSettings: { key: string; value: string }[] = []): void {
+    apiGet.mockImplementation((url: string) => {
+      if (url === '/settings/public') return Promise.resolve({ data: { settings: publicSettings } })
+      if (url === '/vehicles/V1') return Promise.resolve({ data: vehicle })
+      return Promise.reject({ response: { status: 403 } })
+    })
+  }
+
+  it('says NHTSA is not asked, instead of the switched-off line, and keeps the check', async () => {
+    serveVehicle(Q_VEHICLE, [{ key: 'nhtsa_enabled', value: 'false' }])
+    render(<RecallList {...PROPS} />)
+    expect(await screen.findByText('recallList.noVinNote')).toBeInTheDocument()
+    expect(screen.queryByText('recallList.nhtsaSwitchedOff')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'recallList.checkAll' })).toBeEnabled()
+  })
+
+  it('a check with no source says why for a vehicle without a VIN', async () => {
+    serveVehicle(Q_VEHICLE)
+    nhtsaMutate.mockImplementation((_arg: unknown, options: { onSuccess: (r: unknown) => void }) =>
+      options.onSuccess({ providers_checked: [], new_count: 0, warnings: [] }),
+    )
+    render(<RecallList {...PROPS} />)
+    await screen.findByText('recallList.noVinNote')
+    fireEvent.click(screen.getByRole('button', { name: /recallList.checkAll/ }))
+    expect(toast.info).toHaveBeenCalledWith('recallList.noVinNoProvider')
+  })
+
+  it('a vehicle with a VIN gets no such note', async () => {
+    serveVehicle({ ...VEHICLE, identifier_type: 'vin', has_vin: true })
+    render(<RecallList {...PROPS} />)
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/vehicles/V1'))
+    expect(screen.queryByText('recallList.noVinNote')).not.toBeInTheDocument()
   })
 })

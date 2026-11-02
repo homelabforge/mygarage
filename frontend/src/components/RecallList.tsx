@@ -7,13 +7,21 @@ import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { isSettingOn } from '../utils/settingSwitch'
+import { hasVin } from '../utils/vehicleIdentifier'
 import { usePublicSettings } from '../hooks/usePublicSettings'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
 import { formatAPITimestamp } from '../utils/parseAPITimestamp'
-import { useRecallRecords, useDeleteRecallRecord, useCheckNHTSA, useToggleRecallResolved } from '../hooks/queries/useRecallRecords'
+import { useRecallRecords, useDeleteRecallRecord, useCheckRecalls, useToggleRecallResolved } from '../hooks/queries/useRecallRecords'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, IconButton, EmptyState, Mono, Chip, Select } from './ui'
+
+/** Each recall source has its own translated label (#211). */
+const SOURCE_LABEL_KEYS: Record<string, string> = {
+  nhtsa: 'recallList.source.nhtsa',
+  rappelconso: 'recallList.source.rappelconso',
+  manual: 'recallList.source.manual',
+}
 
 interface RecallListProps {
   vin: string
@@ -37,11 +45,14 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
 
   const { data, isLoading, error } = useRecallRecords(vin, statusFilter)
   const deleteMutation = useDeleteRecallRecord(vin)
-  const nhtsaMutation = useCheckNHTSA(vin)
+  const checkMutation = useCheckRecalls(vin)
   const toggleResolvedMutation = useToggleRecallResolved(vin)
   const queryClient = useQueryClient()
 
   const recalls = data?.recalls ?? []
+  // NHTSA works from the VIN, so a vehicle without one (#226) is never sent
+  // there; the check still asks the sources that match on make and model.
+  const vinFeatures = vehicle ? hasVin(vehicle) : true
   const stats = {
     total: data?.total ?? 0,
     active_count: data?.active_count ?? 0,
@@ -73,10 +84,25 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
     fetchVehicle()
   }, [vin])
 
-  const handleCheckNHTSA = () => {
-    nhtsaMutation.mutate(undefined, {
-      onSuccess: () => {
-        toast.success(t('recallList.nhtsaSuccess'))
+  // Every source that covers the vehicle's country (#211). The answer says
+  // which sources were asked (none: the country has no source yet), how
+  // many recalls were new, and which source could not be reached.
+  const handleCheck = () => {
+    checkMutation.mutate(undefined, {
+      onSuccess: (result) => {
+        // Optional on the wire (server defaults), never here.
+        const providers = result.providers_checked ?? []
+        const warnings = result.warnings ?? []
+        if (providers.length === 0) {
+          toast.info(vinFeatures ? t('recallList.noProviderForCountry') : t('recallList.noVinNoProvider'))
+        } else if ((result.new_count ?? 0) > 0) {
+          toast.success(t('recallList.checkAllSuccess', { count: result.new_count }))
+        } else {
+          toast.success(t('recallList.checkAllNone'))
+        }
+        if (warnings.length > 0) {
+          toast.warning(t('recallList.checkAllWarning', { warnings: warnings.join('; ') }))
+        }
       },
       onError: (err) => {
         toast.error(getActionErrorMessage(err, t('recallList.nhtsaCheckAction')))
@@ -146,7 +172,9 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
         <div>
           <h2 className="text-2xl font-bold text-text">{t('recallList.title')}</h2>
           <p className="text-sm text-text-mute">{t('recallList.activeCount', { active: stats.active_count, resolved: stats.resolved_count })}</p>
-          {!nhtsaEnabled && (
+          {!vinFeatures ? (
+            <p className="mt-1 text-sm text-text-mute">{t('recallList.noVinNote')}</p>
+          ) : !nhtsaEnabled && (
             <p className="mt-1 text-sm text-text-mute">{t('recallList.nhtsaSwitchedOff')}</p>
           )}
         </div>
@@ -160,8 +188,8 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
               { value: 'resolved', label: t('recallList.resolvedOnly') },
             ]}
           />
-          <Button variant="secondary" icon={RefreshCw} onClick={handleCheckNHTSA} loading={nhtsaMutation.isPending} disabled={!nhtsaEnabled} title={t('recallList.checkNHTSATitle')}>
-            {nhtsaMutation.isPending ? t('recallList.checking') : t('recallList.checkNHTSA')}
+          <Button variant="secondary" icon={RefreshCw} onClick={handleCheck} loading={checkMutation.isPending} title={t('recallList.checkAllTitle')}>
+            {checkMutation.isPending ? t('recallList.checking') : t('recallList.checkAll')}
           </Button>
           <Button variant="primary" icon={Plus} onClick={onAddClick}>{t('recallList.addRecall')}</Button>
         </div>
@@ -173,8 +201,8 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
           title={t('recallList.noRecords')}
           action={
             <div className="flex gap-2 justify-center">
-              <Button variant="secondary" icon={RefreshCw} onClick={handleCheckNHTSA} loading={nhtsaMutation.isPending} disabled={!nhtsaEnabled}>
-                {nhtsaMutation.isPending ? t('recallList.checking') : t('recallList.checkNHTSA')}
+              <Button variant="secondary" icon={RefreshCw} onClick={handleCheck} loading={checkMutation.isPending}>
+                {checkMutation.isPending ? t('recallList.checking') : t('recallList.checkAll')}
               </Button>
               <Button variant="primary" onClick={onAddClick}>{t('recallList.addManualEntry')}</Button>
             </div>
@@ -193,14 +221,42 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
                     ? <CheckCircle aria-hidden="true" className="text-success mt-1 flex-shrink-0" size={24} />
                     : <AlertTriangle aria-hidden="true" className="text-danger mt-1 flex-shrink-0" size={24} />}
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <h3 className="text-lg font-semibold text-text">{recall.component}</h3>
                       {recall.nhtsa_campaign_number && (
                         <Chip tone="muted"><Mono size="xs" tone="inherit">{recall.nhtsa_campaign_number}</Mono></Chip>
                       )}
+                      {/* Where it came from (#211), and how sure the match is
+                          when the source has no VIN to go by. */}
+                      {recall.source && (
+                        <span data-testid="recall-source">
+                          <Chip tone="muted">{t(SOURCE_LABEL_KEYS[recall.source] ?? recall.source)}</Chip>
+                        </span>
+                      )}
+                      {recall.match_confidence != null && recall.match_confidence < 100 && (
+                        <span data-testid="recall-confidence">
+                          <Chip tone={recall.match_confidence >= 90 ? 'success' : 'warning'}>
+                            {t('recallList.confidence', { percent: recall.match_confidence })}
+                          </Chip>
+                        </span>
+                      )}
                     </div>
                     {recall.date_announced && (
                       <p className="text-sm text-text-mute mb-2">{t('recallList.announced')}: <Mono size="sm" tone="muted">{formatDate(recall.date_announced)}</Mono></p>
+                    )}
+                    {recall.source === 'rappelconso' && (
+                      <p className="text-xs text-text-mute mb-2">{t('recallList.matchedByModel')}</p>
+                    )}
+                    {recall.external_url && (
+                      <a
+                        href={recall.external_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-(--accent-fg) underline-offset-2 hover:underline mb-2"
+                      >
+                        <ExternalLink aria-hidden="true" size={14} />
+                        {t('recallList.viewNotice')}
+                      </a>
                     )}
                   </div>
                 </div>

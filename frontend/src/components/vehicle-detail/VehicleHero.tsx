@@ -8,6 +8,7 @@ import { useDateLocale } from '../../hooks/useDateLocale'
 import { getUsageTracking } from '../../utils/usageTracking'
 import { yearMakeModel } from '../../utils/vehicleLabel'
 import { Chip, Badge, Mono } from '../ui'
+import { hasVin, identifierLabel } from '../../utils/vehicleIdentifier'
 
 interface VehicleHeroProps {
   vehicle: Vehicle
@@ -163,7 +164,11 @@ export default function VehicleHero({ vehicle, photoUrl, fromCache, detailStats 
           {yearMakeModel(vehicle)}
         </p>
         <Mono size="sm" tone="muted" variant="vin" className="mt-1 block [overflow-wrap:anywhere]">
-          {vehicle.vin}
+          {hasVin(vehicle)
+            ? vehicle.vin
+            : vehicle.identifier
+              ? `${identifierLabel(vehicle, t)} ${vehicle.identifier}`
+              : null}
         </Mono>
         {fromCache ? (
           <div className="mt-2 flex items-center gap-2 text-xs text-warning">

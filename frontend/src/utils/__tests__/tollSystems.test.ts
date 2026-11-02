@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { TollCountry } from '../../constants/tollSystems'
+import { TOLL_COUNTRIES, type TollCountry } from '../../constants/tollSystems'
 import {
   TOLL_OTHER,
   canonicalTollSystem,
@@ -69,6 +69,22 @@ describe('guessTollCountry', () => {
     expect(guessTollCountry('EUR', 'en', EURO)).toBeNull()
     expect(guessTollCountry('EUR', 'fr', EURO)).toBe('FR')
   })
+
+  // #211: the euro is shared by Spain, France, Italy and Portugal in the
+  // shipped data, so the currency alone decides nothing there.
+  it('with the shipped data, the euro alone is a tie and a language breaks it', () => {
+    expect(guessTollCountry('EUR', 'en')).toBeNull()
+    expect(guessTollCountry('EUR', 'fr')).toBe('FR')
+    expect(guessTollCountry('EUR', 'it')).toBe('IT')
+    expect(guessTollCountry('EUR', 'pt-BR')).toBeNull()
+  })
+
+  it('a resolved country wins when it is listed, and leaves the pick to the person when it is not', () => {
+    expect(guessTollCountry('USD', 'en', TOLL_COUNTRIES, 'FR')).toBe('FR')
+    expect(guessTollCountry('EUR', 'en', TOLL_COUNTRIES, 'PT')).toBe('PT')
+    expect(guessTollCountry('EUR', 'fr', TOLL_COUNTRIES, 'BE')).toBeNull()
+    expect(guessTollCountry('USD', 'en', TOLL_COUNTRIES, null)).toBe('US')
+  })
 })
 
 describe('initialTollSelection', () => {
@@ -130,11 +146,14 @@ describe('choiceForCountry', () => {
 describe('options', () => {
   it('sorts countries by their name in the reader language', () => {
     expect(tollCountryOptions('en-US')).toEqual([
+      { value: 'FR', label: 'France' },
       { value: 'IT', label: 'Italy' },
       { value: 'MY', label: 'Malaysia' },
+      { value: 'PT', label: 'Portugal' },
+      { value: 'ES', label: 'Spain' },
       { value: 'US', label: 'United States' },
     ])
-    expect(tollCountryOptions('it-IT').map((o) => o.label)).toEqual(['Italia', 'Malaysia', 'Stati Uniti'])
+    expect(tollCountryOptions('it-IT').map((o) => o.label)).toEqual(['Francia', 'Italia', 'Malaysia', 'Portogallo', 'Spagna', 'Stati Uniti'])
   })
 
   it('sorts a country\'s systems by name, and has none for no country or Other', () => {
@@ -151,7 +170,7 @@ describe('options', () => {
     intl.DisplayNames = undefined
     try {
       expect(tollCountryName('US', 'en-US')).toBe('US')
-      expect(tollCountryOptions('en-US').map((o) => o.label)).toEqual(['IT', 'MY', 'US'])
+      expect(tollCountryOptions('en-US').map((o) => o.label)).toEqual(['ES', 'FR', 'IT', 'MY', 'PT', 'US'])
     } finally {
       intl.DisplayNames = original
     }

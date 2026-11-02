@@ -36,7 +36,7 @@ class TestTaxRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-01-15",
-                "tax_type": "Registration",
+                "tax_type": "registration",
                 "amount": 85.50,
                 "renewal_date": "2025-01-15",
                 "notes": "Annual registration",
@@ -55,7 +55,7 @@ class TestTaxRecordRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == record["id"]
-        assert data["tax_type"] == "Registration"
+        assert data["tax_type"] == "registration"
         assert float(data["amount"]) == 85.50
 
     async def test_create_tax_record(self, client: AsyncClient, auth_headers, own_vehicle):
@@ -63,7 +63,7 @@ class TestTaxRecordRoutes:
         payload = {
             "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
-            "tax_type": "Inspection",
+            "tax_type": "inspection",
             "amount": 35.00,
             "notes": "Annual state inspection",
         }
@@ -88,7 +88,7 @@ class TestTaxRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-02-01",
-                "tax_type": "Property Tax",
+                "tax_type": "property_tax",
                 "amount": 150.00,
             },
             headers=auth_headers,
@@ -120,7 +120,7 @@ class TestTaxRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-03-01",
-                "tax_type": "Tolls",
+                "tax_type": "tolls",
                 "amount": 25.00,
             },
             headers=auth_headers,
@@ -155,7 +155,7 @@ class TestTaxRecordRoutes:
         invalid_payload = {
             "vin": test_vehicle["vin"],
             "date": "2024-01-15",
-            "tax_type": "Registration",
+            "tax_type": "registration",
             "amount": -50.00,  # Negative amount should fail
         }
 
@@ -204,7 +204,7 @@ class TestTaxRecordRoutes:
         payload = {
             "vin": own_vehicle.vin,
             "date": datetime.now().date().isoformat(),
-            "tax_type": "Registration",
+            "tax_type": "registration",
             "amount": 95.00,
             "renewal_date": next_year,
         }
@@ -229,7 +229,7 @@ class TestTaxRecordRoutes:
                 json={
                     "vin": test_vehicle["vin"],
                     "date": date,
-                    "tax_type": "Registration",
+                    "tax_type": "registration",
                     "amount": 85.00,
                 },
                 headers=auth_headers,
@@ -258,7 +258,7 @@ class TestTaxRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-04-01",
-                "tax_type": "Inspection",
+                "tax_type": "inspection",
                 "amount": 40.00,
             },
             headers=auth_headers,
@@ -275,7 +275,7 @@ class TestTaxRecordRoutes:
         assert response.status_code == 200
         data = response.json()
         # Original fields unchanged
-        assert data["tax_type"] == "Inspection"
+        assert data["tax_type"] == "inspection"
         assert float(data["amount"]) == 40.00
         # New field added
         assert data["notes"] == "Passed inspection"
@@ -287,7 +287,7 @@ class TestTaxRecordRoutes:
         payload = {
             "vin": "DIFFERENTVIN12345",  # Different VIN than URL
             "date": "2024-05-01",
-            "tax_type": "Registration",
+            "tax_type": "registration",
             "amount": 100.00,
         }
         response = await client.post(
@@ -300,7 +300,7 @@ class TestTaxRecordRoutes:
 
     async def test_tax_type_options(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating tax records with all valid tax types."""
-        tax_types = ["Registration", "Inspection", "Property Tax", "Tolls"]
+        tax_types = ["registration", "inspection", "property_tax", "tolls"]
 
         for i, tax_type in enumerate(tax_types):
             response = await client.post(
@@ -316,3 +316,96 @@ class TestTaxRecordRoutes:
             assert response.status_code == 201, f"Failed for tax_type: {tax_type}"
             data = response.json()
             assert data["tax_type"] == tax_type
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestTaxTypeCodes:
+    """#211 — snake_case codes, legacy spellings accepted, unknown values read as null."""
+
+    async def test_a_new_code_round_trips(self, client: AsyncClient, auth_headers, test_vehicle):
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/tax-records",
+            json={
+                "vin": test_vehicle["vin"],
+                "date": "2026-03-12",
+                "tax_type": "co2_malus",
+                "amount": 1200,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["tax_type"] == "co2_malus"
+
+    async def test_a_legacy_spelling_is_stored_as_its_code(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/tax-records",
+            json={
+                "vin": test_vehicle["vin"],
+                "date": "2026-03-12",
+                "tax_type": "Property Tax",
+                "amount": 150,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201, response.text
+        record = response.json()
+        assert record["tax_type"] == "property_tax"
+        # And on update, in any case.
+        response = await client.put(
+            f"/api/vehicles/{test_vehicle['vin']}/tax-records/{record['id']}",
+            json={"tax_type": "Circulation Tax"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["tax_type"] == "circulation_tax"
+
+    async def test_an_unknown_type_is_422(self, client: AsyncClient, auth_headers, test_vehicle):
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/tax-records",
+            json={
+                "vin": test_vehicle["vin"],
+                "date": "2026-03-12",
+                "tax_type": "Bogus",
+                "amount": 1,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    async def test_an_unknown_stored_value_reads_as_null(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        from datetime import date as date_type
+        from decimal import Decimal
+
+        from app.models.tax import TaxRecord
+
+        row = TaxRecord(
+            vin=test_vehicle["vin"],
+            date=date_type(2026, 3, 12),
+            tax_type="Income Tax",
+            amount=Decimal("1.00"),
+        )
+        db_session.add(row)
+        await db_session.commit()
+        try:
+            response = await client.get(
+                f"/api/vehicles/{test_vehicle['vin']}/tax-records/{row.id}",
+                headers=auth_headers,
+            )
+            assert response.status_code == 200, response.text
+            assert response.json()["tax_type"] is None
+            # A legacy string left in a restored backup reads as its code.
+            row.tax_type = "Tolls"
+            await db_session.commit()
+            response = await client.get(
+                f"/api/vehicles/{test_vehicle['vin']}/tax-records/{row.id}",
+                headers=auth_headers,
+            )
+            assert response.json()["tax_type"] == "tolls"
+        finally:
+            await db_session.delete(row)
+            await db_session.commit()

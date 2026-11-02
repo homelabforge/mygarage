@@ -415,3 +415,132 @@ class TestPlacingLeftovers:
     def test_an_unpriced_line_is_prose_either_way(self):
         fields, notes = place_leftovers(parse_coverage_lines("Disappearing Deductibles"))
         assert (fields, notes) == ([], ["Disappearing Deductibles"])
+
+
+# ---------------------------------------------------------------------------
+# Europe (#211)
+# ---------------------------------------------------------------------------
+
+FRENCH = """Responsabilité civile : illimitée
+Défense pénale et recours : plafond 20 000 €
+Garantie du conducteur : plafond 1 000 000 €
+Bris de glace : franchise 80 €
+Vol et tentative de vol : franchise 300 € – prime 45,20 €
+Incendie : franchise 300 €
+Catastrophes naturelles : franchise 380 €
+Dommages tous accidents : franchise 1.234,56 €
+Assistance 0 km : incluse
+Véhicule de remplacement : 15 jours
+Volkswagen Golf"""
+
+
+class TestEuropeanCatalogue:
+    def test_every_coverage_names_its_region(self):
+        for coverage in COVERAGES:
+            assert coverage.regions, coverage.key
+            assert set(coverage.regions) <= {"US", "EU"}, coverage.key
+
+    def test_the_european_coverages_follow_the_north_american_ones(self):
+        regions = [coverage.regions for coverage in COVERAGES]
+        first_eu_only = next(i for i, r in enumerate(regions) if r == ("EU",))
+        assert all("US" in r for r in regions[:first_eu_only])
+        assert all(r == ("EU",) for r in regions[first_eu_only:])
+        assert COVERAGE_BY_KEY["glass"].regions == ("US", "EU")
+
+    def test_a_french_tableau_de_garanties_reads_end_to_end(self):
+        result = parse_coverage_lines(FRENCH)
+        rows = {item.key: item for item in result.coverages}
+        assert list(rows) == [
+            "glass",
+            "third_party_liability",
+            "driver_protection",
+            "theft",
+            "fire",
+            "natural_disasters",
+            "all_accidents_damage",
+            "legal_protection",
+            "assistance",
+            "replacement_vehicle",
+        ]
+        assert rows["glass"].deductible == Decimal("80")
+        assert rows["legal_protection"].limit_primary == Decimal("20000")
+        assert rows["driver_protection"].limit_primary == Decimal("1000000")
+        assert (rows["theft"].deductible, rows["theft"].premium) == (
+            Decimal("300"),
+            Decimal("45.20"),
+        )
+        assert rows["all_accidents_damage"].deductible == Decimal("1234.56")
+        assert rows["replacement_vehicle"].limit_primary == Decimal("15")
+        assert rows["third_party_liability"].limit_primary is None
+        # « Volkswagen » is a make, not « vol » (theft) with a remainder.
+        assert "Volkswagen Golf" in result.notes
+
+    def test_a_short_phrase_stops_at_a_word_boundary(self):
+        assert parse_coverage_lines("Volkswagen Golf").coverages == []
+        assert parse_coverage_lines("Vol : franchise 300 €").coverages[0].key == "theft"
+        assert parse_coverage_lines("Vol").coverages[0].key == "theft"
+
+    def test_a_non_souscrite_line_is_not_a_row(self):
+        result = parse_coverage_lines("Vol : non souscrite\nIncendie : sans objet")
+        assert result.coverages == []
+        assert result.notes == ["Vol : non souscrite", "Incendie : sans objet"]
+
+    def test_european_figures_are_read_only_beside_a_euro_mark(self):
+        # Without a euro mark a comma is a thousands separator, as it always
+        # was on a North American page and in migration 108's text.
+        us = parse_coverage_lines("Collision 1,000 deductible").coverages[0]
+        assert us.deductible == Decimal("1000")
+        eu = parse_coverage_lines("Vol : 1 000,50 € franchise").coverages[0]
+        assert eu.deductible == Decimal("1000.50")
+        eur = parse_coverage_lines("Incendie : franchise 300,00 EUR").coverages[0]
+        assert eur.deductible == Decimal("300.00")
+
+    def test_german_italian_and_spanish_lines(self):
+        rows = {
+            item.key: item
+            for item in parse_coverage_lines(
+                "Kfz-Haftpflicht 100.000.000 €\n"
+                "Teilkasko Diebstahl Selbstbeteiligung 150 €\n"
+                "Schutzbrief\n"
+                "Furto : franchigia 250 €\n"
+                "Asistencia en viaje\n"
+                "Defensa jurídica 3.000 €"
+            ).coverages
+        }
+        assert rows["third_party_liability"].limit_primary == Decimal("100000000")
+        assert rows["assistance"].key == "assistance"
+        assert rows["theft"].deductible == Decimal("250")
+        assert rows["legal_protection"].limit_primary == Decimal("3000")
+
+    def test_the_progressive_page_is_unchanged_by_the_european_phrases(self):
+        result = parse_coverage_lines(PROGRESSIVE)
+        assert [item.key for item in result.coverages] == [
+            "bodily_injury",
+            "property_damage",
+            "uninsured_bodily_injury",
+            "uninsured_property_damage",
+            "personal_injury_protection",
+            "comprehensive",
+            "collision",
+            "glass",
+            "rental_reimbursement",
+            "roadside_assistance",
+        ]
+        assert result.fields == [("Liability to Others", "$315")]
+
+    @pytest.mark.parametrize(
+        "key",
+        [c.key for c in COVERAGES if c.regions == ("EU",)],
+    )
+    def test_every_european_coverage_round_trips_through_the_export_text(self, key):
+        coverage = COVERAGE_BY_KEY[key]
+        item = ParsedCoverage(key)
+        if coverage.primary:
+            item.limit_primary = (
+                Decimal("30") if coverage.primary.kind == "count" else Decimal("20000.00")
+            )
+        if coverage.has_deductible:
+            item.deductible = Decimal("300.00")
+        item.premium = Decimal("45.20")
+        again = parse_coverage_lines(format_coverage_lines([item])).coverages
+        assert again == [item]

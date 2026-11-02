@@ -5,6 +5,7 @@
 import logging
 import shutil
 from decimal import Decimal
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -19,8 +20,18 @@ from app.schemas.vehicle import VehicleCreate, VehicleUpdate
 from app.services.attachment_cleanup import purge_vehicle_attachments, unlink_contained
 from app.services.hours_service import set_manual_current_hours
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.vehicle_key import generate_vehicle_key, is_synthetic_key
+from app.utils.vin import validate_vin
 
 logger = logging.getLogger(__name__)
+
+# #211 — vehicle fields the periodic inspection engine reads. The first set
+# may turn the engine on or off for the vehicle, so a change reactivates a
+# paused rule; the second only changes the cadence.
+_INSPECTION_REACTIVATING_FIELDS = frozenset(
+    {"first_registration_date", "registration_country", "sold_date"}
+)
+_INSPECTION_CADENCE_FIELDS = frozenset({"vehicle_type", "fuel_type", "fuel_type_secondary"})
 
 DEF_CAPACITY_NON_DIESEL_DETAIL = "DEF tank capacity applies only to diesel vehicles"
 DEF_CAPACITY_CLEAR_FIRST_DETAIL = (
@@ -51,6 +62,32 @@ def _check_def_capacity_gate(
     if capacity_was_explicitly_set:
         raise HTTPException(status_code=400, detail=DEF_CAPACITY_NON_DIESEL_DETAIL)
     raise HTTPException(status_code=400, detail=DEF_CAPACITY_CLEAR_FIRST_DETAIL)
+
+
+def _apply_identity_change(vehicle: Vehicle, update_data: dict[str, Any]) -> None:
+    """Check an identifier change against the stored key, in place (#226).
+
+    The key never changes. A vehicle whose key is a real VIN (including one
+    entered with a generated VIN as a workaround) can switch to a serial, HIN,
+    chassis number, asset tag or none, and back to 'vin'. A vehicle keyed by a
+    generated Q key has no VIN to go back to: claiming one would need a primary
+    key rewrite across every table, so it is refused.
+    """
+    if "identifier_type" not in update_data and "identifier" not in update_data:
+        return
+    kind = update_data.get("identifier_type", vehicle.identifier_type)
+    value = update_data.get("identifier", vehicle.identifier)
+    if kind == "vin":
+        if is_synthetic_key(vehicle.vin) or not validate_vin(vehicle.vin)[0]:
+            raise HTTPException(
+                status_code=422,
+                detail="This vehicle was added without a VIN, so it can't be switched to one",
+            )
+        update_data["identifier"] = None
+    elif kind == "none":
+        update_data["identifier"] = None
+    elif not value:
+        raise HTTPException(status_code=422, detail=f"An identifier is required for '{kind}'")
 
 
 class VehicleService:
@@ -125,6 +162,12 @@ class VehicleService:
         vehicle = await get_vehicle_or_403(vin, current_user, self.db)
         return vehicle
 
+    async def _resync_inspection(self, vin: str, *, force_reactivate: bool) -> None:
+        """Hand the vehicle to the inspection engine after its own commit (#211)."""
+        from app.services.inspection_schedule_service import resync_vehicle
+
+        await resync_vehicle(self.db, vin, force_reactivate=force_reactivate)
+
     async def create_vehicle(
         self, vehicle_data: VehicleCreate, current_user: User | None
     ) -> Vehicle:
@@ -142,18 +185,22 @@ class VehicleService:
             HTTPException: 400 if VIN already exists
         """
         try:
-            # Check if VIN already exists
-            result = await self.db.execute(select(Vehicle).where(Vehicle.vin == vehicle_data.vin))
-            existing = result.scalar_one_or_none()
-
-            if existing:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Vehicle with VIN {vehicle_data.vin} already exists",
-                )
-
-            # Create vehicle with ownership assigned to current user
             vehicle_dict = vehicle_data.model_dump()
+            if vehicle_data.identifier_type == "vin":
+                # Check if VIN already exists
+                result = await self.db.execute(
+                    select(Vehicle).where(Vehicle.vin == vehicle_data.vin)
+                )
+                if result.scalar_one_or_none():
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Vehicle with VIN {vehicle_data.vin} already exists",
+                    )
+            else:
+                # No VIN (#226): the vehicle is keyed by a generated Q key. A
+                # collision is ~33^-16; checking costs one indexed lookup.
+                vehicle_dict["vin"] = await self._unused_vehicle_key()
+
             # R2-H1: current_hours is retired as a source-of-truth column write —
             # pop it out of the setattr dict and route it into the authoritative
             # hours_records history instead (see set_manual_current_hours). It
@@ -190,6 +237,11 @@ class VehicleService:
                 sanitize_for_log(username),
             )
 
+            # #211 — a first registration date is what the inspection engine
+            # schedules from; without one it has nothing to do yet.
+            if vehicle.first_registration_date is not None:
+                await self._resync_inspection(vehicle.vin, force_reactivate=True)
+
             return vehicle
 
         except HTTPException:
@@ -202,12 +254,25 @@ class VehicleService:
             )
             raise HTTPException(
                 status_code=409,
-                detail=f"Vehicle with VIN {vehicle_data.vin} already exists",
+                detail=(
+                    f"Vehicle with VIN {vehicle_data.vin} already exists"
+                    if vehicle_data.vin
+                    else "Vehicle could not be created (duplicate key)"
+                ),
             )
         except OperationalError as e:
             await self.db.rollback()
             logger.error("Database connection error creating vehicle: %s", sanitize_for_log(e))
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    async def _unused_vehicle_key(self) -> str:
+        """A generated key no vehicle holds yet (#226)."""
+        for _ in range(5):
+            key = generate_vehicle_key()
+            taken = await self.db.execute(select(Vehicle.vin).where(Vehicle.vin == key))
+            if taken.scalar_one_or_none() is None:
+                return key
+        raise HTTPException(status_code=503, detail="Could not allocate a vehicle key")
 
     async def update_vehicle(
         self, vin: str, vehicle_data: VehicleUpdate, current_user: User | None
@@ -255,6 +320,7 @@ class VehicleService:
                 ),
                 capacity_was_explicitly_set="def_tank_capacity_liters" in update_data,
             )
+            _apply_identity_change(vehicle, update_data)
             for field, value in update_data.items():
                 setattr(vehicle, field, value)
 
@@ -267,6 +333,14 @@ class VehicleService:
             await self.db.refresh(vehicle)
 
             logger.info("Updated vehicle: %s", sanitize_for_log(vehicle.vin))
+
+            # #211 — the fields the inspection engine reads. A country, a
+            # date or a sale may turn it on or off, so those reactivate a
+            # paused rule; a type or fuel change only recomputes the cadence.
+            if update_data.keys() & _INSPECTION_REACTIVATING_FIELDS:
+                await self._resync_inspection(vehicle.vin, force_reactivate=True)
+            elif update_data.keys() & _INSPECTION_CADENCE_FIELDS:
+                await self._resync_inspection(vehicle.vin, force_reactivate=False)
 
             return vehicle
 

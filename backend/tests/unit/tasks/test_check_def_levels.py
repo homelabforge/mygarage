@@ -258,7 +258,8 @@ def _def_calls(mock: AsyncMock) -> list[Any]:
     return [
         call
         for call in mock.await_args_list
-        if str(call.kwargs.get("vin", "")).startswith(_VIN_PREFIX)
+        # The notification names the vehicle as "VIN <vin>" (#226).
+        if str(call.kwargs.get("identifier", "")).startswith(f"VIN {_VIN_PREFIX}")
     ]
 
 
@@ -296,7 +297,7 @@ class TestCheckDefLevels:
         calls = _def_calls(mock)
         assert len(calls) == 1
         kwargs = calls[0].kwargs
-        assert kwargs["vin"] == vehicle.vin
+        assert kwargs["identifier"] == f"VIN {vehicle.vin}"
         assert kwargs["percent"] == Decimal("20.00")
         assert kwargs["remaining_liters"] == Decimal("15.0000")
         assert kwargs["as_of_date"] == date(2026, 7, 1)
@@ -431,7 +432,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        assert [c.kwargs["vin"] for c in _def_calls(mock)] == [vehicle.vin]
+        assert [c.kwargs["identifier"] for c in _def_calls(mock)] == [f"VIN {vehicle.vin}"]
 
     async def test_garbage_threshold_falls_back_to_25(
         self, patch_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
@@ -511,7 +512,7 @@ class TestCheckDefLevels:
         )
 
         async def _side_effect(*args: Any, **kwargs: Any) -> dict[str, bool]:
-            if kwargs.get("vin") == vehicle_a.vin:
+            if kwargs.get("identifier") == f"VIN {vehicle_a.vin}":
                 raise RuntimeError("boom")
             return {"ntfy": True}
 
@@ -586,7 +587,9 @@ class TestDefLowRenderContextWiring:
 
         await check_def_levels()
 
-        calls = [call for call in _def_calls(mock) if call.kwargs["vin"] == vehicle.vin]
+        calls = [
+            call for call in _def_calls(mock) if call.kwargs["identifier"] == f"VIN {vehicle.vin}"
+        ]
         assert len(calls) == 1
         return calls[0].kwargs["ctx"]
 

@@ -10,6 +10,7 @@ import { NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
 import type { TrailerDetails, Vehicle } from '../../types/vehicle'
 import { parseDecimalInput } from '../../utils/decimalInput'
 import { getActiveLocale } from '@/constants/i18n'
+import { identifierValue, vinForDisplay } from '../../utils/vehicleIdentifier'
 
 interface TrailerTowPanelProps {
   vehicle: Vehicle
@@ -158,7 +159,7 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
               <Link className="text-(--accent-fg) hover:underline font-medium" to={`/vehicles/${tr.vin}`}>
                 {tr.nickname}
               </Link>
-              <span className="text-xs text-text-mute ml-2 font-mono">{tr.vin}</span>
+              <span className="text-xs text-text-mute ml-2 font-mono">{vinForDisplay(tr.vin)}</span>
             </li>
           ))}
         </ul>
@@ -196,7 +197,7 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
                 >
                   {towVehicle.nickname}
                 </Link>
-                <Mono size="sm" className="ml-2 text-text-mute">{towVehicle.vin}</Mono>
+                <Mono size="sm" className="ml-2 text-text-mute">{identifierValue(towVehicle)}</Mono>
               </p>
             ) : (
               <p className="mt-1 text-sm text-text-mute">
@@ -250,7 +251,7 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
               { value: '', label: t('detail.tow.none') },
               ...towCandidates.map((v) => ({
                 value: v.vin,
-                label: `${v.nickname} (${v.vin})`,
+                label: identifierValue(v) ? `${v.nickname} (${identifierValue(v)})` : v.nickname,
               })),
             ]}
           />

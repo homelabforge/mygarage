@@ -24,6 +24,7 @@ from pydantic import (
 )
 
 from app.constants.accents import SUPPORTED_ACCENTS
+from app.constants.countries import is_country_code, normalize_country_code
 from app.constants.dashboard import DEFAULT_DASHBOARD_SORT, SUPPORTED_DASHBOARD_SORTS
 from app.constants.fuel import PAYMENT_METHOD_VALUES, TRIP_TYPE_VALUES
 from app.constants.i18n import SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES
@@ -153,6 +154,11 @@ class UserSelfUpdate(BaseModel):
     # i18n preferences
     language: str | None = Field(None, max_length=10)
     currency_code: str | None = Field(None, max_length=3)
+    # Country (ISO 3166-1 alpha-2); null clears it. Drives national defaults
+    # (inspection cadence, pump names, tax types) for this person's vehicles.
+    country: str | None = Field(None, max_length=2)
+    # Keep the periodic technical inspection reminder up to date automatically.
+    inspection_auto_schedule: bool | None = None
     # UI theme accent
     accent_color: str | None = Field(None, max_length=20)
     # UI light/dark theme
@@ -172,6 +178,7 @@ class UserSelfUpdate(BaseModel):
         "language",
         "currency_code",
         "dashboard_sort",
+        "inspection_auto_schedule",
     )
 
     @field_validator("language")
@@ -181,6 +188,19 @@ class UserSelfUpdate(BaseModel):
         if v is not None and v not in SUPPORTED_LANGUAGES:
             raise ValueError(f"Unsupported language: {v}. Supported: {sorted(SUPPORTED_LANGUAGES)}")
         return v
+
+    @field_validator("country", mode="before")
+    @classmethod
+    def validate_country(cls, v: Any) -> Any:
+        """Uppercase and check against the ISO 3166-1 alpha-2 list; null clears."""
+        if v is None:
+            return None
+        code = normalize_country_code(str(v))
+        if code is None:
+            return None
+        if not is_country_code(code):
+            raise ValueError(f"Unsupported country: {v}. Use an ISO 3166-1 alpha-2 code.")
+        return code
 
     @field_validator("currency_code")
     @classmethod
@@ -478,6 +498,10 @@ class UserResponse(UserBase):
     # i18n preferences
     language: str = "en"
     currency_code: str = "USD"
+    # Country (ISO 3166-1 alpha-2) or None when never set; the inspection
+    # auto-schedule preference (#211).
+    country: str | None = None
+    inspection_auto_schedule: bool = True
     # UI theme accent — None when the user has never explicitly picked one.
     accent_color: str | None = None
     # UI light/dark theme — None when the user has never explicitly picked one.

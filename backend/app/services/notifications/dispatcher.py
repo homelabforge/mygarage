@@ -505,7 +505,7 @@ class NotificationDispatcher:
     async def notify_def_low(
         self,
         vehicle_name: str,
-        vin: str,
+        identifier: str | None,
         percent: Decimal,
         remaining_liters: Decimal,
         as_of_date: date,
@@ -533,7 +533,8 @@ class NotificationDispatcher:
             event_type="def_low",
             title=f"DEF Low: {vehicle_name}",
             message=(
-                f"DEF level for {vehicle_name} ({vin}) is at {percent:.1f}% "
+                f"DEF level for {vehicle_name}{f' ({identifier})' if identifier else ''} "
+                f"is at {percent:.1f}% "
                 f"({format_forced_volume_pair(remaining_liters, ctx)} remaining), "
                 f"as of {as_of_date.isoformat()}."
             ),

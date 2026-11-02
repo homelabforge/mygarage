@@ -1,0 +1,24 @@
+{
+  "id": "attachment_grease",
+  "name": "Attachment Lubrication",
+  "description": "Time-based greasing and inspection for implements and heads with no engine of their own (sweeper heads, brushcutter heads, mower decks).",
+  "vehicle_types": [
+    "Attachment"
+  ],
+  "reminders": [
+    {
+      "key": "grease_gearbox",
+      "maintenance_type": "grease_fittings",
+      "title": "Grease Gearbox",
+      "interval_months": 3,
+      "notes": "Use the grease your manual names; don't overfill a sealed gearbox."
+    },
+    {
+      "key": "inspect_blades",
+      "maintenance_type": "inspection",
+      "title": "Inspect Blades / Tines",
+      "interval_months": 6,
+      "notes": "Check for cracks, wear and loose fasteners."
+    }
+  ]
+}

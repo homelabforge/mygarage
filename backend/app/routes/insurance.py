@@ -15,9 +15,12 @@ tab, gated on the vehicle like any other child collection.
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.schemas.insurance import (
@@ -30,17 +33,26 @@ from app.schemas.insurance import (
     PolicyVehicleCreate,
     PolicyVehicleUpdate,
 )
+from app.services import document_reader_service
 from app.services.auth import get_current_admin_user, require_auth
+from app.services.document_images import is_pdf
 from app.services.document_ocr import document_ocr_service
-from app.services.insurance_service import InsuranceService
+from app.services.document_parsers.insurance import from_llm_fields
+from app.services.insurance_service import InsuranceService, plate_key
 from app.utils.logging_utils import sanitize_for_log
 
 router = APIRouter(prefix="/api/insurance", tags=["Insurance"])
 vehicle_insurance_router = APIRouter(prefix="/api/vehicles", tags=["Insurance"])
 logger = logging.getLogger(__name__)
+#: A read can reach a vision model: the receipt parse's upload budget (B6).
+limiter = Limiter(key_func=get_remote_address)
 
-_ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png"}
+#: A PDF is read from its text layer; a photo or a scan (JPEG, PNG, HEIC)
+#: goes to the vision model when document reading is on (#211).
+_ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
 _MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+#: What `parse_insurance_text` needs to read anything at all.
+_MIN_OFFLINE_TEXT = 30
 
 
 # ---------------------------------------------------------------------------
@@ -194,37 +206,75 @@ async def _read_upload(file: UploadFile) -> bytes:
         raise HTTPException(
             status_code=400, detail=f"File must be PDF or image (jpg, png). Got: {extension}"
         )
-    # Size BEFORE reading into memory, to prevent a memory DoS.
-    file.file.seek(0, 2)
-    size = file.file.tell()
-    file.file.seek(0)
-    if size > _MAX_UPLOAD_BYTES:
+    # Bounded while reading (B9): one byte past the limit says it is too
+    # large, and the rest is never read into memory.
+    contents = await file.read(_MAX_UPLOAD_BYTES + 1)
+    if len(contents) > _MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="File size exceeds 25MB limit")
-    return await file.read()
+    return contents
 
 
 @router.post("/parse-pdf")
+@limiter.limit(settings.rate_limit_uploads)
 async def parse_insurance_pdf(
+    request: Request,
     file: UploadFile = File(...),
     provider: str | None = Query(
         None, description="Optional provider hint (progressive, statefarm, geico, allstate)"
     ),
+    allow_external_vision: bool = Query(
+        False,
+        description="Consent to send the document to a vision model outside the network",
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Read a declarations page and return what it says, persisting nothing.
+    """Read a policy document and return what it says, persisting nothing.
+
+    A PDF with a text layer is read on the server (the North American
+    parsers, the French one, the generic fallback); a photo or a scan goes
+    to the vision model when document reading is on, else 409
+    `ai_reading_not_configured` (#211). `source` says which. A vision model
+    outside the household's network answers 409 `vision_consent_required`
+    first, until the request carries `allow_external_vision=true`.
 
     `vehicles` lists every VIN on the document with its own premium and
-    deductible where the parser finds a per-vehicle section. `matched` marks
-    the ones the caller has WRITE access to, which is what attaching one takes.
+    deductible where the parser finds a per-vehicle section, and every
+    registration plate when the document names no VIN (`matched_by` is
+    `vin` or `plate`). `matched` marks the ones the caller has WRITE access
+    to, which is what attaching one takes.
     """
     contents = await _read_upload(file)
-    try:
-        parsed = await document_ocr_service.extract_insurance_data(
-            file_bytes=contents, provider_hint=provider
+    # A PDF is read offline first: its text layer, else Tesseract on the
+    # rendered pages, as before #211. Only a PDF neither yields text for, or a
+    # photo, goes to the document reader (the vision model, or 409).
+    offline_text = ""
+    if is_pdf(file.filename, file.content_type):
+        offline_text = await document_ocr_service.extract_text_from_bytes(contents, is_pdf=True)
+    if len(offline_text.strip()) >= _MIN_OFFLINE_TEXT:
+        read = document_reader_service.DocumentReadResult(
+            kind="insurance_policy", source="text", raw_text=offline_text
         )
-        if not parsed.get("success"):
-            raise ValueError(parsed.get("error", "Failed to extract data"))
+    else:
+        read = await document_reader_service.read_document(
+            db,
+            kind="insurance_policy",
+            file_bytes=contents,
+            filename=file.filename,
+            content_type=file.content_type,
+            allow_external_vision=allow_external_vision,
+        )
+    try:
+        if read.source == "text":
+            parsed = document_ocr_service.parse_insurance_text(
+                read.raw_text, provider_hint=provider
+            )
+            if not parsed.get("success"):
+                raise ValueError(parsed.get("error", "Failed to extract data"))
+        else:
+            data = from_llm_fields(read.fields, model=read.model)
+            parsed = data.to_dict()
+            parsed["validation_warnings"] = [*read.warnings, *data.get_validation_warnings()]
 
         # Only plain, user-facing warnings: never anything resembling a trace.
         warnings = [
@@ -235,14 +285,20 @@ async def parse_insurance_pdf(
                 for marker in ("traceback", "exception", "error:", "line ", "file ")
             )
         ]
+        warnings.extend(
+            f"Coverage not in the catalogue: {name}"
+            for name in parsed.get("unmatched_coverages") or []
+        )
 
-        attachable = await InsuranceService(db).attachable_vehicles(current_user)
+        service = InsuranceService(db)
+        attachable = await service.attachable_vehicles(current_user)
         details = parsed.get("vehicle_details", {})
         per_vehicle_coverages = parsed.get("vehicle_coverages", {})
         # A page that lists its coverages once, above the vehicles, still has
         # to fill each vehicle's form: the document-wide read is the fallback
         # for any vehicle with no section of its own.
         document_coverages = parsed.get("coverages") or []
+        no_claims_class = parsed.get("no_claims_class")
         vehicles = []
         for found in parsed.get("vehicles_found", []):
             vin = found.upper()
@@ -250,10 +306,13 @@ async def parse_insurance_pdf(
             vehicles.append(
                 {
                     "vin": vin,
+                    "plate": None,
                     "matched": vin in attachable,
+                    "matched_by": "vin",
                     "vehicle_name": attachable.get(vin),
                     "premium_share": figures.get("premium_amount"),
                     "deductible": figures.get("deductible"),
+                    "no_claims_class": no_claims_class,
                     # `in`, not `or`: a vehicle whose own section listed no
                     # coverage gets none, never the next vehicle's.
                     "coverages": (
@@ -263,15 +322,41 @@ async def parse_insurance_pdf(
                     ),
                 }
             )
+        # A plate names a vehicle only when no VIN already did: a French
+        # document prints the plate alone, and the garage knows it.
+        listed = {vehicle["vin"] for vehicle in vehicles}
+        by_plate = await service.attachable_vehicles_by_plate(current_user)
+        for plate in parsed.get("plates_found", []):
+            match = by_plate.get(plate_key(plate))
+            vin = match[0] if match else None
+            if vin in listed:
+                continue
+            vehicles.append(
+                {
+                    "vin": vin,
+                    "plate": plate,
+                    "matched": match is not None,
+                    "matched_by": "plate",
+                    "vehicle_name": match[1] if match else None,
+                    "premium_share": None,
+                    "deductible": parsed.get("deductible"),
+                    "no_claims_class": no_claims_class,
+                    "coverages": document_coverages,
+                }
+            )
+            if vin:
+                listed.add(vin)
 
         logger.info(
-            "Parsed insurance document with %s: %d vehicle(s), confidence %.0f%%",
+            "Parsed insurance document with %s (%s): %d vehicle(s), confidence %.0f%%",
             sanitize_for_log(str(parsed.get("parser_name"))),
+            read.source,
             len(vehicles),
             parsed.get("confidence_score", 0),
         )
         return {
             "success": True,
+            "source": read.source,
             "data": {
                 "provider": parsed.get("provider"),
                 "policy_number": parsed.get("policy_number"),
@@ -281,9 +366,14 @@ async def parse_insurance_pdf(
                 "premium_amount": parsed.get("premium_amount"),
                 "premium_frequency": parsed.get("premium_frequency"),
                 "deductible": parsed.get("deductible"),
+                "no_claims_class": no_claims_class,
                 "notes": parsed.get("notes"),
             },
             "vehicles": vehicles,
+            "plates": parsed.get("plates_found", []),
+            # The document-wide coverages, for a vehicle the form already
+            # holds when the document names none the garage knows.
+            "coverages": document_coverages,
             "confidence": parsed.get("field_confidence", {}),
             "confidence_score": parsed.get("confidence_score", 0),
             "parser_used": parsed.get("parser_name"),

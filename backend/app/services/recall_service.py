@@ -1,6 +1,7 @@
 """Recall business logic service layer."""
 
 import logging
+from dataclasses import dataclass, field
 
 import httpx
 from fastapi import HTTPException
@@ -10,18 +11,136 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.recall import Recall
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.recall import (
+    RecallCheckResponse,
     RecallCreate,
     RecallListResponse,
     RecallResponse,
     RecallUpdate,
 )
-from app.services.nhtsa import NHTSAService
+from app.services.country_profile_service import profile_for_vehicle
+from app.services.nhtsa import NHTSAService, NHTSAUnavailableError
+from app.services.recalls.base import SOURCE_MANUAL, SOURCE_NHTSA, RecallHit, RecallProvider
+from app.services.recalls.nhtsa import NHTSA_RECALL_URL
+from app.services.recalls.registry import providers_for
 from app.services.settings_service import SettingsService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.vehicle_key import has_real_vin
 
 logger = logging.getLogger(__name__)
+
+#: ``recalls.component`` is VARCHAR(200) since migration 137 (K10).
+_COMPONENT_WIDTH = 200
+
+
+@dataclass
+class RecallSyncOutcome:
+    """What one pass over a vehicle's providers did."""
+
+    new_count: int = 0
+    providers: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    #: The providers that failed this pass, so the scheduler leaves their
+    #: last-check stamp alone and the next run retries.
+    failed: list[str] = field(default_factory=list)
+    #: NHTSA didn't answer usably (`NHTSAUnavailableError`): an outage, not a
+    #: VIN it can't resolve, which counts as checked.
+    nhtsa_unavailable: bool = False
+
+
+def _row_from_hit(vin: str, hit: RecallHit) -> Recall:
+    return Recall(
+        vin=vin,
+        source=hit.source,
+        external_id=hit.external_id,
+        external_url=hit.external_url,
+        nhtsa_campaign_number=hit.external_id[:20] if hit.source == SOURCE_NHTSA else None,
+        component=hit.component[:_COMPONENT_WIDTH],
+        summary=hit.summary,
+        consequence=hit.consequence,
+        remedy=hit.remedy,
+        date_announced=hit.date_announced,
+        match_confidence=hit.match_confidence,
+        is_resolved=False,
+    )
+
+
+def _warning_for(provider: RecallProvider, exc: Exception) -> str:
+    if isinstance(exc, NHTSAUnavailableError):
+        return f"{provider.name}: unavailable"
+    if isinstance(exc, ValueError):
+        return f"{provider.name}: {exc}"
+    if isinstance(exc, httpx.HTTPError):
+        return f"{provider.name}: request failed"
+    return f"{provider.name}: check failed"
+
+
+async def sync_vehicle_recalls(
+    db: AsyncSession,
+    vehicle: Vehicle,
+    *,
+    providers: list[RecallProvider] | None = None,
+    skip: frozenset[str] = frozenset(),
+) -> RecallSyncOutcome:
+    """Ask every provider that covers the vehicle and store what is new (#211).
+
+    A recall is new when no row carries its ``(source, external_id)``; an
+    NHTSA campaign number already stored before sources existed counts too.
+    A provider that fails is a warning, never the end of the pass: the
+    others still run. ``skip`` names sources left out of this pass (the
+    scheduled check drops NHTSA when its auto-check is off). Commits.
+    """
+    outcome = RecallSyncOutcome()
+    if providers is None:
+        profile = await profile_for_vehicle(db, vehicle)
+        providers = await providers_for(db, vehicle, profile)
+    providers = [provider for provider in providers if provider.name not in skip]
+    rows = (
+        await db.execute(
+            select(Recall.source, Recall.external_id, Recall.nhtsa_campaign_number).where(
+                Recall.vin == vehicle.vin
+            )
+        )
+    ).all()
+    seen = {(source, external_id) for source, external_id, _ in rows if external_id}
+    legacy_campaigns = {campaign for _, _, campaign in rows if campaign}
+    for provider in providers:
+        outcome.providers.append(provider.name)
+        try:
+            hits = await provider.fetch(db, vehicle)
+        except Exception as exc:  # noqa: BLE001 - one source down must not hide the others
+            logger.warning(
+                "Recall provider %s failed for %s: %s",
+                provider.name,
+                sanitize_for_log(vehicle.vin),
+                sanitize_for_log(exc),
+            )
+            outcome.warnings.append(_warning_for(provider, exc))
+            if isinstance(exc, NHTSAUnavailableError):
+                outcome.nhtsa_unavailable = True
+            if not isinstance(exc, ValueError):
+                outcome.failed.append(provider.name)
+            continue
+        for hit in hits:
+            key = (hit.source, hit.external_id)
+            if key in seen:
+                continue
+            if hit.source == SOURCE_NHTSA and hit.external_id in legacy_campaigns:
+                continue
+            db.add(_row_from_hit(vehicle.vin, hit))
+            seen.add(key)
+            outcome.new_count += 1
+    if outcome.new_count:
+        await db.commit()
+    logger.info(
+        "Recall check for %s: %d new from %s",
+        sanitize_for_log(vehicle.vin),
+        outcome.new_count,
+        ",".join(outcome.providers) or "no provider",
+    )
+    return outcome
 
 
 class RecallService:
@@ -104,7 +223,15 @@ class RecallService:
         vin = vin.upper().strip()
 
         try:
-            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            vehicle = await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+
+            # NHTSA works from the VIN; a vehicle without one (#226) would
+            # send its generated key. The generic check still covers it.
+            if not has_real_vin(vehicle):
+                raise HTTPException(
+                    status_code=409,
+                    detail="NHTSA looks recalls up by VIN, and this vehicle has none",
+                )
 
             # After the access check, so a caller who can't write the vehicle
             # learns nothing about the switch.
@@ -135,12 +262,20 @@ class RecallService:
 
                 db_recall = Recall(
                     vin=vin,
+                    source=SOURCE_NHTSA,
+                    external_id=campaign_number,
+                    external_url=(
+                        NHTSA_RECALL_URL.format(campaign=campaign_number)
+                        if campaign_number
+                        else None
+                    ),
                     nhtsa_campaign_number=campaign_number,
-                    component=nhtsa_recall.get("Component", "Unknown Component")[:200],
+                    component=nhtsa_recall.get("Component", "Unknown Component")[:_COMPONENT_WIDTH],
                     summary=nhtsa_recall.get("Summary", "No summary available"),
                     consequence=nhtsa_recall.get("Consequence"),
                     remedy=nhtsa_recall.get("Remedy"),
                     date_announced=None,
+                    match_confidence=100,
                     is_resolved=False,
                 )
                 self.db.add(db_recall)
@@ -220,6 +355,44 @@ class RecallService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
+    async def check_all(self, vin: str, current_user: User) -> RecallCheckResponse:
+        """Ask every source that covers the vehicle's country and store what
+        is new (#211); a source that fails is a warning in the answer."""
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        try:
+            vehicle = await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            outcome = await sync_vehicle_recalls(self.db, vehicle)
+            listed = await self.list_recalls(vin, current_user)
+            return RecallCheckResponse(
+                recalls=listed.recalls,
+                total=listed.total,
+                active_count=listed.active_count,
+                resolved_count=listed.resolved_count,
+                providers_checked=outcome.providers,
+                new_count=outcome.new_count,
+                warnings=outcome.warnings,
+            )
+        except HTTPException:
+            raise
+        except IntegrityError as e:
+            await self.db.rollback()
+            logger.error(
+                "Database constraint violation storing recalls for %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
+            )
+            raise HTTPException(status_code=409, detail="Duplicate recall data")
+        except OperationalError as e:
+            await self.db.rollback()
+            logger.error(
+                "Database error checking recalls for VIN %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(str(e)),
+            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
     async def create_recall(
         self,
         vin: str,
@@ -245,6 +418,9 @@ class RecallService:
 
             db_recall = Recall(
                 vin=vin,
+                source=SOURCE_MANUAL,
+                external_id=data.nhtsa_campaign_number or None,
+                external_url=data.external_url,
                 nhtsa_campaign_number=data.nhtsa_campaign_number,
                 component=data.component,
                 summary=data.summary,

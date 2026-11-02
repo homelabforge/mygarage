@@ -169,3 +169,22 @@ class UploadLimitsResponse(BaseModel):
     attachments: UploadKindLimits
     documents: UploadKindLimits
     storage: UploadStorageDirs
+
+
+class LlmTestResponse(BaseModel):
+    """What ``POST /api/settings/test/llm`` reports (#211).
+
+    ``vision_ok`` is null when the vision check did not run, which is the case
+    while document reading is off; ``valid`` is the single verdict the card's
+    button colours on.
+    """
+
+    valid: bool = Field(description="True when every check that ran succeeded")
+    message: str = Field(description="A sentence for the operator, the endpoint's error included")
+    text_ok: bool = Field(description="The text completion with llm_model succeeded")
+    vision_ok: bool | None = Field(
+        default=None,
+        description="The vision completion succeeded; null when document reading is off",
+    )
+    model: str = Field(description="The text model that was tested")
+    vision_model: str = Field(description="The vision model that was (or would be) tested")

@@ -149,6 +149,8 @@ const mockedUseAuth = vi.mocked(useAuth)
 
 const mockVehicle: Vehicle = {
   vin: 'TEST12345678901234',
+  identifier_type: 'vin',
+  has_vin: true,
   nickname: 'Test Car',
   vehicle_type: 'Car' as VehicleType,
   usage_unit: 'distance',
@@ -626,6 +628,7 @@ describe('VehicleDetail', () => {
       authMode: 'local',
       defaultUnitPrefs: null,
       publicSettingsLoaded: true,
+      defaultCountry: null,
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),

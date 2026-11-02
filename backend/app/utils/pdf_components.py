@@ -6,6 +6,7 @@ All components use the design system from pdf_styles.py.
 import logging
 from datetime import datetime
 from typing import Any
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
@@ -186,13 +187,13 @@ def make_section_header(
             fontSize=13,
             leading=17,
         )
-        title_para = Paragraph(title, compact_style)
+        title_para = Paragraph(escape(title), compact_style)
     else:
-        title_para = Paragraph(title, styles["SectionTitle"])
+        title_para = Paragraph(escape(title), styles["SectionTitle"])
 
     # The line is implemented via table border styling
     if annotation:
-        ann_para = Paragraph(annotation, styles["Annotation"])
+        ann_para = Paragraph(escape(annotation), styles["Annotation"])
         data = [[title_para, "", ann_para]]
         col_widths = [None, None, 1.5 * inch]
     else:
@@ -300,8 +301,11 @@ def make_vehicle_banner(
     tracking_text = f"{months} months tracked" if months > 0 else "New"
 
     # Vehicle info (left side)
-    name_para = Paragraph(vehicle_name, styles["VehicleName"])
-    vin_para = Paragraph(f"VIN {vin}", styles["VIN"])
+    # Both are typed by people; Paragraph parses <, > and & as markup.
+    name_para = Paragraph(escape(vehicle_name), styles["VehicleName"])
+    # `vin` is the printed identifier line ("VIN …" / "Serial …"), never a
+    # generated key (#226); an empty one prints nothing.
+    vin_para = Paragraph(escape(vin), styles["VIN"])
 
     # Badges (right side)
     # reportlab can't measure None, and the PDFs are English-only.
@@ -516,7 +520,7 @@ def make_kpi_row(
 
         # Build card content as stacked paragraphs
         label_text = card["label"].upper()
-        label = Paragraph(label_text, styles["KPILabel"])
+        label = Paragraph(escape(label_text), styles["KPILabel"])
 
         # Value with accent color, shrunk to fit if the string is long
         base_value_style = styles["KPIValue"]
@@ -528,10 +532,11 @@ def make_kpi_row(
             fontSize=font_size,
             leading=leading,
         )
-        value = Paragraph(card["value"], value_style)
+        value = Paragraph(escape(card["value"]), value_style)
 
         # Sub-detail
-        sub_text = card.get("sub_html", card.get("sub", ""))
+        # sub_html is the report's own markup (a coloured badge); sub is text.
+        sub_text = card.get("sub_html") or escape(card.get("sub") or "")
         sub = Paragraph(sub_text, styles["KPISub"])
 
         # Stack vertically
@@ -601,7 +606,7 @@ def make_vendor_list(
     flowables = []
 
     for i, vendor in enumerate(vendors):
-        name = vendor.get("vendor_name", "Unknown")
+        name = vendor.get("vendor_name") or "Unknown"
         total = format_currency(vendor.get("total_spent", 0), currency_code, locale)
         count = vendor.get("service_count", 0)
 
@@ -616,8 +621,8 @@ def make_vendor_list(
         detail_text = " · ".join(details)
 
         # Left side: name + detail
-        name_para = Paragraph(name, styles["VendorName"])
-        detail_para = Paragraph(detail_text, styles["VendorDetail"])
+        name_para = Paragraph(escape(str(name)), styles["VendorName"])
+        detail_para = Paragraph(escape(detail_text), styles["VendorDetail"])
         left = Table([[name_para], [detail_para]])
         left.setStyle(
             TableStyle(
@@ -631,7 +636,7 @@ def make_vendor_list(
         )
 
         # Right side: amount
-        amount_para = Paragraph(total, styles["VendorAmount"])
+        amount_para = Paragraph(escape(total), styles["VendorAmount"])
 
         row = Table(
             [[left, amount_para]],
@@ -702,11 +707,11 @@ def make_season_row(
             cell_items.append(Spacer(1, 4))
 
         # Season name
-        cell_items.append(Paragraph(name, styles["SeasonName"]))
+        cell_items.append(Paragraph(escape(str(name)), styles["SeasonName"]))
         cell_items.append(Spacer(1, 6))
 
         # Amount
-        cell_items.append(Paragraph(total, styles["SeasonAmount"]))
+        cell_items.append(Paragraph(escape(total), styles["SeasonAmount"]))
 
         # Service count
         cell_items.append(
@@ -839,7 +844,7 @@ def make_data_table(
 
     # Build header row
     header_style = styles["TableHeaderCompact"] if compact else styles["TableHeader"]
-    header_paras = [Paragraph(h.upper(), header_style) for h in headers]
+    header_paras = [Paragraph(escape(h.upper()), header_style) for h in headers]
     table_data = [header_paras] + rows
 
     t = Table(table_data, colWidths=col_widths)

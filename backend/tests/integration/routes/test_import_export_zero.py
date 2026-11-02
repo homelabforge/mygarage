@@ -89,7 +89,7 @@ async def _seed_odometer(db: AsyncSession, vin: str) -> None:
 
 
 async def _seed_tax(db: AsyncSession, vin: str) -> None:
-    db.add(TaxRecord(vin=vin, date=_DAY, tax_type="Registration", amount=Decimal("0")))
+    db.add(TaxRecord(vin=vin, date=_DAY, tax_type="registration", amount=Decimal("0")))
 
 
 # pair -> (seed, {metric header: the cell a zero must export as})

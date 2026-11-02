@@ -1,0 +1,96 @@
+{
+  "country": "ES",
+  "extends": "EU",
+  "names": {
+    "inspection": "ITV",
+    "registration_certificate": "Permiso de circulación",
+    "lez": "Distintivo ambiental DGT"
+  },
+  "currency": "EUR",
+  "inspection": {
+    "name": "ITV",
+    "lead_window_months": 1,
+    "retest_window_months": 2,
+    "schedules": [
+      {
+        "vehicle_types": ["Car", "SUV", "Truck", "Electric", "Hybrid", "RV"],
+        "steps": [{ "first_after_years": 4 }, { "every_years": 2, "until_age_years": 10 }, { "every_years": 1 }],
+        "note": "Turismos: primera inspección a los cuatro años de la matriculación, cada dos años hasta los diez años y después anual."
+      },
+      {
+        "vehicle_types": ["Motorcycle"],
+        "steps": [{ "first_after_years": 4 }, { "every_years": 2 }],
+        "note": "Motocicletas: primera inspección a los cuatro años, después cada dos años."
+      }
+    ]
+  },
+  "fuel": {
+    "octane_scale": "RON",
+    "diesel_dyed_distinction": false,
+    "grades": [
+      { "id": "gasolina95_e5", "label": "Gasolina 95 (E5)", "grade": "E5", "octane": 95, "fuel_type": "gasoline" },
+      { "id": "gasolina95_e10", "label": "Gasolina 95 (E10)", "grade": "E10", "octane": 95, "fuel_type": "gasoline" },
+      { "id": "gasolina98", "label": "Gasolina 98 (E5)", "grade": "E5", "octane": 98, "fuel_type": "gasoline" },
+      { "id": "gasoleo_a", "label": "Gasóleo A (B7)", "grade": "B7", "octane": null, "fuel_type": "diesel" },
+      { "id": "hvo", "label": "HVO (XTL)", "grade": "XTL", "octane": null, "fuel_type": "diesel" },
+      { "id": "glp", "label": "GLP", "grade": "LPG", "octane": null, "fuel_type": "propane_lpg" },
+      { "id": "gnc", "label": "GNC", "grade": "CNG", "octane": null, "fuel_type": "cng" }
+    ]
+  },
+  "taxes": {
+    "types": ["circulation_tax", "registration_tax", "registration", "inspection", "lez_sticker", "tolls", "vignette", "parking_permit", "other"],
+    "names": {
+      "circulation_tax": "Impuesto de circulación (IVTM)",
+      "registration_tax": "Impuesto de matriculación",
+      "inspection": "ITV",
+      "lez_sticker": "Distintivo ambiental DGT"
+    }
+  },
+  "lez": {
+    "scheme": "dgt_label",
+    "name": "Distintivo ambiental DGT",
+    "url": "https://sede.dgt.gob.es/es/vehiculos/distintivo-ambiental/"
+  },
+  "insurance": {
+    "policy_types": ["Third Party", "Third Party Extended", "Full Coverage", "Other"],
+    "coverage_keys": [
+      "third_party_liability",
+      "driver_protection",
+      "glass",
+      "theft",
+      "fire",
+      "natural_disasters",
+      "all_accidents_damage",
+      "legal_protection",
+      "assistance",
+      "replacement_vehicle"
+    ],
+    "no_claims": {
+      "scheme": "bonus_malus",
+      "name": "Bonificación por no siniestralidad",
+      "pattern": "^\\d{1,3} ?%?$",
+      "example": "50 %"
+    }
+  },
+  "tolls": { "systems": ["Via-T"] },
+  "default_reminder_packs": [],
+  "data_sources": { "recalls": [], "fuel_prices": null },
+  "registration_certificate": {
+    "markers": ["PERMISO DE CIRCULACIÓN", "REINO DE ESPAÑA"],
+    "plate_patterns": ["^\\d{4} ?[A-Z]{3}$"],
+    "energy_codes": {},
+    "national_categories": []
+  },
+  "sources": [
+    {
+      "title": "Administración General del Estado: Roadworthiness test (ITV)",
+      "url": "https://administracion.gob.es/pag_Home/en/Tu-espacio-europeo/derechos-obligaciones/ciudadanos/vehiculos/itv.html",
+      "retrieved": "2026-10-07"
+    },
+    {
+      "title": "DGT: Distintivo ambiental",
+      "url": "https://sede.dgt.gob.es/es/vehiculos/distintivo-ambiental/",
+      "retrieved": "2026-10-07"
+    }
+  ]
+}

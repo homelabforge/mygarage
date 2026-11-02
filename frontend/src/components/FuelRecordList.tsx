@@ -268,6 +268,8 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
   // #164 — only when some loaded record carries a rating, so vehicles that
   // never track octane keep their table width.
   const showOctaneColumn = records.some((r) => r.octane != null)
+  // #211 — likewise for the EN 16942 pump label (E10, B7, XTL…).
+  const showFuelGradeColumn = records.some((r) => !!r.fuel_grade)
 
   const columns: DataTableColumn<FuelRecord>[] = [
     { id: 'date', header: t('fuelList.date'), mono: true, render: (r) => formatDate(r.date) },
@@ -281,9 +283,15 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
       id: 'propane', header: t('fuelList.propaneUnit', { unit: UnitFormatter.getVolumeUnit(units) }), align: 'right' as const, mono: true,
       render: (r: FuelRecord) => r.propane_liters ? UnitFormatter.formatVolume(parseFloat(r.propane_liters.toString()), units, showBoth) : '-',
     }] : []),
+    ...(showFuelGradeColumn ? [{
+      id: 'fuel_grade', header: t('fuelList.fuelGrade'), mono: true,
+      render: (r: FuelRecord) => r.fuel_grade || '-',
+    }] : []),
     ...(showOctaneColumn ? [{
       id: 'octane', header: t('fuelList.octane'), align: 'right' as const, mono: true,
-      render: (r: FuelRecord) => r.octane != null ? String(r.octane) : '-',
+      // B4 — "95 RON" / "91 AKI"; a legacy fill-up with no scale shows the number alone.
+      render: (r: FuelRecord) =>
+        r.octane != null ? (r.octane_scale ? `${r.octane} ${r.octane_scale}` : String(r.octane)) : '-',
     }] : []),
     // B8: generic truthful header — the row value already respects every price_basis
     // via priceToDisplay(…, r.price_basis), so a volume-only "Price/L" heading would

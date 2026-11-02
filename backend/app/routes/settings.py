@@ -4,6 +4,7 @@ import logging
 import re
 import sys
 import time
+from collections.abc import Container
 from enum import Enum
 from typing import Final
 from zoneinfo import ZoneInfo
@@ -18,6 +19,7 @@ from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.settings import (
+    LlmTestResponse,
     POIProviderCreate,
     POIProviderUpdate,
     SecretsStatusResponse,
@@ -31,6 +33,7 @@ from app.schemas.settings import (
     UploadLimitsResponse,
     UploadStorageDirs,
 )
+from app.services import llm_client
 from app.services.auth import get_current_admin_user
 from app.services.auth_settings import (
     AUTH_KEYS,
@@ -38,6 +41,7 @@ from app.services.auth_settings import (
     ensure_sso_mode_usable,
     lock_auth_settings,
 )
+from app.services.document_reader_service import reading_enabled as document_reading_enabled
 from app.services.file_upload_service import (
     ATTACHMENT_UPLOAD_CONFIG,
     DOCUMENT_UPLOAD_CONFIG,
@@ -137,6 +141,16 @@ def _resolve_write_value[V: str | None](key: str, new_value: V) -> V | _KeepStor
     if key in SENSITIVE_SETTING_KEYS and new_value == MASKED_SECRET_PLACEHOLDER:
         return KEEP_STORED
     return new_value
+
+
+def _after_write(keys: Container[str]) -> None:
+    """What a committed write of ``keys`` changes outside the settings table.
+
+    A saved ``llm_base_url`` forgets the cached localities, so re-saving the
+    same URL after its host moved makes the next vision read look it up again.
+    """
+    if llm_client.LLM_BASE_URL_SETTING in keys:
+        llm_client.clear_locality_cache()
 
 
 def _reject_reserved_key(key: str) -> None:
@@ -287,6 +301,9 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
         "imperial_gallon_standard",
         "llm_receipt_parse_enabled",
         "llm_garage_assistant_enabled",
+        # The document import cards show only when a vision model may read a
+        # photo; without it the same fields are typed by hand (#211).
+        "llm_document_reading_enabled",
         # Replaces imperial_gallon_standard for clients with no user: anonymous
         # visitors and every client on an auth_mode=none instance skip /auth/me,
         # so they have no user row to resolve units from (spec D5). Non-sensitive:
@@ -299,6 +316,9 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
         "carcomplaints_enabled",
         "window_sticker_enabled",
         "window_sticker_ocr_enabled",
+        # Same reasoning: the country a client without a user resolves its
+        # national defaults from (#211).
+        "default_country",
     }
 
     result = await db.execute(
@@ -778,6 +798,36 @@ async def get_upload_limits(
     )
 
 
+@router.post("/test/llm", response_model=LlmTestResponse)
+async def test_llm_endpoint(
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_admin_user),
+) -> LlmTestResponse:
+    """Exercise the saved LLM settings once (admin only).
+
+    Sends a one-word text completion to ``llm_base_url`` with ``llm_model``
+    and, when document reading is enabled, a 64×64 image to the vision model,
+    so an operator sees "text OK / vision OK" (or the endpoint's own error)
+    before uploading a real document. Reads the stored settings: the card
+    saves first, then tests. Writes nothing.
+    """
+    result = await llm_client.probe(db, check_vision=await document_reading_enabled(db))
+    logger.info(
+        "LLM connection test: text=%s vision=%s model=%s",
+        result.text_ok,
+        result.vision_ok,
+        sanitize_for_log(result.model),
+    )
+    return LlmTestResponse(
+        valid=result.valid,
+        message=result.message,
+        text_ok=result.text_ok,
+        vision_ok=result.vision_ok,
+        model=result.model,
+        vision_model=result.vision_model,
+    )
+
+
 @router.get("/{key}", response_model=SettingResponse)
 async def get_setting(
     key: str,
@@ -827,6 +877,7 @@ async def create_setting(
 
     db.add(db_setting)
     await db.commit()
+    _after_write({setting.key})
     await db.refresh(db_setting)
 
     logger.info("Created setting: %s", sanitize_for_log(setting.key))
@@ -879,6 +930,7 @@ async def update_setting(
     setting.updated_at = utc_now()
 
     await db.commit()
+    _after_write({key})
     await db.refresh(setting)
 
     logger.info("Updated setting: %s", sanitize_for_log(key))
@@ -949,6 +1001,7 @@ async def batch_update_settings(
     updated_settings = [written[key] if key in written else kept[key] for key in batch.settings]
 
     await db.commit()
+    _after_write(written)
 
     # Refresh all settings
     for setting in updated_settings:
@@ -982,6 +1035,7 @@ async def delete_setting(
 
     await db.delete(setting)
     await db.commit()
+    _after_write({key})
 
     logger.info("Deleted setting: %s", sanitize_for_log(key))
     return Response(status_code=204)

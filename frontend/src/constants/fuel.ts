@@ -76,3 +76,50 @@ export function isDieselFuelType(fuelType?: string | null): boolean {
 export function isFuelType(value: string | null | undefined): value is FuelType {
   return !!value && (FUEL_TYPE_VALUES as readonly string[]).includes(value)
 }
+
+/**
+ * EN 16942 pump labels (#211): the identifier in the circle (petrol), square
+ * (diesel) or diamond (gaseous fuels) printed on every nozzle sold in the
+ * EU since 2018. Mirrors `FuelGradeEnum` in backend/app/constants/fuel.py.
+ */
+export const FUEL_GRADE_VALUES = [
+  'E5',
+  'E10',
+  'E85',
+  'B7',
+  'B10',
+  'B20',
+  'B30',
+  'B100',
+  'XTL',
+  'H2',
+  'CNG',
+  'LPG',
+  'LNG',
+] as const
+
+export type FuelGrade = (typeof FUEL_GRADE_VALUES)[number]
+
+/**
+ * Which labels a pump can carry for each fuel type. A fuel type that is
+ * absent (electric, other) has no label. Mirrors `GRADES_FOR_FUEL_TYPE`.
+ */
+export const GRADES_FOR_FUEL_TYPE: Partial<Record<FuelType, readonly FuelGrade[]>> = {
+  gasoline: ['E5', 'E10'],
+  hybrid: ['E5', 'E10'],
+  plugin_hybrid: ['E5', 'E10'],
+  e85: ['E85'],
+  diesel: ['B7', 'B10', 'B20', 'B30', 'B100', 'XTL'],
+  propane_lpg: ['LPG'],
+  cng: ['CNG', 'LNG'],
+  hydrogen: ['H2'],
+}
+
+export function isFuelGrade(value: string | null | undefined): value is FuelGrade {
+  return !!value && (FUEL_GRADE_VALUES as readonly string[]).includes(value)
+}
+
+/** The labels a fill-up of this fuel type can carry; empty when none applies. */
+export function gradesForFuelType(fuelType: string | null | undefined): readonly FuelGrade[] {
+  return isFuelType(fuelType) ? (GRADES_FOR_FUEL_TYPE[fuelType] ?? []) : []
+}

@@ -1,5 +1,6 @@
 """Insurance schemas: household policies, the vehicles on them, named fields."""
 
+import re
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
@@ -7,17 +8,32 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.constants.insurance import NO_CLAIMS_CLASS_PATTERN
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.utils.insurance_coverages import COVERAGE_BY_KEY
 
-PolicyType = Literal["Liability", "Comprehensive", "Collision", "Full Coverage", "Minimum", "Other"]
+#: Spelled out rather than built from `POLICY_TYPE_VALUES` so pyright and the
+#: generated TypeScript union both see real literals;
+#: `test_the_policy_type_literal_matches_the_constant` keeps the two in step.
+#: The last two are the European formulas (#211).
+PolicyType = Literal[
+    "Liability",
+    "Comprehensive",
+    "Collision",
+    "Full Coverage",
+    "Minimum",
+    "Other",
+    "Third Party",
+    "Third Party Extended",
+]
 PremiumFrequency = Literal["Monthly", "Quarterly", "Semi-Annual", "Annual"]
 PolicyStatus = Literal["upcoming", "active", "expired"]
 ShareStrategy = Literal["rescale", "reset_even"]
 #: The standard coverage catalogue. Spelled out rather than built from
 #: `COVERAGE_KEYS` so pyright and the generated TypeScript union both see real
 #: literals; `test_the_literal_matches_the_catalogue` keeps the two in step.
+#: The last nine are the European coverages (#211).
 CoverageKey = Literal[
     "bodily_injury",
     "property_damage",
@@ -32,7 +48,33 @@ CoverageKey = Literal[
     "roadside_assistance",
     "loan_lease_gap",
     "custom_equipment",
+    "third_party_liability",
+    "driver_protection",
+    "theft",
+    "fire",
+    "natural_disasters",
+    "all_accidents_damage",
+    "legal_protection",
+    "assistance",
+    "replacement_vehicle",
 ]
+
+_NO_CLAIMS_DESCRIPTION = (
+    "The no-claims class the vehicle is rated at: a bonus-malus coefficient (0.50), "
+    "an SF-Klasse (SF 12), a classe di merito (1)… Ten characters of plain text"
+)
+
+
+def _blank_is_none(value: object) -> object:
+    """A form sends '' for an untouched text field; the column wants NULL. A
+    French coefficient typed with its comma (« 0,50 ») is stored with a point,
+    the way the parsers and the profile's example write it."""
+    if isinstance(value, str):
+        stripped = " ".join(value.split())
+        if re.fullmatch(r"[0-3],\d{2}", stripped):
+            stripped = stripped.replace(",", ".")
+        return stripped or None
+    return value
 
 
 class NamedField(BaseModel):
@@ -68,7 +110,12 @@ _COVERAGE_SLOTS_SCHEMA = {
     "x-coverage-slots": {
         key: {name: slot.kind for name, slot in coverage.slots()}
         for key, coverage in COVERAGE_BY_KEY.items()
-    }
+    },
+    # Which market lists each coverage (#211); the frontend's catalogue is
+    # checked against it the same way.
+    "x-coverage-regions": {
+        key: list(coverage.regions) for key, coverage in COVERAGE_BY_KEY.items()
+    },
 }
 
 
@@ -162,11 +209,15 @@ class PolicyVehicleCreate(BaseModel):
         None, decimal_places=2, description="Per-period share; omit for an even split"
     )
     deductible: OptionalMoney = Field(None, decimal_places=2)
+    no_claims_class: str | None = Field(
+        None, max_length=10, pattern=NO_CLAIMS_CLASS_PATTERN, description=_NO_CLAIMS_DESCRIPTION
+    )
     notes: str | None = None
     coverages: list[CoverageEntry] = Field(default_factory=list)
     fields: list[NamedField] = Field(default_factory=list)
 
     _check_coverages = field_validator("coverages")(no_repeated_coverage)
+    _blank_class = field_validator("no_claims_class", mode="before")(_blank_is_none)
 
 
 class PolicyVehicleUpdate(BaseModel):
@@ -180,6 +231,9 @@ class PolicyVehicleUpdate(BaseModel):
     policy_type: PolicyType | None = None
     premium_share: OptionalMoney = Field(None, decimal_places=2)
     deductible: OptionalMoney = Field(None, decimal_places=2)
+    no_claims_class: str | None = Field(
+        None, max_length=10, pattern=NO_CLAIMS_CLASS_PATTERN, description=_NO_CLAIMS_DESCRIPTION
+    )
     notes: str | None = None
     effective_to: date_type | None = None
     coverages: list[CoverageEntry] | None = None
@@ -189,6 +243,7 @@ class PolicyVehicleUpdate(BaseModel):
     _no_null = reject_null("policy_type")
 
     _check_coverages = field_validator("coverages")(no_repeated_coverage)
+    _blank_class = field_validator("no_claims_class", mode="before")(_blank_is_none)
 
 
 class PolicyVehicleUpsert(BaseModel):
@@ -199,6 +254,9 @@ class PolicyVehicleUpsert(BaseModel):
     policy_type: PolicyType
     premium_share: OptionalMoney = Field(None, decimal_places=2)
     deductible: OptionalMoney = Field(None, decimal_places=2)
+    no_claims_class: str | None = Field(
+        None, max_length=10, pattern=NO_CLAIMS_CLASS_PATTERN, description=_NO_CLAIMS_DESCRIPTION
+    )
     notes: str | None = None
     effective_to: date_type | None = None
     coverages: list[CoverageEntry] | None = Field(
@@ -209,6 +267,7 @@ class PolicyVehicleUpsert(BaseModel):
     )
 
     _check_coverages = field_validator("coverages")(no_repeated_coverage)
+    _blank_class = field_validator("no_claims_class", mode="before")(_blank_is_none)
 
 
 class PolicyVehicleResponse(BaseModel):
@@ -217,12 +276,16 @@ class PolicyVehicleResponse(BaseModel):
     id: int
     vin: str
     vehicle_name: str
+    #: As stored: the inputs hold the vocabulary (`PolicyType`), a row written
+    #: before this release or by an import reads whatever it holds.
     policy_type: str
     premium_share: Decimal | None = Field(None, description="Explicit share, if the user set one")
     effective_share: Decimal | None = Field(
         None, description="What this vehicle costs per period: explicit, or the even split"
     )
     deductible: Decimal | None = None
+    # The same field as the inputs', read without its length and pattern rules.
+    no_claims_class: str | None = Field(None, description=_NO_CLAIMS_DESCRIPTION)
     notes: str | None = None
     effective_to: date_type | None = None
     #: In catalogue order, which IS the display order.

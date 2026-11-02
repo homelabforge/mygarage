@@ -1,0 +1,43 @@
+{
+  "id": "small_engine_service",
+  "name": "Small Engine & Tractor Service",
+  "description": "Hour-based oil, air filter, spark plug and grease intervals for tractors, mowers, generators and small engines. Check your owner's manual: these are common starting points.",
+  "vehicle_types": [
+    "Tractor",
+    "Mower",
+    "Generator",
+    "SmallEngine",
+    "Equipment"
+  ],
+  "reminders": [
+    {
+      "key": "engine_oil",
+      "maintenance_type": "engine_oil_filter",
+      "title": "Engine Oil Change",
+      "interval_hours": 50,
+      "notes": "Change engine oil (and the filter, if it has one) at 50 hours or yearly, whichever comes first: oil ages even when the engine sits.",
+      "interval_months": 12
+    },
+    {
+      "key": "air_filter",
+      "maintenance_type": "air_filter",
+      "title": "Air Filter Clean / Inspect",
+      "interval_hours": 25,
+      "notes": "More often in dust or dry grass."
+    },
+    {
+      "key": "spark_plug",
+      "maintenance_type": "spark_plugs",
+      "title": "Spark Plug Replacement",
+      "interval_hours": 100,
+      "notes": "Diesels have no spark plug: remove this reminder."
+    },
+    {
+      "key": "grease",
+      "maintenance_type": "grease_fittings",
+      "title": "Grease Fittings",
+      "interval_hours": 25,
+      "notes": "Grease every zerk: front axle, loader pins, mower deck spindles."
+    }
+  ]
+}

@@ -2,8 +2,9 @@
 
 The job runs daily at 2 AM UTC and does the real work only when NHTSA is on,
 the automatic check is on, and `nhtsa_recall_check_interval` days (less an
-hour of slack) have passed since `nhtsa_last_check`. An NHTSA outage leaves
-`nhtsa_last_check` alone, so the next daily tick tries again instead of
+hour of slack) have passed since `nhtsa_last_check`; RappelConso keeps its
+own `rappelconso_last_check` the same way. A source's outage leaves its own
+stamp alone, so the next daily tick asks that source again instead of
 reading the outage as "no recalls" for a whole interval.
 
 `check_recalls_all_vehicles()` opens its own `AsyncSessionLocal()`, so these
@@ -41,12 +42,16 @@ pytestmark = pytest.mark.unit
 # Every vehicle this module creates has a VIN starting with this, so cleanup
 # and call counting can tell this module's vehicles from other modules'.
 _VIN_PREFIX = "1RCLTSTA"
+# The same for this module's vehicles without a VIN (#226): a generated key.
+_Q_PREFIX = "QRCLTSTA"
 
 _SETTING_KEYS = (
     "nhtsa_enabled",
     "nhtsa_auto_check",
     "nhtsa_recall_check_interval",
     "nhtsa_last_check",
+    "rappelconso_enabled",
+    "rappelconso_last_check",
 )
 
 
@@ -61,8 +66,9 @@ def _vin(n: int) -> str:
 async def _wipe(db: AsyncSession) -> None:
     """Remove this module's recalls and vehicles."""
     await db.rollback()
-    await db.execute(delete(Recall).where(Recall.vin.like(f"{_VIN_PREFIX}%")))
-    await db.execute(delete(Vehicle).where(Vehicle.vin.like(f"{_VIN_PREFIX}%")))
+    for prefix in (_VIN_PREFIX, _Q_PREFIX):
+        await db.execute(delete(Recall).where(Recall.vin.like(f"{prefix}%")))
+        await db.execute(delete(Vehicle).where(Vehicle.vin.like(f"{prefix}%")))
     await db.commit()
 
 
@@ -198,6 +204,118 @@ async def test_the_switches_gate_the_scheduled_check(
     await check_recalls_all_vehicles()
 
     assert _fetched(recalls_fetch, vehicle.vin) == (1 if runs else 0)
+
+
+async def test_auto_check_off_stops_only_nhtsa(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F-4: `nhtsa_auto_check` is NHTSA's switch. With it off, a French
+    vehicle still gets its scheduled RappelConso check, and NHTSA is never
+    asked about the American one."""
+    rappel = AsyncMock(return_value=[])
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    american = await make_vehicle()
+    french = await make_vehicle()
+    french.registration_country = "FR"
+    french.make = "Renault"
+    await db_session.commit()
+    await _store(
+        db_session,
+        nhtsa_enabled="true",
+        nhtsa_auto_check="false",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+        rappelconso_enabled="true",
+    )
+
+    await check_recalls_all_vehicles()
+
+    assert _fetched(recalls_fetch, american.vin) == 0
+    assert _fetched(recalls_fetch, french.vin) == 0
+    assert [
+        call.args[1].vin for call in rappel.await_args_list if call.args[1].vin == french.vin
+    ] == [french.vin]
+
+
+@pytest.mark.parametrize("nhtsa_enabled", ["true", "false"])
+async def test_a_vehicle_without_a_vin_reaches_rappelconso_never_nhtsa(
+    db_session: AsyncSession,
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+    nhtsa_enabled: str,
+) -> None:
+    """R1-H2 / F-3: the sweep stays inclusive, so a French tractor keyed by a
+    Q key still gets RappelConso (make and model, no VIN), whatever NHTSA's
+    switch says. NHTSA is never asked about a Q key, not even for a vehicle
+    with no country, which NHTSA would otherwise cover."""
+    rappel = AsyncMock(return_value=[])
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    french = Vehicle(
+        vin=f"{_Q_PREFIX}FR0000001",
+        nickname="Tracteur",
+        vehicle_type="Tractor",
+        identifier_type="serial",
+        identifier="KBT-FR-1",
+        make="Renault",
+        model="Ares",
+        registration_country="FR",
+    )
+    nowhere = Vehicle(
+        vin=f"{_Q_PREFIX}US0000001",
+        nickname="Mower",
+        vehicle_type="Mower",
+        identifier_type="none",
+        make="Deere",
+        model="X350",
+    )
+    db_session.add_all([french, nowhere])
+    await db_session.commit()
+    await _store(
+        db_session,
+        nhtsa_enabled=nhtsa_enabled,
+        nhtsa_auto_check="true",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+        rappelconso_enabled="true",
+    )
+
+    await check_recalls_all_vehicles()
+
+    assert [
+        call.args[1].vin for call in rappel.await_args_list if call.args[1].vin == french.vin
+    ] == [french.vin]
+    assert _fetched(recalls_fetch, french.vin) == 0
+    assert _fetched(recalls_fetch, nowhere.vin) == 0
+
+
+async def test_every_scheduled_source_off_skips_the_pass(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rappel = AsyncMock(return_value=[])
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    french = await make_vehicle()
+    french.registration_country = "FR"
+    french.make = "Renault"
+    await db_session.commit()
+    await _store(
+        db_session,
+        nhtsa_enabled="true",
+        nhtsa_auto_check="false",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+        rappelconso_enabled="false",
+    )
+
+    await check_recalls_all_vehicles()
+
+    assert rappel.await_count == 0
+    assert await _last_check(db_session) in (None, "")
 
 
 # --- the interval -------------------------------------------------------------
@@ -588,6 +706,64 @@ async def test_an_undecodable_vin_is_not_an_outage(
     await check_recalls_all_vehicles()
 
     await _assert_advanced(db_session)
+
+
+async def _stamp(db: AsyncSession, key: str) -> str | None:
+    setting = await SettingsService.get(db, key)
+    return setting.value if setting is not None else None
+
+
+async def test_a_rappelconso_outage_is_retried_without_asking_nhtsa_early(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each source waits on its own last check. RappelConso down while NHTSA
+    answers: the next daily pass asks RappelConso again and leaves NHTSA
+    alone until its own interval is up. Red before: the pass was gated on
+    nhtsa_last_check alone, so a French outage waited the whole interval."""
+    rappel = AsyncMock(side_effect=httpx.ConnectError("rappel.conso.gouv.fr unreachable"))
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    american = await make_vehicle()
+    french = await make_vehicle()
+    french.registration_country = "FR"
+    french.make = "Renault"
+    await db_session.commit()
+    await _store(
+        db_session,
+        nhtsa_enabled="true",
+        nhtsa_auto_check="true",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+        rappelconso_enabled="true",
+        rappelconso_last_check="",
+    )
+
+    def _asked_rappel() -> int:
+        return sum(1 for call in rappel.await_args_list if call.args[1].vin == french.vin)
+
+    await check_recalls_all_vehicles()
+
+    assert _fetched(recalls_fetch, american.vin) == 1
+    assert _asked_rappel() == 1
+    assert await _last_check(db_session)
+    assert await _stamp(db_session, "rappelconso_last_check") in (None, "")
+
+    # The next daily tick: RappelConso is still due, NHTSA is not.
+    rappel.side_effect = None
+    rappel.return_value = []
+    await check_recalls_all_vehicles()
+
+    assert _asked_rappel() == 2
+    assert _fetched(recalls_fetch, american.vin) == 1
+    assert await _stamp(db_session, "rappelconso_last_check")
+
+    # Both answered: neither is asked again inside the interval.
+    await check_recalls_all_vehicles()
+
+    assert _asked_rappel() == 2
+    assert _fetched(recalls_fetch, american.vin) == 1
 
 
 # --- the trigger --------------------------------------------------------------

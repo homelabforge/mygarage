@@ -27,6 +27,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.constants.fuel import (
+    FUEL_GRADE_VALUES,
     FUEL_TYPE_VALUES,
     PAYMENT_METHOD_VALUES,
     TRIP_TYPE_VALUES,
@@ -76,6 +77,9 @@ def _validate_charge_location(v: str | None) -> str | None:
 
 
 DIESEL_GRADE_VALUES = ("onroad", "offroad")
+#: The two octane scales (B4): Research Octane Number, printed on European
+#: pumps, and the (R+M)/2 Anti-Knock Index of North American ones.
+OCTANE_SCALE_VALUES = ("RON", "AKI")
 
 
 def _validate_octane(v: int | None) -> int | None:
@@ -89,11 +93,43 @@ def _validate_octane(v: int | None) -> int | None:
     return v
 
 
+def _validate_octane_scale(v: str | None) -> str | None:
+    """'RON' | 'AKI', case-insensitive; blank clears (B4).
+
+    Module-level like its siblings: the CSV/JSON importers construct rows
+    outside Pydantic and run the same check per row.
+    """
+    if v is None:
+        return None
+    cleaned = v.strip().upper()
+    if not cleaned:
+        return None
+    if cleaned not in OCTANE_SCALE_VALUES:
+        raise ValueError(f"octane_scale must be one of {OCTANE_SCALE_VALUES}, got {v!r}")
+    return cleaned
+
+
 def _validate_diesel_grade(v: str | None) -> str | None:
     """'onroad' | 'offroad' — the US clear-vs-dyed (farm) distinction."""
     if v is not None and v not in DIESEL_GRADE_VALUES:
         raise ValueError(f"diesel_grade must be one of {DIESEL_GRADE_VALUES}, got {v!r}")
     return v
+
+
+def _validate_fuel_grade(v: str | None) -> str | None:
+    """An EN 16942 label (E10, B7, XTL…), case-insensitive; blank clears (#211).
+
+    Module-level like its two siblings: the CSV/JSON importers and the ingest
+    payload construct rows outside Pydantic and run the same check per row.
+    """
+    if v is None:
+        return None
+    cleaned = v.strip().upper()
+    if not cleaned:
+        return None
+    if cleaned not in FUEL_GRADE_VALUES:
+        raise ValueError(f"fuel_grade must be one of {FUEL_GRADE_VALUES}, got {v!r}")
+    return cleaned
 
 
 def _parse_obc_trip_duration(v: object) -> int | None:
@@ -280,9 +316,19 @@ class FuelRecordBase(BaseModel):
     octane: int | None = Field(
         None, description="Octane rating for gasoline/E85 fill-ups (AKI or RON)"
     )
+    octane_scale: str | None = Field(
+        None,
+        description="The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
+        max_length=3,
+    )
     diesel_grade: str | None = Field(
         None,
         description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)",
+        max_length=10,
+    )
+    fuel_grade: str | None = Field(
+        None,
+        description="EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG…)",
         max_length=10,
     )
     is_full_tank: bool = Field(True, description="Full tank fill-up")
@@ -403,10 +449,20 @@ class FuelRecordCreate(FuelRecordBase):
     def _check_octane_create(cls, v: int | None) -> int | None:
         return _validate_octane(v)
 
+    @field_validator("octane_scale")
+    @classmethod
+    def _check_octane_scale_create(cls, v: str | None) -> str | None:
+        return _validate_octane_scale(v)
+
     @field_validator("diesel_grade")
     @classmethod
     def _check_diesel_grade_create(cls, v: str | None) -> str | None:
         return _validate_diesel_grade(v)
+
+    @field_validator("fuel_grade")
+    @classmethod
+    def _check_fuel_grade_create(cls, v: str | None) -> str | None:
+        return _validate_fuel_grade(v)
 
     @field_validator("payment_method")
     @classmethod
@@ -430,6 +486,13 @@ class FuelRecordCreate(FuelRecordBase):
             raise ValueError("Both tank_size_kg and tank_quantity must be provided together")
 
         return v
+
+    @model_validator(mode="after")
+    def _no_scale_without_an_octane(self) -> FuelRecordCreate:
+        """A scale only means something next to the number it qualifies."""
+        if self.octane is None:
+            self.octane_scale = None
+        return self
 
     @model_validator(mode="after")
     def _require_odometer_and_fuel_amount(self) -> FuelRecordCreate:
@@ -549,9 +612,19 @@ class FuelRecordUpdate(BaseModel):
     octane: int | None = Field(
         None, description="Octane rating for gasoline/E85 fill-ups (AKI or RON)"
     )
+    octane_scale: str | None = Field(
+        None,
+        description="The scale `octane` was read on: 'RON' or 'AKI'; null when unknown",
+        max_length=3,
+    )
     diesel_grade: str | None = Field(
         None,
         description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)",
+        max_length=10,
+    )
+    fuel_grade: str | None = Field(
+        None,
+        description="EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG…)",
         max_length=10,
     )
     is_full_tank: bool | None = Field(None, description="Full tank fill-up")
@@ -619,10 +692,20 @@ class FuelRecordUpdate(BaseModel):
     def _check_octane_update(cls, v: int | None) -> int | None:
         return _validate_octane(v)
 
+    @field_validator("octane_scale")
+    @classmethod
+    def _check_octane_scale_update(cls, v: str | None) -> str | None:
+        return _validate_octane_scale(v)
+
     @field_validator("diesel_grade")
     @classmethod
     def _check_diesel_grade_update(cls, v: str | None) -> str | None:
         return _validate_diesel_grade(v)
+
+    @field_validator("fuel_grade")
+    @classmethod
+    def _check_fuel_grade_update(cls, v: str | None) -> str | None:
+        return _validate_fuel_grade(v)
 
     @field_validator("payment_method")
     @classmethod
@@ -646,6 +729,14 @@ class FuelRecordUpdate(BaseModel):
             raise ValueError("Both tank_size_kg and tank_quantity must be provided together")
 
         return v
+
+    @model_validator(mode="after")
+    def _clearing_the_octane_clears_its_scale(self) -> FuelRecordUpdate:
+        """An explicit ``octane: null`` takes its scale with it; an update
+        that leaves the octane alone leaves the stored pair alone."""
+        if "octane" in self.model_fields_set and self.octane is None:
+            self.octane_scale = None
+        return self
 
     model_config = {"json_schema_extra": {"examples": [{"cost": 38.50, "notes": "Premium fuel"}]}}
 
@@ -718,8 +809,15 @@ class FuelRecordResponse(FuelRecordBase):
             "surfaced in UI when the vehicle has a secondary fuel capability."
         ),
     )
+    octane_scale: str | None = Field(
+        None, description="The scale `octane` was read on: 'RON' or 'AKI'; null when unknown"
+    )
     diesel_grade: str | None = Field(
         None, description="Diesel grade: 'onroad' (clear) or 'offroad' (dyed/farm)"
+    )
+    fuel_grade: str | None = Field(
+        None,
+        description="EN 16942 pump label of the fuel dispensed (E5, E10, E85, B7, B10, XTL, LPG, CNG…)",
     )
     station_name_freetext: str | None = Field(
         None,

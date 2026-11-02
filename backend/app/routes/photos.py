@@ -19,7 +19,7 @@ from app.services.file_upload_service import PHOTO_UPLOAD_CONFIG, FileUploadServ
 from app.services.photo_service import PhotoService
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.path_validation import sanitize_filename, validate_path_within_base
-from app.utils.vin import validate_vin
+from app.utils.vehicle_key import is_vehicle_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vehicles", tags=["Photos"])
@@ -155,9 +155,9 @@ async def get_vehicle_photo(
     vin = vin.upper().strip()
 
     # Validate VIN before using in path (prevent path traversal)
-    is_valid, error = validate_vin(vin)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=f"Invalid VIN format: {error}")
+    # A VIN, or the generated key of a vehicle without one (#226).
+    if not is_vehicle_key(vin):
+        raise HTTPException(status_code=400, detail="Invalid vehicle key")
 
     safe_filename = sanitize_filename(filename)
 
@@ -200,9 +200,9 @@ async def get_vehicle_thumbnail(
     vin = vin.upper().strip()
 
     # Validate VIN before using in path (prevent path traversal)
-    is_valid, error = validate_vin(vin)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=f"Invalid VIN format: {error}")
+    # A VIN, or the generated key of a vehicle without one (#226).
+    if not is_vehicle_key(vin):
+        raise HTTPException(status_code=400, detail="Invalid vehicle key")
 
     safe_filename = sanitize_filename(filename)
 
@@ -374,9 +374,9 @@ async def set_main_photo(
     vin = vin.upper().strip()
 
     # Validate VIN before using in path (prevent path traversal)
-    is_valid, error = validate_vin(vin)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=f"Invalid VIN format: {error}")
+    # A VIN, or the generated key of a vehicle without one (#226).
+    if not is_vehicle_key(vin):
+        raise HTTPException(status_code=400, detail="Invalid vehicle key")
 
     safe_filename = sanitize_filename(filename)
 

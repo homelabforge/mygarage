@@ -49,6 +49,16 @@ describe('TOLL_COUNTRIES', () => {
     expect(keys.size, spellings.join(' | ')).toBe(spellings.length)
   })
 
+  // #211: the brands a French, Spanish or Portuguese owner looks for, spelt
+  // as the brands write them (they are saved and shown as-is).
+  it('lists the French, Spanish and Portuguese télépéage brands', () => {
+    const systems = Object.fromEntries(TOLL_COUNTRIES.map((c) => [c.country, [...c.systems]]))
+    expect(systems.FR).toEqual(['Bip&Go', 'Fulli', 'Ulys'])
+    expect(systems.ES).toEqual(['Via-T'])
+    expect(systems.PT).toEqual(['Via Verde'])
+    expect(TOLL_COUNTRIES.map((c) => c.country)).toEqual(['ES', 'FR', 'IT', 'MY', 'PT', 'US'])
+  })
+
   it('keeps the old literal "Other" and the select sentinel off the list', () => {
     expect(listedTollSystem('Other')).toBeNull()
     for (const c of TOLL_COUNTRIES) {

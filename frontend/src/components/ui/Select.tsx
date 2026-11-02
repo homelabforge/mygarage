@@ -8,6 +8,8 @@ export interface SelectOption {
   /** Already translated by the caller. If you are passing a translation KEY,
    *  name the field labelKey instead so validate-i18n-usage can see it (G5). */
   label: string
+  /** Shown but not pickable; say why next to the select. */
+  disabled?: boolean
 }
 
 /**
@@ -89,7 +91,7 @@ export default function Select({
           </option>
         ) : null}
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <option key={option.value} value={option.value} disabled={option.disabled}>
             {option.label}
           </option>
         ))}

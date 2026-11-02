@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
-from app.models.vehicle import Vehicle
 from app.schemas._money import MONEY_MAX, OptionalMoney
 from app.services.auth import (
     get_vehicle_for_owner_or_403,
@@ -26,7 +25,8 @@ from app.services.settings_service import SettingsService
 from app.services.window_sticker_ocr import WindowStickerOCRService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
-from app.utils.vin import validate_vin
+from app.utils.vehicle_columns import fit_to_column
+from app.utils.vehicle_key import download_tag, is_vehicle_key
 
 logger = logging.getLogger(__name__)
 
@@ -102,16 +102,11 @@ def _fit_to_column(column: str, value: Any) -> Any:
     """Cut a parsed string to what its vehicle column holds; anything else passes.
 
     OCR sometimes reads a paragraph into a short field. PostgreSQL refused it,
-    a 500 with the upload already on disk, and SQLite kept it whole.
+    a 500 with the upload already on disk, and SQLite kept it whole. The
+    work lives in `app.utils.vehicle_columns`, shared with the registration
+    certificate import (#211).
     """
-    length: int | None = getattr(Vehicle.__table__.c[column].type, "length", None)
-    if not isinstance(value, str) or length is None or len(value) <= length:
-        return value
-    # Never the text itself: it's OCR output, so it's whatever was on the paper.
-    logger.warning(
-        "Window sticker: cut parsed %s from %d to %d characters", column, len(value), length
-    )
-    return value[:length]
+    return fit_to_column(column, value, source="Window sticker", log=logger)
 
 
 #: Sticker data columns: filled from a scan only where empty, unless replacing.
@@ -362,10 +357,12 @@ async def upload_window_sticker(
     file_ext = Path(file.filename).suffix.lower()
     unique_filename = f"window_sticker_{uuid.uuid4()}{file_ext}"
 
-    # Validate VIN before using in path (prevent path traversal)
-    is_valid, error = validate_vin(vin)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=f"Invalid VIN format: {error}")
+    # Validate the key before using it in a path (prevent path traversal). A
+    # window sticker belongs to a VIN; a vehicle without one has none (#226).
+    if not is_vehicle_key(vin):
+        raise HTTPException(status_code=400, detail="Invalid vehicle key")
+    if vehicle.identifier_type != "vin":
+        raise HTTPException(status_code=409, detail="Window stickers need a vehicle with a VIN")
 
     # Create VIN-specific directory
     vin_dir = STICKER_STORAGE_PATH / vin
@@ -600,7 +597,7 @@ async def download_window_sticker_file(
     return FileResponse(
         path=file_path,
         media_type=media_type,
-        filename=f"window_sticker_{vin}{file_path.suffix}",
+        filename=f"window_sticker_{download_tag(vehicle)}{file_path.suffix}",
     )
 
 

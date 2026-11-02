@@ -87,6 +87,32 @@
     "fuelTypeUsedHint": "Available because this vehicle has a secondary fuel capability.",
     "octane": "Octane",
     "octaneHint": "As posted on the pump (AKI or RON).",
+    "octaneRon": "Octane (RON)",
+    "octaneRonHint": "Research octane number, as posted on European pumps (95, 98).",
+    "octaneScale": "Octane scale",
+    "octaneScaleUnknown": "Not recorded",
+    "octaneScaleRon": "RON (Europe)",
+    "octaneScaleAki": "AKI (North America)",
+    "fuelPreset": "Fuel at the pump",
+    "fuelPresetHint": "The name on the pump in this country. Fills in the EN 16942 label and the octane rating.",
+    "fuelPresetOther": "Other / choose the label",
+    "fuelGrade": "EN 16942 label",
+    "fuelGradeHint": "The label in the circle (petrol), square (diesel) or diamond (gas) on the nozzle.",
+    "fuelGrades": {
+      "E5": "E5 — petrol, up to 5 % ethanol",
+      "E10": "E10 — petrol, up to 10 % ethanol",
+      "E85": "E85 — up to 85 % ethanol (flex fuel)",
+      "B7": "B7 — diesel, up to 7 % biodiesel",
+      "B10": "B10 — diesel, up to 10 % biodiesel",
+      "B20": "B20 — diesel, up to 20 % biodiesel",
+      "B30": "B30 — diesel, up to 30 % biodiesel",
+      "B100": "B100 — 100 % biodiesel",
+      "XTL": "XTL — paraffinic diesel (HVO, GTL)",
+      "H2": "H2 — hydrogen",
+      "CNG": "CNG — compressed natural gas",
+      "LPG": "LPG — liquefied petroleum gas",
+      "LNG": "LNG — liquefied natural gas"
+    },
     "dieselGrade": "Diesel grade",
     "dieselGradeHint": "On-road is clear fuel; off-road (farm) is dyed.",
     "dieselGradeOnroad": "Regular (on-road)",
@@ -131,7 +157,13 @@
     "chargeHome": "Home",
     "chargePublic": "Public",
     "chargeLevelPlaceholder": "Not recorded",
-    "chargeLocationPlaceholder": "Not recorded"
+    "chargeLocationPlaceholder": "Not recorded",
+    "pricesTitle": "Prices at {{station}}",
+    "pricesUpdated": "updated {{when}}",
+    "pricesUseThisPrice": "Use this price",
+    "pricesCurrentFuel": "This fuel",
+    "pricesUnavailable": "Fuel prices could not be fetched right now.",
+    "pricesNone": "This station has not reported any price."
   },
   "hours": {
     "createTitle": "Add Engine Hours Reading",
@@ -197,7 +229,10 @@
     "partialSwitch": "Vehicles you remove here stay on {{provider}}, which carries on for them and can still be renewed.",
     "coverages": "Coverages",
     "moveFieldUp": "Move field up",
-    "moveFieldDown": "Move field down"
+    "moveFieldDown": "Move field down",
+    "noClaimsClass": "No-claims class",
+    "noClaimsHint": "As printed on the policy: a bonus-malus coefficient, an SF class, a merit class…",
+    "noClaimsClassInvalid": "Up to 10 letters, digits, spaces or . , / % -"
   },
   "modal": {
     "activeUser": "Active User",
@@ -1017,7 +1052,9 @@
     "collision": "Collision",
     "fullCoverage": "Full Coverage",
     "minimum": "Minimum",
-    "other": "Other"
+    "other": "Other",
+    "thirdParty": "Third party",
+    "thirdPartyExtended": "Third party extended"
   },
   "premiumFrequencies": {
     "monthly": "Monthly",
@@ -1036,9 +1073,18 @@
   },
   "taxTypes": {
     "registration": "Registration",
+    "registrationTax": "Registration Tax",
+    "co2Malus": "CO₂ Malus",
+    "weightMalus": "Weight Malus",
+    "circulationTax": "Circulation Tax",
+    "companyVehicleTax": "Company Vehicle Tax",
     "inspection": "Inspection",
     "propertyTax": "Property Tax",
-    "tolls": "Tolls"
+    "tolls": "Tolls",
+    "vignette": "Vignette",
+    "lezSticker": "Low-Emission Zone Sticker",
+    "parkingPermit": "Parking Permit",
+    "other": "Other"
   },
   "financingCategories": {
     "leasePayment": "Lease Payment",
@@ -1094,6 +1140,18 @@
       "maximumDays": "Maximum days",
       "limit": "Limit",
       "premium": "Premium"
-    }
+    },
+    "thirdPartyLiability": "Third-party liability",
+    "driverProtection": "Driver protection",
+    "theft": "Theft",
+    "fire": "Fire",
+    "naturalDisasters": "Natural disasters",
+    "allAccidentsDamage": "All-accidents damage",
+    "allAccidentsDamageHint": "Damage to the vehicle whoever is at fault",
+    "legalProtection": "Legal protection",
+    "assistance": "Assistance",
+    "replacementVehicle": "Replacement vehicle",
+    "moreCoverages": "More coverages ({{count}})",
+    "lessCoverages": "Fewer coverages"
   }
 }

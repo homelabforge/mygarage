@@ -6,6 +6,8 @@ from app.routes.attachments import router as attachments_router
 from app.routes.backup import router as backup_router
 from app.routes.brakes import router as brakes_router
 from app.routes.calendar import router as calendar_router
+from app.routes.compliance import router as compliance_router
+from app.routes.country_profiles import router as country_profiles_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.def_routes import router as def_router
 from app.routes.documents import router as documents_router
@@ -13,6 +15,7 @@ from app.routes.export import router as export_router
 from app.routes.external_vehicles import router as external_vehicles_router
 from app.routes.financing import router as financing_router
 from app.routes.fuel import router as fuel_router
+from app.routes.fuel_prices import address_book_fuel_prices_router, fuel_prices_router
 from app.routes.garage_assistant import router as garage_assistant_router
 from app.routes.hours import router as hours_router
 from app.routes.import_data import router as import_router
@@ -25,6 +28,7 @@ from app.routes.notifications import router as notifications_router
 from app.routes.odometer import router as odometer_router
 from app.routes.photos import router as photos_router
 from app.routes.recall import recalls_router
+from app.routes.registration_certificate import router as registration_certificate_router
 from app.routes.reminders import packs_router as reminder_packs_router
 from app.routes.reminders import router as reminders_router
 from app.routes.reports import router as reports_router
@@ -68,6 +72,8 @@ __all__ = [
     "toll_tags_router",
     "toll_transactions_router",
     "recalls_router",
+    "fuel_prices_router",
+    "address_book_fuel_prices_router",
     "settings_router",
     "backup_router",
     "attachments_router",
@@ -86,6 +92,9 @@ __all__ = [
     "maintenance_rules_router",
     "maintenance_types_router",
     "reminder_packs_router",
+    "compliance_router",
+    "registration_certificate_router",
+    "country_profiles_router",
     "service_visits_router",
     "supplies_router",
     "vehicle_supplies_router",

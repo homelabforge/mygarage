@@ -1841,13 +1841,17 @@ class TelemetryService:
         from app.models.vehicle import Vehicle
 
         result = await self.db.execute(
-            select(Vehicle.year, Vehicle.make, Vehicle.model).where(Vehicle.vin == vin)
+            select(Vehicle.nickname, Vehicle.year, Vehicle.make, Vehicle.model).where(
+                Vehicle.vin == vin
+            )
         )
         row = result.first()
+        # The nickname first: it's required, and a mower with no year or make
+        # would otherwise read "None None None" (#226).
         if row:
-            vehicle_name = f"{row[0]} {row[1]} {row[2]}"
+            vehicle_name = row[0] or " ".join(str(p) for p in row[1:] if p) or "Vehicle"
         else:
-            vehicle_name = f"Vehicle ({vin[:8]}...)"
+            vehicle_name = "Vehicle"
 
         # Lines are canonical metric, so the alert reads in the owner's units,
         # but only for a value known to be canonical. A custom key whose row

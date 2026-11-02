@@ -6,7 +6,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, true
 
 from app.database import Base
 from app.utils.datetime_utils import utc_now
@@ -88,6 +88,16 @@ class User(Base):
     currency_code: Mapped[str] = mapped_column(
         String(3), default="USD", nullable=False
     )  # ISO 4217 currency code
+
+    # Country (ISO 3166-1 alpha-2, validated by Pydantic against
+    # app/constants/countries.py) and whether this person's vehicles get
+    # their periodic technical inspection reminder scheduled automatically
+    # from the country's profile (migration 143, #211). NULL country = not
+    # set, which falls back to the instance's default_country setting.
+    country: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    inspection_auto_schedule: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
 
     # UI theme accent (per-account). The frontend also mirrors this to
     # localStorage for instant apply and the logged-out / auth-none case.

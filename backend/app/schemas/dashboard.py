@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-from app.schemas.vehicle import LenientUsageUnit, LenientVehicleType
+from app.schemas.vehicle import LenientIdentifierType, LenientUsageUnit, LenientVehicleType
 from app.utils.unit_resolution import LenientDistanceUnit
 
 
@@ -26,6 +26,11 @@ class VehicleStatistics(BaseModel):
     year: int | None = None
     make: str | None = None
     model: str | None = None
+    # A tractor may have nothing but a nickname and a serial (#226): the card
+    # titles it by the nickname and shows the serial, never the generated key.
+    nickname: str | None = None
+    identifier_type: LenientIdentifierType = "vin"
+    identifier: str | None = None
     vehicle_type: LenientVehicleType = None
     main_photo_url: str | None = None
 

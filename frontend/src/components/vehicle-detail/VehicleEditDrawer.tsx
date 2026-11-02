@@ -22,6 +22,7 @@ import { applyServerErrors } from '../../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 import { usePublicSettings } from '../../hooks/usePublicSettings'
 import { isSettingOn } from '../../utils/settingSwitch'
+import { hasVin } from '../../utils/vehicleIdentifier'
 import { UnitSession } from '../../contexts/UnitSession'
 
 /** Vehicles with no engine, VIN-decoded drivetrain, or DEF system. */
@@ -59,6 +60,9 @@ interface VehicleEditDrawerProps {
   onUploadWindowSticker: () => void
   /** Opens the per-vehicle Torque Pro source drawer, which stacks over this one. */
   onManageTorqueSources: () => void
+  /** Opens the registration certificate import drawer (#211), which stacks
+   *  over this one. Optional: a caller without the flow renders no section. */
+  onImportRegistrationCertificate?: () => void
 }
 
 /**
@@ -102,6 +106,7 @@ function VehicleEditForm({
   onDownloadWindowSticker,
   onUploadWindowSticker,
   onManageTorqueSources,
+  onImportRegistrationCertificate,
 }: VehicleEditDrawerProps) {
   const { t } = useTranslation('vehicles')
   const [defEnabled, setDefEnabled] = useState(false)
@@ -149,7 +154,13 @@ function VehicleEditForm({
   // a real type is picked.
   const seedType = seedSource?.vehicle_type ?? null
   const isMotorized = seedSource ? seedType === null || !NON_MOTORIZED.includes(seedType) : false
-  const hasWindowSticker = seedType !== null && WINDOW_STICKER_TYPES.includes(seedType)
+  // A window sticker is matched to a VIN (#226): without one there's nothing
+  // to upload against, and a sticker already on file stays viewable only.
+  const vinFeatures = hasVin(vehicle)
+  const hasWindowSticker =
+    seedType !== null &&
+    WINDOW_STICKER_TYPES.includes(seedType) &&
+    (vinFeatures || !!vehicle.window_sticker_file_path)
   // Settings > Files can switch new stickers off. The one on file stays
   // viewable; only upload and replace go. On until the public read says off
   // (the backend's default), so a failed read hides nothing and the 409 rules.
@@ -568,6 +579,22 @@ function VehicleEditForm({
             The two raw <button>s carry an explicit type="button": they sit
             inside #vehicle-edit-form, whose submit belongs to the footer Save.
             (The <Button> primitive already defaults to type="button".) */}
+        {/* Registration certificate (#211): one action that stacks the import
+            drawer over this one. Ungated on vehicle type: every registered
+            vehicle in the EU has one. Nothing here registers with the form. */}
+        {onImportRegistrationCertificate && (
+          <section>
+            <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-text">
+              <FileText className="h-5 w-5" aria-hidden="true" />
+              {t('registrationImport.title')}
+            </h3>
+            <p className="mb-3 text-sm text-text-mute">{t('registrationImport.detailDesc')}</p>
+            <Button variant="secondary" size="sm" onClick={onImportRegistrationCertificate}>
+              {t('registrationImport.detailAction')}
+            </Button>
+          </section>
+        )}
+
         {hasWindowSticker && (
           <section>
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -575,12 +602,14 @@ function VehicleEditForm({
                 <FileText className="h-5 w-5" aria-hidden="true" />
                 {t('detail.windowSticker')}
               </h3>
-              <Link
-                to={`/vehicles/${vin}/window-sticker-test`}
-                className="rounded-control bg-surface-2 px-2 py-1 text-xs text-text-mute transition-colors hover:text-(--accent-fg)"
-              >
-                {t('detail.misc.testOcr')}
-              </Link>
+              {vinFeatures && (
+                <Link
+                  to={`/vehicles/${vin}/window-sticker-test`}
+                  className="rounded-control bg-surface-2 px-2 py-1 text-xs text-text-mute transition-colors hover:text-(--accent-fg)"
+                >
+                  {t('detail.misc.testOcr')}
+                </Link>
+              )}
             </div>
 
             {vehicle.window_sticker_file_path ? (
@@ -609,7 +638,8 @@ function VehicleEditForm({
                       })}
                     </span>
                   )}
-                  {vehicle.window_sticker_extracted_vin && (
+                  {/* Compared against the key, which isn't a VIN without one. */}
+                  {vinFeatures && vehicle.window_sticker_extracted_vin && (
                     <span
                       className={
                         vehicle.window_sticker_extracted_vin === vehicle.vin
@@ -623,7 +653,7 @@ function VehicleEditForm({
                     </span>
                   )}
                 </div>
-                {stickersOn && (
+                {stickersOn && vinFeatures && (
                   <button
                     type="button"
                     onClick={onUploadWindowSticker}

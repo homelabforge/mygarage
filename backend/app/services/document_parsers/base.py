@@ -16,8 +16,10 @@ class DocumentType(Enum):
 
     WINDOW_STICKER = "window_sticker"
     INSURANCE = "insurance"
+    #: An EU registration certificate (Directive 1999/37/EC): carte grise,
+    #: Zulassungsbescheinigung Teil I, kentekenbewijs… (#211).
+    REGISTRATION = "registration"
     # Future types can be added here
-    # REGISTRATION = "registration"
     # TITLE = "title"
     # SERVICE_RECORD = "service_record"
 

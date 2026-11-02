@@ -92,6 +92,40 @@ describe('VehicleStatisticsCard', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/vehicles/1HGBH41JXMN109186')
   })
 
+  describe('a vehicle without a VIN (#226)', () => {
+    const KEY = 'QABCDEFGH12345678'
+    const tractor = (overrides: Partial<VehicleStatistics> = {}): VehicleStatistics =>
+      makeVehicleStatistics({
+        vin: KEY,
+        year: null,
+        make: null,
+        model: null,
+        vehicle_type: 'Tractor',
+        nickname: 'Back-field Kubota',
+        identifier_type: 'serial',
+        identifier: 'BX23S-10234',
+        ...overrides,
+      })
+
+    it('is titled by its nickname and shows its serial, never the generated key', () => {
+      render(<VehicleStatisticsCard stats={tractor()} />)
+      expect(screen.getByRole('heading', { name: 'Back-field Kubota' })).toBeInTheDocument()
+      expect(screen.getByText('BX23S-10234')).toBeInTheDocument()
+      expect(screen.queryByText(KEY)).not.toBeInTheDocument()
+    })
+
+    it('with no identifier at all, still shows the nickname and no key', () => {
+      render(<VehicleStatisticsCard stats={tractor({ identifier_type: 'none', identifier: null })} />)
+      expect(screen.getByRole('heading', { name: 'Back-field Kubota' })).toBeInTheDocument()
+      expect(screen.queryByText(KEY)).not.toBeInTheDocument()
+    })
+
+    it('a vehicle with a year, make and model keeps that as its title', () => {
+      render(<VehicleStatisticsCard stats={makeVehicleStatistics({ nickname: 'Daily' })} />)
+      expect(screen.getByRole('heading', { name: '2024 Toyota Camry' })).toBeInTheDocument()
+    })
+  })
+
   describe('the VIN stays selectable (#179)', () => {
     // ★ WHAT THESE CANNOT COVER. The fix has two halves and only one is
     // testable here. Removing `pointer-events-none` is structural and the first

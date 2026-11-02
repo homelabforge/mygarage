@@ -15,6 +15,7 @@ from app.constants.fuel import (
     FuelTypeEnum,
     normalize_fuel_type,
 )
+from app.constants.tax import is_tax_type, normalize_tax_type
 from app.database import get_db
 from app.models import (
     DEFRecord,
@@ -84,7 +85,9 @@ from app.schemas.fuel import (
     CHARGE_LOCATION_VALUES,
     FuelRecordCreate,
     _validate_diesel_grade,
+    _validate_fuel_grade,
     _validate_octane,
+    _validate_octane_scale,
 )
 from app.schemas.hours import HoursRecordCreate
 from app.schemas.odometer import OdometerRecordCreate
@@ -376,8 +379,17 @@ async def import_fuel_csv(
             # the per-row error handler, never silently persisted (R1-M2).
             raw_octane = (row.get("Octane", "") or "").strip()
             octane = _validate_octane(int(raw_octane)) if raw_octane else None
+            # B4 — the scale it was read on (absent/blank = NULL, as is a
+            # scale with no octane beside it).
+            octane_scale = (
+                _validate_octane_scale(row.get("Octane Scale") or "")
+                if octane is not None
+                else None
+            )
             raw_grade = (row.get("Diesel Grade", "") or "").strip()
             diesel_grade = _validate_diesel_grade(raw_grade) if raw_grade else None
+            # #211 — EN 16942 label (v8 column; absent/blank = NULL).
+            fuel_grade = _validate_fuel_grade(row.get("Fuel Grade", ""))
 
             # The fourteen columns the export has written since v4 and this
             # importer dropped (G3a-68). A short row's missing cell is None in
@@ -511,7 +523,9 @@ async def import_fuel_csv(
                     normalized_fuel_type.value if normalized_fuel_type is not None else None
                 ),
                 octane=octane,
+                octane_scale=octane_scale,
                 diesel_grade=diesel_grade,
+                fuel_grade=fuel_grade,
                 outside_temp_c=outside_temp_c,
                 obc_l_per_100km=obc_l_per_100km,
                 obc_avg_speed_kmh=obc_avg_speed_kmh,
@@ -1016,6 +1030,7 @@ async def import_insurance_csv(
                 "premium": parse_decimal(row.get("Premium", "")),
                 "premium_frequency": row.get("Premium Frequency", "").strip() or None,
                 "deductible": parse_decimal(row.get("Deductible", "")),
+                "no_claims_class": row.get("No-Claims Class", "").strip() or None,
                 "notes": row.get("Notes", "").strip() or None,
             }
             # The flat file has one Coverage Limits column: converted whole,
@@ -1074,7 +1089,17 @@ async def import_tax_csv(
             # imported. The export writes `Date` and `Renewal Date`; the two
             # halves now share one vocabulary.
             record_date = parse_date(row.get("Date", "")) or parse_date(row.get("Paid Date", ""))
-            tax_type = row.get("Type", "").strip() or None
+            # #211 — a code, or a pre-146 display string, means its code; a
+            # type this version does not know is filed under `other` rather
+            # than failing the row (the amount and date are the record).
+            tax_type = normalize_tax_type(row.get("Type", ""))
+            if tax_type is not None and not is_tax_type(tax_type):
+                logger.warning(
+                    "Tax CSV row %d: unknown type %s imported as 'other'",
+                    row_num,
+                    sanitize_for_log(tax_type),
+                )
+                tax_type = "other"
             amount = parse_decimal(row.get("Amount", ""))
             _within_api_bounds(TaxRecordCreate, amount=amount)
             renewal_date = parse_date(row.get("Renewal Date", "")) or parse_date(
