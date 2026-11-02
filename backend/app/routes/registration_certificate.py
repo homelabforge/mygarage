@@ -20,7 +20,9 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -41,6 +43,8 @@ from app.utils.logging_utils import sanitize_for_log
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["registration-certificate"])
+#: A read can reach a vision model: the receipt parse's upload budget (B6).
+limiter = Limiter(key_func=get_remote_address)
 
 ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".heif"}
 ALLOWED_MIMES = {"application/pdf", "image/jpeg", "image/png", "image/heic", "image/heif"}
@@ -117,7 +121,9 @@ def _to_response(
 
 
 @router.post("/registration-certificate/parse", response_model=RegistrationParseResponse)
+@limiter.limit(settings.rate_limit_uploads)
 async def parse_registration_certificate(
+    request: Request,
     file: Annotated[UploadFile, File(...)],
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: User | None = Depends(require_auth),
@@ -155,7 +161,9 @@ async def parse_registration_certificate(
     response_model=RegistrationImportResponse,
     status_code=201,
 )
+@limiter.limit(settings.rate_limit_uploads)
 async def import_registration_certificate(
+    request: Request,
     vin: str,
     file: Annotated[UploadFile, File(...)],
     db: Annotated[AsyncSession, Depends(get_db)],

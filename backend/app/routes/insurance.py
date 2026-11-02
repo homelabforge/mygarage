@@ -15,9 +15,12 @@ tab, gated on the vehicle like any other child collection.
 import logging
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.schemas.insurance import (
@@ -41,6 +44,8 @@ from app.utils.logging_utils import sanitize_for_log
 router = APIRouter(prefix="/api/insurance", tags=["Insurance"])
 vehicle_insurance_router = APIRouter(prefix="/api/vehicles", tags=["Insurance"])
 logger = logging.getLogger(__name__)
+#: A read can reach a vision model: the receipt parse's upload budget (B6).
+limiter = Limiter(key_func=get_remote_address)
 
 #: A PDF is read from its text layer; a photo or a scan (JPEG, PNG, HEIC)
 #: goes to the vision model when document reading is on (#211).
@@ -211,7 +216,9 @@ async def _read_upload(file: UploadFile) -> bytes:
 
 
 @router.post("/parse-pdf")
+@limiter.limit(settings.rate_limit_uploads)
 async def parse_insurance_pdf(
+    request: Request,
     file: UploadFile = File(...),
     provider: str | None = Query(
         None, description="Optional provider hint (progressive, statefarm, geico, allstate)"

@@ -59,7 +59,9 @@ from app.routes.export import limiter as export_limiter
 from app.routes.fuel import limiter as fuel_limiter
 from app.routes.garage_assistant import limiter as garage_assistant_limiter
 from app.routes.import_data._common import limiter as import_limiter
+from app.routes.insurance import limiter as insurance_limiter
 from app.routes.oidc import limiter as oidc_limiter
+from app.routes.registration_certificate import limiter as registration_certificate_limiter
 from app.routes.webhooks import limiter as webhooks_limiter
 from app.services.widget_auth import widget_limiter
 from app.utils.pg_session import create_utc_async_engine
@@ -271,7 +273,9 @@ APP_LIMITERS: dict[str, Limiter] = {
     "app.routes.fuel.limiter": fuel_limiter,
     "app.routes.garage_assistant.limiter": garage_assistant_limiter,
     "app.routes.import_data._common.limiter": import_limiter,
+    "app.routes.insurance.limiter": insurance_limiter,
     "app.routes.oidc.limiter": oidc_limiter,
+    "app.routes.registration_certificate.limiter": registration_certificate_limiter,
     "app.routes.webhooks.limiter": webhooks_limiter,
     "app.services.widget_auth.widget_limiter": widget_limiter,
 }
