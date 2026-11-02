@@ -35,7 +35,7 @@ def _make_tables(engine) -> None:
             text(
                 "CREATE TABLE recalls (id INTEGER PRIMARY KEY, vin VARCHAR(17) NOT NULL "
                 "REFERENCES vehicles(vin), nhtsa_campaign_number VARCHAR(20), "
-                "component VARCHAR(100), summary TEXT, is_resolved BOOLEAN DEFAULT 0)"
+                "component VARCHAR(100), summary TEXT, is_resolved BOOLEAN DEFAULT FALSE)"
             )
         )
         conn.execute(text("INSERT INTO vehicles (vin, nickname) VALUES ('1HGCM82633A004352', 'A')"))
