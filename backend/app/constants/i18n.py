@@ -24,4 +24,5 @@ SUPPORTED_CURRENCIES: set[str] = {
     "BRL",
     "INR",
     "MYR",
+    "ZAR",
 }
