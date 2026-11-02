@@ -472,30 +472,34 @@ async def _recall_check_interval_days(db: AsyncSession) -> int:
     return days
 
 
-async def _recall_check_due(db: AsyncSession, now: datetime) -> bool:
-    """Whether the scheduled recall check should query NHTSA at `now`.
+async def _recall_check_due(db: AsyncSession, now: datetime, stamp_key: str) -> bool:
+    """Whether the recall source whose last check is `stamp_key` is due at `now`.
 
-    Due when nhtsa_last_check is blank, doesn't parse as an ISO timestamp
+    Each source keeps its own stamp (`nhtsa_last_check`,
+    `rappelconso_last_check`), so one source's outage keeps only that source
+    due. Due when the stamp is blank, doesn't parse as an ISO timestamp
     (naive is read as UTC), falls outside the calendar once converted to UTC
     (an aware stamp at year 1 or 9999), lies more than RECALL_CHECK_SLACK
     after `now` (a wrong clock at one run, or a restored backup), or is at
     least the interval, less RECALL_CHECK_SLACK, before `now`.
     """
-    raw = (await _get_setting(db, "nhtsa_last_check")).strip()
+    raw = (await _get_setting(db, stamp_key)).strip()
     if not raw:
         return True
     try:
         last = to_naive_utc(datetime.fromisoformat(raw))
     except ValueError, OverflowError:
         logger.warning(
-            "nhtsa_last_check %s is not a usable timestamp; checking recalls now",
+            "%s %s is not a usable timestamp; checking recalls now",
+            stamp_key,
             sanitize_for_log(raw),
         )
         return True
     now = to_naive_utc(now)
     if last - now > RECALL_CHECK_SLACK:
         logger.warning(
-            "nhtsa_last_check %s is in the future; checking recalls now",
+            "%s %s is in the future; checking recalls now",
+            stamp_key,
             sanitize_for_log(raw),
         )
         return True
@@ -504,25 +508,34 @@ async def _recall_check_due(db: AsyncSession, now: datetime) -> bool:
 
 
 async def check_recalls_all_vehicles() -> None:
-    """Auto-check NHTSA recalls for all vehicles when the interval is due.
+    """Auto-check recalls for all vehicles, each source when its interval is due.
 
-    Runs daily at 2 AM UTC. Skips when no recall source would be asked (NHTSA
-    needs nhtsa_enabled and nhtsa_auto_check, RappelConso its own switch), or
-    when nhtsa_recall_check_interval days (less an hour) haven't passed since
-    nhtsa_last_check. Otherwise asks every source that covers each vehicle's
-    country (NHTSA, RappelConso in France, #211), inserts new recalls, and
-    sends notifications for newly discovered ones. nhtsa_auto_check is
-    NHTSA's alone (F-4): with it off, RappelConso's scheduled checks still run.
+    Runs daily at 2 AM UTC. A source is asked when it is switched on (NHTSA
+    needs nhtsa_enabled and nhtsa_auto_check, RappelConso its own switch) and
+    nhtsa_recall_check_interval days (less an hour) have passed since its OWN
+    last check (nhtsa_last_check, rappelconso_last_check). The pass skips when
+    no source is due. Otherwise it asks every due source that covers each
+    vehicle's country (NHTSA, RappelConso in France, #211), inserts new
+    recalls, and sends notifications for newly discovered ones.
+    nhtsa_auto_check is NHTSA's alone (F-4): with it off, RappelConso's
+    scheduled checks still run.
 
-    An NHTSA outage for any vehicle leaves nhtsa_last_check unchanged, so the
-    next daily run tries again; the recalls found meanwhile are committed
-    anyway, because they were already announced, and the campaign-number
-    check keeps the retry from storing or announcing them twice. A VIN NHTSA
-    can't resolve to a make, model and year counts as checked.
+    A source's outage for any vehicle leaves its own stamp unchanged, so the
+    next daily run asks that source again and not the other; the recalls
+    found meanwhile are committed anyway, because they were already
+    announced, and the (source, identifier) check keeps the retry from
+    storing or announcing them twice. A VIN NHTSA can't resolve to a make,
+    model and year counts as checked. A source that wasn't asked keeps its
+    stamp.
     """
     from app.services.recall_service import sync_vehicle_recalls
     from app.services.recalls.base import SOURCE_NHTSA, SOURCE_RAPPELCONSO
-    from app.services.recalls.rappelconso import ENABLED_SETTING as RAPPELCONSO_ENABLED_SETTING
+    from app.services.recalls.rappelconso import (
+        ENABLED_SETTING as RAPPELCONSO_ENABLED_SETTING,
+    )
+    from app.services.recalls.rappelconso import (
+        LAST_CHECK_SETTING as RAPPELCONSO_LAST_CHECK_SETTING,
+    )
 
     async with AsyncSessionLocal() as db:
         await load_household_zone(db)
@@ -536,16 +549,31 @@ async def check_recalls_all_vehicles() -> None:
             nhtsa_scheduled = nhtsa_auto and await SettingsService.get_bool(
                 db, "nhtsa_enabled", True
             )
-            if not nhtsa_scheduled and not await SettingsService.get_bool(
+            rappelconso_scheduled = await SettingsService.get_bool(
                 db, RAPPELCONSO_ENABLED_SETTING, True
-            ):
+            )
+            if not nhtsa_scheduled and not rappelconso_scheduled:
                 logger.info("No recall source is checked on a schedule, skipping")
                 return
-            skip = frozenset() if nhtsa_auto else frozenset({SOURCE_NHTSA})
             now = utc_now()
-            if not await _recall_check_due(db, now):
-                logger.debug("NHTSA recall check not due yet, skipping")
+            # Each source on its own clock: a RappelConso outage keeps
+            # RappelConso due without asking NHTSA again early, and the
+            # other way round.
+            nhtsa_due = nhtsa_scheduled and await _recall_check_due(db, now, "nhtsa_last_check")
+            rappelconso_due = rappelconso_scheduled and await _recall_check_due(
+                db, now, RAPPELCONSO_LAST_CHECK_SETTING
+            )
+            if not nhtsa_due and not rappelconso_due:
+                logger.debug("No recall source is due yet, skipping")
                 return
+            skip = frozenset(
+                source
+                for source, due in (
+                    (SOURCE_NHTSA, nhtsa_due),
+                    (SOURCE_RAPPELCONSO, rappelconso_due),
+                )
+                if not due
+            )
 
             dispatcher = NotificationDispatcher(db)
 
@@ -607,17 +635,24 @@ async def check_recalls_all_vehicles() -> None:
                 await asyncio.sleep(2)
 
             # The commit always runs: recalls found this pass were announced
-            # already. Only the timestamp waits for a pass NHTSA fully answered.
-            if outage:
-                logger.warning(
-                    "NHTSA recall check incomplete; nhtsa_last_check unchanged, "
-                    "the next run retries"
-                )
-            else:
-                await SettingsService.set(db, "nhtsa_last_check", now.isoformat())
-            # RappelConso (#211) keeps its own stamp, left alone when it failed.
-            if not rappelconso_failed:
-                await SettingsService.set(db, "rappelconso_last_check", now.isoformat())
+            # already. Only a source's stamp waits for a pass it fully
+            # answered, and a source this pass didn't ask keeps its stamp.
+            if nhtsa_due:
+                if outage:
+                    logger.warning(
+                        "NHTSA recall check incomplete; nhtsa_last_check unchanged, "
+                        "the next run retries"
+                    )
+                else:
+                    await SettingsService.set(db, "nhtsa_last_check", now.isoformat())
+            if rappelconso_due:
+                if rappelconso_failed:
+                    logger.warning(
+                        "RappelConso recall check incomplete; %s unchanged, the next run retries",
+                        RAPPELCONSO_LAST_CHECK_SETTING,
+                    )
+                else:
+                    await SettingsService.set(db, RAPPELCONSO_LAST_CHECK_SETTING, now.isoformat())
             await db.commit()
 
             logger.info(

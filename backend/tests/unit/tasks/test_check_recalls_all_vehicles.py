@@ -2,8 +2,9 @@
 
 The job runs daily at 2 AM UTC and does the real work only when NHTSA is on,
 the automatic check is on, and `nhtsa_recall_check_interval` days (less an
-hour of slack) have passed since `nhtsa_last_check`. An NHTSA outage leaves
-`nhtsa_last_check` alone, so the next daily tick tries again instead of
+hour of slack) have passed since `nhtsa_last_check`; RappelConso keeps its
+own `rappelconso_last_check` the same way. A source's outage leaves its own
+stamp alone, so the next daily tick asks that source again instead of
 reading the outage as "no recalls" for a whole interval.
 
 `check_recalls_all_vehicles()` opens its own `AsyncSessionLocal()`, so these
@@ -705,6 +706,64 @@ async def test_an_undecodable_vin_is_not_an_outage(
     await check_recalls_all_vehicles()
 
     await _assert_advanced(db_session)
+
+
+async def _stamp(db: AsyncSession, key: str) -> str | None:
+    setting = await SettingsService.get(db, key)
+    return setting.value if setting is not None else None
+
+
+async def test_a_rappelconso_outage_is_retried_without_asking_nhtsa_early(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each source waits on its own last check. RappelConso down while NHTSA
+    answers: the next daily pass asks RappelConso again and leaves NHTSA
+    alone until its own interval is up. Red before: the pass was gated on
+    nhtsa_last_check alone, so a French outage waited the whole interval."""
+    rappel = AsyncMock(side_effect=httpx.ConnectError("rappel.conso.gouv.fr unreachable"))
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    american = await make_vehicle()
+    french = await make_vehicle()
+    french.registration_country = "FR"
+    french.make = "Renault"
+    await db_session.commit()
+    await _store(
+        db_session,
+        nhtsa_enabled="true",
+        nhtsa_auto_check="true",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+        rappelconso_enabled="true",
+        rappelconso_last_check="",
+    )
+
+    def _asked_rappel() -> int:
+        return sum(1 for call in rappel.await_args_list if call.args[1].vin == french.vin)
+
+    await check_recalls_all_vehicles()
+
+    assert _fetched(recalls_fetch, american.vin) == 1
+    assert _asked_rappel() == 1
+    assert await _last_check(db_session)
+    assert await _stamp(db_session, "rappelconso_last_check") in (None, "")
+
+    # The next daily tick: RappelConso is still due, NHTSA is not.
+    rappel.side_effect = None
+    rappel.return_value = []
+    await check_recalls_all_vehicles()
+
+    assert _asked_rappel() == 2
+    assert _fetched(recalls_fetch, american.vin) == 1
+    assert await _stamp(db_session, "rappelconso_last_check")
+
+    # Both answered: neither is asked again inside the interval.
+    await check_recalls_all_vehicles()
+
+    assert _asked_rappel() == 2
+    assert _fetched(recalls_fetch, american.vin) == 1
 
 
 # --- the trigger --------------------------------------------------------------
