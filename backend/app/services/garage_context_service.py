@@ -21,6 +21,7 @@ from app.models.vehicle_dtc import VehicleDTC
 from app.services.dtc_service import DTCService
 from app.utils.render_context import RenderContext, render_context_default, with_vehicle
 from app.utils.unit_formatting import format_quantity
+from app.utils.vehicle_key import display_identifier
 
 # SAE-style OBD codes: P/B/C/U + 4 hex digits (e.g. P0420, B0001).
 _DTC_CODE_RE = re.compile(r"\b([PBCUpbcu][0-9A-Fa-f]{4})\b")
@@ -209,7 +210,10 @@ async def build_garage_context(
 
     context: dict[str, Any] = {
         "vehicle": {
-            "vin": vehicle.vin,
+            # A real VIN, or the serial / HIN a tractor or boat has instead. A
+            # generated key is never sent to the model as a VIN (#226).
+            "identifier_type": display_identifier(vehicle)[0],
+            "identifier": display_identifier(vehicle)[1],
             "nickname": vehicle.nickname,
             "year": vehicle.year,
             "make": vehicle.make,

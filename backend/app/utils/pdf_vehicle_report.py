@@ -451,7 +451,7 @@ def generate_vehicle_analytics_pdf(
     story.append(
         make_vehicle_banner(
             vehicle_name=analytics_data.get("vehicle_name", "Unknown Vehicle"),
-            vin=analytics_data.get("vin", ""),
+            vin=analytics_data.get("identifier_text") or "",
             # The key is always there, so a .get default wouldn't catch a null type.
             vehicle_type=analytics_data.get("vehicle_type") or "Unknown",
             days_owned=_safe_int(analytics_data.get("days_owned")),

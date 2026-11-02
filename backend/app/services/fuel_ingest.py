@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from datetime import date as date_type
 from decimal import Decimal
-from typing import Any
+from typing import Any, Self
 
 from fastapi import HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +31,27 @@ from app.services.fuel_side_effects import apply_fuel_record_side_effects
 from app.utils.household_time import household_today
 
 
-class WebhookFuelPayload(BaseModel):
+class WebhookVehicleRef(BaseModel):
+    """Which vehicle a webhook names: `vin` (a VIN or nickname, as before), or
+    `vehicle` (a nickname, serial, HIN or asset tag, up to 100 characters), for
+    equipment without a VIN (#226). One of the two is required."""
+
+    vin: str | None = Field(None, max_length=17)
+    vehicle: str | None = Field(None, max_length=100)
+
+    @model_validator(mode="after")
+    def _one_reference(self) -> Self:
+        if not (self.vin or "").strip() and not (self.vehicle or "").strip():
+            raise ValueError("vin or vehicle is required")
+        return self
+
+    @property
+    def vehicle_ref(self) -> str:
+        """The reference to resolve: `vin` when given, else `vehicle`."""
+        return (self.vin or "").strip() or (self.vehicle or "").strip()
+
+
+class WebhookFuelPayload(WebhookVehicleRef):
     """Inbound fuel/charge payload.
 
     Numeric bounds mirror FuelRecordBase. Without them SQLite stores an absurd
@@ -42,7 +62,6 @@ class WebhookFuelPayload(BaseModel):
     session legitimately arrives with neither.
     """
 
-    vin: str = Field(..., max_length=17)
     date: date_type | None = None
     odometer_km: Decimal | None = Field(None, ge=0, le=99999999.99)
     liters: Decimal | None = Field(None, ge=0, le=9999.999)
@@ -104,10 +123,11 @@ class WebhookFuelPayload(BaseModel):
 
 
 async def resolve_vehicle(db: AsyncSession, vin_or_nick: str) -> Vehicle:
-    """The vehicle a VIN or a nickname names (nickname match ignores case).
+    """The vehicle a VIN, a nickname or an identifier names (case ignored but for the VIN).
 
+    The identifier (a tractor's serial, a boat's HIN, #226) is tried last.
     Raises ``HTTPException`` 404 when nothing matches and 409 when a nickname
-    matches more than one vehicle.
+    or an identifier matches more than one vehicle.
     """
     key = vin_or_nick.strip()
     result = await db.execute(select(Vehicle).where(Vehicle.vin == key.upper()))
@@ -124,6 +144,16 @@ async def resolve_vehicle(db: AsyncSession, vin_or_nick: str) -> Vehicle:
             detail=f"Ambiguous nickname '{vin_or_nick}' matches multiple vehicles; use VIN instead",
         )
     if not matches:
+        result = await db.execute(
+            select(Vehicle).where(func.lower(Vehicle.identifier) == key.lower()).limit(2)
+        )
+        matches = result.scalars().all()
+        if len(matches) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Ambiguous identifier '{vin_or_nick}' matches multiple vehicles",
+            )
+    if not matches:
         raise HTTPException(status_code=404, detail=f"Vehicle not found: {vin_or_nick}")
     return matches[0]
 
@@ -134,7 +164,7 @@ async def create_fuel_record(db: AsyncSession, payload: WebhookFuelPayload) -> d
     Anything the session already holds (the Telegram poller stages its offset
     there) is committed with it. No date means today in the household zone.
     """
-    vehicle = await resolve_vehicle(db, payload.vin)
+    vehicle = await resolve_vehicle(db, payload.vehicle_ref)
     fill_date = payload.date or household_today()
     price_basis = payload.price_basis
     if price_basis is None and payload.kwh is not None:

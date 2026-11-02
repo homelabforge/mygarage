@@ -66,14 +66,16 @@ async def global_search(
     for vehicle in vehicles:
         haystacks = [
             vehicle.nickname or "",
-            vehicle.vin or "",
+            # A generated key isn't searchable; the serial / HIN is (#226).
+            vehicle.vin if vehicle.identifier_type == "vin" else "",
+            vehicle.identifier or "",
             vehicle.license_plate or "",
             vehicle.make or "",
             vehicle.model or "",
             f"{vehicle.year or ''} {vehicle.make or ''} {vehicle.model or ''}".strip(),
         ]
         if any(needle in (h or "").lower() for h in haystacks):
-            label = vehicle.nickname or vehicle.vin
+            label = vehicle.nickname or vehicle.identifier or vehicle.vin
             subtitle_parts = [
                 str(vehicle.year) if vehicle.year else None,
                 vehicle.make,

@@ -65,12 +65,14 @@ def display_identifier(vehicle: _HasIdentity) -> tuple[str, str | None]:
     return kind, vehicle.identifier or None
 
 
-_DISPLAY_LABELS: dict[str, str] = {
+#: English labels for backend output (PDFs, notifications); the frontend has its own i18n keys.
+IDENTIFIER_LABELS: dict[str, str] = {
     "vin": "VIN",
     "serial": "Serial",
     "hin": "HIN",
     "chassis": "Chassis",
     "asset_tag": "Asset tag",
+    "none": "ID",
 }
 
 
@@ -79,7 +81,23 @@ def identifier_text(vehicle: _HasIdentity) -> str | None:
     kind, value = display_identifier(vehicle)
     if not value:
         return None
-    return f"{_DISPLAY_LABELS.get(kind, kind)} {value}"
+    return f"{IDENTIFIER_LABELS.get(kind, kind)} {value}"
+
+
+def _filename_safe(value: str | None) -> str:
+    return re.sub(r"-{2,}", "-", re.sub(r"[^A-Za-z0-9-]", "-", value or "")).strip("-")
+
+
+def download_tag(vehicle: _HasIdentity, nickname: str | None = None) -> str:
+    """The vehicle's part of a download filename: the VIN, else a safe identifier.
+
+    Only [A-Za-z0-9-] survive, so it can go straight into Content-Disposition.
+    A vehicle without a VIN never puts its generated key in a filename (#226).
+    """
+    kind, value = display_identifier(vehicle)
+    if kind == "vin" and value:
+        return value
+    return (_filename_safe(value) or _filename_safe(nickname) or "vehicle")[:40]
 
 
 def filename_fragment(vehicle: _HasIdentity, length: int = 6) -> str:

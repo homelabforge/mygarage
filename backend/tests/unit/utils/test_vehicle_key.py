@@ -4,7 +4,9 @@ import pytest
 from app.utils.vehicle_key import (
     IDENTIFIER_TYPES,
     display_identifier,
+    download_tag,
     generate_vehicle_key,
+    identifier_text,
     is_synthetic_key,
     is_vehicle_key,
 )
@@ -85,3 +87,18 @@ def test_display_identifier_on_a_converted_fake_vin_shows_the_serial() -> None:
 
 def test_identifier_types() -> None:
     assert IDENTIFIER_TYPES == ("vin", "serial", "hin", "chassis", "asset_tag", "none")
+
+
+def test_download_tag_keeps_the_vin_and_never_uses_a_q_key() -> None:
+    assert download_tag(_V("1HGCM82633A004352")) == "1HGCM82633A004352"
+    key = generate_vehicle_key()
+    assert download_tag(_V(key, "serial", 'KBT 55/12"3')) == "KBT-55-12-3"
+    assert download_tag(_V(key, "none"), nickname="Kombi head") == "Kombi-head"
+    assert download_tag(_V(key, "none"), nickname="") == "vehicle"
+    assert key not in download_tag(_V(key, "none"))
+
+
+def test_identifier_text() -> None:
+    assert identifier_text(_V("1HGCM82633A004352")) == "VIN 1HGCM82633A004352"
+    assert identifier_text(_V(generate_vehicle_key(), "hin", "ABC12345D404")) == "HIN ABC12345D404"
+    assert identifier_text(_V(generate_vehicle_key(), "none")) is None

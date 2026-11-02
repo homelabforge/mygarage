@@ -149,7 +149,7 @@ class TestDefForcedVolumePair:
     async def _dispatch_def(self, dispatcher: NotificationDispatcher, ctx: RenderContext) -> str:
         await dispatcher.notify_def_low(
             vehicle_name="My Truck",
-            vin=_VIN,
+            identifier=_VIN,
             percent=Decimal("25"),
             remaining_liters=Decimal("2.50"),
             as_of_date=_AS_OF,

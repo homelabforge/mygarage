@@ -26,7 +26,7 @@ from app.services.window_sticker_ocr import WindowStickerOCRService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.vehicle_columns import fit_to_column
-from app.utils.vehicle_key import is_vehicle_key
+from app.utils.vehicle_key import download_tag, is_vehicle_key
 
 logger = logging.getLogger(__name__)
 
@@ -597,7 +597,7 @@ async def download_window_sticker_file(
     return FileResponse(
         path=file_path,
         media_type=media_type,
-        filename=f"window_sticker_{vin}{file_path.suffix}",
+        filename=f"window_sticker_{download_tag(vehicle)}{file_path.suffix}",
     )
 
 

@@ -78,6 +78,7 @@ from app.utils.insurance_cost import accrued_cost, monthly_costs
 from app.utils.insurance_shares import effective_shares
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.render_context import render_context_for_request, with_vehicle
+from app.utils.vehicle_key import download_tag, identifier_text
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -1738,6 +1739,8 @@ async def export_analytics_pdf(
 
     # Convert analytics to dict for PDF generator
     analytics_data = analytics.model_dump()
+    # The banner prints the VIN, or a tractor's serial; never a generated key (#226).
+    analytics_data["identifier_text"] = identifier_text(vehicle)
 
     # Generate PDF. Distances follow the vehicle's odometer unit; the
     # cost-per-distance cell keeps the account's units (#172 D3), so the PDF
@@ -1755,7 +1758,7 @@ async def export_analytics_pdf(
     )
 
     # Return PDF as streaming response
-    filename = f"mygarage-analytics-{vin}-{datetime.now().strftime('%Y%m%d')}.pdf"
+    filename = f"mygarage-analytics-{download_tag(vehicle, vehicle.nickname)}-{datetime.now().strftime('%Y%m%d')}.pdf"
 
     return StreamingResponse(
         pdf_buffer,

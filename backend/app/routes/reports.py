@@ -29,6 +29,12 @@ from app.utils.csv_units import (
 )
 from app.utils.pdf_generator import PDFReportGenerator
 from app.utils.render_context import render_context_for_request
+from app.utils.vehicle_key import (
+    IDENTIFIER_LABELS,
+    display_identifier,
+    download_tag,
+    filename_fragment,
+)
 
 router = APIRouter(prefix="/api/vehicles", tags=["Reports"])
 
@@ -77,6 +83,9 @@ async def download_service_history_pdf(
     # Prepare vehicle info
     vehicle_info = {
         "vin": vehicle.vin,
+        # What the PDF prints: the VIN, or a tractor's serial (#226).
+        "identifier_label": IDENTIFIER_LABELS.get(display_identifier(vehicle)[0], "VIN"),
+        "identifier": display_identifier(vehicle)[1],
         "year": vehicle.year,
         "make": vehicle.make,
         "model": vehicle.model,
@@ -124,7 +133,7 @@ async def download_service_history_pdf(
     pdf_buffer = pdf_gen.generate_service_history_pdf(vehicle_info, records_data, start_dt, end_dt)
 
     # Return as downloadable file
-    filename = f"service_history_{vin}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    filename = f"service_history_{download_tag(vehicle, vehicle.nickname)}_{datetime.now().strftime('%Y%m%d')}.pdf"
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",
@@ -147,6 +156,9 @@ async def download_sale_history_pdf(
 
     vehicle_info = {
         "vin": vehicle.vin,
+        # What the PDF prints: the VIN, or a tractor's serial (#226).
+        "identifier_label": IDENTIFIER_LABELS.get(display_identifier(vehicle)[0], "VIN"),
+        "identifier": display_identifier(vehicle)[1],
         "year": vehicle.year,
         "make": vehicle.make,
         "model": vehicle.model,
@@ -179,7 +191,7 @@ async def download_sale_history_pdf(
         render_context=await render_context_for_request(current_user, db, vehicle=vehicle),
     )
     pdf_buffer = pdf_gen.generate_sale_history_pdf(vehicle_info, records_data)
-    filename = f"sale_history_{vin[-6:]}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    filename = f"sale_history_{filename_fragment(vehicle)}_{datetime.now().strftime('%Y%m%d')}.pdf"
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",
@@ -204,6 +216,9 @@ async def download_cost_summary_pdf(
     # Prepare vehicle info
     vehicle_info = {
         "vin": vehicle.vin,
+        # What the PDF prints: the VIN, or a tractor's serial (#226).
+        "identifier_label": IDENTIFIER_LABELS.get(display_identifier(vehicle)[0], "VIN"),
+        "identifier": display_identifier(vehicle)[1],
         "year": vehicle.year,
         "make": vehicle.make,
         "model": vehicle.model,
@@ -283,7 +298,7 @@ async def download_cost_summary_pdf(
     pdf_buffer = pdf_gen.generate_cost_summary_pdf(vehicle_info, cost_data, year)
 
     # Return as downloadable file
-    filename = f"cost_summary_{vin}_{year}.pdf"
+    filename = f"cost_summary_{download_tag(vehicle, vehicle.nickname)}_{year}.pdf"
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",
@@ -306,6 +321,9 @@ async def download_tax_deduction_pdf(
     # Prepare vehicle info
     vehicle_info = {
         "vin": vehicle.vin,
+        # What the PDF prints: the VIN, or a tractor's serial (#226).
+        "identifier_label": IDENTIFIER_LABELS.get(display_identifier(vehicle)[0], "VIN"),
+        "identifier": display_identifier(vehicle)[1],
         "year": vehicle.year,
         "make": vehicle.make,
         "model": vehicle.model,
@@ -345,7 +363,7 @@ async def download_tax_deduction_pdf(
     pdf_buffer = pdf_gen.generate_tax_deduction_pdf(vehicle_info, deductible_records, year)
 
     # Return as downloadable file
-    filename = f"tax_deduction_{vin}_{year}.pdf"
+    filename = f"tax_deduction_{download_tag(vehicle, vehicle.nickname)}_{year}.pdf"
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",
@@ -453,7 +471,7 @@ async def download_service_history_csv(
 
     # Return as downloadable file
     output.seek(0)
-    filename = f"service_history_{vin}_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"service_history_{download_tag(vehicle, vehicle.nickname)}_{datetime.now().strftime('%Y%m%d')}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
@@ -556,7 +574,7 @@ async def download_all_records_csv(
 
     # Return as downloadable file
     output.seek(0)
-    filename = f"all_records_{vin}_{datetime.now().strftime('%Y%m%d')}.csv"
+    filename = f"all_records_{download_tag(vehicle, vehicle.nickname)}_{datetime.now().strftime('%Y%m%d')}.csv"
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",

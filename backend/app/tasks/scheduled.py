@@ -49,6 +49,7 @@ from app.utils.notification_cooldown import in_cooldown
 from app.utils.render_context import render_context_for_vehicle, render_context_for_vehicle_row
 from app.utils.unit_adapters import adapter_for
 from app.utils.usage_tracking import tracks_distance
+from app.utils.vehicle_key import identifier_text
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +187,7 @@ async def check_expiring_documents() -> None:
                 vehicle_name = (
                     vehicle.nickname or f"{vehicle.year} {vehicle.make} {vehicle.model}"
                     if vehicle
-                    else warranty.vin
+                    else "a vehicle"
                 )
                 days_until = (warranty.end_date - today).days
 
@@ -395,7 +396,9 @@ async def check_def_levels() -> None:
                             ctx = await render_context_for_vehicle(db, vehicle.vin)
                             dispatch_results = await dispatcher.notify_def_low(
                                 vehicle_name=vehicle_name,
-                                vin=vehicle.vin,
+                                # The VIN, or the serial a tractor has instead;
+                                # never a generated key (#226).
+                                identifier=identifier_text(vehicle),
                                 percent=percent,
                                 remaining_liters=remaining_liters,
                                 as_of_date=record_date,

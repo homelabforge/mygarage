@@ -301,7 +301,9 @@ def make_vehicle_banner(
 
     # Vehicle info (left side)
     name_para = Paragraph(vehicle_name, styles["VehicleName"])
-    vin_para = Paragraph(f"VIN {vin}", styles["VIN"])
+    # `vin` is the printed identifier line ("VIN …" / "Serial …"), never a
+    # generated key (#226); an empty one prints nothing.
+    vin_para = Paragraph(vin, styles["VIN"])
 
     # Badges (right side)
     # reportlab can't measure None, and the PDFs are English-only.

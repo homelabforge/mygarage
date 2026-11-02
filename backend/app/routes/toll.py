@@ -28,6 +28,7 @@ from app.services.toll_service import TollService
 from app.utils.csv_safe import sanitize_csv_row
 from app.utils.currency import normalize_pdf_currency_params
 from app.utils.household_time import household_today
+from app.utils.vehicle_key import has_real_vin, identifier_text
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +226,8 @@ async def export_toll_transactions_csv(
             "Notes",
             "Vehicle",
             "VIN",
+            # The serial / HIN of a vehicle without a VIN (#226); VIN stays blank.
+            "Identifier",
         ]
     )
 
@@ -241,7 +244,8 @@ async def export_toll_transactions_csv(
                     transaction.notes or "",
                     f"{vehicle.year or ''} {vehicle.make or ''} {vehicle.model or ''}".strip()
                     or vehicle.nickname,
-                    vehicle.vin,
+                    vehicle.vin if has_real_vin(vehicle) else "",
+                    identifier_text(vehicle) or "",
                 ]
             )
         )

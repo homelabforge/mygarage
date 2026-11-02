@@ -93,6 +93,8 @@ def _make_analytics_data(
 
     return {
         "vin": vin,
+        # The route adds the printed identifier line (#226).
+        "identifier_text": f"VIN {vin}",
         "vehicle_name": vehicle_name,
         "vehicle_type": "Car",
         "days_owned": 365,
@@ -968,3 +970,15 @@ def test_every_chart_labels_money_in_the_report_currency(
     for texts in drawn:
         assert any("Ft" in t for t in texts), texts
         assert not any("$" in t for t in texts), texts
+
+
+class TestBannerIdentifier:
+    """#226: the banner prints the VIN or the serial, never a generated key."""
+
+    def test_prints_the_identifier_line_and_not_the_key(self) -> None:
+        data = _make_analytics_data()
+        data["vin"] = "QABCDEFGH12345678"
+        data["identifier_text"] = "Serial BX23S-10234"
+        text = _extract_text(generate_vehicle_analytics_pdf(data, render_context=METRIC_CTX).read())
+        assert "Serial BX23S-10234" in text
+        assert "QABCDEFGH12345678" not in text

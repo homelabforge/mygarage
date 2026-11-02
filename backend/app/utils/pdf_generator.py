@@ -184,7 +184,7 @@ class PDFReportGenerator:
         # Vehicle Info
         vehicle_text = f"""
         <b>Vehicle:</b> {vehicle_info["year"]} {vehicle_info["make"]} {vehicle_info["model"]}<br/>
-        <b>VIN:</b> {vehicle_info["vin"]}<br/>
+        <b>{vehicle_info.get("identifier_label", "VIN")}:</b> {vehicle_info.get("identifier") or "N/A"}<br/>
         <b>License Plate:</b> {vehicle_info.get("license_plate", "N/A")}<br/>
         """
         if start_date and end_date:
@@ -316,11 +316,11 @@ class PDFReportGenerator:
         story.append(Paragraph("Vehicle History Summary", self.styles["CustomTitle"]))
         story.append(Spacer(1, 0.2 * inch))
 
-        vin = str(vehicle_info.get("vin") or "")
+        vin = str(vehicle_info.get("identifier") or "")
         vin_tail = vin[-6:] if len(vin) >= 6 else vin
         vehicle_text = f"""
         <b>Vehicle:</b> {vehicle_info.get("year") or ""} {vehicle_info.get("make") or ""} {vehicle_info.get("model") or ""}<br/>
-        <b>VIN (last 6):</b> {vin_tail or "N/A"}<br/>
+        <b>{vehicle_info.get("identifier_label", "VIN")} (last 6):</b> {vin_tail or "N/A"}<br/>
         <b>Report Generated:</b> {self._generated_at()}<br/>
         <i>Sanitized for prospective buyers — costs, vendors, plate, and full VIN omitted.</i>
         """
@@ -386,7 +386,7 @@ class PDFReportGenerator:
         # Vehicle Info
         vehicle_text = f"""
         <b>Vehicle:</b> {vehicle_info["year"]} {vehicle_info["make"]} {vehicle_info["model"]}<br/>
-        <b>VIN:</b> {vehicle_info["vin"]}<br/>
+        <b>{vehicle_info.get("identifier_label", "VIN")}:</b> {vehicle_info.get("identifier") or "N/A"}<br/>
         <b>Report Generated:</b> {self._generated_at()}
         """
         story.append(Paragraph(vehicle_text, self.styles["InfoText"]))
@@ -540,7 +540,7 @@ class PDFReportGenerator:
         # Vehicle Info
         vehicle_text = f"""
         <b>Vehicle:</b> {vehicle_info["year"]} {vehicle_info["make"]} {vehicle_info["model"]}<br/>
-        <b>VIN:</b> {vehicle_info["vin"]}<br/>
+        <b>{vehicle_info.get("identifier_label", "VIN")}:</b> {vehicle_info.get("identifier") or "N/A"}<br/>
         <b>Tax Year:</b> {year}<br/>
         <b>Report Generated:</b> {self._generated_at()}
         """

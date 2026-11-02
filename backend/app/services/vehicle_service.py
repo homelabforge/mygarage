@@ -64,7 +64,6 @@ def _check_def_capacity_gate(
     raise HTTPException(status_code=400, detail=DEF_CAPACITY_CLEAR_FIRST_DETAIL)
 
 
-
 def _apply_identity_change(vehicle: Vehicle, update_data: dict[str, Any]) -> None:
     """Check an identifier change against the stored key, in place (#226).
 
@@ -89,6 +88,7 @@ def _apply_identity_change(vehicle: Vehicle, update_data: dict[str, Any]) -> Non
         update_data["identifier"] = None
     elif not value:
         raise HTTPException(status_code=422, detail=f"An identifier is required for '{kind}'")
+
 
 class VehicleService:
     """Service for managing vehicle business logic."""

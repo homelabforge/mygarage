@@ -19,7 +19,6 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -29,7 +28,12 @@ from app.config import settings
 from app.database import get_db
 from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
-from app.services.fuel_ingest import WebhookFuelPayload, create_fuel_record, resolve_vehicle
+from app.services.fuel_ingest import (
+    WebhookFuelPayload,
+    WebhookVehicleRef,
+    create_fuel_record,
+    resolve_vehicle,
+)
 from app.services.settings_service import SettingsService
 from app.utils.household_time import household_today
 
@@ -64,15 +68,13 @@ async def require_webhook_token(db: AsyncSession, provided_token: str | None) ->
     return provided
 
 
-class WebhookOdometerPayload(BaseModel):
-    vin: str = Field(..., max_length=17)
+class WebhookOdometerPayload(WebhookVehicleRef):
     odometer_km: Decimal
     date: date_type | None = None
     notes: str | None = None
 
 
-class WebhookCompleteReminderPayload(BaseModel):
-    vin: str = Field(..., max_length=17)
+class WebhookCompleteReminderPayload(WebhookVehicleRef):
     reminder_id: int
 
 
@@ -98,7 +100,7 @@ async def webhook_odometer(
 ) -> dict[str, Any]:
     # In-body, not Depends: see require_webhook_token's docstring.
     await require_webhook_token(db, request.headers.get("X-Webhook-Token"))
-    vehicle = await resolve_vehicle(db, payload.vin)
+    vehicle = await resolve_vehicle(db, payload.vehicle_ref)
     reading = OdometerRecord(
         vin=vehicle.vin,
         date=payload.date or household_today(),
@@ -121,7 +123,7 @@ async def webhook_complete_reminder(
 ) -> dict[str, Any]:
     # In-body, not Depends: see require_webhook_token's docstring.
     await require_webhook_token(db, request.headers.get("X-Webhook-Token"))
-    vehicle = await resolve_vehicle(db, payload.vin)
+    vehicle = await resolve_vehicle(db, payload.vehicle_ref)
     result = await db.execute(
         select(Reminder).where(
             Reminder.id == payload.reminder_id,
