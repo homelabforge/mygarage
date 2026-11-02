@@ -36,7 +36,6 @@ import {
 const FIELD_ROWS = [
   'plate',
   'first_registration',
-  'holder',
   'make',
   'type_variant_version',
   'commercial_name',
@@ -61,7 +60,6 @@ type FieldRow = (typeof FIELD_ROWS)[number]
 const FIELD_LABEL_KEYS: Record<FieldRow, string> = {
   plate: 'registrationImport.fields.plate',
   first_registration: 'registrationImport.fields.first_registration',
-  holder: 'registrationImport.fields.holder',
   make: 'registrationImport.fields.make',
   type_variant_version: 'registrationImport.fields.type_variant_version',
   commercial_name: 'registrationImport.fields.commercial_name',

@@ -3,11 +3,12 @@
 The keys are the harmonised field codes printed on every member state's
 certificate (carte grise, Zulassungsbescheinigung Teil I, kentekenbewijs,
 carta di circolazione, permiso de circulación…), with the dot dropped so
-they are plain JSON keys: A plate, B first registration, C1 holder, D1
-make, D2 type/variant/version, D3 commercial name, E VIN, F1 maximum mass,
-G mass in service, J EU category, J1 national category, K type approval,
+they are plain JSON keys: A plate, B first registration, D1 make, D2
+type/variant/version, D3 commercial name, E VIN, F1 maximum mass, G mass in
+service, J EU category, J1 national category, K type approval,
 P1 displacement, P2 power kW, P3 energy code, P6 fiscal power, S1 seats,
-V7 CO₂, V9 Euro class, X1 last inspection, Y1 to Y6 taxes.
+V7 CO₂, V9 Euro class, X1 last inspection, Y1 to Y6 taxes. The holder
+(C1) is never asked for: the import has no use for a person's name.
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ KEYS: tuple[str, ...] = (
     "country",
     "A",
     "B",
-    "C1",
     "D1",
     "D2",
     "D3",
@@ -52,7 +52,7 @@ SYSTEM = (
     "with harmonised codes printed on the document.\n"
     "Reply with ONLY a JSON object, no prose, using exactly these keys: " + ", ".join(KEYS) + ".\n"
     "Key meanings: country = ISO 3166-1 alpha-2 of the issuing country; A = registration "
-    "plate; B = date of first registration as YYYY-MM-DD; C1 = holder name; D1 = make; "
+    "plate; B = date of first registration as YYYY-MM-DD; D1 = make; "
     "D2 = type, variant, version; D3 = commercial name (model); E = 17-character VIN; "
     "F1 = technically permissible maximum laden mass in kg; G = mass in service in kg; "
     "J = EU vehicle category (M1, N1, L3e…); J1 = national category (VP, CTTE, MTL…); "

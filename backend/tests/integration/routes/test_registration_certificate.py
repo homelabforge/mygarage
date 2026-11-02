@@ -194,6 +194,30 @@ class TestParse:
         assert any(w.startswith("E:") for w in body["warnings"])
         assert "VIN (E) not found" in body["warnings"]
 
+    async def test_the_holder_is_never_in_the_response(self, client: AsyncClient, auth_headers):
+        vin = _vin()
+        text = _certificate_text(vin, first_registration="12/03/2023", last_inspection=None)
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
+            r = await client.post(
+                "/api/registration-certificate/parse",
+                headers=auth_headers,
+                files=_upload(_text_pdf(text)),
+            )
+        assert r.status_code == 200, r.text
+        assert "holder" not in r.text
+        assert "DUPONT" not in r.text
+
+        fields = {"country": "FR", "A": "AB-123-CD", "C1": "DUPONT JEAN", "D1": "Renault"}
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_llm_read(fields))):
+            r = await client.post(
+                "/api/registration-certificate/parse",
+                headers=auth_headers,
+                files=_upload(_jpeg(), "cg.jpg", "image/jpeg"),
+            )
+        assert r.status_code == 200, r.text
+        assert "holder" not in r.text
+        assert "DUPONT" not in r.text
+
     async def test_reader_409_is_relayed(self, client: AsyncClient, auth_headers):
         with patch(
             READ_DOCUMENT,

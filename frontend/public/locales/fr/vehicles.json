@@ -2159,7 +2159,6 @@
     "fields": {
       "plate": "Immatriculation (A)",
       "first_registration": "Première immatriculation (B)",
-      "holder": "Titulaire (C.1)",
       "make": "Marque (D.1)",
       "type_variant_version": "Type, variante, version (D.2)",
       "commercial_name": "Dénomination commerciale (D.3)",

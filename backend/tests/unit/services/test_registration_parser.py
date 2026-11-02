@@ -129,7 +129,6 @@ class TestFrenchCertificate:
         assert data.country == "FR"  # RÉPUBLIQUE FRANÇAISE beats Belgium's shared marker
         assert data.plate == "AB-123-CD"
         assert data.first_registration == "2023-03-12"
-        assert data.holder == "DUPONT JEAN"
         assert data.make == "RENAULT"
         assert data.type_variant_version == "RFB1A2"
         assert data.commercial_name == "CLIO"
@@ -318,6 +317,38 @@ class TestModelPath:
         data = from_llm_fields({"A": "AB-123-CD", "E": "VF1RFB00X56123456"})
         assert data.country == "FR"
         assert data.field_confidence["country"] == "medium"
+
+
+class TestNoHolder:
+    """Field C.1 (the holder's name) is personal data the import has no use
+    for: it is neither asked of the model nor read from the text (#211)."""
+
+    def test_the_text_path_never_reads_the_holder(self, parser):
+        data = parser.parse(FR_SIV)
+        assert not hasattr(data, "holder")
+        fields = data.to_dict()
+        assert fields.pop("raw_text") == FR_SIV
+        flat = repr(fields)
+        assert "holder" not in flat
+        assert "DUPONT" not in flat
+        # C.1 still ends the value before it: B keeps only its date.
+        assert parser.parse("A AB-123-CD   B 12/03/2023   C.1 DUPONT JEAN").first_registration == (
+            "2023-03-12"
+        )
+
+    def test_the_model_path_ignores_a_c1_key(self):
+        data = from_llm_fields({"A": "AB-123-CD", "C1": "DUPONT JEAN", "C.1": "DUPONT JEAN"})
+        flat = repr(data.to_dict())
+        assert "holder" not in flat
+        assert "DUPONT" not in flat
+        assert data.warnings == []
+
+    def test_the_prompt_does_not_ask_for_it(self):
+        from app.services.document_prompts.registration_certificate import KEYS, SYSTEM
+
+        assert "C1" not in KEYS
+        assert "holder" not in SYSTEM.lower()
+        assert "C1" not in SYSTEM
 
 
 class TestVehiclePatch:

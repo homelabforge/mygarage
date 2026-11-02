@@ -2354,7 +2354,6 @@
     "fields": {
       "plate": "Plate (A)",
       "first_registration": "First registration (B)",
-      "holder": "Holder (C.1)",
       "make": "Make (D.1)",
       "type_variant_version": "Type, variant, version (D.2)",
       "commercial_name": "Commercial name (D.3)",

@@ -1,11 +1,12 @@
 """EU registration certificate parser (Directive 1999/37/EC) (#211).
 
 Every member state prints the same harmonised field codes on its
-certificate: A plate, B first registration, C.1 holder, D.1 make, D.2
-type/variant/version, D.3 commercial name, E VIN, F.1 maximum laden mass,
-G mass in service, J EU category, J.1 national category, K type approval,
+certificate: A plate, B first registration, D.1 make, D.2
+type/variant/version, D.3 commercial name, E VIN, F.1 maximum laden mass, G
+mass in service, J EU category, J.1 national category, K type approval,
 P.1 displacement, P.2 power in kW, P.3 energy code, P.6 fiscal power, S.1
 seats, V.7 CO₂, V.9 Euro class, X.1 last inspection, Y.1 to Y.6 taxes.
+C.1, the holder's name, is never captured: the import has no use for it.
 
 Two ways in, one ``RegistrationData`` out:
 
@@ -48,7 +49,6 @@ logger = logging.getLogger(__name__)
 CODE_FIELDS: dict[str, str] = {
     "A": "plate",
     "B": "first_registration",
-    "C.1": "holder",
     "D.1": "make",
     "D.2": "type_variant_version",
     "D.3": "commercial_name",
@@ -73,7 +73,23 @@ TAX_CODES: tuple[str, ...] = ("Y.1", "Y.2", "Y.3", "Y.4", "Y.5", "Y.6")
 KNOWN_CODES: frozenset[str] = frozenset(
     list(CODE_FIELDS)
     + list(TAX_CODES)
-    + ["C.4", "F.2", "F.3", "I", "J.2", "J.3", "P.5", "Q", "S.2", "U.1", "U.2", "V.8", "Z.1", "Z.2"]
+    + [
+        "C.1",
+        "C.4",
+        "F.2",
+        "F.3",
+        "I",
+        "J.2",
+        "J.3",
+        "P.5",
+        "Q",
+        "S.2",
+        "U.1",
+        "U.2",
+        "V.8",
+        "Z.1",
+        "Z.2",
+    ]
 )
 #: The JSON keys the vision prompt uses (the dot dropped) → the code.
 LLM_KEY_TO_CODE: dict[str, str] = {code.replace(".", ""): code for code in CODE_FIELDS} | {
@@ -328,7 +344,6 @@ class RegistrationData(DocumentData):
     country: str | None = None
     plate: str | None = None
     first_registration: str | None = None
-    holder: str | None = None
     make: str | None = None
     type_variant_version: str | None = None
     commercial_name: str | None = None
@@ -349,7 +364,7 @@ class RegistrationData(DocumentData):
     #: Y.1 … Y.6 as printed, by code.
     taxes: dict[str, Decimal] = field(default_factory=dict)
     #: ``high`` for a value that matched a strict shape, ``medium`` for free
-    #: text (a make, a holder), ``low`` for a value kept with a doubt.
+    #: text (a make, a model), ``low`` for a value kept with a doubt.
     field_confidence: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
@@ -365,7 +380,6 @@ class RegistrationData(DocumentData):
                 "country": self.country,
                 "plate": self.plate,
                 "first_registration": self.first_registration,
-                "holder": self.holder,
                 "make": self.make,
                 "type_variant_version": self.type_variant_version,
                 "commercial_name": self.commercial_name,
@@ -466,8 +480,8 @@ def _assign(data: RegistrationData, code: str, raw: Any) -> bool:
         if value is not None:
             value = _TYPE_APPROVAL_PREFIX_RE.sub(r"\1\2", value)
         confidence = "medium"
-    else:  # holder, make, type_variant_version, commercial_name
-        value = free_text(raw, max_length=100 if name == "holder" else 50)
+    else:  # make, type_variant_version, commercial_name
+        value = free_text(raw, max_length=50)
         confidence = "medium"
     if value is None:
         return False
@@ -572,7 +586,7 @@ class EURegistrationCertificateParser(BaseDocumentParser):
 def from_llm_fields(
     fields: dict[str, Any], *, country: str | None = None, model: str | None = None
 ) -> RegistrationData:
-    """The vision model's JSON (keys ``A``, ``B``, ``C1``…, ``country``) as
+    """The vision model's JSON (keys ``A``, ``B``, ``D1``…, ``country``) as
     ``RegistrationData``, every value through the same validators as the text
     path: what fails is dropped with a warning naming the code."""
     data = RegistrationData(parser_name=f"vision:{model}" if model else "vision")
