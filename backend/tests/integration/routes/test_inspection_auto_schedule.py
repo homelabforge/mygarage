@@ -374,9 +374,12 @@ class TestArchiveAndRules:
         assert r.status_code == 200, r.text
         assert len(await _pending(client, auth_headers, vin)) == 1
 
-    async def test_an_existing_manual_rule_of_the_type_is_adopted(
+    async def test_an_existing_manual_rule_of_the_type_makes_the_engine_skip(
         self, client, auth_headers, db_session
     ):
+        """B7 (R1-F5): the engine only manages its own rules. A rule the
+        owner made for the same test is theirs: no adoption, no interval or
+        title overwrite, through reconciles and a restart's daily sync."""
         vin = await _vehicle(client, auth_headers)  # no date yet: no engine rule
         r = await client.post(
             f"/api/vehicles/{vin}/reminders",
@@ -390,24 +393,24 @@ class TestArchiveAndRules:
             },
         )
         assert r.status_code == 201, r.text
-        first = _first_cycle_registration()
         r = await client.put(
             f"/api/vehicles/{vin}",
             headers=auth_headers,
-            json={"first_registration_date": first.isoformat()},
+            json={"first_registration_date": _first_cycle_registration().isoformat()},
         )
         assert r.status_code == 200, r.text
-        rules = await _rules(db_session, vin)
-        assert len(rules) == 1
-        assert rules[0].source == INSPECTION_SOURCE
-        # Adopted: the engine's cadence, and the test's proper name.
-        assert rules[0].title == "Contrôle technique"
-        assert rules[0].interval_months == 48
-        assert rules[0].lead_days == 180
-        mine = await _pending(client, auth_headers, vin)
-        assert (
-            len(mine) == 1 and mine[0]["due_date"] == (first + relativedelta(years=4)).isoformat()
-        )
+        for _ in range(2):
+            r = await client.post(f"/api/vehicles/{vin}/reminders/reconcile", headers=auth_headers)
+            assert r.status_code == 200, r.text
+        await sync_all(db_session)
+
+        (rule,) = await _rules(db_session, vin)
+        assert (rule.source, rule.title, rule.interval_months) == ("manual", "CT at the garage", 12)
+        assert await _pending(client, auth_headers, vin) == []
+        vehicle = await db_session.get(Vehicle, vin)
+        assert vehicle is not None
+        outcome = await sync_vehicle(db_session, vehicle)
+        assert (outcome.action, outcome.reason) == ("skipped", "owner_rule")
 
     async def test_two_rules_of_the_type_are_left_alone(self, client, auth_headers, db_session):
         vin = await _vehicle(client, auth_headers, first_registration=_first_cycle_registration())
@@ -423,6 +426,125 @@ class TestArchiveAndRules:
         r = await client.post(f"/api/vehicles/{vin}/reminders/reconcile", headers=auth_headers)
         assert r.status_code == 200, r.text
         assert {(r.id, r.interval_months) for r in await _rules(db_session, vin)} == rules_before
+
+
+class TestOwnership:
+    """B7 (F-1, F-11): a person editing the engine's rule takes it over, so
+    the engine stops rewriting it; switching it off does not."""
+
+    @staticmethod
+    async def _engine_rule(client, headers, db_session) -> tuple[str, MaintenanceRule]:
+        # Five years old: past the first cycle, so the engine's rule is 24 months.
+        first = _today() - relativedelta(years=5, months=1)
+        vin = await _vehicle(client, headers, first_registration=first)
+        (rule,) = await _rules(db_session, vin)
+        assert (rule.source, rule.interval_months) == (INSPECTION_SOURCE, 24)
+        return vin, rule
+
+    @staticmethod
+    async def _reconcile_and_restart(client, headers, vin, db_session) -> MaintenanceRule:
+        for _ in range(2):
+            r = await client.post(f"/api/vehicles/{vin}/reminders/reconcile", headers=headers)
+            assert r.status_code == 200, r.text
+        await sync_all(db_session)
+        (rule,) = await _rules(db_session, vin)
+        return rule
+
+    async def test_the_reminder_form_takes_over_the_engine_rule(
+        self, client, auth_headers, db_session
+    ):
+        vin, _rule = await self._engine_rule(client, auth_headers, db_session)
+        r = await client.post(
+            f"/api/vehicles/{vin}/reminders",
+            headers=auth_headers,
+            json={
+                "title": "Yearly CT (my garage does it every year)",
+                "reminder_type": "date",
+                "due_date": (_today() + relativedelta(months=3)).isoformat(),
+                "maintenance_type": INSPECTION_TYPE,
+                "recurrence": {"interval_months": 12},
+            },
+        )
+        assert r.status_code == 201, r.text
+        rule = await self._reconcile_and_restart(client, auth_headers, vin, db_session)
+        assert (rule.source, rule.interval_months) == ("manual", 12)
+        assert rule.title == "Yearly CT (my garage does it every year)"
+        # Its reminder is the person's too: no "automatic inspection" badge.
+        assert await _pending(client, auth_headers, vin) == []
+
+    async def test_editing_the_rule_takes_it_over(self, client, auth_headers, db_session):
+        vin, rule = await self._engine_rule(client, auth_headers, db_session)
+        r = await client.put(
+            f"/api/vehicles/{vin}/maintenance-rules/{rule.id}",
+            headers=auth_headers,
+            json={"recurrence": {"interval_months": 12}},
+        )
+        assert r.status_code == 200, r.text
+        rule = await self._reconcile_and_restart(client, auth_headers, vin, db_session)
+        assert (rule.source, rule.interval_months) == ("manual", 12)
+
+    async def test_renaming_the_rule_takes_it_over(self, client, auth_headers, db_session):
+        vin, rule = await self._engine_rule(client, auth_headers, db_session)
+        r = await client.put(
+            f"/api/vehicles/{vin}/maintenance-rules/{rule.id}",
+            headers=auth_headers,
+            json={"title": "CT chez Dupont"},
+        )
+        assert r.status_code == 200, r.text
+        rule = await self._reconcile_and_restart(client, auth_headers, vin, db_session)
+        assert (rule.source, rule.title, rule.interval_months) == ("manual", "CT chez Dupont", 24)
+
+    async def test_editing_the_reminder_recurrence_takes_it_over(
+        self, client, auth_headers, db_session
+    ):
+        vin, _rule = await self._engine_rule(client, auth_headers, db_session)
+        (reminder,) = await _pending(client, auth_headers, vin)
+        r = await client.put(
+            f"/api/vehicles/{vin}/reminders/{reminder['id']}",
+            headers=auth_headers,
+            json={"recurrence": {"interval_months": 12}},
+        )
+        assert r.status_code == 200, r.text
+        rule = await self._reconcile_and_restart(client, auth_headers, vin, db_session)
+        assert (rule.source, rule.interval_months) == ("manual", 12)
+
+    async def test_saving_the_reminder_unchanged_keeps_it_the_engines(
+        self, client, auth_headers, db_session
+    ):
+        vin, rule = await self._engine_rule(client, auth_headers, db_session)
+        (reminder,) = await _pending(client, auth_headers, vin)
+        r = await client.put(
+            f"/api/vehicles/{vin}/reminders/{reminder['id']}",
+            headers=auth_headers,
+            json={
+                "title": reminder["title"],
+                "maintenance_type": INSPECTION_TYPE,
+                "recurrence": {"interval_months": 24},
+            },
+        )
+        assert r.status_code == 200, r.text
+        rule = await self._reconcile_and_restart(client, auth_headers, vin, db_session)
+        assert rule.source == INSPECTION_SOURCE
+
+    async def test_switching_it_off_does_not_take_it_over(self, client, auth_headers, db_session):
+        vin, rule = await self._engine_rule(client, auth_headers, db_session)
+        r = await client.put(
+            f"/api/vehicles/{vin}/maintenance-rules/{rule.id}",
+            headers=auth_headers,
+            json={"is_active": False},
+        )
+        assert r.status_code == 200, r.text
+        rule = await self._reconcile_and_restart(client, auth_headers, vin, db_session)
+        assert (rule.source, rule.is_active) == (INSPECTION_SOURCE, False)
+        # Still the engine's: a new first registration date turns it back on.
+        r = await client.put(
+            f"/api/vehicles/{vin}",
+            headers=auth_headers,
+            json={"first_registration_date": _first_cycle_registration().isoformat()},
+        )
+        assert r.status_code == 200, r.text
+        (rule,) = await _rules(db_session, vin)
+        assert (rule.source, rule.is_active, rule.interval_months) == (INSPECTION_SOURCE, True, 48)
 
 
 class TestDailySync:

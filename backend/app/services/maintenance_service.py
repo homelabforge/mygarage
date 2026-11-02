@@ -123,6 +123,26 @@ def apply_intervals(rule: MaintenanceRule, spec: HasIntervals) -> bool:
     return changed
 
 
+#: The `source` of a rule the country-profile inspection engine manages (#211).
+ENGINE_RULE_SOURCE = "inspection"
+
+
+async def _take_over(db: AsyncSession, rule: MaintenanceRule, source: str) -> None:
+    """A person changed the engine's rule: from now on it is theirs (B7, F-1).
+
+    The rule takes the caller's source, and its pending reminder loses the
+    engine's mark, so the inspection engine leaves both alone and never
+    rewrites the intervals or the title the person chose. Switching the rule
+    off is not a change of this kind: the caller does not call this for it.
+    """
+    if rule.source != ENGINE_RULE_SOURCE or source == ENGINE_RULE_SOURCE:
+        return
+    rule.source = source
+    pending = await _pending_reminder(db, rule.id)
+    if pending is not None and pending.source == ENGINE_RULE_SOURCE:
+        pending.source = None
+
+
 @dataclass(frozen=True)
 class RuleResolution:
     """What `ensure_rule` did: 'create', 'reuse' or 'reactivate'."""
@@ -166,6 +186,9 @@ async def ensure_rule(
     because the caller is the only one that knows whether the user typed an
     override. `apply_intervals` compares before assigning, so handing back a
     rule's existing values writes nothing and does not touch `updated_at`.
+
+    A rule the inspection engine made, reused by any other caller (the
+    reminder form, a pack, a line item's follow-up), becomes that caller's.
     """
     if maintenance_type is not None:
         existing = await rules_of_type(db, vin, maintenance_type)
@@ -175,9 +198,11 @@ async def ensure_rule(
             rule = existing[0]
             if rule.is_active:
                 apply_intervals(rule, intervals)
+                await _take_over(db, rule, source)
                 return RuleResolution(rule, "reuse")
             rule.is_active = True
             apply_intervals(rule, intervals)
+            await _take_over(db, rule, source)
             if source_pack_id is not None:
                 rule.source_pack_id = source_pack_id
                 rule.source_pack_key = source_pack_key
@@ -236,18 +261,27 @@ async def _retype(db: AsyncSession, rule: MaintenanceRule, maintenance_type: str
 
 
 async def update_rule(db: AsyncSession, rule: MaintenanceRule, data: MaintenanceRuleUpdate) -> None:
-    """Patch a rule and recompute its pending reminder from its own anchor."""
+    """Patch a rule and recompute its pending reminder from its own anchor.
+
+    A changed interval, title or type on the inspection engine's rule makes
+    it the person's (F-11); switching it on or off, or its notes, does not.
+    """
     fields = data.model_fields_set
+    edited = False
     if "title" in fields and data.title is not None:
+        edited |= rule.title != data.title
         rule.title = data.title
     if "maintenance_type" in fields:
+        edited |= rule.maintenance_type != data.maintenance_type
         await _retype(db, rule, data.maintenance_type)
     if "notes" in fields:
         rule.notes = data.notes
     if "recurrence" in fields and data.recurrence is not None:
-        apply_intervals(rule, data.recurrence)
+        edited |= apply_intervals(rule, data.recurrence)
     if "is_active" in fields and data.is_active is not None:
         rule.is_active = data.is_active
+    if edited:
+        await _take_over(db, rule, "manual")
     await db.flush()
     if rule.is_active:
         await reconcile_rule(db, rule)
@@ -1016,17 +1050,24 @@ async def update_reminder_recurrence(
     """
     fields = data.model_fields_set
     rule = reminder.rule
+    # A changed interval, title or type on the inspection engine's rule
+    # makes it the person's (F-1); stopping the repeat does not.
+    edited = False
     if "maintenance_type" in fields:
         if rule is not None and rule.is_active and reminder.status == ACTIVE_STATUS:
+            edited |= rule.maintenance_type != data.maintenance_type
             # The rule's pending reminder and the rule track one type.
             await _retype(db, rule, data.maintenance_type)
         reminder.maintenance_type = data.maintenance_type
     if "recurrence" not in fields:
         if rule is not None and rule.is_active and ("title" in fields or "notes" in fields):
             if data.title is not None:
+                edited |= rule.title != data.title
                 rule.title = data.title
             if "notes" in fields:
                 rule.notes = data.notes
+            if edited:
+                await _take_over(db, rule, "manual")
         return
     if data.recurrence is None:
         if rule is not None and rule.is_active:
@@ -1052,12 +1093,16 @@ async def update_reminder_recurrence(
         reminder.rule_id = rule.id
         reminder.rule = rule
     else:
-        apply_intervals(rule, data.recurrence)
+        edited |= apply_intervals(rule, data.recurrence)
         rule.is_active = True
     if data.title is not None:
+        edited |= rule.title != data.title
         rule.title = data.title
     if "maintenance_type" in fields:
+        edited |= rule.maintenance_type != data.maintenance_type
         await _retype(db, rule, data.maintenance_type)
+    if edited:
+        await _take_over(db, rule, "manual")
     current = anchor_of(reminder)
     if current is not None:
         await _reanchor(db, reminder, rule, current)

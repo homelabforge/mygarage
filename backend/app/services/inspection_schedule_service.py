@@ -22,7 +22,11 @@ When the engine has nothing to say (no country, a country without a profile
 or without a schedule for this vehicle type, no first registration date, the
 owner's preference off, the vehicle archived or sold) it pauses its own rule
 and dismisses the reminder it produced; a rule a person made is never
-touched. An inactive rule stays inactive on a routine sync (the owner
+touched. The engine only manages rules with ``source='inspection'``: when the
+owner has a rule of the type (made by hand, by a pack or from a service), the
+engine stands down (``owner_rule``) and never adopts it, and a person who
+edits the engine's own rule takes it over (`maintenance_service._take_over`).
+An inactive rule stays inactive on a routine sync (the owner
 dismissed the reminder, which stops the repeat); only the events that could
 turn the engine back on (a country, a date, the preference) pass
 ``force_reactivate``.
@@ -63,7 +67,7 @@ logger = logging.getLogger(__name__)
 #: The maintenance type the engine schedules (`app.utils.maintenance_types`).
 INSPECTION_TYPE = "state_inspection"
 #: `vehicle_maintenance_rules.source` / `vehicle_reminders.source` of what it writes.
-INSPECTION_SOURCE = "inspection"
+INSPECTION_SOURCE = maintenance_service.ENGINE_RULE_SOURCE
 #: The instance fallback for a vehicle whose owner has no preference.
 INSPECTION_AUTO_SCHEDULE_SETTING = "inspection_auto_schedule"
 #: Days per month of lead window; the window is coarse by nature.
@@ -380,6 +384,10 @@ async def sync_vehicle(
         )
         return SyncResult("skipped", reason="two_rules")
     rule = rules[0] if rules else None
+    if rule is not None and rule.source != INSPECTION_SOURCE:
+        # The owner's own rule for the test (manual, a pack, a service): it
+        # is theirs, intervals and title included. No adoption (R1-F5).
+        return SyncResult("skipped", rule_id=rule.id, reason="owner_rule")
     if rule is not None and not rule.is_active and not force_reactivate:
         # The owner stopped it (dismissing the reminder stops the repeat), or
         # the engine paused it and nothing that could turn it back on has
@@ -405,12 +413,8 @@ async def sync_vehicle(
         source=INSPECTION_SOURCE,
     )
     rule = resolution.rule
-    if rule.source != INSPECTION_SOURCE:
-        # A rule the owner made for the same test is adopted: from now on
-        # the engine keeps its cadence, and it carries the test's proper name
-        # (« Contrôle technique », « Hauptuntersuchung (HU) »), which follows
-        # the vehicle's country.
-        rule.source = INSPECTION_SOURCE
+    # The test's proper name (« Contrôle technique », « Hauptuntersuchung
+    # (HU) ») follows the vehicle's country.
     if rule.title != profile.inspection.name:
         rule.title = profile.inspection.name
     if rule.lead_days != plan.lead_days:
