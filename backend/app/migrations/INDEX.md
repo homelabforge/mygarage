@@ -152,19 +152,10 @@ migrations must swallow their own operational errors.
 | `140_tire_reminder_index_and_reading_period` | One live low-tread reminder per tire, by index, and clear the readings' unused period (G3a-17, D2). |
 | `141_pto_shutdown_circuit_severity` | Move the PTO engine shutdown circuit codes off critical (S1d-06, R1). |
 | `142_null_stray_inspection_links` | Clear repair links that don't name an inspection on the same visit (S1d-04, D1). |
-| `122_widen_money_columns` | **FATAL** — Widen every money column to its policy type on PostgreSQL. |
-| `123_add_user_oidc_relink_until` | **FATAL** — Add users.oidc_relink_until: when an admin-approved SSO relink closes. |
-| `124_supply_volume_unit` | **FATAL** — Add supplies.volume_unit, the per-supply display unit token (#191). |
-| `143_add_country_fields` | **FATAL** — Add the country columns behind the EU/national profiles (#211). |
-| `144_add_fuel_grade` | **FATAL** — Add fuel_records.fuel_grade, the EN 16942 pump label of a fill-up (#211). |
-| `125_add_country_fields` | **FATAL** — Add the country columns behind the EU/national profiles (#211). |
-| `126_add_fuel_grade` | **FATAL** — Add fuel_records.fuel_grade, the EN 16942 pump label of a fill-up (#211). |
-| `145_add_rule_lead_days` | **FATAL** — Add vehicle_maintenance_rules.lead_days (#211). |
-| `127_add_rule_lead_days` | **FATAL** — Add vehicle_maintenance_rules.lead_days (#211). |
+| `143_add_country_fields` | **FATAL**: Add the country columns behind the EU/national profiles (#211). |
+| `144_add_fuel_grade` | **FATAL**: Add fuel_records.fuel_grade, the EN 16942 pump label of a fill-up (#211). |
+| `145_add_rule_lead_days` | **FATAL**: Add vehicle_maintenance_rules.lead_days (#211). |
 | `146_tax_type_codes` | Tax types become codes (#211). |
-| `128_tax_type_codes` | Tax types become codes (#211). |
-| `147_add_vehicle_eu_fields` | **FATAL** — Add the EU registration-certificate fields on vehicles (#211). |
-| `129_add_vehicle_eu_fields` | **FATAL** — Add the EU registration-certificate fields on vehicles (#211). |
-| `148_recall_sources` | **FATAL** — Recall sources (#211): where a recall came from, and its own identifier. |
-| `130_recall_sources` | **FATAL** — Recall sources (#211): where a recall came from, and its own identifier. |
-| `149_insurance_eu_policy_types` | **FATAL** — European insurance formulas and the no-claims class (#211). |
+| `147_add_vehicle_eu_fields` | **FATAL**: Add the EU registration-certificate fields on vehicles (#211). |
+| `148_recall_sources` | **FATAL**: Recall sources (#211): where a recall came from, and its own identifier. |
+| `149_insurance_eu_policy_types` | **FATAL**: European insurance formulas and the no-claims class (#211). |
