@@ -215,21 +215,30 @@ def filter_anomalies_to_window(
     return filtered
 
 
+def _cover_counts_until(vehicle: Vehicle, today: date_type) -> date_type:
+    """Insurance counts up to today, or up to the sale once it has passed.
+
+    A sold vehicle stops costing the household anything on the day it leaves,
+    even if nobody ended its policy link. A sale entered ahead of time doesn't
+    count days that haven't happened yet.
+    """
+    sold = vehicle.sold_date or vehicle.archive_sale_date
+    return min(sold, today) if sold else today
+
+
 async def _insurance_for_vin(
     db: AsyncSession, vin: str, as_of: date_type
 ) -> tuple[Decimal, Decimal]:
     """Insurance cost for one vehicle on two bases: (accrued, as paid), up to `as_of`.
 
     Accrued is the single-vehicle form of the loop in the garage analytics: same
-    shares, same `accrued_cost`, same `effective_to` handling. The garage loop
-    runs to today, so the two only differ for a sold vehicle whose cover was
-    never ended.
+    shares, same `accrued_cost`, same `effective_to` handling, same cutoff
+    (`_cover_counts_until`), so the two agree.
     As paid counts each billing period in full once it has begun, the way an
     expense logged whole on the day it is paid reads in other trackers: a monthly
     policy counts the months that have begun, not the whole term, and a policy
     that has not started counts nothing. `effective_to` still ends a vehicle's
-    cover early on both bases. `as_of` is today, or the sale date once it has
-    passed, so cover stops counting when the vehicle leaves.
+    cover early on both bases. `as_of` comes from `_cover_counts_until`.
     """
     policies = (
         (
@@ -949,7 +958,6 @@ async def build_vehicle_statistics(
     km_driven = cost_analysis.km_driven
 
     # A vehicle archived as sold carries its sale on the archive fields.
-    sold_date = vehicle.sold_date or vehicle.archive_sale_date
     sold = vehicle.sold_price if vehicle.sold_price is not None else vehicle.archive_sale_price
 
     # Ownership period: purchase (else the earliest record) to sale or today.
@@ -971,8 +979,7 @@ async def build_vehicle_statistics(
             )
         ).one()
         start = min((d for d in firsts if d is not None), default=None)
-    # A sale entered ahead of time doesn't count days that haven't happened yet.
-    end = min(sold_date, today) if sold_date else today
+    end = _cover_counts_until(vehicle, today)
     days_owned = (end - start).days if start and (end - start).days > 0 else None
 
     # Money. Running costs come from the cost card's own figures; insurance
@@ -1288,6 +1295,7 @@ async def get_garage_analytics(
     # then narrowed to the vehicles this caller may see.
     today = household_today()
     garage_vins = {v.vin for v in vehicles}
+    counts_until = {v.vin: _cover_counts_until(v, today) for v in vehicles}
     insurance_by_vin: dict[str, Decimal] = defaultdict(lambda: Decimal("0.00"))
     policies = (
         (
@@ -1323,9 +1331,10 @@ async def get_garage_analytics(
                 policy.start_date,
                 policy.end_date,
             )
-            insurance_by_vin[link.vin] += accrued_cost(*args, today, link.effective_to)
+            until = counts_until[link.vin]
+            insurance_by_vin[link.vin] += accrued_cost(*args, until, link.effective_to)
             for month_key, amount in monthly_costs(
-                *args, today + timedelta(days=1), link.effective_to
+                *args, until + timedelta(days=1), link.effective_to
             ).items():
                 monthly_data[month_key]["insurance"] += amount
 

@@ -151,6 +151,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - `mount_period_id` on tire readings in the API, which only older readings carried
 
 ### Fixed
+- Garage analytics stops counting a sold vehicle's insurance on its sale date, even when its policy was never ended
 - DTCs from a WiCAN are recorded over MQTT as well as HTTPS, and only codes shaped like a DTC are kept
 - The new-device notification is sent when a WiCAN is discovered
 - Replayed and SD-backfilled readings no longer replace a newer latest value, pull a drive's end back, or reopen drives wrongly, and they are rate-checked against their own time
