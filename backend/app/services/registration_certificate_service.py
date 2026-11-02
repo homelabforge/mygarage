@@ -493,7 +493,10 @@ async def record_inspection(
         )
     ).first()
     if existing is not None:
-        await db.rollback()
+        # Nothing was written since the lock, so commit just lets it go.
+        # A rollback would expire every row in the session, the caller's
+        # user included, and the tax records written next would trip on it.
+        await db.commit()
         return False
     visit = ServiceVisitCreate(
         date=on,

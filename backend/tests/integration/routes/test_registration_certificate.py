@@ -679,6 +679,38 @@ class TestParseToken:
         assert r.status_code == 201, r.text
         assert read.await_count == 2
 
+    async def test_taxes_are_created_after_an_inspection_already_on_file(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """CX-M1: the second import of the same certificate finds X.1 on file.
+        Skipping it must not expire the user the tax records are written as."""
+        vin = await _create_vehicle(client, auth_headers)
+        text = self._text(vin)
+        read = AsyncMock(return_value=_text_read(text))
+        pdf = _text_pdf(text)  # once: each build is stamped differently
+        with patch(READ_DOCUMENT, new=read):
+            first = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(pdf),
+            )
+            assert first.status_code == 201, first.text
+            assert first.json()["inspection_recorded"] is True
+            r = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(pdf),
+                data={"tax_codes": ["Y.1", "Y.3"]},
+            )
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert body["inspection_recorded"] is False
+        assert body["taxes_created"] == ["Y.1", "Y.3"]
+        taxes = (
+            await db_session.execute(select(TaxRecord.tax_type).where(TaxRecord.vin == vin))
+        ).all()
+        assert len(taxes) == 2
+
     async def test_an_unknown_tax_code_creates_nothing(
         self, client: AsyncClient, auth_headers, db_session
     ):
