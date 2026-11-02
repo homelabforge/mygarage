@@ -143,6 +143,21 @@ class TestVisionCompletion:
         assert headers["HTTP-Referer"] == llm_client.OPENROUTER_HEADERS["HTTP-Referer"]
         assert headers["X-Title"] == "MyGarage"
 
+    async def test_an_approved_base_url_is_where_the_request_goes(self, llm_settings):
+        """FB-2: the URL consent was checked against, not the setting re-read."""
+        await _set(llm_settings, {"llm_base_url": "https://openrouter.ai/api/v1"})
+        patcher, post = _mock_client()
+        with patcher:
+            await llm_client.vision_completion(
+                llm_settings,
+                system="s",
+                user_text="u",
+                images=[(PNG, "image/png")],
+                base_url="http://127.0.0.1:11434/v1/",
+            )
+        assert post.call_args.args[0] == "http://127.0.0.1:11434/v1/chat/completions"
+        assert "HTTP-Referer" not in post.call_args.kwargs["headers"]
+
     async def test_other_endpoints_get_no_openrouter_headers(self, llm_settings):
         await _set(llm_settings, {"llm_base_url": "http://127.0.0.1:11434/v1", "llm_api_key": ""})
         patcher, post = _mock_client()

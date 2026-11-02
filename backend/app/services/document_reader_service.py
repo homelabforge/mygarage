@@ -123,7 +123,7 @@ async def read_document(
     if not await reading_enabled(db):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=AI_READING_NOT_CONFIGURED)
 
-    await llm_client.require_vision_consent(db, allow_external=allow_external_vision)
+    base_url = await llm_client.require_vision_consent(db, allow_external=allow_external_vision)
 
     try:
         images = await asyncio.to_thread(to_images, file_bytes, filename, content_type)
@@ -131,7 +131,11 @@ async def read_document(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     content = await llm_client.vision_completion(
-        db, system=prompt.system, user_text=prompt.user_text, images=images
+        db,
+        system=prompt.system,
+        user_text=prompt.user_text,
+        images=images,
+        base_url=base_url,
     )
     raw = llm_client.extract_json_object(str(content))
     fields, warnings = coerce_fields(raw, prompt.keys)

@@ -125,14 +125,14 @@ async def is_local_endpoint(base_url: str) -> bool:
     return local
 
 
-async def require_vision_consent(db: AsyncSession, *, allow_external: bool) -> None:
-    """409 ``vision_consent_required`` when the vision model is outside the
-    network and the person has not said yes; nothing is sent before it."""
-    if allow_external:
-        return
-    base_url = (await setting(db, LLM_BASE_URL_SETTING, DEFAULT_BASE_URL)).rstrip("/")
-    if await is_local_endpoint(base_url):
-        return
+async def require_vision_consent(db: AsyncSession, *, allow_external: bool) -> str:
+    """The base URL a document may go to, or 409 ``vision_consent_required``
+    when it is outside the network and the person has not said yes; nothing
+    is sent before it. Pass the URL back to ``vision_completion``: re-reading
+    the setting would let a change in between send it somewhere unchecked."""
+    base_url = await _base_url(db)
+    if allow_external or await is_local_endpoint(base_url):
+        return base_url
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail={"code": VISION_CONSENT_REQUIRED, "host": endpoint_host(base_url) or ""},
@@ -189,9 +189,15 @@ def is_openrouter(base_url: str) -> bool:
     return "openrouter.ai" in base_url.lower()
 
 
-async def _endpoint(db: AsyncSession) -> tuple[str, dict[str, str]]:
-    """The base URL (trailing slash trimmed) and the request headers."""
-    base_url = (await setting(db, LLM_BASE_URL_SETTING, DEFAULT_BASE_URL)).rstrip("/")
+async def _base_url(db: AsyncSession) -> str:
+    """The configured base URL, trailing slash trimmed."""
+    return (await setting(db, LLM_BASE_URL_SETTING, DEFAULT_BASE_URL)).rstrip("/")
+
+
+async def _endpoint(db: AsyncSession, base_url: str | None = None) -> tuple[str, dict[str, str]]:
+    """The base URL (``base_url`` when given, else the setting; trailing slash
+    trimmed) and the request headers."""
+    base_url = base_url.rstrip("/") if base_url is not None else await _base_url(db)
     try:
         # Optional: a blank key calls without auth, so an unreadable one must stop
         # here rather than read as blank (R1-M1).
@@ -210,14 +216,16 @@ async def _endpoint(db: AsyncSession) -> tuple[str, dict[str, str]]:
     return base_url, headers
 
 
-async def _post_chat(db: AsyncSession, payload: dict[str, Any], *, timeout: float) -> str:
+async def _post_chat(
+    db: AsyncSession, payload: dict[str, Any], *, timeout: float, base_url: str | None = None
+) -> str:
     """POST ``/chat/completions`` and return the assistant message content.
 
     Every failure is a 502 with a sentence the caller can show: the endpoint
     is the operator's, and a 4xx from it (a wrong key, a model the endpoint
     does not have) is still not the user's fault.
     """
-    base_url, headers = await _endpoint(db)
+    base_url, headers = await _endpoint(db, base_url)
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(
@@ -286,6 +294,7 @@ async def vision_completion(
     temperature: float = 0,
     timeout: float = 90.0,
     max_tokens: int = 2000,
+    base_url: str | None = None,
 ) -> str:
     """A completion whose user message carries images (``(bytes, mime)`` pairs).
 
@@ -293,6 +302,7 @@ async def vision_completion(
     image, each a ``data:`` URL, which every OpenAI-compatible endpoint with a
     vision model accepts (OpenRouter, Ollama, OpenAI). ``max_tokens`` bounds
     the answer, which is a JSON object of a few dozen fields at most.
+    ``base_url`` is the one ``require_vision_consent`` approved.
     """
     if not images:
         raise ValueError("vision_completion needs at least one image")
@@ -308,7 +318,7 @@ async def vision_completion(
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
-    return await _post_chat(db, payload, timeout=timeout)
+    return await _post_chat(db, payload, timeout=timeout, base_url=base_url)
 
 
 # --- Connection test ---------------------------------------------------------

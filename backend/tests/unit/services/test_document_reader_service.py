@@ -347,6 +347,40 @@ class TestExternalVisionConsent:
 async def _always_local(_base_url: str) -> bool:
     return True
 
+    async def test_the_request_goes_where_consent_looked(
+        self, external_endpoint, vision_answer, monkeypatch: pytest.MonkeyPatch
+    ):
+        """FB-2: consent checks one base URL; the request must go to that same
+        URL, not one re-read after an admin changed it in between."""
+        local = "http://127.0.0.1:11434/v1"
+        await _set_flag(external_endpoint, "true")
+        row = (
+            await external_endpoint.execute(
+                select(Setting).where(Setting.key == llm_client.LLM_BASE_URL_SETTING)
+            )
+        ).scalar_one()
+        row.value = local
+        await external_endpoint.commit()
+        checked = llm_client.is_local_endpoint
+
+        async def _check_then_change(base_url: str) -> bool:
+            answer = await checked(base_url)
+            row.value = "https://openrouter.ai/api/v1"
+            await external_endpoint.commit()
+            return answer
+
+        monkeypatch.setattr(llm_client, "is_local_endpoint", _check_then_change)
+        calls = vision_answer('{"A": "AB-123-CD"}')
+        await reader.read_document(
+            external_endpoint,
+            kind="registration_certificate",
+            file_bytes=_jpeg(),
+            filename="cg.jpg",
+            content_type="image/jpeg",
+        )
+        assert len(calls) == 1
+        assert calls[0].get("base_url") == local
+
 
 class TestCoerceFields:
     def test_keeps_scalars_lists_and_flat_objects(self):
