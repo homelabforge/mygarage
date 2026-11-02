@@ -140,6 +140,31 @@ async def test_a_monthly_premium_counts_every_month_not_once(client, db_session,
     assert Decimal(ram["total_insurance"]) == Decimal("1200.00")
 
 
+async def test_a_sold_vehicle_stops_costing_insurance_on_the_sale_date(
+    client, db_session, garage_headers
+):
+    # 100 days into a 180-day term, nobody ended either link. The Ram was sold
+    # 10 days ago and the Mirage archived as sold the same day, so each has 91
+    # of the 180 days (up to and including the sale), not the 101 to today.
+    db_session.add(_policy(100, 180, "360.00", "Semi-Annual", {RAM: "180.00", MIRAGE: "180.00"}))
+    sale = household_today() - timedelta(days=10)
+    ram = await db_session.get(Vehicle, RAM)
+    mirage = await db_session.get(Vehicle, MIRAGE)
+    assert ram is not None and mirage is not None
+    ram.sold_date = sale
+    mirage.archive_sale_date = sale
+    await db_session.commit()
+
+    body = (await client.get("/api/analytics/garage", headers=garage_headers)).json()
+
+    by_vin = {v["vin"]: Decimal(v["total_insurance"]) for v in body["cost_by_vehicle"]}
+    assert by_vin[RAM] == Decimal("91.00")
+    assert by_vin[MIRAGE] == Decimal("91.00")
+    # The monthly trend stops at the sale too.
+    trend = sum((Decimal(m["insurance"]) for m in body["monthly_trends"]), Decimal("0"))
+    assert trend == pytest.approx(Decimal("182.00"), abs=Decimal("0.02"))
+
+
 async def test_the_calendar_shows_a_household_policy_once(client, db_session, garage_headers):
     today = household_today()
     policy = InsurancePolicy(

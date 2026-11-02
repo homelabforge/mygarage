@@ -48,6 +48,7 @@ Migration 137 closes any duplicate active DTC rows a vehicle has for one code, k
 Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `mi` with `TORQUE_ODOMETER` as its odometer has stored that odometer 1.609x high since the switch. Migration 139 logs a WARNING naming each such device. Back up first, then run `python tools/repair_wican_odometer_unit.py --device-id <id> --key TORQUE_ODOMETER --to km` inside the container, with MyGarage stopped or in maintenance mode. It's a dry run until you add `--apply`, and it rescales the readings, odometer records, trips and daily summaries from the switch on and clears the unit. `tools/backfill_livelink_odometer.py` refuses such a device until it's repaired.
 
 ### Added
+- Advanced statistics on a vehicle's Analytics page: running and ownership cost, fuel-ups and expenses, with insurance counted over its days in force or as paid
 - South African Rand (ZAR) currency
 - LiveLink offline alerts cover sensors with no status topic, such as a Mopeka gateway: a live reading marks the sensor online, and it alerts once when it goes quiet
 - LiveLink device responses carry `online`, and the device list's status reads it
@@ -150,6 +151,7 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - `mount_period_id` on tire readings in the API, which only older readings carried
 
 ### Fixed
+- Garage analytics stops counting a sold vehicle's insurance on its sale date, even when its policy was never ended
 - DTCs from a WiCAN are recorded over MQTT as well as HTTPS, and only codes shaped like a DTC are kept
 - The new-device notification is sent when a WiCAN is discovered
 - Replayed and SD-backfilled readings no longer replace a newer latest value, pull a drive's end back, or reopen drives wrongly, and they are rate-checked against their own time

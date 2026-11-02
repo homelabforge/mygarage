@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,6 +35,7 @@ from app.models.financing import FinancingRecord
 from app.models.insurance import InsurancePolicy, InsurancePolicyVehicle
 from app.models.service_line_item import ServiceLineItem
 from app.models.spot_rental import SpotRental
+from app.models.tax import TaxRecord
 from app.models.user import User
 from app.schemas.analytics import (
     AnomalyAlert,
@@ -54,6 +55,7 @@ from app.schemas.analytics import (
     HoursEconomyTrend,
     MaintenancePrediction,
     MonthlyCostSummary,
+    OwnershipStatistics,
     PeriodComparison,
     SeasonalAnalysis,
     SeasonalAnalyticsSummary,
@@ -64,6 +66,7 @@ from app.schemas.analytics import (
     VendorAnalysis,
     VendorAnalyticsSummary,
 )
+from app.schemas.vehicle import NON_MOTORIZED_VEHICLE_TYPES
 from app.services import analytics_service
 from app.services.analytics_service.tires import tire_readiness
 from app.services.auth import get_vehicle_or_403, require_auth, visible_vehicles_filter
@@ -74,7 +77,7 @@ from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.service_visit_service import service_visit_cost_load_options
 from app.services.tire_service import TireService
 from app.utils.household_time import household_today
-from app.utils.insurance_cost import accrued_cost, monthly_costs
+from app.utils.insurance_cost import accrued_cost, monthly_costs, paid_cost
 from app.utils.insurance_shares import effective_shares
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.render_context import render_context_for_request, with_vehicle
@@ -210,6 +213,77 @@ def filter_anomalies_to_window(
             continue
         filtered.append(alert)
     return filtered
+
+
+def _cover_counts_until(vehicle: Vehicle, today: date_type) -> date_type:
+    """Insurance counts up to today, or up to the sale once it has passed.
+
+    A sold vehicle stops costing the household anything on the day it leaves,
+    even if nobody ended its policy link. A sale entered ahead of time doesn't
+    count days that haven't happened yet.
+    """
+    sold = vehicle.sold_date or vehicle.archive_sale_date
+    return min(sold, today) if sold else today
+
+
+async def _insurance_for_vin(
+    db: AsyncSession, vin: str, as_of: date_type
+) -> tuple[Decimal, Decimal]:
+    """Insurance cost for one vehicle on two bases: (accrued, as paid), up to `as_of`.
+
+    Accrued is the single-vehicle form of the loop in the garage analytics: same
+    shares, same `accrued_cost`, same `effective_to` handling, same cutoff
+    (`_cover_counts_until`), so the two agree.
+    As paid counts each billing period in full once it has begun, the way an
+    expense logged whole on the day it is paid reads in other trackers: a monthly
+    policy counts the months that have begun, not the whole term, and a policy
+    that has not started counts nothing. `effective_to` still ends a vehicle's
+    cover early on both bases. `as_of` comes from `_cover_counts_until`.
+    """
+    policies = (
+        (
+            await db.execute(
+                select(InsurancePolicy)
+                .join(InsurancePolicyVehicle)
+                .where(InsurancePolicyVehicle.vin == vin)
+                .options(
+                    selectinload(InsurancePolicy.vehicle_links).raiseload(
+                        InsurancePolicyVehicle.coverages
+                    )
+                )
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    accrued = Decimal("0.00")
+    as_paid = Decimal("0.00")
+    for policy in policies:
+        shares = effective_shares(
+            policy.premium_amount, [(link.id, link.premium_share) for link in policy.vehicle_links]
+        )
+        for link in policy.vehicle_links:
+            if link.vin != vin:
+                continue
+            share = shares.get(link.id)
+            accrued += accrued_cost(
+                share,
+                policy.premium_frequency,
+                policy.start_date,
+                policy.end_date,
+                as_of,
+                link.effective_to,
+            )
+            as_paid += paid_cost(
+                share,
+                policy.premium_frequency,
+                policy.start_date,
+                policy.end_date,
+                as_of,
+                link.effective_to,
+            )
+    return accrued, as_paid
 
 
 async def get_cost_analysis(
@@ -398,13 +472,13 @@ async def get_cost_analysis(
         if visit.odometer_km:
             all_odometers.append(visit.odometer_km)
 
+    km_driven: Decimal | None = None
     cost_per_km = None
     if len(all_odometers) >= 2:
-        min_km = min(all_odometers)
-        max_km = max(all_odometers)
-        km_driven = max_km - min_km
-        if km_driven > 0:
-            cost_per_km = total_cost / Decimal(str(km_driven))
+        span = max(all_odometers) - min(all_odometers)
+        if span > 0:
+            km_driven = span
+            cost_per_km = total_cost / Decimal(str(span))
 
     # Detect cost anomalies against the full monthly history. Display
     # windows are applied in get_vehicle_analytics via filter_anomalies_to_window.
@@ -421,6 +495,7 @@ async def get_cost_analysis(
         fuel_count=len(fuel_records),
         def_count=len(def_records),
         months_tracked=months_tracked,
+        km_driven=km_driven,
         cost_per_km=cost_per_km,
         rolling_avg_3m=rolling_avgs.get("rolling_3m"),
         rolling_avg_6m=rolling_avgs.get("rolling_6m"),
@@ -833,6 +908,150 @@ async def get_maintenance_predictions(
     return predictions
 
 
+def _ratio(numerator: Decimal | None, denominator: Decimal | int | None) -> Decimal | None:
+    """numerator / denominator, or None when either is missing or the divisor is 0."""
+    if numerator is None or not denominator:
+        return None
+    return Decimal(numerator) / Decimal(denominator)
+
+
+async def build_vehicle_statistics(
+    db: AsyncSession,
+    vehicle: Vehicle,
+    cost_analysis: CostAnalysis,
+    fuel_economy: FuelEconomyTrend,
+) -> tuple[OwnershipStatistics, OwnershipStatistics]:
+    """Ownership statistics in the shape of an at-a-glance summary screen.
+
+    Distance is ``cost_analysis.km_driven``, the cost card's own odometer span, so
+    every per-distance figure here agrees with the card. Running costs come
+    straight from ``cost_analysis`` (financing is left out, as it is there);
+    insurance and every tax record (registration, inspection, property tax,
+    tolls) are added on top, and purchase minus sale price for ownership.
+
+    Fuel-up figures (count, volume, prices, per fill-up) cover purchases of fuel
+    by volume, not charging or propane; totals stay on the card's all-energy fuel
+    cost. A fill-up with no cost still counts; prices skip it.
+
+    Returns the block twice: insurance accrued over the days in force, and
+    insurance counted in full for each term that has started. Everything else
+    is identical, so the client only chooses which one to show.
+    """
+    vin = vehicle.vin
+    today = household_today()
+
+    # Fuel-ups that are a purchase of fuel by volume (not charging or propane).
+    fuel_result = await db.execute(
+        select(FuelRecord.date, FuelRecord.liters, FuelRecord.cost)
+        .where(
+            FuelRecord.vin == vin,
+            FuelRecord.liters.isnot(None),
+            FuelRecord.liters > 0,
+            FuelRecord.kwh.is_(None),
+            FuelRecord.propane_liters.is_(None),
+        )
+        .order_by(FuelRecord.date, FuelRecord.id)
+    )
+    fills = list(fuel_result.all())
+    priced = [f for f in fills if f.cost is not None]
+
+    km_driven = cost_analysis.km_driven
+
+    # A vehicle archived as sold carries its sale on the archive fields.
+    sold = vehicle.sold_price if vehicle.sold_price is not None else vehicle.archive_sale_price
+
+    # Ownership period: purchase (else the earliest record) to sale or today.
+    start = vehicle.purchase_date
+    if start is None:
+        firsts = (
+            await db.execute(
+                select(
+                    select(func.min(FuelRecord.date))
+                    .where(FuelRecord.vin == vin)
+                    .scalar_subquery(),
+                    select(func.min(ServiceVisit.date))
+                    .where(ServiceVisit.vin == vin)
+                    .scalar_subquery(),
+                    select(func.min(OdometerRecord.date))
+                    .where(OdometerRecord.vin == vin)
+                    .scalar_subquery(),
+                )
+            )
+        ).one()
+        start = min((d for d in firsts if d is not None), default=None)
+    end = _cover_counts_until(vehicle, today)
+    days_owned = (end - start).days if start and (end - start).days > 0 else None
+
+    # Money. Running costs come from the cost card's own figures; insurance
+    # (same helper as the garage page, stopped at the sale) and taxes are added
+    # here so the existing cost card is left untouched.
+    accrued_insurance, paid_insurance = await _insurance_for_vin(db, vin, end)
+    tax_result = await db.execute(
+        select(TaxRecord.amount).where(TaxRecord.vin == vin, TaxRecord.amount.isnot(None))
+    )
+    tax_cost = sum(tax_result.scalars().all(), Decimal("0.00"))
+    fuel_total = cost_analysis.total_fuel_cost
+    purchase = vehicle.purchase_price
+
+    # Per-fill-up prices (net cost over litres), in litres so the client converts.
+    prices = [f.cost / f.liters for f in priced]
+    fill_count = len(fills)
+    priced_cost = sum((f.cost for f in priced), Decimal("0.00"))
+    fuel_span_days = (fills[-1].date - fills[0].date).days if fill_count > 1 else 0
+    total_liters = sum((f.liters for f in fills), Decimal("0"))
+    # `liters_per_day` divides ALL the litres, the first fill-up's included, by the
+    # days BETWEEN the first and last fill-up. That is intended: the first tank
+    # was burned before it was logged, so counting it against the interval keeps
+    # the figure in step with `avg_days_per_fillup`. Don't "fix" it to skip the
+    # first fill.
+
+    def build(insurance_cost: Decimal) -> OwnershipStatistics:
+        all_in = cost_analysis.total_cost + insurance_cost + tax_cost
+        ownership_total = None
+        if purchase is not None:
+            ownership_total = all_in + purchase - (sold or Decimal("0.00"))
+        expenses_total = all_in - fuel_total
+        return OwnershipStatistics(
+            total_running_cost=all_in,
+            purchase_price=purchase,
+            sold_price=sold,
+            total_ownership_cost=ownership_total,
+            days_owned=days_owned,
+            km_driven=km_driven,
+            km_per_day=_ratio(km_driven, days_owned),
+            running_cost_per_day=_ratio(all_in, days_owned),
+            running_cost_per_km=_ratio(all_in, km_driven),
+            ownership_cost_per_day=_ratio(ownership_total, days_owned),
+            ownership_cost_per_km=_ratio(ownership_total, km_driven),
+            fuel_count=fill_count,
+            avg_l_per_100km=fuel_economy.average_l_per_100km,
+            best_l_per_100km=fuel_economy.best_l_per_100km,
+            worst_l_per_100km=fuel_economy.worst_l_per_100km,
+            recent_l_per_100km=fuel_economy.recent_l_per_100km,
+            avg_price_per_liter=(sum(prices, Decimal("0")) / len(prices)) if prices else None,
+            min_price_per_liter=min(prices) if prices else None,
+            max_price_per_liter=max(prices) if prices else None,
+            last_price_per_liter=prices[-1] if prices else None,
+            fuel_total_cost=fuel_total,
+            fuel_total_liters=total_liters if fill_count else None,
+            fuel_cost_per_km=_ratio(fuel_total, km_driven),
+            fuel_cost_per_day=_ratio(fuel_total, days_owned),
+            km_per_currency_unit=_ratio(km_driven, fuel_total),
+            avg_cost_per_fillup=_ratio(priced_cost, len(priced)),
+            avg_liters_per_fillup=_ratio(total_liters, fill_count) if fill_count else None,
+            avg_km_per_fillup=_ratio(km_driven, fill_count),
+            avg_days_per_fillup=_ratio(Decimal(fuel_span_days), fill_count - 1)
+            if fill_count > 1
+            else None,
+            liters_per_day=_ratio(total_liters, fuel_span_days) if fuel_span_days else None,
+            expenses_total_cost=expenses_total,
+            expenses_cost_per_day=_ratio(expenses_total, days_owned),
+            expenses_cost_per_km=_ratio(expenses_total, km_driven),
+        )
+
+    return build(accrued_insurance), build(paid_insurance)
+
+
 @router.get("/vehicles/{vin}", response_model=VehicleAnalytics)
 async def get_vehicle_analytics(
     vin: str,
@@ -975,10 +1194,19 @@ async def get_vehicle_analytics(
             "data_confidence": def_stats.data_confidence,
         }
 
+    statistics = None
+    statistics_as_paid = None
+    if vehicle.vehicle_type not in NON_MOTORIZED_VEHICLE_TYPES:
+        statistics, statistics_as_paid = await build_vehicle_statistics(
+            db, vehicle, cost_analysis, fuel_economy
+        )
+
     return VehicleAnalytics(
         vin=vin,
         vehicle_name=vehicle_name,
         vehicle_type=vehicle.vehicle_type,
+        statistics=statistics,
+        statistics_as_paid=statistics_as_paid,
         cost_analysis=cost_analysis,
         cost_projection=cost_projection,
         fuel_economy=fuel_economy,
@@ -1067,6 +1295,7 @@ async def get_garage_analytics(
     # then narrowed to the vehicles this caller may see.
     today = household_today()
     garage_vins = {v.vin for v in vehicles}
+    counts_until = {v.vin: _cover_counts_until(v, today) for v in vehicles}
     insurance_by_vin: dict[str, Decimal] = defaultdict(lambda: Decimal("0.00"))
     policies = (
         (
@@ -1102,9 +1331,10 @@ async def get_garage_analytics(
                 policy.start_date,
                 policy.end_date,
             )
-            insurance_by_vin[link.vin] += accrued_cost(*args, today, link.effective_to)
+            until = counts_until[link.vin]
+            insurance_by_vin[link.vin] += accrued_cost(*args, until, link.effective_to)
             for month_key, amount in monthly_costs(
-                *args, today + timedelta(days=1), link.effective_to
+                *args, until + timedelta(days=1), link.effective_to
             ).items():
                 monthly_data[month_key]["insurance"] += amount
 
