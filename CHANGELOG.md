@@ -267,6 +267,15 @@ Torque sends `TORQUE_ODOMETER` in km, so a Torque device set to odometer unit `m
 - OIDC token, JWKS and userinfo requests fetch the URL the SSRF check validated, not the raw string
 - OIDC logs no longer include the full state, a raw exception or a provider URL
 
+### Build
+- Python 3.15 in the Docker image, CI and `requires-python`
+- Bun 1.4.4; type-checking runs `bun check` instead of `tsc`
+- Backend dependencies bumped, including fastapi 0.162.0, granian 2.8.7, pydantic 2.14.2, sqlalchemy 2.1.6, starlette 1.10.0, asyncpg 0.32.0 and pandas 3.1.0
+- Frontend dependencies bumped within range, including react 19.3.1, vite 8.3.5, vitest 5.0.5, eslint 10.14.0 and Playwright 1.64.1
+- `python-dateutil` held below 3 (pandas breaks on its 3.0 timezones) and `pymupdf` below 2 (2.0 pulls in onnxruntime)
+- The PDF code imports `pymupdf` instead of its old `fitz` alias
+- CI: actions/setup-node 7.1.0
+
 ## [3.9.0] - 2026-10-18
 
 ### Upgrade note
