@@ -12,7 +12,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:run": "vitest run",
-    "type-check": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
+    "type-check": "bun check && bun check -p tsconfig.e2e.json",
     "validate:translations": "bun run scripts/validate-translations.ts && bun run scripts/validate-i18n-usage.ts && bun run scripts/validate-hardcoded-strings.ts && bun run scripts/validate-reachability.ts && bun run scripts/validate-units.ts && bun run scripts/validate-units-manifest.ts && bun run validate:units-corpus",
     "validate:reachability": "bun run scripts/validate-reachability.ts",
     "validate:i18n-usage": "bun run scripts/validate-i18n-usage.ts",
