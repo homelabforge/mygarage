@@ -275,7 +275,9 @@ class TestEuropeanVins:
         assert data["year"] is None
         assert data["region"] == "EU"
         assert data["wmi_country"] == "FR"
-        assert data["decode_quality"] == "partial"
+        # NHTSA named no make; the table did (B3).
+        assert data["decode_quality"] == "wmi_only"
+        assert data["make_source"] == "wmi"
         assert "eu_vin_no_model" in data["notes"]
         assert "year_unreliable" in data["notes"]
         assert "check_digit_not_applicable" in data["notes"]

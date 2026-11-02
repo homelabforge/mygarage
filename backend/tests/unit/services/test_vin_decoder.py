@@ -9,7 +9,7 @@ answers with a make and a plant, no model.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -17,6 +17,7 @@ import pytest
 from app.services import vin_decoder
 
 RENAULT_VIN = "VF1RFB00X56123456"
+MERCEDES_VIN = "WDDGF8AB7DA123456"
 VW_VIN = "WVWZZZAUZLW123456"
 US_VIN = "1HGBH41JXMN109186"
 
@@ -55,7 +56,9 @@ class TestEnrich:
         assert result["year"] is None
         assert result["region"] == "EU"
         assert result["wmi_country"] == "FR"
-        assert result["decode_quality"] == "partial"
+        # NHTSA named no make: only the table did, so the answer is wmi_only.
+        assert result["decode_quality"] == "wmi_only"
+        assert result["make_source"] == "wmi"
         assert result["notes"] == [
             vin_decoder.NOTE_YEAR_UNRELIABLE,
             vin_decoder.NOTE_CHECK_DIGIT_NOT_APPLICABLE,
@@ -70,6 +73,7 @@ class TestEnrich:
         assert result["make"] == "VOLKSWAGEN"
         assert result["year"] == 2020
         assert result["decode_quality"] == "partial"
+        assert result["make_source"] == "nhtsa"
         assert result["region"] == "EU" and result["wmi_country"] == "DE"
         assert vin_decoder.NOTE_YEAR_UNRELIABLE not in result["notes"]
         assert vin_decoder.NOTE_EU_VIN_NO_MODEL in result["notes"]
@@ -79,6 +83,7 @@ class TestEnrich:
         assert result["year"] == 2021
         assert result["make"] == "HONDA"
         assert result["decode_quality"] == "full"
+        assert result["make_source"] == "nhtsa"
         assert result["region"] == "NA" and result["wmi_country"] == "US"
         assert result["notes"] == []
 
@@ -88,6 +93,7 @@ class TestEnrich:
         assert "make" not in result
         assert result["year"] is None
         assert result["decode_quality"] == "none"
+        assert result["make_source"] is None
         assert result["wmi_country"] == "IT"
         assert vin_decoder.NOTE_YEAR_UNRELIABLE in result["notes"]
         # An unassigned prefix has no country either.
@@ -97,9 +103,32 @@ class TestEnrich:
         result = vin_decoder.enrich(RENAULT_VIN, {"vin": RENAULT_VIN})
         assert result["make"] == "Renault"
         assert result["manufacturer"] == "Renault"
-        # The make came from the table, so the answer is "partial" (a make,
-        # no model); "wmi_only" is reserved for a table hit with no make at all.
-        assert result["decode_quality"] == "partial"
+        # The quality is NHTSA's own answer, judged before the table fills
+        # the make: the table's make never turns "wmi_only" into "partial".
+        assert result["decode_quality"] == "wmi_only"
+        assert result["make_source"] == "wmi"
+
+    def test_a_clean_nhtsa_decode_keeps_its_year(self):
+        # Mercedes is flagged as not using position 10, but vPIC decoded this
+        # one cleanly (ErrorCode "0"): its year is NHTSA's answer, not a guess.
+        info = {
+            "vin": MERCEDES_VIN,
+            "year": 2013,
+            "make": "MERCEDES-BENZ",
+            "model": "ML-Class",
+            "error_code": "0",
+        }
+        result = vin_decoder.enrich(MERCEDES_VIN, info)
+        assert result["year"] == 2013
+        assert vin_decoder.NOTE_YEAR_UNRELIABLE not in result["notes"]
+        assert result["decode_quality"] == "full"
+        assert result["make_source"] == "nhtsa"
+
+    def test_an_unclean_decode_still_drops_the_year(self):
+        info = {"vin": MERCEDES_VIN, "year": 2013, "make": "MERCEDES-BENZ", "error_code": "8"}
+        result = vin_decoder.enrich(MERCEDES_VIN, info)
+        assert result["year"] is None
+        assert vin_decoder.NOTE_YEAR_UNRELIABLE in result["notes"]
 
     def test_quality_vocabulary(self):
         assert vin_decoder.quality_of({"make": "A", "model": "B"}, None) == "full"
@@ -124,6 +153,41 @@ class TestDecode:
         nhtsa.decode_vin.assert_awaited_once_with(RENAULT_VIN)
         assert result["make"] == "Renault"
         assert result["year"] is None
+
+    async def test_mercedes_keeps_2013_through_vpic(self):
+        """Regression: the real NHTSA client on a mocked vPIC answer."""
+        from app.services.nhtsa import NHTSAService
+
+        payload = {
+            "Count": 1,
+            "Results": [
+                {
+                    "VIN": MERCEDES_VIN,
+                    "ModelYear": "2013",
+                    "Make": "MERCEDES-BENZ",
+                    "Model": "ML-Class",
+                    "Manufacturer": "DAIMLER AG",
+                    "PlantCountry": "UNITED STATES (USA)",
+                    "VehicleType": "MULTIPURPOSE PASSENGER VEHICLE (MPV)",
+                    "ErrorCode": "0",
+                    "ErrorText": "0 - VIN decoded clean. Check Digit (9th position) is correct",
+                }
+            ],
+        }
+        real_client = httpx.AsyncClient
+
+        def _client(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+            kwargs["transport"] = httpx.MockTransport(
+                lambda request: httpx.Response(200, json=payload)
+            )
+            return real_client(*args, **kwargs)
+
+        with patch("app.services.nhtsa.httpx.AsyncClient", _client):
+            result = await vin_decoder.decode(MERCEDES_VIN, NHTSAService())
+        assert result["year"] == 2013
+        assert result["make"] == "MERCEDES-BENZ"
+        assert result["decode_quality"] == "full"
+        assert result["make_source"] == "nhtsa"
 
     async def test_transport_errors_propagate_unchanged(self):
         nhtsa = MagicMock()

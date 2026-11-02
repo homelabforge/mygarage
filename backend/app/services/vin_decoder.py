@@ -7,9 +7,12 @@ that is not one (the check digit is a North American rule), and reads a
 model year off position 10 that most European makers use for something
 else. This wrapper keeps every field NHTSA gives, fills the make and the
 manufacturer from the bundled WMI table when NHTSA has none, drops the
-year where the position is not a model year, and says how much was
-decoded (``decode_quality``) with ``notes`` the form can show, so the
-person types the model instead of trusting a blank.
+year where the position is not a model year (unless NHTSA decoded the VIN
+cleanly, ErrorCode "0": then the year is NHTSA's answer, not a guess), and
+says how much NHTSA itself decoded (``decode_quality``, judged before the
+table fills anything) and where the make came from (``make_source``), with
+``notes`` the form can show, so the person types the model instead of
+trusting a blank.
 
 Transport failures are NHTSA's own exceptions, raised unchanged: the route
 maps them to 503/504 as before.
@@ -28,6 +31,7 @@ from app.utils.vin import calculate_check_digit, validate_vin
 logger = logging.getLogger(__name__)
 
 DecodeQuality = Literal["full", "partial", "wmi_only", "none"]
+MakeSource = Literal["nhtsa", "wmi"]
 
 #: The notes the form translates.
 NOTE_EU_VIN_NO_MODEL = "eu_vin_no_model"
@@ -35,10 +39,21 @@ NOTE_YEAR_UNRELIABLE = "year_unreliable"
 NOTE_CHECK_DIGIT_NOT_APPLICABLE = "check_digit_not_applicable"
 #: NHTSA's "the check digit does not match" code.
 _NHTSA_CHECK_DIGIT_ERROR = "1"
+#: NHTSA's "VIN decoded clean" code.
+_NHTSA_CLEAN = "0"
+
+
+def _nhtsa_codes(info: dict[str, Any]) -> set[str]:
+    raw = info.get("error_code")
+    if not isinstance(raw, str):
+        return set()
+    return {code.strip() for code in raw.split(",") if code.strip()}
 
 
 def quality_of(info: dict[str, Any], known: wmi_table.WMIInfo | None) -> DecodeQuality:
-    """How much of the vehicle the answer names."""
+    """How much of the vehicle NHTSA's answer names. Called on NHTSA's own
+    answer, before the WMI table fills the make, so ``wmi_only`` means the
+    table knew the maker and NHTSA did not."""
     if info.get("make") and info.get("model"):
         return "full"
     if info.get("make"):
@@ -62,27 +77,32 @@ def enrich(vin: str, info: dict[str, Any]) -> dict[str, Any]:
     region = wmi_table.region_of(vin)
     country = known.country if known is not None else wmi_table.country_of(vin)
     notes: list[str] = []
+    quality = quality_of(result, known)
+    make_source: MakeSource | None = "nhtsa" if result.get("make") else None
 
     if known is not None:
         if not result.get("make"):
             result["make"] = known.make
+            make_source = "wmi"
         if not result.get("manufacturer"):
             result["manufacturer"] = known.manufacturer
 
-    if not wmi_table.model_year_applies(vin):
+    clean = _nhtsa_codes(info) == {_NHTSA_CLEAN}
+    if not clean and not wmi_table.model_year_applies(vin):
         if result.get("year") is not None:
             notes.append(NOTE_YEAR_UNRELIABLE)
         result["year"] = None
 
     if region is not None and region != "NA":
-        if _check_digit_mismatch(vin) or result.get("error_code") == _NHTSA_CHECK_DIGIT_ERROR:
+        if _check_digit_mismatch(vin) or _NHTSA_CHECK_DIGIT_ERROR in _nhtsa_codes(info):
             notes.append(NOTE_CHECK_DIGIT_NOT_APPLICABLE)
         if region == "EU" and not result.get("model"):
             notes.append(NOTE_EU_VIN_NO_MODEL)
 
     result["region"] = region
     result["wmi_country"] = country
-    result["decode_quality"] = quality_of(result, known)
+    result["decode_quality"] = quality
+    result["make_source"] = make_source
     result["notes"] = notes
     return result
 

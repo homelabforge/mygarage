@@ -561,6 +561,10 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.vin_decoder.quality_of",
         "a constant per branch",
     ),
+    ("VINDecodeResponse", "make_source"): (
+        "app.services.vin_decoder.enrich",
+        "a constant per branch",
+    ),
     ("LezRules", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("NoClaimsScheme", "scheme"): (_COUNTRY_PROFILE_LOADER, "shipped data, validated on load"),
     ("InspectionSchedule", "vehicle_types"): (

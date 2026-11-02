@@ -28175,7 +28175,7 @@
                 "type": "null"
               }
             ],
-            "description": "full: make and model; partial: make only; wmi_only: the manufacturer from the VIN's first three characters; none: nothing",
+            "description": "How much NHTSA itself decoded, before the WMI table fills anything. full: make and model; partial: make only; wmi_only: NHTSA named no make and the VIN's first three characters did; none: nothing",
             "title": "Decode Quality"
           },
           "doors": {
@@ -28272,6 +28272,22 @@
             ],
             "description": "Vehicle make (manufacturer brand)",
             "title": "Make"
+          },
+          "make_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nhtsa",
+                  "wmi"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where `make` came from: NHTSA's answer or the bundled WMI table",
+            "title": "Make Source"
           },
           "manufacturer": {
             "anyOf": [

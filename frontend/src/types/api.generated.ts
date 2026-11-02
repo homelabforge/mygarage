@@ -19503,7 +19503,7 @@ export interface components {
             body_class?: string | null;
             /**
              * Decode Quality
-             * @description full: make and model; partial: make only; wmi_only: the manufacturer from the VIN's first three characters; none: nothing
+             * @description How much NHTSA itself decoded, before the WMI table fills anything. full: make and model; partial: make only; wmi_only: NHTSA named no make and the VIN's first three characters did; none: nothing
              */
             decode_quality?: ("full" | "partial" | "wmi_only" | "none") | null;
             /**
@@ -19543,6 +19543,11 @@ export interface components {
              * @description Vehicle make (manufacturer brand)
              */
             make?: string | null;
+            /**
+             * Make Source
+             * @description Where `make` came from: NHTSA's answer or the bundled WMI table
+             */
+            make_source?: ("nhtsa" | "wmi") | null;
             /**
              * Manufacturer
              * @description Manufacturer name

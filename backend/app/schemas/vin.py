@@ -94,9 +94,14 @@ class VINDecodeResponse(BaseModel):
     decode_quality: Literal["full", "partial", "wmi_only", "none"] | None = Field(
         None,
         description=(
-            "full: make and model; partial: make only; wmi_only: the manufacturer "
-            "from the VIN's first three characters; none: nothing"
+            "How much NHTSA itself decoded, before the WMI table fills anything. "
+            "full: make and model; partial: make only; wmi_only: NHTSA named no make "
+            "and the VIN's first three characters did; none: nothing"
         ),
+    )
+    make_source: Literal["nhtsa", "wmi"] | None = Field(
+        None,
+        description="Where `make` came from: NHTSA's answer or the bundled WMI table",
     )
     notes: list[str] = Field(
         default_factory=list,
