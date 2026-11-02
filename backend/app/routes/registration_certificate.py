@@ -76,7 +76,9 @@ async def _read_certificate(file: UploadFile) -> bytes:
             status_code=400,
             detail=f"Invalid content type. Allowed: {', '.join(sorted(ALLOWED_MIMES))}",
         )
-    content = await file.read()
+    # One byte past the limit is enough to know it is too large (B9): the
+    # rest of an oversized upload is never read into memory.
+    content = await file.read(MAX_FILE_SIZE + 1)
     if not content:
         raise HTTPException(status_code=400, detail="File is empty")
     if len(content) > MAX_FILE_SIZE:

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, render as rtlRender } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { TollTag } from '../../types/toll'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -335,6 +336,20 @@ describe('TollTagForm: the country the settings resolve (#211)', () => {
     await waitFor(() => expect(control<HTMLSelectElement>('toll_country').value).toBe('ES'))
     const offered = [...control<HTMLSelectElement>('toll_system').options].map((o) => o.value)
     expect(offered).toContain('Via-T')
+  })
+
+  it('reads the vehicle through the shared query cache, not a fetch of its own (B9)', async () => {
+    countryState.personal = 'FR'
+    const api = (await import('../../services/api')).default
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 60_000 } } })
+    client.setQueryData(['vehicle', 'V1'], { vin: 'V1', registration_country: 'ES' })
+    rtlRender(
+      <QueryClientProvider client={client}>
+        <TollTagForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />
+      </QueryClientProvider>,
+    )
+    await waitFor(() => expect(control<HTMLSelectElement>('toll_country').value).toBe('ES'))
+    expect(api.get).not.toHaveBeenCalled()
   })
 
   it('a resolved country without a row leaves the pick to the person, even with the euro', async () => {

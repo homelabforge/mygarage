@@ -356,7 +356,12 @@ REGISTRY: tuple[MaintenanceType, ...] = (
             r"\b(?:technical|roadworthiness|periodic|periodical) (?:inspection|test)\b",
             r"\bcontr[oô]le technique\b",
             r"\bcontre[- ]?visite\b",
-            r"\b(?:ct|t[uü]v|hu|apk|itv|snct|mot)\b",
+            r"\b(?:tuv|apk|itv|snct)\b",
+            # B9: the two- and three-letter names only as the whole line
+            # item. Inside a longer one « 4 ct » is a count and « mot » a
+            # French word. « HU AU » is the German test with its emissions part.
+            r"^(?:ct|hu(?: au)?|mot)$",
+            r"\bpassage (?:au|du) ct\b",
             r"\bhauptuntersuchung\b",
             r"\brevisione\b",
             r"\b(?:auto)?keuring\b",

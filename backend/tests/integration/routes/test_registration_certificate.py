@@ -220,6 +220,33 @@ class TestParse:
         assert "holder" not in r.text
         assert "DUPONT" not in r.text
 
+    async def test_an_oversized_upload_is_refused_without_reading_it_all(
+        self, client: AsyncClient, auth_headers, monkeypatch: pytest.MonkeyPatch
+    ):
+        """B9: the size limit holds while reading, so a huge upload is never
+        held whole in memory before it is refused."""
+        from starlette.datastructures import UploadFile
+
+        from app.routes import registration_certificate as route
+
+        monkeypatch.setattr(route, "MAX_FILE_SIZE", 1024)
+        asked: list[int] = []
+        real_read = UploadFile.read
+
+        async def _read(self, size: int = -1) -> bytes:  # noqa: ANN001
+            asked.append(size)
+            return await real_read(self, size)
+
+        monkeypatch.setattr(UploadFile, "read", _read)
+        r = await client.post(
+            "/api/registration-certificate/parse",
+            headers=auth_headers,
+            files=_upload(b"%PDF-1.4" + b"0" * 10_000),
+        )
+        assert r.status_code == 400, r.text
+        assert "too large" in r.text
+        assert asked and all(0 < size <= 1025 for size in asked)
+
     async def test_reader_409_is_relayed(self, client: AsyncClient, auth_headers):
         with patch(
             READ_DOCUMENT,

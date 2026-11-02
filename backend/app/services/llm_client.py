@@ -18,7 +18,6 @@ import json
 import logging
 import re
 import socket
-import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -28,6 +27,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.settings_service import SecretUnreadableError, SettingsService, reenter_message
+from app.utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +59,8 @@ VISION_CONSENT_REQUIRED = "vision_consent_required"
 #: Carrier-grade NAT space: Tailscale hands out addresses from it, and
 #: ``ipaddress`` does not count it as private.
 _SHARED_ADDRESS_SPACE = ipaddress.ip_network("100.64.0.0/10")
-#: How long a base URL's locality is believed before it is looked up again.
-_LOCALITY_TTL_SECONDS = 300.0
-#: More distinct base URLs than this and the cache starts over.
-_LOCALITY_CACHE_MAX = 32
-_locality_cache: dict[str, tuple[float, bool]] = {}
+#: A base URL's locality, believed for five minutes before it is looked up again.
+_locality_cache: TTLCache[str, bool] = TTLCache(ttl_seconds=300.0, max_size=32)
 
 
 def clear_locality_cache() -> None:
@@ -119,15 +116,12 @@ async def is_local_endpoint(base_url: str) -> bool:
     """Whether the endpoint sits on the household's own network: loopback,
     private, link-local or 100.64.0.0/10 addresses, so ``host.docker.internal``,
     a ``*.lan`` name and a Tailscale address all count. Cached per base URL."""
-    now = time.monotonic()
     cached = _locality_cache.get(base_url)
-    if cached is not None and now - cached[0] < _LOCALITY_TTL_SECONDS:
-        return cached[1]
+    if cached is not None:
+        return cached
     host = endpoint_host(base_url)
     local = False if not host else await asyncio.to_thread(_host_is_local, host)
-    if len(_locality_cache) >= _LOCALITY_CACHE_MAX:
-        _locality_cache.clear()
-    _locality_cache[base_url] = (now, local)
+    _locality_cache.put(base_url, local)
     return local
 
 

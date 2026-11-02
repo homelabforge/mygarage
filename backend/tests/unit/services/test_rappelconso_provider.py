@@ -252,6 +252,18 @@ class TestFetch:
         assert get.await_count == 2
         assert get.call_args_list[1].kwargs["params"]["offset"] == rappelconso.PAGE_SIZE
 
+    async def test_the_cache_is_bounded(self, db_session):
+        """B9: one entry per make asked; the cache keeps at most its bound."""
+        rappelconso.clear_cache()
+        extra = 5
+        patcher, _get = _client([_page([])] * (rappelconso.CACHE_MAX_ENTRIES + extra))
+        with patcher:
+            provider = RappelConsoProvider()
+            for n in range(rappelconso.CACHE_MAX_ENTRIES + extra):
+                await provider.records_for_brand(db_session, f"make{n}")
+        assert len(rappelconso._cache) == rappelconso.CACHE_MAX_ENTRIES
+        rappelconso.clear_cache()
+
     async def test_citroen_asks_for_ds_too(self, db_session):
         rappelconso.clear_cache()
         patcher, get = _client([_page([]), _page([])])

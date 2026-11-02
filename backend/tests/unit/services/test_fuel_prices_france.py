@@ -222,6 +222,19 @@ class TestNearby:
         assert other == []
         assert get.await_count == 2
 
+    async def test_the_cache_is_bounded(self, db_session):
+        """B9: one entry per point asked, so a long-running instance must not
+        keep every point it was ever asked about."""
+        france.clear_cache()
+        extra = 5
+        patcher, _get = _client([_page([])] * (france.CACHE_MAX_ENTRIES + extra))
+        with patcher:
+            provider = FrenchFuelPriceProvider()
+            for n in range(france.CACHE_MAX_ENTRIES + extra):
+                await provider.nearby(db_session, 40 + n * 0.01, 3.08, radius_km=2, limit=5)
+        assert len(france._cache) == france.CACHE_MAX_ENTRIES
+        france.clear_cache()
+
     async def test_a_malformed_answer_is_no_station(self, db_session):
         france.clear_cache()
         patcher, _get = _client([{"results": "not a list"}])

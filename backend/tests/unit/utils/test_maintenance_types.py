@@ -258,3 +258,19 @@ class TestClassifyInspectionEurope:
     )
     def test_other_inspections_are_not_the_periodic_test(self, description):
         assert classify(description) != "state_inspection"
+
+    @pytest.mark.parametrize(
+        ("description", "expected"),
+        [
+            # B9: CT, HU and MOT name the test only as the whole line item;
+            # inside a longer one they are a count, a French word, a name.
+            ("Wiper blades 2 ct", "wiper_blades"),
+            ("Spark plugs (4 ct)", "spark_plugs"),
+            ("Mot de passe garage", None),
+            ("HU AU", "state_inspection"),
+            ("HU/AU", "state_inspection"),
+            ("MOT test", "state_inspection"),
+        ],
+    )
+    def test_short_names_count_only_as_the_whole_item(self, description, expected):
+        assert classify(description) == expected

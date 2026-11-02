@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import logging
 import re
-import time
 import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -46,6 +45,7 @@ from app.schemas.country_profile import CountryProfile
 from app.services.recalls.base import SOURCE_RAPPELCONSO, RecallHit
 from app.services.settings_service import SettingsService
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.ttl_cache import TTLCache
 from app.utils.url_validation import validate_data_economie_url
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,11 @@ BRAND_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 _DATE_RE = re.compile(r"(\d{1,2})[./-](\d{1,2})[./-](\d{4})")
-_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+#: Makes kept at once: a garage holds a handful (B9).
+CACHE_MAX_ENTRIES = 64
+_cache: TTLCache[str, list[dict[str, Any]]] = TTLCache(
+    ttl_seconds=CACHE_TTL_SECONDS, max_size=CACHE_MAX_ENTRIES
+)
 
 
 def normalise(text: str | None) -> str:
@@ -246,10 +250,9 @@ class RappelConsoProvider:
 
     async def records_for_brand(self, db: AsyncSession, brand: str) -> list[dict[str, Any]]:
         """Every « Automobiles » notice of a make, newest first, cached briefly."""
-        now = time.monotonic()
         cached = _cache.get(brand)
-        if cached is not None and now - cached[0] < CACHE_TTL_SECONDS:
-            return cached[1]
+        if cached is not None:
+            return cached
         url = await self.api_url(db)
         # `like` is ODSQL's word search: « mercedes » finds « mercedes-benz ».
         # The records are checked again on the way back (`brand_matches`).
@@ -273,7 +276,7 @@ class RappelConsoProvider:
                 if len(page) < PAGE_SIZE:
                     break
                 offset += PAGE_SIZE
-        _cache[brand] = (now, records)
+        _cache.put(brand, records)
         return records
 
     async def fetch(self, db: AsyncSession, vehicle: Vehicle) -> list[RecallHit]:

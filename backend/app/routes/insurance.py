@@ -206,13 +206,12 @@ async def _read_upload(file: UploadFile) -> bytes:
         raise HTTPException(
             status_code=400, detail=f"File must be PDF or image (jpg, png). Got: {extension}"
         )
-    # Size BEFORE reading into memory, to prevent a memory DoS.
-    file.file.seek(0, 2)
-    size = file.file.tell()
-    file.file.seek(0)
-    if size > _MAX_UPLOAD_BYTES:
+    # Bounded while reading (B9): one byte past the limit says it is too
+    # large, and the rest is never read into memory.
+    contents = await file.read(_MAX_UPLOAD_BYTES + 1)
+    if len(contents) > _MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="File size exceeds 25MB limit")
-    return await file.read()
+    return contents
 
 
 @router.post("/parse-pdf")

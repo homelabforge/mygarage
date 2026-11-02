@@ -21,7 +21,7 @@ import {
 import { languageToLocale } from '../constants/i18n'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useResolvedCountry } from '../hooks/useResolvedCountry'
-import api from '../services/api'
+import { useVehicle } from '../hooks/queries/useVehicle'
 import { useCreateTollTag, useUpdateTollTag } from '../hooks/queries/useTollRecords'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
@@ -44,25 +44,13 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
   // #211 — the country the settings resolve (the vehicle's registration
   // country, then the person's, then the instance's) is the country a new
   // tag starts on when it is listed. The person's and the instance's are
-  // known at once; the vehicle's arrives with its fetch and refines the
-  // guess while the person has not touched the country select.
-  const [vehicleRegistrationCountry, setVehicleRegistrationCountry] = useState<string | null>(null)
+  // known at once; the vehicle's arrives with its query (the shared cache,
+  // B9) and refines the guess while the person has not touched the country
+  // select.
+  const { data: vehicle } = useVehicle(vin)
+  const vehicleRegistrationCountry = vehicle?.registration_country ?? null
   const resolvedCountry = useResolvedCountry({ registration_country: vehicleRegistrationCountry })
   const countryTouched = useRef(false)
-  useEffect(() => {
-    let cancelled = false
-    void api
-      .get(`/vehicles/${vin}`)
-      .then((response) => {
-        if (!cancelled) setVehicleRegistrationCountry(response.data?.registration_country ?? null)
-      })
-      .catch(() => {
-        if (!cancelled) setVehicleRegistrationCountry(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [vin])
 
   // Zod bakes its messages in at construction, so the schema is rebuilt when
   // the language changes. Only the resolver depends on it (no fetch, no

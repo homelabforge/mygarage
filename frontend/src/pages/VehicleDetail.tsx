@@ -7,6 +7,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { vehicleQueryKey } from '../hooks/queries/useVehicle'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
@@ -205,6 +206,8 @@ function VehicleDetailPage() {
       setVehicle(updated)
       if (vin) {
         rememberVehicle(vin, updated)
+        // The forms that read the row through the query cache see the save (B9).
+        queryClient.setQueryData(vehicleQueryKey(vin), updated)
         // Tracking distance or hours changes the tire and brake dialogs and figures (#217, #202).
         for (const key of ['tires', 'brakes']) {
           void queryClient.invalidateQueries({ queryKey: [key, vin] })

@@ -15,7 +15,8 @@ Two ways in, one ``RegistrationData`` out:
   OCR'd elsewhere): codes are repaired (``D 1``, ``D1``, ``D-1`` → ``D.1``),
   each code's value is what follows it on the line (or the next line), and
   strong shapes (a 17-character VIN, a plate matching a country's pattern,
-  a date, a P.3 code) are checked before a value is believed.
+  a date, a P.3 code) are checked before a value is believed. The VIN comes
+  from field E only, never from a 17-character token found elsewhere.
 - ``from_llm_fields(fields)`` takes the JSON a vision model returned for a
   photo (see ``document_prompts.registration_certificate``) through the
   SAME validators, so a model's guess is held to the same shape as a
@@ -115,7 +116,6 @@ _WEIGHTS: dict[str, int] = {
 }
 
 _VIN_RE = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
-_VIN_ANYWHERE_RE = re.compile(r"(?<![A-Z0-9])[A-HJ-NPR-Z0-9]{17}(?![A-Z0-9])")
 _DATE_RE = re.compile(r"(\d{1,2})[./-](\d{1,2})[./-](\d{4})|(\d{4})-(\d{2})-(\d{2})")
 _EU_CATEGORY_RE = re.compile(r"^[MNLOT]\d{1,2}[A-Z]?E?$")
 _INT_RE = re.compile(r"-?\d[\d ]*")
@@ -545,12 +545,9 @@ class EURegistrationCertificateParser(BaseDocumentParser):
                 if raw:
                     _assign(data, code, raw)
 
-        if data.vin is None:
-            # No « E » label read: the only 17-character token is the VIN.
-            candidates = {m.group(0) for m in _VIN_ANYWHERE_RE.finditer(repaired)}
-            if len(candidates) == 1:
-                data.vin = candidates.pop()
-                data.field_confidence["vin"] = "medium"
+        # The VIN is field E's value or nothing (B9): an unlabelled
+        # 17-character token may be a reference or a barcode, and a wrong VIN
+        # is worse than none (the person types it).
         if data.vin and not data.extracted_vin:
             data.extracted_vin = data.vin
         if data.country is None and data.plate:

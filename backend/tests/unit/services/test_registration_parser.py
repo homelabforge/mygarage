@@ -172,12 +172,15 @@ class TestFrenchCertificate:
         assert data.energy_code == "ES"
         assert data.vin == "VF1RFB00X56123456"
 
-    def test_vin_without_its_label_is_the_only_17_character_token(self, parser):
+    def test_an_unlabelled_17_character_token_is_not_taken_for_the_vin(self, parser):
+        """B9: a VIN is read from field E only. Any other 17-character token
+        (a reference number, a barcode) is not guessed into the VIN."""
         data = parser.parse(
             "CERTIFICAT D'IMMATRICULATION\nRÉPUBLIQUE FRANÇAISE\nVF1RFB00X56123456\nD.1 RENAULT"
         )
-        assert data.vin == "VF1RFB00X56123456"
-        assert data.field_confidence["vin"] == "medium"
+        assert data.vin is None
+        assert "vin" not in data.field_confidence
+        assert "VIN (E) not found" in data.get_validation_warnings()
 
 
 class TestOtherCountries:

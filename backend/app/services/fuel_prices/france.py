@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 import math
-import time
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -31,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.fuel_prices.base import FuelPrice, StationPrices
 from app.services.settings_service import SettingsService
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.ttl_cache import TTLCache
 from app.utils.url_validation import validate_data_economie_url
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,11 @@ FUELS: tuple[tuple[str, str, int | None], ...] = (
     ("gplc", "LPG", None),
 )
 
-_cache: dict[tuple[float, float, float, int], tuple[float, list[StationPrices]]] = {}
+#: Points kept at once: a household asks about a few places, not thousands (B9).
+CACHE_MAX_ENTRIES = 256
+_cache: TTLCache[tuple[float, float, float, int], list[StationPrices]] = TTLCache(
+    ttl_seconds=CACHE_TTL_SECONDS, max_size=CACHE_MAX_ENTRIES
+)
 
 
 def _text(record: dict[str, Any], key: str) -> str | None:
@@ -190,10 +194,9 @@ class FrenchFuelPriceProvider:
         radius_km = min(max(radius_km, 0.1), MAX_RADIUS_KM)
         limit = min(max(limit, 1), MAX_LIMIT)
         key = (round(latitude, CACHE_ROUNDING), round(longitude, CACHE_ROUNDING), radius_km, limit)
-        now = time.monotonic()
         cached = _cache.get(key)
-        if cached is not None and now - cached[0] < CACHE_TTL_SECONDS:
-            return cached[1]
+        if cached is not None:
+            return cached
         url = await self.api_url(db)
         params = {
             # ODSQL: a point is lon then lat, and the radius carries its unit.
@@ -213,7 +216,7 @@ class FrenchFuelPriceProvider:
             if station is not None:
                 stations.append(station)
         stations.sort(key=lambda station: station.distance_km)
-        _cache[key] = (now, stations)
+        _cache.put(key, stations)
         return stations
 
 
