@@ -221,13 +221,15 @@ async def _insurance_for_vin(
     """Insurance cost for one vehicle on two bases: (accrued, as paid), up to `as_of`.
 
     Accrued is the single-vehicle form of the loop in the garage analytics: same
-    shares, same `accrued_cost`, same `effective_to` handling, so the two agree.
+    shares, same `accrued_cost`, same `effective_to` handling. The garage loop
+    runs to today, so the two only differ for a sold vehicle whose cover was
+    never ended.
     As paid counts each billing period in full once it has begun, the way an
     expense logged whole on the day it is paid reads in other trackers: a monthly
     policy counts the months that have begun, not the whole term, and a policy
     that has not started counts nothing. `effective_to` still ends a vehicle's
-    cover early on both bases. `as_of` is today, or the sale date once the
-    vehicle is sold, so cover stops counting when the vehicle leaves.
+    cover early on both bases. `as_of` is today, or the sale date once it has
+    passed, so cover stops counting when the vehicle leaves.
     """
     policies = (
         (
@@ -969,13 +971,14 @@ async def build_vehicle_statistics(
             )
         ).one()
         start = min((d for d in firsts if d is not None), default=None)
-    end = sold_date or today
+    # A sale entered ahead of time doesn't count days that haven't happened yet.
+    end = min(sold_date, today) if sold_date else today
     days_owned = (end - start).days if start and (end - start).days > 0 else None
 
     # Money. Running costs come from the cost card's own figures; insurance
     # (same helper as the garage page, stopped at the sale) and taxes are added
     # here so the existing cost card is left untouched.
-    accrued_insurance, paid_insurance = await _insurance_for_vin(db, vin, sold_date or today)
+    accrued_insurance, paid_insurance = await _insurance_for_vin(db, vin, end)
     tax_result = await db.execute(
         select(TaxRecord.amount).where(TaxRecord.vin == vin, TaxRecord.amount.isnot(None))
     )

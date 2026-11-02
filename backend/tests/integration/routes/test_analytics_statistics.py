@@ -356,28 +356,51 @@ class TestOwnershipStatistics:
         # 50 + 127 + 30 + 91 days of insurance, + 1000 purchase - 400 sale
         assert _dec(s["total_ownership_cost"]) == Decimal("898.00")
 
+    @pytest.mark.parametrize("earliest", ["fuel", "service", "odometer"])
     async def test_days_owned_without_a_purchase_date_starts_at_the_first_record(
-        self, client: AsyncClient, auth_headers, db_session: AsyncSession, garage: _Garage
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        garage: _Garage,
+        earliest: str,
     ):
         vin = await garage.vehicle(purchase_days_ago=None)
         today = household_today()
+        # Whichever kind of record is oldest starts the clock; the others are newer.
+        ago = {"fuel": 90, "service": 120, "odometer": 60} | {earliest: 150}
         db_session.add(
             FuelRecord(
                 vin=vin,
-                date=today - timedelta(days=90),
+                date=today - timedelta(days=ago["fuel"]),
                 liters=Decimal("40.000"),
                 cost=Decimal("40.00"),
             )
         )
-        db_session.add(ServiceVisit(vin=vin, date=today - timedelta(days=120)))
+        db_session.add(ServiceVisit(vin=vin, date=today - timedelta(days=ago["service"])))
         db_session.add(
-            OdometerRecord(vin=vin, date=today - timedelta(days=150), odometer_km=Decimal("900"))
+            OdometerRecord(
+                vin=vin, date=today - timedelta(days=ago["odometer"]), odometer_km=Decimal("900")
+            )
         )
         await db_session.commit()
 
         s = await self._stats(client, auth_headers, vin)
-        # The odometer reading is the oldest record, not the first fill-up.
         assert s["days_owned"] == 150
+
+    async def test_a_sale_entered_ahead_of_time_stops_at_today(
+        self, client: AsyncClient, auth_headers, db_session: AsyncSession, stats_vehicle: str
+    ):
+        vehicle = await db_session.get(Vehicle, stats_vehicle)
+        assert vehicle is not None
+        vehicle.sold_price = Decimal("400.00")
+        vehicle.sold_date = household_today() + timedelta(days=60)
+        await db_session.commit()
+
+        s = await self._stats(client, auth_headers, stats_vehicle)
+        assert s["days_owned"] == 100
+        # The same 101 days of insurance as an unsold vehicle, not 161.
+        assert _dec(s["total_running_cost"]) == Decimal("308.00")
 
     async def test_distance_is_the_cost_card_span(
         self, client: AsyncClient, auth_headers, db_session: AsyncSession, stats_vehicle: str

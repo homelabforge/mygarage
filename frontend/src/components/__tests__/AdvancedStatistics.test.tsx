@@ -237,6 +237,11 @@ describe('AdvancedStatistics', () => {
     expect(screen.queryByTestId('stats-overall')).not.toBeInTheDocument()
   })
 
+  it('keeps its choices under the app\'s snake_case storage keys', () => {
+    expect(ADVANCED_STATS_STORAGE_KEY).toBe('analytics_advanced_stats_open')
+    expect(ADVANCED_STATS_BASIS_KEY).toBe('analytics_advanced_stats_insurance')
+  })
+
   it('still works when browser storage throws', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('blocked')
