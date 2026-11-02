@@ -153,6 +153,7 @@ SECTIONS = [
                 # The EU registration certificate fields (#211).
                 "registration_country",
                 "first_registration_date",
+                "inspection_due_date",
                 "euro_emission_class",
                 "fiscal_power",
                 "co2_g_km",
