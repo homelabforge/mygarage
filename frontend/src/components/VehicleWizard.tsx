@@ -981,9 +981,9 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   <p className="text-sm text-text-mute">
                     {t('registrationImport.certificateFile', { name: certificate.file.name })}
                   </p>
-                  {certificate.parse.last_inspection_date && (
+                  {certificate.parse.inspection_due_date && (
                     <p className="text-sm text-text">
-                      {t('registrationImport.lastInspection', { date: certificate.parse.last_inspection_date })}
+                      {t('registrationImport.inspectionDue', { date: certificate.parse.inspection_due_date })}
                     </p>
                   )}
                   {(certificate.parse.suggested_tax_records ?? []).length > 0 && (

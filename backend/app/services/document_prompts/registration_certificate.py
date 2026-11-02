@@ -7,7 +7,8 @@ they are plain JSON keys: A plate, B first registration, D1 make, D2
 type/variant/version, D3 commercial name, E VIN, F1 maximum mass, G mass in
 service, J EU category, J1 national category, K type approval,
 P1 displacement, P2 power kW, P3 energy code, P6 fiscal power, S1 seats,
-V7 CO₂, V9 Euro class, X1 last inspection, Y1 to Y6 taxes. The holder
+V7 CO₂, V9 Euro class, X1 the date the next inspection is due by (a
+deadline, not a passed test), Y1 to Y6 taxes. The holder
 (C1) is never asked for: the import has no use for a person's name.
 """
 
@@ -60,8 +61,10 @@ SYSTEM = (
     "K = type-approval number; P1 = engine capacity in cm3; P2 = maximum net power in kW; "
     "P3 = fuel code as printed (ES, GO, EL, EE, EH, GL, GH, GP, GN, FE, H2, EG, EN); "
     "P6 = national fiscal power; S1 = number of seats; V7 = CO2 in g/km; V9 = Euro "
-    "emission class or environmental category as printed; X1 = date of the last "
-    "technical inspection as YYYY-MM-DD; Y1 to Y6 = the tax amounts printed, as numbers.\n"
+    "emission class or environmental category as printed; X1 = the date by which the "
+    "NEXT periodic technical inspection is due (on a French carte grise the sticker "
+    "reads « VISITE AVANT LE »), as YYYY-MM-DD: a deadline, not the date of an "
+    "inspection that was passed; Y1 to Y6 = the tax amounts printed, as numbers.\n"
     "Use null for a field that is absent, illegible or not printed. Never guess, never "
     "invent a plausible value, never translate a code; copy values as printed, dates "
     "converted to YYYY-MM-DD and numbers without units."

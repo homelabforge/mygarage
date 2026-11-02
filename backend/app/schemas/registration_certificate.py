@@ -37,8 +37,9 @@ class RegistrationParseResponse(BaseModel):
     vehicle_patch: dict[str, Any] = Field(
         description="The vehicle fields the certificate fills, already validated"
     )
-    last_inspection_date: date_type | None = Field(
-        None, description="Field X.1, the last periodic inspection"
+    inspection_due_date: date_type | None = Field(
+        None,
+        description="Field X.1, the date the next periodic inspection is due by (a deadline)",
     )
     suggested_tax_records: list[SuggestedTaxRecord] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
@@ -61,8 +62,11 @@ class RegistrationImportResponse(BaseModel):
     skipped: list[str] = Field(
         description="The vehicle fields left alone (already set, and overwrite was off)"
     )
-    inspection_recorded: bool = Field(
-        description="Whether field X.1 was recorded as a service visit"
+    inspection_due_recorded: bool = Field(
+        description=(
+            "Whether field X.1 became the vehicle's inspection deadline, which the "
+            "inspection reminder is due no later than while no inspection is on record"
+        )
     )
     taxes_created: list[str] = Field(
         default_factory=list,

@@ -146,7 +146,7 @@ class TestFrenchCertificate:
         assert data.seats == 5
         assert data.co2_g_km == 118
         assert data.euro_class == "Euro 6d-TEMP"
-        assert data.last_inspection == "2026-02-10"
+        assert data.inspection_due == "2026-02-10"
         assert data.taxes == {
             "Y.1": Decimal("162.50"),
             "Y.2": Decimal("0"),
@@ -365,7 +365,7 @@ class TestModelPath:
         assert data.energy_code == "ES"
         assert data.fiscal_power is None
         assert data.euro_class == "Euro 6d-TEMP"
-        assert data.last_inspection == "2026-02-10"
+        assert data.inspection_due == "2026-02-10"
         assert data.taxes == {"Y.1": Decimal("162.50")}
         assert [w.split(":")[0] for w in data.warnings] == ["E", "P.6"]
         assert "VIN (E) not found" in data.get_validation_warnings()
@@ -385,6 +385,25 @@ class TestHouseholdToday:
         monkeypatch.setattr(registration, "household_today", lambda: date(2020, 1, 1))
         assert iso_date("15/06/2020") == "2020-06-15"
         assert iso_date("15/06/2023") is None
+
+    def test_an_x1_deadline_two_years_out_is_kept(self, parser, monkeypatch):
+        """X.1 is the NEXT test's deadline: just after a French test it is two
+        years away, past the one-year bound a printed past date gets. Five
+        years is the bound (a first test four years after registration)."""
+        from app.services.document_parsers import registration
+
+        monkeypatch.setattr(registration, "household_today", lambda: date(2026, 3, 1))
+        text = FR_SIV.replace("X.1 10/02/2026", "X.1 20/02/2028")
+        assert parser.parse(text).inspection_due == "2028-02-20"
+        far = FR_SIV.replace("X.1 10/02/2026", "X.1 20/02/2032")
+        assert parser.parse(far).inspection_due is None
+        assert registration.from_llm_fields({"X1": "20/02/2028"}).inspection_due == "2028-02-20"
+
+    def test_the_prompt_asks_for_x1_as_a_deadline(self):
+        from app.services.document_prompts.registration_certificate import SYSTEM
+
+        assert "X1 = the date by which the NEXT periodic technical inspection is due" in SYSTEM
+        assert "last" not in SYSTEM.lower()
 
 
 class TestNoHolder:

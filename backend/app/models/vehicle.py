@@ -82,6 +82,11 @@ class Vehicle(Base):
     # (migration 143, #211). NULL = not set.
     registration_country: Mapped[str | None] = mapped_column(String(2))
     first_registration_date: Mapped[date | None] = mapped_column(Date)
+    # Field X.1 of the certificate: the date the next periodic inspection is
+    # due by (« visite avant le »), never a passed one. The inspection engine
+    # holds its reminder to it while no inspection is on record (migration
+    # 152, #211).
+    inspection_due_date: Mapped[date | None] = mapped_column(Date)
     # The other EU registration-certificate fields (migration 147, #211):
     # V.9 Euro class, P.6 fiscal power, V.7 CO₂ g/km, P.2 power kW, J EU
     # category (M1, N1, L3e), J.1 national kind (VP, CTTE), and the

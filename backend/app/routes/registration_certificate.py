@@ -105,7 +105,7 @@ def _to_response(
         fields=result.fields(),
         field_confidence=dict(result.data.field_confidence),
         vehicle_patch=result.vehicle_patch,
-        last_inspection_date=result.last_inspection_date,
+        inspection_due_date=result.inspection_due_date,
         suggested_tax_records=[
             SuggestedTaxRecord(
                 code=s["code"],
@@ -186,8 +186,9 @@ async def import_registration_certificate(
         Form(description="The suggested tax records to create, by code (Y.1, Y.3, Y.6)"),
     ] = None,
 ) -> RegistrationImportResponse:
-    """Store the certificate as a document, fill the vehicle, record X.1,
-    and create the suggested tax records named in ``tax_codes``.
+    """Store the certificate as a document, fill the vehicle, keep X.1 as the
+    vehicle's inspection deadline, and create the suggested tax records named
+    in ``tax_codes``.
 
     Owner only: it writes the vehicle row. The file is kept under the
     vehicle's documents whatever the read found, so a certificate a model
@@ -255,17 +256,17 @@ async def import_registration_certificate(
         else []
     )
     logger.info(
-        "Registration certificate imported for %s: applied=%s skipped=%s inspection=%s",
+        "Registration certificate imported for %s: applied=%s skipped=%s inspection_due=%s",
         sanitize_for_log(vin),
         ",".join(outcome.applied) or "-",
         ",".join(outcome.skipped) or "-",
-        outcome.inspection_recorded,
+        outcome.inspection_due_recorded,
     )
     return RegistrationImportResponse(
         document=document_response,
         applied=outcome.applied,
         skipped=outcome.skipped,
-        inspection_recorded=outcome.inspection_recorded,
+        inspection_due_recorded=outcome.inspection_due_recorded,
         taxes_created=taxes_created,
         parse=_to_response(result),
     )

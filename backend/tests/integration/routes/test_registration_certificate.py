@@ -90,7 +90,7 @@ def _jpeg() -> bytes:
     return buffer.getvalue()
 
 
-def _certificate_text(vin: str, *, first_registration: str, last_inspection: str | None) -> str:
+def _certificate_text(vin: str, *, first_registration: str, inspection_due: str | None) -> str:
     lines = [
         "RÉPUBLIQUE FRANÇAISE",
         "CERTIFICAT D'IMMATRICULATION",
@@ -103,8 +103,8 @@ def _certificate_text(vin: str, *, first_registration: str, last_inspection: str
         "P.1 1498   P.2 74   P.3 ES   P.6 5",
         "V.7 118   V.9 Euro 6d-TEMP",
     ]
-    if last_inspection:
-        lines.append(f"X.1 {last_inspection}")
+    if inspection_due:
+        lines.append(f"X.1 {inspection_due}")
     lines.append("Y.1 162,50   Y.3 0   Y.6 176,26")
     return "\n".join(lines)
 
@@ -127,6 +127,17 @@ async def _create_vehicle(client: AsyncClient, headers: dict, **fields: Any) -> 
     return vin
 
 
+async def _pending_inspection_due(client: AsyncClient, headers: dict, vin: str) -> str | None:
+    """The due date of the inspection engine's pending reminder, if any."""
+    r = await client.get(f"/api/vehicles/{vin}/reminders", headers=headers)
+    assert r.status_code == 200, r.text
+    pending = [
+        rem for rem in r.json() if rem["status"] == "pending" and rem.get("source") == "inspection"
+    ]
+    assert len(pending) <= 1, pending
+    return pending[0]["due_date"] if pending else None
+
+
 def _upload(content: bytes, name: str = "cg.pdf", mime: str = "application/pdf"):
     return {"file": (name, content, mime)}
 
@@ -138,7 +149,7 @@ class TestParse:
 
     async def test_text_pdf_is_parsed_without_a_model(self, client: AsyncClient, auth_headers):
         vin = _vin()
-        text = _certificate_text(vin, first_registration="12/03/2023", last_inspection="10/02/2026")
+        text = _certificate_text(vin, first_registration="12/03/2023", inspection_due="10/02/2026")
         with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))) as read:
             r = await client.post(
                 "/api/registration-certificate/parse",
@@ -156,7 +167,7 @@ class TestParse:
         assert body["vehicle_patch"]["first_registration_date"] == "2023-03-12"
         assert body["vehicle_patch"]["fuel_type"] == "gasoline"
         assert body["vehicle_patch"]["vehicle_type"] == "Car"
-        assert body["last_inspection_date"] == "2026-02-10"
+        assert body["inspection_due_date"] == "2026-02-10"
         assert body["suggested_tax_records"] == [
             {
                 "code": "Y.1",
@@ -198,7 +209,7 @@ class TestParse:
 
     async def test_the_holder_is_never_in_the_response(self, client: AsyncClient, auth_headers):
         vin = _vin()
-        text = _certificate_text(vin, first_registration="12/03/2023", last_inspection=None)
+        text = _certificate_text(vin, first_registration="12/03/2023", inspection_due=None)
         with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
             r = await client.post(
                 "/api/registration-certificate/parse",
@@ -302,19 +313,21 @@ class TestImport:
         )
         assert r.status_code in (403, 404)
 
-    async def test_fills_empty_fields_stores_the_document_and_records_the_inspection(
+    async def test_fills_empty_fields_stores_the_document_and_holds_the_reminder_to_x1(
         self, client: AsyncClient, auth_headers, db_session
     ):
         vin = await _create_vehicle(client, auth_headers, make="Renault")
         today = date.today()
-        # Five years old: past the first four-year cycle, so France's rule is
-        # a test every two years, counted from the last one.
+        # Five years and ten days old: France's theoretical cycle says the
+        # second test is due in about a year and eleven months.
         first = today - relativedelta(years=5, days=10)
-        inspection = today - timedelta(days=30)
+        # X.1 is the deadline for the NEXT test, and this one passed a month
+        # ago: the vehicle is overdue, whatever the cadence would assume.
+        deadline = today - timedelta(days=30)
         text = _certificate_text(
             vin,
             first_registration=first.strftime("%d/%m/%Y"),
-            last_inspection=inspection.strftime("%d/%m/%Y"),
+            inspection_due=deadline.strftime("%d/%m/%Y"),
         )
         with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
             r = await client.post(
@@ -338,8 +351,9 @@ class TestImport:
             "fiscal_power",
         ):
             assert name in body["applied"], name
-        assert body["inspection_recorded"] is True
+        assert body["inspection_due_recorded"] is True
         assert body["parse"]["source"] == "text"
+        assert body["parse"]["inspection_due_date"] == deadline.isoformat()
 
         vehicle = await client.get(f"/api/vehicles/{vin}", headers=auth_headers)
         data = vehicle.json()
@@ -358,35 +372,18 @@ class TestImport:
         documents = await client.get(f"/api/vehicles/{vin}/documents", headers=auth_headers)
         assert [d["document_type"] for d in documents.json()["documents"]] == ["registration"]
 
-        # X.1 became a passed inspection visit, and the periodic inspection
-        # reminder counts from it (France: two years after the test).
+        # No service history is made up from X.1: the deadline is the
+        # vehicle's, and the inspection reminder is due on it.
         visits = (
             (await db_session.execute(select(ServiceVisit).where(ServiceVisit.vin == vin)))
             .scalars()
             .all()
         )
-        assert [v.date for v in visits] == [inspection]
-        items = (
-            (
-                await db_session.execute(
-                    select(ServiceLineItem).where(ServiceLineItem.visit_id == visits[0].id)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        assert items[0].maintenance_type == "state_inspection"
-        assert items[0].inspection_result == "passed"
-        assert items[0].description == "Contrôle technique"
-        reminders = await client.get(f"/api/vehicles/{vin}/reminders", headers=auth_headers)
-        assert reminders.status_code == 200, reminders.text
-        pending = [
-            rem
-            for rem in reminders.json()
-            if rem["status"] == "pending" and rem.get("source") == "inspection"
-        ]
-        assert len(pending) == 1
-        assert pending[0]["due_date"] == (inspection + relativedelta(years=2)).isoformat()
+        assert visits == []
+        stored = await db_session.get(Vehicle, vin)
+        await db_session.refresh(stored)
+        assert stored.inspection_due_date == deadline
+        assert await _pending_inspection_due(client, auth_headers, vin) == deadline.isoformat()
 
         # A second import of the same certificate changes nothing more.
         with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
@@ -397,20 +394,127 @@ class TestImport:
             )
         assert again.status_code == 201
         assert again.json()["applied"] == []
-        assert again.json()["inspection_recorded"] is False
-        visits_after = (
-            (await db_session.execute(select(ServiceVisit).where(ServiceVisit.vin == vin)))
-            .scalars()
-            .all()
+        assert again.json()["inspection_due_recorded"] is False
+        assert await _pending_inspection_due(client, auth_headers, vin) == deadline.isoformat()
+
+    async def test_a_deadline_later_than_the_cadence_changes_nothing(
+        self, client: AsyncClient, auth_headers
+    ):
+        """Only an EARLIER deadline moves the reminder: a later one is a
+        sticker the engine's own date already beats."""
+        today = date.today()
+        first = today - relativedelta(years=5, days=10)
+        vin = await _create_vehicle(
+            client,
+            auth_headers,
+            make="Renault",
+            registration_country="FR",
+            first_registration_date=first.isoformat(),
         )
-        assert len(visits_after) == 1
+        theoretical = await _pending_inspection_due(client, auth_headers, vin)
+        assert theoretical is not None
+        later = date.fromisoformat(theoretical) + relativedelta(months=6)
+        text = _certificate_text(
+            vin,
+            first_registration=first.strftime("%d/%m/%Y"),
+            inspection_due=later.strftime("%d/%m/%Y"),
+        )
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
+            r = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(_text_pdf(text)),
+            )
+        assert r.status_code == 201, r.text
+        assert r.json()["inspection_due_recorded"] is True
+        assert await _pending_inspection_due(client, auth_headers, vin) == theoretical
+
+    async def test_an_older_deadline_never_replaces_a_newer_one(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """Deadlines only move forward: the later one is the newer sticker, so
+        an older photo of the certificate keeps it, unless ``overwrite``."""
+        today = date.today()
+        first = today - relativedelta(years=5, days=10)
+        newer = today + timedelta(days=60)
+        older = today - timedelta(days=400)
+        vin = await _create_vehicle(client, auth_headers, make="Renault")
+
+        async def _import(deadline: date, overwrite: bool = False) -> dict:
+            text = _certificate_text(
+                vin,
+                first_registration=first.strftime("%d/%m/%Y"),
+                inspection_due=deadline.strftime("%d/%m/%Y"),
+            )
+            with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
+                r = await client.post(
+                    f"/api/vehicles/{vin}/registration-certificate"
+                    + ("?overwrite=true" if overwrite else ""),
+                    headers=auth_headers,
+                    files=_upload(_text_pdf(text)),
+                )
+            assert r.status_code == 201, r.text
+            return r.json()
+
+        assert (await _import(newer))["inspection_due_recorded"] is True
+        assert (await _import(older))["inspection_due_recorded"] is False
+        assert await _pending_inspection_due(client, auth_headers, vin) == newer.isoformat()
+        assert (await _import(older, overwrite=True))["inspection_due_recorded"] is True
+        assert await _pending_inspection_due(client, auth_headers, vin) == older.isoformat()
+
+    async def test_a_recorded_inspection_supersedes_the_deadline(
+        self, client: AsyncClient, auth_headers
+    ):
+        """The deadline holds only while nothing is on record: the test the
+        owner logs before it starts the next cycle from the test date."""
+        today = date.today()
+        first = today - relativedelta(years=5, days=10)
+        deadline = today + timedelta(days=60)
+        vin = await _create_vehicle(client, auth_headers, make="Renault")
+        text = _certificate_text(
+            vin,
+            first_registration=first.strftime("%d/%m/%Y"),
+            inspection_due=deadline.strftime("%d/%m/%Y"),
+        )
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
+            r = await client.post(
+                f"/api/vehicles/{vin}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(_text_pdf(text)),
+            )
+        assert r.status_code == 201, r.text
+        assert await _pending_inspection_due(client, auth_headers, vin) == deadline.isoformat()
+
+        tested = today - timedelta(days=3)
+        visit = await client.post(
+            f"/api/vehicles/{vin}/service-visits",
+            headers=auth_headers,
+            json={
+                "date": tested.isoformat(),
+                "service_category": "Inspection",
+                "line_items": [
+                    {
+                        "description": "Contrôle technique",
+                        "category": "Inspection",
+                        "maintenance_type": "state_inspection",
+                        "is_inspection": True,
+                        "inspection_result": "passed",
+                    }
+                ],
+            },
+        )
+        assert visit.status_code == 201, visit.text
+        assert (
+            await _pending_inspection_due(client, auth_headers, vin)
+            == (tested + relativedelta(years=2)).isoformat()
+        )
 
     async def test_overwrite_replaces_values_but_never_the_vin(
         self, client: AsyncClient, auth_headers
     ):
         vin = await _create_vehicle(client, auth_headers, make="Peugeot", model="208")
         other_vin = _vin()
-        text = _certificate_text(other_vin, first_registration="12/03/2023", last_inspection=None)
+        text = _certificate_text(other_vin, first_registration="12/03/2023", inspection_due=None)
         with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
             r = await client.post(
                 f"/api/vehicles/{vin}/registration-certificate?overwrite=true",
@@ -422,7 +526,7 @@ class TestImport:
         assert "make" in body["applied"] and "model" in body["applied"]
         assert "vin" in body["skipped"]
         assert any("is not this vehicle's" in w for w in body["parse"]["warnings"])
-        assert body["inspection_recorded"] is False
+        assert body["inspection_due_recorded"] is False
         vehicle = (await client.get(f"/api/vehicles/{vin}", headers=auth_headers)).json()
         assert vehicle["vin"] == vin
         assert vehicle["make"] == "RENAULT"
@@ -461,7 +565,7 @@ class TestImport:
         )
         assert created.status_code == 201, created.text
         key = created.json()["vin"]
-        text = _certificate_text(e_value, first_registration="12/03/2023", last_inspection=None)
+        text = _certificate_text(e_value, first_registration="12/03/2023", inspection_due=None)
         try:
             with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
                 r = await client.post(
@@ -496,9 +600,7 @@ class TestImport:
         )
         assert created.status_code == 201, created.text
         key = created.json()["vin"]
-        text = _certificate_text(
-            "1121234567", first_registration="12/03/2023", last_inspection=None
-        )
+        text = _certificate_text("1121234567", first_registration="12/03/2023", inspection_due=None)
         try:
             with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))):
                 r = await client.post(
@@ -539,9 +641,9 @@ class TestParseToken:
     def _text(vin: str) -> str:
         today = date.today()
         first = (today - relativedelta(years=5, days=10)).strftime("%d/%m/%Y")
-        inspection = (today - timedelta(days=30)).strftime("%d/%m/%Y")
+        deadline = (today - timedelta(days=30)).strftime("%d/%m/%Y")
         return (
-            _certificate_text(vin, first_registration=first, last_inspection=inspection)
+            _certificate_text(vin, first_registration=first, inspection_due=deadline)
             # Two components, so a choice between them means something.
             .replace("Y.1 162,50   Y.3 0   Y.6 176,26", "Y.1 162,50   Y.3 50   Y.6 226,26")
         )
@@ -585,7 +687,7 @@ class TestParseToken:
         assert read.await_count == 1  # the parse's read, and no other
         body = r.json()
         assert "license_plate" in body["applied"]
-        assert body["inspection_recorded"] is True
+        assert body["inspection_due_recorded"] is True
         assert body["taxes_created"] == ["Y.3"]
         taxes = (
             await db_session.execute(
@@ -679,7 +781,7 @@ class TestParseToken:
         assert r.status_code == 201, r.text
         assert read.await_count == 2
 
-    async def test_taxes_are_created_after_an_inspection_already_on_file(
+    async def test_taxes_are_created_after_a_deadline_already_on_file(
         self, client: AsyncClient, auth_headers, db_session
     ):
         """CX-M1: the second import of the same certificate finds X.1 on file.
@@ -695,7 +797,7 @@ class TestParseToken:
                 files=_upload(pdf),
             )
             assert first.status_code == 201, first.text
-            assert first.json()["inspection_recorded"] is True
+            assert first.json()["inspection_due_recorded"] is True
             r = await client.post(
                 f"/api/vehicles/{vin}/registration-certificate",
                 headers=auth_headers,
@@ -704,7 +806,7 @@ class TestParseToken:
             )
         assert r.status_code == 201, r.text
         body = r.json()
-        assert body["inspection_recorded"] is False
+        assert body["inspection_due_recorded"] is False
         assert body["taxes_created"] == ["Y.1", "Y.3"]
         taxes = (
             await db_session.execute(select(TaxRecord.tax_type).where(TaxRecord.vin == vin))
@@ -730,26 +832,11 @@ class TestParseToken:
         assert (await db_session.execute(select(TaxRecord).where(TaxRecord.vin == vin))).all() == []
 
 
-class TestRecordInspection:
-    """B8: the household's today, one transaction with the reconcile, and
-    the readings sync every other service-visit write runs."""
+class TestRecordInspectionDue:
+    """B8 for the deadline: written under the vehicle lock and reconciled in
+    the same transaction, so a failed reconcile leaves the old deadline."""
 
-    async def test_today_is_the_households(
-        self, client: AsyncClient, auth_headers, db_session, monkeypatch: pytest.MonkeyPatch
-    ):
-        from app.services import registration_certificate_service as certificates
-
-        vin = await _create_vehicle(client, auth_headers, registration_country="FR")
-        on = date.today() - timedelta(days=30)
-        # The household is behind the container: for it, `on` has not come yet.
-        monkeypatch.setattr(certificates, "household_today", lambda: on - timedelta(days=1))
-        assert await certificates.record_inspection(db_session, vin, on, country="FR") is False
-        visits = (
-            await db_session.execute(select(ServiceVisit).where(ServiceVisit.vin == vin))
-        ).all()
-        assert visits == []
-
-    async def test_the_visit_and_the_reconcile_are_one_transaction(
+    async def test_the_deadline_and_the_reconcile_are_one_transaction(
         self, client: AsyncClient, auth_headers, db_session, monkeypatch: pytest.MonkeyPatch
     ):
         from app.services import maintenance_service
@@ -762,36 +849,21 @@ class TestRecordInspection:
 
         monkeypatch.setattr(maintenance_service, "reconcile_vehicle_unlocked", _boom)
         with pytest.raises(RuntimeError):
-            await certificates.record_inspection(
-                db_session, vin, date.today() - timedelta(days=30), country="FR"
+            await certificates.record_inspection_due(
+                db_session, vin, date.today() + timedelta(days=30), overwrite=False
             )
         await db_session.rollback()
-        visits = (
-            await db_session.execute(select(ServiceVisit).where(ServiceVisit.vin == vin))
-        ).all()
-        assert visits == []
+        stored = (
+            await db_session.execute(select(Vehicle.inspection_due_date).where(Vehicle.vin == vin))
+        ).scalar_one()
+        assert stored is None
 
-    async def test_the_readings_sync_runs(
-        self, client: AsyncClient, auth_headers, db_session, monkeypatch: pytest.MonkeyPatch
-    ):
+    async def test_an_unknown_vehicle_records_nothing(self, db_session):
         from app.services import registration_certificate_service as certificates
-        from app.services.service_visit_service import ServiceVisitService
 
-        vin = await _create_vehicle(client, auth_headers, registration_country="FR")
-        seen: list[bool] = []
-        real = ServiceVisitService.persist_visit_rows
-
-        async def _spy(self, vin, visit_data, *, sync_readings=False):  # noqa: ANN001
-            seen.append(sync_readings)
-            return await real(self, vin, visit_data, sync_readings=sync_readings)
-
-        monkeypatch.setattr(ServiceVisitService, "persist_visit_rows", _spy)
-        on = date.today() - timedelta(days=30)
-        assert await certificates.record_inspection(db_session, vin, on, country="FR") is True
-        assert seen == [True]
-        (visit,) = (
-            (await db_session.execute(select(ServiceVisit).where(ServiceVisit.vin == vin)))
-            .scalars()
-            .all()
+        assert (
+            await certificates.record_inspection_due(
+                db_session, f"{PREFIX}NOSUCHVEHICLE", date.today(), overwrite=False
+            )
+            is False
         )
-        assert visit.date == on

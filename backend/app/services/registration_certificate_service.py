@@ -4,9 +4,11 @@
 text, else the vision model, else 409) and turns what the certificate says
 into a validated ``vehicle_patch``; ``apply_to_vehicle`` writes that patch
 through the ordinary vehicle update (which also re-plans the periodic
-inspection), and records field X.1, the last inspection, as a service visit
-the maintenance lifecycle then anchors on. Nothing here overwrites a value
-a person typed unless asked to, and the VIN is never written.
+inspection), and keeps field X.1, the date the NEXT inspection is due by,
+as the vehicle's ``inspection_due_date``: the inspection engine holds its
+reminder to it while no inspection is on record. X.1 never becomes service
+history. Nothing here overwrites a value a person typed unless asked to,
+and the VIN is never written.
 
 The wizard reads a certificate before the vehicle exists and files it once
 the vehicle does. So the document is read once (B5), the parse is kept in
@@ -28,38 +30,28 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants.fuel import CARTE_GRISE_ENERGY_CODES
-from app.models.service_line_item import ServiceLineItem
-from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.schemas.service_visit import ServiceLineItemCreate, ServiceVisitCreate
 from app.schemas.tax import TaxRecordCreate
 from app.schemas.vehicle import VehicleUpdate
 from app.services import document_reader_service, maintenance_service
-from app.services.country_profile_service import profile_for_country
 from app.services.document_parsers.registration import RegistrationData, from_llm_fields
 from app.services.document_parsers.registry import DocumentParserRegistry
-from app.services.service_visit_service import ServiceVisitService
 from app.services.tax_service import TaxRecordService
 from app.services.vehicle_lock import lock_vehicle_for_write
 from app.services.vehicle_service import VehicleService
-from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.vehicle_columns import fit_to_column
 from app.utils.vehicle_key import display_identifier, has_real_vin, identifier_text
 
 logger = logging.getLogger(__name__)
 
-INSPECTION_TYPE = "state_inspection"
 #: ``documents.document_type`` of a stored certificate: the type the Documents
 #: tab already lists and labels.
 DOCUMENT_TYPE = "registration"
-#: What the inspection line item says when the country has no profile.
-DEFAULT_INSPECTION_TITLE = "Technical inspection"
 
 #: Field J.1 (national kind) → vehicle type. French codes; other countries
 #: fall through to field J.
@@ -201,7 +193,7 @@ class RegistrationParseResult:
     source: str
     data: RegistrationData
     vehicle_patch: dict[str, Any] = field(default_factory=dict)
-    last_inspection_date: date | None = None
+    inspection_due_date: date | None = None
     suggested_tax_records: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     confidence: float = 0.0
@@ -245,7 +237,7 @@ async def parse_upload(
         data.warnings.extend(read.warnings)
 
     patch, dropped = vehicle_patch(data)
-    last_inspection = date.fromisoformat(data.last_inspection) if data.last_inspection else None
+    inspection_due = date.fromisoformat(data.inspection_due) if data.inspection_due else None
     logger.info(
         "Registration certificate read (%s): country=%s confidence=%s fields=%d",
         sanitize_for_log(read.source),
@@ -257,7 +249,7 @@ async def parse_upload(
         source=read.source,
         data=data,
         vehicle_patch=patch,
-        last_inspection_date=last_inspection,
+        inspection_due_date=inspection_due,
         suggested_tax_records=suggested_tax_records(data),
         warnings=data.get_validation_warnings() + dropped,
         confidence=data.confidence_score,
@@ -380,7 +372,7 @@ async def create_suggested_taxes(
 class ApplyOutcome:
     applied: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
-    inspection_recorded: bool = False
+    inspection_due_recorded: bool = False
 
 
 def _compact(value: str | None) -> str:
@@ -399,7 +391,7 @@ async def apply_to_vehicle(
     overwrite: bool,
     current_user: User,
 ) -> ApplyOutcome:
-    """Write the patch onto the vehicle and record the last inspection.
+    """Write the patch onto the vehicle and keep X.1 as its inspection deadline.
 
     Empty fields are filled; a field already set is skipped unless
     ``overwrite``. The vehicle type is never changed without ``overwrite``
@@ -443,85 +435,50 @@ async def apply_to_vehicle(
         await VehicleService(db).update_vehicle(vehicle.vin, VehicleUpdate(**update), current_user)
         await db.refresh(vehicle)
 
-    if result.last_inspection_date is not None:
-        outcome.inspection_recorded = await record_inspection(
-            db,
-            vehicle.vin,
-            result.last_inspection_date,
-            country=result.data.country or vehicle.registration_country,
-            first_registration=vehicle.first_registration_date,
+    if result.inspection_due_date is not None:
+        outcome.inspection_due_recorded = await record_inspection_due(
+            db, vehicle.vin, result.inspection_due_date, overwrite=overwrite
         )
     return outcome
 
 
-async def record_inspection(
-    db: AsyncSession,
-    vin: str,
-    on: date,
-    *,
-    country: str | None,
-    first_registration: date | None = None,
-) -> bool:
-    """Field X.1 as a passed inspection on that date, once.
+async def record_inspection_due(db: AsyncSession, vin: str, due: date, *, overwrite: bool) -> bool:
+    """Field X.1 as the vehicle's inspection deadline; whether it changed.
 
-    A service visit with one ``state_inspection`` line item: the same record
-    a person logs after a test, so the inspection engine anchors the next
-    due date on it. Skipped when a typed inspection already sits on that
-    date, when the date is in the household's future, or before the first
-    registration. Written like any service visit (B8): under the vehicle
-    lock, with the readings sync, and reconciled in the same transaction, so
-    a failed reconcile leaves no visit behind.
+    X.1 (« visite avant le ») is the date the next periodic inspection is
+    due by, so it is never recorded as a passed test: the inspection engine
+    makes its pending reminder due on it while no inspection is on record and
+    the deadline is earlier than its own cadence (`plan_cycle`). Deadlines
+    only move forward, so a later one already on file is the newer sticker
+    and is kept, unless ``overwrite``.
+
+    Written under the vehicle lock and reconciled in the same transaction
+    (B8), so a failed reconcile leaves the old deadline. When nothing
+    changes, the lock is let go with a commit, not a rollback: a rollback
+    would expire every row in the session, the caller's user included, and
+    the tax records written next would trip on it (CX-M1).
     """
-    if on > household_today() or (first_registration is not None and on < first_registration):
-        return False
-    profile = profile_for_country(country)
-    title = (
-        profile.inspection.name
-        if profile is not None and profile.inspection is not None
-        else DEFAULT_INSPECTION_TITLE
-    )
     await lock_vehicle_for_write(db, vin)
-    existing = (
-        await db.execute(
-            select(ServiceLineItem.id)
-            .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
-            .where(
-                ServiceVisit.vin == vin,
-                ServiceVisit.date == on,
-                ServiceLineItem.maintenance_type == INSPECTION_TYPE,
-            )
-        )
-    ).first()
-    if existing is not None:
-        # Nothing was written since the lock, so commit just lets it go.
-        # A rollback would expire every row in the session, the caller's
-        # user included, and the tax records written next would trip on it.
+    vehicle = await db.get(Vehicle, vin, populate_existing=True)
+    current = vehicle.inspection_due_date if vehicle is not None else None
+    if (
+        vehicle is None
+        or current == due
+        or (current is not None and current > due and not overwrite)
+    ):
         await db.commit()
         return False
-    visit = ServiceVisitCreate(
-        date=on,
-        service_category="Inspection",
-        notes="Recorded from the registration certificate (field X.1)",
-        line_items=[
-            ServiceLineItemCreate(
-                description=title,
-                category="Inspection",
-                maintenance_type=INSPECTION_TYPE,
-                is_inspection=True,
-                inspection_result="passed",
-            )
-        ],
-    )
+    vehicle.inspection_due_date = due
     try:
-        await ServiceVisitService(db).persist_visit_rows(vin, visit, sync_readings=True)
+        await db.flush()
         await maintenance_service.reconcile_vehicle_unlocked(db, vin)
         await db.commit()
     except Exception:
         await db.rollback()
         raise
     logger.info(
-        "Registration certificate: recorded inspection on %s for %s",
-        on.isoformat(),
+        "Registration certificate: next inspection due by %s for %s",
+        due.isoformat(),
         sanitize_for_log(vin),
     )
     return True

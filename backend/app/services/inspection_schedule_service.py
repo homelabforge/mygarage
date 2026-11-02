@@ -13,7 +13,8 @@ Two parts:
 
 - the pure part (`schedule_for`, `theoretical_due_dates`, `plan_cycle`)
   computes the cycle a vehicle is in from its first registration date, its
-  last recorded inspection and today, with no database;
+  last recorded inspection, the deadline its registration certificate prints
+  (field X.1) and today, with no database;
 - the database part (`sync_vehicle`, `pause_vehicle`, `sync_all`) applies
   that plan under the vehicle lock the caller holds, writing only what
   differs, so every hook that calls it twice changes nothing the second time.
@@ -203,6 +204,7 @@ def plan_cycle(
     *,
     last_inspection: date | None = None,
     last_failed: bool = False,
+    deadline: date | None = None,
 ) -> CyclePlan:
     """The cycle the vehicle is in.
 
@@ -216,6 +218,13 @@ def plan_cycle(
        The reminder counts from the last theoretical due date (the owner is
        assumed to have passed it) and is due on the next one; before the first
        one it counts from the first registration itself.
+    4. Nothing on record but a `deadline` (field X.1 of the registration
+       certificate, the date the next test is due by) earlier than that next
+       theoretical date: the reminder is due on the deadline, past or not, and
+       counts from one cycle before it. A later deadline changes nothing, and
+       a recorded inspection outranks it (case 2): the sticker may predate
+       the test. Counted back and forth by whole months, a deadline on 29
+       February comes out a day early, never late.
     """
     rules = profile.inspection
     assert rules is not None
@@ -248,10 +257,22 @@ def plan_cycle(
     past = [d for d in dues if d <= today]
     due = next(d for d in dues if d > today)
     anchor = past[-1] if past else first_registration
+    months = _months_between(anchor, due)
+    if deadline is not None and deadline < due:
+        start = deadline - relativedelta(months=months)
+        return CyclePlan(
+            anchor_date=start,
+            anchor_kind="baseline",
+            interval_months=months,
+            due_date=add_interval(start, months, None),
+            first_cycle=not past,
+            retest=False,
+            lead_days=lead_days,
+        )
     return CyclePlan(
         anchor_date=anchor,
         anchor_kind="baseline",
-        interval_months=_months_between(anchor, due),
+        interval_months=months,
         due_date=due,
         first_cycle=not past,
         retest=False,
@@ -402,6 +423,7 @@ async def sync_vehicle(
         today,
         last_inspection=last.date if last is not None else None,
         last_failed=await _failed(db, last),
+        deadline=vehicle.inspection_due_date,
     )
 
     resolution = await maintenance_service.ensure_rule(

@@ -18000,9 +18000,9 @@
           "document": {
             "$ref": "#/components/schemas/DocumentResponse"
           },
-          "inspection_recorded": {
-            "description": "Whether field X.1 was recorded as a service visit",
-            "title": "Inspection Recorded",
+          "inspection_due_recorded": {
+            "description": "Whether field X.1 became the vehicle's inspection deadline, which the inspection reminder is due no later than while no inspection is on record",
+            "title": "Inspection Due Recorded",
             "type": "boolean"
           },
           "parse": {
@@ -18029,7 +18029,7 @@
           "document",
           "applied",
           "skipped",
-          "inspection_recorded",
+          "inspection_due_recorded",
           "parse"
         ],
         "title": "RegistrationImportResponse",
@@ -18069,7 +18069,7 @@
             "title": "Fields",
             "type": "object"
           },
-          "last_inspection_date": {
+          "inspection_due_date": {
             "anyOf": [
               {
                 "format": "date",
@@ -18079,8 +18079,8 @@
                 "type": "null"
               }
             ],
-            "description": "Field X.1, the last periodic inspection",
-            "title": "Last Inspection Date"
+            "description": "Field X.1, the date the next periodic inspection is due by (a deadline)",
+            "title": "Inspection Due Date"
           },
           "model": {
             "anyOf": [
@@ -51938,7 +51938,7 @@
     },
     "/api/vehicles/{vin}/registration-certificate": {
       "post": {
-        "description": "Store the certificate as a document, fill the vehicle, record X.1,\nand create the suggested tax records named in ``tax_codes``.\n\nOwner only: it writes the vehicle row. The file is kept under the\nvehicle's documents whatever the read found, so a certificate a model\ncould not read is still filed. With a ``parse_token`` from this user's\nparse of this same file, that read is reused; otherwise (expired, another\nfile) the file is read again, consent included.",
+        "description": "Store the certificate as a document, fill the vehicle, keep X.1 as the\nvehicle's inspection deadline, and create the suggested tax records named\nin ``tax_codes``.\n\nOwner only: it writes the vehicle row. The file is kept under the\nvehicle's documents whatever the read found, so a certificate a model\ncould not read is still filed. With a ``parse_token`` from this user's\nparse of this same file, that read is reused; otherwise (expired, another\nfile) the file is read again, consent included.",
         "operationId": "import_registration_certificate_api_vehicles__vin__registration_certificate_post",
         "parameters": [
           {

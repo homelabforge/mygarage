@@ -79,8 +79,8 @@ export const registrationCertificateService = {
   },
 
   /**
-   * Store the certificate on the vehicle, fill its empty fields, record X.1
-   * and create the suggested taxes named in `taxCodes`. With the parse
+   * Store the certificate on the vehicle, fill its empty fields, keep X.1 as
+   * the next inspection's deadline and create the suggested taxes named in `taxCodes`. With the parse
    * route's `parseToken` for this same file, the server reuses that read
    * instead of reading the file again; it never takes parsed values from here.
    */

@@ -58,7 +58,7 @@ const FIELD_ROWS = [
   'seats',
   'co2_g_km',
   'euro_class',
-  'last_inspection',
+  'inspection_due',
 ] as const
 type FieldRow = (typeof FIELD_ROWS)[number]
 
@@ -83,7 +83,7 @@ const FIELD_LABEL_KEYS: Record<FieldRow, string> = {
   seats: 'registrationImport.fields.seats',
   co2_g_km: 'registrationImport.fields.co2_g_km',
   euro_class: 'registrationImport.fields.euro_class',
-  last_inspection: 'registrationImport.fields.last_inspection',
+  inspection_due: 'registrationImport.fields.inspection_due',
 }
 
 /** The vehicle fields an import may write, labelled like the edit form. */
@@ -329,9 +329,9 @@ export default function RegistrationCertificateImport({
                   })}
                 </p>
               )}
-              {outcome.inspection_recorded && parse.last_inspection_date && (
+              {outcome.inspection_due_recorded && parse.inspection_due_date && (
                 <p className="text-text-mute">
-                  {t('registrationImport.recordedInspection', { date: parse.last_inspection_date })}
+                  {t('registrationImport.recordedInspectionDue', { date: parse.inspection_due_date })}
                 </p>
               )}
             </div>

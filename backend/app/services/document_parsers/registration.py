@@ -5,7 +5,8 @@ certificate: A plate, B first registration, D.1 make, D.2
 type/variant/version, D.3 commercial name, E VIN, F.1 maximum laden mass, G
 mass in service, J EU category, J.1 national category, K type approval,
 P.1 displacement, P.2 power in kW, P.3 energy code, P.6 fiscal power, S.1
-seats, V.7 CO₂, V.9 Euro class, X.1 last inspection, Y.1 to Y.6 taxes.
+seats, V.7 CO₂, V.9 Euro class, X.1 the date the next inspection is due
+by, Y.1 to Y.6 taxes.
 C.1, the holder's name, is never captured: the import has no use for it.
 
 Two ways in, one ``RegistrationData`` out:
@@ -69,7 +70,7 @@ CODE_FIELDS: dict[str, str] = {
     "S.1": "seats",
     "V.7": "co2_g_km",
     "V.9": "euro_class",
-    "X.1": "last_inspection",
+    "X.1": "inspection_due",
 }
 TAX_CODES: tuple[str, ...] = ("Y.1", "Y.2", "Y.3", "Y.4", "Y.5", "Y.6")
 #: Every code printed on a certificate, captured or not: a code that is not
@@ -111,7 +112,7 @@ _WEIGHTS: dict[str, int] = {
     "fiscal_power": 5,
     "co2_g_km": 5,
     "euro_class": 5,
-    "last_inspection": 5,
+    "inspection_due": 5,
     "country": 5,
 }
 
@@ -170,8 +171,15 @@ def clean_chassis(value: Any) -> str | None:
     return printed if len(printed) <= 64 and _CHASSIS_RE.match(printed) else None
 
 
-def iso_date(value: Any) -> str | None:
-    """``YYYY-MM-DD`` from a printed ``dd/mm/yyyy``, ``dd.mm.yyyy`` or ISO date."""
+#: How far ahead field X.1 may lie: it is the NEXT test's deadline, two years
+#: out just after a French test, four after registration before the first.
+DEADLINE_YEARS_AHEAD = 5
+
+
+def iso_date(value: Any, *, years_ahead: int = 1) -> str | None:
+    """``YYYY-MM-DD`` from a printed ``dd/mm/yyyy``, ``dd.mm.yyyy`` or ISO date,
+    refused when it lies more than ``years_ahead`` years past the household's
+    today (a misread year)."""
     if isinstance(value, date):
         return value.isoformat()
     if not isinstance(value, str):
@@ -188,8 +196,9 @@ def iso_date(value: Any) -> str | None:
     except ValueError:
         return None
     today = household_today()
-    # A year past today, as a leap-day today has no 29 February next year.
-    if parsed.year < 1900 or parsed > today + relativedelta(years=1):
+    # Years past today by relativedelta, as a leap-day today has no 29
+    # February next year.
+    if parsed.year < 1900 or parsed > today + relativedelta(years=years_ahead):
         return None
     return parsed.isoformat()
 
@@ -388,7 +397,9 @@ class RegistrationData(DocumentData):
     seats: int | None = None
     co2_g_km: int | None = None
     euro_class: str | None = None
-    last_inspection: str | None = None
+    #: X.1: the date the next periodic inspection is due by (« visite avant
+    #: le »). A deadline, never the date of a passed test.
+    inspection_due: str | None = None
     #: Y.1 … Y.6 as printed, by code.
     taxes: dict[str, Decimal] = field(default_factory=dict)
     #: ``high`` for a value that matched a strict shape, ``medium`` for free
@@ -425,7 +436,7 @@ class RegistrationData(DocumentData):
                 "seats": self.seats,
                 "co2_g_km": self.co2_g_km,
                 "euro_class": self.euro_class,
-                "last_inspection": self.last_inspection,
+                "inspection_due": self.inspection_due,
                 "taxes": {code: str(amount) for code, amount in self.taxes.items()},
                 "field_confidence": dict(self.field_confidence),
                 "warnings": list(self.warnings),
@@ -484,8 +495,10 @@ def _assign(data: RegistrationData, code: str, raw: Any) -> bool:
                 data.field_confidence["chassis_number"] = "medium"
                 data.warnings.append(CHASSIS_NOTE)
                 return True
-    elif name in ("first_registration", "last_inspection"):
+    elif name == "first_registration":
         value = iso_date(raw)
+    elif name == "inspection_due":
+        value = iso_date(raw, years_ahead=DEADLINE_YEARS_AHEAD)
     elif name == "plate":
         checked = plate_for(raw, data.country)
         value = checked[0] if checked else None

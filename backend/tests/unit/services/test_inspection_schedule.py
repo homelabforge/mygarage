@@ -207,6 +207,49 @@ class TestPlanCycle:
         assert plan.due_date == date(2028, 2, 10)
         assert plan.retest is False
 
+    def test_an_earlier_x1_deadline_holds_the_reminder_to_it(self):
+        """X.1 is the deadline for the NEXT test. Earlier than the theoretical
+        2027-05-01 (and here already past), the reminder is due on it: overdue,
+        never covered for another cycle."""
+        profile, schedule = _schedule("FR")
+        plan = plan_cycle(profile, schedule, date(2015, 5, 1), TODAY, deadline=date(2026, 2, 10))
+        assert plan.due_date == date(2026, 2, 10)
+        assert plan.anchor_kind == "baseline"
+        assert plan.anchor_date == date(2024, 2, 10)
+        assert plan.interval_months == 24
+        assert plan.first_cycle is False
+
+    def test_a_later_x1_deadline_changes_nothing(self):
+        profile, schedule = _schedule("FR")
+        plain = plan_cycle(profile, schedule, date(2015, 5, 1), TODAY)
+        later = plan_cycle(profile, schedule, date(2015, 5, 1), TODAY, deadline=date(2028, 1, 1))
+        assert later == plain
+
+    def test_a_recorded_inspection_outranks_the_x1_deadline(self):
+        """A test on record is better evidence than a printed sticker, which
+        may predate it."""
+        profile, schedule = _schedule("FR")
+        plan = plan_cycle(
+            profile,
+            schedule,
+            date(2015, 5, 1),
+            TODAY,
+            last_inspection=date(2026, 1, 20),
+            deadline=date(2026, 2, 10),
+        )
+        assert plan.anchor_kind == "service"
+        assert plan.due_date == date(2028, 1, 20)
+
+    def test_an_x1_deadline_on_a_leap_day_is_never_overshot(self):
+        """Counted back two years, 29 February lands on the 28th, and two years
+        on from there is the 28th again: a day early, never a day late."""
+        profile, schedule = _schedule("FR")
+        plan = plan_cycle(
+            profile, schedule, date(2015, 5, 1), date(2027, 6, 1), deadline=date(2028, 2, 29)
+        )
+        assert plan.anchor_date == date(2026, 2, 28)
+        assert plan.due_date == date(2028, 2, 28)
+
     def test_a_failed_inspection_is_due_again_within_the_retest_window(self):
         profile, schedule = _schedule("FR")
         plan = plan_cycle(

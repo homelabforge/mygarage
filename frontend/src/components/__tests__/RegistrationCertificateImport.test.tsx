@@ -52,7 +52,7 @@ const PARSE: RegistrationParseResponse = {
     fuel_type: 'gasoline',
     registration_country: 'FR',
   },
-  last_inspection_date: '2026-02-10',
+  inspection_due_date: '2026-02-10',
   suggested_tax_records: [{ code: 'Y.1', tax_type: 'registration_tax', amount: '162.50', date: '2023-03-12' }],
   warnings: [],
   model: null,
@@ -212,7 +212,7 @@ describe('RegistrationCertificateImport', () => {
         response: { status: 409, data: { detail: { code: 'vision_consent_required', host: 'openrouter.ai' } } },
       })
       .mockResolvedValueOnce({
-        data: { document: { id: 1 }, applied: [], skipped: [], inspection_recorded: false, parse: PARSE },
+        data: { document: { id: 1 }, applied: [], skipped: [], inspection_due_recorded: false, parse: PARSE },
       })
     const onImported = vi.fn()
     renderImport({ vin: 'VF1RFB00X56123456', onImported })
@@ -235,7 +235,7 @@ describe('RegistrationCertificateImport', () => {
         document: { id: 1, vin: 'VF1RFB00X56123456', title: 'Registration certificate (AB-123-CD)' },
         applied: ['license_plate', 'first_registration_date'],
         skipped: ['make'],
-        inspection_recorded: true,
+        inspection_due_recorded: true,
         parse: PARSE,
       },
     })
@@ -255,7 +255,7 @@ describe('RegistrationCertificateImport', () => {
       screen.getByText('registrationImport.appliedFields|{"fields":"edit.licensePlate, edit.firstRegistrationDate"}'),
     ).toBeInTheDocument()
     expect(screen.getByText('registrationImport.skippedFields|{"fields":"wizard.make"}')).toBeInTheDocument()
-    expect(screen.getByText('registrationImport.recordedInspection|{"date":"2026-02-10"}')).toBeInTheDocument()
+    expect(screen.getByText('registrationImport.recordedInspectionDue|{"date":"2026-02-10"}')).toBeInTheDocument()
   })
 
   it('refuses a file of the wrong type or past the size limit before any request', async () => {

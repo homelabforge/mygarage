@@ -6479,8 +6479,9 @@ export interface paths {
         put?: never;
         /**
          * Import Registration Certificate
-         * @description Store the certificate as a document, fill the vehicle, record X.1,
-         *     and create the suggested tax records named in ``tax_codes``.
+         * @description Store the certificate as a document, fill the vehicle, keep X.1 as the
+         *     vehicle's inspection deadline, and create the suggested tax records named
+         *     in ``tax_codes``.
          *
          *     Owner only: it writes the vehicle row. The file is kept under the
          *     vehicle's documents whatever the read found, so a certificate a model
@@ -15531,10 +15532,10 @@ export interface components {
             applied: string[];
             document: components["schemas"]["DocumentResponse"];
             /**
-             * Inspection Recorded
-             * @description Whether field X.1 was recorded as a service visit
+             * Inspection Due Recorded
+             * @description Whether field X.1 became the vehicle's inspection deadline, which the inspection reminder is due no later than while no inspection is on record
              */
-            inspection_recorded: boolean;
+            inspection_due_recorded: boolean;
             parse: components["schemas"]["RegistrationParseResponse"];
             /**
              * Skipped
@@ -15577,10 +15578,10 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
-             * Last Inspection Date
-             * @description Field X.1, the last periodic inspection
+             * Inspection Due Date
+             * @description Field X.1, the date the next periodic inspection is due by (a deadline)
              */
-            last_inspection_date?: string | null;
+            inspection_due_date?: string | null;
             /**
              * Model
              * @description The vision model that read it, on the llm path
