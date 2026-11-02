@@ -177,6 +177,23 @@ class TestAppliesTo:
         assert provider.applies_to(_vehicle(), None)
         assert not provider.applies_to(_vehicle(), profile_for_country("FR"))
 
+    def test_nhtsa_never_applies_without_a_real_vin(self):
+        """R1-H2: NHTSA looks recalls up by VIN, so a vehicle keyed by a
+        generated Q key (or a fake VIN switched to its serial) is never sent."""
+        provider = NHTSARecallProvider()
+        for kind, identifier in (("serial", "KBT-1"), ("chassis", "123"), ("none", None)):
+            vehicle = _vehicle(
+                vin="QABCDEFGH12345678",
+                identifier_type=kind,
+                identifier=identifier,
+                registration_country=None,
+            )
+            assert not provider.applies_to(vehicle, None), kind
+        # A fake VIN switched to a serial keeps a VIN-shaped key, but no VIN.
+        fake = _vehicle(vin="1FTFW1E50NFA00001", identifier_type="serial", identifier="SN1")
+        assert not provider.applies_to(fake, None)
+        assert provider.applies_to(_vehicle(identifier_type="vin"), None)
+
     def test_nhtsa_hit_shape(self):
         hit = hit_from_nhtsa(
             {"NHTSACampaignNumber": "24V001", "Component": "AIR BAGS", "Summary": "s"}

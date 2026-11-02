@@ -629,6 +629,93 @@ class TestCheckNhtsaSwitch:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+class TestRecallsWithoutAVin:
+    """#226 / R1-H2: NHTSA works from the VIN, so a vehicle without one gets a
+    clear 409 from the NHTSA check and the generic check skips NHTSA."""
+
+    @pytest.mark.parametrize("nhtsa_enabled", ["true", "false"])
+    async def test_the_nhtsa_check_refuses_a_vehicle_without_a_vin(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session,
+        keep_rows,
+        monkeypatch,
+        nhtsa_enabled: str,
+    ):
+        await keep_rows("nhtsa_enabled")
+        await SettingsService.set(db_session, "nhtsa_enabled", nhtsa_enabled)
+        await db_session.commit()
+        fetch = AsyncMock(return_value=[])
+        monkeypatch.setattr("app.services.nhtsa.NHTSAService.get_vehicle_recalls", fetch)
+        created = await client.post(
+            "/api/vehicles",
+            headers=auth_headers,
+            json={
+                "nickname": "Kubota",
+                "vehicle_type": "Tractor",
+                "identifier_type": "serial",
+                "identifier": "BX23S-77",
+            },
+        )
+        assert created.status_code == 201, created.text
+        key = created.json()["vin"]
+        try:
+            response = await client.post(
+                f"/api/vehicles/{key}/recalls/check-nhtsa", headers=auth_headers
+            )
+            assert response.status_code == 409, response.text
+            assert response.json()["detail"] == (
+                "NHTSA looks recalls up by VIN, and this vehicle has none"
+            )
+            fetch.assert_not_awaited()
+        finally:
+            await client.delete(f"/api/vehicles/{key}", headers=auth_headers)
+
+    @pytest.mark.parametrize("nhtsa_enabled", ["true", "false"])
+    async def test_a_french_vehicle_without_a_vin_gets_rappelconso_only(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session,
+        keep_rows,
+        monkeypatch,
+        nhtsa_enabled: str,
+    ):
+        await keep_rows("nhtsa_enabled")
+        await SettingsService.set(db_session, "nhtsa_enabled", nhtsa_enabled)
+        await db_session.commit()
+        nhtsa_fetch = AsyncMock(return_value=[])
+        monkeypatch.setattr("app.services.nhtsa.NHTSAService.get_vehicle_recalls", nhtsa_fetch)
+        rappel = AsyncMock(return_value=[])
+        monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+        created = await client.post(
+            "/api/vehicles",
+            headers=auth_headers,
+            json={
+                "nickname": "4L",
+                "vehicle_type": "Car",
+                "identifier_type": "chassis",
+                "identifier": "R1121234567",
+                "make": "Renault",
+                "model": "4",
+                "registration_country": "FR",
+            },
+        )
+        assert created.status_code == 201, created.text
+        key = created.json()["vin"]
+        try:
+            response = await client.post(f"/api/vehicles/{key}/recalls/check", headers=auth_headers)
+            assert response.status_code == 200, response.text
+            assert response.json()["providers_checked"] == ["rappelconso"]
+            rappel.assert_awaited_once()
+            nhtsa_fetch.assert_not_awaited()
+        finally:
+            await client.delete(f"/api/vehicles/{key}", headers=auth_headers)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 class TestRecallSources:
     """Where a recall came from (#211): the generic check, the sources that
     cover a country, and the rows they store."""

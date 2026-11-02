@@ -12,6 +12,7 @@ from app.schemas.country_profile import CountryProfile
 from app.services.nhtsa import NHTSAService
 from app.services.recalls.base import SOURCE_NHTSA, RecallHit
 from app.services.settings_service import SettingsService
+from app.utils.vehicle_key import has_real_vin
 
 #: Where a campaign number leads a person.
 NHTSA_RECALL_URL = "https://www.nhtsa.gov/recalls?nhtsaId={campaign}"
@@ -54,6 +55,10 @@ class NHTSARecallProvider:
         return self._service
 
     def applies_to(self, vehicle: Vehicle, profile: CountryProfile | None) -> bool:
+        # NHTSA answers by VIN, so a vehicle without one (#226) is never sent:
+        # its key is a generated Q key or a fake VIN switched to a serial.
+        if not has_real_vin(vehicle):
+            return False
         # No profile is today's behaviour: NHTSA for everyone. A profile
         # lists its sources; North American ones name NHTSA.
         if profile is None:

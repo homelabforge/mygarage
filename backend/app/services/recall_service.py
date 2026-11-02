@@ -27,6 +27,7 @@ from app.services.recalls.registry import providers_for
 from app.services.settings_service import SettingsService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.vehicle_key import has_real_vin
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +223,15 @@ class RecallService:
         vin = vin.upper().strip()
 
         try:
-            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            vehicle = await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+
+            # NHTSA works from the VIN; a vehicle without one (#226) would
+            # send its generated key. The generic check still covers it.
+            if not has_real_vin(vehicle):
+                raise HTTPException(
+                    status_code=409,
+                    detail="NHTSA looks recalls up by VIN, and this vehicle has none",
+                )
 
             # After the access check, so a caller who can't write the vehicle
             # learns nothing about the switch.

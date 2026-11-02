@@ -41,6 +41,8 @@ pytestmark = pytest.mark.unit
 # Every vehicle this module creates has a VIN starting with this, so cleanup
 # and call counting can tell this module's vehicles from other modules'.
 _VIN_PREFIX = "1RCLTSTA"
+# The same for this module's vehicles without a VIN (#226): a generated key.
+_Q_PREFIX = "QRCLTSTA"
 
 _SETTING_KEYS = (
     "nhtsa_enabled",
@@ -63,8 +65,9 @@ def _vin(n: int) -> str:
 async def _wipe(db: AsyncSession) -> None:
     """Remove this module's recalls and vehicles."""
     await db.rollback()
-    await db.execute(delete(Recall).where(Recall.vin.like(f"{_VIN_PREFIX}%")))
-    await db.execute(delete(Vehicle).where(Vehicle.vin.like(f"{_VIN_PREFIX}%")))
+    for prefix in (_VIN_PREFIX, _Q_PREFIX):
+        await db.execute(delete(Recall).where(Recall.vin.like(f"{prefix}%")))
+        await db.execute(delete(Vehicle).where(Vehicle.vin.like(f"{prefix}%")))
     await db.commit()
 
 
@@ -234,6 +237,57 @@ async def test_auto_check_off_stops_only_nhtsa(
     assert [
         call.args[1].vin for call in rappel.await_args_list if call.args[1].vin == french.vin
     ] == [french.vin]
+
+
+@pytest.mark.parametrize("nhtsa_enabled", ["true", "false"])
+async def test_a_vehicle_without_a_vin_reaches_rappelconso_never_nhtsa(
+    db_session: AsyncSession,
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+    nhtsa_enabled: str,
+) -> None:
+    """R1-H2 / F-3: the sweep stays inclusive, so a French tractor keyed by a
+    Q key still gets RappelConso (make and model, no VIN), whatever NHTSA's
+    switch says. NHTSA is never asked about a Q key, not even for a vehicle
+    with no country, which NHTSA would otherwise cover."""
+    rappel = AsyncMock(return_value=[])
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    french = Vehicle(
+        vin=f"{_Q_PREFIX}FR0000001",
+        nickname="Tracteur",
+        vehicle_type="Tractor",
+        identifier_type="serial",
+        identifier="KBT-FR-1",
+        make="Renault",
+        model="Ares",
+        registration_country="FR",
+    )
+    nowhere = Vehicle(
+        vin=f"{_Q_PREFIX}US0000001",
+        nickname="Mower",
+        vehicle_type="Mower",
+        identifier_type="none",
+        make="Deere",
+        model="X350",
+    )
+    db_session.add_all([french, nowhere])
+    await db_session.commit()
+    await _store(
+        db_session,
+        nhtsa_enabled=nhtsa_enabled,
+        nhtsa_auto_check="true",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+        rappelconso_enabled="true",
+    )
+
+    await check_recalls_all_vehicles()
+
+    assert [
+        call.args[1].vin for call in rappel.await_args_list if call.args[1].vin == french.vin
+    ] == [french.vin]
+    assert _fetched(recalls_fetch, french.vin) == 0
+    assert _fetched(recalls_fetch, nowhere.vin) == 0
 
 
 async def test_every_scheduled_source_off_skips_the_pass(
