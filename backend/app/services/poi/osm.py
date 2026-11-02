@@ -1,5 +1,6 @@
 """OpenStreetMap Overpass API provider for POI search."""
 
+import asyncio
 import logging
 import math
 from decimal import Decimal
@@ -7,9 +8,16 @@ from typing import Any
 
 import httpx
 
+from app.config import settings
 from app.services.poi.base import BasePOIProvider, POICategory
 
 logger = logging.getLogger(__name__)
+
+# The public Overpass instances refuse httpx's default User-Agent
+# (overpass-api.de with 406, overpass.openstreetmap.fr with 403), so every
+# search came back empty. Identify ourselves, as the Nominatim proxy in
+# routes/poi.py already does.
+_USER_AGENT = f"MyGarage/{settings.app_version} (+https://github.com/homelabforge/mygarage)"
 
 
 class OSMProvider(BasePOIProvider):
@@ -54,56 +62,74 @@ class OSMProvider(BasePOIProvider):
         # Build Overpass QL query for all requested categories
         query = self._build_query(latitude, longitude, radius_meters, categories)
 
-        # Try each Overpass instance until one succeeds
-        last_error = None
-        for instance_url in self.overpass_urls:
-            try:
-                logger.info("Trying Overpass instance: %s", instance_url)
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.post(instance_url, data={"data": query})
-                    response.raise_for_status()
-                    data = response.json()
-
-                    # Parse OSM response
-                    elements = data.get("elements", [])
-
-                    # Filter and normalize results
-                    results = []
-                    for element in elements:
-                        if element.get("type") in ["node", "way"]:
-                            normalized = self.normalize_result(element)
-                            if normalized:
-                                # Calculate distance from search center
-                                distance = self._calculate_distance(
-                                    latitude,
-                                    longitude,
-                                    float(normalized["latitude"]),
-                                    float(normalized["longitude"]),
-                                )
-                                normalized["distance_meters"] = distance
-                                results.append(normalized)
-
-                    # Sort by distance and limit results
-                    results.sort(key=lambda x: x.get("distance_meters", float("inf")))
-                    results = results[: self.max_results]
-
+        # Ask every instance at once and keep the first good answer. Which public
+        # instance is healthy changes from day to day: tried in turn, two that
+        # hang cost the full timeout each (over a minute) before one that
+        # answers in a second got its turn.
+        pending = {asyncio.create_task(self._fetch(url, query)): url for url in self.overpass_urls}
+        last_error: Exception | None = None
+        try:
+            while pending:
+                done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                for task in done:
+                    instance_url = pending.pop(task)
+                    try:
+                        elements = task.result()
+                    except (httpx.HTTPError, ValueError) as e:
+                        logger.warning("Overpass instance %s failed: %s", instance_url, str(e))
+                        last_error = e
+                        continue
+                    results = self._to_results(elements, latitude, longitude)
                     logger.info(
                         "Successfully got %d results from %s",
                         len(results),
                         instance_url,
                     )
                     return results
-
-            except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
-                logger.warning("Overpass instance %s failed: %s", instance_url, str(e))
-                last_error = e
-                continue
+        finally:
+            for task in pending:
+                task.cancel()
 
         # All instances failed
         logger.error("All Overpass instances failed")
         if last_error:
             raise last_error
         raise Exception("All Overpass API instances failed")
+
+    async def _fetch(self, instance_url: str, query: str) -> list[dict[str, Any]]:
+        """One instance's elements for ``query``; raises on any HTTP or JSON failure."""
+        logger.info("Trying Overpass instance: %s", instance_url)
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                instance_url,
+                data={"data": query},
+                headers={"User-Agent": _USER_AGENT},
+            )
+            response.raise_for_status()
+            return response.json().get("elements", [])
+
+    def _to_results(
+        self, elements: list[dict[str, Any]], latitude: float, longitude: float
+    ) -> list[dict[str, Any]]:
+        """Normalized results, nearest first, at most ``max_results``."""
+        results = []
+        for element in elements:
+            if element.get("type") in ["node", "way"]:
+                normalized = self.normalize_result(element)
+                if normalized:
+                    # Calculate distance from search center
+                    distance = self._calculate_distance(
+                        latitude,
+                        longitude,
+                        float(normalized["latitude"]),
+                        float(normalized["longitude"]),
+                    )
+                    normalized["distance_meters"] = distance
+                    results.append(normalized)
+
+        # Sort by distance and limit results
+        results.sort(key=lambda x: x.get("distance_meters", float("inf")))
+        return results[: self.max_results]
 
     def _build_query(
         self,
