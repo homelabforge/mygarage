@@ -506,12 +506,13 @@ async def _recall_check_due(db: AsyncSession, now: datetime) -> bool:
 async def check_recalls_all_vehicles() -> None:
     """Auto-check NHTSA recalls for all vehicles when the interval is due.
 
-    Runs daily at 2 AM UTC. Skips when nhtsa_auto_check is off, when every
-    recall source is switched off, or when nhtsa_recall_check_interval days
-    (less an hour) haven't passed since nhtsa_last_check. Otherwise asks every
-    source that covers each vehicle's country (NHTSA, RappelConso in France,
-    #211), inserts new recalls, and sends notifications for newly discovered
-    ones.
+    Runs daily at 2 AM UTC. Skips when no recall source would be asked (NHTSA
+    needs nhtsa_enabled and nhtsa_auto_check, RappelConso its own switch), or
+    when nhtsa_recall_check_interval days (less an hour) haven't passed since
+    nhtsa_last_check. Otherwise asks every source that covers each vehicle's
+    country (NHTSA, RappelConso in France, #211), inserts new recalls, and
+    sends notifications for newly discovered ones. nhtsa_auto_check is
+    NHTSA's alone (F-4): with it off, RappelConso's scheduled checks still run.
 
     An NHTSA outage for any vehicle leaves nhtsa_last_check unchanged, so the
     next daily run tries again; the recalls found meanwhile are committed
@@ -520,24 +521,27 @@ async def check_recalls_all_vehicles() -> None:
     can't resolve to a make, model and year counts as checked.
     """
     from app.services.recall_service import sync_vehicle_recalls
-    from app.services.recalls.base import SOURCE_RAPPELCONSO
+    from app.services.recalls.base import SOURCE_NHTSA, SOURCE_RAPPELCONSO
     from app.services.recalls.rappelconso import ENABLED_SETTING as RAPPELCONSO_ENABLED_SETTING
 
     async with AsyncSessionLocal() as db:
         await load_household_zone(db)
         try:
             # nhtsa_enabled still keeps NHTSA from being asked: its provider
-            # checks it (`NHTSARecallProvider.enabled`). The pass only stops
-            # here when RappelConso (#211) is off too, so a household that
-            # switched NHTSA off keeps its French recalls.
-            if not await SettingsService.get_bool(
+            # checks it (`NHTSARecallProvider.enabled`). nhtsa_auto_check
+            # drops NHTSA from this scheduled pass only (F-4). The pass stops
+            # here only when RappelConso (#211) is off too, so a household
+            # that switched NHTSA off keeps its French recalls.
+            nhtsa_auto = await SettingsService.get_bool(db, "nhtsa_auto_check", True)
+            nhtsa_scheduled = nhtsa_auto and await SettingsService.get_bool(
                 db, "nhtsa_enabled", True
-            ) and not await SettingsService.get_bool(db, RAPPELCONSO_ENABLED_SETTING, True):
-                logger.info("Every recall source switched off, skipping the scheduled check")
+            )
+            if not nhtsa_scheduled and not await SettingsService.get_bool(
+                db, RAPPELCONSO_ENABLED_SETTING, True
+            ):
+                logger.info("No recall source is checked on a schedule, skipping")
                 return
-            if not await SettingsService.get_bool(db, "nhtsa_auto_check", True):
-                logger.info("NHTSA auto-check disabled, skipping")
-                return
+            skip = frozenset() if nhtsa_auto else frozenset({SOURCE_NHTSA})
             now = utc_now()
             if not await _recall_check_due(db, now):
                 logger.debug("NHTSA recall check not due yet, skipping")
@@ -562,7 +566,7 @@ async def check_recalls_all_vehicles() -> None:
                     # Every source that covers the vehicle's country (#211):
                     # NHTSA where no profile says otherwise, RappelConso in
                     # France. Stores what is new and commits.
-                    outcome = await sync_vehicle_recalls(db, vehicle)
+                    outcome = await sync_vehicle_recalls(db, vehicle, skip=skip)
                     new_count = outcome.new_count
                     # A provider's failure is caught in the sync; an NHTSA
                     # outage still holds nhtsa_last_check back.

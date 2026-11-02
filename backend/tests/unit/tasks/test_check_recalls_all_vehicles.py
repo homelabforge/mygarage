@@ -47,6 +47,8 @@ _SETTING_KEYS = (
     "nhtsa_auto_check",
     "nhtsa_recall_check_interval",
     "nhtsa_last_check",
+    "rappelconso_enabled",
+    "rappelconso_last_check",
 )
 
 
@@ -198,6 +200,67 @@ async def test_the_switches_gate_the_scheduled_check(
     await check_recalls_all_vehicles()
 
     assert _fetched(recalls_fetch, vehicle.vin) == (1 if runs else 0)
+
+
+async def test_auto_check_off_stops_only_nhtsa(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F-4: `nhtsa_auto_check` is NHTSA's switch. With it off, a French
+    vehicle still gets its scheduled RappelConso check, and NHTSA is never
+    asked about the American one."""
+    rappel = AsyncMock(return_value=[])
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    american = await make_vehicle()
+    french = await make_vehicle()
+    french.registration_country = "FR"
+    french.make = "Renault"
+    await db_session.commit()
+    await _store(
+        db_session,
+        nhtsa_enabled="true",
+        nhtsa_auto_check="false",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+        rappelconso_enabled="true",
+    )
+
+    await check_recalls_all_vehicles()
+
+    assert _fetched(recalls_fetch, american.vin) == 0
+    assert _fetched(recalls_fetch, french.vin) == 0
+    assert [
+        call.args[1].vin for call in rappel.await_args_list if call.args[1].vin == french.vin
+    ] == [french.vin]
+
+
+async def test_every_scheduled_source_off_skips_the_pass(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rappel = AsyncMock(return_value=[])
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    french = await make_vehicle()
+    french.registration_country = "FR"
+    french.make = "Renault"
+    await db_session.commit()
+    await _store(
+        db_session,
+        nhtsa_enabled="true",
+        nhtsa_auto_check="false",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+        rappelconso_enabled="false",
+    )
+
+    await check_recalls_all_vehicles()
+
+    assert rappel.await_count == 0
+    assert await _last_check(db_session) in (None, "")
 
 
 # --- the interval -------------------------------------------------------------

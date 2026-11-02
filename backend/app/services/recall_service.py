@@ -77,19 +77,25 @@ def _warning_for(provider: RecallProvider, exc: Exception) -> str:
 
 
 async def sync_vehicle_recalls(
-    db: AsyncSession, vehicle: Vehicle, *, providers: list[RecallProvider] | None = None
+    db: AsyncSession,
+    vehicle: Vehicle,
+    *,
+    providers: list[RecallProvider] | None = None,
+    skip: frozenset[str] = frozenset(),
 ) -> RecallSyncOutcome:
     """Ask every provider that covers the vehicle and store what is new (#211).
 
     A recall is new when no row carries its ``(source, external_id)``; an
     NHTSA campaign number already stored before sources existed counts too.
     A provider that fails is a warning, never the end of the pass: the
-    others still run. Commits.
+    others still run. ``skip`` names sources left out of this pass (the
+    scheduled check drops NHTSA when its auto-check is off). Commits.
     """
     outcome = RecallSyncOutcome()
     if providers is None:
         profile = await profile_for_vehicle(db, vehicle)
         providers = await providers_for(db, vehicle, profile)
+    providers = [provider for provider in providers if provider.name not in skip]
     rows = (
         await db.execute(
             select(Recall.source, Recall.external_id, Recall.nhtsa_campaign_number).where(
