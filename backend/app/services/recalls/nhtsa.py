@@ -42,6 +42,17 @@ def hit_from_nhtsa(record: dict[str, Any]) -> RecallHit | None:
 class NHTSARecallProvider:
     name = SOURCE_NHTSA
 
+    def __init__(self) -> None:
+        # One client for the process: NHTSAService validates its base URL with
+        # a DNS lookup when it's built, and the scheduled check asks once per
+        # vehicle. Upstream built it once per sweep.
+        self._service: NHTSAService | None = None
+
+    def _client(self) -> NHTSAService:
+        if self._service is None:
+            self._service = NHTSAService()
+        return self._service
+
     def applies_to(self, vehicle: Vehicle, profile: CountryProfile | None) -> bool:
         # No profile is today's behaviour: NHTSA for everyone. A profile
         # lists its sources; North American ones name NHTSA.
@@ -55,6 +66,6 @@ class NHTSARecallProvider:
     async def fetch(self, db: AsyncSession, vehicle: Vehicle) -> list[RecallHit]:
         # An outage raises NHTSAUnavailableError instead of reading as "no
         # recalls", so the scheduled check doesn't stamp nhtsa_last_check.
-        records = await NHTSAService().get_vehicle_recalls(vehicle.vin, db, raise_on_error=True)
+        records = await self._client().get_vehicle_recalls(vehicle.vin, db, raise_on_error=True)
         hits = [hit_from_nhtsa(record) for record in records]
         return [hit for hit in hits if hit is not None]
