@@ -41,7 +41,7 @@ def _make_tables(engine) -> None:
             )
         )
         conn.execute(
-            text("INSERT INTO vehicles (vin, nickname) VALUES ('1HGBH41JXMN109186', 'Civic')")
+            text("INSERT INTO vehicles (vin, nickname) VALUES ('1HGCM82633A004352', 'Civic')")
         )
 
 
@@ -67,7 +67,7 @@ def test_143_adds_the_four_columns(engine_for_migration):
         vrow = conn.execute(
             text(
                 "SELECT registration_country, first_registration_date FROM vehicles "
-                "WHERE vin = '1HGBH41JXMN109186'"
+                "WHERE vin = '1HGCM82633A004352'"
             )
         ).one()
         assert vrow == (None, None)

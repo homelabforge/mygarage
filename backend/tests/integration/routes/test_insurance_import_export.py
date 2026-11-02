@@ -244,7 +244,7 @@ async def test_the_json_backup_carries_insurance_with_named_fields_at_both_level
 
     exported = await client.get(f"/api/export/vehicles/{RAM}/json", headers=auth_headers)
     backup = exported.json()
-    assert backup["export_version"] == "10"
+    assert backup["export_version"] == "9"
     (entry,) = backup["insurance_policies"]
     assert entry["premium_share"] == 300.0, "the vehicle's EFFECTIVE share, not the policy total"
 
@@ -790,7 +790,7 @@ async def test_the_no_claims_class_round_trips_the_csv_and_the_json(
     assert entry["no_claims_class"] == "0.50"
 
     # Restored from the backup, the class comes back; an unreadable one is dropped.
-    await db_session.execute(delete(InsurancePolicy))
+    await db_session.execute(delete(InsurancePolicy).where(scope.mine()))
     await db_session.commit()
     entry["no_claims_class"] = "a value far too long for the column"
     backup["insurance_policies"] = [entry]

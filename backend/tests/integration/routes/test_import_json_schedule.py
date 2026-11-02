@@ -740,7 +740,7 @@ _REFUSED = [
     ),
     pytest.param(
         [_rule(source="import")],
-        "Maintenance rule 0: source must be one of pack, manual, service",
+        "Maintenance rule 0: source must be one of pack, manual, service, inspection",
         id="source-word",
     ),
     pytest.param(

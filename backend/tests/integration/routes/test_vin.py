@@ -287,13 +287,13 @@ class TestEuropeanVins:
         mock_instance = mock_nhtsa_class.return_value
         mock_instance.decode_vin = AsyncMock(
             return_value={
-                "vin": "1HGBH41JXMN109186",
+                "vin": "1HGCM82633A004352",
                 "make": "HONDA",
                 "model": "Accord",
                 "year": 2018,
             }
         )
-        response = await client.get("/api/vin/decode/1HGBH41JXMN109186", headers=auth_headers)
+        response = await client.get("/api/vin/decode/1HGCM82633A004352", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["year"] == 2018

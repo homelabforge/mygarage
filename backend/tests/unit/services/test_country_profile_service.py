@@ -146,39 +146,49 @@ def test_schema_refuses_unknown_keys_and_bad_steps():
 
 
 @pytest.mark.asyncio
-async def test_resolve_country_precedence(db_session, test_user, test_vehicle):
+async def test_resolve_country_precedence(db_session, test_user, test_vehicle, keep_rows):
     vehicle = (
         await db_session.execute(select(Vehicle).where(Vehicle.vin == test_vehicle["vin"]))
     ).scalar_one()
     owner = await db_session.get(User, vehicle.user_id)
     assert owner is not None
+    # The test database is shared: the instance default, the owner's country
+    # and the vehicle's go back as they were, or every later test resolves
+    # this test's countries (the scheduled recall check stops asking NHTSA).
+    await keep_rows("default_country")
+    owner_country, vehicle_country = owner.country, vehicle.registration_country
+    try:
+        # Nothing set anywhere: None.
+        assert await svc.resolve_country(db_session, vehicle) is None
 
-    # Nothing set anywhere: None.
-    assert await svc.resolve_country(db_session, vehicle) is None
+        # Instance default is the last rung. The row may already be seeded by the
+        # app's startup in another test, so upsert rather than insert.
+        row = (
+            await db_session.execute(select(Setting).where(Setting.key == "default_country"))
+        ).scalar_one_or_none()
+        if row is None:
+            db_session.add(Setting(key="default_country", value="de", category="general"))
+        else:
+            row.value = "de"
+        await db_session.commit()
+        assert await svc.resolve_country(db_session, vehicle) == "DE"
 
-    # Instance default is the last rung. The row may already be seeded by the
-    # app's startup in another test, so upsert rather than insert.
-    row = (
-        await db_session.execute(select(Setting).where(Setting.key == "default_country"))
-    ).scalar_one_or_none()
-    if row is None:
-        db_session.add(Setting(key="default_country", value="de", category="general"))
-    else:
-        row.value = "de"
-    await db_session.commit()
-    assert await svc.resolve_country(db_session, vehicle) == "DE"
+        # The owner's country beats the instance.
+        owner.country = "FR"
+        await db_session.commit()
+        assert await svc.resolve_country(db_session, vehicle) == "FR"
 
-    # The owner's country beats the instance.
-    owner.country = "FR"
-    await db_session.commit()
-    assert await svc.resolve_country(db_session, vehicle) == "FR"
-
-    # The vehicle's registration country beats both.
-    vehicle.registration_country = "LU"
-    await db_session.commit()
-    assert await svc.resolve_country(db_session, vehicle) == "LU"
-    profile = await svc.profile_for_vehicle(db_session, vehicle)
-    assert profile is not None and profile.country == "LU"
+        # The vehicle's registration country beats both.
+        vehicle.registration_country = "LU"
+        await db_session.commit()
+        assert await svc.resolve_country(db_session, vehicle) == "LU"
+        profile = await svc.profile_for_vehicle(db_session, vehicle)
+        assert profile is not None and profile.country == "LU"
+    finally:
+        await db_session.rollback()
+        owner.country = owner_country
+        vehicle.registration_country = vehicle_country
+        await db_session.commit()
 
 
 # --- Insurance (#211) ---------------------------------------------------------

@@ -778,7 +778,7 @@ class TestRecallSources:
         assert stored[0]["nhtsa_campaign_number"] == "24V999"
         assert stored[0]["match_confidence"] == 100
 
-    async def test_check_requires_write_access(
+    async def test_check_needs_a_write_share(
         self, client: AsyncClient, non_admin_headers, test_vehicle
     ):
         response = await client.post(

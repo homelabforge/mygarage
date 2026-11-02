@@ -13,7 +13,7 @@ from datetime import date, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 import pytest_asyncio
 from dateutil.relativedelta import relativedelta
@@ -74,7 +74,7 @@ def _vin() -> str:
 
 
 def _text_pdf(text: str) -> bytes:
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((40, 60), text, fontsize=9)
     data = doc.tobytes()

@@ -38,12 +38,12 @@ def _make_tables(engine) -> None:
                 "component VARCHAR(100), summary TEXT, is_resolved BOOLEAN DEFAULT 0)"
             )
         )
-        conn.execute(text("INSERT INTO vehicles (vin, nickname) VALUES ('1HGBH41JXMN109186', 'A')"))
+        conn.execute(text("INSERT INTO vehicles (vin, nickname) VALUES ('1HGCM82633A004352', 'A')"))
         conn.execute(
             text(
                 "INSERT INTO recalls (id, vin, nhtsa_campaign_number, component, summary) VALUES "
-                "(1, '1HGBH41JXMN109186', '24V001', 'Airbag', 'x'), "
-                "(2, '1HGBH41JXMN109186', NULL, 'Typed', 'y')"
+                "(1, '1HGCM82633A004352', '24V001', 'Airbag', 'x'), "
+                "(2, '1HGCM82633A004352', NULL, 'Typed', 'y')"
             )
         )
 

@@ -117,7 +117,7 @@ async def _seed_every_section(db_session: AsyncSession, vin: str) -> None:
             TaxRecord(
                 vin=vin,
                 date=date(2026, 2, 1),
-                tax_type="Registration",
+                tax_type="registration",
                 amount=Decimal("120.00"),
                 renewal_date=date(2027, 2, 1),
                 notes="plates",
@@ -250,7 +250,7 @@ async def _restored(sessionmaker: Any, vin: str) -> dict[str, list[tuple]]:
 
 _EXPECTED = {
     "financing": [(date(2026, 1, 15), Decimal("450.00"), "loan_payment", "B3 Lender", "jan")],
-    "tax": [(date(2026, 2, 1), "Registration", Decimal("120.00"), date(2027, 2, 1), "plates")],
+    "tax": [(date(2026, 2, 1), "registration", Decimal("120.00"), date(2027, 2, 1), "plates")],
     "tags": [("EZ TAG", "B3TAG001", "inactive", "old")],
     "tolls": [
         (date(2026, 3, 1), Decimal("2.50"), "Hardy Toll Road", "B3TAG001", "commute"),
@@ -369,7 +369,11 @@ async def test_a_row_the_api_would_refuse_is_a_row_error_and_the_rest_imports(
     # main: KeyError, none of the six sections is read
     assert data["errors"] == [
         "Financing record 0: category must be one of lease_payment, loan_payment, upfront_fee",
-        "Tax record 0: tax_type must be one of Registration, Inspection, Property Tax, Tolls",
+        (
+            "Tax record 0: tax_type must be one of registration, registration_tax, "
+            "co2_malus, weight_malus, circulation_tax, company_vehicle_tax, inspection, "
+            "property_tax, tolls, vignette, lez_sticker, parking_permit, other"
+        ),
         "Toll tag 0: status must be one of active, inactive",
         "Warranty 0: warranty_type is missing",
         "Spot rental 0: billing 0: total must be at least 0, not -10.0",
@@ -459,7 +463,7 @@ async def test_rows_sharing_the_old_keys_restore_beside_a_stored_match(
                 vin=vin, date=date(2026, 5, 1), amount=Decimal("100.00"), category="loan_payment"
             ),
             TaxRecord(
-                vin=vin, date=date(2026, 5, 2), tax_type="Registration", amount=Decimal("50.00")
+                vin=vin, date=date(2026, 5, 2), tax_type="registration", amount=Decimal("50.00")
             ),
             WarrantyRecord(
                 vin=vin,
@@ -498,13 +502,13 @@ async def test_rows_sharing_the_old_keys_restore_beside_a_stored_match(
         "tax_records": [
             {
                 "date": "2026-05-02",
-                "tax_type": "Registration",
+                "tax_type": "registration",
                 "amount": 50.0,
                 "renewal_date": None,
             },
             {
                 "date": "2026-05-02",
-                "tax_type": "Registration",
+                "tax_type": "registration",
                 "amount": 75.0,
                 "renewal_date": None,
             },

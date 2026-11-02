@@ -137,7 +137,7 @@ _DUPLICATE_PAIRS = {
     "tax": (
         lambda vin: [
             TaxRecord(
-                vin=vin, date=date(2026, 3, 1), tax_type="Registration", amount=Decimal("50.00")
+                vin=vin, date=date(2026, 3, 1), tax_type="registration", amount=Decimal("50.00")
             )
             for _ in range(2)
         ],

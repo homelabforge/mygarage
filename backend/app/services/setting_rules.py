@@ -41,8 +41,8 @@ from app.services.llm_client import (
 from app.services.recalls.rappelconso import API_URL_SETTING as RAPPELCONSO_API_URL_SETTING
 from app.services.settings_init import DEFAULT_SETTINGS
 from app.services.settings_service import SWITCH_OFF_VALUES, SWITCH_ON_VALUES
-from app.utils.url_validation import validate_data_economie_url
 from app.utils.household_time import TIMEZONE_SETTING_KEY
+from app.utils.url_validation import validate_data_economie_url
 
 #: Kept by the app itself, never by an admin: the running version, the last
 #: recall checks (NHTSA, and RappelConso for #211), and how far the Telegram

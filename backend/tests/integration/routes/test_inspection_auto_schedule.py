@@ -492,8 +492,12 @@ class TestWindowNotification:
             def __init__(self, _db):
                 pass
 
-            async def dispatch(self, *, event_type: str, title: str, message: str) -> None:
+            async def dispatch(
+                self, *, event_type: str, title: str, message: str
+            ) -> dict[str, bool]:
                 sent.append((title, message))
+                # Delivered by one provider: the sweep stamps only what got out.
+                return {"test": True}
 
         monkeypatch.setattr(
             "app.services.notifications.dispatcher.NotificationDispatcher", _Dispatcher
@@ -525,8 +529,11 @@ class TestWindowNotification:
             def __init__(self, _db):
                 pass
 
-            async def dispatch(self, *, event_type: str, title: str, message: str) -> None:
+            async def dispatch(
+                self, *, event_type: str, title: str, message: str
+            ) -> dict[str, bool]:
                 sent.append(title)
+                return {"test": True}
 
         monkeypatch.setattr(
             "app.services.notifications.dispatcher.NotificationDispatcher", _Dispatcher
