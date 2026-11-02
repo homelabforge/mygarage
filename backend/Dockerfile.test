@@ -3,7 +3,7 @@
 #
 # Why a separate image: production mygarage:latest does NOT include pytest /
 # pytest-asyncio / httpx / dev tools. Per the project memo, tests must run
-# inside a Python 3.14 container (the host runs 3.13). This image provides
+# inside a Python 3.15 container (the host runs 3.13). This image provides
 # that runtime + all dev deps + libmagic for file-type detection paths.
 #
 # Build: bin/ci-check builds the ci-check stage (node for pyright, .nvmrc's
@@ -17,7 +17,7 @@
 ARG NODE_MAJOR=24
 FROM node:${NODE_MAJOR}-slim AS node
 
-FROM python:3.14-slim AS test
+FROM python:3.15-slim AS test
 
 # docker-cli: cheap to include for parity with sibling repos
 # libmagic1 + file: required by file-type detection paths in tests

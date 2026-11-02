@@ -1,6 +1,6 @@
 # MyGarage Development Guide
 
-This guide covers local development setup for MyGarage using **Bun 1.3.4** for the frontend and **Python 3.14** for the backend.
+This guide covers local development setup for MyGarage using **Bun 1.4** for the frontend and **Python 3.15** for the backend.
 
 ---
 
@@ -19,7 +19,7 @@ This guide covers local development setup for MyGarage using **Bun 1.3.4** for t
 
 ### Required
 - **Bun** 1.3.4+ ([Installation guide](https://bun.sh/docs/installation))
-- **Python** 3.14+
+- **Python** 3.15+
 - **Git**
 
 ### Optional
@@ -333,7 +333,7 @@ docker compose down
 
 The Dockerfile uses a multi-stage build:
 1. **Frontend stage**: Bun 1.3.4-alpine builds the React app
-2. **Backend stage**: Python 3.14-slim installs backend dependencies
+2. **Backend stage**: Python 3.15-slim installs backend dependencies
 3. **Production stage**: Combines built frontend + backend
 
 ### Docker Compose

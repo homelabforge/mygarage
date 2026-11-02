@@ -1,7 +1,7 @@
 # ==============================================================================
 # Multi-stage Dockerfile for MyGarage
 # Frontend: Bun (version pinned by .bun-version, passed as BUN_VERSION build-arg)
-# Backend: Python 3.14-slim
+# Backend: Python 3.15-slim
 # ==============================================================================
 
 ARG BUN_VERSION=1.4.4
@@ -14,7 +14,7 @@ ARG BUN_VERSION=1.4.4
 # the same lockfile: alpine ~1090s, slim 0.38s. The musl binding loads fine
 # — it is the allocator, not a missing/WASM fallback, so pinning a binding
 # would not help. Build-stage only: just dist/ is copied into the
-# python:3.14-slim runtime, so this costs the shipped image nothing.
+# python:3.15-slim runtime, so this costs the shipped image nothing.
 FROM oven/bun:${BUN_VERSION}-slim AS frontend-builder
 
 # Set working directory
@@ -38,7 +38,7 @@ RUN bun run build
 RUN test -d dist && test -f dist/index.html
 
 # Stage 2: Build backend
-FROM python:3.14-slim AS backend-builder
+FROM python:3.15-slim AS backend-builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -66,7 +66,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system --no-cache --no-deps .
 
 # Stage 3: Production image
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # Build arguments for metadata
 ARG BUILD_DATE
@@ -104,7 +104,7 @@ RUN apt-get update && \
 ENV OMP_THREAD_LIMIT=1
 
 # Copy Python dependencies from builder
-COPY --from=backend-builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=backend-builder /usr/local/lib/python3.15/site-packages /usr/local/lib/python3.15/site-packages
 COPY --from=backend-builder /usr/local/bin /usr/local/bin
 
 # Copy backend application code

@@ -17,6 +17,8 @@ jobs:
   ci:
     uses: homelabforge/shared-workflows/.github/workflows/python-react-ci.yml@v1.7.0
     with:
+      # Must match the Dockerfile's python:X-slim; the shared default lags.
+      python-version: "3.15"
       enable-translations: true
       enable-pg-migrations: true
       # Each suite split across runners. Measured on run 37449264165 before

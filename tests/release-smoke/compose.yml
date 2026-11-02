@@ -64,7 +64,7 @@ services:
   # Smoke runner — invoked via `docker compose run --rm smoke <target-url>`.
   # Lives in the same compose network so it reaches the apps by service name.
   smoke:
-    image: python:3.14-slim
+    image: python:3.15-slim
     container_name: mygarage-release-smoke-smoke
     depends_on:
       app-pg:
