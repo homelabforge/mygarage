@@ -665,7 +665,19 @@
       "cylindersNegative": "Cylinders cannot be negative",
       "cylindersTooLarge": "Cylinders value too large",
       "cylindersInvalid": "Enter a valid number",
-      "purchasePriceInvalid": "Enter a valid number"
+      "purchasePriceInvalid": "Enter a valid number",
+      "fiscalPowerNotWhole": "Fiscal power must be a whole number",
+      "fiscalPowerNegative": "Fiscal power cannot be negative",
+      "fiscalPowerTooLarge": "Fiscal power can be at most 200",
+      "fiscalPowerInvalid": "Enter a valid number",
+      "co2NotWhole": "CO₂ must be a whole number",
+      "co2Negative": "CO₂ cannot be negative",
+      "co2TooLarge": "CO₂ can be at most 999 g/km",
+      "co2Invalid": "Enter a valid number",
+      "powerKwNotWhole": "Power must be a whole number",
+      "powerKwNegative": "Power cannot be negative",
+      "powerKwTooLarge": "Power can be at most 2000 kW",
+      "powerKwInvalid": "Enter a valid number"
     },
     "recall": {
       "campaignNumberTooLong": "Campaign number too long (max 20 characters)",

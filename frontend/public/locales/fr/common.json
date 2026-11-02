@@ -653,7 +653,19 @@
       "cylindersNegative": "Le nombre de cylindres ne peut pas être négatif",
       "cylindersTooLarge": "Nombre de cylindres trop élevé",
       "cylindersInvalid": "Saisissez un nombre valide",
-      "purchasePriceInvalid": "Saisissez un nombre valide"
+      "purchasePriceInvalid": "Saisissez un nombre valide",
+      "fiscalPowerNotWhole": "La puissance fiscale doit être un nombre entier",
+      "fiscalPowerNegative": "La puissance fiscale ne peut pas être négative",
+      "fiscalPowerTooLarge": "La puissance fiscale ne peut pas dépasser 200",
+      "fiscalPowerInvalid": "Saisissez un nombre valide",
+      "co2NotWhole": "Le CO₂ doit être un nombre entier",
+      "co2Negative": "Le CO₂ ne peut pas être négatif",
+      "co2TooLarge": "Le CO₂ ne peut pas dépasser 999 g/km",
+      "co2Invalid": "Saisissez un nombre valide",
+      "powerKwNotWhole": "La puissance doit être un nombre entier",
+      "powerKwNegative": "La puissance ne peut pas être négative",
+      "powerKwTooLarge": "La puissance ne peut pas dépasser 2000 kW",
+      "powerKwInvalid": "Saisissez un nombre valide"
     },
     "recall": {
       "campaignNumberTooLong": "Numéro de campagne trop long (max. 20 caractères)",

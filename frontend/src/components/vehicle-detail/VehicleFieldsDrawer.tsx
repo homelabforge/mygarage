@@ -77,9 +77,9 @@ function getCardConfig(card: VehicleCardKey): CardConfig {
           { key: 'tire_specs', label: 'detail.misc.tires', kind: 'text' },
           // #211 — the other fields of an EU registration certificate.
           { key: 'euro_emission_class', label: 'edit.euroClass', kind: 'text' },
-          { key: 'fiscal_power', label: 'edit.fiscalPower', kind: 'number', min: '0', max: '200' },
-          { key: 'co2_g_km', label: 'edit.co2', kind: 'number', min: '0', max: '999' },
-          { key: 'power_kw', label: 'edit.powerKw', kind: 'number', min: '0', max: '2000' },
+          { key: 'fiscal_power', label: 'edit.fiscalPower', kind: 'number' },
+          { key: 'co2_g_km', label: 'edit.co2', kind: 'number' },
+          { key: 'power_kw', label: 'edit.powerKw', kind: 'number' },
           { key: 'eu_category', label: 'edit.euCategory', kind: 'text' },
           { key: 'national_category', label: 'edit.nationalCategory', kind: 'text' },
           { key: 'lez_class', label: 'edit.lezClass', kind: 'text' },

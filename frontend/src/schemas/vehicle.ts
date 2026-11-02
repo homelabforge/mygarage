@@ -165,14 +165,50 @@ const cylindersSchema = (t: TFunction) =>
     integerKey: 'common:validation.vehicle.cylindersNotWhole',
   })
 
+// The EU registration certificate figures (#211), with the API's bounds
+// (VehicleUpdate: fiscal power 0-200, CO2 0-999 g/km, power 0-2000 kW).
+const fiscalPowerSchema = (t: TFunction) =>
+  numericOrNullField(t, {
+    min: 0,
+    max: 200,
+    negativeKey: 'common:validation.vehicle.fiscalPowerNegative',
+    tooLargeKey: 'common:validation.vehicle.fiscalPowerTooLarge',
+    invalidKey: 'common:validation.vehicle.fiscalPowerInvalid',
+    integerKey: 'common:validation.vehicle.fiscalPowerNotWhole',
+  })
+
+const co2Schema = (t: TFunction) =>
+  numericOrNullField(t, {
+    min: 0,
+    max: 999,
+    negativeKey: 'common:validation.vehicle.co2Negative',
+    tooLargeKey: 'common:validation.vehicle.co2TooLarge',
+    invalidKey: 'common:validation.vehicle.co2Invalid',
+    integerKey: 'common:validation.vehicle.co2NotWhole',
+  })
+
+const powerKwSchema = (t: TFunction) =>
+  numericOrNullField(t, {
+    min: 0,
+    max: 2000,
+    negativeKey: 'common:validation.vehicle.powerKwNegative',
+    tooLargeKey: 'common:validation.vehicle.powerKwTooLarge',
+    invalidKey: 'common:validation.vehicle.powerKwInvalid',
+    integerKey: 'common:validation.vehicle.powerKwNotWhole',
+  })
+
 /**
  * Year, doors and cylinders on their own, for VehicleFieldsDrawer, which edits
- * them outside this form. Same bounds and messages as the edit form.
+ * them outside this form. Same bounds and messages as the edit form. The
+ * certificate figures (#211) are edited only there.
  */
 export const makeVehicleWholeNumberFields = (t: TFunction) => ({
   year: yearSchema(t),
   doors: doorsSchema(t),
   cylinders: cylindersSchema(t),
+  fiscal_power: fiscalPowerSchema(t),
+  co2_g_km: co2Schema(t),
+  power_kw: powerKwSchema(t),
 })
 
 // Both prices are money: floor 0 and the API's MONEY_MAX (money-fits). The
