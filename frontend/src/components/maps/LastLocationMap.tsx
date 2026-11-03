@@ -11,6 +11,7 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet'
 import type { LatLngTuple } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './leafletIcons'
+import { OSM_TILE_URL } from './tiles'
 
 interface Props {
   latitude: number
@@ -29,7 +30,7 @@ export default function LastLocationMap({ latitude, longitude }: Props): ReactEl
     <MapContainer center={position} zoom={14} style={MAP_STYLE} scrollWheelZoom={false}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        url={OSM_TILE_URL}
       />
       <Marker position={position} />
     </MapContainer>

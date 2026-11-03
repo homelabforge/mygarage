@@ -459,6 +459,7 @@ from app.routes.family import router as family_router
 from app.routes.livelink import router as livelink_ingest_router
 from app.routes.livelink_admin import router as livelink_admin_router
 from app.routes.livelink_vehicle import router as livelink_vehicle_router
+from app.routes.map_tiles import router as map_tiles_router
 from app.routes.oidc import router as oidc_router
 from app.routes.poi import router as poi_router
 from app.routes.quick_entry import router as quick_entry_router
@@ -511,6 +512,7 @@ app.include_router(calendar_router)
 app.include_router(window_sticker_router)
 app.include_router(notifications_router)
 app.include_router(poi_router)  # New POI router
+app.include_router(map_tiles_router)
 app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
 app.include_router(vendors_router)
 app.include_router(service_visits_router)

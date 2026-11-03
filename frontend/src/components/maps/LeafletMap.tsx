@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './leafletIcons'
+import { OSM_TILE_URL } from './tiles'
 
 interface POIResult {
   business_name: string
@@ -65,7 +66,7 @@ export default function LeafletMap({ pois, userLocation, radiusMeters, onMarkerC
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        url={OSM_TILE_URL}
       />
 
       {/* User location marker */}
