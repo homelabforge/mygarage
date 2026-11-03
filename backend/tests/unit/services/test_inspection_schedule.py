@@ -225,6 +225,28 @@ class TestPlanCycle:
         later = plan_cycle(profile, schedule, date(2015, 5, 1), TODAY, deadline=date(2028, 1, 1))
         assert later == plain
 
+    @pytest.mark.parametrize(
+        ("first_registration", "deadline"),
+        [
+            # A carte grise reissued in 2020 still prints its 2021 X.1 after
+            # the 2021, 2023 and 2025 tests (Fable F-1).
+            (date(2015, 5, 1), date(2021, 5, 1)),
+            # On the anchor itself: the cycle the owner is assumed to have passed.
+            (date(2015, 5, 1), date(2025, 5, 1)),
+            # A misread year on a new car: before it was even registered.
+            (date(2024, 6, 10), date(2017, 1, 1)),
+        ],
+    )
+    def test_an_x1_deadline_older_than_the_current_cycle_changes_nothing(
+        self, first_registration: date, deadline: date
+    ):
+        """Red on 3.10.0-rc1, which made the reminder due on any earlier
+        deadline: five years overdue, notified daily."""
+        profile, schedule = _schedule("FR")
+        plain = plan_cycle(profile, schedule, first_registration, TODAY)
+        stale = plan_cycle(profile, schedule, first_registration, TODAY, deadline=deadline)
+        assert stale == plain
+
     def test_a_recorded_inspection_outranks_the_x1_deadline(self):
         """A test on record is better evidence than a printed sticker, which
         may predate it."""

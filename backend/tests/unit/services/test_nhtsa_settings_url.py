@@ -1,7 +1,6 @@
-"""The stored NHTSA API URL settings: blank means "use the default".
+"""The stored NHTSA API URL setting: blank means "use the default".
 
-`nhtsa_recalls_api_url` and `nhtsa_tsb_api_url` are nullable text in the
-settings table. A blank or NULL one used to go through the SSRF check, fail it
+`nhtsa_recalls_api_url` is nullable text in the settings table. A blank or NULL one used to go through the SSRF check, fail it
 and log an ERROR before falling back, so every recall check on an install that
 never set a URL logged a security block.
 """
@@ -17,7 +16,7 @@ from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
-from app.services.nhtsa import DEFAULT_RECALLS_API_URL, DEFAULT_TSB_API_URL, NHTSAService
+from app.services.nhtsa import DEFAULT_RECALLS_API_URL, NHTSAService
 
 pytestmark = pytest.mark.asyncio
 
@@ -31,23 +30,19 @@ FETCHES = [
         "https://api.nhtsa.gov/recalls/recallsByVehicle?",
         id="recalls",
     ),
-    pytest.param(
-        "get_vehicle_tsbs",
-        "nhtsa_tsb_api_url",
-        "https://api.nhtsa.gov/products/vehicle/tsbs?",
-        id="tsbs",
-    ),
 ]
 
 
 class _FakeResponse:
     """Just enough of an httpx response for the fetches."""
 
+    status_code = 200
+
     def raise_for_status(self) -> None:
         """Never an HTTP error."""
 
     def json(self) -> dict[str, Any]:
-        """No recalls, no TSBs."""
+        """No recalls."""
         return {"results": []}
 
 
@@ -136,7 +131,6 @@ async def test_a_blank_stored_url_quietly_uses_the_default(
 
 _DEFAULTS = {
     "nhtsa_recalls_api_url": DEFAULT_RECALLS_API_URL,
-    "nhtsa_tsb_api_url": DEFAULT_TSB_API_URL,
 }
 
 

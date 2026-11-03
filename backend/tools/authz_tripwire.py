@@ -79,7 +79,6 @@ WRAPPER_ALLOWLIST = {
     "get_vehicle_analytics",
     "get_vehicle_sessions",
     "get_vehicle_recalls",
-    "get_vehicle_tsbs",
     "get_vehicle_livelink_status",
     "get_vehicle_telemetry",
 }

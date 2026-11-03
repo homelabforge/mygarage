@@ -29585,6 +29585,19 @@
             "title": "Identifier Type",
             "type": "string"
           },
+          "inspection_due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle",
+            "title": "Inspection Due Date"
+          },
           "lez_class": {
             "anyOf": [
               {
@@ -31030,6 +31043,19 @@
             "default": "vin",
             "description": "What identifies this vehicle",
             "title": "Identifier Type"
+          },
+          "inspection_due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle",
+            "title": "Inspection Due Date"
           },
           "interior_color": {
             "anyOf": [
@@ -32646,6 +32672,19 @@
             ],
             "description": "vin, serial, hin, chassis, asset_tag or none (omit to leave unchanged)",
             "title": "Identifier Type"
+          },
+          "inspection_due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle",
+            "title": "Inspection Due Date"
           },
           "interior_color": {
             "anyOf": [

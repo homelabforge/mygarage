@@ -64,6 +64,7 @@ function getCardConfig(card: VehicleCardKey): CardConfig {
           { key: 'license_plate', label: 'edit.licensePlate', kind: 'text' },
           { key: 'registration_country', label: 'edit.registrationCountry', kind: 'country' },
           { key: 'first_registration_date', label: 'edit.firstRegistrationDate', kind: 'date' },
+          { key: 'inspection_due_date', label: 'edit.inspectionDueDate', kind: 'date' },
           {
             key: 'exterior_color',
             label: 'detail.misc.exteriorColor',
