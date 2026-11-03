@@ -531,6 +531,7 @@
     "registrationCountryHint": "Where the vehicle is registered. Drives its inspection cadence, fuel pump names and tax types.",
     "firstRegistrationDate": "First registration date",
     "firstRegistrationDateHint": "Field B on an EU registration certificate.",
+    "inspectionDueDate": "Next inspection due by",
     "euroClass": "Euro emission class (V.9)",
     "fiscalPower": "Fiscal power (P.6, CV)",
     "co2": "CO₂ (V.7, g/km)",

@@ -20010,6 +20010,11 @@ export interface components {
              */
             identifier_type: "vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none";
             /**
+             * Inspection Due Date
+             * @description Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle
+             */
+            inspection_due_date?: string | null;
+            /**
              * Lez Class
              * @description Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); overrides the class computed from the fuel and the Euro class
              */
@@ -20600,6 +20605,11 @@ export interface components {
              * @default vin
              */
             identifier_type: ("vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none") | null;
+            /**
+             * Inspection Due Date
+             * @description Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle
+             */
+            inspection_due_date?: string | null;
             /** Interior Color */
             interior_color?: string | null;
             /**
@@ -21144,6 +21154,11 @@ export interface components {
              * @description vin, serial, hin, chassis, asset_tag or none (omit to leave unchanged)
              */
             identifier_type?: ("vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none") | null;
+            /**
+             * Inspection Due Date
+             * @description Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle
+             */
+            inspection_due_date?: string | null;
             /**
              * Interior Color
              * @description Interior color

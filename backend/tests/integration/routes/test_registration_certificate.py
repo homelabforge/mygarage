@@ -437,7 +437,9 @@ class TestImport:
         today = date.today()
         first = today - relativedelta(years=5, days=10)
         newer = today + timedelta(days=60)
-        older = today - timedelta(days=400)
+        # Still after the cycle's theoretical start, four years after first:
+        # an older deadline than that is a test assumed passed, never a hold.
+        older = today - timedelta(days=300)
         vin = await _create_vehicle(client, auth_headers, make="Renault")
 
         async def _import(deadline: date, overwrite: bool = False) -> dict:

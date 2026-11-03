@@ -45,6 +45,8 @@ def _failure(request: httpx.Request, how: str) -> httpx.Response:
         raise httpx.TooManyRedirects("redirect loop", request=request)
     if how == "503":
         return httpx.Response(503, request=request, text=MAINTENANCE_PAGE)
+    if how == "400":
+        return httpx.Response(400, request=request, text=MAINTENANCE_PAGE)
     if how == "not-json":
         return httpx.Response(200, request=request, text=MAINTENANCE_PAGE)
     raise AssertionError(how)
@@ -73,6 +75,7 @@ _ORIGINAL = {
     "decoding-error": httpx.DecodingError,
     "too-many-redirects": httpx.TooManyRedirects,
     "503": httpx.HTTPStatusError,
+    "400": httpx.HTTPStatusError,
     "not-json": ValueError,
 }
 
@@ -152,3 +155,53 @@ async def test_by_default_a_decoding_error_is_not_unavailable(
         await NHTSAService().get_vehicle_recalls(VIN, db_session)
 
     assert not isinstance(caught.value, unavailable)
+
+
+#: What api.nhtsa.gov sends for a make, model and year with no recalls.
+NO_RECALLS = {"Count": 0, "Message": "Results returned successfully", "results": []}
+
+
+@pytest.mark.parametrize("raise_on_error", [True, False])
+async def test_a_400_saying_no_recalls_is_no_recalls(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, raise_on_error: bool
+) -> None:
+    """NHTSA answers a car with a clean record with a 400 and an empty
+    `results`. That's an answer: red on 3.10.0-rc1, where the scheduled check
+    read it as an outage and held `nhtsa_last_check` back every night."""
+
+    async def fake_get(client: object, url: str, **kwargs: object) -> httpx.Response:
+        request = httpx.Request("GET", url)
+        if "/DecodeVinValues/" in urlsplit(url).path:
+            return _decode_answer(request)
+        return httpx.Response(400, request=request, json=NO_RECALLS)
+
+    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
+    monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
+
+    recalls = await NHTSAService().get_vehicle_recalls(
+        VIN, db_session, raise_on_error=raise_on_error
+    )
+
+    assert recalls == []
+
+
+@pytest.mark.parametrize(
+    "body", [{"results": [{"NHTSACampaignNumber": "25V297000"}]}, {"message": "Bad Request"}]
+)
+async def test_any_other_400_is_still_an_outage(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, body: dict[str, object]
+) -> None:
+    """Only the empty answer passes: a 400 with results in it, or without a
+    `results` list at all, is still NHTSA not answering usably."""
+
+    async def fake_get(client: object, url: str, **kwargs: object) -> httpx.Response:
+        request = httpx.Request("GET", url)
+        if "/DecodeVinValues/" in urlsplit(url).path:
+            return _decode_answer(request)
+        return httpx.Response(400, request=request, json=body)
+
+    monkeypatch.setattr("httpx.AsyncClient.get", fake_get)
+    monkeypatch.setattr("app.utils.url_validation.resolve_hostname", lambda hostname: None)
+
+    with pytest.raises(nhtsa_module.NHTSAUnavailableError):
+        await NHTSAService().get_vehicle_recalls(VIN, db_session, raise_on_error=True)

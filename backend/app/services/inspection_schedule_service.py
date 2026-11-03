@@ -219,11 +219,14 @@ def plan_cycle(
        assumed to have passed it) and is due on the next one; before the first
        one it counts from the first registration itself.
     4. Nothing on record but a `deadline` (field X.1 of the registration
-       certificate, the date the next test is due by) earlier than that next
-       theoretical date: the reminder is due on the deadline, past or not, and
-       counts from one cycle before it. A later deadline changes nothing, and
-       a recorded inspection outranks it (case 2): the sticker may predate
-       the test. Counted back and forth by whole months, a deadline on 29
+       certificate, the date the next test is due by) inside the current
+       theoretical cycle, after its anchor and before the next date: the
+       reminder is due on the deadline, past or not, and counts from one cycle
+       before it. A later deadline changes nothing. So does one on or before
+       the anchor: X.1 is printed when the certificate is issued and isn't
+       reprinted after each test, so an old one is a cycle the owner is
+       assumed to have passed, like the anchor itself. A recorded inspection
+       outranks it (case 2): the sticker may predate the test. Counted back and forth by whole months, a deadline on 29
        February comes out a day early, never late.
     """
     rules = profile.inspection
@@ -258,7 +261,7 @@ def plan_cycle(
     due = next(d for d in dues if d > today)
     anchor = past[-1] if past else first_registration
     months = _months_between(anchor, due)
-    if deadline is not None and deadline < due:
+    if deadline is not None and anchor < deadline < due:
         start = deadline - relativedelta(months=months)
         return CyclePlan(
             anchor_date=start,

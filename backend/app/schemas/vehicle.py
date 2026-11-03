@@ -164,6 +164,13 @@ class VehicleBase(BaseModel):
         None,
         description="Date of first registration (field B of an EU registration certificate)",
     )
+    inspection_due_date: date | None = Field(
+        None,
+        description=(
+            "Next periodic inspection due by (field X.1 of an EU registration "
+            "certificate); the reminder holds to it within the current cycle"
+        ),
+    )
     # The other EU registration-certificate fields (#211). Bounds are the
     # input's; the response reads what is stored.
     euro_emission_class: str | None = Field(

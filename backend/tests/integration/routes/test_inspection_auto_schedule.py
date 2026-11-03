@@ -337,6 +337,40 @@ class TestPreferenceAndCountry:
         assert again["due_date"] == fr["due_date"]
         assert again["rule"]["id"] == rule.id
 
+    async def test_the_x1_deadline_can_be_read_corrected_and_cleared(
+        self, client, auth_headers, db_session
+    ):
+        """Fable F-2: the deadline is on the vehicle, not write-only. Setting it
+        holds the reminder to it, even one dismissed meanwhile; clearing it
+        goes back to the theoretical date."""
+        first = _today() - relativedelta(years=11, months=1)
+        theoretical = (first + relativedelta(years=12)).isoformat()
+        deadline = (first + relativedelta(years=10, months=6)).isoformat()
+        vin = await _vehicle(client, auth_headers, first_registration=first)
+        (reminder,) = await _pending(client, auth_headers, vin)
+        r = await client.post(
+            f"/api/vehicles/{vin}/reminders/{reminder['id']}/dismiss", headers=auth_headers
+        )
+        assert r.status_code == 200, r.text
+
+        r = await client.put(
+            f"/api/vehicles/{vin}", headers=auth_headers, json={"inspection_due_date": deadline}
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["inspection_due_date"] == deadline
+        r = await client.get(f"/api/vehicles/{vin}", headers=auth_headers)
+        assert r.json()["inspection_due_date"] == deadline
+        (held,) = await _pending(client, auth_headers, vin)
+        assert held["due_date"] == deadline
+
+        r = await client.put(
+            f"/api/vehicles/{vin}", headers=auth_headers, json={"inspection_due_date": None}
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["inspection_due_date"] is None
+        (back,) = await _pending(client, auth_headers, vin)
+        assert back["due_date"] == theoretical
+
     async def test_a_dismissed_reminder_stays_dismissed_on_a_routine_sync(
         self, client, auth_headers, db_session
     ):

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The next inspection deadline (X.1) shows in Basic Information, where you can correct or clear it.
+
+### Fixed
+
+- A vehicle with no NHTSA recalls no longer counts as an NHTSA outage, which made the scheduled check ask again every night.
+- An X.1 date older than the current inspection cycle no longer makes the reminder years overdue.
+- A recall source is only marked checked when a vehicle asked it and the check got through, including a RappelConso maintenance page and a vehicle that errored.
+
+### Removed
+
+- The unused NHTSA service bulletin lookup, whose address no longer exists.
+
 ## [3.10.0-rc1] - 2026-11-02
 
 _Pre-release; promoting to stable will keep these entries._

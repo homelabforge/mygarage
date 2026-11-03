@@ -16,6 +16,7 @@ NHTSA answers "a valid decode, zero recalls" for any VIN it doesn't know.
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from functools import partial
@@ -764,6 +765,106 @@ async def test_a_rappelconso_outage_is_retried_without_asking_nhtsa_early(
 
     assert _asked_rappel() == 2
     assert _fetched(recalls_fetch, american.vin) == 1
+
+
+async def _french(make_vehicle: Callable[..., Awaitable[Vehicle]], db: AsyncSession) -> Vehicle:
+    vehicle = await make_vehicle()
+    vehicle.registration_country = "FR"
+    vehicle.make = "Renault"
+    await db.commit()
+    return vehicle
+
+
+async def _both_due(db: AsyncSession) -> None:
+    await _store(
+        db,
+        nhtsa_enabled="true",
+        nhtsa_auto_check="true",
+        nhtsa_recall_check_interval="7",
+        nhtsa_last_check="",
+        rappelconso_enabled="true",
+        rappelconso_last_check="",
+    )
+
+
+async def test_a_source_no_vehicle_was_asked_keeps_its_stamp(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No French car, so RappelConso was asked nothing and keeps its blank
+    stamp: the first French car added is asked the next night, not up to an
+    interval later. Red on 3.10.0-rc1, which stamped every due source."""
+    rappel = AsyncMock(return_value=[])
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    american = await make_vehicle()
+    await _both_due(db_session)
+
+    await check_recalls_all_vehicles()
+
+    assert _fetched(recalls_fetch, american.vin) == 1
+    assert await _last_check(db_session)
+    assert rappel.await_count == 0
+    assert await _stamp(db_session, "rappelconso_last_check") in (None, "")
+
+    french = await _french(make_vehicle, db_session)
+    await check_recalls_all_vehicles()
+
+    assert sum(1 for call in rappel.await_args_list if call.args[1].vin == french.vin) == 1
+    assert await _stamp(db_session, "rappelconso_last_check")
+
+
+async def test_a_rappelconso_page_that_isnt_json_is_an_outage(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A maintenance page served as 200 makes `response.json()` raise a
+    JSONDecodeError, a ValueError, which used to pass for "this vehicle
+    can't be checked" and stamped RappelConso for a whole interval."""
+    rappel = AsyncMock(side_effect=json.JSONDecodeError("Expecting value", "<html>", 0))
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    await _french(make_vehicle, db_session)
+    await _both_due(db_session)
+
+    await check_recalls_all_vehicles()
+
+    assert rappel.await_count == 1
+    assert await _stamp(db_session, "rappelconso_last_check") in (None, "")
+
+
+async def test_a_vehicle_that_errors_holds_every_due_stamp(
+    db_session: AsyncSession,
+    make_vehicle: Callable[..., Awaitable[Vehicle]],
+    recalls_fetch: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An error of the vehicle's own ("database is locked") reaches no
+    source for it, so neither stamp moves and it's retried the next night."""
+    from app.services import recall_service
+
+    rappel = AsyncMock(return_value=[])
+    monkeypatch.setattr("app.services.recalls.rappelconso.RappelConsoProvider.fetch", rappel)
+    await make_vehicle()
+    await _french(make_vehicle, db_session)
+    locked = await make_vehicle()
+    real_sync = recall_service.sync_vehicle_recalls
+
+    async def flaky_sync(db: AsyncSession, vehicle: Vehicle, **kwargs: Any) -> Any:
+        if vehicle.vin == locked.vin:
+            raise RuntimeError("database is locked")
+        return await real_sync(db, vehicle, **kwargs)
+
+    monkeypatch.setattr(recall_service, "sync_vehicle_recalls", flaky_sync)
+    await _both_due(db_session)
+
+    await check_recalls_all_vehicles()
+
+    assert rappel.await_count == 1
+    assert await _last_check(db_session) in (None, "")
+    assert await _stamp(db_session, "rappelconso_last_check") in (None, "")
 
 
 # --- the trigger --------------------------------------------------------------
