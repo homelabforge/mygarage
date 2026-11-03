@@ -14,11 +14,11 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.constants.wheel_layouts import BrakePosition
 from app.schemas._nullability import reject_null
 from app.schemas.tire import HoursFigure, UsageAxisName
 from app.utils.household_time import household_today
 
-BrakePosition = Literal["FL", "FR", "RL", "RR"]
 Axle = Literal["front", "rear"]
 BrakeType = Literal["disc", "drum"]
 Surface = Literal["replaced", "resurfaced"]

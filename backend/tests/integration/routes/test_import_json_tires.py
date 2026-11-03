@@ -563,7 +563,7 @@ _REFUSED = [
     ),
     pytest.param(
         [_mounted("FL", mount_periods=[{"position": "XX", "mounted_on": "2026-01-01"}])],
-        "Tire 0, mount period 0: position must be one of FL, FR, RL, RR, SPARE",
+        "Tire 0, mount period 0: position must be one of FL, FR, RL, RR, F, R, RLO, RLI, RRI, RRO, SPARE",
         _ONE_SET,
         id="period-position-word",
     ),

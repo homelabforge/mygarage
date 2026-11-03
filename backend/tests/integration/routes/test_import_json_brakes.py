@@ -305,7 +305,7 @@ _REFUSED = [
     ),
     pytest.param(
         {"brake_measurements": [{**_CHECK, "position": "SPARE"}]},
-        "Brake measurement 0: position must be one of FL, FR, RL, RR",
+        "Brake measurement 0: position must be one of FL, FR, RL, RR, F, R",
         id="measurement-position-word",
     ),
     pytest.param(

@@ -38,16 +38,17 @@ from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from typing import Literal
 
+from app.constants.wheel_layouts import BRAKE_AXLE_OF, BrakePosition
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.services.usage_axis import UsageAxis
 
 Axle = Literal["front", "rear"]
 BrakeType = Literal["disc", "drum"]
-BrakePosition = Literal["FL", "FR", "RL", "RR"]
 
 POSITIONS: tuple[BrakePosition, ...] = ("FL", "FR", "RL", "RR")
 AXLES: tuple[Axle, ...] = ("front", "rear")
-AXLE_OF: dict[str, Axle] = {"FL": "front", "FR": "front", "RL": "rear", "RR": "rear"}
+# Old name, so brake_service imports stay put.
+AXLE_OF = BRAKE_AXLE_OF
 
 #: A corner is due soon this long before its projected wear date.
 DUE_SOON_DAYS = 90
