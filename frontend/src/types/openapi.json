@@ -43584,6 +43584,74 @@
         ]
       }
     },
+    "/api/map/tiles/{z}/{x}/{y}.png": {
+      "get": {
+        "description": "One 256px OSM tile. Served from the cache when it is under 7 days old.",
+        "operationId": "get_tile_api_map_tiles__z___x___y__png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "z",
+            "required": true,
+            "schema": {
+              "maximum": 19,
+              "minimum": 0,
+              "title": "Z",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "x",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "X",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "y",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Y",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Tile",
+        "tags": [
+          "Map"
+        ]
+      }
+    },
     "/api/notifications/inbox": {
       "get": {
         "description": "Return actionable in-app alerts (overdue and soon-due reminders).",
