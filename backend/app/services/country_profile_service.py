@@ -49,8 +49,8 @@ class ProfileError(ValueError):
 
 def _profile_path(profile_id: str) -> Path:
     # The id is the file stem, so it is matched against a strict pattern before
-    # it is used in a path: ``../x`` is refused rather than resolved.
-    if not _PROFILE_ID.match(profile_id):
+    # it is used in a path: ``../x`` (or ``FR\n``) is refused rather than resolved.
+    if not _PROFILE_ID.fullmatch(profile_id):
         raise ProfileError(f"invalid profile id {profile_id!r}")
     return PROFILES_DIR / f"{profile_id}.json"
 
@@ -104,7 +104,9 @@ def available_profile_ids() -> tuple[str, ...]:
     """File ids shipped with the app, sorted."""
     if not PROFILES_DIR.is_dir():
         return ()
-    return tuple(sorted(p.stem for p in PROFILES_DIR.glob("*.json") if _PROFILE_ID.match(p.stem)))
+    return tuple(
+        sorted(p.stem for p in PROFILES_DIR.glob("*.json") if _PROFILE_ID.fullmatch(p.stem))
+    )
 
 
 def clear_cache() -> None:

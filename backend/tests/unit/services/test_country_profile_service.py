@@ -119,9 +119,10 @@ def test_unknown_parent_is_refused(tmp_path: Path, monkeypatch):
         svc.load_profile("AA")
 
 
-def test_bad_profile_id_never_touches_the_filesystem():
+@pytest.mark.parametrize("profile_id", ["../etc", "FR\n"])
+def test_bad_profile_id_never_touches_the_filesystem(profile_id: str):
     with pytest.raises(svc.ProfileError):
-        svc.load_profile("../etc")
+        svc.load_profile(profile_id)
 
 
 def test_schema_refuses_unknown_keys_and_bad_steps():

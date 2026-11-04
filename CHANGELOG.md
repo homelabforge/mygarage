@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A recall source is only marked checked when a vehicle asked it and the check got through, including a RappelConso maintenance page and a vehicle that errored.
 - POI search through OpenStreetMap no longer comes back empty: the Overpass servers refused requests without a MyGarage User-Agent, and a hung server no longer holds up the search (#273).
 - Maps show their tiles again: the service worker was re-fetching OpenStreetMap tiles and the CSP blocked them, leaving a grey square (reported in #271, thanks @dpruddel).
+- The registration certificate upload checks the vehicle key before using it in a file path, like the photo and window sticker uploads, and the key checks no longer let a trailing newline through.
 
 ### Removed
 
