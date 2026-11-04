@@ -39,6 +39,7 @@ from app.services.auth import get_vehicle_for_owner_or_403, require_auth
 from app.utils.file_validation import verify_file_content_type
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.vehicle_key import is_vehicle_key
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +198,10 @@ async def import_registration_certificate(
     file) the file is read again, consent included.
     """
     vin = vin.upper().strip()
+    # The key ends up in the upload folder's path, so it's checked like the
+    # photo and window sticker uploads do, not left to the vehicle lookup.
+    if not is_vehicle_key(vin):
+        raise HTTPException(status_code=400, detail="Invalid vehicle key")
     vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
     content = await _read_certificate(file)
     assert file.filename is not None  # _read_certificate refused a nameless upload

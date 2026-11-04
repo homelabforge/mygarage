@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import uuid
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -22,6 +23,7 @@ from httpx import AsyncClient
 from PIL import Image
 from sqlalchemy import delete, select
 
+from app.config import settings
 from app.models.document import Document
 from app.models.maintenance_rule import MaintenanceRule
 from app.models.reminder import Reminder
@@ -614,6 +616,27 @@ class TestImport:
             assert not any("is not this vehicle's" in w for w in r.json()["parse"]["warnings"])
         finally:
             await client.delete(f"/api/vehicles/{key}", headers=auth_headers)
+
+    async def test_a_key_that_is_not_a_vehicle_key_never_reaches_the_upload_folder(
+        self, client: AsyncClient, auth_headers, db_session, test_user
+    ):
+        # The vehicle lookup alone would let this through: it's a real row the
+        # caller owns. Only the key's shape keeps it out of the documents path.
+        key = f"{PREFIX}..ODD.KEY.0"
+        db_session.add(
+            Vehicle(vin=key, user_id=test_user["id"], nickname="rct-odd", vehicle_type="Car")
+        )
+        await db_session.commit()
+        text = _certificate_text(key, first_registration="12/03/2023", inspection_due=None)
+        with patch(READ_DOCUMENT, new=AsyncMock(return_value=_text_read(text))) as read:
+            r = await client.post(
+                f"/api/vehicles/{key}/registration-certificate",
+                headers=auth_headers,
+                files=_upload(_text_pdf(text)),
+            )
+        assert r.status_code == 400, r.text
+        read.assert_not_awaited()
+        assert not (Path(settings.documents_dir) / key).exists()
 
     async def test_reader_409_files_nothing(self, client: AsyncClient, auth_headers, db_session):
         vin = await _create_vehicle(client, auth_headers)

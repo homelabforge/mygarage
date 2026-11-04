@@ -40,7 +40,7 @@ def generate_vehicle_key() -> str:
 
 def is_synthetic_key(key: str) -> bool:
     """Whether a key was generated for a vehicle without a VIN."""
-    return bool(_SYNTHETIC_SHAPE.match(key))
+    return bool(_SYNTHETIC_SHAPE.fullmatch(key))
 
 
 def is_vehicle_key(key: str) -> bool:
@@ -49,7 +49,8 @@ def is_vehicle_key(key: str) -> bool:
     This is the path-parameter guard (it keeps `../` out of upload paths). It
     says nothing about whether the vehicle exists or has a real VIN.
     """
-    return bool(_VIN_SHAPE.match(key) or _SYNTHETIC_SHAPE.match(key))
+    # fullmatch, not match: ``$`` lets a trailing newline through.
+    return bool(_VIN_SHAPE.fullmatch(key) or _SYNTHETIC_SHAPE.fullmatch(key))
 
 
 def has_real_vin(vehicle: _HasIdentity) -> bool:

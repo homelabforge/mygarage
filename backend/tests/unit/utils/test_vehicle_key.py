@@ -58,6 +58,9 @@ def test_is_vehicle_key_accepts_vins_and_q_keys(key: str) -> None:
         "QABCDEFGH1234567O",
         "qabcdefgh12345678",
         "Q/BCDEFGH12345678",
+        # ``$`` alone matches before a trailing newline.
+        "1HGCM82633A004352\n",
+        "QABCDEFGH12345678\n",
     ],
 )
 def test_is_vehicle_key_refuses_anything_else(key: str) -> None:
@@ -66,6 +69,10 @@ def test_is_vehicle_key_refuses_anything_else(key: str) -> None:
 
 def test_a_real_vin_is_not_synthetic() -> None:
     assert not is_synthetic_key("1HGCM82633A004352")
+
+
+def test_a_q_key_with_a_trailing_newline_is_not_synthetic() -> None:
+    assert not is_synthetic_key("QABCDEFGH12345678\n")
 
 
 def test_display_identifier_shows_the_vin_for_a_vin_vehicle() -> None:
