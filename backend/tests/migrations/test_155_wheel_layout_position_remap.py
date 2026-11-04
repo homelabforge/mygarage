@@ -371,6 +371,20 @@ def test_low_tread_title_follows(engine_for_migration):
         pending_front = _reminder(s, front, "Tire tread low (FL)")
         done_front = _reminder(s, front, "Tire tread low (FL)", status="done")
         pending_rear = _reminder(s, rear, "Tire tread low (RR)")
+        # Its tire was deleted, so it's history about a corner that no longer
+        # holds anything, and keeps its old title.
+        detached = Reminder(
+            vin=_BIKE,
+            title="Tire tread low (FL)",
+            reminder_type="date",
+            due_date=date(2026, 12, 1),
+            source="low_tread",
+            tire_id=None,
+            status="pending",
+        )
+        s.add(detached)
+        s.flush()
+        detached_id = detached.id
         # A car's identical title is none of 155's business.
         _vehicle(s, _CAR, "Car")
         car_tire = _tire(s, _CAR, "FL")
@@ -384,6 +398,7 @@ def test_low_tread_title_follows(engine_for_migration):
     assert titles[pending_rear] == "Tire tread low (R)"
     assert titles[done_front] == "Tire tread low (FL)"
     assert titles[car] == "Tire tread low (FL)"
+    assert titles[detached_id] == "Tire tread low (FL)"
 
 
 @pytest.mark.parametrize("engine_for_migration", ["sqlite", "pg"], indirect=True)

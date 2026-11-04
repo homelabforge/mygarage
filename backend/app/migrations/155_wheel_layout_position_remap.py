@@ -1,22 +1,17 @@
 """Move existing two-wheelers onto F/R and pin four on no-wheel types with data (#272).
 
-Only vehicles with no stored `wheel_layout` (they follow their type) are looked at.
+Only vehicles following their type (no stored `wheel_layout`) are touched.
 
-Motorcycles, bicycles and e-bikes: per axle, and separately for the tire rows
-(tires, tire_mount_periods, tire_readings) and the brake rows (brake_jobs,
-brake_measurements, brake_reminder_marks), an axle that used exactly one code
-moves to F or R, and its pending low-tread reminders get the new corner in the
-title. An axle that used both corners is left for the user to sort out (D3).
-The target code counts as a code too, so an F next to an FL is left alone
-rather than colliding on uq_tires_vin_position.
+Bikes: per axle, tire rows and brake rows each on their own, an axle that used
+exactly one code moves to F or R and its pending low-tread reminders get
+retitled. An axle with two codes is left for the user (D3). An F already next
+to an FL counts as two, so nothing collides on uq_tires_vin_position.
 
-Boats, snowmobiles, generators, small engines and attachments default to `none`,
-which hides the Tires and Brakes tabs. One that already has a tire or brake row
-gets `wheel_layout = 'four'`, so nothing vanishes on upgrade (D6).
+No-wheel types (Boat and friends) with any tire or brake row get pinned to
+`four`, so their tabs don't vanish on upgrade (D6).
 
-``upgrade(conn)``: the rewrite and the stamp commit together, so it never runs
-twice. FATAL: without the pin a Boat with history boots with its tabs gone.
-The type lists are frozen here on purpose, not read from app.constants.
+FATAL, and `upgrade(conn)` so the rewrite and the stamp commit together. The
+type lists are frozen here on purpose, not read from app.constants.
 """
 
 from __future__ import annotations
@@ -81,11 +76,12 @@ def _codes_used(conn: Connection, vin: str, family: list[str], codes: tuple[str,
 
 def _retitle_low_tread(conn: Connection, vin: str, old: str, new: str) -> int:
     """Give this vin's pending low-tread reminders at `old` the new corner."""
+    # The tire is the scope: the composite FK keeps a reminder's vin equal to
+    # its tire's, and one whose tire was deleted is history and stays put.
     return conn.execute(
         text(
             "UPDATE vehicle_reminders SET title = :new_title"
-            " WHERE vin = :vin AND source = :source AND status = 'pending'"
-            " AND title = :old_title"
+            " WHERE source = :source AND status = 'pending' AND title = :old_title"
             " AND tire_id IN (SELECT id FROM tires WHERE vin = :vin)"
         ),
         {
