@@ -170,6 +170,27 @@ describe('TireList follows the wheel layout', () => {
     expect(within(cards[1]).queryByText('Not on this wheel layout')).not.toBeInTheDocument()
   })
 
+  it('editing a tire left at FL on a two-wheeler still shows where it sits, flagged', () => {
+    setList(TWO, [tireAt(1, 'FL')])
+    render(<TireList vin={VIN} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const group = within(screen.getByRole('group', { name: 'Position' }))
+    // Locked chips are spans, so "pressed" is the selected style, same as the
+    // four-wheel edit test in TireList.test.tsx.
+    expect(group.getByText('Front Left')).toHaveClass('bg-(--accent-soft)')
+    expect(group.getByText('Not on this wheel layout')).toBeInTheDocument()
+    expect(group.getByText('Front')).not.toHaveClass('bg-(--accent-soft)')
+    expect(group.queryAllByRole('button')).toHaveLength(0)
+  })
+
+  it('editing an on-layout tire adds no extra corner', () => {
+    setList(TWO, [tireAt(1, 'F')])
+    render(<TireList vin={VIN} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const group = screen.getByRole('group', { name: 'Position' })
+    expect(Array.from(group.children).map((chip) => chip.textContent)).toEqual(['Front', 'Rear', 'In storage'])
+  })
+
   it('mounting a stored tire on a two-wheeler offers the free layout corners and picks the first', () => {
     const mount = vi.fn()
     useMountTireMock.mockReturnValue({ mutate: mount, isPending: false })

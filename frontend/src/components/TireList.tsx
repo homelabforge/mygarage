@@ -1947,7 +1947,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
             }
           >
             <div className="space-y-3">
-              {/* Push toggles rather than a select: five short fixed options, one tap
+              {/* Push toggles rather than a select: a handful of fixed options, one tap
                   instead of two-plus-a-scroll on mobile, and (the real gain) the
                   occupied slots stay visible instead of silently vanishing from a
                   collapsed menu.
@@ -1955,7 +1955,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                   role="group" + aria-pressed chips, not a radiogroup: Chip is the
                   app's established filter primitive (Address Book categories) and
                   matching it beats hand-rolling a roving-tabindex radiogroup for
-                  five buttons. Field is bypassed on purpose: it renders
+                  a few buttons. Field is bypassed on purpose: it renders
                   <label htmlFor>, which associates with nothing when the control is
                   a group of buttons, so the label is wired via aria-labelledby. */}
               <div className="mb-4">
@@ -1988,7 +1988,16 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                       </Chip>
                     )
                   })}
-                  {/* Storage is a sixth destination, not a sixth corner. It is the
+                  {/* Editing a tire stuck on a corner the layout doesn't have (FL on
+                      a bike): show that corner anyway, flagged, or nothing reads as
+                      selected. */}
+                  {editingTireId !== null && form.position != null && isOffLayout(form.position) && (
+                    <>
+                      <Chip selected>{positionLabels[form.position]}</Chip>
+                      <Chip tone="muted">{t('tireList.offLayout')}</Chip>
+                    </>
+                  )}
+                  {/* Storage is one more destination, not another corner. It is the
                       only way to enter a tire you own but are not fitting today,
                       which is every second seasonal set, and without it a tire
                       could only come into the app by being mounted onto a corner
