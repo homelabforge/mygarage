@@ -58,6 +58,7 @@ import MountPeriodEditor from './tires/MountPeriodEditor'
 import ReadingEditor from './tires/ReadingEditor'
 import TireHistoryDrawer, { needsFix } from './tires/TireHistoryDrawer'
 import TreadField from './tires/TreadField'
+import { useWheelLayoutText } from './tires/useWheelLayoutText'
 
 /**
  * The corners a rotation moves.
@@ -230,6 +231,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
      leaves in seconds, and this waits until it's used or dismissed. */
   const [brakesPrompt, setBrakesPrompt] = useState(false)
   const { data, isLoading, error } = useTires(vin, showRetired)
+  const { layoutLabel } = useWheelLayoutText()
   const createTire = useCreateTire(vin)
   const createAndMount = useCreateAndMountTire(vin)
   const updateTire = useUpdateTire(vin)
@@ -450,6 +452,12 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
     FR: t('tireList.positions.FR'),
     RL: t('tireList.positions.RL'),
     RR: t('tireList.positions.RR'),
+    F: t('tireList.positions.F'),
+    R: t('tireList.positions.R'),
+    RLO: t('tireList.positions.RLO'),
+    RLI: t('tireList.positions.RLI'),
+    RRI: t('tireList.positions.RRI'),
+    RRO: t('tireList.positions.RRO'),
     SPARE: t('tireList.positions.SPARE'),
   }
 
@@ -1094,6 +1102,12 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
           </Button>
         </div>
       </div>
+      {/* The layout lives on the vehicle, so just say which one and where to change it. */}
+      {data?.wheel_layout && (
+        <p className="text-sm text-text-mute">
+          {t('wheelLayout.current', { layout: layoutLabel(data.wheel_layout) })}
+        </p>
+      )}
 
       {brakesPrompt && onLogBrakes && (
         <Card padding="sm" className="flex flex-wrap items-center justify-between gap-3">

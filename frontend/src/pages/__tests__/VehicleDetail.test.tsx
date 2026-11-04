@@ -165,6 +165,9 @@ const mockVehicle: Vehicle = {
   created_at: '2024-01-15T00:00:00Z',
   archived_visible: true,
   location_tracking_enabled: true,
+  wheel_layout: null,
+  effective_wheel_layout: 'four',
+  default_wheel_layout: 'four',
 }
 
 // The hero's detail-stats live on the query cache (#192), so every render needs

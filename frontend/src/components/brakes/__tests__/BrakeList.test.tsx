@@ -70,6 +70,7 @@ function corner(position: BrakeCorner['position'], extra: Partial<BrakeCorner> =
     condition: 'unknown',
     wear_status: 'no_measurements',
     surface_past_limit: false,
+    on_layout: true,
     measurements: [],
     jobs: [],
     ...extra,
@@ -86,6 +87,7 @@ function overview(corners: Partial<Record<BrakeCorner['position'], Partial<Brake
       { axle: 'rear', brake_type: 'drum', min_thickness_mm: '1.50', new_thickness_mm: '5.00', drum_max_mm: '230.00', configured: true, due_soon_mm: '2.38' },
     ],
     corners: (['FL', 'FR', 'RL', 'RR'] as const).map((p) => corner(p, corners[p])),
+    wheel_layout: 'four',
   }
 }
 

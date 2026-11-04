@@ -30,4 +30,6 @@ export const AXLE_OF: Record<BrakePosition, BrakeAxleName> = {
   FR: 'front',
   RL: 'rear',
   RR: 'rear',
+  F: 'front',
+  R: 'rear',
 }

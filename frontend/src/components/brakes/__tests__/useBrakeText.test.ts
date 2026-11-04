@@ -38,6 +38,7 @@ function corner(extra: Partial<BrakeCorner>): BrakeCorner {
     condition: 'ok',
     wear_status: 'no_measurements',
     surface_past_limit: false,
+    on_layout: true,
     measurements: [],
     jobs: [],
     ...extra,
@@ -45,7 +46,7 @@ function corner(extra: Partial<BrakeCorner>): BrakeCorner {
 }
 
 function overview(axis: BrakeOverview['usage_axis']): BrakeOverview {
-  return { usage_axis: axis, tracks_distance: axis === 'distance', tracks_hours: axis === 'hours', axles: [], corners: [] }
+  return { usage_axis: axis, tracks_distance: axis === 'distance', tracks_hours: axis === 'hours', axles: [], corners: [], wheel_layout: 'four' }
 }
 
 const summary = (c: BrakeCorner, axis: BrakeOverview['usage_axis'] = 'distance'): string => {

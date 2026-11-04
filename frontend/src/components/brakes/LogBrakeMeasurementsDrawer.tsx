@@ -68,6 +68,8 @@ function LogBrakeMeasurementsDrawer({
     FR: EMPTY_CORNER,
     RL: EMPTY_CORNER,
     RR: EMPTY_CORNER,
+    F: EMPTY_CORNER,
+    R: EMPTY_CORNER,
   })
 
   const typeOf = (position: BrakePosition) =>

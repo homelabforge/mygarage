@@ -1531,6 +1531,7 @@
     "odometer": "Odometer",
     "odometerUnknown": "odometer unknown",
     "odometerWithUnit": "Odometer ({{unit}})",
+    "offLayout": "Not on this wheel layout",
     "onTheVehicle": "On the vehicle",
     "pastPeriodCorner": "Corner",
     "pastPeriodCornerRequired": "Choose the corner the tire was on.",
@@ -1557,6 +1558,12 @@
       "FR": "Front Right",
       "RL": "Rear Left",
       "RR": "Rear Right",
+      "F": "Front",
+      "R": "Rear",
+      "RLO": "Rear Left Outer",
+      "RLI": "Rear Left Inner",
+      "RRI": "Rear Right Inner",
+      "RRO": "Rear Right Outer",
       "SPARE": "Spare"
     },
     "pressure": "Pressure",
@@ -1666,6 +1673,17 @@
     "brakesPrompt": "Wheels off? Good time to measure the brake pads.",
     "brakesPromptAction": "Log brake measurements",
     "brakesPromptDismiss": "Dismiss"
+  },
+  "wheelLayout": {
+    "label": "Wheel layout",
+    "current": "Wheel layout: {{layout}}. Change it under Vehicle Details.",
+    "autoNamed": "Automatic: {{layout}}",
+    "four": "Four wheels",
+    "two": "Two wheels (front and rear)",
+    "trike_2f1r": "Trike, two front wheels",
+    "trike_1f2r": "Trike, two rear wheels",
+    "dually": "Dual rear wheels (dually)",
+    "none": "No wheels"
   },
   "brakes": {
     "title": "Brakes",

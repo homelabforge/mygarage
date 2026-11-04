@@ -130,6 +130,9 @@ const mockVehicle: Vehicle = {
   created_at: '2024-01-15T00:00:00Z',
   archived_visible: true,
   location_tracking_enabled: true,
+  wheel_layout: null,
+  effective_wheel_layout: 'four',
+  default_wheel_layout: 'four',
 }
 
 function renderVehicleDetail(initialPath = '/vehicles/TEST12345678901234') {

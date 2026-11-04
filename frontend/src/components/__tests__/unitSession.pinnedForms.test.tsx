@@ -98,6 +98,7 @@ const OVERVIEW: BrakeOverview = {
   tracks_hours: false,
   axles: [],
   corners: [],
+  wheel_layout: 'four',
 }
 const JOB = {
   id: 7,

@@ -57,6 +57,9 @@ const baseVehicle: Vehicle = {
   fuel_type: 'gasoline',
   location_tracking_enabled: true,
   distance_unit: null,
+  wheel_layout: null,
+  effective_wheel_layout: 'four',
+  default_wheel_layout: 'four',
 }
 
 const stats = (usage_unit: VehicleDetailStats['usage_unit']): VehicleDetailStats =>

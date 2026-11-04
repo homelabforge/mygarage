@@ -849,6 +849,17 @@ describe('TireList', () => {
     expect(screen.getByText(/tireList\.inStorageSince/)).toBeInTheDocument()
     expect(screen.getByText(/Garage shelf B/)).toBeInTheDocument()
   })
+
+  it('says which wheel layout the list follows', () => {
+    useTiresMock.mockReturnValue({ data: { tires: [STORED_FL_TIRE], total: 1, wheel_layout: 'two' }, isLoading: false, error: null })
+    render(<TireList vin="1HGCM82633A004352" />)
+    expect(screen.getByText('wheelLayout.current')).toBeInTheDocument()
+  })
+
+  it('leaves the layout line out until the list says which layout it is', () => {
+    render(<TireList vin="1HGCM82633A004352" />)
+    expect(screen.queryByText('wheelLayout.current')).not.toBeInTheDocument()
+  })
 })
 
 describe('TireList – mount and dismount', () => {
