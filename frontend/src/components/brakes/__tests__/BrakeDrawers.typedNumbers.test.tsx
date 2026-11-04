@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 
-import type { BrakeAxle, BrakeCorner, BrakeOverview } from '../../../types/brake'
+import type { BrakeAxle, BrakeOverview } from '../../../types/brake'
 import { setActiveLocale } from '@/constants/i18n'
 
 const logMock = vi.fn()
@@ -33,35 +33,15 @@ vi.mock('../../../hooks/useUnitPreference', async () => {
 
 import LogBrakeMeasurementsDrawer from '../LogBrakeMeasurementsDrawer'
 import AxleSetupDrawer from '../AxleSetupDrawer'
+import { brakeOverview } from '../../../__tests__/factories'
 
 const VIN = '1HGCM82633A004352'
 const AXLES: BrakeAxle[] = [
   { axle: 'front', brake_type: 'disc', min_thickness_mm: '3.00', new_thickness_mm: '10.00', configured: true, due_soon_mm: '4.75' },
   { axle: 'rear', brake_type: 'drum', min_thickness_mm: '1.50', new_thickness_mm: '5.00', drum_max_mm: '230.00', configured: true, due_soon_mm: '2.38' },
 ] as BrakeAxle[]
-function corner(position: BrakeCorner['position']): BrakeCorner {
-  const rear = position.startsWith('R')
-  return {
-    position,
-    axle: rear ? 'rear' : 'front',
-    brake_type: rear ? 'drum' : 'disc',
-    condition: 'unknown',
-    wear_status: 'no_measurements',
-    surface_past_limit: false,
-    on_layout: true,
-    measurements: [],
-    jobs: [],
-  }
-}
-// The log drawer offers the layout's corners, so it needs a real four-corner overview.
-const OVERVIEW: BrakeOverview = {
-  usage_axis: 'distance',
-  tracks_distance: true,
-  tracks_hours: false,
-  axles: AXLES,
-  corners: (['FL', 'FR', 'RL', 'RR'] as const).map(corner),
-  wheel_layout: 'four',
-}
+// A car's four corners against this file's own axles.
+const OVERVIEW: BrakeOverview = brakeOverview({ axles: AXLES })
 
 const input = (id: string) => document.getElementById(id) as HTMLInputElement
 const save = () => fireEvent.click(within(screen.getByRole('dialog')).getByText('common:save'))

@@ -58,37 +58,12 @@ import { toast } from 'sonner'
 
 import BrakeList from '../BrakeList'
 import { formatDateForDisplay } from '../../../utils/dateUtils'
+import { brakeCorner, brakeOverview } from '../../../__tests__/factories'
 
 const VIN = '1HGCM82633A004352'
 
-function corner(position: BrakeCorner['position'], extra: Partial<BrakeCorner> = {}): BrakeCorner {
-  const rear = position.startsWith('R')
-  return {
-    position,
-    axle: rear ? 'rear' : 'front',
-    brake_type: rear ? 'drum' : 'disc',
-    condition: 'unknown',
-    wear_status: 'no_measurements',
-    surface_past_limit: false,
-    on_layout: true,
-    measurements: [],
-    jobs: [],
-    ...extra,
-  }
-}
-
 function overview(corners: Partial<Record<BrakeCorner['position'], Partial<BrakeCorner>>> = {}): BrakeOverview {
-  return {
-    usage_axis: 'distance',
-    tracks_distance: true,
-    tracks_hours: false,
-    axles: [
-      { axle: 'front', brake_type: 'disc', min_thickness_mm: '3.00', new_thickness_mm: '10.00', configured: false, due_soon_mm: '4.75' },
-      { axle: 'rear', brake_type: 'drum', min_thickness_mm: '1.50', new_thickness_mm: '5.00', drum_max_mm: '230.00', configured: true, due_soon_mm: '2.38' },
-    ],
-    corners: (['FL', 'FR', 'RL', 'RR'] as const).map((p) => corner(p, corners[p])),
-    wheel_layout: 'four',
-  }
+  return brakeOverview({ corners: (['FL', 'FR', 'RL', 'RR'] as const).map((p) => brakeCorner(p, corners[p])) })
 }
 
 const field = (id: string): HTMLInputElement => {

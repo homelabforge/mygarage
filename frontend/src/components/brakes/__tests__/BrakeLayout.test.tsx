@@ -6,8 +6,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 
-import type { BrakeCorner, BrakeOverview } from '../../../types/brake'
-
 const useBrakesMock = vi.fn()
 const logMock = vi.fn()
 const jobMock = vi.fn()
@@ -37,42 +35,18 @@ vi.mock('../../../hooks/useUnitPreference', async () => {
 
 import BrakeList from '../BrakeList'
 import BrakeJobDrawer from '../BrakeJobDrawer'
+import { brakeCorner, brakeOverview, type BrakeCorner, type BrakeOverview } from '../../../__tests__/factories'
+import { toast } from 'sonner'
 
 const VIN = '1HGCM82633A004352'
 
-function corner(position: BrakeCorner['position'], extra: Partial<BrakeCorner> = {}): BrakeCorner {
-  const rear = position.startsWith('R')
-  return {
-    position,
-    axle: rear ? 'rear' : 'front',
-    brake_type: rear ? 'drum' : 'disc',
-    condition: 'unknown',
-    wear_status: 'no_measurements',
-    surface_past_limit: false,
-    on_layout: true,
-    measurements: [],
-    jobs: [],
-    ...extra,
-  }
-}
-
 /** A bike: F and R on the layout, plus any off-layout corners the server kept. */
 function twoWheels(offLayout: BrakeCorner[] = []): BrakeOverview {
-  return {
-    usage_axis: 'distance',
-    tracks_distance: true,
-    tracks_hours: false,
-    axles: [
-      { axle: 'front', brake_type: 'disc', min_thickness_mm: '3.00', new_thickness_mm: '10.00', configured: false, due_soon_mm: '4.75' },
-      { axle: 'rear', brake_type: 'drum', min_thickness_mm: '1.50', new_thickness_mm: '5.00', drum_max_mm: '230.00', configured: true, due_soon_mm: '2.38' },
-    ],
-    corners: [corner('F'), corner('R'), ...offLayout],
-    wheel_layout: 'two',
-  }
+  return brakeOverview({ corners: [brakeCorner('F'), brakeCorner('R'), ...offLayout], wheel_layout: 'two' })
 }
 
 // It was a car once: FL kept its pads when the type went to Motorcycle.
-const STALE_FL = corner('FL', {
+const STALE_FL = brakeCorner('FL', {
   on_layout: false,
   condition: 'ok',
   wear_status: 'insufficient_measurements',
@@ -94,9 +68,13 @@ const section = (axleKey: string): HTMLElement => {
   if (!el) throw new Error(`no section for ${axleKey}`)
   return el
 }
+// A corner's card is the nearest box around its name that holds a history button;
+// every card has exactly one.
 const cardOf = (label: string): HTMLElement => {
-  const el = screen.getByText(label).closest('.relative')
-  if (!(el instanceof HTMLElement)) throw new Error(`no card for ${label}`)
+  let el = screen.getByText(label).parentElement
+  while (el && !within(el).queryByRole('button', { name: 'brakes.historyOpen' })) el = el.parentElement
+  if (!el) throw new Error(`no card for ${label}`)
+  expect(within(el).getAllByRole('button', { name: 'brakes.historyOpen' })).toHaveLength(1)
   return el
 }
 
@@ -192,12 +170,12 @@ describe('an off-layout corner with history', () => {
     expect(jobMock.mock.calls[0][0].corners).toEqual([{ position: 'F', new_thickness_mm: 10 }])
   })
 
-  it('the job drawer drops a stale caller’s off-layout corner', () => {
-    render(
-      <BrakeJobDrawer vin={VIN} overview={twoWheels([STALE_FL])} open onClose={vi.fn()} initialCorners={['FL', 'F']} />
-    )
+  it('the job drawer never pre-ticks a stale caller’s off-layout corner', () => {
+    // FL alone: if the seed kept it, nothing is shown ticked yet the save would
+    // go through. Dropped, the drawer has no corner and says so.
+    render(<BrakeJobDrawer vin={VIN} overview={twoWheels([STALE_FL])} open onClose={vi.fn()} initialCorners={['FL']} />)
     save()
-    expect(jobMock).toHaveBeenCalledTimes(1)
-    expect(jobMock.mock.calls[0][0].corners).toEqual([{ position: 'F', new_thickness_mm: 10 }])
+    expect(jobMock).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('brakes.pickACorner')
   })
 })
