@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { useLogBrakeMeasurements } from '../../hooks/queries/useBrakes'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { useRefuseUnreadableNumbers } from '../../hooks/useRefuseUnreadableNumbers'
-import { AXLE_OF, BRAKE_POSITIONS, type BrakeMeasurementCorner, type BrakeOverview, type BrakePosition } from '../../types/brake'
+import { AXLE_OF, type BrakeMeasurementCorner, type BrakeOverview, type BrakePosition } from '../../types/brake'
 import { formatDateForInput } from '../../utils/dateUtils'
 import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
@@ -45,7 +45,7 @@ interface LogBrakeMeasurementsDrawerProps {
 }
 
 /**
- * One form for all four corners, because the wheels usually come off
+ * One form for every corner on the layout, because the wheels usually come off
  * together. A corner left blank is skipped. Remount it (with a `key`) to start
  * the form over.
  */
@@ -60,6 +60,8 @@ function LogBrakeMeasurementsDrawer({
   const text = useBrakeText()
   const log = useLogBrakeMeasurements(vin)
   const refuseUnreadable = useRefuseUnreadableNumbers()
+  // The layout's corners only; an off-layout corner keeps its history but takes no new figures.
+  const positions = overview.corners.filter((c) => c.on_layout).map((c) => c.position)
   const [date, setDate] = useState(() => formatDateForInput())
   const [odometer, setOdometer] = useState<OdometerFieldValue>(EMPTY_ODOMETER)
   const [hours, setHours] = useState('')
@@ -96,7 +98,7 @@ function LogBrakeMeasurementsDrawer({
       refuseUnreadable([
         [odometerLabel, overview.tracks_distance && odometer.typed],
         [t('common:engineHours'), overview.tracks_hours && hours],
-        ...BRAKE_POSITIONS.flatMap((position) =>
+        ...positions.flatMap((position) =>
           (typeOf(position) === 'drum' ? DRUM_FIELDS : DISC_FIELDS).map(
             (name) => [`${text.labelFor(position)} · ${fieldLabels[name]}`, corners[position][name]] as const
           )
@@ -105,7 +107,7 @@ function LogBrakeMeasurementsDrawer({
     )
       return
     const measured: BrakeMeasurementCorner[] = []
-    for (const position of BRAKE_POSITIONS) {
+    for (const position of positions) {
       const names = typeOf(position) === 'drum' ? DRUM_FIELDS : DISC_FIELDS
       const figures: Partial<Record<keyof CornerFields, number>> = {}
       for (const name of names) {
@@ -173,7 +175,7 @@ function LogBrakeMeasurementsDrawer({
           onHoursChange={setHours}
         />
         <div className="grid gap-3 sm:grid-cols-2">
-          {BRAKE_POSITIONS.map((position) => {
+          {positions.map((position) => {
             const type = typeOf(position)
             const names = type === 'drum' ? DRUM_FIELDS : DISC_FIELDS
             return (

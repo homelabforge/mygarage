@@ -77,6 +77,7 @@ export default function BrakeCornerCard({
       <div className="space-y-0.5">
         <div className="flex flex-wrap items-center gap-2 font-semibold">
           {text.labelFor(corner.position)}
+          {!corner.on_layout && <Chip tone="muted">{t('tireList.offLayout')}</Chip>}
           <Chip tone={chip.tone}>{chip.label}</Chip>
         </div>
         <div className="text-sm text-text-mute">

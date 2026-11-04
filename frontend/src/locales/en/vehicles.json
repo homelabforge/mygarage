@@ -1699,7 +1699,7 @@
     "emptyHint": "No brake measurements yet. Log the pads next time the wheels are off.",
     "frontAxle": "Front axle",
     "rearAxle": "Rear axle",
-    "allFour": "All four",
+    "allCorners": "All corners",
     "disc": "Disc",
     "drum": "Drum",
     "discLimits": "Disc · pads {{new}} new, {{min}} minimum",
