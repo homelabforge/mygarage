@@ -1763,7 +1763,6 @@
     "editTitleNamed": "Pneu {{position}}",
     "editTitleStored": "Pneu entreposé",
     "empty": "Aucun pneu suivi pour le moment",
-    "emptyHint": "Ajoutez FL/FR/RL/RR (et la roue de secours) avec la profondeur de bande de roulement et le code DOT.",
     "eventDate": "Date",
     "firstInstalled": "Première pose le {{date}} à {{odometer}}",
     "firstInstalledUnknown": "Première pose : inconnue",

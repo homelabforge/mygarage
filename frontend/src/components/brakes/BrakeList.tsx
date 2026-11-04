@@ -4,7 +4,6 @@ import { Disc, Plus, Settings2, Wrench } from 'lucide-react'
 
 import { useBrakes } from '../../hooks/queries/useBrakes'
 import {
-  AXLE_OF,
   type BrakeAxleName,
   type BrakeJob,
   type BrakeMeasurement,
@@ -29,7 +28,7 @@ interface BrakeListProps {
 }
 
 /**
- * The Brakes tab (#202): four corners grouped by axle, each with its pads,
+ * The Brakes tab (#202): the layout's corners grouped by axle, each with its pads,
  * rotor or drum, wear estimate and history. Brake data belongs to the corner,
  * not the tire, so a rotation on the Tires tab never moves anything here.
  */
@@ -109,7 +108,9 @@ export default function BrakeList({ vin, logOnOpen = false, onLogOpened }: Brake
 
       {(['front', 'rear'] as const).map((name) => {
         const axle = axleOf(name)
-        const corners = data.corners.filter((corner) => AXLE_OF[corner.position] === name)
+        // Off-layout corners with history list here too, but a job only covers the layout's.
+        const corners = data.corners.filter((corner) => corner.axle === name)
+        const jobCorners = corners.filter((corner) => corner.on_layout).map((corner) => corner.position)
         return (
           <section key={name} className="space-y-2">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-text-mute">
@@ -124,7 +125,7 @@ export default function BrakeList({ vin, logOnOpen = false, onLogOpened }: Brake
                   axle={axle}
                   overview={data}
                   onLog={openLog}
-                  onJob={() => openJob(corners.map((c) => c.position))}
+                  onJob={() => openJob(jobCorners)}
                   onHistory={() => openHistory(corner.position)}
                 />
               ))}

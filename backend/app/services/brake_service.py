@@ -6,11 +6,13 @@ import datetime as dt
 import logging
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass
+from typing import get_args
 
 from fastapi import HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.wheel_layouts import BrakePosition, WheelLayout, resolve_wheel_layout
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement, BrakeReminderMark
 from app.models.reminder import Reminder
 from app.models.user import User
@@ -33,11 +35,9 @@ from app.schemas.brake import (
 from app.services.brake_wear import (
     AXLE_OF,
     AXLES,
-    POSITIONS,
     Axle,
     AxleSetup,
     BrakeCondition,
-    BrakePosition,
     BrakeWear,
     BrakeWearStatus,
     axle_setup,
@@ -53,6 +53,7 @@ from app.services.reminder_service import start_readings
 from app.services.tire_service import TireService
 from app.services.usage_axis import UsageAxis, VehicleAxes
 from app.services.vehicle_lock import lock_vehicle_for_write
+from app.services.wheel_layout_service import refuse_off_layout, vehicle_wheel_layout
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
 
@@ -74,6 +75,8 @@ class _Corner:
     """One corner worked out: what its card and its axle reminder read."""
 
     position: BrakePosition
+    #: False for a corner the layout doesn't have that still has history.
+    on_layout: bool
     setup: AxleSetup
     wear: BrakeWear
     condition: BrakeCondition
@@ -240,14 +243,23 @@ class BrakeService:
         return {row.axle: row for row in axles}, list(measurements), list(jobs)
 
     async def _corners(
-        self, vin: str, axes: VehicleAxes
+        self, vin: str, axes: VehicleAxes, layout: WheelLayout
     ) -> tuple[dict[Axle, AxleSetup], list[_Corner]]:
-        """Each axle's setup and each corner worked out, from what is stored now."""
+        """Each axle's setup and each corner worked out, from what is stored now.
+
+        The layout's corners first, then any other corner that still has rows
+        (the type or layout changed under it), in vocabulary order. The
+        reminder sync reads all of them, so old low pads keep their reminder.
+        """
         rows, measurements, jobs = await self._load(vin)
         setups = {axle: axle_setup(axle, rows.get(axle)) for axle in AXLES}
         today = household_today()
+        used = {row.position for row in (*measurements, *jobs)}
+        off_layout = [
+            p for p in get_args(BrakePosition) if p in used and p not in layout.brake_positions
+        ]
         corners = []
-        for position in POSITIONS:
+        for position in (*layout.brake_positions, *off_layout):
             setup = setups[AXLE_OF[position]]
             own_measurements = [m for m in measurements if m.position == position]
             own_jobs = [j for j in jobs if j.position == position]
@@ -255,6 +267,7 @@ class BrakeService:
             corners.append(
                 _Corner(
                     position=position,
+                    on_layout=position in layout.brake_positions,
                     setup=setup,
                     wear=wear,
                     condition=brake_condition(wear, setup, today),
@@ -277,6 +290,7 @@ class BrakeService:
         )
         return BrakeCornerResponse(
             position=corner.position,
+            on_layout=corner.on_layout,
             axle=setup.axle,
             brake_type=setup.brake_type,
             condition=corner.condition.value,
@@ -305,9 +319,12 @@ class BrakeService:
             jobs=[BrakeJobResponse.model_validate(j) for j in _newest_first(corner.jobs)],
         )
 
-    async def _respond(self, vin: str, axes: VehicleAxes) -> BrakeOverviewResponse:
-        setups, corners = await self._corners(vin, axes)
+    async def _respond(
+        self, vin: str, axes: VehicleAxes, layout: WheelLayout
+    ) -> BrakeOverviewResponse:
+        setups, corners = await self._corners(vin, axes, layout)
         return BrakeOverviewResponse(
+            wheel_layout=layout.id,
             usage_axis=axes.primary.kind,
             tracks_distance=axes.tracks("distance"),
             tracks_hours=axes.tracks("hours"),
@@ -334,20 +351,23 @@ class BrakeService:
         *,
         evidence: Collection[Axle] = (),
         written: Iterable[_Written] = (),
+        layout: WheelLayout | None = None,
     ) -> BrakeOverviewResponse:
         """Sync both axle reminders from what this write left, commit once, and answer.
 
         The axles the write brings pad news about are the ones it can complete
         (see `_sync_axle_reminders`): `evidence`, and each axle whose estimate
         reads what the write gave a row in `written` (`_pad_news`). A delete
-        passes neither.
+        passes neither. `layout` is for a write that already read it.
         """
         await self.db.flush()
-        setups, corners = await self._corners(vin, axes)
+        if layout is None:
+            layout = await vehicle_wheel_layout(self.db, vin)
+        setups, corners = await self._corners(vin, axes, layout)
         news = {*evidence, *_pad_news(written, corners, axes.primary)}
         await self._sync_axle_reminders(vin, setups, corners, evidence=news)
         await self.db.commit()
-        return await self._respond(vin, axes)
+        return await self._respond(vin, axes, layout)
 
     async def _sync_axle_reminders(
         self,
@@ -487,13 +507,13 @@ class BrakeService:
                 existing.title = _reminder_title(setup)
 
     async def overview(self, vin: str, current_user: User | None) -> BrakeOverviewResponse:
-        """Both axles and the four corners, with their estimates and history."""
+        """Both axles and the layout's corners (plus any old off-layout ones), with history."""
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
         await get_vehicle_or_403(vin, current_user, self.db)
         axes = await TireService(self.db).request_axes(current_user, vin)
-        return await self._respond(vin, axes)
+        return await self._respond(vin, axes, await vehicle_wheel_layout(self.db, vin))
 
     async def raise_reminders_for(self, vin: str) -> None:
         """The daily pass for one vehicle: raise only, no lock, no commit.
@@ -505,7 +525,8 @@ class BrakeService:
         if vehicle is None or vehicle.archived_at is not None:
             return
         axes = VehicleAxes.for_vehicle(vehicle.usage_unit, vehicle.secondary_usage_enabled)
-        setups, corners = await self._corners(vin, axes)
+        layout = resolve_wheel_layout(vehicle.wheel_layout, vehicle.vehicle_type, vin=vin)
+        setups, corners = await self._corners(vin, axes, layout)
         await self._sync_axle_reminders(vin, setups, corners, evidence=(), raise_only=True)
 
     async def refresh_reminders(self) -> None:
@@ -576,13 +597,15 @@ class BrakeService:
     async def log_measurements(
         self, vin: str, data: BrakeMeasurementBatchCreate, current_user: User | None
     ) -> BrakeOverviewResponse:
-        """Record one to four corners measured on one day."""
+        """Record one to four corners measured on one day, all on the layout."""
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
         await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
         axes = await self._lock(vin, current_user)
         _refuse_untracked(axes, data.odometer_km, data.engine_hours)
+        layout = await vehicle_wheel_layout(self.db, vin)
+        refuse_off_layout(layout, [c.position for c in data.corners], "brake")
         setups = await self._setups(vin)
         written: list[_Written] = []
         for corner in data.corners:
@@ -599,7 +622,7 @@ class BrakeService:
             )
             self.db.add(row)
             written.append((row, None))
-        return await self._finish(vin, axes, written=written)
+        return await self._finish(vin, axes, written=written, layout=layout)
 
     async def update_measurement(
         self,
@@ -655,13 +678,19 @@ class BrakeService:
     async def create_job(
         self, vin: str, data: BrakeJobCreate, current_user: User | None
     ) -> BrakeOverviewResponse:
-        """Record a brake job on one to four corners, with the new pads' figures."""
+        """Record a brake job on one to four corners, with the new pads' figures.
+
+        Only on the layout's corners. Editing or deleting an old job stays
+        open, since that never moves it.
+        """
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
         await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
         axes = await self._lock(vin, current_user)
         _refuse_untracked(axes, data.odometer_km, data.engine_hours)
+        layout = await vehicle_wheel_layout(self.db, vin)
+        refuse_off_layout(layout, [c.position for c in data.corners], "brake")
         setups = await self._setups(vin)
         written: list[_Written] = []
         for corner in data.corners:
@@ -700,7 +729,7 @@ class BrakeService:
                 )
             )
         # The jobs alone: the new-pads figure is news only as part of its job.
-        return await self._finish(vin, axes, written=written)
+        return await self._finish(vin, axes, written=written, layout=layout)
 
     async def update_job(
         self, vin: str, job_id: int, data: BrakeJobUpdate, current_user: User | None

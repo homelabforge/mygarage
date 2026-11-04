@@ -2119,10 +2119,10 @@ class TestDailyRefresh:
         broken, fine = sorted((vin, other_vin))
         corners = BrakeService._corners
 
-        async def failing(self, at_vin, axes):
+        async def failing(self, at_vin, axes, layout):
             if at_vin == broken:
                 raise RuntimeError("boom")
-            return await corners(self, at_vin, axes)
+            return await corners(self, at_vin, axes, layout)
 
         monkeypatch.setattr(BrakeService, "_corners", failing)
         _on(monkeypatch, wear_date - dt.timedelta(days=30))

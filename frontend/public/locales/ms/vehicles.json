@@ -1383,7 +1383,6 @@
     "editTitleNamed": "Tayar {{position}}",
     "editTitleStored": "Tayar dalam simpanan",
     "empty": "Belum ada tayar tracked",
-    "emptyHint": "Tambah FL/FR/RL/RR (dan tayar ganti) bersama kedalaman bunga tayar dan kod DOT.",
     "eventDate": "Tarikh",
     "firstInstalled": "Pertama dipasang {{date}} @ {{odometer}}",
     "firstInstalledUnknown": "Pertama dipasang: tidak diketahui",

@@ -84,6 +84,7 @@ const OVERVIEW: BrakeOverview = {
   tracks_hours: false,
   axles: [],
   corners: [],
+  wheel_layout: 'four',
 }
 
 const CORNER: BrakeCorner = {
@@ -93,6 +94,7 @@ const CORNER: BrakeCorner = {
   condition: 'ok',
   wear_status: 'insufficient_measurements',
   surface_past_limit: false,
+  on_layout: true,
   jobs: [JOB],
   measurements: [NEW_PADS, OLD_PADS],
 }

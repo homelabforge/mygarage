@@ -163,6 +163,7 @@ async def owned_vehicle(
         "make": "Audi",
         "model": "A4",
         "archived_at": None,
+        "wheel_layout": None,
     }
     result = await db_session.execute(select(Vehicle).where(Vehicle.vin == AUTHZ_VIN))
     vehicle = result.scalar_one_or_none()

@@ -139,6 +139,9 @@ class Vehicle(Base):
     sticker_transmission_description: Mapped[str | None] = mapped_column(String(150))
     sticker_drivetrain: Mapped[str | None] = mapped_column(String(50))
     wheel_specs: Mapped[str | None] = mapped_column(String(100))
+    # Which tire and brake corners it has (#272, migration 153). NULL follows
+    # the type's default; no CHECK, so the response reads it leniently.
+    wheel_layout: Mapped[str | None] = mapped_column(String(20))
     tire_specs: Mapped[str | None] = mapped_column(String(100))
     warranty_powertrain: Mapped[str | None] = mapped_column(String(100))
     warranty_basic: Mapped[str | None] = mapped_column(String(100))

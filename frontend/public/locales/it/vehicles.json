@@ -1385,7 +1385,6 @@
     "editTitleNamed": "Pneumatico {{position}}",
     "editTitleStored": "Pneumatico in deposito",
     "empty": "Nessuno pneumatico monitorato",
-    "emptyHint": "Aggiungi AS/AD/PS/PD (e ruota di scorta) con profondità battistrada e codice DOT.",
     "eventDate": "Data",
     "firstInstalled": "Installato per la prima volta il {{date}} a {{odometer}}",
     "firstInstalledUnknown": "Prima installazione: sconosciuta",

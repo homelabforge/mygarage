@@ -171,6 +171,9 @@ const vehicle: Vehicle = {
   archived_visible: true,
   location_tracking_enabled: true,
   distance_unit: null,
+  wheel_layout: null,
+  effective_wheel_layout: 'four',
+  default_wheel_layout: 'four',
 }
 
 const qeRow = (vin: string): QuickEntryVehicle => ({

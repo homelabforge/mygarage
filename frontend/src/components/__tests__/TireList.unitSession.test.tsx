@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactNode } from 'react'
 import { act, render, screen, fireEvent } from '@testing-library/react'
-import { IMPERIAL_UNITS, METRIC_UNITS } from '../../__tests__/factories'
+import { FOUR_LAYOUT, IMPERIAL_UNITS, METRIC_UNITS } from '../../__tests__/factories'
 import { setUnitPrefs } from '../../utils/unitPrefsStore'
 
 const h = vi.hoisted(() => ({ mutate: vi.fn() }))
@@ -18,7 +18,7 @@ vi.mock('../../hooks/queries/useTires', () => {
   const mutation = () => ({ mutate: h.mutate, isPending: false })
   return {
     useTires: () => ({
-      data: { tires: [TIRE], total: 1, tracks_distance: true, tracks_hours: false },
+      data: { tires: [TIRE], total: 1, tracks_distance: true, tracks_hours: false, ...FOUR_LAYOUT },
       isLoading: false,
       error: null,
     }),

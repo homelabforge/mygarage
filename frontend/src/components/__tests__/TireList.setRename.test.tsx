@@ -76,13 +76,14 @@ vi.mock('../../hooks/useUnitPreference', () => {
 })
 
 import TireList from '../TireList'
+import { FOUR_LAYOUT } from '../../__tests__/factories'
 
 describe('TireList: renaming a tire set', () => {
   beforeEach(() => {
     useUpsertTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useAddTireReadingMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useDeleteTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
-    useTiresMock.mockReturnValue({ data: { tires: [], total: 0 }, isLoading: false, error: null })
+    useTiresMock.mockReturnValue({ data: { tires: [], total: 0, ...FOUR_LAYOUT }, isLoading: false, error: null })
   })
 
   it('a blank name shows an inline error instead of doing nothing', () => {

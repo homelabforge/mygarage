@@ -1,7 +1,8 @@
 """Brake tracking models (#202): axle setup, measurements, brake jobs and reminder marks.
 
-Everything here belongs to a corner of the vehicle (FL/FR/RL/RR), never to a
-tire. A tire rotation moves tires between corners; it can't move brake data.
+Everything here belongs to a corner of the vehicle (FL/FR/RL/RR, or F/R on an
+axle with one wheel), never to a tire. A tire rotation moves tires between
+corners; it can't move brake data.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ from sqlalchemy.sql import func
 from app.database import Base
 from app.models._types import ScaledNumeric
 
-_POSITION_CHECK = "position IN ('FL', 'FR', 'RL', 'RR')"
+_POSITION_CHECK = "position IN ('FL', 'FR', 'RL', 'RR', 'F', 'R')"
 _TYPE_CHECK = "brake_type IN ('disc', 'drum')"
 
 

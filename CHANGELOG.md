@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The next inspection deadline (X.1) shows in Basic Information, where you can correct or clear it.
+- Tires and brakes follow a per-vehicle wheel layout: motorcycles get front and rear, plus trikes, duallies and no wheels (#272)
 
 ### Fixed
 

@@ -275,7 +275,7 @@ test.describe('Tires', () => {
     await openTires(page, vin)
     await page.getByRole('button', { name: 'Add Tire' }).click()
     const drawer = page.getByRole('dialog')
-    await drawer.getByRole('button', { name: 'FL', exact: true }).click()
+    await drawer.getByRole('button', { name: 'Front Left', exact: true }).click()
     await drawer.getByLabel('Brand').fill('E2E Dated')
     await drawer.locator('#tire-mount-date').fill('2026-04-10')
     // The suggestion names the reading's own date, so the user can judge it.

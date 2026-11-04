@@ -54,6 +54,9 @@ const vehicle: Vehicle = {
   location_tracking_enabled: true,
   distance_unit: null,
   def_tank_capacity_liters: '37.854',
+  wheel_layout: null,
+  effective_wheel_layout: 'four',
+  default_wheel_layout: 'four',
 }
 
 const drawer = (open: boolean): ReactElement => (

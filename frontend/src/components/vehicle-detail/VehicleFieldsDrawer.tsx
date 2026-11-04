@@ -15,11 +15,20 @@ import { INVALID_NUMBER } from '../../schemas/shared'
 import { makeVehicleWholeNumberFields } from '../../schemas/vehicle'
 import { parseApiError } from '../../utils/httpErrorHandler'
 import { IDENTIFIER_TYPES, identifierTypeLabel, isSyntheticKey } from '../../utils/vehicleIdentifier'
+import { WHEEL_LAYOUT_IDS, useWheelLayoutText } from '../tires/useWheelLayoutText'
 
 /** The four Overview info cards that open this shared editor sidecar. */
 export type VehicleCardKey = 'basic' | 'details' | 'powertrain' | 'warranty'
 
-type FieldKind = 'text' | 'number' | 'multiline' | 'date' | 'country' | 'identifierType' | 'identifier'
+type FieldKind =
+  | 'text'
+  | 'number'
+  | 'multiline'
+  | 'date'
+  | 'country'
+  | 'identifierType'
+  | 'identifier'
+  | 'wheelLayout'
 
 /** A key shaped like a VIN: the only kind that can switch (back) to type `vin` (#226). */
 const VIN_SHAPE = /^[A-HJ-NPR-Z0-9]{17}$/
@@ -87,6 +96,8 @@ function getCardConfig(card: VehicleCardKey): CardConfig {
           { key: 'gvwr_class', label: 'detail.misc.gvwrClass', kind: 'text' },
           { key: 'wheel_specs', label: 'detail.misc.wheels', kind: 'text' },
           { key: 'tire_specs', label: 'detail.misc.tires', kind: 'text' },
+          // #272: blank means automatic, which follows the vehicle type.
+          { key: 'wheel_layout', label: 'wheelLayout.label', kind: 'wheelLayout' },
           // #211 — the other fields of an EU registration certificate.
           { key: 'euro_emission_class', label: 'edit.euroClass', kind: 'text' },
           { key: 'fiscal_power', label: 'edit.fiscalPower', kind: 'number' },
@@ -189,6 +200,15 @@ export default function VehicleFieldsDrawer({
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const wholeNumbers = useMemo(() => makeVehicleWholeNumberFields(t), [t])
+  const { layoutLabel, autoLabel } = useWheelLayoutText()
+  // Every layout for every type: the override is free, so a Car can be a dually.
+  const wheelLayoutChoices = useMemo(
+    () => [
+      { value: '', label: autoLabel(vehicle.default_wheel_layout) },
+      ...WHEEL_LAYOUT_IDS.map((id) => ({ value: id, label: layoutLabel(id) })),
+    ],
+    [autoLabel, layoutLabel, vehicle.default_wheel_layout],
+  )
   // Snapshot of the seeded values, so save can send only the fields the user
   // actually changed (a true partial PUT). Load-bearing for the exterior-color
   // duality: `exterior_color` seeds from the legacy `color`, so an untouched
@@ -328,6 +348,8 @@ export default function VehicleFieldsDrawer({
                     <NumberInput id={id} value={value} onChange={set(f.key)} invalid={!!errors[f.key]} />
                   ) : f.kind === 'country' ? (
                     <Select id={id} value={value} onChange={set(f.key)} options={countryChoices} />
+                  ) : f.kind === 'wheelLayout' ? (
+                    <Select id={id} value={value} onChange={set(f.key)} options={wheelLayoutChoices} />
                   ) : (
                     <Input id={id} type={f.kind === 'date' ? 'date' : 'text'} value={value} onChange={set(f.key)} />
                   )}

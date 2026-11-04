@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
+from app.models.vehicle_share import VehicleShare
 from app.routes.import_data import json_tires, vehicle_json
 from tests.integration.routes._json_backup import V9, export_json, import_json
 
@@ -563,7 +564,7 @@ _REFUSED = [
     ),
     pytest.param(
         [_mounted("FL", mount_periods=[{"position": "XX", "mounted_on": "2026-01-01"}])],
-        "Tire 0, mount period 0: position must be one of FL, FR, RL, RR, SPARE",
+        "Tire 0, mount period 0: position must be one of FL, FR, RL, RR, F, R, RLO, RLI, RRI, RRO, SPARE",
         _ONE_SET,
         id="period-position-word",
     ),
@@ -671,3 +672,76 @@ async def test_a_retired_tire_restores_with_its_closed_periods(
     # main: nothing imported.
     assert tire["retired_on"] == date(2026, 5, 1)
     assert tire["periods"][0]["dismounted_odometer_km"] == Decimal("9000.00")
+
+
+# -- #272 D7: tires restored onto a no-wheel type keep the Tires tab -------------
+
+
+async def _effective_layout(client: AsyncClient, headers: dict[str, str], vin: str) -> str:
+    response = await client.get(f"/api/vehicles/{vin}", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()["effective_wheel_layout"]
+
+
+@pytest.mark.parametrize("by_writer", [False, True], ids=["owner", "write-share"])
+async def test_json_import_onto_new_boat_keeps_tabs(
+    by_writer: bool,
+    client: AsyncClient,
+    auth_headers,
+    writer_headers,
+    writer_user,
+    test_user,
+    db_session: AsyncSession,
+    new_vehicle,
+):
+    vin = await new_vehicle(vehicle_type="Boat")
+    headers = auth_headers
+    if by_writer:
+        # Derived visibility, like main_photo: a write-share's restore pins it too.
+        db_session.add(
+            VehicleShare(
+                vehicle_vin=vin,
+                user_id=writer_user.id,
+                permission="write",
+                shared_by=test_user["id"],
+            )
+        )
+        await db_session.commit()
+        headers = writer_headers
+    assert await _effective_layout(client, auth_headers, vin) == "none"
+
+    data = await import_json(client, headers, vin, {**V9, "tires": [_mounted("FL")]})
+    assert data["errors"] == []
+    assert data["tires"]["success_count"] == 1
+    # main: "none", so the restored tire sat behind a hidden tab.
+    assert await _effective_layout(client, auth_headers, vin) == "four"
+
+
+async def test_json_import_without_tires_leaves_a_boat_alone(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # guard: a set with no tires has nothing to show, same as migration 155.
+    vin = await new_vehicle(vehicle_type="Boat")
+    data = await import_json(client, auth_headers, vin, {**V9, "tire_sets": [{"name": "Spare"}]})
+    assert data["tire_sets"]["success_count"] == 1
+    assert await _effective_layout(client, auth_headers, vin) == "none"
+
+
+async def test_json_import_keeps_a_chosen_layout(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # guard: only an automatic `none` gets pinned; a stored choice is the user's.
+    vin = await new_vehicle(vehicle_type="Boat", wheel_layout="two")
+    await import_json(client, auth_headers, vin, {**V9, "tires": [_mounted("F")]})
+    assert await _effective_layout(client, auth_headers, vin) == "two"
+
+
+async def test_json_import_leaves_a_wheeled_type_automatic(
+    client: AsyncClient, auth_headers, db_session: AsyncSession, new_vehicle
+):
+    # guard: only a `none` default gets pinned; a bike keeps following its type.
+    vin = await new_vehicle(vehicle_type="Motorcycle")
+    await import_json(client, auth_headers, vin, {**V9, "tires": [_mounted("F")]})
+    response = await client.get(f"/api/vehicles/{vin}", headers=auth_headers)
+    assert response.json()["wheel_layout"] is None
+    assert response.json()["effective_wheel_layout"] == "two"

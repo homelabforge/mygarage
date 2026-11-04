@@ -75,6 +75,29 @@ def _row(data: dict[str, Any]) -> str:
     return ", ".join(named) or "row not known yet"
 
 
+def warn_once(
+    model: str, field: str, value: object, fallback: object, row: Callable[[], str]
+) -> None:
+    """Log an out-of-vocabulary value read as `fallback`, once per (model, field, value).
+
+    For readers outside pydantic too, like `resolve_wheel_layout`. `row` names
+    the row and only runs when the line is actually logged.
+    """
+    shown = repr(value)[:_MAX_LOGGED_VALUE]
+    key = (model, field, shown)
+    if key in _warned:
+        return
+    _warned.add(key)
+    logger.warning(
+        "Out-of-vocabulary %s.%s %s read as %s (%s)",
+        model,
+        field,
+        sanitize_for_log(shown),
+        fallback,
+        row(),
+    )
+
+
 def lenient_reader(
     vocab: Any, *, fallback: str | None = None
 ) -> Callable[[object, ValidationInfo], object]:
@@ -96,20 +119,15 @@ def lenient_reader(
         if _known(value, vocabulary):
             return value
         model = info.config.get("title") if info.config is not None else None
-        shown = repr(value)[:_MAX_LOGGED_VALUE]
-        key = (model or "<no model>", info.field_name or "<no field>", shown)
-        if key not in _warned:
-            _warned.add(key)
-            # Outside a model (a bare TypeAdapter) pydantic hands over no data at all.
-            data: dict[str, Any] = info.data or {}
-            logger.warning(
-                "Out-of-vocabulary %s.%s %s read as %s (%s)",
-                key[0],
-                key[1],
-                sanitize_for_log(shown),
-                fallback,
-                _row(data),
-            )
+        # Outside a model (a bare TypeAdapter) pydantic hands over no data at all.
+        data: dict[str, Any] = info.data or {}
+        warn_once(
+            model or "<no model>",
+            info.field_name or "<no field>",
+            value,
+            fallback,
+            lambda: _row(data),
+        )
         return fallback
 
     return read

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement, BrakeReminderMark
 from app.models.reminder import Reminder
+from app.models.vehicle_share import VehicleShare
 from app.services.brake_service import BrakeService
 from tests.integration.routes._json_backup import V9, export_json, import_json
 
@@ -305,7 +306,7 @@ _REFUSED = [
     ),
     pytest.param(
         {"brake_measurements": [{**_CHECK, "position": "SPARE"}]},
-        "Brake measurement 0: position must be one of FL, FR, RL, RR",
+        "Brake measurement 0: position must be one of FL, FR, RL, RR, F, R",
         id="measurement-position-word",
     ),
     pytest.param(
@@ -425,3 +426,58 @@ async def test_a_failed_raise_keeps_the_brakes(
     )
     assert marks == []
     assert any("brake reminder raise failed" in r.getMessage() for r in caplog.records)
+
+
+# -- #272 D7: brakes restored onto a no-wheel type keep the Brakes tab -----------
+
+
+async def _effective_layout(client: AsyncClient, headers: dict[str, str], vin: str) -> str:
+    response = await client.get(f"/api/vehicles/{vin}", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()["effective_wheel_layout"]
+
+
+@pytest.mark.parametrize(
+    ("sections", "layout"),
+    [
+        pytest.param({"brake_axles": [_AXLE]}, "four", id="axles"),
+        pytest.param({"brake_jobs": [_JOB]}, "four", id="jobs"),
+        pytest.param({"brake_measurements": [_CHECK]}, "four", id="measurements"),
+        pytest.param({}, "none", id="no-brakes"),
+    ],
+)
+async def test_json_import_onto_new_boat_keeps_tabs(
+    sections: dict[str, list[Any]],
+    layout: str,
+    client: AsyncClient,
+    auth_headers,
+    db_session: AsyncSession,
+    new_vehicle,
+):
+    vin = await new_vehicle(vehicle_type="Boat")
+    data = await import_json(client, auth_headers, vin, {**V9, **sections})
+    assert data["errors"] == []
+    # main: "none" for all four, so restored brakes sat behind a hidden tab.
+    assert await _effective_layout(client, auth_headers, vin) == layout
+
+
+async def test_json_import_by_a_write_share_keeps_tabs(
+    client: AsyncClient,
+    auth_headers,
+    writer_headers,
+    writer_user,
+    test_user,
+    db_session: AsyncSession,
+    new_vehicle,
+):
+    # Derived visibility, like main_photo: a write-share's restore pins it too.
+    vin = await new_vehicle(vehicle_type="Generator")
+    db_session.add(
+        VehicleShare(
+            vehicle_vin=vin, user_id=writer_user.id, permission="write", shared_by=test_user["id"]
+        )
+    )
+    await db_session.commit()
+    data = await import_json(client, writer_headers, vin, {**V9, "brake_jobs": [_JOB]})
+    assert data["brake_jobs"]["success_count"] == 1
+    assert await _effective_layout(client, auth_headers, vin) == "four"

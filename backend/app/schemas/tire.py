@@ -16,11 +16,11 @@ from pydantic import (
     model_validator,
 )
 
+from app.constants.wheel_layouts import TirePosition, WheelLayoutId
 from app.schemas._nullability import reject_null
 from app.utils.household_time import household_today
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
 
-TirePosition = Literal["FL", "FR", "RL", "RR", "SPARE"]
 #: Which reading a tire's figures run on (#217). Same values as `usage_axis.UsageKind`.
 UsageAxisName = Literal["distance", "hours"]
 # For TireResponse: `tires.position` has no CHECK, so a corner we don't know
@@ -446,6 +446,12 @@ class TireListResponse(BaseModel):
     #: Which readings this vehicle takes, so the dialogs show the right fields.
     tracks_distance: bool = True
     tracks_hours: bool = False
+    #: The vehicle's wheel layout (#272): the corners a tire can go on now, in
+    #: display order. A stored tire off these still lists, it just can't be placed.
+    wheel_layout: WheelLayoutId
+    positions: list[TirePosition]
+    #: Whether the rotation patterns apply. Only `four` rotates.
+    rotates: bool
 
 
 class TireSetCreate(BaseModel):
