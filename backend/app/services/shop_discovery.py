@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as app_settings
 from app.exceptions import SSRFProtectionError
+from app.services.poi.base import OSM_USER_AGENT
 from app.services.settings_service import SettingsService
 from app.utils.logging_utils import mask_api_key, mask_coordinates, sanitize_for_log
 from app.utils.url_validation import validate_tomtom_url
@@ -49,9 +50,8 @@ class ShopDiscoveryService:
         # OpenStreetMap Overpass API (public endpoint, no API key needed)
         # Using multiple instances for redundancy (public instances can be overloaded)
         self.osm_overpass_urls = [
-            "https://overpass.kumi.systems/api/interpreter",  # Primary (Kumi Systems - reliable)
-            "https://overpass-api.de/api/interpreter",  # Fallback 1 (official)
-            "https://overpass.openstreetmap.fr/api/interpreter",  # Fallback 2 (French)
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://overpass-api.de/api/interpreter",
         ]
 
         self.timeout = 30.0
@@ -280,7 +280,11 @@ class ShopDiscoveryService:
             try:
                 logger.info("Trying Overpass instance: %s", sanitize_for_log(instance_url))
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.post(instance_url, data={"data": query})
+                    response = await client.post(
+                        instance_url,
+                        data={"data": query},
+                        headers={"User-Agent": OSM_USER_AGENT},
+                    )
                     response.raise_for_status()
                     data = response.json()
 
