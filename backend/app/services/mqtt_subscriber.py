@@ -158,7 +158,7 @@ class MQTTSubscriber:
             raise RuntimeError("MQTT client is not connected")
 
         await self._client.publish(topic, payload.encode("utf-8"))
-        logger.debug("Published MQTT message to %s", topic)
+        logger.debug("Published MQTT message to %s", sanitize_for_log(topic))
 
     async def send_device_command(self, device_id: str, command: str) -> None:
         """Send a command to a WiCAN device via MQTT.

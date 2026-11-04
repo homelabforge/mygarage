@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 
+from app.utils.logging_utils import sanitize_for_log
+
 from .base import BaseDocumentParser, DocumentType
 from .insurance import (
     AllstateInsuranceParser,
@@ -42,7 +44,7 @@ class DocumentParserRegistry:
         # Return generic as fallback
         generic_class = cls._insurance_parsers.get("generic")
         if generic_class:
-            logger.info("No specific parser for %s, using generic", provider)
+            logger.info("No specific parser for %s, using generic", sanitize_for_log(provider))
             return generic_class()
 
         return None

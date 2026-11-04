@@ -180,7 +180,11 @@ async def delete_document(
         await db.execute(delete(Document).where(Document.id == document_id))
         await db.commit()
 
-        logger.info("Deleted document %s for vehicle %s", document_id, sanitize_for_log(vin))
+        logger.info(
+            "Deleted document %s for vehicle %s",
+            sanitize_for_log(document_id),
+            sanitize_for_log(vin),
+        )
         return None
 
     except HTTPException:

@@ -525,7 +525,11 @@ async def add_poi_provider(
     # SettingsService only flushes and get_db never commits.
     await db.commit()
 
-    logger.info("Updated POI provider %s (enabled=%s)", sanitize_for_log(provider_name), enabled)
+    logger.info(
+        "Updated POI provider %s (enabled=%s)",
+        sanitize_for_log(provider_name),
+        sanitize_for_log(enabled),
+    )
 
     # Return updated configuration (with masked key)
     return {

@@ -275,7 +275,9 @@ async def update_odometer_record(
         await db.commit()
         await db.refresh(record)
 
-        logger.info("Updated odometer record %s for %s", record_id, sanitize_for_log(vin))
+        logger.info(
+            "Updated odometer record %s for %s", sanitize_for_log(record_id), sanitize_for_log(vin)
+        )
 
         return OdometerRecordResponse.model_validate(record)
 
@@ -285,7 +287,7 @@ async def update_odometer_record(
         await db.rollback()
         logger.error(
             "Database constraint violation updating odometer record %s for %s: %s",
-            record_id,
+            sanitize_for_log(record_id),
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
@@ -294,7 +296,7 @@ async def update_odometer_record(
         await db.rollback()
         logger.error(
             "Database connection error updating odometer record %s for %s: %s",
-            record_id,
+            sanitize_for_log(record_id),
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
@@ -343,7 +345,9 @@ async def delete_odometer_record(
         )
         await db.commit()
 
-        logger.info("Deleted odometer record %s for %s", record_id, sanitize_for_log(vin))
+        logger.info(
+            "Deleted odometer record %s for %s", sanitize_for_log(record_id), sanitize_for_log(vin)
+        )
 
         return None
 
@@ -353,7 +357,7 @@ async def delete_odometer_record(
         await db.rollback()
         logger.error(
             "Database constraint violation deleting odometer record %s for %s: %s",
-            record_id,
+            sanitize_for_log(record_id),
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
@@ -362,7 +366,7 @@ async def delete_odometer_record(
         await db.rollback()
         logger.error(
             "Database connection error deleting odometer record %s for %s: %s",
-            record_id,
+            sanitize_for_log(record_id),
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )

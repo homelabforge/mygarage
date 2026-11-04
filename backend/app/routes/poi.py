@@ -28,6 +28,7 @@ from app.services.poi.base import POICategory
 from app.services.poi_discovery import POIDiscoveryService
 from app.utils.datetime_utils import utc_now
 from app.utils.gas_station import GAS_STATION_POI, gas_station_clause
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +102,10 @@ async def geocode_address(
             response.raise_for_status()
             payload = response.json()
     except httpx.TimeoutException as e:
-        logger.warning("Nominatim timeout for %r: %s", q, e)
+        logger.warning("Nominatim timeout for %r: %s", sanitize_for_log(q), e)
         raise HTTPException(status_code=504, detail="Geocoding service timed out") from e
     except httpx.HTTPError as e:
-        logger.warning("Nominatim HTTP error for %r: %s", q, e)
+        logger.warning("Nominatim HTTP error for %r: %s", sanitize_for_log(q), e)
         raise HTTPException(status_code=502, detail="Geocoding service unavailable") from e
 
     results = [

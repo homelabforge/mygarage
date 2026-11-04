@@ -12,6 +12,7 @@ from app.services.livelink_service import LiveLinkService
 from app.services.livelink_sources.base import WicanHttpsEnvelope
 from app.services.livelink_sources.wican import WicanModule
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,7 @@ async def ingest_wican_payload(
 
     # Check if LiveLink is enabled (use existing service instance)
     if not await livelink_service.is_enabled():
-        logger.debug("LiveLink disabled, ignoring payload from %s", device_id)
+        logger.debug("LiveLink disabled, ignoring payload from %s", sanitize_for_log(device_id))
         return {"status": "disabled", "message": "LiveLink is currently disabled"}
 
     # Initialize response
@@ -164,7 +165,7 @@ async def ingest_wican_payload(
         await db.commit()
 
     except Exception as e:
-        logger.error("Error processing payload from %s: %s", device_id, e)
+        logger.error("Error processing payload from %s: %s", sanitize_for_log(device_id), e)
         await db.rollback()
         # Still return 202 - we accepted it even if processing failed
         results["processing_error"] = True

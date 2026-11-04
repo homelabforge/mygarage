@@ -96,7 +96,7 @@ class TaxRecordService:
         except OperationalError as e:
             logger.error(
                 "Database connection error getting tax record %s for %s: %s",
-                record_id,
+                sanitize_for_log(record_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -190,7 +190,7 @@ class TaxRecordService:
 
             logger.info(
                 "Updated tax record %s for %s",
-                record_id,
+                sanitize_for_log(record_id),
                 sanitize_for_log(vin),
             )
 
@@ -202,7 +202,7 @@ class TaxRecordService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation updating tax record %s for %s: %s",
-                record_id,
+                sanitize_for_log(record_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -211,7 +211,7 @@ class TaxRecordService:
             await self.db.rollback()
             logger.error(
                 "Database connection error updating tax record %s for %s: %s",
-                record_id,
+                sanitize_for_log(record_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -245,7 +245,7 @@ class TaxRecordService:
 
             logger.info(
                 "Deleted tax record %s for %s",
-                record_id,
+                sanitize_for_log(record_id),
                 sanitize_for_log(vin),
             )
 
@@ -255,7 +255,7 @@ class TaxRecordService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation deleting tax record %s for %s: %s",
-                record_id,
+                sanitize_for_log(record_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -264,7 +264,7 @@ class TaxRecordService:
             await self.db.rollback()
             logger.error(
                 "Database connection error deleting tax record %s for %s: %s",
-                record_id,
+                sanitize_for_log(record_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )

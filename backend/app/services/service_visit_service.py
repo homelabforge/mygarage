@@ -570,7 +570,9 @@ class ServiceVisitService:
 
             await self.db.commit()
 
-            logger.info("Updated service visit %s for %s", visit_id, sanitize_for_log(vin))
+            logger.info(
+                "Updated service visit %s for %s", sanitize_for_log(visit_id), sanitize_for_log(vin)
+            )
 
             # Reload with the FULL eager chain (line_items -> supply_usages -> supply,
             # + vendor) before returning. `_recompute_visit_total`'s reload deliberately
@@ -593,7 +595,7 @@ class ServiceVisitService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation updating visit %s for %s: %s",
-                visit_id,
+                sanitize_for_log(visit_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -602,7 +604,7 @@ class ServiceVisitService:
             await self.db.rollback()
             logger.error(
                 "Database connection error updating visit %s for %s: %s",
-                visit_id,
+                sanitize_for_log(visit_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -706,7 +708,7 @@ class ServiceVisitService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation deleting visit %s for %s: %s",
-                visit_id,
+                sanitize_for_log(visit_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -715,7 +717,7 @@ class ServiceVisitService:
             await self.db.rollback()
             logger.error(
                 "Database connection error deleting visit %s for %s: %s",
-                visit_id,
+                sanitize_for_log(visit_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -807,7 +809,7 @@ class ServiceVisitService:
             logger.info(
                 "Added line item %s to visit %s for %s",
                 line_item.id,
-                visit_id,
+                sanitize_for_log(visit_id),
                 sanitize_for_log(vin),
             )
 
@@ -819,7 +821,7 @@ class ServiceVisitService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation adding line item to visit %s: %s",
-                visit_id,
+                sanitize_for_log(visit_id),
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=409, detail="Invalid line item data")
@@ -827,7 +829,7 @@ class ServiceVisitService:
             await self.db.rollback()
             logger.error(
                 "Database connection error adding line item to visit %s: %s",
-                visit_id,
+                sanitize_for_log(visit_id),
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
@@ -878,8 +880,8 @@ class ServiceVisitService:
 
             logger.info(
                 "Deleted line item %s from visit %s for %s",
-                line_item_id,
-                visit_id,
+                sanitize_for_log(line_item_id),
+                sanitize_for_log(visit_id),
                 sanitize_for_log(vin),
             )
 
@@ -889,7 +891,7 @@ class ServiceVisitService:
             await self.db.rollback()
             logger.error(
                 "Database connection error deleting line item %s: %s",
-                line_item_id,
+                sanitize_for_log(line_item_id),
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")

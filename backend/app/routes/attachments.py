@@ -189,7 +189,7 @@ async def delete_attachment(
         await db.execute(delete(Attachment).where(Attachment.id == attachment_id))
         await db.commit()
 
-        logger.info("Deleted attachment %s", attachment_id)
+        logger.info("Deleted attachment %s", sanitize_for_log(attachment_id))
         return None
 
     except HTTPException:
@@ -257,7 +257,9 @@ async def upload_service_visit_attachment(
         await db.commit()
         await db.refresh(attachment)
 
-        logger.info("Uploaded attachment %s for service visit %s", attachment.id, visit_id)
+        logger.info(
+            "Uploaded attachment %s for service visit %s", attachment.id, sanitize_for_log(visit_id)
+        )
 
         return AttachmentResponse(
             id=attachment.id,

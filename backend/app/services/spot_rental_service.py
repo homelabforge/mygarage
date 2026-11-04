@@ -119,7 +119,7 @@ class SpotRentalService:
         except OperationalError as e:
             logger.error(
                 "Database connection error getting spot rental %s for %s: %s",
-                rental_id,
+                sanitize_for_log(rental_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -287,7 +287,7 @@ class SpotRentalService:
 
             logger.info(
                 "Updated spot rental %s for vehicle %s",
-                rental_id,
+                sanitize_for_log(rental_id),
                 sanitize_for_log(vin),
             )
 
@@ -299,7 +299,7 @@ class SpotRentalService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation updating spot rental %s for %s: %s",
-                rental_id,
+                sanitize_for_log(rental_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -308,7 +308,7 @@ class SpotRentalService:
             await self.db.rollback()
             logger.error(
                 "Database connection error updating spot rental %s for %s: %s",
-                rental_id,
+                sanitize_for_log(rental_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -349,7 +349,7 @@ class SpotRentalService:
 
             logger.info(
                 "Deleted spot rental %s for vehicle %s",
-                rental_id,
+                sanitize_for_log(rental_id),
                 sanitize_for_log(vin),
             )
 
@@ -359,7 +359,7 @@ class SpotRentalService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation deleting spot rental %s for %s: %s",
-                rental_id,
+                sanitize_for_log(rental_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -368,7 +368,7 @@ class SpotRentalService:
             await self.db.rollback()
             logger.error(
                 "Database connection error deleting spot rental %s for %s: %s",
-                rental_id,
+                sanitize_for_log(rental_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
