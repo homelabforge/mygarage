@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.10.0-rc2] - 2026-11-03
+
+_Pre-release; promoting to stable will keep these entries._
+
+### Upgrade note
+
+Back up before you upgrade. Migrations 153, 154 and 155 are FATAL: if one fails, MyGarage refuses to start. The backup steps in the 3.10.0-rc1 note cover them.
+
+Migration 155 moves a motorcycle, bicycle or e-bike that follows its type's wheel layout onto front and rear: an axle whose tires or brakes used one position (such as FL) moves to F or R, and an axle that used two is left for you to sort out. A boat, snowmobile, generator, small engine or attachment that has tire or brake records is set to four wheels, so its tabs stay.
+
 ### Added
 
 - The next inspection deadline (X.1) shows in Basic Information, where you can correct or clear it.
