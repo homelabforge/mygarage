@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -41,7 +41,13 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 }))
 vi.mock('../../hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '12h' }) }))
 vi.mock('../../components/GarageAnalyticsHelpDrawer', () => ({ default: () => null }))
-vi.mock('../../components/ExportMenu', () => ({ default: () => null }))
+vi.mock('../../components/ExportMenu', () => ({
+  default: ({ onExportPDF }: { onExportPDF: () => void }) => (
+    <button type="button" onClick={onExportPDF}>
+      export-pdf
+    </button>
+  ),
+}))
 // t() returns the key (deterministic); data values render as themselves.
 // Real react-i18next keeps `t` stable. A new one per render re-runs the page's
 // [t] fetch effect, which flips it back to loading and remounts the header.
@@ -59,6 +65,7 @@ vi.mock('react-i18next', () => {
 
 import api from '../../services/api'
 import GarageAnalytics from '../GarageAnalytics'
+import { setActiveDateFormat } from '../../constants/i18n'
 
 const mockedGet = vi.mocked(api).get
 
@@ -369,5 +376,26 @@ describe('GarageAnalytics: fixed 12-month trend window', () => {
     await screen.findByText('$13,200.00')
     expect(screen.getByText('garage.monthlySpendingTrend')).toBeInTheDocument()
     expect(captured.barCharts.at(-1)).toHaveLength(12)
+  })
+})
+
+describe('GarageAnalytics PDF export', () => {
+  it('asks for the date order the page shows (#278)', async () => {
+    Object.defineProperty(window.URL, 'createObjectURL', { value: vi.fn(() => 'blob:x'), writable: true, configurable: true })
+    Object.defineProperty(window.URL, 'revokeObjectURL', { value: vi.fn(), writable: true, configurable: true })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    setActiveDateFormat('dmy')
+    try {
+      render(<GarageAnalytics />)
+      fireEvent.click(await screen.findByRole('button', { name: 'export-pdf' }))
+      await waitFor(() =>
+        expect(mockedGet).toHaveBeenCalledWith('/analytics/garage/export', {
+          responseType: 'blob',
+          params: { currency_code: 'USD', locale: 'en-US', date_format: 'dmy' },
+        })
+      )
+    } finally {
+      setActiveDateFormat('mdy')
+    }
   })
 })

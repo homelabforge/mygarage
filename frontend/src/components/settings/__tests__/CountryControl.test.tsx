@@ -36,6 +36,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import api from '@/services/api'
 import CountryControl from '../CountryControl'
+import { setActiveDateFormat } from '@/constants/i18n'
 
 const mockedPut = vi.mocked(api.put)
 
@@ -85,5 +86,18 @@ describe('CountryControl', () => {
     fireEvent.change(select, { target: { value: 'IT' } })
     await waitFor(() => expect(mockedPut).toHaveBeenCalled())
     await waitFor(() => expect(select.value).toBe('FR'))
+  })
+
+  it('names countries in the language, not the day-first date locale', () => {
+    // en-GB would write "US Virgin Islands".
+    setActiveDateFormat('dmy')
+    try {
+      render(<CountryControl />)
+      const select = screen.getByLabelText('country.label') as HTMLSelectElement
+      const labels = Array.from(select.options, (o) => o.textContent)
+      expect(labels).toContain('U.S. Virgin Islands')
+    } finally {
+      setActiveDateFormat('mdy')
+    }
   })
 })

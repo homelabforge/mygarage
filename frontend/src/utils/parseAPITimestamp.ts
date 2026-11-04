@@ -1,3 +1,5 @@
+import { getActiveDateLocale } from '@/constants/i18n'
+
 /**
  * Parse a backend *timestamp* (datetime) string with defensive UTC handling.
  *
@@ -100,7 +102,7 @@ export function formatDateTime(
 ): string {
   const d = toDate(value)
   if (!d) return fallback
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(getActiveDateLocale(), {
     year: 'numeric',
     month: 'numeric',
     day: 'numeric',

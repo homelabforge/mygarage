@@ -156,21 +156,21 @@ class TestGenerateGarageAnalyticsPdf:
 
     def test_returns_valid_pdf(self) -> None:
         data = _make_garage_data()
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         content = buf.read()
         assert content[:4] == PDF_MAGIC
         assert len(content) > 5000
 
     def test_contains_vehicle_count(self) -> None:
         data = _make_garage_data(vehicle_count=3)
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         text = _extract_text(buf.read())
         assert "Total Vehicles" in text
         assert "3 vehicles" in text
 
     def test_contains_kpi_labels(self) -> None:
         data = _make_garage_data()
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         text = _extract_text(buf.read(), normalize=True)
         assert "GARAGE VALUE" in text
         assert "OPERATING COST" in text
@@ -179,7 +179,7 @@ class TestGenerateGarageAnalyticsPdf:
 
     def test_contains_vehicle_names(self) -> None:
         data = _make_garage_data()
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         # Narrow columns may split words, so strip ALL whitespace for matching
         text = _extract_text(buf.read(), normalize=True).replace(" ", "")
         assert "Accord" in text
@@ -190,13 +190,15 @@ class TestGenerateGarageAnalyticsPdf:
         """FB-1: a nickname is typed; an unbalanced tag must not fail the build."""
         data = _make_garage_data()
         data["cost_by_vehicle"][0]["nickname"] = "<b>Ram"
-        text = _extract_text(generate_garage_analytics_pdf(data).read(), normalize=True)
+        text = _extract_text(
+            generate_garage_analytics_pdf(data, date_order="mdy").read(), normalize=True
+        )
         assert "<b>Ram" in text.replace(" ", "")
 
     def test_contains_all_cost_category_headers(self) -> None:
         """Regression: all GarageVehicleCost fields must have column headers."""
         data = _make_garage_data(include_all_cost_fields=True)
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         # Strip ALL whitespace - narrow columns split words across lines
         text = _extract_text(buf.read(), normalize=True).replace(" ", "")
         assert "MAINT." in text
@@ -211,7 +213,7 @@ class TestGenerateGarageAnalyticsPdf:
 
     def test_contains_section_headings(self) -> None:
         data = _make_garage_data()
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         text = _extract_text(buf.read())
         assert "Cost Breakdown by Category" in text
         assert "Cost by Vehicle" in text
@@ -219,20 +221,20 @@ class TestGenerateGarageAnalyticsPdf:
 
     def test_contains_branded_elements(self) -> None:
         data = _make_garage_data()
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         text = _extract_text(buf.read())
         assert "MyGarage" in text
         assert "homelabforge.io" in text
 
     def test_no_monthly_trends(self) -> None:
         data = _make_garage_data(include_trends=False)
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         text = _extract_text(buf.read())
         assert "Monthly Spending Trends" not in text
 
     def test_single_vehicle(self) -> None:
         data = _make_garage_data(vehicle_count=1)
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         text = _extract_text(buf.read())
         assert "1 vehicle" in text
 
@@ -243,9 +245,11 @@ class TestGenerateGarageAnalyticsPdf:
         data_with = _make_garage_data_with_financing()
 
         text_without = _extract_text(
-            generate_garage_analytics_pdf(data_without).read(), normalize=True
+            generate_garage_analytics_pdf(data_without, date_order="mdy").read(), normalize=True
         )
-        text_with = _extract_text(generate_garage_analytics_pdf(data_with).read(), normalize=True)
+        text_with = _extract_text(
+            generate_garage_analytics_pdf(data_with, date_order="mdy").read(), normalize=True
+        )
 
         # Without financing: 5000 + 8000 + 4000 + 1500 + 2000 + 300 = $20,800
         assert "$20,800" in text_without
@@ -263,7 +267,7 @@ class TestGenerateGarageAnalyticsPdf:
                 assert v["total_detailing"] == Decimal("300.00")
                 break
 
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         # Strip ALL whitespace — narrow columns split dollar values across lines
         text = _extract_text(buf.read(), normalize=True).replace(" ", "")
         # format_currency_compact drops cents for values >= $100
@@ -292,7 +296,7 @@ class TestLargeCurrencyValuesRenderIntact:
         data = _make_garage_data()
         data["total_costs"]["total_garage_value"] = Decimal("1234567.89")
 
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         # Normalized, not whitespace-stripped: stripping all spaces would
         # rejoin "$1,234,56" and "8" and make this test unable to fail.
         text = _extract_text(buf.read(), normalize=True)
@@ -306,7 +310,7 @@ class TestLargeCurrencyValuesRenderIntact:
         must still render identically, at the untouched base font."""
         data = _make_garage_data()
 
-        buf = generate_garage_analytics_pdf(data)
+        buf = generate_garage_analytics_pdf(data, date_order="mdy")
         text = _extract_text(buf.read(), normalize=True)
 
         assert "$120,000" in text
@@ -316,7 +320,9 @@ def test_every_chart_labels_money_in_the_report_currency(
     chart_texts: Callable[[], list[list[str]]],
 ) -> None:
     """The tables already used `currency_code`; the charts wrote "$"."""
-    generate_garage_analytics_pdf(_make_garage_data(), currency_code="HUF", locale="hu-HU")
+    generate_garage_analytics_pdf(
+        _make_garage_data(), currency_code="HUF", locale="hu-HU", date_order="mdy"
+    )
 
     drawn = chart_texts()
     # The category donut and the monthly trends.
@@ -352,7 +358,7 @@ class TestMonthlyTrendsSectionGate:
     def test_all_zero_window_omits_the_section(self) -> None:
         data = _make_garage_data()
         data["monthly_trends"] = _twelve_months()
-        text = _extract_text(generate_garage_analytics_pdf(data).read())
+        text = _extract_text(generate_garage_analytics_pdf(data, date_order="mdy").read())
         assert "Monthly Spending Trends" not in text
 
     def test_insurance_and_financing_alone_omit_the_section(self) -> None:
@@ -361,12 +367,12 @@ class TestMonthlyTrendsSectionGate:
         data["monthly_trends"] = _twelve_months(
             {"M03 2026": {"insurance": Decimal("80.00"), "financing": Decimal("450.00")}}
         )
-        text = _extract_text(generate_garage_analytics_pdf(data).read())
+        text = _extract_text(generate_garage_analytics_pdf(data, date_order="mdy").read())
         assert "Monthly Spending Trends" not in text
 
     def test_one_nonzero_month_keeps_the_section(self) -> None:
         """Guard: a single month of running costs still gets the chart."""
         data = _make_garage_data()
         data["monthly_trends"] = _twelve_months({"M06 2026": {"def_cost": Decimal("12.50")}})
-        text = _extract_text(generate_garage_analytics_pdf(data).read())
+        text = _extract_text(generate_garage_analytics_pdf(data, date_order="mdy").read())
         assert "Monthly Spending Trends" in text

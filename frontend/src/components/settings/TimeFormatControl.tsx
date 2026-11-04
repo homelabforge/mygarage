@@ -13,7 +13,7 @@ export default function TimeFormatControl(): React.ReactElement {
   const { t } = useTranslation('settings')
   const { timeFormat: stored } = useTimeFormat()
   const save = useSavePersonalPreference()
-  // Shows the choice before the save lands; dropped if the save fails.
+  // Shows the choice until the save settles.
   const [pending, setPending] = useState<TimeFormat | null>(null)
   const [saving, setSaving] = useState(false)
   const timeFormat = pending ?? stored
@@ -26,8 +26,9 @@ export default function TimeFormatControl(): React.ReactElement {
       toast.success(t('preferences.timeSaved'))
     } catch {
       toast.error(t('preferences.timeError'))
-      setPending(null)
     } finally {
+      // Once the save settles the stored value wins, so a later change elsewhere shows.
+      setPending(null)
       setSaving(false)
     }
   }

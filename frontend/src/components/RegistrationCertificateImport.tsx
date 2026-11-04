@@ -22,7 +22,7 @@ import { FileText, Sparkles, Upload, AlertTriangle } from 'lucide-react'
 import { Button, Drawer } from './ui'
 import VisionConsentPrompt from './VisionConsentPrompt'
 import { useAiDocumentReading } from '@/hooks/queries/useAiDocumentReading'
-import { useDateLocale } from '@/hooks/useDateLocale'
+import { useLanguageLocale } from '@/hooks/useLanguageLocale'
 import { countryName, asCountryCode } from '@/constants/countries'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import {
@@ -135,7 +135,7 @@ export default function RegistrationCertificateImport({
   onImported,
 }: RegistrationCertificateImportProps) {
   const { t } = useTranslation('vehicles')
-  const locale = useDateLocale()
+  const locale = useLanguageLocale()
   const { enabled: aiEnabled } = useAiDocumentReading()
   const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)

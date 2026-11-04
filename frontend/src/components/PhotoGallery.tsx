@@ -18,6 +18,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { formatAPITimestamp } from '../utils/parseAPITimestamp'
 import { withBase } from '../utils/basePath'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
+import { getActiveDateLocale } from '@/constants/i18n'
 
 interface PhotoGalleryProps {
   vin: string
@@ -278,7 +279,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
                         {photo.caption ? photo.caption : <span className="text-text-mute italic">{t('photoGallery.misc.noCaption')}</span>}
                       </p>
                       <div className="flex items-center justify-between text-xs text-text-mute">
-                        <Mono size="sm" tone="muted">{formatAPITimestamp(photo.uploaded_at, (d) => d.toLocaleDateString())}</Mono>
+                        <Mono size="sm" tone="muted">{formatAPITimestamp(photo.uploaded_at, (d) => d.toLocaleDateString(getActiveDateLocale()))}</Mono>
                         {photo.id && (
                           <Button variant="ghost" size="sm" icon={Edit3} onClick={() => startEditing(photo)} disabled={!isOnline}>
                             {t('photoGallery.misc.editCaption')}

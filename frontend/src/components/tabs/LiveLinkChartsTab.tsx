@@ -24,7 +24,7 @@ import { parseAPITimestampMs } from '@/utils/parseAPITimestamp'
 // import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { formatTime, formatDateTime } from '@/utils/parseAPITimestamp'
-import { getActiveLocale } from '@/constants/i18n'
+import { getActiveLocale, getActiveDateLocale } from '@/constants/i18n'
 
 interface LiveLinkChartsTabProps {
   vin: string
@@ -195,7 +195,7 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
     if (timeRange === '24h') {
       return formatTime(date, timeFormat)
     }
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    return date.toLocaleDateString(getActiveDateLocale(), { month: 'short', day: 'numeric' })
   }
 
   if (loading && parameters.length === 0) {

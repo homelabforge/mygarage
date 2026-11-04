@@ -27,6 +27,7 @@ from app.utils.csv_units import (
     VOLUME,
     report_header_row,
 )
+from app.utils.date_order import DATE_ORDER_PATTERN, resolve_date_order
 from app.utils.pdf_generator import PDFReportGenerator
 from app.utils.render_context import render_context_for_request
 from app.utils.vehicle_key import (
@@ -59,6 +60,9 @@ async def download_service_history_pdf(
     end_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
+    date_format: str | None = Query(
+        None, pattern=DATE_ORDER_PATTERN, description="'mdy' or 'dmy'; defaults to the account's."
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -129,6 +133,7 @@ async def download_service_history_pdf(
         render_context=await render_context_for_request(current_user, db, vehicle=vehicle),
         currency_code=safe_code,
         locale=safe_locale,
+        date_order=resolve_date_order(date_format, current_user),
     )
     pdf_buffer = pdf_gen.generate_service_history_pdf(vehicle_info, records_data, start_dt, end_dt)
 
@@ -144,6 +149,9 @@ async def download_service_history_pdf(
 @router.get("/{vin}/reports/sale-history-pdf")
 async def download_sale_history_pdf(
     vin: str,
+    date_format: str | None = Query(
+        None, pattern=DATE_ORDER_PATTERN, description="'mdy' or 'dmy'; defaults to the account's."
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -189,6 +197,7 @@ async def download_sale_history_pdf(
 
     pdf_gen = PDFReportGenerator(
         render_context=await render_context_for_request(current_user, db, vehicle=vehicle),
+        date_order=resolve_date_order(date_format, current_user),
     )
     pdf_buffer = pdf_gen.generate_sale_history_pdf(vehicle_info, records_data)
     filename = f"sale_history_{filename_fragment(vehicle)}_{datetime.now().strftime('%Y%m%d')}.pdf"
@@ -205,6 +214,9 @@ async def download_cost_summary_pdf(
     year: int = Query(..., description="Year for cost summary"),
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
+    date_format: str | None = Query(
+        None, pattern=DATE_ORDER_PATTERN, description="'mdy' or 'dmy'; defaults to the account's."
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -294,6 +306,7 @@ async def download_cost_summary_pdf(
         render_context=await render_context_for_request(current_user, db, vehicle=vehicle),
         currency_code=safe_code,
         locale=safe_locale,
+        date_order=resolve_date_order(date_format, current_user),
     )
     pdf_buffer = pdf_gen.generate_cost_summary_pdf(vehicle_info, cost_data, year)
 
@@ -312,6 +325,9 @@ async def download_tax_deduction_pdf(
     year: int = Query(..., description="Tax year"),
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
+    date_format: str | None = Query(
+        None, pattern=DATE_ORDER_PATTERN, description="'mdy' or 'dmy'; defaults to the account's."
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -359,6 +375,7 @@ async def download_tax_deduction_pdf(
         render_context=await render_context_for_request(current_user, db, vehicle=vehicle),
         currency_code=safe_code,
         locale=safe_locale,
+        date_order=resolve_date_order(date_format, current_user),
     )
     pdf_buffer = pdf_gen.generate_tax_deduction_pdf(vehicle_info, deductible_records, year)
 

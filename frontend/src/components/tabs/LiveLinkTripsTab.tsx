@@ -17,6 +17,7 @@ import { useUnitFormat } from '@/hooks/useUnitFormat'
 import { formatAPITimestamp, formatTime } from '@/utils/parseAPITimestamp'
 import { formatDuration } from '@/utils/durationFormat'
 import { Card, Toggle, Mono, EmptyState } from '../ui'
+import { getActiveDateLocale } from '@/constants/i18n'
 
 // Lazy-load map component — keeps Leaflet's ~150KB out of the main bundle
 const TripRouteMap = lazy(() => import('@/components/maps/TripRouteMap'))
@@ -222,7 +223,7 @@ function TripCard({
           <div>
             <div className="text-text font-medium">
               {formatAPITimestamp(trip.started_at, (d) =>
-                d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
+                d.toLocaleDateString(getActiveDateLocale(), { weekday: 'short', month: 'short', day: 'numeric' }),
               )}
             </div>
             <div className="text-xs text-text-mute">

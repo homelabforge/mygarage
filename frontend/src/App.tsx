@@ -14,6 +14,7 @@ import AppToaster from './components/AppToaster'
 import { useLanguageSync } from './hooks/useLanguageSync'
 import { useAccentSync } from './hooks/useAccentSync'
 import { useThemeSync } from './hooks/useThemeSync'
+import { useDateFormatSync } from './hooks/useDateFormatSync'
 import { basePath } from './utils/basePath'
 
 // Eager load login/register for instant access
@@ -53,11 +54,12 @@ const LoadingFallback = () => (
   </div>
 )
 
-/** Syncs language + UI accent + theme with the authenticated user's DB preferences. */
+/** Syncs language + UI accent + theme + date format with the authenticated user's DB preferences. */
 function PreferenceSyncProvider({ children }: { children: React.ReactNode }) {
   useLanguageSync()
   useAccentSync()
   useThemeSync()
+  useDateFormatSync()
   return <>{children}</>
 }
 

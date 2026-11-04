@@ -35,9 +35,10 @@ export default function LanguageControl(): React.ReactElement {
       toast.success(t('language.saved'))
     } catch {
       toast.error(t('language.error'))
-      setPending(null)
       await i18n.changeLanguage(previous)
     } finally {
+      // Once the save settles the stored value wins, so a later change elsewhere shows.
+      setPending(null)
       setSaving(false)
     }
   }

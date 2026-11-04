@@ -3,18 +3,19 @@ import { todayInHousehold } from '@/constants/i18n'
  * Date utility functions to handle date formatting without timezone issues
  */
 
-import { enUS, de, fr, it, ms, pl, ru, uk, ptBR } from 'date-fns/locale'
+import { enGB, enUS, de, fr, it, ms, pl, ru, uk, ptBR } from 'date-fns/locale'
 import type { Locale } from 'date-fns'
-import { getActiveLocale } from '@/constants/i18n'
+import { getActiveDateLocale } from '@/constants/i18n'
 
 /**
  * date-fns locale for the active language.
  *
  * date-fns takes a locale OBJECT, not the Intl locale string that
- * useDateLocale()/getActiveLocale() return, so relative-time output
+ * useDateLocale()/getActiveDateLocale() return, so relative-time output
  * ("3 months ago") stayed English in every language until this existed.
  */
 const DATE_FNS_LOCALES: Record<string, Locale> = {
+  'en-GB': enGB,
   'en-US': enUS,
   'de-DE': de,
   'fr-FR': fr,
@@ -27,7 +28,7 @@ const DATE_FNS_LOCALES: Record<string, Locale> = {
 }
 
 export function getDateFnsLocale(): Locale {
-  return DATE_FNS_LOCALES[getActiveLocale()] ?? enUS
+  return DATE_FNS_LOCALES[getActiveDateLocale()] ?? enUS
 }
 
 /**
@@ -48,7 +49,7 @@ export function formatDateForDisplay(
     month: 'short',
     day: 'numeric',
   },
-  locale: string = getActiveLocale()
+  locale: string = getActiveDateLocale()
 ): string {
   // Parse date without timezone conversion by appending T00:00:00
   const date = new Date(dateString + 'T00:00:00')

@@ -25,6 +25,7 @@ import { trailingAverage } from '../utils/rollingAverage'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useTimeFormat } from '../hooks/useTimeFormat'
 import { formatDateTime } from '../utils/parseAPITimestamp'
+import { getActiveDateOrder } from '../constants/i18n'
 
 // Colors for pie chart categories (10 categories: Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, DEF, Insurance, Taxes, Financing)
 const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#14B8A6', '#EC4899', '#6B7280', '#84CC16']
@@ -123,7 +124,7 @@ export default function GarageAnalytics() {
     try {
       const response = await api.get('/analytics/garage/export', {
         responseType: 'blob',
-        params: { currency_code: currencyCode, locale },
+        params: { currency_code: currencyCode, locale, date_format: getActiveDateOrder() },
       })
 
       const blob = new Blob([response.data], { type: 'application/pdf' })

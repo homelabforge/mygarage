@@ -19,14 +19,14 @@ import { toast } from 'sonner'
 import { countryOptions } from '@/constants/countries'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCanManageInstance } from '@/hooks/useCanManageInstance'
-import { useDateLocale } from '@/hooks/useDateLocale'
+import { useLanguageLocale } from '@/hooks/useLanguageLocale'
 import api from '@/services/api'
 import { DEFAULT_COUNTRY_KEY } from '@/utils/publicCountryDefault'
 import { Select } from '../ui'
 
 export default function InstanceCountryDefaultCard(): React.ReactElement | null {
   const { t } = useTranslation('settings')
-  const locale = useDateLocale()
+  const locale = useLanguageLocale()
   const { defaultCountry, publicSettingsLoaded, refreshUser } = useAuth()
   const canManageInstance = useCanManageInstance()
   const [pending, setPending] = useState<string | null>(null)

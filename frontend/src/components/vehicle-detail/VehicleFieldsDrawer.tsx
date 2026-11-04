@@ -6,7 +6,7 @@ import FormModalWrapper from '../FormModalWrapper'
 import { Button, Field, Input, NumberInput, Select, Textarea } from '../ui'
 import vehicleService from '../../services/vehicleService'
 import { countryOptions } from '../../constants/countries'
-import { useDateLocale } from '../../hooks/useDateLocale'
+import { useLanguageLocale } from '../../hooks/useLanguageLocale'
 import { str, emptyToNull } from '../../utils/formUtils'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
 import { getActiveLocale } from '../../constants/i18n'
@@ -191,7 +191,7 @@ export default function VehicleFieldsDrawer({
   onUpdated,
 }: VehicleFieldsDrawerProps) {
   const { t } = useTranslation('vehicles')
-  const locale = useDateLocale()
+  const locale = useLanguageLocale()
   const countryChoices = useMemo(
     () => [{ value: '', label: t('edit.registrationCountryNone') }, ...countryOptions(locale)],
     [locale, t]

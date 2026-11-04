@@ -24,6 +24,7 @@ import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { formatAPITimestamp, formatTime } from '@/utils/parseAPITimestamp'
 import { formatAtPrecision } from '@/utils/unitFormat'
 import { formatDuration } from '@/utils/durationFormat'
+import { getActiveDateLocale } from '@/constants/i18n'
 
 /** RPM is a whole number, matching the LiveLink gauge's own classification. */
 const RPM_PRECISION = 0
@@ -227,7 +228,7 @@ function SessionCard({
             <div className="text-left">
               <div className="text-text font-medium">
                 {formatAPITimestamp(session.started_at, (d) =>
-                  d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
+                  d.toLocaleDateString(getActiveDateLocale(), { weekday: 'short', month: 'short', day: 'numeric' }),
                 )}
               </div>
               <div className="text-xs text-text-mute">

@@ -25,6 +25,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.utils.date_order import DateOrder, format_date
 from app.utils.hours_formatting import format_hours
 from app.utils.pdf_charts import (
     render_donut_chart,
@@ -115,11 +116,11 @@ def _parse_date(val: Any) -> date_type | None:
     return None
 
 
-def _format_date(val: date_type | None) -> str:
-    """Format a date for report display, or 'N/A' if absent."""
+def _format_date(val: date_type | None, date_order: DateOrder) -> str:
+    """Format a date for report display (Oct 24, 2026 or 24 Oct 2026), or 'N/A' if absent."""
     if val is None:
         return "N/A"
-    return val.strftime("%b %d, %Y")
+    return format_date(val, date_order, "short")
 
 
 def _latest_hours_point(
@@ -161,6 +162,8 @@ def _build_usage_efficiency_cards(
     currency_code: str,
     locale: str,
     render_context: RenderContext,
+    *,
+    date_order: DateOrder,
 ) -> list[dict[str, Any]]:
     """Build KPI cards for the "Usage & Efficiency" section.
 
@@ -214,7 +217,9 @@ def _build_usage_efficiency_cards(
             {
                 "label": "Engine Hours",
                 "value": format_hours(latest_hours),
-                "sub": f"As of {_format_date(latest_date)}" if latest_date is not None else "",
+                "sub": f"As of {_format_date(latest_date, date_order)}"
+                if latest_date is not None
+                else "",
                 "color": "amber",
             }
         )
@@ -242,6 +247,8 @@ def _build_usage_efficiency_cards(
 def _build_hours_history_table(
     hours_accumulated: list[dict[str, Any]],
     styles: dict[str, Any],
+    *,
+    date_order: DateOrder,
 ) -> Table:
     """Build the hours-records history table (date, engine hours, source) —
     the hours analog of an odometer history table. Newest first, capped to
@@ -268,7 +275,7 @@ def _build_hours_history_table(
         source = point.get("source") or point.get("notes") or "—"
         rows.append(
             [
-                Paragraph(_format_date(_parse_date(point.get("date"))), cell_style),
+                Paragraph(_format_date(_parse_date(point.get("date")), date_order), cell_style),
                 Paragraph(format_hours(engine_hours), amt_style),
                 Paragraph(escape(str(source)), cell_style),
             ]
@@ -282,7 +289,9 @@ def _build_hours_history_table(
     )
 
 
-def _reminder_due_text(reminder: dict[str, Any], render_context: RenderContext) -> str:
+def _reminder_due_text(
+    reminder: dict[str, Any], render_context: RenderContext, *, date_order: DateOrder
+) -> str:
     """Render a reminder's target as readable text.
 
     ``due_hours`` takes priority over ``due_mileage_km`` when both happen to
@@ -296,7 +305,7 @@ def _reminder_due_text(reminder: dict[str, Any], render_context: RenderContext) 
     parts: list[str] = []
     due_date = _parse_date(reminder.get("due_date"))
     if due_date is not None:
-        parts.append(_format_date(due_date))
+        parts.append(_format_date(due_date, date_order))
 
     due_hours = _safe_decimal(reminder.get("due_hours"))
     due_mileage_km = _safe_decimal(reminder.get("due_mileage_km"))
@@ -319,6 +328,8 @@ def _build_reminders_table(
     reminders_data: list[dict[str, Any]],
     styles: dict[str, Any],
     render_context: RenderContext,
+    *,
+    date_order: DateOrder,
 ) -> Table:
     """Build the upcoming-reminders table. A reminder with ``due_hours`` set
     renders its target in hours (see ``_reminder_due_text``), never blank
@@ -332,7 +343,10 @@ def _build_reminders_table(
             [
                 Paragraph(escape(str(reminder.get("title") or "")), cell_style),
                 Paragraph(escape(str(reminder.get("reminder_type") or "").title()), cell_style),
-                Paragraph(escape(_reminder_due_text(reminder, render_context)), cell_style),
+                Paragraph(
+                    escape(_reminder_due_text(reminder, render_context, date_order=date_order)),
+                    cell_style,
+                ),
             ]
         )
 
@@ -364,6 +378,7 @@ def generate_vehicle_analytics_pdf(
     *,
     render_context: RenderContext,
     rate_context: RenderContext | None = None,
+    date_order: DateOrder,
 ) -> BytesIO:
     """Generate a branded vehicle analytics PDF report.
 
@@ -394,6 +409,7 @@ def generate_vehicle_analytics_pdf(
             (cost per distance). They stay with the account while distances
             follow the vehicle's own odometer unit (#172 D3). Defaults to
             ``render_context``, which is right whenever the two agree.
+        date_order: 'mdy' or 'dmy' (see ``app.utils.date_order``).
 
     Returns:
         BytesIO containing the PDF document.
@@ -424,7 +440,7 @@ def generate_vehicle_analytics_pdf(
     subtitle = "Vehicle Analytics Report"
 
     def on_first_page(canvas: Any, doc: Any) -> None:  # pyright: ignore[reportUnusedParameter]
-        draw_branded_header(canvas, doc, subtitle)
+        draw_branded_header(canvas, doc, subtitle, date_order=date_order)
         draw_branded_footer(canvas, doc)
 
     def on_later_pages(canvas: Any, doc: Any) -> None:  # pyright: ignore[reportUnusedParameter]
@@ -511,7 +527,7 @@ def generate_vehicle_analytics_pdf(
     # cards only when hours_accumulated is non-empty. A pure-distance
     # vehicle (neither) skips this whole block — report unchanged.
     usage_cards = _build_usage_efficiency_cards(
-        analytics_data, currency_code, locale, render_context
+        analytics_data, currency_code, locale, render_context, date_order=date_order
     )
     if usage_cards:
         story.append(make_section_header("Usage & Efficiency"))
@@ -536,7 +552,11 @@ def generate_vehicle_analytics_pdf(
         # container that reportlab can't paginate (see style_as_card's
         # docstring; the same LayoutError the service-breakdown table
         # avoids above by skipping wrap_in_card past 10 rows).
-        story.append(style_as_card(_build_hours_history_table(hours_accumulated, styles)))
+        story.append(
+            style_as_card(
+                _build_hours_history_table(hours_accumulated, styles, date_order=date_order)
+            )
+        )
         story.append(Spacer(1, SECTION_SPACING))
 
     # ── 2d. Upcoming Reminders ──────────────────────────────────
@@ -552,7 +572,13 @@ def generate_vehicle_analytics_pdf(
         story.append(Spacer(1, 10))
         # style_as_card, not wrap_in_card — reminders_data is caller-sized
         # and unbounded; keep the table splittable across pages.
-        story.append(style_as_card(_build_reminders_table(reminders_data, styles, render_context)))
+        story.append(
+            style_as_card(
+                _build_reminders_table(
+                    reminders_data, styles, render_context, date_order=date_order
+                )
+            )
+        )
         story.append(Spacer(1, SECTION_SPACING))
 
     # ── 3. Monthly Spending Chart ─────────────────────────────

@@ -7,6 +7,7 @@ import { useVehicleSupplyUsages } from '@/hooks/queries/useSupplies'
 import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useDateLocale } from '@/hooks/useDateLocale'
+import { useLanguageLocale } from '@/hooks/useLanguageLocale'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import {
   formatSupplyQuantity,
@@ -32,6 +33,7 @@ export default function SuppliesUsedTab({ vin }: SuppliesUsedTabProps) {
   const { formatCurrency } = useCurrencyPreference()
   const { system } = useUnitPreference()
   const dateLocale = useDateLocale()
+  const numberLocale = useLanguageLocale()
 
   const usages: SupplyUsage[] = data?.usages ?? []
 
@@ -76,7 +78,7 @@ export default function SuppliesUsedTab({ vin }: SuppliesUsedTabProps) {
                 <h3 className="text-sm font-semibold text-text">{usage.supply_name}</h3>
                 <p className="text-xs text-text-mute mt-0.5">
                   {t('supplies.usedTab.quantity')}:{' '}
-                  <Mono size="xs" tone="muted">{formatQuantity(usage.quantity, supplyDisplayUnit(usage, system), dateLocale)}</Mono>
+                  <Mono size="xs" tone="muted">{formatQuantity(usage.quantity, supplyDisplayUnit(usage, system), numberLocale)}</Mono>
                 </p>
                 {usage.service_visit_date && (
                   <p className="text-xs text-text-mute mt-0.5">

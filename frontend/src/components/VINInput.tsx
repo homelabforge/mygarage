@@ -9,7 +9,7 @@ import { vinService } from '@/services/vinService'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { Card } from '@/components/ui'
 import { asCountryCode, countryName } from '@/constants/countries'
-import { useDateLocale } from '@/hooks/useDateLocale'
+import { useLanguageLocale } from '@/hooks/useLanguageLocale'
 import type { VINDecodeResponse } from '@/types/vin'
 
 /** The decoder's notes (#211), each with its own translated sentence. */
@@ -50,7 +50,7 @@ export default function VINInput({
   onImportCertificate,
 }: VINInputProps) {
   const { t } = useTranslation('vehicles')
-  const locale = useDateLocale()
+  const locale = useLanguageLocale()
   const [isValidating, setIsValidating] = useState(false)
   const [isDecoding, setIsDecoding] = useState(false)
   const [validationStatus, setValidationStatus] = useState<

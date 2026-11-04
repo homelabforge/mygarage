@@ -23,7 +23,7 @@ import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import vehicleService from '../services/vehicleService'
 import { makeVehicleEditSchema, vehicleTypeOptions, defaultUsageUnitForType, type VehicleEditFormData } from '../schemas/vehicle'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
-import { useDateLocale } from '../hooks/useDateLocale'
+import { useLanguageLocale } from '../hooks/useLanguageLocale'
 import { useResolvedCountry } from '../hooks/useResolvedCountry'
 import { countryOptions } from '../constants/countries'
 import RegistrationCertificateImport from './RegistrationCertificateImport'
@@ -127,7 +127,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
   // (their own country, else the instance default): a one-country household
   // never picks it. The select keeps "Not set" so it can still be cleared.
   const resolvedCountry = useResolvedCountry()
-  const locale = useDateLocale()
+  const locale = useLanguageLocale()
   const registrationCountryOptions = useMemo(
     () => [{ value: '', label: t('edit.registrationCountryNone') }, ...countryOptions(locale)],
     [locale, t]

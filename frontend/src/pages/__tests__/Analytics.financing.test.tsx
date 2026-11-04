@@ -5,6 +5,7 @@ import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import type { MonthlyCostSummary, VehicleAnalytics } from '../../types/analytics'
+import { setActiveDateFormat } from '../../constants/i18n'
 
 const captured = vi.hoisted(() => ({ barCharts: [] as unknown[], lineCharts: [] as unknown[] }))
 vi.mock('recharts', () => {
@@ -349,5 +350,25 @@ describe('Analytics — the cost trend line skips financing-only months', () => 
     await screen.findByText('vehicle.monthlyCostTrend')
     expect(screen.queryByText('vehicle.costTrendsTitle')).not.toBeInTheDocument()
     expect(trendLine()).toBeUndefined()
+  })
+})
+
+describe('Analytics — PDF export', () => {
+  it('asks for the date order the page shows (#278)', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    setActiveDateFormat('dmy')
+    try {
+      respondWith(WITH_FINANCING)
+      renderAnalytics()
+      fireEvent.click(await screen.findByRole('button', { name: 'exportMenu.export' }))
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'PDF' }))
+      expect(open).toHaveBeenCalledTimes(1)
+      const url = new URL(String(open.mock.calls[0][0]), 'http://x')
+      expect(url.pathname).toBe('/api/analytics/vehicles/V1/export')
+      expect(url.searchParams.get('date_format')).toBe('dmy')
+    } finally {
+      setActiveDateFormat('mdy')
+      open.mockRestore()
+    }
   })
 })
