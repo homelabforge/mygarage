@@ -62,6 +62,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 })
 
 import TireList from '../TireList'
+import { FOUR_LAYOUT } from '../../__tests__/factories'
 
 const VIN = '1HGCM82633A004352'
 const HOURS = { usage_axis: 'hours', tracks_distance: false, tracks_hours: true }
@@ -82,7 +83,7 @@ const tire = (id: number, position: string | null) => ({
 const FULL = [tire(1, 'FL'), tire(2, 'FR'), tire(3, 'RL'), tire(4, 'RR'), tire(5, null)]
 
 const list = (tires: unknown[], flags: Record<string, unknown> = {}) =>
-  useTiresMock.mockReturnValue({ data: { tires, total: tires.length, ...flags }, isLoading: false, error: null })
+  useTiresMock.mockReturnValue({ data: { tires, total: tires.length, ...FOUR_LAYOUT, ...flags }, isLoading: false, error: null })
 const dialog = () => within(screen.getByRole('dialog'))
 const field = (id: string) => document.getElementById(id) as HTMLInputElement
 

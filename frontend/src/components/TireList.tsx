@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Trash2, Gauge, AlertTriangle, Pencil, RotateCw, Layers, Disc, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay, formatDateForInput } from '../utils/dateUtils'
-import { POSITIONS } from '../types/tire'
 import type { MountedPosition, Tire, TireMountPeriod, TirePosition, TireReading, TireSet } from '../types/tire'
 import {
   useTires,
@@ -262,7 +261,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
   const [fitHours, setFitHours] = useState('')
   const [mountTireId, setMountTireId] = useState<number | null>(null)
   const [dismountTireId, setDismountTireId] = useState<number | null>(null)
-  const [mountPosition, setMountPosition] = useState<MountedPosition>('FL')
+  const [mountPosition, setMountPosition] = useState<MountedPosition | null>(null)
   /* Separate odometer state per drawer. They were briefly one field, which
    * meant a value typed into Mount and abandoned reappeared in Dismount --
    * and silently became that period's closing bound. A wrong odometer here is
@@ -346,7 +345,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
   const [editingPeriod, setEditingPeriod] = useState<TireMountPeriod | null>(null)
   const [editingReading, setEditingReading] = useState<TireReading | null>(null)
   const [addingPeriod, setAddingPeriod] = useState(false)
-  const [form, setForm] = useState<TireFormState>(() => seedTireForm(null, 'FL'))
+  const [form, setForm] = useState<TireFormState>(() => seedTireForm(null, null))
   const [readingForm, setReadingForm] = useState<ReadingFormState>(emptyReadingForm)
   const refuseUnreadable = useRefuseUnreadableNumbers()
 
@@ -373,8 +372,22 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
   const takenPositions = new Set(
     tires.map((tire: Tire) => tire.position).filter((p): p is MountedPosition => p != null)
   )
-  const freePositions = POSITIONS.filter((p) => !takenPositions.has(p))
-  const mountedTires = tires.filter((tire: Tire) => tire.position != null && tire.retired_on == null)
+  /* The corners this vehicle's wheel layout has, in display order (#272). The
+     server owns the list; nothing loaded yet just means nothing to offer. */
+  const layoutPositions: MountedPosition[] = data ? data.positions : []
+  const rotates = data ? data.rotates : false
+  const freePositions = layoutPositions.filter((p) => !takenPositions.has(p))
+  /* Layout order, then anything left on a corner the layout doesn't have, like
+     a car tire still at FL after the vehicle became a motorcycle. */
+  const layoutRank = (position: TirePosition): number => {
+    const index = position == null ? -1 : layoutPositions.indexOf(position)
+    return index === -1 ? layoutPositions.length : index
+  }
+  const isOffLayout = (position: TirePosition): boolean =>
+    position != null && !layoutPositions.includes(position)
+  const mountedTires = tires
+    .filter((tire: Tire) => tire.position != null && tire.retired_on == null)
+    .sort((a: Tire, b: Tire) => layoutRank(a.position) - layoutRank(b.position))
   const storedTires = tires.filter((tire: Tire) => tire.position == null && tire.retired_on == null)
   const retiredTires = tires.filter((tire: Tire) => tire.retired_on != null)
 
@@ -386,7 +399,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
      that is already on screen. */
   const tireAt = (position: RotationCorner): Tire | undefined =>
     mountedTires.find((tire: Tire) => tire.position === position)
-  const canRotate = ROTATION_CORNERS.every((corner) => tireAt(corner) !== undefined)
+  const canRotate = rotates && ROTATION_CORNERS.every((corner) => tireAt(corner) !== undefined)
 
   /* `tire_ids` and `mounted_count` carry server-side defaults, so the generated
      type marks them optional even though every response has them. Normalised
@@ -422,12 +435,6 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
   const readingTire = tires.find((tire: Tire) => tire.id === readingTireId) ?? null
   const historyTire = tires.find((tire: Tire) => tire.id === historyTireId) ?? null
 
-  /* Spelled out as five literal t() calls rather than t(`…positions.${p}`):
-   * validate-i18n-usage scans for string literals, so a computed key is
-   * invisible to it and a typo would ship a raw `tireList.positions.RL` to the
-   * user. The Record type keeps the map exhaustive. Chips still show the short
-   * codes — these are for the card heading and the drawer titles, where there
-   * is room and where "FL" was untranslatable English in every locale. */
   const rotationPatternLabels: Record<RotationPatternId, { name: string; desc: string }> = {
     forwardCross: {
       name: t('tireList.rotatePatterns.forwardCross'),
@@ -447,6 +454,11 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
     },
   }
 
+  /* Spelled out as literal t() calls rather than t(`…positions.${p}`):
+   * validate-i18n-usage scans for string literals, so a computed key is
+   * invisible to it and a typo would ship a raw `tireList.positions.RL` to the
+   * user. The Record type keeps the map exhaustive. The chips use these too
+   * since #272: "RLI" means nothing to anyone, "Rear Left Inner" does. */
   const positionLabels: Record<MountedPosition, string> = {
     FL: t('tireList.positions.FL'),
     FR: t('tireList.positions.FR'),
@@ -656,6 +668,9 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
    * suggestion included, into the next tire's dialog, where a quick confirm
    * recorded them against the wrong tire. */
   const openMount = (tireId: number): void => {
+    // First free corner on the layout. It used to start on FL whatever the
+    // vehicle, which a motorcycle doesn't have.
+    setMountPosition(freePositions[0] ?? null)
     setMountDate(formatDateForInput())
     setMountOdometer(EMPTY_ODOMETER)
     setMountHours('')
@@ -1048,15 +1063,16 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
     )
   }
 
-  if (isLoading) {
-    return <div className="text-text-mute">{t('common:loading')}</div>
-  }
   if (error) {
     return (
       <div className="rounded-panel border border-danger bg-danger/10 p-4 text-danger">
         {getActionErrorMessage(error, t('tireList.loadAction'))}
       </div>
     )
+  }
+  // No list yet means still loading, as far as anyone looking can tell.
+  if (isLoading || !data) {
+    return <div className="text-text-mute">{t('common:loading')}</div>
   }
 
   return (
@@ -1084,16 +1100,20 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
           >
             {t('tireList.sets')}
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={RotateCw}
-            disabled={!canRotate || rotate.isPending}
-            title={canRotate ? undefined : t('tireList.rotateNeedsFourCorners')}
-            onClick={openRotate}
-          >
-            {t('tireList.rotate')}
-          </Button>
+          {/* Hidden, not disabled, off a four-wheel layout: there's no pattern
+              for a bike or a dually, so there's nothing to wait for. */}
+          {rotates && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={RotateCw}
+              disabled={!canRotate || rotate.isPending}
+              title={canRotate ? undefined : t('tireList.rotateNeedsFourCorners')}
+              onClick={openRotate}
+            >
+              {t('tireList.rotate')}
+            </Button>
+          )}
           {/* No longer disabled when every corner is taken: that is exactly
               when a second seasonal set gets entered, and Add now offers
               storage as a destination. */}
@@ -1103,11 +1123,9 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
         </div>
       </div>
       {/* The layout lives on the vehicle, so just say which one and where to change it. */}
-      {data?.wheel_layout && (
-        <p className="text-sm text-text-mute">
-          {t('wheelLayout.current', { layout: layoutLabel(data.wheel_layout) })}
-        </p>
-      )}
+      <p className="text-sm text-text-mute">
+        {t('wheelLayout.current', { layout: layoutLabel(data.wheel_layout) })}
+      </p>
 
       {brakesPrompt && onLogBrakes && (
         <Card padding="sm" className="flex flex-wrap items-center justify-between gap-3">
@@ -1160,6 +1178,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
               <div>
                 <div className="font-semibold flex items-center gap-2">
                   {labelFor(tire.position)}
+                  {isOffLayout(tire.position) && <Chip tone="muted">{t('tireList.offLayout')}</Chip>}
                   {tire.below_threshold && (
                     <span className="inline-flex items-center gap-1 text-xs text-danger">
                       <AlertTriangle className="h-3.5 w-3.5" />
@@ -1423,13 +1442,13 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                 </Button>
                 <Button
                   variant="primary"
-                  disabled={mount.isPending}
+                  disabled={mountPosition === null || mount.isPending}
                   onClick={() => {
                     if (!mountDate) {
                       toast.error(t('tireList.eventDateRequired'))
                       return
                     }
-                    if (mountTireId === null) return
+                    if (mountTireId === null || mountPosition === null) return
                     if (refuseUnreadable(eventNumbers(pu, mountOdometer, mountHours))) return
                     mount.mutate(
                       {
@@ -1464,7 +1483,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                       selected={mountPosition === position}
                       onClick={() => setMountPosition(position)}
                     >
-                      {position}
+                      {positionLabels[position]}
                     </Chip>
                   ))}
                 </div>
@@ -1951,7 +1970,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                   aria-labelledby="tire-position-label"
                   className="flex flex-wrap gap-2"
                 >
-                  {POSITIONS.map((p) => {
+                  {layoutPositions.map((p) => {
                     const locked = editingTireId !== null
                     const taken = takenPositions.has(p)
                     // Editing locks every chip; adding leaves occupied slots inert.
@@ -1965,7 +1984,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
                         selected={form.position === p}
                         onClick={selectable ? () => setForm({ ...form, position: p }) : undefined}
                       >
-                        {p}
+                        {positionLabels[p]}
                       </Chip>
                     )
                   })}
@@ -2255,6 +2274,7 @@ export default function TireList({ vin, onLogBrakes }: TireListProps) {
           open
           onClose={() => setAddingPeriod(false)}
           labelFor={labelFor}
+          positions={layoutPositions}
           tracksDistance={tracksDistance}
           tracksHours={tracksHours}
         />

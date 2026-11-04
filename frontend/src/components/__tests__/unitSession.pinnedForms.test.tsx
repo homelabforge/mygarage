@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactElement } from 'react'
 import { act, fireEvent, screen } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
-import { IMPERIAL_UNITS, METRIC_UNITS } from '../../__tests__/factories'
+import { FOUR_LAYOUT, IMPERIAL_UNITS, METRIC_UNITS } from '../../__tests__/factories'
 import { setUnitPrefs } from '../../utils/unitPrefsStore'
 import type { Reminder } from '../../types/reminder'
 import type { Supply } from '../../types/supplies'
@@ -53,7 +53,7 @@ vi.mock('../../services/api', () => ({
   default: {
     get: (url: string) =>
       url.endsWith('/tires')
-        ? Promise.resolve({ data: { tires: [], tracks_distance: true, tracks_hours: false } })
+        ? Promise.resolve({ data: { tires: [], total: 0, tracks_distance: true, tracks_hours: false, ...FOUR_LAYOUT } })
         : url.endsWith('/tire-sets')
           ? Promise.resolve({ data: { sets: [] } })
           : new Promise(() => {}),
@@ -223,7 +223,7 @@ const ROWS: Row[] = [
   },
   {
     name: 'AddPastPeriodDrawer',
-    ui: () => <AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={noop} labelFor={labelFor} />,
+    ui: () => <AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={noop} labelFor={labelFor} positions={FOUR_LAYOUT.positions} />,
   },
   {
     name: 'MountPeriodEditor',

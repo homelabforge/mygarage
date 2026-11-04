@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 
-import { IMPERIAL_UNITS, METRIC_UNITS, type UnitSet } from '../../../__tests__/factories'
+import { FOUR_LAYOUT, IMPERIAL_UNITS, METRIC_UNITS, type UnitSet } from '../../../__tests__/factories'
 
 const useCreateMock = vi.fn()
 vi.mock('../../../hooks/queries/useTires', () => ({
@@ -75,7 +75,7 @@ describe('AddPastPeriodDrawer', () => {
   })
 
   it('refuses to save without a corner', () => {
-    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} />)
+    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} positions={FOUR_LAYOUT.positions} />)
     fireEvent.change(input('past-mount-date'), { target: { value: '2025-06-01' } })
     fireEvent.change(input('past-dismount-date'), { target: { value: '2025-09-01' } })
     fireEvent.click(drawer().getByText('common:save'))
@@ -83,8 +83,16 @@ describe('AddPastPeriodDrawer', () => {
     expect(mutate).not.toHaveBeenCalled()
   })
 
+  it('offers only the corners of the wheel layout it is given', () => {
+    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} positions={['F', 'R']} />)
+    const chips = drawer()
+      .getAllByRole('button')
+      .filter((button) => button.hasAttribute('aria-pressed'))
+    expect(chips.map((chip) => chip.textContent)).toEqual(['pos-F', 'pos-R'])
+  })
+
   it('refuses to save without both dates', () => {
-    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} />)
+    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} positions={FOUR_LAYOUT.positions} />)
     fireEvent.click(drawer().getByText('pos-FR'))
     fireEvent.change(input('past-mount-date'), { target: { value: '2025-06-01' } })
     // Dismount date left empty.
@@ -95,7 +103,7 @@ describe('AddPastPeriodDrawer', () => {
 
   it('sends the corner, both dates and both odometers converted to km', () => {
     units = IMPERIAL_UNITS
-    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} />)
+    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} positions={FOUR_LAYOUT.positions} />)
     fireEvent.click(drawer().getByText('pos-FR'))
     fireEvent.change(input('past-mount-date'), { target: { value: '2025-06-01' } })
     fireEvent.change(input('past-dismount-date'), { target: { value: '2025-09-01' } })
@@ -123,7 +131,7 @@ describe('AddPastPeriodDrawer', () => {
     units = IMPERIAL_UNITS
     nearestData = { date: '2026-01-05', odometer_km: '100000.00', source: 'manual', days_away: -5 }
     nearestSuccess = true
-    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} />)
+    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} positions={FOUR_LAYOUT.positions} />)
     fireEvent.click(drawer().getByText('pos-FR'))
     fireEvent.change(input('past-mount-date'), { target: { value: '2025-06-01' } })
     fireEvent.change(input('past-dismount-date'), { target: { value: '2025-09-01' } })
@@ -137,7 +145,7 @@ describe('AddPastPeriodDrawer', () => {
 
   it('on an hours-only vehicle records the hour meter and no odometer', () => {
     render(
-      <AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} tracksDistance={false} tracksHours />
+      <AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} positions={FOUR_LAYOUT.positions} tracksDistance={false} tracksHours />
     )
     fireEvent.click(drawer().getByText('pos-RL'))
     fireEvent.change(input('past-mount-date'), { target: { value: '2025-06-01' } })
@@ -153,7 +161,7 @@ describe('AddPastPeriodDrawer', () => {
   })
 
   it('groups each half under its own name, so the two odometers and hour meters are told apart', () => {
-    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} tracksHours />)
+    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} positions={FOUR_LAYOUT.positions} tracksHours />)
     const mount = drawer().getByRole('group', { name: 'tireList.periodMount' })
     const dismount = drawer().getByRole('group', { name: 'tireList.periodDismount' })
     expect(mount).toContainElement(input('past-mount-odometer'))

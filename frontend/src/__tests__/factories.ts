@@ -193,3 +193,12 @@ export function makeDetailStats(overrides: Partial<VehicleDetailStats> = {}): Ve
     ...overrides,
   }
 }
+
+export type TireListLayout = Pick<components['schemas']['TireListResponse'], 'positions' | 'rotates' | 'wheel_layout'>
+
+/** The layout half of a tire list for a car (#272). Spread it into a useTires mock. */
+export const FOUR_LAYOUT: TireListLayout = {
+  positions: ['FL', 'FR', 'RL', 'RR', 'SPARE'],
+  rotates: true,
+  wheel_layout: 'four',
+}

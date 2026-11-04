@@ -6,7 +6,6 @@ import { toast } from 'sonner'
 import { useCreateMountPeriod } from '../../hooks/queries/useTires'
 import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { useRefuseUnreadableNumbers } from '../../hooks/useRefuseUnreadableNumbers'
-import { POSITIONS } from '../../types/tire'
 import type { MountedPosition, Tire, TirePosition } from '../../types/tire'
 import { hoursFromField } from '../../utils/hoursFormat'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
@@ -21,6 +20,8 @@ interface AddPastPeriodDrawerProps {
   open: boolean
   onClose: () => void
   labelFor: (position: TirePosition) => string
+  /** The corners of the vehicle's wheel layout, in display order (#272). */
+  positions: MountedPosition[]
   /** Whether the vehicle takes an odometer. Defaults to true. */
   tracksDistance?: boolean
   /** Whether the vehicle takes an hour meter. Defaults to false. */
@@ -45,6 +46,7 @@ function AddPastPeriodDrawer({
   open,
   onClose,
   labelFor,
+  positions,
   tracksDistance = true,
   tracksHours = false,
 }: AddPastPeriodDrawerProps) {
@@ -148,7 +150,7 @@ function AddPastPeriodDrawer({
       <div className="space-y-4">
         <Field id="past-position" label={t('tireList.pastPeriodCorner')}>
           <div className="flex flex-wrap gap-2">
-            {POSITIONS.map((p) => (
+            {positions.map((p) => (
               <Chip key={p} selected={position === p} onClick={() => setPosition(p)}>
                 {labelFor(p)}
               </Chip>

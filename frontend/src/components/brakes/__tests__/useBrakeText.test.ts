@@ -85,3 +85,11 @@ describe('useBrakeText wearSummary', () => {
     expect(summary(projected)).toBe(`~1333.3 km · ${formatDateForDisplay('2026-05-06')}`)
   })
 })
+
+describe('useBrakeText labelFor', () => {
+  it('names the two-wheeler corners Front and Rear (#272)', () => {
+    const { result } = renderHook(() => useBrakeText())
+    expect(result.current.labelFor('F')).toBe('Front')
+    expect(result.current.labelFor('R')).toBe('Rear')
+  })
+})
