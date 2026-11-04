@@ -632,9 +632,9 @@ function VehicleDetailPage() {
   }
 
   // A sub-tab that went away while open (layout switched to none on Tires) falls
-  // back to the first one left. Waits for the vehicle, since before it loads
-  // everything reads as non-motorized and a ?tab=tires link would bounce. LiveLink
-  // is skipped: its sub-tabs wait on their own fetch, so a ?tab=dtcs link would too.
+  // back to the first one left. It waits for the vehicle (the page remounts per vin,
+  // so that's always this one): before it loads everything reads as non-motorized and
+  // ?tab=tires would bounce. LiveLink is skipped since its sub-tabs wait on their own fetch.
   const activeSubTabHidden =
     vehicle != null &&
     activePrimaryTab !== 'livelink' &&

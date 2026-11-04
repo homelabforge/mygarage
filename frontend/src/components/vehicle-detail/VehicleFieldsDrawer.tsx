@@ -202,10 +202,13 @@ export default function VehicleFieldsDrawer({
   const wholeNumbers = useMemo(() => makeVehicleWholeNumberFields(t), [t])
   const { layoutLabel, autoLabel } = useWheelLayoutText()
   // Every layout for every type: the override is free, so a Car can be a dually.
-  const wheelLayoutChoices = [
-    { value: '', label: autoLabel(vehicle.default_wheel_layout) },
-    ...WHEEL_LAYOUT_IDS.map((id) => ({ value: id, label: layoutLabel(id) })),
-  ]
+  const wheelLayoutChoices = useMemo(
+    () => [
+      { value: '', label: autoLabel(vehicle.default_wheel_layout) },
+      ...WHEEL_LAYOUT_IDS.map((id) => ({ value: id, label: layoutLabel(id) })),
+    ],
+    [autoLabel, layoutLabel, vehicle.default_wheel_layout],
+  )
   // Snapshot of the seeded values, so save can send only the fields the user
   // actually changed (a true partial PUT). Load-bearing for the exterior-color
   // duality: `exterior_color` seeds from the legacy `color`, so an untouched
