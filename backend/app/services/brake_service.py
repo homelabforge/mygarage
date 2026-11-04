@@ -351,16 +351,18 @@ class BrakeService:
         *,
         evidence: Collection[Axle] = (),
         written: Iterable[_Written] = (),
+        layout: WheelLayout | None = None,
     ) -> BrakeOverviewResponse:
         """Sync both axle reminders from what this write left, commit once, and answer.
 
         The axles the write brings pad news about are the ones it can complete
         (see `_sync_axle_reminders`): `evidence`, and each axle whose estimate
         reads what the write gave a row in `written` (`_pad_news`). A delete
-        passes neither.
+        passes neither. `layout` is for a write that already read it.
         """
         await self.db.flush()
-        layout = await vehicle_wheel_layout(self.db, vin)
+        if layout is None:
+            layout = await vehicle_wheel_layout(self.db, vin)
         setups, corners = await self._corners(vin, axes, layout)
         news = {*evidence, *_pad_news(written, corners, axes.primary)}
         await self._sync_axle_reminders(vin, setups, corners, evidence=news)
@@ -602,9 +604,8 @@ class BrakeService:
         await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
         axes = await self._lock(vin, current_user)
         _refuse_untracked(axes, data.odometer_km, data.engine_hours)
-        refuse_off_layout(
-            await vehicle_wheel_layout(self.db, vin), [c.position for c in data.corners], "brake"
-        )
+        layout = await vehicle_wheel_layout(self.db, vin)
+        refuse_off_layout(layout, [c.position for c in data.corners], "brake")
         setups = await self._setups(vin)
         written: list[_Written] = []
         for corner in data.corners:
@@ -621,7 +622,7 @@ class BrakeService:
             )
             self.db.add(row)
             written.append((row, None))
-        return await self._finish(vin, axes, written=written)
+        return await self._finish(vin, axes, written=written, layout=layout)
 
     async def update_measurement(
         self,
@@ -688,9 +689,8 @@ class BrakeService:
         await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
         axes = await self._lock(vin, current_user)
         _refuse_untracked(axes, data.odometer_km, data.engine_hours)
-        refuse_off_layout(
-            await vehicle_wheel_layout(self.db, vin), [c.position for c in data.corners], "brake"
-        )
+        layout = await vehicle_wheel_layout(self.db, vin)
+        refuse_off_layout(layout, [c.position for c in data.corners], "brake")
         setups = await self._setups(vin)
         written: list[_Written] = []
         for corner in data.corners:
@@ -729,7 +729,7 @@ class BrakeService:
                 )
             )
         # The jobs alone: the new-pads figure is news only as part of its job.
-        return await self._finish(vin, axes, written=written)
+        return await self._finish(vin, axes, written=written, layout=layout)
 
     async def update_job(
         self, vin: str, job_id: int, data: BrakeJobUpdate, current_user: User | None

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.brake import BrakeMeasurement
 from app.models.reminder import Reminder
 from app.models.vehicle import Vehicle
+from app.services.brake_service import BrakeService
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -248,17 +249,73 @@ async def test_off_layout_low_corner_still_reminds(
         await _retype(client, auth_headers, vin, "Motorcycle")
         assert await _pending_front(db_session, vin) == []
 
-        # A healthy F check is front-axle news; the low FL still holds the axle LOW.
+        # Any write runs the axle sync, and the low FL (off the layout or not)
+        # is what raises the front reminder. The healthy F has nothing to do with it.
         logged = await _log(client, auth_headers, vin, "F", "9.5")
         assert logged.status_code == 201, logged.text
         assert _corner(logged.json(), "FL")["condition"] == "replace_now"
         pending = await _pending_front(db_session, vin)
         assert [r.title for r in pending] == ["Front brake pads low"]
 
-        # And another healthy F doesn't complete it while FL is still low.
+        # And a healthy F can't complete it while FL is still low.
         again = await _log(client, auth_headers, vin, "F", "9.4")
         assert again.status_code == 201, again.text
         assert [r.id for r in await _pending_front(db_session, vin)] == [pending[0].id]
+    finally:
+        await _drop(db_session, vin)
+
+
+async def test_daily_pass_raises_off_a_retyped_corner(
+    client: AsyncClient, auth_headers: Headers, db_session: AsyncSession
+) -> None:
+    # The 08:00 pass reads the same corners the overview does, off-layout ones included.
+    vin = await _vehicle(client, auth_headers, "Car")
+    try:
+        db_session.add(
+            BrakeMeasurement(
+                vin=vin,
+                position="FL",
+                recorded_at=dt.date(2026, 9, 1),
+                inner_pad_mm=Decimal("2.80"),
+            )
+        )
+        await db_session.commit()
+        await _retype(client, auth_headers, vin, "Motorcycle")
+        assert await _pending_front(db_session, vin) == []
+
+        await BrakeService(db_session).raise_reminders_for(vin)
+        await db_session.commit()
+
+        assert [r.title for r in await _pending_front(db_session, vin)] == ["Front brake pads low"]
+    finally:
+        await _drop(db_session, vin)
+
+
+async def test_a_healthy_f_completes_a_reminder_the_car_raised(
+    client: AsyncClient, auth_headers: Headers, db_session: AsyncSession
+) -> None:
+    vin = await _vehicle(client, auth_headers, "Car")
+    try:
+        logged = await _log(client, auth_headers, vin, "FL", "2.8")
+        assert logged.status_code == 201, logged.text
+        measurement_id = _corner(logged.json(), "FL")["measurements"][0]["id"]
+        (pending,) = await _pending_front(db_session, vin)
+        pending_id = pending.id
+
+        await _retype(client, auth_headers, vin, "Motorcycle")
+        # The stale FL goes. A delete is no news, so the reminder stays put.
+        deleted = await client.delete(
+            f"/api/vehicles/{vin}/brakes/measurements/{measurement_id}", headers=auth_headers
+        )
+        assert deleted.status_code == 204, deleted.text
+        assert [r.id for r in await _pending_front(db_session, vin)] == [pending_id]
+
+        # The bike's own front check is what finally closes it.
+        healthy = await _log(client, auth_headers, vin, "F", "9.5")
+        assert healthy.status_code == 201, healthy.text
+        assert await _pending_front(db_session, vin) == []
+        done = await db_session.get(Reminder, pending_id)
+        assert done is not None and done.status == "done"
     finally:
         await _drop(db_session, vin)
 
