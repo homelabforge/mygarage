@@ -370,6 +370,13 @@ def test_pg_widens_every_position_check(engine_for_migration):
                 f"CHECK (position IN {_OLD_LIST})"
             )
         )
+        # Mentions position but isn't a corner list, so it stays.
+        conn.execute(
+            text(
+                "ALTER TABLE brake_jobs ADD CONSTRAINT brake_jobs_position_not_blank "
+                "CHECK (position <> '')"
+            )
+        )
 
     _load().upgrade(engine)
 
@@ -383,7 +390,7 @@ def test_pg_widens_every_position_check(engine_for_migration):
                 )
             ).scalars()
         )
-    assert names == {"check_brake_jobs_position"}
+    assert names == {"check_brake_jobs_position", "brake_jobs_position_not_blank"}
 
 
 def test_missing_tables_skip(engine_for_migration):

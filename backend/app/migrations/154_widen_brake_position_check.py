@@ -88,7 +88,13 @@ def _upgrade_pg(engine: Engine, tables: list[str]) -> None:
     with engine.begin() as conn:
         for table in tables:
             found = _pg_position_checks(conn, table)
-            narrow = [name for name, definition in found if "'F'" not in definition]
+            # Narrow = lists the four corners but not F. A CHECK that only
+            # mentions position (say, not blank) isn't ours to drop.
+            narrow = [
+                name
+                for name, definition in found
+                if "'FL'" in definition and "'F'" not in definition
+            ]
             if not narrow:
                 continue
             # Any one of them left narrow would still refuse F, so all of them go.

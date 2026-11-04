@@ -1573,8 +1573,6 @@ class TireService:
 
         if tire.retired_on is not None:
             raise HTTPException(status_code=409, detail="This tire is retired.")
-        # After the lookup, so a missing tire is a 404 and a retired one a 409.
-        refuse_off_layout(await vehicle_wheel_layout(self.db, vin), [data.position], "tire")
         before = fault_map(tire.mount_periods or [], tire.readings or [], axes=axes.captured)
 
         if tire.position is not None:
@@ -1582,6 +1580,9 @@ class TireService:
                 status_code=409,
                 detail=f"This tire is already mounted at {tire.position}. Dismount it first.",
             )
+        # After everything the tire itself decides, so a missing tire is a 404
+        # and a retired or already-mounted one the usual 409.
+        refuse_off_layout(await vehicle_wheel_layout(self.db, vin), [data.position], "tire")
 
         occupant = (
             await self.db.execute(

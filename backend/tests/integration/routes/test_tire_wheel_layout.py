@@ -217,6 +217,46 @@ async def test_a_missing_or_retired_tire_beats_the_layout_refusal(
         await _drop(db_session, vin)
 
 
+async def test_already_mounted_beats_the_layout_refusal(
+    client: AsyncClient, auth_headers: Headers, db_session: AsyncSession
+) -> None:
+    # A tire already on the bike gets "dismount it first", not the layout 422.
+    vin = await _vehicle(client, auth_headers, "Motorcycle")
+    try:
+        tire = await _mounted(client, auth_headers, vin, "F")
+        refused = await _mount(client, auth_headers, vin, tire["id"], "FL")
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"] == ("This tire is already mounted at F. Dismount it first.")
+    finally:
+        await _drop(db_session, vin)
+
+
+async def test_past_retirement_beats_the_layout_refusal(
+    client: AsyncClient, auth_headers: Headers, db_session: AsyncSession
+) -> None:
+    # A past period running beyond the retire date is the retirement 409, even
+    # at a corner the bike doesn't have.
+    vin = await _vehicle(client, auth_headers, "Motorcycle")
+    try:
+        tire = await _stored(client, auth_headers, vin)
+        retired = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/retire",
+            headers=auth_headers,
+            json={"dismounted_on": "2026-03-01"},
+        )
+        assert retired.status_code == 200, retired.text
+        period = {"position": "FL", "mounted_on": "2026-04-01", "dismounted_on": "2026-05-01"}
+        refused = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/mount-periods",
+            headers=auth_headers,
+            json=period,
+        )
+        assert refused.status_code == 409, refused.text
+        assert "retired on 2026-03-01" in refused.json()["detail"]
+    finally:
+        await _drop(db_session, vin)
+
+
 async def test_set_mount_with_off_layout_memory_refused(
     client: AsyncClient, auth_headers: Headers, db_session: AsyncSession
 ) -> None:
