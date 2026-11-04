@@ -23,6 +23,7 @@ from app.schemas.poi import (
     POISearchResponse,
 )
 from app.services.auth import require_auth
+from app.services.poi import OSM_USER_AGENT
 from app.services.poi.base import POICategory
 from app.services.poi_discovery import POIDiscoveryService
 from app.utils.datetime_utils import utc_now
@@ -47,7 +48,6 @@ router = APIRouter(prefix="/api/poi", tags=["POI Discovery"])
 # ---------------------------------------------------------------------------
 
 _NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search"
-_NOMINATIM_USER_AGENT = "MyGarage/2.27 (https://github.com/homelabforge/mygarage)"
 _NOMINATIM_MIN_INTERVAL_S = 1.0
 _nominatim_lock = asyncio.Lock()
 _nominatim_last_call = 0.0
@@ -93,7 +93,7 @@ async def geocode_address(
         "limit": str(limit),
         "addressdetails": "0",
     }
-    headers = {"User-Agent": _NOMINATIM_USER_AGENT}
+    headers = {"User-Agent": OSM_USER_AGENT}
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:

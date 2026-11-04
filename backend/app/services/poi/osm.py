@@ -8,16 +8,24 @@ from typing import Any
 
 import httpx
 
-from app.config import settings
-from app.services.poi.base import BasePOIProvider, POICategory
+from app.services.poi.base import OSM_USER_AGENT, BasePOIProvider, POICategory
 
 logger = logging.getLogger(__name__)
 
-# The public Overpass instances refuse httpx's default User-Agent
-# (overpass-api.de with 406, overpass.openstreetmap.fr with 403), so every
-# search came back empty. Identify ourselves, as the Nominatim proxy in
-# routes/poi.py already does.
-_USER_AGENT = f"MyGarage/{settings.app_version} (+https://github.com/homelabforge/mygarage)"
+
+def _elements(data: Any) -> list[dict[str, Any]]:
+    """The elements of an Overpass answer, or ValueError if it's really a failure.
+
+    Overpass reports a query timeout or running out of memory as a 200 with a
+    "runtime error" remark and no (or partial) elements. Taken as an answer,
+    that's an empty search that beat a healthy instance to the finish.
+    """
+    if not isinstance(data, dict):
+        raise ValueError(f"Overpass answered {type(data).__name__}, not an object")
+    remark = data.get("remark")
+    if isinstance(remark, str) and remark.lstrip().startswith("runtime error"):
+        raise ValueError(f"Overpass {remark}")
+    return data.get("elements", [])
 
 
 class OSMProvider(BasePOIProvider):
@@ -27,17 +35,19 @@ class OSMProvider(BasePOIProvider):
         - Free and unlimited
         - Crowd-sourced data (quality varies by region)
         - Supports: Auto shops, RV shops, EV charging, Gas stations, Propane
-        - Multiple fallback instances for reliability
+        - Several public instances, the next one asked when one fails or stalls
     """
 
     def __init__(self):
         """Initialize OSM provider."""
-        # Using multiple Overpass instances for redundancy
+        # Public Overpass instances, asked in this order (see search). The
+        # official one goes first. overpass.openstreetmap.fr is gone: it 403s
+        # anyone who isn't on its whitelist, whatever the User-Agent.
         self.overpass_urls = [
-            "https://overpass.kumi.systems/api/interpreter",  # Primary (reliable)
-            "https://overpass-api.de/api/interpreter",  # Fallback 1 (official)
-            "https://overpass.openstreetmap.fr/api/interpreter",  # Fallback 2
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter",
         ]
+        self.hedge_seconds = 2.0
         self.timeout = 30.0
         self.max_results = 100  # Increased to capture more results before distance sorting
 
@@ -62,15 +72,23 @@ class OSMProvider(BasePOIProvider):
         # Build Overpass QL query for all requested categories
         query = self._build_query(latitude, longitude, radius_meters, categories)
 
-        # Ask every instance at once and keep the first good answer. Which public
-        # instance is healthy changes from day to day: tried in turn, two that
-        # hang cost the full timeout each (over a minute) before one that
-        # answers in a second got its turn.
-        pending = {asyncio.create_task(self._fetch(url, query)): url for url in self.overpass_urls}
+        # Hedged: ask one instance, and only bring in the next if it fails or
+        # sits quiet for hedge_seconds. Tried strictly in turn, a hung instance
+        # cost the full 30s timeout before the next got a go; asked all at once,
+        # every search hit every volunteer server.
+        waiting = list(self.overpass_urls)
+        pending: dict[asyncio.Task[list[dict[str, Any]]], str] = {}
         last_error: Exception | None = None
         try:
-            while pending:
-                done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            while waiting or pending:
+                if waiting:
+                    url = waiting.pop(0)
+                    pending[asyncio.create_task(self._fetch(url, query))] = url
+                done, _ = await asyncio.wait(
+                    pending,
+                    timeout=self.hedge_seconds if waiting else None,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
                 for task in done:
                     instance_url = pending.pop(task)
                     try:
@@ -89,6 +107,7 @@ class OSMProvider(BasePOIProvider):
         finally:
             for task in pending:
                 task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
 
         # All instances failed
         logger.error("All Overpass instances failed")
@@ -103,10 +122,10 @@ class OSMProvider(BasePOIProvider):
             response = await client.post(
                 instance_url,
                 data={"data": query},
-                headers={"User-Agent": _USER_AGENT},
+                headers={"User-Agent": OSM_USER_AGENT},
             )
             response.raise_for_status()
-            return response.json().get("elements", [])
+            return _elements(response.json())
 
     def _to_results(
         self, elements: list[dict[str, Any]], latitude: float, longitude: float

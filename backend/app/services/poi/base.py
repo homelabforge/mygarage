@@ -4,6 +4,12 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
 
+from app.config import settings
+
+# OSM's public services (Overpass, Nominatim) refuse unidentified clients:
+# overpass-api.de answers httpx's default User-Agent with a 406.
+OSM_USER_AGENT = f"MyGarage/{settings.app_version} (+https://github.com/homelabforge/mygarage)"
+
 
 class POICategory(Enum):
     """Categories of Points of Interest."""
