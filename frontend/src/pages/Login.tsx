@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
@@ -11,6 +11,7 @@ import { FormError } from '../components/FormError'
 import AuthPageLayout from '../components/AuthPageLayout'
 import { withBase } from '../utils/basePath'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
+import { useAutofillSubmit } from '../hooks/useAutofillSubmit'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 
 // The backend's SSOError values (app/constants/oidc.py), which its SSO redirect
@@ -62,6 +63,9 @@ export default function Login() {
   // SSO is primary. When OIDC is disabled (or the check fails) show the
   // password form immediately since it's the only option.
   const [showPasswordForm, setShowPasswordForm] = useState(false)
+  // A login picked from Safari's or the Passwords app's list signs in by itself.
+  const formRef = useRef<HTMLFormElement>(null)
+  useAutofillSubmit(formRef, 'username', 'password')
   const { login } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -161,7 +165,7 @@ export default function Login() {
         </div>
       }
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Error Message */}
         {bannerError && (
           <div role="alert" className="p-4 bg-danger-500/10 border border-danger-500 rounded-lg flex items-start gap-2">

@@ -2687,6 +2687,12 @@
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
     },
     {
+      "path": "src/hooks/useAutofillSubmit.ts",
+      "disposition": "no unit behaviour",
+      "digest": "af45338d6dfc259b27ca1ccefb7dfa7fe258194423e6a8a81db2b5597b149dc2",
+      "reason": "no unit behaviour: submits the sign-in form once a password manager fills the username and password; reads two text fields, renders nothing."
+    },
+    {
       "path": "src/hooks/useCanManageInstance.ts",
       "disposition": "no unit behaviour",
       "digest": "1c45b20a7c606d7feb7a11431d571423f4cce8a7b49e729c2e3646fe99ba57da",
@@ -3006,8 +3012,8 @@
     {
       "path": "src/pages/Login.tsx",
       "disposition": "no unit behaviour",
-      "digest": "14a0c0e2ed07603f9f7ef66f9091868d133ac73d4d55e58a7786674703eaf7e6",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-30 (Plan C): the login page shows an SSO error sentence from a closed set of codes. No unit behaviour. 2026-10-01 (Plan D, D4): adds rate_limited to the closed set of SSO error codes. No unit behaviour. 2026-10-31 (batch 10, C-14): role=\"alert\" on the error banner. No unit behaviour. 2026-11-01 (b12 T2): accent text moves off the base accent so it stays readable in light mode (G2a-31): one accent text class to text-(--accent-fg). Class names only; no unit behaviour."
+      "digest": "0eeb82093011aa5b8f2dadc2c5f691ff53b6135b717910d338ec89439853830c",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-30 (Plan C): the login page shows an SSO error sentence from a closed set of codes. No unit behaviour. 2026-10-01 (Plan D, D4): adds rate_limited to the closed set of SSO error codes. No unit behaviour. 2026-10-31 (batch 10, C-14): role=\"alert\" on the error banner. No unit behaviour. 2026-11-01 (b12 T2): accent text moves off the base accent so it stays readable in light mode (G2a-31): one accent text class to text-(--accent-fg). Class names only; no unit behaviour. 2026-11-04 (autofill sign-in): a form ref and useAutofillSubmit, so a login picked from Safari or the Passwords app signs in by itself. No unit behaviour."
     },
     {
       "path": "src/pages/OIDCSuccess.tsx",

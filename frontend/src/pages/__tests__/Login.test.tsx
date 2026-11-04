@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { cleanup, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
 import commonEn from '../../locales/en/common.json'
@@ -288,5 +288,81 @@ describe('Login Page: a rejected sign-in', () => {
       if (got !== 'field') wrong.push(`${name}: ${got}`)
     }
     expect(wrong).toEqual([])
+  })
+})
+
+describe('Login Page: a login filled in by a password manager', () => {
+  // What Safari and the Passwords app do: set the value in one input event
+  // that carries no typing inputType.
+  const fill = (el: HTMLElement, value: string): void => {
+    fireEvent.input(el, { target: { value } })
+  }
+  const fields = async (): Promise<[HTMLElement, HTMLElement]> => [
+    await screen.findByPlaceholderText(USERNAME_PLACEHOLDER),
+    screen.getByPlaceholderText(PASSWORD_PLACEHOLDER),
+  ]
+  // Longer than the hook's settle delay, so "not called" means it never will be.
+  const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 300))
+
+  it('signs in without Enter or a click once both fields are filled', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+
+    await waitFor(() => expect(loginMock).toHaveBeenCalledWith('jamey', 'hunter22'))
+    expect(loginMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a typed login still waits for Enter or the button', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    const user = userEvent.setup()
+    await user.type(username, 'jamey')
+    await user.type(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('a pasted password still waits for Enter or the button', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    const user = userEvent.setup()
+    await user.type(username, 'jamey')
+    await user.click(password)
+    await user.paste('hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('a password filled with no username waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [, password] = await fields()
+    fill(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('a failed sign-in is not retried by a second fill', async () => {
+    mockOidcConfig({ enabled: false })
+    loginMock.mockRejectedValueOnce(new Error('Network Error'))
+    render(<Login />)
+    const [username, password] = await fields()
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    await waitFor(() => expect(loginMock).toHaveBeenCalledTimes(1))
+
+    fill(password, '')
+    fill(password, 'hunter23')
+    await settle()
+
+    expect(loginMock).toHaveBeenCalledTimes(1)
   })
 })
