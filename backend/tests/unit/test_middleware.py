@@ -150,9 +150,6 @@ class TestSecurityHeadersMiddleware:
             "data:",
             "blob:",
             "https://tile.openstreetmap.org",
-            "https://a.tile.openstreetmap.org",
-            "https://b.tile.openstreetmap.org",
-            "https://c.tile.openstreetmap.org",
         ]
 
     @pytest.mark.asyncio
