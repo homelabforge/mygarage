@@ -104,6 +104,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Hands off anything cross-origin (map tiles, mostly). A fetch() in here is
+  // held to connect-src 'self', so re-fetching an OSM tile got it blocked and
+  // every map went grey. The browser loads it fine on its own under img-src.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   // Navigation requests - network with 5s timeout, then offline fallback.
   //
   // We also catch non-navigate *document* requests here (request.destination
