@@ -165,10 +165,19 @@ describe('DeviceRow names', () => {
 })
 
 describe('DeviceTable token dialog', () => {
+  // The dialog can be in the DOM before its effect hooks up the Escape listener,
+  // and a busy CI runner pressed Escape in that gap (CI #905). The slide-in is
+  // started by that same effect, so once it's in, the listener is too.
+  const openedToken = async (): Promise<HTMLElement> => {
+    const dialog = await screen.findByRole('dialog', { name: 'Device Token Generated' })
+    await waitFor(() => expect(dialog).toHaveClass('translate-x-0'))
+    return dialog
+  }
+
   const generate = async (): Promise<HTMLElement> => {
     render(<DeviceTable devices={[wican('d1', 'Garage dongle')]} vehicles={[]} onChanged={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Generate device token: Garage dongle' }))
-    return screen.findByRole('dialog', { name: 'Device Token Generated' })
+    return openedToken()
   }
 
   it('is a named dialog with the token, a named copy button and focus inside', async () => {
@@ -209,11 +218,7 @@ describe('DeviceTable token dialog', () => {
       </Drawer>,
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Generate device token: Garage dongle' }))
-    const token = await screen.findByRole('dialog', { name: 'Device Token Generated' })
-    // The dialog can be in the DOM before its effect hooks up the Escape listener,
-    // and a busy CI runner pressed Escape in that gap (CI #905). The slide-in is
-    // started by that same effect, so once it's in, the listener is too.
-    await waitFor(() => expect(token).toHaveClass('translate-x-0'))
+    const token = await openedToken()
     // From inside the token dialog, the way a real keypress on its focused field arrives.
     fireEvent.keyDown(within(token).getByRole('textbox', { name: 'Token for device d1' }), { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Device Token Generated' })).toBeNull())
