@@ -15,10 +15,12 @@ import { toast } from 'sonner'
 import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 import type { Vehicle, VehicleListResponse } from '@/types/vehicle'
 import { identifierValue, keyForFilename } from '../utils/vehicleIdentifier'
-import { getActiveDateLocale } from '@/constants/i18n'
+import { getActiveDateLocale, getActiveDateOrder } from '@/constants/i18n'
+import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
 
 export default function ArchivedVehiclesList() {
   const { t } = useTranslation('vehicles')
+  const { currencyCode, locale } = useCurrencyPreference()
   const [archivedVehicles, setArchivedVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedVins, setSelectedVins] = useState<Set<string>>(new Set())
@@ -85,8 +87,14 @@ export default function ArchivedVehiclesList() {
   }
 
   const downloadReportPdf = async (vin: string, reportType: 'sale-history' | 'service-history') => {
+    // The service history prints costs, so it needs the currency too.
+    const params =
+      reportType === 'service-history'
+        ? { currency_code: currencyCode, locale, date_format: getActiveDateOrder() }
+        : { date_format: getActiveDateOrder() }
     const response = await api.get(`/vehicles/${vin}/reports/${reportType}-pdf`, {
       responseType: 'blob',
+      params,
     })
     const downloadUrl = window.URL.createObjectURL(response.data)
     const a = document.createElement('a')

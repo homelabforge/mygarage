@@ -536,6 +536,7 @@ async def test_user(db_session: AsyncSession) -> dict[str, object]:
         user.accent_color = None
         user.theme = None
         user.dashboard_sort = "name"
+        user.date_format = "mdy"
         await db_session.commit()
         await db_session.refresh(user)
 

@@ -80,7 +80,7 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useCurrencySymbol } from '../hooks/useCurrencySymbol'
 import { useDateLocale } from '../hooks/useDateLocale'
 import { formatDateForInput } from '@/utils/dateUtils'
-import { getActiveDateLocale } from '@/constants/i18n'
+import { getActiveDateLocale, getActiveDateOrder } from '@/constants/i18n'
 
 /**
  * Backend prediction confidence -> translation key.
@@ -510,7 +510,7 @@ export default function Analytics() {
             <ExportMenu
               onExportCSV={exportToCSV}
               onExportPDF={() => {
-                const params = new URLSearchParams({ currency_code: currencyCode, locale })
+                const params = new URLSearchParams({ currency_code: currencyCode, locale, date_format: getActiveDateOrder() })
                 window.open(withBase(`/api/analytics/vehicles/${vin}/export?${params.toString()}`), '_blank')
               }}
             />

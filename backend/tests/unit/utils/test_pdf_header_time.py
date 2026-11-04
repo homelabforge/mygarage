@@ -19,6 +19,7 @@ import pytest
 
 from app.constants.units import METRIC_PRESET
 from app.utils import pdf_components, pdf_generator
+from app.utils.date_order import DateOrder
 from app.utils.household_time import household_zone_var
 from app.utils.pdf_generator import PDFReportGenerator
 from app.utils.render_context import RenderContext
@@ -49,12 +50,14 @@ def frozen_at(instant: datetime) -> type[datetime]:
     return Frozen
 
 
-def header_strings(monkeypatch: pytest.MonkeyPatch, zone: str, instant: datetime) -> list[str]:
+def header_strings(
+    monkeypatch: pytest.MonkeyPatch, zone: str, instant: datetime, date_order: DateOrder = "mdy"
+) -> list[str]:
     """Draw the first-page header in `zone` at `instant`; return the right-aligned text."""
     monkeypatch.setattr(pdf_components, "datetime", frozen_at(instant))
     household_zone_var.set(ZoneInfo(zone))
     canvas = MagicMock()
-    pdf_components.draw_branded_header(canvas, SimpleNamespace(page=1))
+    pdf_components.draw_branded_header(canvas, SimpleNamespace(page=1), date_order=date_order)
     return [call.args[2] for call in canvas.drawRightString.call_args_list]
 
 
@@ -96,6 +99,13 @@ def test_header_shows_the_household_time_and_zone(
     monkeypatch: pytest.MonkeyPatch, zone: str, instant: datetime, date_str: str, time_str: str
 ) -> None:
     assert header_strings(monkeypatch, zone, instant) == [date_str, time_str]
+
+
+def test_header_date_is_day_first_when_asked(monkeypatch: pytest.MonkeyPatch) -> None:
+    drawn = header_strings(
+        monkeypatch, "Europe/London", datetime(2026, 7, 5, 18, 30, tzinfo=UTC), "dmy"
+    )
+    assert drawn[0] == "05 July 2026", drawn
 
 
 def test_a_non_central_household_never_says_cst(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -161,9 +171,54 @@ def test_report_generated_is_the_household_time(
         render_context=RenderContext(units=METRIC_PRESET, show_both=False),
         currency_code="USD",
         locale="en_US",
+        date_order="mdy",
     )
     document = pymupdf.open(stream=build(generator).read(), filetype="pdf")
     text = " ".join(page.get_text() for page in document)  # type: ignore[operator]
     document.close()
     assert "07/15/2026 10:30 PM" in text, text
     assert "07/16/2026" not in text, text
+
+
+@pytest.mark.parametrize("build", [b for _, b in _REPORTS], ids=[n for n, _ in _REPORTS])
+def test_report_dates_are_day_first_when_asked(
+    monkeypatch: pytest.MonkeyPatch, build: Callable[[PDFReportGenerator], BytesIO]
+) -> None:
+    monkeypatch.setattr(
+        pdf_generator, "datetime", frozen_at(datetime(2026, 7, 16, 3, 30, tzinfo=UTC))
+    )
+    household_zone_var.set(ZoneInfo("America/Chicago"))
+    generator = PDFReportGenerator(
+        render_context=RenderContext(units=METRIC_PRESET, show_both=False),
+        date_order="dmy",
+    )
+    document = pymupdf.open(stream=build(generator).read(), filetype="pdf")
+    text = " ".join(page.get_text() for page in document)  # type: ignore[operator]
+    document.close()
+    assert "15/07/2026 10:30 PM" in text, text
+    assert "07/15/2026" not in text, text
+
+
+def test_record_and_period_dates_are_day_first_when_asked() -> None:
+    from datetime import date
+
+    generator = PDFReportGenerator(
+        render_context=RenderContext(units=METRIC_PRESET, show_both=False),
+        date_order="dmy",
+    )
+    record = {
+        "date": date(2026, 10, 4),
+        "odometer_km": 1000,
+        "service_category": "Maintenance",
+        "service_type": "Oil change",
+        "cost": 50,
+        "vendor_name": None,
+    }
+    pdf = generator.generate_service_history_pdf(
+        _VEHICLE, [record], date(2026, 1, 2), date(2026, 12, 3)
+    )
+    document = pymupdf.open(stream=pdf.read(), filetype="pdf")
+    text = " ".join(page.get_text() for page in document)  # type: ignore[operator]
+    document.close()
+    assert "04/10/2026" in text, text
+    assert "02/01/2026 - 03/12/2026" in text, text

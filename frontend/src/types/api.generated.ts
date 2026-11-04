@@ -22583,6 +22583,8 @@ export interface operations {
                 currency_code?: string;
                 /** @description BCP 47 locale; defaults to en-US. */
                 locale?: string;
+                /** @description 'mdy' or 'dmy'; defaults to the account's. */
+                date_format?: string | null;
             };
             header?: never;
             path?: never;
@@ -22693,6 +22695,8 @@ export interface operations {
                 currency_code?: string;
                 /** @description BCP 47 locale; defaults to en-US. */
                 locale?: string;
+                /** @description 'mdy' or 'dmy'; defaults to the account's. */
+                date_format?: string | null;
             };
             header?: never;
             path: {
@@ -32869,6 +32873,8 @@ export interface operations {
                 currency_code?: string;
                 /** @description BCP 47 locale; defaults to en-US. */
                 locale?: string;
+                /** @description 'mdy' or 'dmy'; defaults to the account's. */
+                date_format?: string | null;
             };
             header?: never;
             path: {
@@ -32900,7 +32906,10 @@ export interface operations {
     };
     download_sale_history_pdf_api_vehicles__vin__reports_sale_history_pdf_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 'mdy' or 'dmy'; defaults to the account's. */
+                date_format?: string | null;
+            };
             header?: never;
             path: {
                 vin: string;
@@ -32976,6 +32985,8 @@ export interface operations {
                 currency_code?: string;
                 /** @description BCP 47 locale; defaults to en-US. */
                 locale?: string;
+                /** @description 'mdy' or 'dmy'; defaults to the account's. */
+                date_format?: string | null;
             };
             header?: never;
             path: {
@@ -33014,6 +33025,8 @@ export interface operations {
                 currency_code?: string;
                 /** @description BCP 47 locale; defaults to en-US. */
                 locale?: string;
+                /** @description 'mdy' or 'dmy'; defaults to the account's. */
+                date_format?: string | null;
             };
             header?: never;
             path: {

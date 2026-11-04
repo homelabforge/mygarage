@@ -36683,6 +36683,25 @@
               "title": "Locale",
               "type": "string"
             }
+          },
+          {
+            "description": "'mdy' or 'dmy'; defaults to the account's.",
+            "in": "query",
+            "name": "date_format",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(mdy|dmy)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'mdy' or 'dmy'; defaults to the account's.",
+              "title": "Date Format"
+            }
           }
         ],
         "responses": {
@@ -36971,6 +36990,25 @@
               "description": "BCP 47 locale; defaults to en-US.",
               "title": "Locale",
               "type": "string"
+            }
+          },
+          {
+            "description": "'mdy' or 'dmy'; defaults to the account's.",
+            "in": "query",
+            "name": "date_format",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(mdy|dmy)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'mdy' or 'dmy'; defaults to the account's.",
+              "title": "Date Format"
             }
           }
         ],
@@ -53588,6 +53626,25 @@
               "title": "Locale",
               "type": "string"
             }
+          },
+          {
+            "description": "'mdy' or 'dmy'; defaults to the account's.",
+            "in": "query",
+            "name": "date_format",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(mdy|dmy)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'mdy' or 'dmy'; defaults to the account's.",
+              "title": "Date Format"
+            }
           }
         ],
         "responses": {
@@ -53633,6 +53690,25 @@
             "schema": {
               "title": "Vin",
               "type": "string"
+            }
+          },
+          {
+            "description": "'mdy' or 'dmy'; defaults to the account's.",
+            "in": "query",
+            "name": "date_format",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(mdy|dmy)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'mdy' or 'dmy'; defaults to the account's.",
+              "title": "Date Format"
             }
           }
         ],
@@ -53822,6 +53898,25 @@
               "title": "Locale",
               "type": "string"
             }
+          },
+          {
+            "description": "'mdy' or 'dmy'; defaults to the account's.",
+            "in": "query",
+            "name": "date_format",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(mdy|dmy)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'mdy' or 'dmy'; defaults to the account's.",
+              "title": "Date Format"
+            }
           }
         ],
         "responses": {
@@ -53902,6 +53997,25 @@
               "description": "BCP 47 locale; defaults to en-US.",
               "title": "Locale",
               "type": "string"
+            }
+          },
+          {
+            "description": "'mdy' or 'dmy'; defaults to the account's.",
+            "in": "query",
+            "name": "date_format",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(mdy|dmy)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'mdy' or 'dmy'; defaults to the account's.",
+              "title": "Date Format"
             }
           }
         ],

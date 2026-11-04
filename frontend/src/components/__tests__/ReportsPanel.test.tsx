@@ -37,6 +37,7 @@ const apiGet = api.get as unknown as ReturnType<typeof vi.fn>
 const en = analyticsEn.reports
 
 import ReportsPanel from '../ReportsPanel'
+import { setActiveDateFormat } from '@/constants/i18n'
 
 const SERVICE_PDF = 'Download PDF: Service History Report'
 const COST_PDF = 'Download PDF: Annual Cost Summary'
@@ -67,9 +68,29 @@ describe('ReportsPanel — report generation URLs (SDQ-C, five-action matrix)', 
     await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(1))
     // strict 2-element call-array — extra/dropped params or a wrong endpoint fail toStrictEqual (never expect.anything())
     expect(apiGet.mock.calls[0]).toStrictEqual([
-      '/vehicles/V1/reports/service-history-pdf?start_date=2026-01-01&currency_code=USD&locale=en-US',
+      '/vehicles/V1/reports/service-history-pdf?start_date=2026-01-01&currency_code=USD&locale=en-US&date_format=mdy',
       { responseType: 'blob' },
     ])
+  })
+
+  it('the PDFs print dates in the order the page shows (#278)', async () => {
+    apiGet.mockResolvedValue({ data: new Blob(['x'], { type: 'application/pdf' }) })
+    setActiveDateFormat('dmy')
+    try {
+      render(<ReportsPanel vin="V1" />)
+      fireEvent.click(screen.getByRole('button', { name: SERVICE_PDF }))
+      await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(1))
+      // The buttons sit disabled while a report generates.
+      await waitFor(() => expect(screen.getByRole('button', { name: SALE_PDF })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: SALE_PDF }))
+      await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(2))
+      expect(apiGet.mock.calls.map((c) => c[0])).toStrictEqual([
+        '/vehicles/V1/reports/service-history-pdf?currency_code=USD&locale=en-US&date_format=dmy',
+        '/vehicles/V1/reports/sale-history-pdf?date_format=dmy',
+      ])
+    } finally {
+      setActiveDateFormat('mdy')
+    }
   })
 
   it('the cost-summary PDF button GETs the exact PDF URL (year = current year + currency/locale) as a blob (fails if cost-summary is routed to the wrong endpoint/handler or drops the year/currency params)', async () => {
@@ -79,7 +100,7 @@ describe('ReportsPanel — report generation URLs (SDQ-C, five-action matrix)', 
     fireEvent.click(screen.getByRole('button', { name: COST_PDF }))
     await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(1))
     expect(apiGet.mock.calls[0]).toStrictEqual([
-      `/vehicles/V1/reports/cost-summary-pdf?year=${year}&currency_code=USD&locale=en-US`,
+      `/vehicles/V1/reports/cost-summary-pdf?year=${year}&currency_code=USD&locale=en-US&date_format=mdy`,
       { responseType: 'blob' },
     ])
   })
@@ -91,7 +112,7 @@ describe('ReportsPanel — report generation URLs (SDQ-C, five-action matrix)', 
     fireEvent.click(screen.getByRole('button', { name: TAX_PDF }))
     await waitFor(() => expect(apiGet).toHaveBeenCalledTimes(1))
     expect(apiGet.mock.calls[0]).toStrictEqual([
-      `/vehicles/V1/reports/tax-deduction-pdf?year=${year}&currency_code=USD&locale=en-US`,
+      `/vehicles/V1/reports/tax-deduction-pdf?year=${year}&currency_code=USD&locale=en-US&date_format=mdy`,
       { responseType: 'blob' },
     ])
   })
@@ -146,8 +167,8 @@ describe('ReportsPanel: one year control for the yearly reports (D4)', () => {
   })
 
   it.each([
-    [COST_PDF, `/vehicles/V1/reports/cost-summary-pdf?year=${lastYear}&currency_code=USD&locale=en-US`],
-    [TAX_PDF, `/vehicles/V1/reports/tax-deduction-pdf?year=${lastYear}&currency_code=USD&locale=en-US`],
+    [COST_PDF, `/vehicles/V1/reports/cost-summary-pdf?year=${lastYear}&currency_code=USD&locale=en-US&date_format=mdy`],
+    [TAX_PDF, `/vehicles/V1/reports/tax-deduction-pdf?year=${lastYear}&currency_code=USD&locale=en-US&date_format=mdy`],
     [ALL_CSV, `/vehicles/V1/reports/all-records-csv?year=${lastYear}`],
   ])('the picked year drives %s', async (name, url) => {
     apiGet.mockResolvedValue({ data: new Blob(['x']) })

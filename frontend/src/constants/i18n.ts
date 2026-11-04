@@ -139,6 +139,15 @@ export function getActiveDateLocale(): string {
 }
 
 /**
+ * The order a PDF should print dates in, sent as `date_format`. The PDFs are
+ * English for everyone, so this is the order the page shows, not the setting:
+ * every language but US English reads day-first.
+ */
+export function getActiveDateOrder(): DateFormat {
+  return getActiveDateLocale() === 'en-US' ? 'mdy' : 'dmy'
+}
+
+/**
  * The household time zone, published by `/settings/public` as
  * `effective_timezone` and stored here (same module-level pattern as
  * `activeLocale`) so non-React code like `formatDateForInput` can read it.

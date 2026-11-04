@@ -21,6 +21,7 @@ from reportlab.platypus import (
 )
 
 from app.schemas.vehicle import NON_MOTORIZED_VEHICLE_TYPES
+from app.utils.date_order import DateOrder, format_date, format_datetime
 from app.utils.household_time import household_zone
 from app.utils.render_context import RenderContext
 from app.utils.unit_adapters import adapter_for
@@ -48,6 +49,8 @@ class PDFReportGenerator:
     silently fall back to a hardcoded unit; the two reports that render no
     unit-bearing quantity at all (cost summary, tax deduction) still take
     one, because the context belongs to the generator, not to one method.
+    `date_order` is required for the same reason: a route that forgot it
+    would print month-first to a day-first reader.
     """
 
     def __init__(
@@ -55,12 +58,15 @@ class PDFReportGenerator:
         render_context: RenderContext,
         currency_code: str = "USD",
         locale: str = "en-US",
+        *,
+        date_order: DateOrder,
     ):
-        """Build a generator bound to one render context and currency."""
+        """Build a generator bound to one render context, currency and date order."""
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
         self.currency_code = currency_code
         self.locale = locale
+        self.date_order: DateOrder = date_order
         self.render_context = render_context
 
     def _odometer_header(self) -> str:
@@ -164,13 +170,11 @@ class PDFReportGenerator:
         """Format date object."""
         if date_obj is None:
             return "N/A"
-        if isinstance(date_obj, str):
-            return date_obj
-        return date_obj.strftime("%m/%d/%Y")
+        return format_date(date_obj, self.date_order)
 
     def _generated_at(self) -> str:
         """When the report was made, on the household clock like the branded header."""
-        return datetime.now(household_zone()).strftime("%m/%d/%Y %I:%M %p")
+        return format_datetime(datetime.now(household_zone()), self.date_order)
 
     def generate_service_history_pdf(
         self,

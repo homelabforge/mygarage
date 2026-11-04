@@ -76,6 +76,7 @@ from app.services.hours_service import latest_engine_hours_and_date
 from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.service_visit_service import service_visit_cost_load_options
 from app.services.tire_service import TireService
+from app.utils.date_order import DATE_ORDER_PATTERN, resolve_date_order
 from app.utils.household_time import household_today
 from app.utils.insurance_cost import accrued_cost, monthly_costs, paid_cost
 from app.utils.insurance_shares import effective_shares
@@ -1527,6 +1528,9 @@ async def export_garage_analytics_pdf(
     request: Request,
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
+    date_format: str | None = Query(
+        None, pattern=DATE_ORDER_PATTERN, description="'mdy' or 'dmy'; defaults to the account's."
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -1546,7 +1550,10 @@ async def export_garage_analytics_pdf(
 
     # Use model_dump() to pass all fields through (fixes data flow bug)
     pdf_buffer = generate_garage_analytics_pdf(
-        garage_data.model_dump(), currency_code=safe_code, locale=safe_locale
+        garage_data.model_dump(),
+        currency_code=safe_code,
+        locale=safe_locale,
+        date_order=resolve_date_order(date_format, current_user),
     )
 
     # Return as file download
@@ -1890,6 +1897,9 @@ async def export_analytics_pdf(
     vin: str,
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
+    date_format: str | None = Query(
+        None, pattern=DATE_ORDER_PATTERN, description="'mdy' or 'dmy'; defaults to the account's."
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -1985,6 +1995,7 @@ async def export_analytics_pdf(
         reminders_data=reminders_data,
         render_context=with_vehicle(account_ctx, vehicle),
         rate_context=account_ctx,
+        date_order=resolve_date_order(date_format, current_user),
     )
 
     # Return PDF as streaming response

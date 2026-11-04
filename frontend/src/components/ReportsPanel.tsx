@@ -6,7 +6,7 @@ import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { Button, Field, Input, Select, Card } from './ui'
-import { todayInHousehold } from '@/constants/i18n'
+import { getActiveDateOrder, todayInHousehold } from '@/constants/i18n'
 import { keyForFilename } from '../utils/vehicleIdentifier'
 
 interface ReportsPanelProps {
@@ -32,7 +32,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
     try {
       let url: string
       if (reportType === 'sale-history') {
-        url = `/vehicles/${vin}/reports/sale-history-pdf`
+        url = `/vehicles/${vin}/reports/sale-history-pdf?date_format=${getActiveDateOrder()}`
       } else {
         const params = new URLSearchParams()
         if (reportType === 'service-history') {
@@ -43,6 +43,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
         }
         params.set('currency_code', currencyCode)
         params.set('locale', locale)
+        params.set('date_format', getActiveDateOrder())
         url = `/vehicles/${vin}/reports/${reportType}-pdf?${params.toString()}`
       }
 

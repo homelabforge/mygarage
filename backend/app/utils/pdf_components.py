@@ -23,6 +23,7 @@ from reportlab.platypus import (
 )
 
 from app.config import settings
+from app.utils.date_order import DateOrder, format_date
 from app.utils.household_time import household_zone
 from app.utils.pdf_styles import (
     ACCENT_AMBER,
@@ -60,6 +61,8 @@ def draw_branded_header(
     canvas: Any,
     doc: Any,
     subtitle: str = "Vehicle Analytics Report",
+    *,
+    date_order: DateOrder,
 ) -> None:
     """Draw the branded header on the first page only."""
     if doc.page > 1:
@@ -98,7 +101,7 @@ def draw_branded_header(
     # Date/time (right-aligned), in the household's zone with its real label.
     # This used to be the container's clock with "CST" stuck on the end.
     now = datetime.now(household_zone())
-    date_str = now.strftime("%B %d, %Y")
+    date_str = format_date(now, date_order, "long")
     time_str = now.strftime("%I:%M %p %Z")
 
     x_right = PAGE_WIDTH - MARGIN

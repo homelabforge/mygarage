@@ -19,6 +19,7 @@ from reportlab.platypus import (
     Spacer,
 )
 
+from app.utils.date_order import DateOrder
 from app.utils.pdf_charts import render_donut_chart, render_garage_monthly_trends
 from app.utils.pdf_components import (
     draw_branded_footer,
@@ -71,11 +72,16 @@ def generate_garage_analytics_pdf(
     garage_data: dict[str, Any],
     currency_code: str = "USD",
     locale: str = "en-US",
+    *,
+    date_order: DateOrder,
 ) -> BytesIO:
     """Generate a branded garage-wide analytics PDF report.
 
     Args:
         garage_data: GarageAnalytics.model_dump() output.
+        currency_code: ISO 4217 code for money.
+        locale: BCP 47 locale for money.
+        date_order: 'mdy' or 'dmy' for the header date.
 
     Returns:
         BytesIO containing the PDF document.
@@ -105,7 +111,7 @@ def generate_garage_analytics_pdf(
     subtitle = "Garage Analytics Report"
 
     def on_first_page(canvas: Any, doc: Any) -> None:  # pyright: ignore[reportUnusedParameter]
-        draw_branded_header(canvas, doc, subtitle)
+        draw_branded_header(canvas, doc, subtitle, date_order=date_order)
         draw_branded_footer(canvas, doc)
 
     def on_later_pages(canvas: Any, doc: Any) -> None:  # pyright: ignore[reportUnusedParameter]

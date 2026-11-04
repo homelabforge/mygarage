@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import {
   SUPPORTED_LANGUAGES,
   getActiveDateLocale,
+  getActiveDateOrder,
   getActiveLocale,
   languageToDateLocale,
   setActiveDateFormat,
@@ -159,6 +160,17 @@ describe('date format preference', () => {
     setActiveDateFormat('dmy')
     expect(getActiveLocale()).toBe('en-US')
     expect(formatAtPrecision(1234.5, 2)).toBe('1,234.50')
+  })
+
+  it('tells the PDFs the order the page shows', () => {
+    setActiveLocale('en')
+    expect(getActiveDateOrder()).toBe('mdy')
+    setActiveDateFormat('dmy')
+    expect(getActiveDateOrder()).toBe('dmy')
+    // The PDFs are English, and a German reader's dates are day-first.
+    setActiveDateFormat('mdy')
+    setActiveLocale('de')
+    expect(getActiveDateOrder()).toBe('dmy')
   })
 
   it('leaves a day-first language alone', () => {
