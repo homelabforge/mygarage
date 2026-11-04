@@ -147,6 +147,7 @@ import type { Vehicle, VehicleDetailStats, VehicleType } from '../../types/vehic
 import type { VehicleLiveLinkStatus } from '../../types/livelink'
 import { makeUnitFormat } from '../../utils/unitFormat'
 import VehicleDetail from '../VehicleDetail'
+import { rememberVehicle } from '../../utils/vehicleCache'
 import { IMPERIAL_UNITS, makeUser, makeDetailStats } from '../../__tests__/factories'
 
 const mockedVehicleService = vi.mocked(vehicleService)
@@ -286,10 +287,7 @@ describe('VehicleDetail', () => {
 
   it('shows cached data with warning when offline', async () => {
     // Pre-populate cache
-    localStorage.setItem(
-      'vehicle-cache-TEST12345678901234',
-      JSON.stringify({ timestamp: Date.now(), data: mockVehicle })
-    )
+    rememberVehicle('TEST12345678901234', mockVehicle)
 
     // navigator.onLine controls the cache fallback in loadVehicle
     const originalOnLine = navigator.onLine

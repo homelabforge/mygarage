@@ -1492,7 +1492,7 @@
     "editTitleNamed": "{{position}} Tire",
     "editTitleStored": "Tire in storage",
     "empty": "No tires tracked yet",
-    "emptyHint": "Add FL/FR/RL/RR (and spare) with tread depth and DOT code.",
+    "emptyHint": "Add each tire with its tread depth and DOT code.",
     "eventDate": "Date",
     "eventDateRequired": "Pick a date for this.",
     "firstInstalled": "First installed {{date}} @ {{odometer}}",

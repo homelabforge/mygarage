@@ -1534,7 +1534,6 @@
     "edit": "Bearbeiten",
     "editTitleNamed": "Reifen {{position}}",
     "empty": "Noch keine Reifen erfasst",
-    "emptyHint": "Füge VL/VR/HL/HR (und Ersatzrad) mit Profiltiefe und DOT-Code hinzu.",
     "loadAction": "Reifen laden",
     "lowTread": "Geringe Profiltiefe",
     "model": "Modell",

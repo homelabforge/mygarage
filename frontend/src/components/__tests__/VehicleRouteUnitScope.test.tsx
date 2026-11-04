@@ -22,6 +22,8 @@ vi.mock('../../contexts/AuthContext', () => ({
 
 import VehicleRouteUnitScope from '../VehicleRouteUnitScope'
 import { useUnitPreference } from '../../hooks/useUnitPreference'
+import { rememberVehicle } from '../../utils/vehicleCache'
+import type { Vehicle } from '../../types/vehicle'
 
 function Probe() {
   return <p data-testid="unit">{useUnitPreference().units.distance}</p>
@@ -59,10 +61,7 @@ describe('VehicleRouteUnitScope', () => {
 
   it('falls back to the cached vehicle when the fetch fails', async () => {
     getVehicle.mockRejectedValue(new Error('offline'))
-    localStorage.setItem(
-      'vehicle-cache-V1',
-      JSON.stringify({ timestamp: Date.now(), data: { vin: 'V1', distance_unit: 'mi' } }),
-    )
+    rememberVehicle('V1', { vin: 'V1', distance_unit: 'mi' } as Vehicle)
     renderRoute()
     expect(await screen.findByTestId('unit')).toHaveTextContent('mi')
   })
