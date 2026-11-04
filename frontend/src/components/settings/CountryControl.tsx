@@ -10,14 +10,14 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { countryOptions } from '@/constants/countries'
-import { useDateLocale } from '@/hooks/useDateLocale'
+import { useLanguageLocale } from '@/hooks/useLanguageLocale'
 import { useSavePersonalPreference } from '@/hooks/useSavePersonalPreference'
 import { COUNTRY_STORAGE_KEY, useCountryPreference } from '@/hooks/useResolvedCountry'
 import { Select } from '../ui'
 
 export default function CountryControl(): React.ReactElement {
   const { t } = useTranslation('settings')
-  const locale = useDateLocale()
+  const locale = useLanguageLocale()
   const stored = useCountryPreference()
   const save = useSavePersonalPreference()
   // The chosen code shows at once; a failed save puts the stored one back.

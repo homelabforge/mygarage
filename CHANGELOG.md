@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Date format setting in Quick Settings: English dates month-first (10/24/2026) or day-first (24/10/2026) (#278, thanks @dpruddel)
+
 ## [3.10.0-rc2] - 2026-11-03
 
 _Pre-release; promoting to stable will keep these entries._

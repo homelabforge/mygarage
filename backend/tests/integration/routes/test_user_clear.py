@@ -126,6 +126,24 @@ class TestAdminUserUpdate:
         )
         assert r.status_code == 422, r.text
 
+    async def test_admin_can_set_date_format(
+        self, client: AsyncClient, auth_headers, db_session, fresh_user
+    ):
+        r = await client.put(
+            f"/api/auth/users/{fresh_user.id}", json={"date_format": "dmy"}, headers=auth_headers
+        )
+        assert r.status_code == 200, r.text
+        assert (await _stored(db_session, fresh_user.id)).date_format == "dmy"
+
+    async def test_admin_unknown_date_format_is_a_422(
+        self, client: AsyncClient, auth_headers, fresh_user
+    ):
+        r = await client.put(
+            f"/api/auth/users/{fresh_user.id}", json={"date_format": "ymd"}, headers=auth_headers
+        )
+        assert r.status_code == 422, r.text
+        assert "string_pattern_mismatch" in r.text, r.text
+
 
 class TestSelfUpdate:
     @pytest.mark.parametrize("field", ["full_name", "accent_color", "theme"])
@@ -179,3 +197,5 @@ class TestSelfUpdate:
             "/api/auth/me", json={"date_format": value}, headers=_headers_for(fresh_user)
         )
         assert r.status_code == 422, r.text
+        # The pattern said no. Without the field, extra="forbid" 422s too.
+        assert "string_pattern_mismatch" in r.text, r.text

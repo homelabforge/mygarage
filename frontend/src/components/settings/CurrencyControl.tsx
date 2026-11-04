@@ -22,8 +22,8 @@ export default function CurrencyControl(): React.ReactElement {
   const { t } = useTranslation('settings')
   const { currencyCode: stored, locale } = useCurrencyPreference()
   const save = useSavePersonalPreference()
-  // `saved` shows a confirmed choice before the save lands (dropped if it
-  // fails); `asking` is a choice awaiting confirmation.
+  // `saved` shows a confirmed choice until the save settles; `asking` is a
+  // choice awaiting confirmation.
   const [saved, setSaved] = useState<string | null>(null)
   const [asking, setAsking] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -40,8 +40,9 @@ export default function CurrencyControl(): React.ReactElement {
       toast.success(t('currency.saved'))
     } catch {
       toast.error(t('currency.error'))
-      setSaved(null)
     } finally {
+      // Once the save settles the stored value wins, so a later change elsewhere shows.
+      setSaved(null)
       setSaving(false)
     }
   }

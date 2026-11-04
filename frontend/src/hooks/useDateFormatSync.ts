@@ -8,7 +8,7 @@
  * change is: every component that uses `useTranslation` re-renders on
  * `languageChanged`. The language itself is unchanged.
  */
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { setActiveDateFormat } from '../constants/i18n'
 import { useDateFormat } from './useDateFormat'
@@ -17,7 +17,9 @@ export function useDateFormatSync(): void {
   const { i18n } = useTranslation()
   const { dateFormat } = useDateFormat()
 
-  useEffect(() => {
+  // Layout effect, so a day-first page re-renders before the first paint
+  // instead of flashing month-first dates.
+  useLayoutEffect(() => {
     if (setActiveDateFormat(dateFormat)) {
       i18n.emit('languageChanged', i18n.language)
     }

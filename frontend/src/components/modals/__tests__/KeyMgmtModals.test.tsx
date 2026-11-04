@@ -16,6 +16,11 @@ vi.mock('../../../services/api', () => ({
   },
 }))
 
+// TorqueSourceModal reads the time preference, which reads the account.
+vi.mock('../../../contexts/AuthContext', () => ({
+  useAuth: () => ({ isAuthenticated: false, user: null }),
+}))
+
 describe('key/management modals — Drawer conversion', () => {
   it('CreateWidgetKeyModal renders a labelled dialog with the footer submit', () => {
     render(<CreateWidgetKeyModal isOpen onClose={vi.fn()} />)

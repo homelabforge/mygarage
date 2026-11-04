@@ -3,7 +3,7 @@
  * icon buttons, the two Done buttons and each source's revoke. Strings come
  * from the en bundle, so a name that only differs by interpolation shows up.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 
 vi.mock('react-i18next', async () => (await import('@/__tests__/i18nEn')).reactI18nextEn())
@@ -15,8 +15,12 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@/services/livelinkService', () => ({ livelinkService: svc }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ isAuthenticated: true, user: { time_format: '24h' } }),
+}))
 
 import TorqueSourceModal from '../TorqueSourceModal'
+import { setActiveDateFormat } from '@/constants/i18n'
 
 const VIN = '1HGCM82633A004352'
 
@@ -86,5 +90,19 @@ describe('TorqueSourceModal names', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Torque Pro Sources' })
     expect(await within(dialog).findByRole('button', { name: 'Revoke Pixel' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Revoke Tablet' })).toBeInTheDocument()
+  })
+})
+
+describe('TorqueSourceModal last seen', () => {
+  afterEach(() => setActiveDateFormat('mdy'))
+
+  it('follows the date and time preferences', async () => {
+    setActiveDateFormat('dmy')
+    svc.getTorqueSources.mockResolvedValue({
+      sources: [{ device_id: 'torque_a', label: 'Pixel', last_seen: '2026-10-24T12:00:00Z' }],
+    })
+    render(<TorqueSourceModal vin={VIN} isOpen onClose={vi.fn()} />)
+    // Day-first and 24-hour, whatever the browser's own locale says.
+    expect(await screen.findByText(/^Last seen: 24\/10\/2026, \d{2}:\d{2}$/)).toBeInTheDocument()
   })
 })

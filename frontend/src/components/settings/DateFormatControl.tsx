@@ -17,7 +17,7 @@ export default function DateFormatControl(): React.ReactElement | null {
   const { t, i18n } = useTranslation('settings')
   const { dateFormat: stored } = useDateFormat()
   const save = useSavePersonalPreference()
-  // Shows the choice before the save lands; dropped if the save fails.
+  // Shows the choice until the save settles.
   const [pending, setPending] = useState<DateFormat | null>(null)
   const [saving, setSaving] = useState(false)
   const dateFormat = pending ?? stored
@@ -30,8 +30,9 @@ export default function DateFormatControl(): React.ReactElement | null {
       toast.success(t('preferences.dateSaved'))
     } catch {
       toast.error(t('preferences.dateError'))
-      setPending(null)
     } finally {
+      // Once the save settles the stored value wins, so a later change elsewhere shows.
+      setPending(null)
       setSaving(false)
     }
   }

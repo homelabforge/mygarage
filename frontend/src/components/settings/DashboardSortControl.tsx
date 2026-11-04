@@ -20,7 +20,7 @@ export default function DashboardSortControl(): React.ReactElement {
   const { user } = useAuth()
   const { dashboardSort: stored } = useDashboardSort()
   const save = useSavePersonalPreference()
-  // Shows the choice before the save lands; dropped if the save fails.
+  // Shows the choice until the save settles.
   const [pending, setPending] = useState<DashboardSort | null>(null)
   const [saving, setSaving] = useState(false)
   const selected = pending ?? stored
@@ -34,8 +34,9 @@ export default function DashboardSortControl(): React.ReactElement {
       toast.success(t('dashboardSort.saved'))
     } catch {
       toast.error(t('dashboardSort.error'))
-      setPending(null)
     } finally {
+      // Once the save settles the stored value wins, so a later change elsewhere shows.
+      setPending(null)
       setSaving(false)
     }
   }

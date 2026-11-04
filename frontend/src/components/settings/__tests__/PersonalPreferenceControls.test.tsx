@@ -5,7 +5,7 @@
  * puts the previous choice back.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const h = vi.hoisted(() => ({
@@ -59,10 +59,25 @@ beforeEach(() => {
   h.isAuthenticated = true
   h.user = { time_format: '12h', language: 'en', currency_code: 'USD', dashboard_sort: 'name' }
   h.refreshUser = vi.fn().mockResolvedValue(undefined)
-  h.changeLanguage = vi.fn().mockResolvedValue(undefined)
+  // As the real ones do: the PUT lands on the account refreshUser reloads, and
+  // a language change moves i18n. A control reads them back once its save settles.
+  h.changeLanguage = vi.fn(async (lang: string) => {
+    h.language = lang
+  })
   h.language = 'en'
-  mockedPut.mockResolvedValue({ data: {} })
+  mockedPut.mockImplementation(async (_url: string, body?: unknown) => {
+    h.user = { ...h.user, ...(body as Record<string, string>) }
+    return { data: {} }
+  })
 })
+
+/** A preference changed somewhere else (another tab) after this page saved. */
+const changedElsewhere = (key: string, value: string): void => {
+  act(() => {
+    localStorage.setItem(key, value)
+    window.dispatchEvent(new StorageEvent('storage', { key, newValue: value, storageArea: localStorage }))
+  })
+}
 
 const pressed = (name: string): string | null =>
   screen.getByRole('button', { name }).getAttribute('aria-pressed')
@@ -120,6 +135,18 @@ describe('TimeFormatControl', () => {
     expect(localStorage.getItem('time_format')).toBe('24h')
   })
 
+  it('follows a change made elsewhere after its own save', async () => {
+    h.isAuthenticated = false
+    h.user = null
+    render(<TimeFormatControl />)
+    await userEvent.click(screen.getByRole('button', { name: 'timeFormat.twentyFourHour' }))
+    expect(pressed('timeFormat.twentyFourHour')).toBe('true')
+
+    changedElsewhere('time_format', '12h')
+
+    expect(pressed('timeFormat.twelveHour')).toBe('true')
+  })
+
   it('puts the previous choice back when the save fails', async () => {
     mockedPut.mockRejectedValue(new Error('down'))
     render(<TimeFormatControl />)
@@ -157,6 +184,18 @@ describe('DateFormatControl', () => {
 
     expect(localStorage.getItem('date_format')).toBe('dmy')
     expect(mockedPut).not.toHaveBeenCalled()
+  })
+
+  it('follows a change made elsewhere after its own save', async () => {
+    h.isAuthenticated = false
+    h.user = null
+    render(<DateFormatControl />)
+    await userEvent.click(screen.getByRole('button', { name: 'dateFormat.dayFirst' }))
+    expect(pressed('dateFormat.dayFirst')).toBe('true')
+
+    changedElsewhere('date_format', 'mdy')
+
+    expect(pressed('dateFormat.monthFirst')).toBe('true')
   })
 
   it('puts the previous choice back when the save fails', async () => {

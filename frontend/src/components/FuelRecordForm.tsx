@@ -55,7 +55,7 @@ import { Button, Field, Input, NumberInput, Select, Textarea, Checkbox, register
 import { formatDateForInput } from '../utils/dateUtils'
 import TimeInput24, { normalizeTime, formatTimeForInput } from './common/TimeInput24'
 import { useTimeFormat } from '../hooks/useTimeFormat'
-import { useDateLocale } from '../hooks/useDateLocale'
+import { useLanguageLocale } from '../hooks/useLanguageLocale'
 import { applyServerErrors } from '../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { withUnitSession } from '../contexts/UnitSession'
@@ -150,7 +150,7 @@ function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps
   const [vehicleUsageUnit, setVehicleUsageUnit] = useState<string>('distance')
   const [vehicleSecondaryUsageEnabled, setVehicleSecondaryUsageEnabled] = useState<boolean>(false)
   const { units } = useUnitPreference()
-  const locale = useDateLocale()
+  const locale = useLanguageLocale()
   // Per-quantity adapters. The binary `system` is D8-collapsed from VOLUME, so
   // it cannot answer for the odometer or the outside temperature: a client
   // resolving `{volume: 'L', distance: 'mi'}` reads 'metric' out of it for a

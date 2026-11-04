@@ -150,7 +150,7 @@ describe('date format preference', () => {
     setActiveDateFormat('dmy')
     expect(getActiveDateLocale()).toBe('en-GB')
     expect(formatDateForDisplay('2026-10-24')).toBe('24 Oct 2026')
-    expect(formatDateTime('2026-10-24T08:20:00Z', '24h')).toMatch(/^24\/10\/2026/)
+    expect(formatDateTime('2026-10-24T12:00:00Z', '24h')).toMatch(/^24\/10\/2026/)
     expect(getDateFnsLocale().code).toBe('en-GB')
   })
 
