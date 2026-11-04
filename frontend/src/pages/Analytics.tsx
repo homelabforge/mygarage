@@ -80,6 +80,7 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useCurrencySymbol } from '../hooks/useCurrencySymbol'
 import { useDateLocale } from '../hooks/useDateLocale'
 import { formatDateForInput } from '@/utils/dateUtils'
+import { getActiveDateLocale } from '@/constants/i18n'
 
 /**
  * Backend prediction confidence -> translation key.
@@ -276,7 +277,7 @@ export default function Analytics() {
     rows.push(['MyGarage Analytics Export'])
     rows.push(['Vehicle:', analytics.vehicle_name])
     if (vinForDisplay(analytics.vin)) rows.push(['VIN:', analytics.vin])
-    rows.push(['Export Date:', new Date().toLocaleDateString()])
+    rows.push(['Export Date:', new Date().toLocaleDateString(getActiveDateLocale())])
     rows.push([]) // Empty row
 
     // Cost Analysis Summary

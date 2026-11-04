@@ -217,7 +217,9 @@
     "mobileSaved": "Mobile preference saved!",
     "mobileError": "Failed to save mobile preference",
     "timeSaved": "Time format saved",
-    "timeError": "Failed to save time format"
+    "timeError": "Failed to save time format",
+    "dateSaved": "Date format saved",
+    "dateError": "Failed to save date format"
   },
   "files": {
     "title": "File Management",
@@ -694,6 +696,11 @@
     "label": "Time Format",
     "twelveHour": "12-hour (2:30 PM)",
     "twentyFourHour": "24-hour (14:30)"
+  },
+  "dateFormat": {
+    "label": "Date Format",
+    "monthFirst": "Month first (10/24/2026)",
+    "dayFirst": "Day first (24/10/2026)"
   },
   "widgetKeys": {
     "createTitle": "New API Key",

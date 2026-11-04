@@ -843,6 +843,18 @@
             ],
             "title": "Currency Code"
           },
+          "date_format": {
+            "anyOf": [
+              {
+                "pattern": "^(mdy|dmy)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Format"
+          },
           "email": {
             "anyOf": [
               {
@@ -28106,6 +28118,11 @@
             "title": "Dashboard Sort",
             "type": "string"
           },
+          "date_format": {
+            "default": "mdy",
+            "title": "Date Format",
+            "type": "string"
+          },
           "default_payment_method": {
             "anyOf": [
               {
@@ -28517,6 +28534,18 @@
               }
             ],
             "title": "Dashboard Sort"
+          },
+          "date_format": {
+            "anyOf": [
+              {
+                "pattern": "^(mdy|dmy)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Format"
           },
           "default_payment_method": {
             "anyOf": [

@@ -10,6 +10,7 @@ import { familyService } from '@/services/familyService'
 import type { VehicleTransferResponse } from '@/types/family'
 import { formatRelationship } from '@/types/family'
 import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
+import { getActiveDateLocale } from '@/constants/i18n'
 
 /**
  * Transferred data category -> translation key.
@@ -70,7 +71,7 @@ export default function TransferHistorySection({ vin }: TransferHistorySectionPr
     return formatAPITimestamp(
       dateString,
       (d) =>
-        d.toLocaleDateString(undefined, {
+        d.toLocaleDateString(getActiveDateLocale(), {
           year: 'numeric',
           month: 'short',
           day: 'numeric',

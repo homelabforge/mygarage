@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 import type { Vehicle, VehicleListResponse } from '@/types/vehicle'
 import { identifierValue, keyForFilename } from '../utils/vehicleIdentifier'
+import { getActiveDateLocale } from '@/constants/i18n'
 
 export default function ArchivedVehiclesList() {
   const { t } = useTranslation('vehicles')
@@ -271,7 +272,7 @@ export default function ArchivedVehiclesList() {
                 <td className="px-4 py-3 text-sm text-garage-text-muted">
                   {formatAPITimestamp(
                     vehicle.archived_at,
-                    (d) => d.toLocaleDateString(),
+                    (d) => d.toLocaleDateString(getActiveDateLocale()),
                     'N/A',
                   )}
                 </td>

@@ -1,8 +1,16 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { SUPPORTED_LANGUAGES, getActiveLocale, setActiveLocale } from '@/constants/i18n'
+import {
+  SUPPORTED_LANGUAGES,
+  getActiveDateLocale,
+  getActiveLocale,
+  languageToDateLocale,
+  setActiveDateFormat,
+  setActiveLocale,
+} from '@/constants/i18n'
 import { formatAtPrecision, makeUnitFormat } from '@/utils/unitFormat'
 import { presetUnitsFor } from '@/types/units'
 import { formatDateForDisplay, getDateFnsLocale } from '@/utils/dateUtils'
+import { formatDateTime } from '@/utils/parseAPITimestamp'
 
 /**
  * Number formatting must follow the language the user picked in the app.
@@ -107,5 +115,55 @@ describe('locale-aware number formatting', () => {
     // Walking the real list means a new language can't skip this table.
     setActiveLocale(code)
     expect(getDateFnsLocale().code.split('-')[0]).toBe(code.split('-')[0])
+  })
+})
+
+/**
+ * The date format preference: English dates month-first (10/24/2026, the
+ * default) or day-first (24/10/2026). Numbers keep the language's locale, and
+ * languages that are day-first already are left alone.
+ */
+describe('date format preference', () => {
+  afterEach(() => {
+    setActiveDateFormat('mdy')
+    setActiveLocale('en')
+  })
+
+  it('maps English to en-GB only when day-first is chosen', () => {
+    expect(languageToDateLocale('en', 'mdy')).toBe('en-US')
+    expect(languageToDateLocale('en', 'dmy')).toBe('en-GB')
+    for (const { code } of SUPPORTED_LANGUAGES.filter((l) => l.code !== 'en')) {
+      expect(languageToDateLocale(code, 'dmy')).toBe(languageToDateLocale(code, 'mdy'))
+    }
+  })
+
+  it('reports whether the format changed', () => {
+    expect(setActiveDateFormat('mdy')).toBe(false)
+    expect(setActiveDateFormat('dmy')).toBe(true)
+    expect(setActiveDateFormat('dmy')).toBe(false)
+  })
+
+  it('formats English dates day-first once chosen', () => {
+    setActiveLocale('en')
+    expect(formatDateForDisplay('2026-10-24')).toBe('Oct 24, 2026')
+
+    setActiveDateFormat('dmy')
+    expect(getActiveDateLocale()).toBe('en-GB')
+    expect(formatDateForDisplay('2026-10-24')).toBe('24 Oct 2026')
+    expect(formatDateTime('2026-10-24T08:20:00Z', '24h')).toMatch(/^24\/10\/2026/)
+    expect(getDateFnsLocale().code).toBe('en-GB')
+  })
+
+  it('leaves numbers on the language locale', () => {
+    setActiveLocale('en')
+    setActiveDateFormat('dmy')
+    expect(getActiveLocale()).toBe('en-US')
+    expect(formatAtPrecision(1234.5, 2)).toBe('1,234.50')
+  })
+
+  it('leaves a day-first language alone', () => {
+    setActiveLocale('de')
+    setActiveDateFormat('dmy')
+    expect(getActiveDateLocale()).toBe('de-DE')
   })
 })

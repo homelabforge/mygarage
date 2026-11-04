@@ -53,6 +53,12 @@ class User(Base):
     time_format: Mapped[str] = mapped_column(
         String(10), default="12h", nullable=False
     )  # '12h' or '24h'
+    # The order of day and month in numeric dates (migration 153). 'mdy' is
+    # what the app has always shown in English (10/24/2026); 'dmy' shows
+    # 24/10/2026. Languages whose own convention is day-first ignore it.
+    date_format: Mapped[str] = mapped_column(
+        String(10), default="mdy", server_default="mdy", nullable=False
+    )  # 'mdy' or 'dmy'
 
     # Per-quantity unit overrides (issue #152, migration 093).
     #

@@ -94,6 +94,51 @@ export function getActiveLocale(): string {
 }
 
 /**
+ * The order of day and month in this person's dates (`users.date_format`):
+ * 'mdy' is 10/24/2026, 'dmy' is 24/10/2026.
+ */
+export type DateFormat = 'mdy' | 'dmy'
+
+/**
+ * The locale for DATES. It differs from the number locale in one case: English
+ * with day-first dates formats them as en-GB (24/10/2026, 24 Oct 2026). Numbers
+ * and currency keep `languageToLocale`, so a US dollar amount still reads $5.00
+ * rather than en-GB's US$5.00. Every other language is already day-first, so
+ * the preference leaves it alone.
+ */
+export function languageToDateLocale(lang: string, dateFormat: DateFormat): string {
+  return toDateLocale(languageToLocale(lang), dateFormat)
+}
+
+function toDateLocale(locale: string, dateFormat: DateFormat): string {
+  return dateFormat === 'dmy' && locale === 'en-US' ? 'en-GB' : locale
+}
+
+let activeDateFormat: DateFormat = 'mdy'
+
+/**
+ * Publish this person's date format to non-React formatters (set by
+ * useDateFormatSync).
+ *
+ * @returns Whether it changed, so the caller knows to re-render.
+ */
+export function setActiveDateFormat(dateFormat: DateFormat): boolean {
+  const changed = dateFormat !== activeDateFormat
+  activeDateFormat = dateFormat
+  return changed
+}
+
+/** This person's date format, as useDateFormatSync last published it. */
+export function getActiveDateFormat(): DateFormat {
+  return activeDateFormat
+}
+
+/** The date locale for non-React formatters: the active language and date format. */
+export function getActiveDateLocale(): string {
+  return toDateLocale(activeLocale, activeDateFormat)
+}
+
+/**
  * The household time zone, published by `/settings/public` as
  * `effective_timezone` and stored here (same module-level pattern as
  * `activeLocale`) so non-React code like `formatDateForInput` can read it.

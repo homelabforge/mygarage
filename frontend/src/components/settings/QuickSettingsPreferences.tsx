@@ -1,6 +1,6 @@
 /**
  * This person's own display preferences, as Quick Settings shows them: units,
- * time format, language, currency, and the order the dashboard opens in. Each
+ * time and date format, language, currency, and the order the dashboard opens in. Each
  * saves to the account, or to this browser when sign-in is off.
  *
  * Its own module so the drawer can load it lazily: the drawer sits in the
@@ -12,6 +12,7 @@
 import CountryControl from './CountryControl'
 import CurrencyControl from './CurrencyControl'
 import DashboardSortControl from './DashboardSortControl'
+import DateFormatControl from './DateFormatControl'
 import InspectionAutoScheduleControl from './InspectionAutoScheduleControl'
 import LanguageControl from './LanguageControl'
 import TimeFormatControl from './TimeFormatControl'
@@ -22,6 +23,7 @@ export default function QuickSettingsPreferences(): React.ReactElement {
     <>
       <UnitPreferencesCard />
       <TimeFormatControl />
+      <DateFormatControl />
       <LanguageControl />
       <CurrencyControl />
       <CountryControl />

@@ -1,5 +1,5 @@
 /**
- * Time format, language, currency and dashboard order: each person's own
+ * Time and date format, language, currency and dashboard order: each person's own
  * display choices, now in Quick Settings. With an account they save to it (`PUT /auth/me`); without
  * one (auth mode none) they live in this browser's localStorage. A failed save
  * puts the previous choice back.
@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   > | null,
   refreshUser: vi.fn(),
   changeLanguage: vi.fn(),
+  language: 'en',
 }))
 
 vi.mock('@/services/api', () => ({ default: { put: vi.fn() } }))
@@ -26,7 +27,12 @@ vi.mock('@/contexts/AuthContext', () => ({
 
 vi.mock('react-i18next', () => {
   const t = (key: string): string => key
-  const i18n = { language: 'en', changeLanguage: (lang: string) => h.changeLanguage(lang) }
+  const i18n = {
+    get language() {
+      return h.language
+    },
+    changeLanguage: (lang: string) => h.changeLanguage(lang),
+  }
   return {
     useTranslation: () => ({ t, i18n }),
     Trans: ({ children }: { children: React.ReactNode }) => children,
@@ -38,6 +44,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import api from '@/services/api'
 import TimeFormatControl from '../TimeFormatControl'
+import DateFormatControl from '../DateFormatControl'
 import LanguageControl from '../LanguageControl'
 import CurrencyControl from '../CurrencyControl'
 import DashboardSortControl from '../DashboardSortControl'
@@ -53,6 +60,7 @@ beforeEach(() => {
   h.user = { time_format: '12h', language: 'en', currency_code: 'USD', dashboard_sort: 'name' }
   h.refreshUser = vi.fn().mockResolvedValue(undefined)
   h.changeLanguage = vi.fn().mockResolvedValue(undefined)
+  h.language = 'en'
   mockedPut.mockResolvedValue({ data: {} })
 })
 
@@ -119,6 +127,51 @@ describe('TimeFormatControl', () => {
     await userEvent.click(screen.getByRole('button', { name: 'timeFormat.twentyFourHour' }))
 
     await waitFor(() => expect(pressed('timeFormat.twelveHour')).toBe('true'))
+  })
+})
+
+describe('DateFormatControl', () => {
+  it('shows month-first by default and saves day-first to the account', async () => {
+    render(<DateFormatControl />)
+    expect(pressed('dateFormat.monthFirst')).toBe('true')
+
+    await userEvent.click(screen.getByRole('button', { name: 'dateFormat.dayFirst' }))
+
+    expect(mockedPut).toHaveBeenCalledWith('/auth/me', { date_format: 'dmy' })
+    expect(h.refreshUser).toHaveBeenCalled()
+    expect(pressed('dateFormat.dayFirst')).toBe('true')
+  })
+
+  it('shows the saved choice', () => {
+    h.user = { ...h.user, date_format: 'dmy' }
+    render(<DateFormatControl />)
+    expect(pressed('dateFormat.dayFirst')).toBe('true')
+  })
+
+  it('keeps the choice in this browser when there is no account', async () => {
+    h.isAuthenticated = false
+    h.user = null
+    render(<DateFormatControl />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'dateFormat.dayFirst' }))
+
+    expect(localStorage.getItem('date_format')).toBe('dmy')
+    expect(mockedPut).not.toHaveBeenCalled()
+  })
+
+  it('puts the previous choice back when the save fails', async () => {
+    mockedPut.mockRejectedValue(new Error('down'))
+    render(<DateFormatControl />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'dateFormat.dayFirst' }))
+
+    await waitFor(() => expect(pressed('dateFormat.monthFirst')).toBe('true'))
+  })
+
+  it('is hidden for a language whose dates are day-first anyway', () => {
+    h.language = 'de'
+    const { container } = render(<DateFormatControl />)
+    expect(container).toBeEmptyDOMElement()
   })
 })
 

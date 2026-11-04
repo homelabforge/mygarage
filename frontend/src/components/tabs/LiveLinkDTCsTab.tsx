@@ -21,6 +21,7 @@ import type { VehicleDTC, VehicleDTCListResponse } from '@/types/livelink'
 import { isManufacturerCode } from '@/utils/dtc'
 import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 import { Card, Chip, IconButton, Button, Input, Mono, EmptyState } from '../ui'
+import { getActiveDateLocale } from '@/constants/i18n'
 
 interface LiveLinkDTCsTabProps {
   vin: string
@@ -196,16 +197,16 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-text-mute">
                       <span>
                         {t('livelink.dtcs.firstSeen')}:{' '}
-                        <Mono size="xs">{formatAPITimestamp(dtc.first_seen, (d) => d.toLocaleDateString())}</Mono>
+                        <Mono size="xs">{formatAPITimestamp(dtc.first_seen, (d) => d.toLocaleDateString(getActiveDateLocale()))}</Mono>
                       </span>
                       <span>
                         {t('livelink.dtcs.lastSeen')}:{' '}
-                        <Mono size="xs">{formatAPITimestamp(dtc.last_seen, (d) => d.toLocaleDateString())}</Mono>
+                        <Mono size="xs">{formatAPITimestamp(dtc.last_seen, (d) => d.toLocaleDateString(getActiveDateLocale()))}</Mono>
                       </span>
                       {dtc.cleared_at && (
                         <span>
                           {t('livelink.dtcs.clearedAt')}:{' '}
-                          <Mono size="xs">{formatAPITimestamp(dtc.cleared_at, (d) => d.toLocaleDateString())}</Mono>
+                          <Mono size="xs">{formatAPITimestamp(dtc.cleared_at, (d) => d.toLocaleDateString(getActiveDateLocale()))}</Mono>
                         </span>
                       )}
                       {dtc.category && <span>{t('livelink.dtcs.category')}: {categoryLabel(t, dtc.category)}</span>}

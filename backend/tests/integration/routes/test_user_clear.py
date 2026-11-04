@@ -110,6 +110,7 @@ class TestAdminUserUpdate:
             "is_admin",
             "show_both_units",
             "time_format",
+            "date_format",
             "mobile_quick_entry_enabled",
             "language",
             "currency_code",
@@ -149,6 +150,7 @@ class TestSelfUpdate:
             "email",
             "show_both_units",
             "time_format",
+            "date_format",
             "mobile_quick_entry_enabled",
             "language",
             "currency_code",
@@ -157,4 +159,23 @@ class TestSelfUpdate:
     )
     async def test_null_on_a_required_field_is_a_422(self, client: AsyncClient, fresh_user, field):
         r = await client.put("/api/auth/me", json={field: None}, headers=_headers_for(fresh_user))
+        assert r.status_code == 422, r.text
+
+    async def test_date_format_is_saved_and_returned(
+        self, client: AsyncClient, db_session, fresh_user
+    ):
+        headers = _headers_for(fresh_user)
+        assert (await client.get("/api/auth/me", headers=headers)).json()["date_format"] == "mdy"
+
+        r = await client.put("/api/auth/me", json={"date_format": "dmy"}, headers=headers)
+
+        assert r.status_code == 200, r.text
+        assert r.json()["date_format"] == "dmy"
+        assert (await _stored(db_session, fresh_user.id)).date_format == "dmy"
+
+    @pytest.mark.parametrize("value", ["ymd", "DMY", "24/10/2026", ""])
+    async def test_unknown_date_format_is_a_422(self, client: AsyncClient, fresh_user, value):
+        r = await client.put(
+            "/api/auth/me", json={"date_format": value}, headers=_headers_for(fresh_user)
+        )
         assert r.status_code == 422, r.text

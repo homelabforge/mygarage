@@ -18,6 +18,7 @@ import api from '@/services/api'
 /** The `PUT /auth/me` fields a display preference is saved as. */
 export type PersonalPreferenceField =
   | 'time_format'
+  | 'date_format'
   | 'language'
   | 'currency_code'
   | 'dashboard_sort'

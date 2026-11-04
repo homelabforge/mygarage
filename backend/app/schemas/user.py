@@ -150,6 +150,7 @@ class UserSelfUpdate(BaseModel):
     full_name: str | None = Field(None, max_length=255)
     show_both_units: bool | None = None
     time_format: str | None = Field(None, pattern="^(12h|24h)$")
+    date_format: str | None = Field(None, pattern="^(mdy|dmy)$")
     mobile_quick_entry_enabled: bool | None = None
     # i18n preferences
     language: str | None = Field(None, max_length=10)
@@ -174,6 +175,7 @@ class UserSelfUpdate(BaseModel):
         "email",
         "show_both_units",
         "time_format",
+        "date_format",
         "mobile_quick_entry_enabled",
         "language",
         "currency_code",
@@ -328,6 +330,7 @@ class AdminUserUpdate(BaseModel):
     is_admin: bool | None = None
     show_both_units: bool | None = None
     time_format: str | None = Field(None, pattern="^(12h|24h)$")
+    date_format: str | None = Field(None, pattern="^(mdy|dmy)$")
     mobile_quick_entry_enabled: bool | None = None
     # i18n preferences
     language: str | None = Field(None, max_length=10)
@@ -349,6 +352,7 @@ class AdminUserUpdate(BaseModel):
         "is_admin",
         "show_both_units",
         "time_format",
+        "date_format",
         "mobile_quick_entry_enabled",
         "language",
         "currency_code",
@@ -494,6 +498,7 @@ class UserResponse(UserBase):
     unit_tread: TreadUnit | None = None
     secondary_gallon: GallonFlavourPref | None = None
     time_format: str = "12h"
+    date_format: str = "mdy"
     mobile_quick_entry_enabled: bool = True
     # i18n preferences
     language: str = "en"
