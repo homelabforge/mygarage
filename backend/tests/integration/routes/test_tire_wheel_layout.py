@@ -189,6 +189,34 @@ async def test_past_period_off_layout_refused(
         await _drop(db_session, vin)
 
 
+async def test_a_missing_or_retired_tire_beats_the_layout_refusal(
+    client: AsyncClient, auth_headers: Headers, db_session: AsyncSession
+) -> None:
+    # The tire is looked up first: an off-layout corner on a tire that isn't
+    # there is a 404, and on a retired one the usual 409.
+    vin = await _vehicle(client, auth_headers, "Motorcycle")
+    try:
+        missing = await _mount(client, auth_headers, vin, 999_999_999, "FL")
+        assert missing.status_code == 404, missing.text
+
+        period = {"position": "FL", "mounted_on": "2026-01-01", "dismounted_on": "2026-02-01"}
+        missing = await client.post(
+            f"/api/vehicles/{vin}/tires/999999999/mount-periods", headers=auth_headers, json=period
+        )
+        assert missing.status_code == 404, missing.text
+
+        tire = await _stored(client, auth_headers, vin)
+        retired = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire['id']}/retire", headers=auth_headers, json={}
+        )
+        assert retired.status_code == 200, retired.text
+        refused = await _mount(client, auth_headers, vin, tire["id"], "FL")
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"] == "This tire is retired."
+    finally:
+        await _drop(db_session, vin)
+
+
 async def test_set_mount_with_off_layout_memory_refused(
     client: AsyncClient, auth_headers: Headers, db_session: AsyncSession
 ) -> None:

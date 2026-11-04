@@ -1569,11 +1569,12 @@ class TireService:
         await lock_vehicle_for_write(self.db, vin)
         axes = await self.request_axes(current_user, vin)
         refuse_untracked(axes, odometers=(data.mounted_odometer_km,), hours=(data.mounted_hours,))
-        refuse_off_layout(await vehicle_wheel_layout(self.db, vin), [data.position], "tire")
         tire = await self._get_tire_for_update(vin, tire_id)
 
         if tire.retired_on is not None:
             raise HTTPException(status_code=409, detail="This tire is retired.")
+        # After the lookup, so a missing tire is a 404 and a retired one a 409.
+        refuse_off_layout(await vehicle_wheel_layout(self.db, vin), [data.position], "tire")
         before = fault_map(tire.mount_periods or [], tire.readings or [], axes=axes.captured)
 
         if tire.position is not None:
@@ -2167,10 +2168,10 @@ class TireService:
             odometers=(data.mounted_odometer_km, data.dismounted_odometer_km),
             hours=(data.mounted_hours, data.dismounted_hours),
         )
-        refuse_off_layout(await vehicle_wheel_layout(self.db, vin), [data.position], "tire")
         tire = await self._get_tire_for_update(vin, tire_id)
         if tire.retired_on is not None and data.dismounted_on > tire.retired_on:
             raise HTTPException(status_code=409, detail=past_retirement(tire.retired_on))
+        refuse_off_layout(await vehicle_wheel_layout(self.db, vin), [data.position], "tire")
 
         before = fault_map(tire.mount_periods or [], tire.readings or [], axes=axes.captured)
         period = TireMountPeriod(

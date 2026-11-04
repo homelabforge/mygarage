@@ -212,5 +212,5 @@ async def write_brakes(db: AsyncSession, vin: str, plan: BrakePlan) -> None:
         measurement.brake_job_id = plan.jobs[job_index].id if job_index is not None else None
     db.add_all([measurement for measurement, _ in plan.measurements])
     await db.flush()
-    if plan.axles or plan.jobs or plan.measurements:
-        await keep_wheel_tabs(db, vin)
+    # run_family never writes an empty family, so there's always a row here.
+    await keep_wheel_tabs(db, vin)
