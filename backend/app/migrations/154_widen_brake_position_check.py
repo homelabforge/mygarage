@@ -7,8 +7,8 @@ FATAL: the API takes F and R now, so a widen that failed quietly would turn
 every two-wheeler brake write into a 500. Idempotent: a table whose CHECK
 already lists 'F' is left alone, and so is one with no position CHECK at all.
 
-PostgreSQL drops and re-adds the constraint, found by name or else by its
-definition. SQLite can't alter a CHECK, so the tables are rebuilt from their
+PostgreSQL drops every narrow position CHECK, found by name or by its
+definition, and adds ours back. SQLite can't alter a CHECK, so the tables are rebuilt from their
 own DDL with the IN-list swapped, the way 079 does it. Rebuilding copies the
 rows, which would reset an AUTOINCREMENT counter to the highest id left, so the
 old counter is carried over: a reminder mark tells new pad checks from old by
@@ -70,37 +70,38 @@ def upgrade(engine: Engine | None = None) -> None:
         _upgrade_sqlite(engine, tables)
 
 
-def _pg_position_check(conn: Connection, table: str) -> tuple[str, str] | None:
-    """The table's position CHECK as (name, definition), by name first, then by definition."""
-    sql = (
-        "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
-        "WHERE conrelid = CAST(:table AS regclass) AND contype = 'c' AND {where}"
-    )
-    row = conn.execute(
-        text(sql.format(where="conname = :name")),
+def _pg_position_checks(conn: Connection, table: str) -> list[tuple[str, str]]:
+    """Every position CHECK on the table as (name, definition), by name or by definition."""
+    rows = conn.execute(
+        text(
+            "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE conrelid = CAST(:table AS regclass) AND contype = 'c' "
+            "AND (conname = :name OR pg_get_constraintdef(oid) LIKE '%position%') "
+            "ORDER BY conname"
+        ),
         {"table": table, "name": f"check_{table}_position"},
-    ).first()
-    if row is None:
-        row = conn.execute(
-            text(sql.format(where="pg_get_constraintdef(oid) LIKE '%position%'")),
-            {"table": table},
-        ).first()
-    return None if row is None else (row[0], row[1])
+    ).all()
+    return [(r[0], r[1]) for r in rows]
 
 
 def _upgrade_pg(engine: Engine, tables: list[str]) -> None:
     with engine.begin() as conn:
         for table in tables:
-            found = _pg_position_check(conn, table)
-            if found is None or "'F'" in found[1]:
+            found = _pg_position_checks(conn, table)
+            narrow = [name for name, definition in found if "'F'" not in definition]
+            if not narrow:
                 continue
-            conn.execute(text(f'ALTER TABLE {table} DROP CONSTRAINT "{found[0]}"'))
-            conn.execute(
-                text(
-                    f"ALTER TABLE {table} ADD CONSTRAINT check_{table}_position "
-                    f"CHECK (position IN ({_POSITIONS}))"
+            # Any one of them left narrow would still refuse F, so all of them go.
+            for name in narrow:
+                conn.execute(text(f'ALTER TABLE {table} DROP CONSTRAINT "{name}"'))
+            target = f"check_{table}_position"
+            if target in narrow or target not in {name for name, _ in found}:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE {table} ADD CONSTRAINT {target} "
+                        f"CHECK (position IN ({_POSITIONS}))"
+                    )
                 )
-            )
             logger.info("Widened the brake position CHECK on %s", table)
 
 
@@ -111,16 +112,17 @@ def _plan_sqlite(conn: Connection, table: str) -> _Rebuild | None:
     ).scalar()
     if not ddl:
         return None
-    match = _POSITION_RE.search(ddl)
-    if match is None:
+    matches = list(_POSITION_RE.finditer(ddl))
+    if not matches:
         if "'RR'" in ddl:
             # There's a corner CHECK but not one we can read. Skipping it
             # would leave F refused, so stop here instead.
             raise RuntimeError(f"154: can't find the position IN-list to widen on {table}")
         return None
-    if "'F'" in match.group(2):
+    if all("'F'" in m.group(2) for m in matches):
         return None
-    new_ddl = _POSITION_RE.sub(lambda m: f"{m.group(1)}{_POSITIONS}{m.group(3)}", ddl, count=1)
+    # Widen every one: a second narrow CHECK would still turn F away.
+    new_ddl = _POSITION_RE.sub(lambda m: f"{m.group(1)}{_POSITIONS}{m.group(3)}", ddl)
     new_ddl, renamed = re.subn(
         rf'CREATE\s+TABLE\s+"?{table}"?(?=\s*\()',
         f'CREATE TABLE "{table}_new"',

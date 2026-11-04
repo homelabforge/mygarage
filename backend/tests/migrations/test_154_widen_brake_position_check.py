@@ -127,12 +127,8 @@ def test_widened_check_accepts_f_and_r(brake_db, table):
     _load().upgrade(engine)
 
     _insert(engine, table, "F")
-    if table == "brake_reminder_marks":
-        # One mark per corner, so R needs its own row anyway.
-        _insert(engine, table, "R")
-    else:
-        _insert(engine, table, "R")
-        _insert(engine, table, "FL")
+    _insert(engine, table, "R")
+    _insert(engine, table, "FL")
     with pytest.raises(IntegrityError):
         _insert(engine, table, "X")
 
@@ -309,6 +305,85 @@ def test_sqlite_refuses_a_check_it_cannot_read(tmp_path):
     with pytest.raises(RuntimeError, match="brake_jobs"):
         _load().upgrade(engine)
     engine.dispose()
+
+
+def test_sqlite_an_orphan_from_before_does_not_stop_it(brake_db):
+    # Only orphans the rebuild made fail the boot. One that was already there
+    # (FKs off at some point) has to ride through, row and all.
+    dialect, engine = brake_db
+    if dialect != "sqlite":
+        pytest.skip("PostgreSQL never lets the orphan in")
+    with engine.begin() as conn:
+        conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        conn.execute(
+            text(
+                "INSERT INTO brake_measurements (vin, position, recorded_at) "
+                "VALUES ('NOSUCHVIN00000000', 'FL', '2026-01-01')"
+            )
+        )
+    with engine.connect() as conn:
+        assert conn.exec_driver_sql("PRAGMA foreign_key_check(brake_measurements)").all()
+
+    _load().upgrade(engine)
+
+    assert [r[1] for r in _dump(engine, "brake_measurements")] == ["NOSUCHVIN00000000"]
+    _insert(engine, "brake_measurements", "F")
+
+
+def test_sqlite_widens_every_position_check(tmp_path):
+    # Two position CHECKs on one table: leaving either narrow still refuses F.
+    from sqlalchemy import create_engine
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'm154.db'}")
+    try:
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "CREATE TABLE brake_jobs (id INTEGER PRIMARY KEY, position VARCHAR(2) NOT NULL "
+                f"CHECK (position IN {_OLD_LIST}), CONSTRAINT check_brake_jobs_position "
+                f"CHECK (position IN {_OLD_LIST}))"
+            )
+
+        _load().upgrade(engine)
+
+        with engine.begin() as conn:
+            conn.exec_driver_sql("INSERT INTO brake_jobs (position) VALUES ('F')")
+            ddl = conn.exec_driver_sql(
+                "SELECT sql FROM sqlite_master WHERE name = 'brake_jobs'"
+            ).scalar()
+        assert ddl is not None and ddl.count(_NEW_LIST) == 2
+    finally:
+        engine.dispose()
+
+
+def test_pg_widens_every_position_check(engine_for_migration):
+    dialect, engine, _url = engine_for_migration
+    if dialect != "pg":
+        pytest.skip("constraint names are a PostgreSQL lookup")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE vehicles (vin VARCHAR(17) PRIMARY KEY)"))
+        conn.execute(text("INSERT INTO vehicles (vin) VALUES (:vin)"), {"vin": _VIN})
+    _build_131(engine)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE brake_jobs ADD CONSTRAINT brake_jobs_position_check "
+                f"CHECK (position IN {_OLD_LIST})"
+            )
+        )
+
+    _load().upgrade(engine)
+
+    _insert(engine, "brake_jobs", "F")
+    with engine.connect() as conn:
+        names = set(
+            conn.execute(
+                text(
+                    "SELECT conname FROM pg_constraint WHERE conrelid = 'brake_jobs'::regclass "
+                    "AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%position%'"
+                )
+            ).scalars()
+        )
+    assert names == {"check_brake_jobs_position"}
 
 
 def test_missing_tables_skip(engine_for_migration):
