@@ -703,6 +703,15 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
         "app.services.tire_service.TireService.list_tires",
         "the primary axis's kind, one of two constants",
     ),
+    # Both come off the vehicle's resolved layout, never a stored tire row.
+    ("TireListResponse", "wheel_layout"): (
+        "app.services.wheel_layout_service.vehicle_wheel_layout",
+        "a WHEEL_LAYOUTS entry's id, via resolve_wheel_layout",
+    ),
+    ("TireListResponse", "positions"): (
+        "app.services.wheel_layout_service.vehicle_wheel_layout",
+        "a WHEEL_LAYOUTS entry's tire_positions, shipped constants",
+    ),
     ("TireResponse", "usage_axis"): (
         "app.services.tire_service.TireService._to_response",
         "the primary axis's kind, one of two constants",

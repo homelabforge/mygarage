@@ -45,6 +45,7 @@ from app.schemas.brake import (
     Thickness,
 )
 from app.schemas.tire import HoursFigure
+from app.services.wheel_layout_service import keep_wheel_tabs
 
 logger = logging.getLogger(__name__)
 
@@ -198,8 +199,12 @@ def parse_brakes(vin: str, sections: Mapping[str, list[Any]]) -> BrakePlan:
     return BrakePlan(axles=axles, jobs=jobs, measurements=measurements)
 
 
-async def write_brakes(db: AsyncSession, plan: BrakePlan) -> None:
-    """Write the plan, the jobs first so each measurement gets its job's id."""
+async def write_brakes(db: AsyncSession, vin: str, plan: BrakePlan) -> None:
+    """Write the plan, the jobs first so each measurement gets its job's id.
+
+    Brake rows onto an automatic no-wheel vehicle pin it to `four`, so the tab
+    showing them doesn't vanish (#272 D7). Marks never travel, so there are none.
+    """
     db.add_all(plan.axles)
     db.add_all(plan.jobs)
     await db.flush()
@@ -207,3 +212,5 @@ async def write_brakes(db: AsyncSession, plan: BrakePlan) -> None:
         measurement.brake_job_id = plan.jobs[job_index].id if job_index is not None else None
     db.add_all([measurement for measurement, _ in plan.measurements])
     await db.flush()
+    if plan.axles or plan.jobs or plan.measurements:
+        await keep_wheel_tabs(db, vin)

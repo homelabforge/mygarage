@@ -40,6 +40,7 @@ from app.services.tire_service import (
     refuse_untracked,
 )
 from app.services.vehicle_lock import lock_vehicle_for_write
+from app.services.wheel_layout_service import refuse_off_layout, vehicle_wheel_layout
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
 
@@ -266,6 +267,21 @@ class TireSetService:
                     + ". Mount them individually to say where each one goes."
                 ),
             )
+
+        # Off-layout memory (the car became a bike) refuses the whole fit, naming
+        # the tire, before anything moves. A tire already sitting on its own
+        # corner isn't being placed, so it's left alone even off the layout.
+        layout = await vehicle_wheel_layout(self.db, vin)
+        for tire in members:
+            if tire.position == destinations[tire.id]:
+                continue
+            try:
+                refuse_off_layout(layout, [destinations[tire.id]], "tire")
+            except HTTPException as e:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"{_describe(tire)}: {e.detail} Mount it on its own to pick a corner.",
+                ) from e
 
         wanted = set(destinations.values())
         member_ids = {tire.id for tire in members}
