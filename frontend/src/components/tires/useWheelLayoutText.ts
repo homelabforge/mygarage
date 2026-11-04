@@ -5,6 +5,16 @@ import type { Vehicle } from '../../types/vehicle'
 /** One of the wheel layouts the backend knows (#272). */
 export type WheelLayoutId = NonNullable<Vehicle['effective_wheel_layout']>
 
+/** Every layout, in the order the picker lists them. */
+export const WHEEL_LAYOUT_IDS = [
+  'four',
+  'two',
+  'trike_2f1r',
+  'trike_1f2r',
+  'dually',
+  'none',
+] as const satisfies readonly WheelLayoutId[]
+
 interface WheelLayoutText {
   /** "Four wheels", "Two wheels (front and rear)" and so on. */
   layoutLabel: (id: WheelLayoutId) => string

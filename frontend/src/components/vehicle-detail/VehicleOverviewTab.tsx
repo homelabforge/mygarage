@@ -20,6 +20,7 @@ import VehicleCompliancePanel from './VehicleCompliancePanel'
 import VehicleSpecsPanel from './VehicleSpecsPanel'
 import GarageAssistantPanel from './GarageAssistantPanel'
 import { identifierLabel, identifierValue } from '../../utils/vehicleIdentifier'
+import { useWheelLayoutText } from '../tires/useWheelLayoutText'
 
 // Lazy-load map component — keeps Leaflet's ~150KB out of the main bundle
 const LastLocationMap = lazy(() => import('../maps/LastLocationMap'))
@@ -51,6 +52,7 @@ export default function VehicleOverviewTab({
   const { currencyCode, locale } = useCurrencyPreference()
   const { timeFormat } = useTimeFormat()
   const [specsEditKey, setSpecsEditKey] = useState(0)
+  const { layoutLabel } = useWheelLayoutText()
 
   // Recomputed locally (was VehicleDetail.tsx:444) — the Overview reads it for
   // the VIN-decoded / powertrain / non-motorized-fuel-type gates. Null is a
@@ -65,7 +67,7 @@ export default function VehicleOverviewTab({
   const hasDetails = Boolean(
     vehicle.trim || vehicle.body_class || vehicle.drive_type || vehicle.doors ||
     vehicle.gvwr_class || vehicle.wheel_specs || vehicle.tire_specs ||
-    (!isMotorized && vehicle.fuel_type),
+    vehicle.wheel_layout || (!isMotorized && vehicle.fuel_type),
   )
   const hasPowertrain = Boolean(
     vehicle.displacement_l || vehicle.cylinders || vehicle.fuel_type ||
@@ -125,6 +127,8 @@ export default function VehicleOverviewTab({
             {vehicle.gvwr_class && (<div><p className="text-sm text-text-mute">{t('detail.misc.gvwrClass')}</p><p className="font-medium text-text">{vehicle.gvwr_class}</p></div>)}
             {vehicle.wheel_specs && (<div><p className="text-sm text-text-mute">{t('detail.misc.wheels')}</p><Mono size="sm" className="block">{vehicle.wheel_specs}</Mono></div>)}
             {vehicle.tire_specs && (<div><p className="text-sm text-text-mute">{t('detail.misc.tires')}</p><Mono size="sm" className="block">{vehicle.tire_specs}</Mono></div>)}
+            {/* Only a chosen layout (#272); automatic just follows the type. */}
+            {vehicle.wheel_layout && (<div><p className="text-sm text-text-mute">{t('wheelLayout.label')}</p><p className="font-medium text-text">{layoutLabel(vehicle.wheel_layout)}</p></div>)}
             {!isMotorized && vehicle.fuel_type && (<div><p className="text-sm text-text-mute">{t('edit.fuelType')}</p><p className="font-medium text-text">{t(`forms:fuel.fuelTypes.${vehicle.fuel_type}`, { defaultValue: vehicle.fuel_type })}</p></div>)}
           </div>
         ) : (

@@ -505,6 +505,8 @@ function VehicleDetailPage() {
   const logKinds = vehicleLogKinds(vehicle)
   const isMotorized = logKinds.motorized
   const showFuelLog = logKinds.fuel
+  // Tires and brakes need wheels too (#272): a boat or a `none` override gets neither tab.
+  const hasWheels = isMotorized && vehicle?.effective_wheel_layout !== 'none'
 
   // Equipment-presence flags (B7) — the actions toolbar hides an Equipment
   // button when its <details> target (below, in VehicleOverviewTab) is absent.
@@ -593,8 +595,8 @@ function VehicleDetailPage() {
       { id: 'service' as const, label: t('vehicleStats.service'), icon: Wrench },
       { id: 'odometer' as const, label: t('detail.misc.odometer'), icon: Gauge, visible: logKinds.odometer },
       { id: 'hours' as const, label: t('common:engineHours'), icon: Clock, visible: logKinds.hours },
-      { id: 'tires' as const, label: t('detail.misc.tires'), icon: CircleDot, visible: isMotorized },
-      { id: 'brakes' as const, label: t('detail.misc.brakes'), icon: Disc, visible: isMotorized },
+      { id: 'tires' as const, label: t('detail.misc.tires'), icon: CircleDot, visible: hasWheels },
+      { id: 'brakes' as const, label: t('detail.misc.brakes'), icon: Disc, visible: hasWheels },
       { id: 'recalls' as const, label: t('detail.misc.recalls'), icon: AlertTriangle },
     ],
     fuel: [
@@ -628,6 +630,19 @@ function VehicleDetailPage() {
       { id: 'trips' as const, label: t('detail.misc.trips'), icon: MapPin, visible: canLiveLink('location') },
     ],
   }
+
+  // A sub-tab that went away while open (layout switched to none on Tires) falls
+  // back to the first one left. Waits for the vehicle, since before it loads
+  // everything reads as non-motorized and a ?tab=tires link would bounce. LiveLink
+  // is skipped: its sub-tabs wait on their own fetch, so a ?tab=dtcs link would too.
+  const activeSubTabHidden =
+    vehicle != null &&
+    activePrimaryTab !== 'livelink' &&
+    subTabsConfig[activePrimaryTab]?.find((sub) => sub.id === activeSubTab)?.visible === false
+  const firstVisibleSubTab = subTabsConfig[activePrimaryTab]?.find((sub) => sub.visible !== false)?.id
+  useEffect(() => {
+    if (activeSubTabHidden && firstVisibleSubTab) setActiveSubTab(firstVisibleSubTab)
+  }, [activeSubTabHidden, firstVisibleSubTab])
 
   if (loading) {
     return (
@@ -747,10 +762,10 @@ function VehicleDetailPage() {
         {activePrimaryTab === 'fuel' && activeSubTab === 'propane' && vin && <PropaneTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'odometer' && vin && <OdometerTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'hours' && vin && <HoursTab vin={vin} />}
-        {activePrimaryTab === 'maintenance' && activeSubTab === 'tires' && vin && (
+        {activePrimaryTab === 'maintenance' && activeSubTab === 'tires' && vin && hasWheels && (
           <TireList key={vin} vin={vin} onLogBrakes={isMotorized ? openBrakeLog : undefined} />
         )}
-        {activePrimaryTab === 'maintenance' && activeSubTab === 'brakes' && vin && isMotorized && (
+        {activePrimaryTab === 'maintenance' && activeSubTab === 'brakes' && vin && hasWheels && (
           <BrakeList key={vin} vin={vin} logOnOpen={brakeLogRequested} onLogOpened={clearBrakeLog} />
         )}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <SafetyTab vin={vin} />}

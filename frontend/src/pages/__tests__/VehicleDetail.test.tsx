@@ -515,6 +515,67 @@ describe('VehicleDetail', () => {
     expect(screen.queryByText(/BrakeList/)).toBeNull()
   })
 
+  // --- Wheel layout (#272) ---
+
+  it.each([
+    ['none', false],
+    ['four', true],
+  ] as const)('a %s wheel layout shows Tires and Brakes: %s', async (layout, shown) => {
+    mockedVehicleService.get.mockResolvedValue({ ...mockVehicle, effective_wheel_layout: layout })
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByText('detail.tabs.maintenance')[0])
+    const subNav = await screen.findByTestId('sub-tab-nav')
+    // Service is always there, so the strip itself rendered.
+    expect(within(subNav).getByRole('tab', { name: 'vehicleStats.service' })).toBeInTheDocument()
+    expect(within(subNav).queryByRole('tab', { name: 'detail.misc.tires' }) !== null).toBe(shown)
+    expect(within(subNav).queryByRole('tab', { name: 'detail.misc.brakes' }) !== null).toBe(shown)
+  })
+
+  it('falls back to Service when the vehicle reloads with no wheels while on Tires (RF7)', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: {} } as { data: unknown })
+    const { container } = renderVehicleDetail('/vehicles/TEST12345678901234?tab=tires')
+    expect(await screen.findByText('TireList log brakes')).toBeInTheDocument()
+
+    // A JSON import reloads the vehicle; this time it comes back with no wheels.
+    mockedVehicleService.get.mockResolvedValue({
+      ...mockVehicle, wheel_layout: 'none', effective_wheel_layout: 'none',
+    })
+    const input = container.querySelector('input[type="file"][accept=".json"]') as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['{}'], 'vehicle.json', { type: 'application/json' })] },
+    })
+
+    expect(await screen.findByText('ServiceTab')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'vehicleStats.service' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('TireList log brakes')).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'detail.misc.tires' })).toBeNull()
+  })
+
+  it('keeps a ?tab=tires deep link when the vehicle loads after mount', async () => {
+    // Before the load the page reads as non-motorized, so a reset that didn't
+    // wait for the vehicle would bounce the link to Service.
+    let resolveVehicle: (vehicle: Vehicle) => void = () => {}
+    mockedVehicleService.get.mockImplementation(
+      () => new Promise<Vehicle>((resolve) => { resolveVehicle = resolve }),
+    )
+    renderVehicleDetail('/vehicles/TEST12345678901234?tab=tires')
+    expect(screen.getByRole('status', { name: 'detail.loading' })).toBeInTheDocument()
+    // Let the mount effects (the tab param among them) settle with no vehicle.
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      resolveVehicle(mockVehicle)
+    })
+
+    expect(await screen.findByText('TireList log brakes')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'detail.misc.tires' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('ServiceTab')).toBeNull()
+  })
+
   it("the Tires page's brake prompt opens Brakes with Log measurements", async () => {
     renderVehicleDetail()
     await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
