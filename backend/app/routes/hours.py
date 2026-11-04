@@ -258,7 +258,9 @@ async def update_hours_record(
         await db.commit()
         await db.refresh(record)
 
-        logger.info("Updated hours record %s for %s", record_id, sanitize_for_log(vin))
+        logger.info(
+            "Updated hours record %s for %s", sanitize_for_log(record_id), sanitize_for_log(vin)
+        )
 
         return HoursRecordResponse.model_validate(record)
 
@@ -268,7 +270,7 @@ async def update_hours_record(
         await db.rollback()
         logger.error(
             "Database constraint violation updating hours record %s for %s: %s",
-            record_id,
+            sanitize_for_log(record_id),
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
@@ -277,7 +279,7 @@ async def update_hours_record(
         await db.rollback()
         logger.error(
             "Database connection error updating hours record %s for %s: %s",
-            record_id,
+            sanitize_for_log(record_id),
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
@@ -322,7 +324,9 @@ async def delete_hours_record(
         )
         await db.commit()
 
-        logger.info("Deleted hours record %s for %s", record_id, sanitize_for_log(vin))
+        logger.info(
+            "Deleted hours record %s for %s", sanitize_for_log(record_id), sanitize_for_log(vin)
+        )
 
         return None
 
@@ -332,7 +336,7 @@ async def delete_hours_record(
         await db.rollback()
         logger.error(
             "Database constraint violation deleting hours record %s for %s: %s",
-            record_id,
+            sanitize_for_log(record_id),
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
@@ -341,7 +345,7 @@ async def delete_hours_record(
         await db.rollback()
         logger.error(
             "Database connection error deleting hours record %s for %s: %s",
-            record_id,
+            sanitize_for_log(record_id),
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )

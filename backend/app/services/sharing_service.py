@@ -136,7 +136,7 @@ class SharingService:
                 "Vehicle %s shared with user %s (permission: %s) by user %s",
                 sanitize_for_log(vin),
                 sanitize_for_log(recipient.username),
-                share_request.permission,
+                sanitize_for_log(share_request.permission),
                 sanitize_for_log(current_user.username),
             )
 
@@ -222,8 +222,8 @@ class SharingService:
 
             logger.info(
                 "Share %s permission updated to %s by user %s",
-                share_id,
-                update_request.permission,
+                sanitize_for_log(share_id),
+                sanitize_for_log(update_request.permission),
                 sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
             )
 
@@ -290,7 +290,7 @@ class SharingService:
 
             logger.info(
                 "Share %s revoked by user %s",
-                share_id,
+                sanitize_for_log(share_id),
                 sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
             )
 

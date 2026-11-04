@@ -168,7 +168,7 @@ class WarrantyService:
 
             logger.info(
                 "Updated warranty record %s for %s",
-                warranty_id,
+                sanitize_for_log(warranty_id),
                 sanitize_for_log(vin),
             )
 
@@ -180,7 +180,7 @@ class WarrantyService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation updating warranty %s for %s: %s",
-                warranty_id,
+                sanitize_for_log(warranty_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -189,7 +189,7 @@ class WarrantyService:
             await self.db.rollback()
             logger.error(
                 "Database connection error updating warranty %s for %s: %s",
-                warranty_id,
+                sanitize_for_log(warranty_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -225,7 +225,7 @@ class WarrantyService:
 
             logger.info(
                 "Deleted warranty record %s for %s",
-                warranty_id,
+                sanitize_for_log(warranty_id),
                 sanitize_for_log(vin),
             )
 
@@ -235,7 +235,7 @@ class WarrantyService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation deleting warranty %s for %s: %s",
-                warranty_id,
+                sanitize_for_log(warranty_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -244,7 +244,7 @@ class WarrantyService:
             await self.db.rollback()
             logger.error(
                 "Database connection error deleting warranty %s for %s: %s",
-                warranty_id,
+                sanitize_for_log(warranty_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )

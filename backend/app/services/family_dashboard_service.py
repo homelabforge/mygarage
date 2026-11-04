@@ -304,8 +304,8 @@ class FamilyDashboardService:
             logger.info(
                 "Updated family dashboard settings for user %s (show=%s, order=%s) by admin %s",
                 sanitize_for_log(user.username),
-                update_request.show_on_family_dashboard,
-                update_request.family_dashboard_order,
+                sanitize_for_log(update_request.show_on_family_dashboard),
+                sanitize_for_log(update_request.family_dashboard_order),
                 sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
             )
 

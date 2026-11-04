@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - The service history PDF exported from archived vehicles printed USD instead of your currency
+- Search terms, names and other request values are stripped of control characters before they're logged, so they can't forge log lines
 
 ## [3.10.0-rc2] - 2026-11-03
 

@@ -184,7 +184,7 @@ class ParserRegistry:
         # Try generic fallback
         generic_class = cls._parsers.get("generic")
         if generic_class:
-            logger.info("No specific parser for %s, using generic", manufacturer)
+            logger.info("No specific parser for %s, using generic", sanitize_for_log(manufacturer))
             return generic_class()
 
         return None

@@ -19,6 +19,7 @@ from app.schemas.address_book import (
 )
 from app.services.auth import require_auth
 from app.utils.gas_station import GAS_STATION_POI, gas_station_clause, is_gas_station
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ async def _sync_to_vendor(
             )  # Force INSERT inside the savepoint boundary — critical for rollback isolation
             # SAVEPOINT releases here
     except Exception:
-        logger.exception("Failed to sync address book entry %r to vendors", name)
+        logger.exception("Failed to sync address book entry %r to vendors", sanitize_for_log(name))
         # SAVEPOINT was rolled back; parent transaction (address book write) unaffected
 
 

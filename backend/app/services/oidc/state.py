@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.oidc_state import OIDCState
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -78,11 +79,11 @@ async def validate_and_consume_state(db: AsyncSession, state: str) -> dict[str, 
     oidc_state = result.scalar_one_or_none()
 
     if not oidc_state:
-        logger.warning("Invalid or expired OIDC state: %s...", state[:16])
+        logger.warning("Invalid or expired OIDC state: %s...", sanitize_for_log(state[:16]))
         return None
 
     if oidc_state.is_expired():
-        logger.warning("OIDC state expired: %s...", state[:16])
+        logger.warning("OIDC state expired: %s...", sanitize_for_log(state[:16]))
         await db.delete(oidc_state)
         await db.commit()
         return None
@@ -99,5 +100,5 @@ async def validate_and_consume_state(db: AsyncSession, state: str) -> dict[str, 
     await db.delete(oidc_state)
     await db.commit()
 
-    logger.debug("Validated and consumed OIDC state: %s...", state[:16])
+    logger.debug("Validated and consumed OIDC state: %s...", sanitize_for_log(state[:16]))
     return state_data

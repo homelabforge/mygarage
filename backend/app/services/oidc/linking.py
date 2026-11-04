@@ -153,7 +153,9 @@ async def validate_and_consume_pending_link(
     pending_link = result.scalar_one_or_none()
 
     if not pending_link:
-        logger.warning("Pending link token not found or expired: %s...", token[:16])
+        logger.warning(
+            "Pending link token not found or expired: %s...", sanitize_for_log(token[:16])
+        )
         return (None, "Link expired, please log in again")
 
     # Check if expired

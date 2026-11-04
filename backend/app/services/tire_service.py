@@ -2046,7 +2046,9 @@ class TireService:
             raise
         except OperationalError as e:
             await self.db.rollback()
-            logger.error("DB error updating tire %s: %s", tire_id, sanitize_for_log(e))
+            logger.error(
+                "DB error updating tire %s: %s", sanitize_for_log(tire_id), sanitize_for_log(e)
+            )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def retire_tire(
@@ -2643,7 +2645,11 @@ class TireService:
             raise
         except OperationalError as e:
             await self.db.rollback()
-            logger.error("DB error adding tire reading %s: %s", tire_id, sanitize_for_log(e))
+            logger.error(
+                "DB error adding tire reading %s: %s",
+                sanitize_for_log(tire_id),
+                sanitize_for_log(e),
+            )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_reading(

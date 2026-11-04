@@ -64,9 +64,9 @@ class POIDiscoveryService:
             - provider_used: Name of the provider that returned results
         """
         logger.info(
-            "Searching for POIs near (%s) within %dm, categories: %s",
+            "Searching for POIs near (%s) within %sm, categories: %s",
             mask_coordinates(latitude, longitude),
-            radius_meters,
+            sanitize_for_log(radius_meters),
             [sanitize_for_log(c.value) for c in categories],
         )
 

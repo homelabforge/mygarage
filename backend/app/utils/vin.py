@@ -3,6 +3,8 @@
 import logging
 import re
 
+from app.utils.logging_utils import sanitize_for_log
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,8 +51,10 @@ def validate_vin(vin: str) -> tuple[bool, str | None]:
 
     if calculated_check and check_digit != calculated_check and is_north_american(vin):
         logger.warning(
-            f"VIN check digit mismatch for {vin}: expected '{calculated_check}', got '{check_digit}'. "
-            "This may be a typo."
+            "VIN check digit mismatch for %s: expected '%s', got '%s'. This may be a typo.",
+            sanitize_for_log(vin),
+            sanitize_for_log(calculated_check),
+            sanitize_for_log(check_digit),
         )
 
     return True, None

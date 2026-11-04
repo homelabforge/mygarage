@@ -507,7 +507,7 @@ class RecallService:
         except OperationalError as e:
             logger.error(
                 "Database connection error getting recall %s for %s: %s",
-                recall_id,
+                sanitize_for_log(recall_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -566,7 +566,7 @@ class RecallService:
 
             logger.info(
                 "Updated recall %s for vehicle %s",
-                recall_id,
+                sanitize_for_log(recall_id),
                 sanitize_for_log(vin),
             )
 
@@ -578,7 +578,7 @@ class RecallService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation updating recall %s for %s: %s",
-                recall_id,
+                sanitize_for_log(recall_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -587,7 +587,7 @@ class RecallService:
             await self.db.rollback()
             logger.error(
                 "Database connection error updating recall %s for %s: %s",
-                recall_id,
+                sanitize_for_log(recall_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -626,7 +626,7 @@ class RecallService:
 
             logger.info(
                 "Deleted recall %s for vehicle %s",
-                recall_id,
+                sanitize_for_log(recall_id),
                 sanitize_for_log(vin),
             )
 
@@ -636,7 +636,7 @@ class RecallService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation deleting recall %s for %s: %s",
-                recall_id,
+                sanitize_for_log(recall_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -645,7 +645,7 @@ class RecallService:
             await self.db.rollback()
             logger.error(
                 "Database connection error deleting recall %s for %s: %s",
-                recall_id,
+                sanitize_for_log(recall_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )

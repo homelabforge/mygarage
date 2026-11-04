@@ -169,7 +169,9 @@ class VendorService:
             await self.db.commit()
             await self.db.refresh(vendor)
 
-            logger.info("Updated vendor %s: %s", vendor_id, sanitize_for_log(vendor.name))
+            logger.info(
+                "Updated vendor %s: %s", sanitize_for_log(vendor_id), sanitize_for_log(vendor.name)
+            )
             return vendor
 
         except HTTPException:
@@ -178,7 +180,7 @@ class VendorService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation updating vendor %s: %s",
-                vendor_id,
+                sanitize_for_log(vendor_id),
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=409, detail="Vendor with this name already exists")
@@ -186,7 +188,7 @@ class VendorService:
             await self.db.rollback()
             logger.error(
                 "Database connection error updating vendor %s: %s",
-                vendor_id,
+                sanitize_for_log(vendor_id),
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
@@ -208,7 +210,7 @@ class VendorService:
             await self.db.delete(vendor)
             await self.db.commit()
 
-            logger.info("Deleted vendor %s", vendor_id)
+            logger.info("Deleted vendor %s", sanitize_for_log(vendor_id))
 
         except HTTPException:
             raise
@@ -216,7 +218,7 @@ class VendorService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation deleting vendor %s: %s",
-                vendor_id,
+                sanitize_for_log(vendor_id),
                 sanitize_for_log(e),
             )
             raise HTTPException(
@@ -227,7 +229,7 @@ class VendorService:
             await self.db.rollback()
             logger.error(
                 "Database connection error deleting vendor %s: %s",
-                vendor_id,
+                sanitize_for_log(vendor_id),
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")

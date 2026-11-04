@@ -126,7 +126,7 @@ class ShopDiscoveryService:
                     "Searching TomTom for %s shops near (%s) within %sm",
                     sanitize_for_log(shop_type),
                     mask_coordinates(latitude, longitude),
-                    radius,
+                    sanitize_for_log(radius),
                 )
                 results = await self._search_tomtom(latitude, longitude, radius, shop_type)
                 logger.info("TomTom returned %d results", len(results))
@@ -139,7 +139,7 @@ class ShopDiscoveryService:
             "Searching OSM Overpass for %s shops near (%s) within %sm",
             sanitize_for_log(shop_type),
             mask_coordinates(latitude, longitude),
-            radius,
+            sanitize_for_log(radius),
         )
         results = await self._search_osm_overpass(latitude, longitude, radius, shop_type)
         logger.info("OSM Overpass returned %d results", len(results))

@@ -97,7 +97,7 @@ class TollService:
         except OperationalError as e:
             logger.error(
                 "Database connection error getting toll tag %s for %s: %s",
-                tag_id,
+                sanitize_for_log(tag_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -186,7 +186,7 @@ class TollService:
 
             logger.info(
                 "Updated toll tag %s for %s",
-                tag_id,
+                sanitize_for_log(tag_id),
                 sanitize_for_log(vin),
             )
 
@@ -198,7 +198,7 @@ class TollService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation updating toll tag %s for %s: %s",
-                tag_id,
+                sanitize_for_log(tag_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -207,7 +207,7 @@ class TollService:
             await self.db.rollback()
             logger.error(
                 "Database connection error updating toll tag %s for %s: %s",
-                tag_id,
+                sanitize_for_log(tag_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -239,7 +239,7 @@ class TollService:
 
             logger.info(
                 "Deleted toll tag %s for %s",
-                tag_id,
+                sanitize_for_log(tag_id),
                 sanitize_for_log(vin),
             )
 
@@ -249,7 +249,7 @@ class TollService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation deleting toll tag %s for %s: %s",
-                tag_id,
+                sanitize_for_log(tag_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -260,7 +260,7 @@ class TollService:
             await self.db.rollback()
             logger.error(
                 "Database connection error deleting toll tag %s for %s: %s",
-                tag_id,
+                sanitize_for_log(tag_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -343,7 +343,7 @@ class TollService:
         except OperationalError as e:
             logger.error(
                 "Database connection error getting toll transaction %s for %s: %s",
-                transaction_id,
+                sanitize_for_log(transaction_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -457,7 +457,7 @@ class TollService:
 
             logger.info(
                 "Updated toll transaction %s for %s",
-                transaction_id,
+                sanitize_for_log(transaction_id),
                 sanitize_for_log(vin),
             )
 
@@ -469,7 +469,7 @@ class TollService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation updating toll transaction %s for %s: %s",
-                transaction_id,
+                sanitize_for_log(transaction_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -478,7 +478,7 @@ class TollService:
             await self.db.rollback()
             logger.error(
                 "Database connection error updating toll transaction %s for %s: %s",
-                transaction_id,
+                sanitize_for_log(transaction_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -516,7 +516,7 @@ class TollService:
 
             logger.info(
                 "Deleted toll transaction %s for %s",
-                transaction_id,
+                sanitize_for_log(transaction_id),
                 sanitize_for_log(vin),
             )
 
@@ -526,7 +526,7 @@ class TollService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation deleting toll transaction %s for %s: %s",
-                transaction_id,
+                sanitize_for_log(transaction_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
@@ -537,7 +537,7 @@ class TollService:
             await self.db.rollback()
             logger.error(
                 "Database connection error deleting toll transaction %s for %s: %s",
-                transaction_id,
+                sanitize_for_log(transaction_id),
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )

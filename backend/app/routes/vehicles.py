@@ -771,5 +771,7 @@ async def toggle_archived_visibility(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info("Set archived vehicle %s visibility to %s", sanitize_for_log(vin), visible)
+    logger.info(
+        "Set archived vehicle %s visibility to %s", sanitize_for_log(vin), sanitize_for_log(visible)
+    )
     return VehicleResponse.model_validate(vehicle)
