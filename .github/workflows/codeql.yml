@@ -21,4 +21,5 @@ jobs:
   codeql:
     uses: homelabforge/shared-workflows/.github/workflows/codeql.yml@v1.7.0
     with:
+      runner-os: ubuntu-26.04
       python-extension-pack: homelabforge/mygarage-models

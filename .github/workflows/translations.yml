@@ -44,7 +44,7 @@ permissions:
 jobs:
   validate:
     name: Validate Translations
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout code
@@ -82,7 +82,7 @@ jobs:
 
   status:
     name: Translation Status (advisory)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout code

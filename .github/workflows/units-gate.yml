@@ -219,7 +219,7 @@ jobs:
     # already has a receipt and correctly skips, which no diff of a push range
     # gets right.
     name: Inputs already proven?
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     outputs:
       key: ${{ steps.key.outputs.key }}
@@ -349,7 +349,7 @@ jobs:
     name: Unit Gate Selftest (advisory)
     needs: [fingerprint]
     if: needs.fingerprint.outputs.run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # 90 rather than 45. MEASURED ON THE RUNNER at last, which is the number
     # this budget actually governs and the one every earlier figure in this file
     # was not: run 33317510064 on f5a4106 completed in 47m02s (2822 s) at 85

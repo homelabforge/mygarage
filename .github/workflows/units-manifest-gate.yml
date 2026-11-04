@@ -72,7 +72,7 @@ permissions:
 jobs:
   manifest-selftest:
     name: Unit Manifest Selftest (advisory)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
 
     steps:
