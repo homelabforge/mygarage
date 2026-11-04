@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { cleanup, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
 import commonEn from '../../locales/en/common.json'
@@ -60,6 +60,18 @@ vi.mock('axios', () => {
   mockAxios.create = vi.fn(() => mockAxios)
   return { default: mockAxios }
 })
+
+// jsdom can't make a trusted event or an autofilled field, so the two browser
+// signals are stood in for. Every gesture counts as a person's unless a test
+// puts it in `untrusted`; a field is autofilled only while it's in `autofilled`.
+const { untrusted, autofilled } = vi.hoisted(() => ({
+  untrusted: new WeakSet<Event>(),
+  autofilled: new Set<Element>(),
+}))
+vi.mock('../../utils/autofillSignals', () => ({
+  isUserGesture: (event: Event): boolean => !untrusted.has(event),
+  matchesAutofill: (input: Element): boolean => autofilled.has(input),
+}))
 
 import Login from '../Login'
 
@@ -288,5 +300,350 @@ describe('Login Page: a rejected sign-in', () => {
       if (got !== 'field') wrong.push(`${name}: ${got}`)
     }
     expect(wrong).toEqual([])
+  })
+})
+
+describe('Login Page: a login filled in by a password manager', () => {
+  // What Safari and the Passwords app do: set the value in one input event
+  // that carries no typing inputType.
+  const fill = (el: HTMLElement, value: string): void => {
+    fireEvent.input(el, { target: { value } })
+  }
+  const fields = async (): Promise<[HTMLElement, HTMLElement]> => [
+    await screen.findByPlaceholderText(USERNAME_PLACEHOLDER),
+    screen.getByPlaceholderText(PASSWORD_PLACEHOLDER),
+  ]
+  const nextTask = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+  // A person clicking the field, then a task later, so the hook has armed.
+  const gesture = async (el: HTMLElement): Promise<void> => {
+    fireEvent.pointerDown(el)
+    await nextTask()
+  }
+  // Longer than the hook's settle delay, so "not called" means it never will be.
+  const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 300))
+
+  beforeEach(() => {
+    autofilled.clear()
+  })
+
+  it('signs in without Enter or a click once both fields are filled', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    await gesture(username)
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+
+    await waitFor(() => expect(loginMock).toHaveBeenCalledWith('jamey', 'hunter22'))
+    expect(loginMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a fill seen only as change events signs in too', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    await gesture(username)
+    fireEvent.change(username, { target: { value: 'jamey' } })
+    fireEvent.change(password, { target: { value: 'hunter22' } })
+
+    await waitFor(() => expect(loginMock).toHaveBeenCalledWith('jamey', 'hunter22'))
+  })
+
+  it('a typed login, then leaving the field, still waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    const user = userEvent.setup()
+    await user.type(username, 'jamey')
+    await user.type(password, 'hunter22')
+    await user.tab()
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('a typed login still waits for Enter or the button', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    const user = userEvent.setup()
+    await user.type(username, 'jamey')
+    await user.type(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('a pasted password still waits for Enter or the button', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    const user = userEvent.setup()
+    await user.type(username, 'jamey')
+    await user.click(password)
+    await user.paste('hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('a password filled with no username waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [, password] = await fields()
+    await gesture(password)
+    fill(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('a failed sign-in is not retried by a second fill', async () => {
+    mockOidcConfig({ enabled: false })
+    loginMock.mockRejectedValueOnce(new Error('Network Error'))
+    render(<Login />)
+    const [username, password] = await fields()
+    await gesture(username)
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    await waitFor(() => expect(loginMock).toHaveBeenCalledTimes(1))
+
+    fill(password, '')
+    fill(password, 'hunter23')
+    await settle()
+
+    expect(loginMock).toHaveBeenCalledTimes(1)
+  })
+
+  // Firefox and Bitwarden filling on page load, and Chrome filling right after
+  // a logout: nobody touched the form, so it's not a fill anyone asked for.
+  it('a fill with no gesture since the page opened waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it("a fill during the gesture's own task waits", async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    fireEvent.pointerDown(username)
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  // Chrome's on-load fill: the fields are marked autofilled before the person
+  // clicks, and the value only shows up after that click.
+  it('a field the browser autofilled before the gesture waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    autofilled.add(username)
+    autofilled.add(password)
+    await gesture(username)
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('clearing an autofilled field, then picking a login, signs in', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    autofilled.add(username)
+    autofilled.add(password)
+    await gesture(username)
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    await settle()
+    expect(loginMock).not.toHaveBeenCalled()
+
+    const user = userEvent.setup()
+    await user.clear(password)
+    await user.clear(username)
+    autofilled.delete(password)
+    autofilled.delete(username)
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+
+    await waitFor(() => expect(loginMock).toHaveBeenCalledWith('jamey', 'hunter22'))
+  })
+
+  // Bitwarden fakes a click and keystrokes before it fills; none are trusted.
+  it("a script's fake keystroke doesn't count as a gesture", async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    const fake = new KeyboardEvent('keydown', { bubbles: true })
+    untrusted.add(fake)
+    username.dispatchEvent(fake)
+    await nextTask()
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('a click outside the login fields does not count', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    fireEvent.pointerDown(document.body)
+    await nextTask()
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  // Asking for the password form isn't asking for a fill.
+  it('continue with password, then a fill when the fields appear, waits', async () => {
+    mockOidcConfig({ enabled: true, provider_name: 'Authentik' })
+    render(<Login />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: TOGGLE_BUTTON }))
+    const [username, password] = await fields()
+    await nextTask()
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('an undo that refills a field waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    await gesture(username)
+    fireEvent.input(password, { target: { value: 'hunter22' }, inputType: 'historyUndo' })
+    fill(username, 'jamey')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('editing a filled password, then filling the username, waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    await gesture(username)
+    fill(password, 'hunter22')
+    const user = userEvent.setup()
+    await user.type(password, 'x')
+    fill(username, 'jamey')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  // Safari's list opens on a key press too, so a key in the field arms it.
+  it('a key pressed in the field counts as asking for the fill', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    fireEvent.keyDown(username, { key: 'ArrowDown' })
+    await nextTask()
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+
+    await waitFor(() => expect(loginMock).toHaveBeenCalledWith('jamey', 'hunter22'))
+  })
+
+  it("a click on a field's label counts as asking for the fill", async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    fireEvent.pointerDown(screen.getByText('login.usernameOrEmail'))
+    await nextTask()
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+
+    await waitFor(() => expect(loginMock).toHaveBeenCalledWith('jamey', 'hunter22'))
+  })
+
+  // A keyboard that sends no inputType still types one character at a time.
+  it('a one-character change waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    await gesture(username)
+    fill(username, 'jamey')
+    fill(password, 'h')
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it('editing a field right after a fill cancels the sign-in', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    await gesture(username)
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    fireEvent.input(username, { target: { value: 'jamey2' }, inputType: 'insertText' })
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
+  it("a sign-in the person starts right after a fill isn't sent twice", async () => {
+    mockOidcConfig({ enabled: false })
+    loginMock.mockRejectedValueOnce(new Error('Network Error'))
+    render(<Login />)
+    const [username, password] = await fields()
+    await gesture(username)
+    fill(username, 'jamey')
+    fill(password, 'hunter22')
+    fireEvent.click(screen.getByRole('button', { name: 'login.submit' }))
+    await settle()
+
+    expect(loginMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("a fill while the person's own sign-in is still going doesn't send another", async () => {
+    mockOidcConfig({ enabled: false })
+    loginMock.mockReturnValue(new Promise(() => {}))
+    render(<Login />)
+    const [username, password] = await fields()
+    const user = userEvent.setup()
+    await user.type(username, 'jamey')
+    await user.type(password, 'hunter22{Enter}')
+    await waitFor(() => expect(loginMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(password).toBeDisabled())
+
+    fill(password, '')
+    fill(password, 'hunter22')
+    await settle()
+
+    expect(loginMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('typing a username after a filled password, then leaving it, waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    await gesture(password)
+    fill(password, 'hunter22')
+    await settle()
+    const user = userEvent.setup()
+    await user.type(username, 'jamey')
+    await user.tab()
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
   })
 })

@@ -2693,6 +2693,12 @@
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
     },
     {
+      "path": "src/hooks/useAutofillSubmit.ts",
+      "disposition": "no unit behaviour",
+      "digest": "27fc7ac18989a944d4d6ead9d2f99e61c0d0b3c5a7ac67392451e8a71d924cb8",
+      "reason": "no unit behaviour: submits the sign-in form once a password manager fills the username and password; reads two text fields, renders nothing. 2026-11-04: also listens for change events (Safari can fill without an input event). Still no unit behaviour. 2026-11-04 (PR #280 follow-up): only a fill the person asked for counts (a trusted gesture on a login field first, and not a field the browser filled before it). Still no unit behaviour."
+    },
+    {
       "path": "src/hooks/useCanManageInstance.ts",
       "disposition": "no unit behaviour",
       "digest": "1c45b20a7c606d7feb7a11431d571423f4cce8a7b49e729c2e3646fe99ba57da",
@@ -3030,8 +3036,8 @@
     {
       "path": "src/pages/Login.tsx",
       "disposition": "no unit behaviour",
-      "digest": "14a0c0e2ed07603f9f7ef66f9091868d133ac73d4d55e58a7786674703eaf7e6",
-      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-30 (Plan C): the login page shows an SSO error sentence from a closed set of codes. No unit behaviour. 2026-10-01 (Plan D, D4): adds rate_limited to the closed set of SSO error codes. No unit behaviour. 2026-10-31 (batch 10, C-14): role=\"alert\" on the error banner. No unit behaviour. 2026-11-01 (b12 T2): accent text moves off the base accent so it stays readable in light mode (G2a-31): one accent text class to text-(--accent-fg). Class names only; no unit behaviour."
+      "digest": "0eeb82093011aa5b8f2dadc2c5f691ff53b6135b717910d338ec89439853830c",
+      "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-09-30 (Plan C): the login page shows an SSO error sentence from a closed set of codes. No unit behaviour. 2026-10-01 (Plan D, D4): adds rate_limited to the closed set of SSO error codes. No unit behaviour. 2026-10-31 (batch 10, C-14): role=\"alert\" on the error banner. No unit behaviour. 2026-11-01 (b12 T2): accent text moves off the base accent so it stays readable in light mode (G2a-31): one accent text class to text-(--accent-fg). Class names only; no unit behaviour. 2026-11-04 (autofill sign-in): a form ref and useAutofillSubmit, so a login picked from Safari or the Passwords app signs in by itself. No unit behaviour."
     },
     {
       "path": "src/pages/OIDCSuccess.tsx",
@@ -3563,6 +3569,12 @@
       "disposition": "no unit behaviour",
       "digest": "064a163bb66267df5e8b936fe4e62888cb6a18d737744e54c9b0aa39523b7fab",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
+    },
+    {
+      "path": "src/utils/autofillSignals.ts",
+      "disposition": "no unit behaviour",
+      "digest": "bb7dbd6fe9d1cc1e38396dac471e476ab3b52e0e0291c38d06c3733703135c3e",
+      "reason": "no unit behaviour: whether an event came from a real person (isTrusted) and whether a field matches :autofill, for the sign-in form's autofill submit. Reads no values, renders nothing."
     },
     {
       "path": "src/utils/basePath.ts",
