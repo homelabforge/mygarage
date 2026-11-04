@@ -2689,8 +2689,8 @@
     {
       "path": "src/hooks/useAutofillSubmit.ts",
       "disposition": "no unit behaviour",
-      "digest": "af45338d6dfc259b27ca1ccefb7dfa7fe258194423e6a8a81db2b5597b149dc2",
-      "reason": "no unit behaviour: submits the sign-in form once a password manager fills the username and password; reads two text fields, renders nothing."
+      "digest": "52f361f1acc1a7960530d828528be08ea348fd783f71bb6fbe3a5adf965689fc",
+      "reason": "no unit behaviour: submits the sign-in form once a password manager fills the username and password; reads two text fields, renders nothing. 2026-11-04: also listens for change events (Safari can fill without an input event). Still no unit behaviour."
     },
     {
       "path": "src/hooks/useCanManageInstance.ts",

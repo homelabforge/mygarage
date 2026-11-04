@@ -41,8 +41,10 @@ function matchesAutofill(input: HTMLInputElement): boolean {
  *
  * Browsers don't announce a fill reliably, so it's recognised two ways: the
  * field matches `:autofill` (`:-webkit-autofill` in older Safari), or its
- * value went from empty to more than one character in a single input event
- * that wasn't typing, a paste or a drop.
+ * value went from empty to more than one character in a single input or
+ * change event that wasn't typing, a paste or a drop. Change counts too
+ * because Safari can fill a field without an input event; after typing, the
+ * value a change event sees is the one the last input event already saw.
  *
  * @param formRef The sign-in form. Its fields are found by name.
  * @param usernameField The `name` of the username input.
@@ -94,8 +96,10 @@ export function useAutofillSubmit(
     }
 
     form.addEventListener('input', onInput)
+    form.addEventListener('change', onInput)
     return () => {
       form.removeEventListener('input', onInput)
+      form.removeEventListener('change', onInput)
       clearTimeout(timer)
     }
   }, [formRef, usernameField, passwordField])

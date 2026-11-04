@@ -315,6 +315,29 @@ describe('Login Page: a login filled in by a password manager', () => {
     expect(loginMock).toHaveBeenCalledTimes(1)
   })
 
+  it('a fill seen only as change events signs in too', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    fireEvent.change(username, { target: { value: 'jamey' } })
+    fireEvent.change(password, { target: { value: 'hunter22' } })
+
+    await waitFor(() => expect(loginMock).toHaveBeenCalledWith('jamey', 'hunter22'))
+  })
+
+  it('a typed login, then leaving the field, still waits', async () => {
+    mockOidcConfig({ enabled: false })
+    render(<Login />)
+    const [username, password] = await fields()
+    const user = userEvent.setup()
+    await user.type(username, 'jamey')
+    await user.type(password, 'hunter22')
+    await user.tab()
+    await settle()
+
+    expect(loginMock).not.toHaveBeenCalled()
+  })
+
   it('a typed login still waits for Enter or the button', async () => {
     mockOidcConfig({ enabled: false })
     render(<Login />)
