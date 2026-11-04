@@ -2689,8 +2689,8 @@
     {
       "path": "src/hooks/useAutofillSubmit.ts",
       "disposition": "no unit behaviour",
-      "digest": "52f361f1acc1a7960530d828528be08ea348fd783f71bb6fbe3a5adf965689fc",
-      "reason": "no unit behaviour: submits the sign-in form once a password manager fills the username and password; reads two text fields, renders nothing. 2026-11-04: also listens for change events (Safari can fill without an input event). Still no unit behaviour."
+      "digest": "27fc7ac18989a944d4d6ead9d2f99e61c0d0b3c5a7ac67392451e8a71d924cb8",
+      "reason": "no unit behaviour: submits the sign-in form once a password manager fills the username and password; reads two text fields, renders nothing. 2026-11-04: also listens for change events (Safari can fill without an input event). Still no unit behaviour. 2026-11-04 (PR #280 follow-up): only a fill the person asked for counts (a trusted gesture on a login field first, and not a field the browser filled before it). Still no unit behaviour."
     },
     {
       "path": "src/hooks/useCanManageInstance.ts",
@@ -3545,6 +3545,12 @@
       "disposition": "no unit behaviour",
       "digest": "064a163bb66267df5e8b936fe4e62888cb6a18d737744e54c9b0aa39523b7fab",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
+    },
+    {
+      "path": "src/utils/autofillSignals.ts",
+      "disposition": "no unit behaviour",
+      "digest": "bb7dbd6fe9d1cc1e38396dac471e476ab3b52e0e0291c38d06c3733703135c3e",
+      "reason": "no unit behaviour: whether an event came from a real person (isTrusted) and whether a field matches :autofill, for the sign-in form's autofill submit. Reads no values, renders nothing."
     },
     {
       "path": "src/utils/basePath.ts",
