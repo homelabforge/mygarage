@@ -180,15 +180,20 @@ async def test_write_share_cannot_change_layout(
     db_session: AsyncSession,
 ) -> None:
     # Layout is vehicle core metadata, so it's owner-only like the rest of the PUT.
-    before = owned_vehicle.wheel_layout
-    resp = await client.put(
-        f"/api/vehicles/{owned_vehicle.vin}",
-        json={"wheel_layout": "trike_1f2r"},
-        headers=writer_headers,
-    )
-    assert resp.status_code == 403, resp.text
-    await db_session.refresh(owned_vehicle)
-    assert owned_vehicle.wheel_layout == before
+    # A real override first, so "unchanged" can't pass by being NULL both times.
+    owned_vehicle.wheel_layout = "dually"
+    await db_session.commit()
+    try:
+        for body in ({"wheel_layout": "trike_1f2r"}, {"wheel_layout": None}):
+            resp = await client.put(
+                f"/api/vehicles/{owned_vehicle.vin}", json=body, headers=writer_headers
+            )
+            assert resp.status_code == 403, resp.text
+            await db_session.refresh(owned_vehicle)
+            assert owned_vehicle.wheel_layout == "dually"
+    finally:
+        owned_vehicle.wheel_layout = None
+        await db_session.commit()
 
 
 async def test_json_export_carries_wheel_layout(

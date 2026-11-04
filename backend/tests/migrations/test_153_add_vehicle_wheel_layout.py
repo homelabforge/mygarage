@@ -7,6 +7,7 @@ and PostgreSQL via `engine_for_migration`.
 
 import importlib.util
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
@@ -79,10 +80,12 @@ def test_153_is_fatal():
 def test_153_sqlite_declares_a_nullable_varchar20(tmp_path: Path) -> None:
     db_file = tmp_path / "m153.db"
     engine = create_engine(f"sqlite:///{db_file}")
-    _make_vehicles(engine)
-    _load().upgrade(engine)
-    conn = sqlite3.connect(str(db_file))
-    cols = {r[1]: r for r in conn.execute("PRAGMA table_info(vehicles)")}
-    conn.close()
+    try:
+        _make_vehicles(engine)
+        _load().upgrade(engine)
+    finally:
+        engine.dispose()
+    with closing(sqlite3.connect(str(db_file))) as conn:
+        cols = {r[1]: r for r in conn.execute("PRAGMA table_info(vehicles)")}
     assert cols["wheel_layout"][2].upper() == "VARCHAR(20)"
     assert cols["wheel_layout"][3] == 0

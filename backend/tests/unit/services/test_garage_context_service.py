@@ -308,3 +308,25 @@ class TestTowVehicle:
             await db_session.rollback()
             await db_session.execute(delete(TrailerDetails).where(TrailerDetails.vin == own_vin))
             await db_session.commit()
+
+
+class TestContextWheelLayout:
+    """The assistant reads the corners off the context, so it needs the layout (#272)."""
+
+    @pytest.mark.asyncio
+    async def test_a_bike_reads_two_and_an_override_wins(self, db_session, own_vin):
+        from app.services.garage_context_service import build_garage_context
+
+        vehicle = await db_session.get(Vehicle, own_vin)
+        assert vehicle is not None
+        vehicle.vehicle_type = "Motorcycle"
+        await db_session.commit()
+        assert (await build_garage_context(db_session, own_vin))["vehicle"]["wheel_layout"] == "two"
+
+        vehicle = await db_session.get(Vehicle, own_vin)
+        assert vehicle is not None
+        vehicle.vehicle_type = "Truck"
+        vehicle.wheel_layout = "dually"
+        await db_session.commit()
+        context = await build_garage_context(db_session, own_vin)
+        assert context["vehicle"]["wheel_layout"] == "dually"
