@@ -29,7 +29,7 @@ export default function LastLocationMap({ latitude, longitude }: Props): ReactEl
     <MapContainer center={position} zoom={14} style={MAP_STYLE} scrollWheelZoom={false}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <Marker position={position} />
     </MapContainer>

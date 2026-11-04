@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A vehicle with no NHTSA recalls no longer counts as an NHTSA outage, which made the scheduled check ask again every night.
 - An X.1 date older than the current inspection cycle no longer makes the reminder years overdue.
 - A recall source is only marked checked when a vehicle asked it and the check got through, including a RappelConso maintenance page and a vehicle that errored.
+- Maps show their tiles again: the service worker was re-fetching OpenStreetMap tiles and the CSP blocked them, leaving a grey square (reported in #271, thanks @dpruddel).
 
 ### Removed
 

@@ -43,7 +43,7 @@ export default function TripRouteMap({ points }: Props): ReactElement | null {
       <MapContainer center={positions[0]} zoom={15} style={MAP_STYLE}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <Marker position={positions[0]} />
       </MapContainer>
@@ -57,7 +57,7 @@ export default function TripRouteMap({ points }: Props): ReactElement | null {
     <MapContainer center={start} zoom={13} style={MAP_STYLE}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <Polyline positions={positions} pathOptions={{ color: 'var(--accent)', weight: 4 }} />
       <Marker position={start}>

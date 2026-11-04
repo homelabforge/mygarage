@@ -436,7 +436,7 @@
     {
       "path": "public/sw.js",
       "disposition": "no unit behaviour",
-      "digest": "2315de290a850cc3a9a2f217fac916cb6d6404b835588e34d67a6c0d61f1f695",
+      "digest": "67862a0f7547b26f06123e7fd8ae2f6ea361d5ff24e98d21e9617fe9fdf5e181",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
     },
     {
@@ -1466,13 +1466,13 @@
     {
       "path": "src/components/maps/LastLocationMap.tsx",
       "disposition": "no unit behaviour",
-      "digest": "f186b30c1b708825ba30c0d6466048c61090b996579b31982e6def8f93d42e05",
+      "digest": "43f490cc2b98111af7f2249c59c865c0853957f7862ed7432933753ba17bcf99",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them. 2026-10-30 (b8 T7): the default-marker fix moved to leafletIcons.ts and the now-unused Leaflet default import went; still no unit behaviour."
     },
     {
       "path": "src/components/maps/LeafletMap.tsx",
       "disposition": "audited",
-      "digest": "a17065e90eb1061c455c7bc28116e1bc889b3799f7cb426b9a0ff4be0158c4f3",
+      "digest": "cf9b5804edcaf0b3887e39d5b025eeaf29ee338122efff0e19f2da00e6325b8b",
       "reason": "takes metres; the component deliberately cannot know the client's distance unit. 2026-10-30 (b8 T7): the default-marker fix moved to leafletIcons.ts; the radius path is untouched.",
       "tests": [
         "components/maps/__tests__/LeafletMap.radius.test.tsx"
@@ -1481,7 +1481,7 @@
     {
       "path": "src/components/maps/TripRouteMap.tsx",
       "disposition": "no unit behaviour",
-      "digest": "8c9371c0a48d2bee7554bd6b5db6cc57bcc5b25c1eaef76ab83c54d526e9be3b",
+      "digest": "8473b8583658908828c86d3ef1e8bdfab2c465c6674d51a9ddb1d659d6a50961",
       "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity. 2026-10-30 (b8 T7): the default-marker fix moved to leafletIcons.ts and the now-unused Leaflet default import went; still no unit behaviour."
     },
     {
