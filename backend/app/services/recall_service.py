@@ -1,5 +1,6 @@
 """Recall business logic service layer."""
 
+import json
 import logging
 from dataclasses import dataclass, field
 
@@ -120,7 +121,10 @@ async def sync_vehicle_recalls(
             outcome.warnings.append(_warning_for(provider, exc))
             if isinstance(exc, NHTSAUnavailableError):
                 outcome.nhtsa_unavailable = True
-            if not isinstance(exc, ValueError):
+            # A ValueError is a vehicle the source can't check, which no retry
+            # fixes; a body that isn't JSON (a maintenance page) is the
+            # source not answering, though JSONDecodeError is a ValueError.
+            if not isinstance(exc, ValueError) or isinstance(exc, json.JSONDecodeError):
                 outcome.failed.append(provider.name)
             continue
         for hit in hits:

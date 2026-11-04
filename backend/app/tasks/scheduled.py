@@ -525,8 +525,9 @@ async def check_recalls_all_vehicles() -> None:
     found meanwhile are committed anyway, because they were already
     announced, and the (source, identifier) check keeps the retry from
     storing or announcing them twice. A VIN NHTSA can't resolve to a make,
-    model and year counts as checked. A source that wasn't asked keeps its
-    stamp.
+    model and year counts as checked. A source that wasn't asked, for no
+    vehicle it covers or because it wasn't due, keeps its stamp, and so does
+    every due source when a vehicle errors before any source answers for it.
     """
     from app.services.recall_service import sync_vehicle_recalls
     from app.services.recalls.base import SOURCE_NHTSA, SOURCE_RAPPELCONSO
@@ -584,6 +585,13 @@ async def check_recalls_all_vehicles() -> None:
             total_new = 0
             outage = False
             rappelconso_failed = False
+            # The sources some vehicle was actually asked: one that covers no
+            # vehicle (RappelConso with no French car) keeps its stamp, so the
+            # first vehicle it does cover is asked the next night.
+            asked: set[str] = set()
+            # A vehicle no source got to (its own error, not a provider's):
+            # every due stamp waits, so it's retried the next night.
+            incomplete = False
 
             for vehicle in vehicles:
                 try:
@@ -595,6 +603,7 @@ async def check_recalls_all_vehicles() -> None:
                     # NHTSA where no profile says otherwise, RappelConso in
                     # France. Stores what is new and commits.
                     outcome = await sync_vehicle_recalls(db, vehicle, skip=skip)
+                    asked.update(outcome.providers)
                     new_count = outcome.new_count
                     # A provider's failure is caught in the sync; an NHTSA
                     # outage still holds nhtsa_last_check back.
@@ -622,6 +631,7 @@ async def check_recalls_all_vehicles() -> None:
                         str(e),
                     )
                 except Exception as e:
+                    incomplete = True
                     logger.error(
                         "Error checking recalls for %s: %s",
                         vehicle.vin,
@@ -637,16 +647,16 @@ async def check_recalls_all_vehicles() -> None:
             # The commit always runs: recalls found this pass were announced
             # already. Only a source's stamp waits for a pass it fully
             # answered, and a source this pass didn't ask keeps its stamp.
-            if nhtsa_due:
-                if outage:
+            if nhtsa_due and SOURCE_NHTSA in asked:
+                if outage or incomplete:
                     logger.warning(
                         "NHTSA recall check incomplete; nhtsa_last_check unchanged, "
                         "the next run retries"
                     )
                 else:
                     await SettingsService.set(db, "nhtsa_last_check", now.isoformat())
-            if rappelconso_due:
-                if rappelconso_failed:
+            if rappelconso_due and SOURCE_RAPPELCONSO in asked:
+                if rappelconso_failed or incomplete:
                     logger.warning(
                         "RappelConso recall check incomplete; %s unchanged, the next run retries",
                         RAPPELCONSO_LAST_CHECK_SETTING,

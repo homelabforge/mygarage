@@ -8,13 +8,19 @@ vi.mock('../../components/tabs/ServiceTab', () => ({ default: () => <div>Service
 vi.mock('../../components/tabs/FuelTab', () => ({ default: () => <div>FuelTab</div> }))
 vi.mock('../../components/tabs/OdometerTab', () => ({ default: () => <div>OdometerTab</div> }))
 vi.mock('../../components/tabs/HoursTab', () => ({ default: () => <div>HoursTab</div> }))
+// Counted, so a list that renders for one commit (and fires its fetches) still shows.
+const listRenders = vi.hoisted(() => ({ tires: vi.fn(), brakes: vi.fn() }))
 vi.mock('../../components/TireList', () => ({
-  default: ({ onLogBrakes }: { onLogBrakes?: () => void }) => (
-    <button type="button" onClick={onLogBrakes}>TireList log brakes</button>
-  ),
+  default: ({ onLogBrakes }: { onLogBrakes?: () => void }) => {
+    listRenders.tires()
+    return <button type="button" onClick={onLogBrakes}>TireList log brakes</button>
+  },
 }))
 vi.mock('../../components/brakes/BrakeList', () => ({
-  default: ({ logOnOpen }: { logOnOpen?: boolean }) => <div>BrakeList logOnOpen={String(logOnOpen)}</div>,
+  default: ({ logOnOpen }: { logOnOpen?: boolean }) => {
+    listRenders.brakes()
+    return <div>BrakeList logOnOpen={String(logOnOpen)}</div>
+  },
 }))
 vi.mock('../../components/tabs/PhotosTab', () => ({ default: () => <div>PhotosTab</div> }))
 vi.mock('../../components/tabs/DocumentsTab', () => ({ default: () => <div>DocumentsTab</div> }))
@@ -141,6 +147,7 @@ import type { Vehicle, VehicleDetailStats, VehicleType } from '../../types/vehic
 import type { VehicleLiveLinkStatus } from '../../types/livelink'
 import { makeUnitFormat } from '../../utils/unitFormat'
 import VehicleDetail from '../VehicleDetail'
+import { rememberVehicle } from '../../utils/vehicleCache'
 import { IMPERIAL_UNITS, makeUser, makeDetailStats } from '../../__tests__/factories'
 
 const mockedVehicleService = vi.mocked(vehicleService)
@@ -165,6 +172,9 @@ const mockVehicle: Vehicle = {
   created_at: '2024-01-15T00:00:00Z',
   archived_visible: true,
   location_tracking_enabled: true,
+  wheel_layout: null,
+  effective_wheel_layout: 'four',
+  default_wheel_layout: 'four',
 }
 
 // The hero's detail-stats live on the query cache (#192), so every render needs
@@ -277,10 +287,7 @@ describe('VehicleDetail', () => {
 
   it('shows cached data with warning when offline', async () => {
     // Pre-populate cache
-    localStorage.setItem(
-      'vehicle-cache-TEST12345678901234',
-      JSON.stringify({ timestamp: Date.now(), data: mockVehicle })
-    )
+    rememberVehicle('TEST12345678901234', mockVehicle)
 
     // navigator.onLine controls the cache fallback in loadVehicle
     const originalOnLine = navigator.onLine
@@ -510,6 +517,116 @@ describe('VehicleDetail', () => {
     fireEvent.click(screen.getAllByText('detail.tabs.maintenance')[0])
     await waitFor(() => expect(screen.queryByRole('tab', { name: 'detail.misc.brakes' })).toBeNull())
     expect(screen.queryByText(/BrakeList/)).toBeNull()
+  })
+
+  // --- Wheel layout (#272) ---
+
+  it.each([
+    ['none', false],
+    ['four', true],
+  ] as const)('a %s wheel layout shows Tires and Brakes: %s', async (layout, shown) => {
+    mockedVehicleService.get.mockResolvedValue({ ...mockVehicle, effective_wheel_layout: layout })
+    renderVehicleDetail()
+    await waitFor(() => expect(screen.getByText('Test Car')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByText('detail.tabs.maintenance')[0])
+    const subNav = await screen.findByTestId('sub-tab-nav')
+    // Service is always there, so the strip itself rendered.
+    expect(within(subNav).getByRole('tab', { name: 'vehicleStats.service' })).toBeInTheDocument()
+    expect(within(subNav).queryByRole('tab', { name: 'detail.misc.tires' }) !== null).toBe(shown)
+    expect(within(subNav).queryByRole('tab', { name: 'detail.misc.brakes' }) !== null).toBe(shown)
+  })
+
+  it('falls back to Service when the vehicle reloads with no wheels while on Tires (RF7)', async () => {
+    vi.mocked(api.post).mockResolvedValue({ data: {} } as { data: unknown })
+    const { container } = renderVehicleDetail('/vehicles/TEST12345678901234?tab=tires')
+    expect(await screen.findByText('TireList log brakes')).toBeInTheDocument()
+
+    // A JSON import reloads the vehicle; this time it comes back with no wheels.
+    mockedVehicleService.get.mockResolvedValue({
+      ...mockVehicle, wheel_layout: 'none', effective_wheel_layout: 'none',
+    })
+    const input = container.querySelector('input[type="file"][accept=".json"]') as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['{}'], 'vehicle.json', { type: 'application/json' })] },
+    })
+
+    expect(await screen.findByText('ServiceTab')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'vehicleStats.service' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('TireList log brakes')).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'detail.misc.tires' })).toBeNull()
+  })
+
+  it.each(['tires', 'brakes'] as const)(
+    'never renders the %s list for a vehicle with no wheels, even for one commit',
+    async (tab) => {
+      // The reset swaps the tab after the first loaded render; the content gate
+      // keeps that render from mounting the list and firing its fetches.
+      mockedVehicleService.get.mockResolvedValue({
+        ...mockVehicle, wheel_layout: 'none', effective_wheel_layout: 'none',
+      })
+      renderVehicleDetail(`/vehicles/TEST12345678901234?tab=${tab}`)
+
+      expect(await screen.findByText('ServiceTab')).toBeInTheDocument()
+      expect(listRenders[tab]).not.toHaveBeenCalled()
+    },
+  )
+
+  it('waits for the new vehicle after a switch from one with no wheels', async () => {
+    // A has no wheels; B does, and loads late. If A's row counted as loaded for
+    // B, ?tab=tires would bounce to Service before B arrived.
+    let resolveB: (vehicle: Vehicle) => void = () => {}
+    mockedVehicleService.get.mockImplementation((vin: string) =>
+      vin === 'AAAAAAAAAAAAAAAAA'
+        ? Promise.resolve({ ...mockVehicle, vin, nickname: 'Boat A', effective_wheel_layout: 'none' })
+        : new Promise<Vehicle>((resolve) => { resolveB = resolve }),
+    )
+    render(
+      <QueryClientProvider client={makeQueryClient()}>
+        <MemoryRouter initialEntries={['/vehicles/AAAAAAAAAAAAAAAAA']}>
+          <Routes>
+            <Route path="/vehicles/:vin" element={<VehicleDetail />} />
+          </Routes>
+          <Link to="/vehicles/BBBBBBBBBBBBBBBBB?tab=tires">go B</Link>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByText('Boat A')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('go B'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await act(async () => {
+      resolveB({ ...mockVehicle, vin: 'BBBBBBBBBBBBBBBBB', nickname: 'Car B' })
+    })
+
+    expect(await screen.findByText('Car B')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'detail.misc.tires' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('TireList log brakes')).toBeInTheDocument()
+  })
+
+  it('keeps a ?tab=tires deep link when the vehicle loads after mount', async () => {
+    // Before the load the page reads as non-motorized, so a reset that didn't
+    // wait for the vehicle would bounce the link to Service.
+    let resolveVehicle: (vehicle: Vehicle) => void = () => {}
+    mockedVehicleService.get.mockImplementation(
+      () => new Promise<Vehicle>((resolve) => { resolveVehicle = resolve }),
+    )
+    renderVehicleDetail('/vehicles/TEST12345678901234?tab=tires')
+    expect(screen.getByRole('status', { name: 'detail.loading' })).toBeInTheDocument()
+    // Let the mount effects (the tab param among them) settle with no vehicle.
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      resolveVehicle(mockVehicle)
+    })
+
+    expect(await screen.findByText('TireList log brakes')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'detail.misc.tires' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('ServiceTab')).toBeNull()
   })
 
   it("the Tires page's brake prompt opens Brakes with Log measurements", async () => {

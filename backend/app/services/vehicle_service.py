@@ -27,9 +27,10 @@ logger = logging.getLogger(__name__)
 
 # #211 — vehicle fields the periodic inspection engine reads. The first set
 # may turn the engine on or off for the vehicle, so a change reactivates a
-# paused rule; the second only changes the cadence.
+# paused rule, and so does a corrected X.1 deadline (someone who dismissed a
+# reminder a misread X.1 made overdue); the second only changes the cadence.
 _INSPECTION_REACTIVATING_FIELDS = frozenset(
-    {"first_registration_date", "registration_country", "sold_date"}
+    {"first_registration_date", "registration_country", "sold_date", "inspection_due_date"}
 )
 _INSPECTION_CADENCE_FIELDS = frozenset({"vehicle_type", "fuel_type", "fuel_type_secondary"})
 

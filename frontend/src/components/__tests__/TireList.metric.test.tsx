@@ -85,6 +85,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 })
 
 import TireList from '../TireList'
+import { FOUR_LAYOUT } from '../../__tests__/factories'
 
 const STORED_FL_TIRE = {
   id: 1,
@@ -111,7 +112,7 @@ describe('TireList under a metric set', () => {
     useAddTireReadingMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useDeleteTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useTiresMock.mockReturnValue({
-      data: { tires: [STORED_FL_TIRE], total: 1 },
+      data: { tires: [STORED_FL_TIRE], total: 1, ...FOUR_LAYOUT },
       isLoading: false,
       error: null,
     })
@@ -219,6 +220,7 @@ describe('TireList under a metric set', () => {
       data: {
         tires: [{ ...STORED_FL_TIRE, projected_km_remaining: '1609.34' }],
         total: 1,
+        ...FOUR_LAYOUT,
       },
       isLoading: false,
       error: null,

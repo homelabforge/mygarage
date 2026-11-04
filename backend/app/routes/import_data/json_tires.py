@@ -44,6 +44,7 @@ from app.schemas.tire import (
     TireUpdate,
 )
 from app.services.tire_service import sync_low_tread_reminder
+from app.services.wheel_layout_service import keep_wheel_tabs
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -241,8 +242,12 @@ def parse_tires(vin: str, sections: Mapping[str, list[Any]]) -> TirePlan:
     return TirePlan(sets=sets, tires=tires)
 
 
-async def write_tires(db: AsyncSession, plan: TirePlan) -> None:
-    """Write the plan, parents first so each child gets its parent's id."""
+async def write_tires(db: AsyncSession, vin: str, plan: TirePlan) -> None:
+    """Write the plan, parents first so each child gets its parent's id.
+
+    Tires onto an automatic no-wheel vehicle pin it to `four`, so the tab
+    showing them doesn't vanish (#272 D7). Sets alone don't count.
+    """
     db.add_all(plan.sets)
     await db.flush()
     for parsed in plan.tires:
@@ -258,6 +263,8 @@ async def write_tires(db: AsyncSession, plan: TirePlan) -> None:
             reading.tire_id = parsed.tire.id
         db.add_all(parsed.readings)
         await db.flush()
+    if plan.tires:
+        await keep_wheel_tabs(db, vin)
 
 
 async def sync_imported_tires(db: AsyncSession, plan: TirePlan) -> None:

@@ -40,6 +40,7 @@ from app.services.tire_service import (
     refuse_untracked,
 )
 from app.services.vehicle_lock import lock_vehicle_for_write
+from app.services.wheel_layout_service import refuse_off_layout, vehicle_wheel_layout
 from app.utils.household_time import household_today
 from app.utils.logging_utils import sanitize_for_log
 
@@ -267,6 +268,25 @@ class TireSetService:
                 ),
             )
 
+        # A member already sitting on its own destination is left alone. Taking
+        # it off and putting it straight back would close a period and open an
+        # identical one, splitting its history at a moment when nothing
+        # happened to it.
+        moving = [tire for tire in members if tire.position != destinations[tire.id]]
+
+        # Off-layout memory (the car became a bike) refuses the whole fit, naming
+        # the tire, before anything moves. Only the movers are being placed, so a
+        # tire already on its own corner is left alone even off the layout.
+        layout = await vehicle_wheel_layout(self.db, vin)
+        for tire in moving:
+            try:
+                refuse_off_layout(layout, [destinations[tire.id]], "tire")
+            except HTTPException as e:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"{_describe(tire)}: {e.detail} Mount it on its own to pick a corner.",
+                ) from e
+
         wanted = set(destinations.values())
         member_ids = {tire.id for tire in members}
         displaced = (
@@ -285,11 +305,6 @@ class TireSetService:
             .all()
         )
 
-        # A member already sitting on its own destination is left alone. Taking
-        # it off and putting it straight back would close a period and open an
-        # identical one, splitting its history at a moment when nothing
-        # happened to it.
-        moving = [tire for tire in members if tire.position != destinations[tire.id]]
         when = data.mounted_on or household_today()
 
         # Every tire the fit touches, coming off as well as going on. A

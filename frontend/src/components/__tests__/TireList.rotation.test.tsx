@@ -95,6 +95,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 })
 
 import TireList from '../TireList'
+import { FOUR_LAYOUT } from '../../__tests__/factories'
 import { formatDateForInput } from '../../utils/dateUtils'
 
 const VIN = '1HGCM82633A004352'
@@ -158,7 +159,7 @@ const setSets = (sets: unknown[]) =>
 
 const setTires = (tires: unknown[]) =>
   useTiresMock.mockReturnValue({
-    data: { tires, total: tires.length },
+    data: { tires, total: tires.length, ...FOUR_LAYOUT },
     isLoading: false,
     error: null,
   })
@@ -594,7 +595,7 @@ describe('TireList dates and storage location', () => {
     fireEvent.click(screen.getByText('tireList.add'))
     fireEvent.click(drawer().getByText('tireList.inStorage'))
     fireEvent.change(drawer().getByLabelText('tireList.storageLocation'), { target: { value: 'Garage shelf B' } })
-    fireEvent.click(drawer().getByText('RR'))
+    fireEvent.click(drawer().getByText('tireList.positions.RR'))
     expect(drawer().queryByLabelText('tireList.storageLocation')).toBeNull()
     fireEvent.click(drawer().getByText('common:save'))
     expect(createAndMount.mock.calls[0][0].position).toBe('RR')
@@ -670,7 +671,7 @@ describe('TireList dates and storage location', () => {
     setTires([{ ...tireAt(9, 'FL'), position: null }])
     render(<TireList vin={VIN} />)
     fireEvent.click(screen.getByText('tireList.mount'))
-    fireEvent.click(drawer().getByText('FR'))
+    fireEvent.click(drawer().getByText('tireList.positions.FR'))
     fireEvent.click(within(screen.getByRole('dialog')).getByText('tireList.mount'))
     expect(mutate.mock.calls[0][0].mounted_on).toMatch(DATE)
   })

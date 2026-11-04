@@ -21,13 +21,12 @@ export type BrakeAxleName = BrakeAxle['axle']
 export type BrakeType = BrakeAxle['brake_type']
 export type BrakeSurface = NonNullable<BrakeJob['surface']>
 
-/** The four corners, front to back, left to right. Brakes have no spare. */
-export const BRAKE_POSITIONS: BrakePosition[] = ['FL', 'FR', 'RL', 'RR']
-
 /** Which axle a corner is on. */
 export const AXLE_OF: Record<BrakePosition, BrakeAxleName> = {
   FL: 'front',
   FR: 'front',
   RL: 'rear',
   RR: 'rear',
+  F: 'front',
+  R: 'rear',
 }

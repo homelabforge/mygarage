@@ -33,19 +33,15 @@ vi.mock('../../../hooks/useUnitPreference', async () => {
 
 import LogBrakeMeasurementsDrawer from '../LogBrakeMeasurementsDrawer'
 import AxleSetupDrawer from '../AxleSetupDrawer'
+import { brakeOverview } from '../../../__tests__/factories'
 
 const VIN = '1HGCM82633A004352'
 const AXLES: BrakeAxle[] = [
   { axle: 'front', brake_type: 'disc', min_thickness_mm: '3.00', new_thickness_mm: '10.00', configured: true, due_soon_mm: '4.75' },
   { axle: 'rear', brake_type: 'drum', min_thickness_mm: '1.50', new_thickness_mm: '5.00', drum_max_mm: '230.00', configured: true, due_soon_mm: '2.38' },
 ] as BrakeAxle[]
-const OVERVIEW = {
-  usage_axis: 'distance',
-  tracks_distance: true,
-  tracks_hours: false,
-  axles: AXLES,
-  corners: [],
-} as unknown as BrakeOverview
+// A car's four corners against this file's own axles.
+const OVERVIEW: BrakeOverview = brakeOverview({ axles: AXLES })
 
 const input = (id: string) => document.getElementById(id) as HTMLInputElement
 const save = () => fireEvent.click(within(screen.getByRole('dialog')).getByText('common:save'))

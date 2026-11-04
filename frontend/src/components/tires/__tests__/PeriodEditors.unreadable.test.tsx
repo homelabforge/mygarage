@@ -7,7 +7,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 
-import { METRIC_UNITS } from '../../../__tests__/factories'
+import { FOUR_LAYOUT, METRIC_UNITS } from '../../../__tests__/factories'
 
 vi.mock('react-i18next', async () => (await import('@/__tests__/i18nEn')).reactI18nextEn())
 
@@ -51,7 +51,7 @@ beforeEach(() => {
 
 describe('period editors: an unreadable number says which half it is in', () => {
   it('AddPastPeriodDrawer names the dismount odometer', () => {
-    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} />)
+    render(<AddPastPeriodDrawer vin={VIN} tire={TIRE as never} open onClose={vi.fn()} labelFor={labelFor} positions={FOUR_LAYOUT.positions} />)
     fireEvent.click(within(screen.getByRole('dialog')).getByText('pos-FR'))
     fireEvent.change(input('past-mount-date'), { target: { value: '2025-06-01' } })
     fireEvent.change(input('past-dismount-date'), { target: { value: '2025-09-01' } })

@@ -1465,7 +1465,7 @@ async def import_vehicle_json(
         errors,
         warnings,
         parse=lambda: parse_tires(vin, sections),
-        write=lambda plan: write_tires(db, plan),
+        write=lambda plan: write_tires(db, vin, plan),
     )
 
     # Brakes too: whole or not at all, and only into a vehicle with no brake records.
@@ -1478,7 +1478,7 @@ async def import_vehicle_json(
         errors,
         warnings,
         parse=lambda: parse_brakes(vin, sections),
-        write=lambda plan: write_brakes(db, plan),
+        write=lambda plan: write_brakes(db, vin, plan),
     )
 
     # Only the tires this import wrote can raise a low-tread reminder (N-2).

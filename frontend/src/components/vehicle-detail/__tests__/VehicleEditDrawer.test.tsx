@@ -60,6 +60,9 @@ const baseVehicle: Vehicle = {
   archived_visible: true,
   fuel_type: 'diesel',
   location_tracking_enabled: true,
+  wheel_layout: null,
+  effective_wheel_layout: 'four',
+  default_wheel_layout: 'four',
 }
 
 const baseDetailStats: VehicleDetailStats = makeDetailStats({ spent_this_year: '0', year: 2024 })

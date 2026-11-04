@@ -8,7 +8,6 @@ import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { useRefuseUnreadableNumbers } from '../../hooks/useRefuseUnreadableNumbers'
 import {
   AXLE_OF,
-  BRAKE_POSITIONS,
   type BrakeAxleName,
   type BrakeOverview,
   type BrakePosition,
@@ -33,13 +32,8 @@ interface BrakeJobDrawerProps {
   initialCorners: BrakePosition[]
 }
 
-const AXLE_CORNERS: Record<BrakeAxleName, BrakePosition[]> = {
-  front: ['FL', 'FR'],
-  rear: ['RL', 'RR'],
-}
-
 /**
- * Record work on one to four corners: pads or shoes, and the rotor or drum.
+ * Record work on any of the layout's corners: pads or shoes, and the rotor or drum.
  * New pads start the corner's wear estimate over, from the new thickness when
  * it's filled in. Remount it (with a `key`) to start the form over.
  */
@@ -55,10 +49,18 @@ function BrakeJobDrawer({
   const text = useBrakeText()
   const create = useCreateBrakeJob(vin)
   const refuseUnreadable = useRefuseUnreadableNumbers()
+  /* Only the layout's corners are offered. An off-layout one keeps its history
+     but takes no new work, and a stale caller can't pre-tick one we don't show. */
+  const offered = overview.corners.filter((c) => c.on_layout)
+  const offeredPositions = offered.map((c) => c.position)
+  const axleCorners = (axle: BrakeAxleName): BrakePosition[] =>
+    offered.filter((c) => c.axle === axle).map((c) => c.position)
   const [date, setDate] = useState(() => formatDateForInput())
   const [odometer, setOdometer] = useState<OdometerFieldValue>(EMPTY_ODOMETER)
   const [hours, setHours] = useState('')
-  const [corners, setCorners] = useState<BrakePosition[]>(initialCorners)
+  const [corners, setCorners] = useState<BrakePosition[]>(() =>
+    initialCorners.filter((p) => offeredPositions.includes(p))
+  )
   const [friction, setFriction] = useState(true)
   const [surface, setSurface] = useState<BrakeSurface | null>(null)
   const [notes, setNotes] = useState('')
@@ -122,7 +124,7 @@ function BrakeJobDrawer({
         friction_replaced: friction,
         surface,
         notes: notes.trim() || null,
-        corners: BRAKE_POSITIONS.filter((p) => corners.includes(p)).map((position) => ({
+        corners: offeredPositions.filter((p) => corners.includes(p)).map((position) => ({
           position,
           new_thickness_mm: thickness(position),
         })),
@@ -179,7 +181,7 @@ function BrakeJobDrawer({
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium">{t('brakes.corners')}</legend>
           <div className="flex flex-wrap gap-2">
-            {BRAKE_POSITIONS.map((position) => (
+            {offeredPositions.map((position) => (
               <Chip
                 key={position}
                 selected={corners.includes(position)}
@@ -190,14 +192,14 @@ function BrakeJobDrawer({
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setCorners(AXLE_CORNERS.front)}>
+            <Button size="sm" variant="ghost" onClick={() => setCorners(axleCorners('front'))}>
               {t('brakes.frontAxle')}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setCorners(AXLE_CORNERS.rear)}>
+            <Button size="sm" variant="ghost" onClick={() => setCorners(axleCorners('rear'))}>
               {t('brakes.rearAxle')}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setCorners([...BRAKE_POSITIONS])}>
-              {t('brakes.allFour')}
+            <Button size="sm" variant="ghost" onClick={() => setCorners([...offeredPositions])}>
+              {t('brakes.allCorners')}
             </Button>
           </div>
         </fieldset>

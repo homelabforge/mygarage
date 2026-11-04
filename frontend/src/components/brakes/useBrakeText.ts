@@ -48,6 +48,8 @@ export function useBrakeText(): BrakeText {
     FR: t('tireList.positions.FR'),
     RL: t('tireList.positions.RL'),
     RR: t('tireList.positions.RR'),
+    F: t('tireList.positions.F'),
+    R: t('tireList.positions.R'),
   }
 
   const usageText = (overview: BrakeOverview, value: number | string): string =>

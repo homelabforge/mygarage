@@ -171,6 +171,8 @@ SECTIONS = [
                 "sticker_transmission_description",
                 "sticker_drivetrain",
                 "wheel_specs",
+                # The layout override (#272); NULL is the type's default.
+                "wheel_layout",
                 "tire_specs",
                 "warranty_powertrain",
                 "warranty_basic",

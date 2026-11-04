@@ -11,6 +11,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.constants.wheel_layouts import resolve_wheel_layout
 from app.models.note import Note
 from app.models.reminder import Reminder
 from app.models.service_visit import ServiceVisit
@@ -237,6 +238,10 @@ async def build_garage_context(
             "drive_type": vehicle.drive_type,
             "tire_specs": vehicle.tire_specs,
             "wheel_specs": vehicle.wheel_specs,
+            # So the assistant knows a bike has two wheels and a boat none (#272).
+            "wheel_layout": resolve_wheel_layout(
+                vehicle.wheel_layout, vehicle.vehicle_type, vin=vehicle.vin
+            ).id,
             "def_tank_capacity": _measure(vehicle.def_tank_capacity_liters, ctx, "volume"),
         },
         "maintenance_specs": {

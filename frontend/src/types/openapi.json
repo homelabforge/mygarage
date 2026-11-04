@@ -2417,6 +2417,10 @@
             "title": "Measurements",
             "type": "array"
           },
+          "on_layout": {
+            "title": "On Layout",
+            "type": "boolean"
+          },
           "outer_pad_measured_on": {
             "anyOf": [
               {
@@ -2445,7 +2449,9 @@
               "FL",
               "FR",
               "RL",
-              "RR"
+              "RR",
+              "F",
+              "R"
             ],
             "title": "Position",
             "type": "string"
@@ -2564,6 +2570,7 @@
         },
         "required": [
           "position",
+          "on_layout",
           "axle",
           "brake_type",
           "condition",
@@ -2597,7 +2604,9 @@
               "FL",
               "FR",
               "RL",
-              "RR"
+              "RR",
+              "F",
+              "R"
             ],
             "title": "Position",
             "type": "string"
@@ -2760,7 +2769,9 @@
               "FL",
               "FR",
               "RL",
-              "RR"
+              "RR",
+              "F",
+              "R"
             ],
             "title": "Position",
             "type": "string"
@@ -3006,7 +3017,9 @@
               "FL",
               "FR",
               "RL",
-              "RR"
+              "RR",
+              "F",
+              "R"
             ],
             "title": "Position",
             "type": "string"
@@ -3139,7 +3152,9 @@
               "FL",
               "FR",
               "RL",
-              "RR"
+              "RR",
+              "F",
+              "R"
             ],
             "title": "Position",
             "type": "string"
@@ -3324,7 +3339,7 @@
         "type": "object"
       },
       "BrakeOverviewResponse": {
-        "description": "A vehicle's brakes: both axles and the four corners, FL, FR, RL, RR.",
+        "description": "A vehicle's brakes: both axles and the corners.\n\nThe wheel layout's corners in its order, then any off-layout corner that\nstill has history (#272).",
         "properties": {
           "axles": {
             "items": {
@@ -3358,9 +3373,22 @@
             ],
             "title": "Usage Axis",
             "type": "string"
+          },
+          "wheel_layout": {
+            "enum": [
+              "four",
+              "two",
+              "trike_2f1r",
+              "trike_1f2r",
+              "dually",
+              "none"
+            ],
+            "title": "Wheel Layout",
+            "type": "string"
           }
         },
         "required": [
+          "wheel_layout",
           "axles",
           "corners"
         ],
@@ -14415,6 +14443,12 @@
               "FR",
               "RL",
               "RR",
+              "F",
+              "R",
+              "RLO",
+              "RLI",
+              "RRI",
+              "RRO",
               "SPARE"
             ],
             "title": "Position",
@@ -24549,6 +24583,12 @@
               "FR",
               "RL",
               "RR",
+              "F",
+              "R",
+              "RLO",
+              "RLI",
+              "RRI",
+              "RRO",
               "SPARE"
             ],
             "title": "Position",
@@ -24700,6 +24740,30 @@
       "TireListResponse": {
         "description": "All tires for a vehicle.",
         "properties": {
+          "positions": {
+            "items": {
+              "enum": [
+                "FL",
+                "FR",
+                "RL",
+                "RR",
+                "F",
+                "R",
+                "RLO",
+                "RLI",
+                "RRI",
+                "RRO",
+                "SPARE"
+              ],
+              "type": "string"
+            },
+            "title": "Positions",
+            "type": "array"
+          },
+          "rotates": {
+            "title": "Rotates",
+            "type": "boolean"
+          },
           "tires": {
             "items": {
               "$ref": "#/components/schemas/TireResponse"
@@ -24729,11 +24793,26 @@
             ],
             "title": "Usage Axis",
             "type": "string"
+          },
+          "wheel_layout": {
+            "enum": [
+              "four",
+              "two",
+              "trike_2f1r",
+              "trike_1f2r",
+              "dually",
+              "none"
+            ],
+            "title": "Wheel Layout",
+            "type": "string"
           }
         },
         "required": [
           "tires",
-          "total"
+          "total",
+          "wheel_layout",
+          "positions",
+          "rotates"
         ],
         "title": "TireListResponse",
         "type": "object"
@@ -24802,6 +24881,12 @@
               "FR",
               "RL",
               "RR",
+              "F",
+              "R",
+              "RLO",
+              "RLI",
+              "RRI",
+              "RRO",
               "SPARE"
             ],
             "title": "Position",
@@ -25340,6 +25425,12 @@
                   "FR",
                   "RL",
                   "RR",
+                  "F",
+                  "R",
+                  "RLO",
+                  "RLI",
+                  "RRI",
+                  "RRO",
                   "SPARE"
                 ],
                 "type": "string"
@@ -25524,6 +25615,12 @@
               "FR",
               "RL",
               "RR",
+              "F",
+              "R",
+              "RLO",
+              "RLI",
+              "RRI",
+              "RRO",
               "SPARE"
             ],
             "title": "Position",
@@ -29585,6 +29682,19 @@
             "title": "Identifier Type",
             "type": "string"
           },
+          "inspection_due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle",
+            "title": "Inspection Due Date"
+          },
           "lez_class": {
             "anyOf": [
               {
@@ -29928,6 +30038,26 @@
             ],
             "description": "17-character Vehicle Identification Number. Required when identifier_type is 'vin'; omitted otherwise (the server generates the vehicle's key).",
             "title": "Vin"
+          },
+          "wheel_layout": {
+            "anyOf": [
+              {
+                "enum": [
+                  "four",
+                  "two",
+                  "trike_2f1r",
+                  "trike_1f2r",
+                  "dually",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which tire and brake corners the vehicle has; null follows the vehicle type's default (#272)",
+            "title": "Wheel Layout"
           },
           "year": {
             "anyOf": [
@@ -30766,6 +30896,20 @@
             "description": "DEF tank capacity in liters",
             "title": "Def Tank Capacity Liters"
           },
+          "default_wheel_layout": {
+            "description": "The layout the vehicle type gets with no override, for the Automatic option (#272).",
+            "enum": [
+              "four",
+              "two",
+              "trike_2f1r",
+              "trike_1f2r",
+              "dually",
+              "none"
+            ],
+            "readOnly": true,
+            "title": "Default Wheel Layout",
+            "type": "string"
+          },
           "destination_charge": {
             "anyOf": [
               {
@@ -30828,6 +30972,20 @@
             ],
             "description": "Drive type (FWD, RWD, AWD, etc.)",
             "title": "Drive Type"
+          },
+          "effective_wheel_layout": {
+            "description": "The layout in force: the stored override, else the vehicle type's default (#272).",
+            "enum": [
+              "four",
+              "two",
+              "trike_2f1r",
+              "trike_1f2r",
+              "dually",
+              "none"
+            ],
+            "readOnly": true,
+            "title": "Effective Wheel Layout",
+            "type": "string"
           },
           "environmental_rating_ghg": {
             "anyOf": [
@@ -31030,6 +31188,19 @@
             "default": "vin",
             "description": "What identifies this vehicle",
             "title": "Identifier Type"
+          },
+          "inspection_due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle",
+            "title": "Inspection Due Date"
           },
           "interior_color": {
             "anyOf": [
@@ -31504,6 +31675,26 @@
             ],
             "title": "Warranty Powertrain"
           },
+          "wheel_layout": {
+            "anyOf": [
+              {
+                "enum": [
+                  "four",
+                  "two",
+                  "trike_2f1r",
+                  "trike_1f2r",
+                  "dually",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which tire and brake corners the vehicle has; null follows the vehicle type's default (#272)",
+            "title": "Wheel Layout"
+          },
           "wheel_specs": {
             "anyOf": [
               {
@@ -31613,7 +31804,9 @@
           "vehicle_type",
           "vin",
           "created_at",
-          "has_vin"
+          "has_vin",
+          "effective_wheel_layout",
+          "default_wheel_layout"
         ],
         "title": "VehicleResponse",
         "type": "object"
@@ -32647,6 +32840,19 @@
             "description": "vin, serial, hin, chassis, asset_tag or none (omit to leave unchanged)",
             "title": "Identifier Type"
           },
+          "inspection_due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle",
+            "title": "Inspection Due Date"
+          },
           "interior_color": {
             "anyOf": [
               {
@@ -33170,6 +33376,26 @@
             ],
             "description": "Powertrain warranty",
             "title": "Warranty Powertrain"
+          },
+          "wheel_layout": {
+            "anyOf": [
+              {
+                "enum": [
+                  "four",
+                  "two",
+                  "trike_2f1r",
+                  "trike_1f2r",
+                  "dually",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which tire and brake corners the vehicle has; null follows the vehicle type's default (#272)",
+            "title": "Wheel Layout"
           },
           "wheel_specs": {
             "anyOf": [

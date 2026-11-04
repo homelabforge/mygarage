@@ -9140,6 +9140,8 @@ export interface components {
             measured_on?: string | null;
             /** Measurements */
             measurements?: components["schemas"]["BrakeMeasurementResponse"][];
+            /** On Layout */
+            on_layout: boolean;
             /** Outer Pad Measured On */
             outer_pad_measured_on?: string | null;
             /** Outer Pad Mm */
@@ -9148,7 +9150,7 @@ export interface components {
              * Position
              * @enum {string}
              */
-            position: "FL" | "FR" | "RL" | "RR";
+            position: "FL" | "FR" | "RL" | "RR" | "F" | "R";
             /** Projected Usage Remaining */
             projected_usage_remaining?: string | null;
             /** Projected Wear Date */
@@ -9187,7 +9189,7 @@ export interface components {
              * Position
              * @enum {string}
              */
-            position: "FL" | "FR" | "RL" | "RR";
+            position: "FL" | "FR" | "RL" | "RR" | "F" | "R";
         };
         /**
          * BrakeJobCreate
@@ -9244,7 +9246,7 @@ export interface components {
              * Position
              * @enum {string}
              */
-            position: "FL" | "FR" | "RL" | "RR";
+            position: "FL" | "FR" | "RL" | "RR" | "F" | "R";
             /** Surface */
             surface?: ("replaced" | "resurfaced") | null;
         };
@@ -9303,7 +9305,7 @@ export interface components {
              * Position
              * @enum {string}
              */
-            position: "FL" | "FR" | "RL" | "RR";
+            position: "FL" | "FR" | "RL" | "RR" | "F" | "R";
             /** Rotor Mm */
             rotor_mm?: number | string | null;
             /** Shoe Mm */
@@ -9334,7 +9336,7 @@ export interface components {
              * Position
              * @enum {string}
              */
-            position: "FL" | "FR" | "RL" | "RR";
+            position: "FL" | "FR" | "RL" | "RR" | "F" | "R";
             /**
              * Recorded At
              * Format: date
@@ -9376,7 +9378,10 @@ export interface components {
         };
         /**
          * BrakeOverviewResponse
-         * @description A vehicle's brakes: both axles and the four corners, FL, FR, RL, RR.
+         * @description A vehicle's brakes: both axles and the corners.
+         *
+         *     The wheel layout's corners in its order, then any off-layout corner that
+         *     still has history (#272).
          */
         BrakeOverviewResponse: {
             /** Axles */
@@ -9399,6 +9404,11 @@ export interface components {
              * @enum {string}
              */
             usage_axis: "distance" | "hours";
+            /**
+             * Wheel Layout
+             * @enum {string}
+             */
+            wheel_layout: "four" | "two" | "trike_2f1r" | "trike_1f2r" | "dually" | "none";
         };
         /**
          * CalendarEvent
@@ -14039,7 +14049,7 @@ export interface components {
              * Position
              * @enum {string}
              */
-            position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+            position: "FL" | "FR" | "RL" | "RR" | "F" | "R" | "RLO" | "RLI" | "RRI" | "RRO" | "SPARE";
         };
         /**
          * MountPeriodResponse
@@ -17947,7 +17957,7 @@ export interface components {
              * Position
              * @enum {string}
              */
-            position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+            position: "FL" | "FR" | "RL" | "RR" | "F" | "R" | "RLO" | "RLI" | "RRI" | "RRO" | "SPARE";
             /** Pressure Kpa */
             pressure_kpa?: number | string | null;
             /** Size */
@@ -17980,6 +17990,10 @@ export interface components {
          * @description All tires for a vehicle.
          */
         TireListResponse: {
+            /** Positions */
+            positions: ("FL" | "FR" | "RL" | "RR" | "F" | "R" | "RLO" | "RLI" | "RRI" | "RRO" | "SPARE")[];
+            /** Rotates */
+            rotates: boolean;
             /** Tires */
             tires: components["schemas"]["TireResponse"][];
             /** Total */
@@ -18000,6 +18014,11 @@ export interface components {
              * @enum {string}
              */
             usage_axis: "distance" | "hours";
+            /**
+             * Wheel Layout
+             * @enum {string}
+             */
+            wheel_layout: "four" | "two" | "trike_2f1r" | "trike_1f2r" | "dually" | "none";
         };
         /**
          * TireMountRequest
@@ -18018,7 +18037,7 @@ export interface components {
              * Position
              * @enum {string}
              */
-            position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+            position: "FL" | "FR" | "RL" | "RR" | "F" | "R" | "RLO" | "RLI" | "RRI" | "RRO" | "SPARE";
         };
         /**
          * TireReadiness
@@ -18227,7 +18246,7 @@ export interface components {
             /** Notes */
             notes?: string | null;
             /** Position */
-            position?: ("FL" | "FR" | "RL" | "RR" | "SPARE") | null;
+            position?: ("FL" | "FR" | "RL" | "RR" | "F" | "R" | "RLO" | "RLI" | "RRI" | "RRO" | "SPARE") | null;
             /** Pressure Kpa */
             pressure_kpa?: string | null;
             /** Projected Km Remaining */
@@ -18272,7 +18291,7 @@ export interface components {
              * Position
              * @enum {string}
              */
-            position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+            position: "FL" | "FR" | "RL" | "RR" | "F" | "R" | "RLO" | "RLI" | "RRI" | "RRO" | "SPARE";
             /** Tire Id */
             tire_id: number;
         };
@@ -20010,6 +20029,11 @@ export interface components {
              */
             identifier_type: "vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none";
             /**
+             * Inspection Due Date
+             * @description Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle
+             */
+            inspection_due_date?: string | null;
+            /**
              * Lez Class
              * @description Low-emission-zone class set by hand (Crit'Air 0-5, Umweltplakette 2-4); overrides the class computed from the fuel and the Euro class
              */
@@ -20138,6 +20162,11 @@ export interface components {
              * @description 17-character Vehicle Identification Number. Required when identifier_type is 'vin'; omitted otherwise (the server generates the vehicle's key).
              */
             vin?: string | null;
+            /**
+             * Wheel Layout
+             * @description Which tire and brake corners the vehicle has; null follows the vehicle type's default (#272)
+             */
+            wheel_layout?: ("four" | "two" | "trike_2f1r" | "trike_1f2r" | "dually" | "none") | null;
             /**
              * Year
              * @description Model year
@@ -20510,6 +20539,12 @@ export interface components {
              * @description DEF tank capacity in liters
              */
             def_tank_capacity_liters?: string | null;
+            /**
+             * Default Wheel Layout
+             * @description The layout the vehicle type gets with no override, for the Automatic option (#272).
+             * @enum {string}
+             */
+            readonly default_wheel_layout: "four" | "two" | "trike_2f1r" | "trike_1f2r" | "dually" | "none";
             /** Destination Charge */
             destination_charge?: string | null;
             /**
@@ -20532,6 +20567,12 @@ export interface components {
              * @description Drive type (FWD, RWD, AWD, etc.)
              */
             drive_type?: string | null;
+            /**
+             * Effective Wheel Layout
+             * @description The layout in force: the stored override, else the vehicle type's default (#272).
+             * @enum {string}
+             */
+            readonly effective_wheel_layout: "four" | "two" | "trike_2f1r" | "trike_1f2r" | "dually" | "none";
             /** Environmental Rating Ghg */
             environmental_rating_ghg?: string | null;
             /** Environmental Rating Smog */
@@ -20600,6 +20641,11 @@ export interface components {
              * @default vin
              */
             identifier_type: ("vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none") | null;
+            /**
+             * Inspection Due Date
+             * @description Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle
+             */
+            inspection_due_date?: string | null;
             /** Interior Color */
             interior_color?: string | null;
             /**
@@ -20764,6 +20810,11 @@ export interface components {
             warranty_basic?: string | null;
             /** Warranty Powertrain */
             warranty_powertrain?: string | null;
+            /**
+             * Wheel Layout
+             * @description Which tire and brake corners the vehicle has; null follows the vehicle type's default (#272)
+             */
+            wheel_layout?: ("four" | "two" | "trike_2f1r" | "trike_1f2r" | "dually" | "none") | null;
             /** Wheel Specs */
             wheel_specs?: string | null;
             /** Window Sticker Confidence Score */
@@ -21145,6 +21196,11 @@ export interface components {
              */
             identifier_type?: ("vin" | "serial" | "hin" | "chassis" | "asset_tag" | "none") | null;
             /**
+             * Inspection Due Date
+             * @description Next periodic inspection due by (field X.1 of an EU registration certificate); the reminder holds to it within the current cycle
+             */
+            inspection_due_date?: string | null;
+            /**
              * Interior Color
              * @description Interior color
              */
@@ -21328,6 +21384,11 @@ export interface components {
              * @description Powertrain warranty
              */
             warranty_powertrain?: string | null;
+            /**
+             * Wheel Layout
+             * @description Which tire and brake corners the vehicle has; null follows the vehicle type's default (#272)
+             */
+            wheel_layout?: ("four" | "two" | "trike_2f1r" | "trike_1f2r" | "dually" | "none") | null;
             /**
              * Wheel Specs
              * @description Wheel specifications

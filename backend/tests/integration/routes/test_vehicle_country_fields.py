@@ -27,16 +27,23 @@ class TestUserCountry:
         assert response.status_code == 422
 
     async def test_inspection_auto_schedule_toggle(self, client: AsyncClient, auth_headers):
-        response = await client.put(
-            "/api/auth/me", json={"inspection_auto_schedule": False}, headers=auth_headers
-        )
-        assert response.status_code == 200
-        assert response.json()["inspection_auto_schedule"] is False
-        # NOT NULL: null is refused, omitted keeps the value.
-        response = await client.put(
-            "/api/auth/me", json={"inspection_auto_schedule": None}, headers=auth_headers
-        )
-        assert response.status_code == 422
+        try:
+            response = await client.put(
+                "/api/auth/me", json={"inspection_auto_schedule": False}, headers=auth_headers
+            )
+            assert response.status_code == 200
+            assert response.json()["inspection_auto_schedule"] is False
+            # NOT NULL: null is refused, omitted keeps the value.
+            response = await client.put(
+                "/api/auth/me", json={"inspection_auto_schedule": None}, headers=auth_headers
+            )
+            assert response.status_code == 422
+        finally:
+            # The test user is shared: left off, every later test that expects
+            # an inspection reminder finds none.
+            await client.put(
+                "/api/auth/me", json={"inspection_auto_schedule": True}, headers=auth_headers
+            )
 
 
 @pytest.mark.integration

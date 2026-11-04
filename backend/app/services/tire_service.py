@@ -61,6 +61,7 @@ from app.services.tire_results import (
 )
 from app.services.usage_axis import DISTANCE, HOURS, UsageAxis, VehicleAxes
 from app.services.vehicle_lock import lock_vehicle_for_write
+from app.services.wheel_layout_service import refuse_off_layout, vehicle_wheel_layout
 from app.utils.datetime_utils import utc_now
 from app.utils.hours_sync import publish_marked_hours, same_day_hours
 from app.utils.household_time import household_today
@@ -1465,12 +1466,16 @@ class TireService:
             responses = [
                 self._to_response(t, axes, current_odometer=current_odometer) for t in tires
             ]
+            layout = await vehicle_wheel_layout(self.db, vin)
             return TireListResponse(
                 tires=responses,
                 total=len(responses),
                 usage_axis=axes.primary.kind,
                 tracks_distance=axes.tracks("distance"),
                 tracks_hours=axes.tracks("hours"),
+                wheel_layout=layout.id,
+                positions=list(layout.tire_positions),
+                rotates=layout.rotates,
             )
         except HTTPException:
             raise
@@ -1575,6 +1580,9 @@ class TireService:
                 status_code=409,
                 detail=f"This tire is already mounted at {tire.position}. Dismount it first.",
             )
+        # After everything the tire itself decides, so a missing tire is a 404
+        # and a retired or already-mounted one the usual 409.
+        refuse_off_layout(await vehicle_wheel_layout(self.db, vin), [data.position], "tire")
 
         occupant = (
             await self.db.execute(
@@ -1715,6 +1723,7 @@ class TireService:
         await lock_vehicle_for_write(self.db, vin)
         axes = await self.request_axes(current_user, vin)
         refuse_untracked(axes, odometers=(data.mounted_odometer_km,), hours=(data.mounted_hours,))
+        refuse_off_layout(await vehicle_wheel_layout(self.db, vin), [data.position], "tire")
 
         occupant = (
             await self.db.execute(
@@ -1798,6 +1807,10 @@ class TireService:
         await lock_vehicle_for_write(self.db, vin)
         axes = await self.request_axes(current_user, vin)
         refuse_untracked(axes, odometers=(data.odometer_km,), hours=(data.engine_hours,))
+        # Any move list inside the layout goes, patterns or not (D5).
+        refuse_off_layout(
+            await vehicle_wheel_layout(self.db, vin), [m.position for m in data.moves], "tire"
+        )
 
         moving_ids = [move.tire_id for move in data.moves]
         tires = {
@@ -2159,6 +2172,7 @@ class TireService:
         tire = await self._get_tire_for_update(vin, tire_id)
         if tire.retired_on is not None and data.dismounted_on > tire.retired_on:
             raise HTTPException(status_code=409, detail=past_retirement(tire.retired_on))
+        refuse_off_layout(await vehicle_wheel_layout(self.db, vin), [data.position], "tire")
 
         before = fault_map(tire.mount_periods or [], tire.readings or [], axes=axes.captured)
         period = TireMountPeriod(

@@ -38,6 +38,7 @@ function corner(extra: Partial<BrakeCorner>): BrakeCorner {
     condition: 'ok',
     wear_status: 'no_measurements',
     surface_past_limit: false,
+    on_layout: true,
     measurements: [],
     jobs: [],
     ...extra,
@@ -45,7 +46,7 @@ function corner(extra: Partial<BrakeCorner>): BrakeCorner {
 }
 
 function overview(axis: BrakeOverview['usage_axis']): BrakeOverview {
-  return { usage_axis: axis, tracks_distance: axis === 'distance', tracks_hours: axis === 'hours', axles: [], corners: [] }
+  return { usage_axis: axis, tracks_distance: axis === 'distance', tracks_hours: axis === 'hours', axles: [], corners: [], wheel_layout: 'four' }
 }
 
 const summary = (c: BrakeCorner, axis: BrakeOverview['usage_axis'] = 'distance'): string => {
@@ -82,5 +83,13 @@ describe('useBrakeText wearSummary', () => {
   it('leaves a projection to its own date', () => {
     const projected = corner({ wear_status: 'projected', projected_usage_remaining: '1333.3', projected_wear_date: '2026-05-06', worn_by: '2026-05-06' })
     expect(summary(projected)).toBe(`~1333.3 km · ${formatDateForDisplay('2026-05-06')}`)
+  })
+})
+
+describe('useBrakeText labelFor', () => {
+  it('names the two-wheeler corners Front and Rear (#272)', () => {
+    const { result } = renderHook(() => useBrakeText())
+    expect(result.current.labelFor('F')).toBe('Front')
+    expect(result.current.labelFor('R')).toBe('Rear')
   })
 })

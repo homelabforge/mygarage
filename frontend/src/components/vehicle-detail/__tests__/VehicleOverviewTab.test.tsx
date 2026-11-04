@@ -156,6 +156,20 @@ describe('VehicleOverviewTab — cards stay addable when the vehicle has no deco
     expect(screen.getByRole('heading', { name: 'detail.vehicleDetails' })).toBeInTheDocument()
   })
 
+  it('shows a chosen wheel layout in Vehicle Details, and nothing for automatic (#272)', () => {
+    renderTab({ ...bareVehicle, wheel_layout: 'dually', effective_wheel_layout: 'dually' } as unknown as Vehicle)
+    expect(screen.getByText('wheelLayout.label')).toBeInTheDocument()
+    expect(screen.getByText('wheelLayout.dually')).toBeInTheDocument()
+    // Details has the layout now; Powertrain and Warranty are still empty.
+    expect(screen.getAllByText('detail.cardEmpty')).toHaveLength(2)
+  })
+
+  it('leaves Vehicle Details empty when the layout just follows the type (#272)', () => {
+    renderTab({ ...bareVehicle, wheel_layout: null, effective_wheel_layout: 'four' } as unknown as Vehicle)
+    expect(screen.queryByText('wheelLayout.label')).toBeNull()
+    expect(screen.getAllByText('detail.cardEmpty')).toHaveLength(3)
+  })
+
   it('renders real values rather than the empty line when data exists', () => {
     renderTab({ ...bareVehicle, trim: 'Limited', cylinders: 4 } as unknown as Vehicle)
     expect(screen.getByText('Limited')).toBeInTheDocument()

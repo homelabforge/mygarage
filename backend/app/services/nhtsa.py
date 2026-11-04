@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Used when the setting is missing, blank or fails the SSRF check.
 DEFAULT_RECALLS_API_URL = "https://api.nhtsa.gov/recalls"
-DEFAULT_TSB_API_URL = "https://api.nhtsa.gov/products/vehicle/tsbs"
-# The recalls setting is a base; the fetch adds this. The TSB setting is the
-# whole endpoint, so it has no suffix to double.
+# The recalls setting is a base; the fetch adds this.
 RECALLS_BY_VEHICLE_PATH = "/recallsByVehicle"
 
 
@@ -49,14 +47,31 @@ class _VPICBodyNotJSONError(ValueError):
 #: RequestError, not just TransportError: DecodingError (a page served with a
 #: bad Content-Encoding) and TooManyRedirects are request errors outside
 #: TransportError, and either one is NHTSA not answering usably.
-#: Every HTTPStatusError counts, 4xx included (ruling F2-1): a permanent 4xx
-#: for one model re-queries the fleet daily, which is noisy but misses nothing.
+#: Every HTTPStatusError counts, 4xx included (ruling F2-1), except the 400
+#: NHTSA sends for a model with no recalls (`_is_no_recalls_answer`).
 _OUTAGE_ERRORS: tuple[type[Exception], ...] = (
     httpx.RequestError,
     httpx.HTTPStatusError,
     json.JSONDecodeError,
     _VPICBodyNotJSONError,
 )
+
+
+def _is_no_recalls_answer(response: httpx.Response) -> bool:
+    """Whether a recallsByVehicle response is NHTSA saying "no recalls".
+
+    NHTSA answers a make, model and year with no recalls as a 400 whose body
+    is the usual "Results returned successfully" with an empty `results`.
+    That's an answer, not an outage, or every car with a clean record would
+    hold `nhtsa_last_check` back for the whole fleet. Any other 4xx still is.
+    """
+    if response.status_code != 400:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    return isinstance(body, dict) and body.get("results") == []
 
 
 class NHTSAService:
@@ -377,6 +392,14 @@ class NHTSAService:
             try:
                 # codeql[py/partial-ssrf] - recalls_api_base validated by validate_nhtsa_url above
                 response = await client.get(recalls_url)
+                if _is_no_recalls_answer(response):
+                    logger.info(
+                        "No recalls for %s %s %s",
+                        year,
+                        sanitize_for_log(make),
+                        sanitize_for_log(model),
+                    )
+                    return []
                 response.raise_for_status()
                 data = response.json()
 
@@ -417,136 +440,6 @@ class NHTSAService:
             except httpx.HTTPStatusError as e:
                 logger.error(
                     "NHTSA recalls API error for %s %s %s: %s",
-                    year,
-                    sanitize_for_log(make),
-                    sanitize_for_log(model),
-                    sanitize_for_log(e),
-                )
-                return []  # Intentional fallback: return empty list on API error
-
-    async def get_vehicle_tsbs(self, vin: str, db: AsyncSession) -> list[dict[str, Any]]:
-        """
-        Get Technical Service Bulletins (TSBs) for a specific VIN from NHTSA.
-
-        Similar to recalls, NHTSA does not provide a direct VIN-to-TSB endpoint.
-        This method decodes the VIN first, then queries TSBs by make/model/year.
-
-        Args:
-            vin: The 17-character VIN
-            db: Database session for fetching settings
-
-        Returns:
-            List of TSB dictionaries
-
-        Raises:
-            ValueError: If VIN is invalid or vehicle info cannot be decoded
-        """
-        # First, decode the VIN to get make/model/year
-        try:
-            vehicle_info = await self.decode_vin(vin)
-        except Exception as e:
-            logger.error(
-                "Failed to decode VIN %s: %s",
-                sanitize_for_log(vin),
-                sanitize_for_log(e),
-            )
-            raise ValueError(f"Could not decode VIN to fetch TSBs: {str(e)}")
-
-        # Extract make, model, and year
-        make = vehicle_info.get("make")
-        model = vehicle_info.get("model")
-        year = vehicle_info.get("year")
-
-        if not all([make, model, year]):
-            logger.warning(
-                "Incomplete vehicle info for VIN %s: make=%s, model=%s, year=%s",
-                sanitize_for_log(vin),
-                sanitize_for_log(make),
-                sanitize_for_log(model),
-                year,
-            )
-            raise ValueError("Could not determine vehicle make, model, and year from VIN")
-
-        # Get TSB API URL from settings (if configured)
-        from sqlalchemy import select
-
-        from app.models.settings import Setting
-
-        result = await db.execute(select(Setting).where(Setting.key == "nhtsa_tsb_api_url"))
-        setting = result.scalar_one_or_none()
-        # Same as recalls: blank or NULL means the default, quietly, and a URL
-        # is used stripped.
-        stored_url = setting.value.strip() if setting and setting.value else ""
-        tsb_api_base = stored_url or DEFAULT_TSB_API_URL
-
-        # SECURITY: Validate TSB API base URL against SSRF attacks
-        try:
-            validate_nhtsa_url(tsb_api_base)
-        except (SSRFProtectionError, ValueError) as e:
-            logger.error(
-                "SSRF protection blocked TSB API URL: %s - %s",
-                sanitize_for_log(tsb_api_base),
-                sanitize_for_log(e),
-            )
-            # Use safe default if validation fails
-            tsb_api_base = DEFAULT_TSB_API_URL
-            logger.warning("Using fallback TSB API URL: %s", tsb_api_base)
-
-        # Query NHTSA TSB API by make/model/year
-        from urllib.parse import urlencode
-
-        params = {"make": make, "model": model, "modelYear": year}
-        tsb_url = f"{tsb_api_base}?{urlencode(params)}"
-
-        logger.info(
-            "Fetching TSBs for %s %s %s (VIN: %s)",
-            year,
-            sanitize_for_log(make),
-            sanitize_for_log(model),
-            sanitize_for_log(vin),
-        )
-
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            try:
-                # codeql[py/partial-ssrf] - tsb_api_base validated by validate_nhtsa_url above
-                response = await client.get(tsb_url)
-                response.raise_for_status()
-                data = response.json()
-
-                # Extract TSBs from the response
-                # NHTSA TSB API structure may vary - adapt as needed
-                tsbs = data.get("results", [])
-
-                logger.info(
-                    "Found %s TSB(s) for %s %s %s",
-                    len(tsbs),
-                    year,
-                    sanitize_for_log(make),
-                    sanitize_for_log(model),
-                )
-
-                return tsbs
-
-            except httpx.TimeoutException:
-                logger.error(
-                    "NHTSA TSB API timeout for %s %s %s",
-                    year,
-                    sanitize_for_log(make),
-                    sanitize_for_log(model),
-                )
-                return []  # Intentional fallback: don't break UI for timeout
-            except httpx.ConnectError as e:
-                logger.error(
-                    "Cannot connect to NHTSA TSB API for %s %s %s: %s",
-                    year,
-                    sanitize_for_log(make),
-                    sanitize_for_log(model),
-                    sanitize_for_log(e),
-                )
-                return []  # Intentional fallback: don't break UI for connection issues
-            except httpx.HTTPStatusError as e:
-                logger.error(
-                    "NHTSA TSB API error for %s %s %s: %s",
                     year,
                     sanitize_for_log(make),
                     sanitize_for_log(model),

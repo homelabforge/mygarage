@@ -13,9 +13,11 @@ from pydantic import (
     model_validator,
 )
 
+from app.constants import wheel_layouts
 from app.constants.countries import is_country_code, normalize_country_code
 from app.constants.fuel import FUEL_TYPE_VALUES, normalize_fuel_type
 from app.constants.units import DistanceUnit
+from app.constants.wheel_layouts import WheelLayoutId
 from app.schemas._money import OptionalMoney
 from app.schemas._nullability import reject_null
 from app.utils.lenient_vocab import LenientVocab, lenient_reader
@@ -111,6 +113,14 @@ LenientUsageUnit = Annotated[
 LenientIdentifierType = Annotated[
     IdentifierType | None, BeforeValidator(lenient_reader(IdentifierType)), LenientVocab(None)
 ]
+# A layout this build doesn't know reads as null, so it falls back to the type's default.
+LenientWheelLayout = Annotated[
+    WheelLayoutId | None, BeforeValidator(lenient_reader(WheelLayoutId)), LenientVocab(None)
+]
+
+_WHEEL_LAYOUT_DESCRIPTION = (
+    "Which tire and brake corners the vehicle has; null follows the vehicle type's default (#272)"
+)
 
 
 def _clean_identifier(v: Any) -> Any:
@@ -163,6 +173,13 @@ class VehicleBase(BaseModel):
     first_registration_date: date | None = Field(
         None,
         description="Date of first registration (field B of an EU registration certificate)",
+    )
+    inspection_due_date: date | None = Field(
+        None,
+        description=(
+            "Next periodic inspection due by (field X.1 of an EU registration "
+            "certificate); the reminder holds to it within the current cycle"
+        ),
     )
     # The other EU registration-certificate fields (#211). Bounds are the
     # input's; the response reads what is stored.
@@ -250,6 +267,8 @@ class VehicleBase(BaseModel):
     maintenance_specs_notes: str | None = Field(
         None, description="Freeform notes for other fluid/torque specs", max_length=500
     )
+    # Not in reject_null on the update: an explicit null is how you go back to automatic.
+    wheel_layout: WheelLayoutId | None = Field(None, description=_WHEEL_LAYOUT_DESCRIPTION)
 
 
 class VehicleCreate(VehicleBase):
@@ -549,6 +568,22 @@ class VehicleResponse(VehicleBase):
     def has_vin(self) -> bool:
         """Whether `vin` is a real VIN (decode, recalls and VIN display apply)."""
         return self.identifier_type == "vin"
+
+    wheel_layout: LenientWheelLayout = Field(None, description=_WHEEL_LAYOUT_DESCRIPTION)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_wheel_layout(self) -> WheelLayoutId:
+        """The layout in force: the stored override, else the vehicle type's default (#272)."""
+        return wheel_layouts.resolve_wheel_layout(
+            self.wheel_layout, self.vehicle_type, vin=self.vin
+        ).id
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def default_wheel_layout(self) -> WheelLayoutId:
+        """The layout the vehicle type gets with no override, for the Automatic option (#272)."""
+        return wheel_layouts.default_wheel_layout(self.vehicle_type)
 
     # Served, never refused: the column has no CHECK, and a strict Literal here
     # would turn one hand-edited row into a 500 for every response carrying it.

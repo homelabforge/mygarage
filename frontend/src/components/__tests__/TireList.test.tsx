@@ -73,6 +73,7 @@ vi.mock('../../hooks/useUnitPreference', () => {
 })
 
 import TireList from '../TireList'
+import { FOUR_LAYOUT } from '../../__tests__/factories'
 
 const STORED_FL_TIRE = {
   id: 1,
@@ -104,7 +105,7 @@ describe('TireList', () => {
     useAddTireReadingMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useDeleteTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useTiresMock.mockReturnValue({
-      data: { tires: [STORED_FL_TIRE], total: 1 },
+      data: { tires: [STORED_FL_TIRE], total: 1, ...FOUR_LAYOUT },
       isLoading: false,
       error: null,
     })
@@ -230,20 +231,20 @@ describe('TireList', () => {
     const group = screen.getByRole('group', { name: 'tireList.position' })
     // FL is taken by STORED_FL_TIRE. It still renders — that is the point of
     // the toggles over a select — but as an inert span rather than a button.
-    expect(within(group).getByText('FL').tagName).toBe('SPAN')
-    expect(within(group).getByText('FR').tagName).toBe('BUTTON')
+    expect(within(group).getByText('tireList.positions.FL').tagName).toBe('SPAN')
+    expect(within(group).getByText('tireList.positions.FR').tagName).toBe('BUTTON')
   })
 
-  it('names positions in full on the card but keeps short codes on the toggles', () => {
+  it('names positions in full on the card and on the toggles', () => {
     render(<TireList vin="1HGCM82633A004352" />)
     // The card heading carries the translatable name, not the raw enum.
     expect(screen.getByText('tireList.positions.FL')).toBeInTheDocument()
 
-    // The toggle row stays compact — five full names would not fit.
+    // The toggles too since #272. A dually's RLI and RRI were no help to anyone.
     fireEvent.click(screen.getByText('tireList.add'))
     const group = screen.getByRole('group', { name: 'tireList.position' })
-    expect(within(group).getByText('FL')).toBeInTheDocument()
-    expect(within(group).queryByText('tireList.positions.FL')).not.toBeInTheDocument()
+    expect(within(group).getByText('tireList.positions.FL')).toBeInTheDocument()
+    expect(within(group).queryByText('FL')).not.toBeInTheDocument()
   })
 
   it('keeps delete out of the card and offers it only while editing', () => {
@@ -285,7 +286,7 @@ describe('TireList', () => {
     // Nothing is clickable, so the position cannot be moved out from under a
     // tire whose readings are already keyed to it.
     expect(within(group).queryAllByRole('button')).toHaveLength(0)
-    expect(within(group).getByText('FL')).toHaveClass('bg-(--accent-soft)')
+    expect(within(group).getByText('tireList.positions.FL')).toHaveClass('bg-(--accent-soft)')
   })
 
   it('selects a free position when its toggle is pressed', () => {
@@ -296,7 +297,7 @@ describe('TireList', () => {
     fireEvent.click(screen.getByText('tireList.add'))
 
     const group = screen.getByRole('group', { name: 'tireList.position' })
-    fireEvent.click(within(group).getByText('RR'))
+    fireEvent.click(within(group).getByText('tireList.positions.RR'))
     fireEvent.click(screen.getByText('common:save'))
 
     expect(mutate.mock.calls[0][0]).toMatchObject({ position: 'RR' })
@@ -508,7 +509,7 @@ describe('TireList', () => {
     /** Seeded as 11 and 2: the 32nds a gauge's 0.346 and 0.0625 in round to. */
     const gauged = (): void => {
       useTiresMock.mockReturnValue({
-        data: { tires: [{ ...STORED_FL_TIRE, tread_depth_mm: '8.40', min_tread_mm: '1.60' }], total: 1 },
+        data: { tires: [{ ...STORED_FL_TIRE, tread_depth_mm: '8.40', min_tread_mm: '1.60' }], total: 1, ...FOUR_LAYOUT },
         isLoading: false,
         error: null,
       })
@@ -597,7 +598,7 @@ describe('TireList', () => {
 
     it('opens the history from the card and converts every value', () => {
       useTiresMock.mockReturnValue({
-        data: { tires: [{ ...STORED_FL_TIRE, readings: [READING] }], total: 1 },
+        data: { tires: [{ ...STORED_FL_TIRE, readings: [READING] }], total: 1, ...FOUR_LAYOUT },
         isLoading: false,
         error: null,
       })
@@ -713,7 +714,7 @@ describe('TireList', () => {
       // twice with the same id is one render, so "exactly once" isn't
       // observable here.
       useTiresMock.mockReturnValue({
-        data: { tires: [{ ...STORED_FL_TIRE, blocking_period_ids: [3], mount_periods: [] }], total: 1 },
+        data: { tires: [{ ...STORED_FL_TIRE, blocking_period_ids: [3], mount_periods: [] }], total: 1, ...FOUR_LAYOUT },
         isLoading: false,
         error: null,
       })
@@ -760,7 +761,7 @@ describe('TireList', () => {
 
   it('offers Fix only when a period blocks a figure, and Fix opens the history', () => {
     useTiresMock.mockReturnValue({
-      data: { tires: [{ ...STORED_FL_TIRE, blocking_period_ids: [3], mount_periods: [] }], total: 1 },
+      data: { tires: [{ ...STORED_FL_TIRE, blocking_period_ids: [3], mount_periods: [] }], total: 1, ...FOUR_LAYOUT },
       isLoading: false,
       error: null,
     })
@@ -786,6 +787,7 @@ describe('TireList', () => {
           },
         ],
         total: 1,
+        ...FOUR_LAYOUT,
       },
       isLoading: false,
       error: null,
@@ -807,6 +809,7 @@ describe('TireList', () => {
           },
         ],
         total: 1,
+        ...FOUR_LAYOUT,
       },
       isLoading: false,
       error: null,
@@ -818,37 +821,38 @@ describe('TireList', () => {
   const OPEN_PERIOD ={ id: 11, position: 'FL', mounted_on: '2026-04-10', dismounted_on: null, mounted_odometer_km: '152159.00', dismounted_odometer_km: null, is_assumed: false, observed_active_on: null, notes: null }
 
   it('the mounted card names its current mount', () => {
-    useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [OPEN_PERIOD] }], total: 1 }, isLoading: false, error: null })
+    useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [OPEN_PERIOD] }], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
     render(<TireList vin="1HGCM82633A004352" />)
     expect(screen.getByText('tireList.mountedOn')).toBeInTheDocument()
     expect(screen.getByText('tireList.mountedLine')).toBeInTheDocument()
   })
 
   it('says which half of the mount is unknown', () => {
-    useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [{ ...OPEN_PERIOD, mounted_on: null }] }], total: 1 }, isLoading: false, error: null })
+    useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [{ ...OPEN_PERIOD, mounted_on: null }] }], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
     render(<TireList vin="1HGCM82633A004352" />)
     expect(screen.getByText('tireList.mountedOdometerOnly')).toBeInTheDocument()
   })
 
   it('says which half of the mount is unknown, the other way round', () => {
-    useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [{ ...OPEN_PERIOD, mounted_odometer_km: null }] }], total: 1 }, isLoading: false, error: null })
+    useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [{ ...OPEN_PERIOD, mounted_odometer_km: null }] }], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
     render(<TireList vin="1HGCM82633A004352" />)
     expect(screen.getByText('tireList.mountedDateOnly')).toBeInTheDocument()
   })
 
   it('says both halves of the mount are unknown', () => {
-    useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [{ ...OPEN_PERIOD, mounted_on: null, mounted_odometer_km: null }] }], total: 1 }, isLoading: false, error: null })
+    useTiresMock.mockReturnValue({ data: { tires: [{ ...STORED_FL_TIRE, mount_periods: [{ ...OPEN_PERIOD, mounted_on: null, mounted_odometer_km: null }] }], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
     render(<TireList vin="1HGCM82633A004352" />)
     expect(screen.getByText('tireList.mountedUnknown')).toBeInTheDocument()
   })
 
   it('the stored card says since when, and where', () => {
     const stored = { ...STORED_FL_TIRE, position: null, storage_location: 'Garage shelf B', mount_periods: [{ ...OPEN_PERIOD, dismounted_on: '2026-09-01', dismounted_odometer_km: '160000.00' }] }
-    useTiresMock.mockReturnValue({ data: { tires: [stored], total: 1 }, isLoading: false, error: null })
+    useTiresMock.mockReturnValue({ data: { tires: [stored], total: 1, ...FOUR_LAYOUT }, isLoading: false, error: null })
     render(<TireList vin="1HGCM82633A004352" />)
     expect(screen.getByText(/tireList\.inStorageSince/)).toBeInTheDocument()
     expect(screen.getByText(/Garage shelf B/)).toBeInTheDocument()
   })
+
 })
 
 describe('TireList – mount and dismount', () => {
@@ -874,7 +878,7 @@ describe('TireList – mount and dismount', () => {
 
   it('lists a stored tire without rendering an undefined position', () => {
     useTiresMock.mockReturnValue({
-      data: { tires: [STORED], total: 1 },
+      data: { tires: [STORED], total: 1, ...FOUR_LAYOUT },
       isLoading: false,
       error: null,
     })
@@ -893,7 +897,7 @@ describe('TireList – mount and dismount', () => {
     // reappeared in Dismount and silently became that period's closing bound
     // -- the number a tire's whole distance is computed from.
     useTiresMock.mockReturnValue({
-      data: { tires: [MOUNTED, STORED], total: 2 },
+      data: { tires: [MOUNTED, STORED], total: 2, ...FOUR_LAYOUT },
       isLoading: false,
       error: null,
     })
@@ -921,7 +925,7 @@ describe('TireList – mount and dismount', () => {
     // upgrading, so rendering it as "0 km" would tell every user their tires
     // had never been driven on.
     useTiresMock.mockReturnValue({
-      data: { tires: [STORED], total: 1 },
+      data: { tires: [STORED], total: 1, ...FOUR_LAYOUT },
       isLoading: false,
       error: null,
     })
