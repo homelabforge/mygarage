@@ -70,7 +70,6 @@ class TestTable:
 
         assert tire_schemas.TirePosition is TirePosition
         assert brake_schemas.BrakePosition is BrakePosition
-        assert brake_wear.BrakePosition is BrakePosition
         assert brake_wear.AXLE_OF is BRAKE_AXLE_OF
 
 

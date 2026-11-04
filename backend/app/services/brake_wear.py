@@ -38,14 +38,13 @@ from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from typing import Literal
 
-from app.constants.wheel_layouts import BRAKE_AXLE_OF, BrakePosition
+from app.constants.wheel_layouts import BRAKE_AXLE_OF
 from app.models.brake import BrakeAxle, BrakeJob, BrakeMeasurement
 from app.services.usage_axis import UsageAxis
 
 Axle = Literal["front", "rear"]
 BrakeType = Literal["disc", "drum"]
 
-POSITIONS: tuple[BrakePosition, ...] = ("FL", "FR", "RL", "RR")
 AXLES: tuple[Axle, ...] = ("front", "rear")
 # Old name, so brake_service imports stay put.
 AXLE_OF = BRAKE_AXLE_OF

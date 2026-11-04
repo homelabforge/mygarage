@@ -14,7 +14,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.constants.wheel_layouts import BrakePosition
+from app.constants.wheel_layouts import BrakePosition, WheelLayoutId
 from app.schemas._nullability import reject_null
 from app.schemas.tire import HoursFigure, UsageAxisName
 from app.utils.household_time import household_today
@@ -272,6 +272,9 @@ class BrakeCornerResponse(BaseModel):
     """One corner: its condition, wear estimate, newest figures and history."""
 
     position: BrakePosition
+    #: False for a corner off the vehicle's wheel layout that still has rows.
+    #: It lists and edits as usual, but takes no new measurement or job.
+    on_layout: bool
     axle: Axle
     brake_type: BrakeType
     condition: BrakeConditionName
@@ -311,8 +314,13 @@ class BrakeCornerResponse(BaseModel):
 
 
 class BrakeOverviewResponse(BaseModel):
-    """A vehicle's brakes: both axles and the four corners, FL, FR, RL, RR."""
+    """A vehicle's brakes: both axles and the corners.
 
+    The wheel layout's corners in its order, then any off-layout corner that
+    still has history (#272).
+    """
+
+    wheel_layout: WheelLayoutId
     usage_axis: UsageAxisName = "distance"
     tracks_distance: bool = True
     tracks_hours: bool = False

@@ -601,11 +601,15 @@ COMPUTED_VOCAB: dict[tuple[str, str], tuple[str, str]] = {
     ),
     ("BrakeCornerResponse", "position"): (
         "app.services.brake_service.BrakeService._corners",
-        "one corner per entry of POSITIONS",
+        "the layout's brake_positions, then off-layout BrakePosition codes with rows",
     ),
     ("BrakeCornerResponse", "wear_status"): (
         "app.services.brake_wear.project_brake_wear",
         "every branch returns a BrakeWearStatus member",
+    ),
+    ("BrakeOverviewResponse", "wheel_layout"): (
+        "app.services.wheel_layout_service.vehicle_wheel_layout",
+        "a WHEEL_LAYOUTS entry's id, via resolve_wheel_layout",
     ),
     ("BrakeOverviewResponse", "usage_axis"): (
         "app.services.brake_service.BrakeService._respond",
