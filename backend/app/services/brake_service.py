@@ -523,7 +523,7 @@ class BrakeService:
         if vehicle is None or vehicle.archived_at is not None:
             return
         axes = VehicleAxes.for_vehicle(vehicle.usage_unit, vehicle.secondary_usage_enabled)
-        layout = resolve_wheel_layout(vehicle.wheel_layout, vehicle.vehicle_type)
+        layout = resolve_wheel_layout(vehicle.wheel_layout, vehicle.vehicle_type, vin=vin)
         setups, corners = await self._corners(vin, axes, layout)
         await self._sync_axle_reminders(vin, setups, corners, evidence=(), raise_only=True)
 

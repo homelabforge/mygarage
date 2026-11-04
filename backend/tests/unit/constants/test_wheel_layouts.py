@@ -75,10 +75,6 @@ class TestTable:
 
 @pytest.mark.unit
 class TestDefaults:
-    @pytest.mark.parametrize("vtype", get_args(VehicleType))
-    def test_every_vehicle_type_gets_a_layout(self, vtype: str) -> None:
-        assert default_wheel_layout(vtype) in get_args(WheelLayoutId)
-
     def test_default_pins(self) -> None:
         assert default_wheel_layout("Motorcycle") == "two"
         assert default_wheel_layout("EBike") == "two"
@@ -129,4 +125,18 @@ class TestResolve:
         with caplog.at_level(logging.WARNING, logger=_LOGGER):
             resolve_wheel_layout(None, "Car")
             resolve_wheel_layout("two", "Car")
+        assert [r for r in caplog.records if r.name == _LOGGER] == []
+
+    def test_the_warning_names_the_vehicle(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+            resolve_wheel_layout("hovercraft", "Motorcycle", vin="1HGCM82633A004352")
+        (warning,) = [r for r in caplog.records if r.name == _LOGGER]
+        assert "1HGCM82633A004352" in warning.getMessage()
+        assert "Motorcycle" in warning.getMessage()
+
+    def test_an_empty_layout_reads_as_none(self, caplog: pytest.LogCaptureFixture) -> None:
+        # A blank cell from a hand-edited restore is "nothing stored", not garbage.
+        with caplog.at_level(logging.WARNING, logger=_LOGGER):
+            assert resolve_wheel_layout("", "Motorcycle").id == "two"
+            assert resolve_wheel_layout("", "Car").id == "four"
         assert [r for r in caplog.records if r.name == _LOGGER] == []

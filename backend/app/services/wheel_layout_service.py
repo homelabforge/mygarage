@@ -35,7 +35,7 @@ async def vehicle_wheel_layout(db: AsyncSession, vin: str) -> WheelLayout:
     ).one_or_none()
     if row is None:
         raise HTTPException(status_code=404, detail="Vehicle not found")
-    return resolve_wheel_layout(row.wheel_layout, row.vehicle_type)
+    return resolve_wheel_layout(row.wheel_layout, row.vehicle_type, vin=vin)
 
 
 def refuse_off_layout(

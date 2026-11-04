@@ -575,7 +575,9 @@ class VehicleResponse(VehicleBase):
     @property
     def effective_wheel_layout(self) -> WheelLayoutId:
         """The layout in force: the stored override, else the vehicle type's default (#272)."""
-        return wheel_layouts.resolve_wheel_layout(self.wheel_layout, self.vehicle_type).id
+        return wheel_layouts.resolve_wheel_layout(
+            self.wheel_layout, self.vehicle_type, vin=self.vin
+        ).id
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -20,6 +20,8 @@ WheelLayoutId = Literal["four", "two", "trike_2f1r", "trike_1f2r", "dually", "no
 TirePosition = Literal["FL", "FR", "RL", "RR", "F", "R", "RLO", "RLI", "RRI", "RRO", "SPARE"]
 #: A dually's inner and outer rear tires share one brake, so no RLO-style codes here.
 BrakePosition = Literal["FL", "FR", "RL", "RR", "F", "R"]
+#: The brake schemas and wear math share this one.
+Axle = Literal["front", "rear"]
 
 _WHEEL_LAYOUT_IDS: frozenset[str] = frozenset(get_args(WheelLayoutId))
 
@@ -57,7 +59,7 @@ WHEEL_LAYOUTS: Mapping[WheelLayoutId, WheelLayout] = MappingProxyType(
     }
 )
 
-BRAKE_AXLE_OF: Mapping[BrakePosition, Literal["front", "rear"]] = MappingProxyType(
+BRAKE_AXLE_OF: Mapping[BrakePosition, Axle] = MappingProxyType(
     {"FL": "front", "FR": "front", "F": "front", "RL": "rear", "RR": "rear", "R": "rear"}
 )
 
@@ -80,21 +82,25 @@ def _is_layout_id(value: str) -> TypeIs[WheelLayoutId]:
     return value in _WHEEL_LAYOUT_IDS
 
 
-def resolve_wheel_layout(stored: str | None, vehicle_type: str | None) -> WheelLayout:
-    """The stored layout, or the type's default when it's NULL or one we don't know.
+def resolve_wheel_layout(
+    stored: str | None, vehicle_type: str | None, *, vin: str | None = None
+) -> WheelLayout:
+    """The stored layout, or the type's default when it's NULL, empty or one we don't know.
 
     A restore or a downgrade can leave a layout this build doesn't know. That
     reads as the default and gets logged once, rather than 500ing the vehicle.
+    `vin` only names the row in that log line.
     """
-    if stored is not None and _is_layout_id(stored):
+    if stored and _is_layout_id(stored):
         return WHEEL_LAYOUTS[stored]
     fallback = default_wheel_layout(vehicle_type)
-    if stored is not None:
+    # An empty string is just "nothing stored", same as NULL.
+    if stored:
         warn_once(
             "Vehicle",
             "wheel_layout",
             stored,
             fallback,
-            lambda: f"vehicle_type={sanitize_for_log(vehicle_type)}",
+            lambda: f"vin={sanitize_for_log(vin)} vehicle_type={sanitize_for_log(vehicle_type)}",
         )
     return WHEEL_LAYOUTS[fallback]
