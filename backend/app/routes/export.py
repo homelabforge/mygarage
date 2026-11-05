@@ -130,6 +130,10 @@ limiter = Limiter(key_func=get_remote_address)
 #   (`Invoice #`, `PO #`, `WO #` after `Insurance Claim`) and JSON "9" without
 #   a bump too. An older file imports them as NULL; they stay out of the
 #   import's duplicate key so that file still matches its visits.
+# - A line item's `is_recall` and `is_warranty`, and its `recall` and
+#   `warranty` (places in the file's lists), plus a recall's `resolved_via`
+#   (migration 158) ride JSON "9" without a bump. An older file imports with
+#   no links. The CSV doesn't carry them (D15).
 CSV_SCHEMA_VERSION = "8"
 JSON_SCHEMA_VERSION = "9"
 EXPORT_UNITS = "metric"
@@ -251,7 +255,8 @@ _ALWAYS_EXCLUDED = frozenset({"id", "vin", "created_at", "updated_at"})
 #: The vendor travels by name; the total is recomputed from the items and fees.
 _SERVICE_VISIT_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"vendor_id", "total_cost"}
 #: The visit is the parent; the inspection link travels as an index in the visit.
-#: recall_id and warranty_id are this database's ids, so they never go out as is.
+#: recall_id and warranty_id are this database's ids, so they go out as places
+#: in the file's recalls and warranties instead.
 _LINE_ITEM_JSON_EXCLUDE = frozenset(
     {"id", "visit_id", "triggered_by_inspection_id", "recall_id", "warranty_id", "created_at"}
 )
@@ -405,15 +410,24 @@ def _tire_json(tire: Tire, set_index: dict[int, int]) -> dict[str, Any]:
 
 
 def _line_items_json(
-    visit: ServiceVisit, supply_index: dict[int, int], readable_vins: set[str]
+    visit: ServiceVisit,
+    supply_index: dict[int, int],
+    readable_vins: set[str],
+    recall_index: dict[int, int],
+    warranty_index: dict[int, int],
 ) -> list[dict[str, Any]]:
-    """A visit's line items; an inspection link is the linked item's index here."""
+    """A visit's line items; an inspection link is the linked item's index here, and a
+    recall or warranty link its place in the file's recalls or warranties."""
     position = {item.id: index for index, item in enumerate(visit.line_items)}
     return [
         {
             **_json_columns(item, _LINE_ITEM_JSON_EXCLUDE),
             # A link outside the visit has no index here, so it drops.
             "triggered_by_inspection": position.get(item.triggered_by_inspection_id),
+            "recall": recall_index.get(item.recall_id) if item.recall_id is not None else None,
+            "warranty": (
+                warranty_index.get(item.warranty_id) if item.warranty_id is not None else None
+            ),
             "supply_usages": [
                 _line_item_usage_json(u, supply_index, readable_vins)
                 for u in sorted(item.supply_usages, key=lambda u: u.id)
@@ -1409,6 +1423,9 @@ async def export_vehicle_json(
     job_index = {job.id: index for index, job in enumerate(brake_jobs)}
     # A transaction names its tag by the tag's place in `toll_tags` (R6).
     tag_index = {tag.id: index for index, tag in enumerate(toll_tags)}
+    # A line item names its recall and warranty the same way (Task 8).
+    recall_index = {recall.id: index for index, recall in enumerate(recalls)}
+    warranty_index = {warranty.id: index for index, warranty in enumerate(warranties)}
 
     pinned_supplies = (
         (
@@ -1490,7 +1507,9 @@ async def export_vehicle_json(
             {
                 **_json_columns(v, _SERVICE_VISIT_JSON_EXCLUDE),
                 "vendor_name": v.vendor.name if v.vendor else None,
-                "line_items": _line_items_json(v, supply_index, readable_vins),
+                "line_items": _line_items_json(
+                    v, supply_index, readable_vins, recall_index, warranty_index
+                ),
             }
             for v in service_visits
         ],

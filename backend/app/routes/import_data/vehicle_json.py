@@ -119,6 +119,7 @@ from app.routes.import_data._service import (
 )
 from app.routes.import_data.json_brakes import parse_brakes, write_brakes
 from app.routes.import_data.json_dtcs import import_dtcs
+from app.routes.import_data.json_links import PendingLink, restore_links
 from app.routes.import_data.json_recalls import import_recalls
 from app.routes.import_data.json_schedule import (
     manual_reminder_key,
@@ -357,6 +358,8 @@ async def import_vehicle_json(
     if supplies.outcome == "written" and supplies.plan is not None:
         warnings.extend(supplies.plan.warnings)
     resolver = SupplyResolver(vin, sections["supplies"], current_user, supplies)
+    # Items' recall and warranty links wait for those two lists (Task 8).
+    pending_links: list[PendingLink] = []
 
     # Import service records (creates ServiceVisit + ServiceLineItem + Vendor)
     for idx, record_data in enumerate(sections["service_records"]):
@@ -501,7 +504,7 @@ async def import_vehicle_json(
             ]
             # The supplies a visit used count toward its total (K12).
             total_cost = _visit_total(
-                (columns["cost"] for columns, _link in items),
+                (columns["cost"] for columns, _link, _refs in items),
                 tax_amount,
                 shop_supplies,
                 misc_fees,
@@ -585,7 +588,7 @@ async def import_vehicle_json(
                                 *(_item_key_value(f, columns[f]) for f in item_fields),
                                 *([usage_keys[position]] if compare_usages else []),
                             )
-                            for position, (columns, _link) in enumerate(items)
+                            for position, (columns, _link, _refs) in enumerate(items)
                         ),
                         item_fields=item_fields,
                         compare_usages=compare_usages,
@@ -619,13 +622,13 @@ async def import_vehicle_json(
                 db.add(visit)
                 await db.flush()
                 written = [
-                    ServiceLineItem(visit_id=visit.id, **columns) for columns, _link in items
+                    ServiceLineItem(visit_id=visit.id, **columns) for columns, _link, _refs in items
                 ]
                 db.add_all(written)
                 await db.flush()
                 # An item's link is an index into this visit's items, so it's
                 # set once every item has its id.
-                for line_item, (_columns, link) in zip(written, items, strict=True):
+                for line_item, (_columns, link, _refs) in zip(written, items, strict=True):
                     if link is not None:
                         line_item.triggered_by_inspection_id = written[link].id
                 # A link to an item that isn't an inspection just goes, no error.
@@ -653,6 +656,20 @@ async def import_vehicle_json(
                 await db.flush()
             # The savepoint held, so the supplies it added stay.
             warnings.extend(resolver.visit_done())
+            for position, (line_item, (_columns, _link, refs)) in enumerate(
+                zip(written, items, strict=True)
+            ):
+                warnings.extend(f"Service visit {idx}: {reason}" for reason in refs.dropped)
+                if refs.recall is not None or refs.warranty is not None:
+                    pending_links.append(
+                        PendingLink(
+                            line_item,
+                            visit.date,
+                            refs.recall,
+                            refs.warranty,
+                            f"Service visit {idx}: line item {position}",
+                        )
+                    )
             readings.add(
                 "service_visit",
                 visit.id,
@@ -1317,22 +1334,27 @@ async def import_vehicle_json(
             logger.warning("Import: toll transaction %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Toll transaction {idx}: {_unexpected_reason(e)}")
 
-    # Import warranties
+    # Import warranties. Each place in the list maps to its row, a matched one
+    # included, for the line items' links.
+    warranty_ids: dict[int, int] = {}
     for idx, row in enumerate(sections["warranties"]):
         try:
             record = _warranty_from_json(vin, row)
-            if (
-                skip_duplicates
-                and await matcher.take(
+            stored_warranty: WarrantyRecord | None = (
+                await matcher.take(
                     db, WarrantyRecord, WarrantyRecord.vin == vin, *_json_warranty_key(row, record)
                 )
-                is not None
-            ):
+                if skip_duplicates
+                else None
+            )
+            if stored_warranty is not None:
+                warranty_ids[idx] = stored_warranty.id
                 results["warranties"]["skipped"] += 1
                 continue
 
             async with db.begin_nested():
                 db.add(record)
+            warranty_ids[idx] = record.id
             results["warranties"]["success"] += 1
         except _RowError as e:
             results["warranties"]["errors"] += 1
@@ -1441,7 +1463,7 @@ async def import_vehicle_json(
             errors.append(f"Manual reminder {idx}: {_unexpected_reason(e)}")
 
     # Recalls, keyed on the campaign. One the nightly check put back gains the file's resolution.
-    await import_recalls(
+    landed_recalls = await import_recalls(
         db,
         vin,
         sections["recalls"],
@@ -1449,6 +1471,17 @@ async def import_vehicle_json(
         skip_duplicates=skip_duplicates,
         bucket=results["recalls"],
         errors=errors,
+    )
+
+    # Both lists are in, so the items' recall and warranty links can land.
+    await restore_links(
+        db,
+        vin,
+        pending_links,
+        recall_ids=landed_recalls.ids,
+        warranty_ids=warranty_ids,
+        written_recalls=landed_recalls.written,
+        warnings=warnings,
     )
 
     # DTCs, keyed on code and first seen. The index keeps one active row per code.

@@ -28,6 +28,7 @@ from app.routes.import_data._common import (
     _blank_to_none,
     _ImportBoundError,
     _in_vocabulary,
+    _json_bool,
     _json_decimal,
     _json_text,
     _RowError,
@@ -57,9 +58,52 @@ from app.utils.csv_units import (
 from app.utils.maintenance_types import classify, resolve_type
 from app.utils.money_fits import too_large
 
+#: What a dropped recall or warranty link says, after the item it's on.
+_LINK_DROPPED = "so it was saved without the link"
 
-def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str, Any], int | None]:
-    """One v9 line item's columns, and the index of the item that triggered it.
+
+@dataclass(frozen=True)
+class _ItemLinks:
+    """A line item's recall and warranty, as places in the file's lists (Task 8).
+
+    `dropped` says why a link the item carried won't be restored. The route
+    sets the links once both lists are in.
+    """
+
+    recall: int | None = None
+    warranty: int | None = None
+    dropped: tuple[str, ...] = ()
+
+
+def _item_links(position: int, item: Mapping[str, Any], flags: Mapping[str, bool]) -> _ItemLinks:
+    """The item's recall and warranty indexes. A bad one or one with its flag off drops,
+    with a reason, so the visit still comes in."""
+    found: dict[str, int | None] = {}
+    dropped: list[str] = []
+    for kind in ("recall", "warranty"):
+        index = item.get(kind)
+        found[kind] = None
+        if index is None:
+            continue
+        if not flags[kind]:
+            dropped.append(
+                f"line item {position}: {kind} is set but is_{kind} is false, {_LINK_DROPPED}"
+            )
+        elif isinstance(index, bool) or not isinstance(index, int) or index < 0:
+            dropped.append(
+                f"line item {position}: {kind} must be the index of a {kind} in this file, "
+                f"{_LINK_DROPPED}"
+            )
+        else:
+            found[kind] = index
+    return _ItemLinks(found["recall"], found["warranty"], tuple(dropped))
+
+
+def _line_item_from_json(
+    position: int, item: Any, count: int
+) -> tuple[dict[str, Any], int | None, _ItemLinks]:
+    """One v9 line item's columns, the index of the item that triggered it, and its
+    recall and warranty links.
 
     The API's rules re-applied (R2); a row error names the item by `position`.
     """
@@ -102,6 +146,8 @@ def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str
             raise _RowError(
                 "triggered_by_inspection must be the index of another line item in this visit"
             )
+        is_recall = _json_bool(item, "is_recall", default=False)
+        is_warranty = _json_bool(item, "is_warranty", default=False)
     except _RowError as e:
         raise _RowError(f"line item {position}: {e.reason}") from e
     columns = {
@@ -113,8 +159,11 @@ def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str
         "is_inspection": bool(item.get("is_inspection", False)),
         "inspection_result": inspection_result,
         "inspection_severity": inspection_severity,
+        "is_recall": is_recall,
+        "is_warranty": is_warranty,
     }
-    return columns, link
+    links = _item_links(position, item, {"recall": is_recall, "warranty": is_warranty})
+    return columns, link, links
 
 
 @dataclass(frozen=True)

@@ -266,7 +266,8 @@ SECTIONS = [
                 "created_at",
             }
         ),
-        portable=frozenset({"triggered_by_inspection", "supply_usages"}),
+        # The recall and warranty go as their place in this file's lists.
+        portable=frozenset({"triggered_by_inspection", "supply_usages", "recall", "warranty"}),
     ),
     JsonSection(
         "fuel_records",

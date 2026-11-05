@@ -2,14 +2,15 @@
 
 A flat section, matched one to one like warranties (R5). A recall the nightly
 check already put back keeps everything it has, and only gains a resolution
-and notes from the file when it has neither.
+(resolved_via too) and notes from the file when it has neither.
 """
 
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false, reportUnusedClass=false
 
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, get_args
 
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,10 +30,26 @@ from app.routes.import_data._common import (
 )
 from app.routes.import_data._families import as_object
 from app.routes.import_data._matching import _DuplicateMatcher, _matches, _text_matches
+from app.schemas.recall import ResolvedVia
 from app.services.recalls.base import RECALL_SOURCES, SOURCE_NHTSA
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
+
+#: How a recall got resolved (D10); blank is a legacy row.
+_RESOLVED_VIA: tuple[str, ...] = get_args(ResolvedVia)
+
+
+@dataclass
+class ImportedRecalls:
+    """Where the file's recalls landed, for the line item links.
+
+    `ids` maps a place in the file's list to the row it's now, a stored one
+    when it matched; `written` is every row this import wrote to, new or filled.
+    """
+
+    ids: dict[int, int] = field(default_factory=lambda: {})
+    written: set[int] = field(default_factory=lambda: set())
 
 
 def _recall_from_json(vin: str, row: Mapping[str, Any]) -> Recall:
@@ -58,6 +75,9 @@ def _recall_from_json(vin: str, row: Mapping[str, Any]) -> Recall:
         date_announced=_json_optional_date(row, "date_announced"),
         is_resolved=_json_bool(row, "is_resolved", default=False),
         resolved_at=_json_row_datetime(row, "resolved_at"),
+        resolved_via=_in_vocabulary(
+            _blank_to_none(row.get("resolved_via")), "resolved_via", _RESOLVED_VIA
+        ),
         notes=_json_text(row, "notes"),
     )
 
@@ -94,8 +114,9 @@ async def import_recalls(
     skip_duplicates: bool,
     bucket: dict[str, int],
     errors: list[str],
-) -> None:
+) -> ImportedRecalls:
     """Import the file's recalls one row at a time, a bad one a row error (3a's flat loop)."""
+    landed = ImportedRecalls()
     for idx, row in enumerate(rows):
         try:
             data = as_object(row)
@@ -111,12 +132,17 @@ async def import_recalls(
                         async with db.begin_nested():
                             stored.is_resolved = recall.is_resolved
                             stored.resolved_at = recall.resolved_at
+                            stored.resolved_via = recall.resolved_via
                             stored.notes = recall.notes
+                        landed.written.add(stored.id)
+                    landed.ids[idx] = stored.id
                     bucket["skipped"] += 1
                     continue
 
             async with db.begin_nested():
                 db.add(recall)
+            landed.ids[idx] = recall.id
+            landed.written.add(recall.id)
             bucket["success"] += 1
         except _RowError as e:
             bucket["errors"] += 1
@@ -125,3 +151,4 @@ async def import_recalls(
             bucket["errors"] += 1
             logger.warning("Import: recall %s failed: %s", idx, sanitize_for_log(e))
             errors.append(f"Recall {idx}: {_unexpected_reason(e)}")
+    return landed
