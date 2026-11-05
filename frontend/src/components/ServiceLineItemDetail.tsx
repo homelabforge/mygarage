@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Calendar, ExternalLink, Gauge, Store } from 'lucide-react'
 import type { ServiceVisit, ServiceLineItem } from '../types/serviceVisit'
 import FormModalWrapper from './FormModalWrapper'
+import LineItemLinkChips from './LineItemLinkChips'
 import { Button, Chip, Mono } from './ui'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
@@ -86,6 +87,7 @@ export default function ServiceLineItemDetail({
               {t(INSPECTION_RESULT_KEYS[item.inspection_result] ?? INSPECTION_RESULT_FALLBACK_KEY)}
             </Chip>
           )}
+          <LineItemLinkChips item={item} />
         </div>
 
         <section className="space-y-2">

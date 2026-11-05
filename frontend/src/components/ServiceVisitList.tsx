@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useId } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -29,16 +30,24 @@ import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { withBase } from '../utils/basePath'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { getUsageTracking } from '../utils/usageTracking'
-import { useServiceVisits, useDeleteServiceVisit } from '../hooks/queries/useServiceVisits'
+import { useServiceVisits, useServiceVisit, useDeleteServiceVisit } from '../hooks/queries/useServiceVisits'
 import { Button, IconButton, Chip, Mono, SearchField, EmptyState } from './ui'
 import ServiceLineItemDetail from './ServiceLineItemDetail'
+import LineItemLinkChips from './LineItemLinkChips'
 import ClickableCard, { cameFromNestedControl } from './ClickableCard'
 import { isSelectingText } from '../utils/textSelection'
 import {
   INSPECTION_RESULT_KEYS,
   INSPECTION_RESULT_FALLBACK_KEY,
   getServiceCategoryTone,
+  SERVICE_ITEM_PARAMS,
 } from '../constants/serviceVisit'
+
+/** A link param as a row id, or null when it isn't one. */
+function idParam(value: string | null): number | null {
+  const id = Number(value)
+  return value !== null && Number.isInteger(id) && id > 0 ? id : null
+}
 
 interface ServiceVisitListProps {
   vin: string
@@ -76,6 +85,41 @@ export default function ServiceVisitList({
   const deleteMutation = useDeleteServiceVisit(vin)
 
   const visits = useMemo(() => data?.visits ?? [], [data?.visits])
+
+  // `?visit=&item=` (from the Recalls or Warranties tab) opens that service
+  // line. It's fetched on its own, since the list only has the first page.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linkVisitId = idParam(searchParams.get(SERVICE_ITEM_PARAMS.visit))
+  const linkItemId = idParam(searchParams.get(SERVICE_ITEM_PARAMS.item))
+  const { data: linkedVisit, isError: linkedVisitFailed } = useServiceVisit(vin, linkVisitId)
+  const linkedItem = linkedVisit?.line_items.find((li) => li.id === linkItemId)
+  const linkedDetail = linkedVisit && linkedItem ? { visit: linkedVisit, item: linkedItem } : null
+  const shown = detail ?? linkedDetail
+
+  const dropLinkParams = useCallback((): void => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete(SERVICE_ITEM_PARAMS.visit)
+        next.delete(SERVICE_ITEM_PARAMS.item)
+        return next
+      },
+      { replace: true },
+    )
+  }, [setSearchParams])
+
+  // A link that can't open (visit gone, item gone, garbled) just goes away.
+  const deadLink =
+    searchParams.has(SERVICE_ITEM_PARAMS.visit) &&
+    (linkVisitId === null || linkItemId === null || linkedVisitFailed || (!!linkedVisit && !linkedItem))
+  useEffect(() => {
+    if (deadLink) dropLinkParams()
+  }, [deadLink, dropLinkParams])
+
+  const closeDetail = (): void => {
+    setDetail(null)
+    if (linkedDetail) dropLinkParams()
+  }
 
   // Fetch vehicle data to determine tracked usage dimension(s).
   useEffect(() => {
@@ -229,7 +273,7 @@ export default function ServiceVisitList({
             : <Wrench aria-hidden="true" className="w-4 h-4 text-text-mute" />}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-text font-medium">{item.description}</span>
             {item.is_inspection && (
               <Chip tone="info">{t('serviceList.inspection')}</Chip>
@@ -242,6 +286,7 @@ export default function ServiceVisitList({
                 </span>
               </span>
             )}
+            <LineItemLinkChips item={item} />
           </div>
           {item.notes && <p className="text-xs text-text-mute mt-1">{item.notes}</p>}
         </div>
@@ -538,13 +583,13 @@ export default function ServiceVisitList({
         </div>
       )}
 
-      {detail && (
+      {shown && (
         <ServiceLineItemDetail
-          visit={detail.visit}
-          item={detail.item}
+          visit={shown.visit}
+          item={shown.item}
           tracksDistance={tracksDistance}
           tracksHours={tracksHours}
-          onClose={() => setDetail(null)}
+          onClose={closeDetail}
         />
       )}
     </div>

@@ -773,7 +773,13 @@
       "reminderMode": "Reminder",
       "reminderModeOnce": "One-time, on a date",
       "reminderModeRecurring": "Repeat after this service",
-      "reminderRecurringHelp": "The next reminder counts from this visit's date and odometer."
+      "reminderRecurringHelp": "The next reminder counts from this visit's date and odometer.",
+      "isRecallItem": "This is a recall item",
+      "isWarrantyItem": "This is a warranty item",
+      "pickRecall": "Which recall",
+      "noSpecificRecall": "No specific recall",
+      "pickWarranty": "Which warranty",
+      "noSpecificWarranty": "No specific warranty"
     }
   },
   "livelink": {
@@ -1090,7 +1096,11 @@
       "manual": "Manual"
     },
     "noVinNote": "NHTSA looks recalls up by VIN, so it isn't asked about this vehicle. Sources that match on make and model still are.",
-    "noVinNoProvider": "No recall source covers a vehicle without a VIN in this country."
+    "noVinNoProvider": "No recall source covers a vehicle without a VIN in this country.",
+    "unnamed": "Unnamed recall",
+    "resolvedAtVisit": "Resolved at the service visit on {{date}}",
+    "resolvedAtVisitVendor": "Resolved at the service visit on {{date}} ({{vendor}})",
+    "reopenBlocked": "Fixed on the service visit on {{date}}. Unlink it there to reopen."
   },
   "reminderList": {
     "addReminder": "Add Reminder",
@@ -1178,7 +1188,7 @@
     "deleteFailedDesc": "Failed to delete visit",
     "deleted": "Service visit deleted",
     "inspection": "Inspection",
-    "insuranceClaim": "Insurance Claim",
+    "insuranceClaim": "Insurance Claim #",
     "invoice": "Invoice #",
     "loading": "Loading service history...",
     "logFirstVisit": "Log First Service Visit",
@@ -1210,7 +1220,10 @@
     "total": "Total",
     "visitCount": "{{count}} visits",
     "workOrder": "WO #",
-    "loadAction": "load service history"
+    "loadAction": "load service history",
+    "recallChip": "Recall {{campaign}}",
+    "recallChipPlain": "Recall",
+    "warrantyChip": "Warranty"
   },
   "serviceVisitAttachmentUpload": {
     "title": "Upload Attachment",
@@ -1828,7 +1841,8 @@
     "startDate": "Start Date",
     "title": "Warranties",
     "warrantyCount": "{{count}} warranties tracked",
-    "loadAction": "load warranties"
+    "loadAction": "load warranties",
+    "usedOn": "Used on"
   },
   "windowSticker": {
     "dropOrClick": "Drop file here or click to upload",

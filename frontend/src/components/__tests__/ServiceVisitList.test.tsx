@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ServiceVisit } from '../../types/serviceVisit'
 import { METRIC_UNITS } from '../../__tests__/factories'
 import { formatDateForDisplay } from '../../utils/dateUtils'
-import { render as renderWithRouter } from '../../__tests__/test-utils'
+// The list reads its link params from the router, so every render needs one.
+import { render, render as renderWithRouter } from '../../__tests__/test-utils'
 
 const useServiceVisitsMock = vi.fn()
 const deleteMutate = vi.fn()
@@ -12,6 +13,7 @@ const deleteMutate = vi.fn()
 vi.mock('../../hooks/queries/useServiceVisits', () => ({
   useServiceVisits: () => useServiceVisitsMock(),
   useDeleteServiceVisit: () => ({ mutate: deleteMutate, isPending: false, variables: undefined }),
+  useServiceVisit: () => ({ data: undefined, isError: false }),
 }))
 // Hoisted + mutable (kept "mock"-prefixed per Vitest's factory-hoisting rule) so the
 // Task 14 usage-tracking suite below can vary the /vehicles/{vin} response per test;

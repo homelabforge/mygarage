@@ -102,6 +102,7 @@ vi.mock('../../hooks/queries/useWarrantyRecords', () => ({
 }))
 vi.mock('../../hooks/queries/useServiceVisits', () => ({
   useServiceVisits: () => ({ data: { visits: [VISIT] }, isLoading: false, error: null }),
+  useServiceVisit: () => ({ data: undefined, isError: false }),
   useDeleteServiceVisit: () => ({ mutate: vi.fn(), isPending: false, variables: undefined }),
 }))
 vi.mock('../../hooks/useReminders', () => ({

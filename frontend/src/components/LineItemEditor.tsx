@@ -10,7 +10,7 @@ import CurrencyInput from './common/CurrencyInput'
 import SupplyUsedPicker from './SupplyUsedPicker'
 import MaintenanceTypeSelect from './MaintenanceTypeSelect'
 import RecurrenceFields from './RecurrenceFields'
-import { Select, useCombobox } from './ui'
+import { Select, useCombobox, type SelectOption } from './ui'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { readTypedNumber } from '../utils/decimalInput'
 
@@ -49,6 +49,10 @@ interface LineItemEditorProps {
   currentMileage?: number | null
   /** Whether the vehicle tracks engine hours (offers an hours interval). */
   tracksHours?: boolean
+  // The recalls this line can link. ServiceVisitForm builds them, since it
+  // knows which ones the other lines already hold.
+  recallOptions?: SelectOption[]
+  warrantyOptions?: SelectOption[]
 }
 
 export default function LineItemEditor({
@@ -65,6 +69,8 @@ export default function LineItemEditor({
   categories = [],
   isNewItem = true,
   tracksHours = false,
+  recallOptions = [],
+  warrantyOptions = [],
 }: LineItemEditorProps) {
   const { t } = useTranslation('vehicles')
   const { formatCurrency } = useCurrencyPreference()
@@ -311,6 +317,72 @@ export default function LineItemEditor({
               onSeverityChange={(val) => onChange(index, 'inspection_severity', val)}
               disabled={disabled}
             />
+          )}
+
+          {/* Recall and warranty work. Each is a flag with an optional link (D8, D2);
+              unticking drops the link too. Independent of the inspection flag (D14). */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id={`recall-${index}`}
+              checked={item.is_recall}
+              onChange={(e) => {
+                onChange(index, 'is_recall', e.target.checked)
+                if (!e.target.checked) onChange(index, 'recall_id', null)
+              }}
+              disabled={disabled}
+              className="w-4 h-4 accent-(--accent-solid) focus:ring-2 focus:ring-primary border-garage-border rounded"
+            />
+            <label htmlFor={`recall-${index}`} className="text-sm text-garage-text">
+              {t('lineItemEditor.misc.isRecallItem')}
+            </label>
+          </div>
+          {item.is_recall && (
+            <div>
+              <label htmlFor={`recall-pick-${index}`} className="block text-sm font-medium text-garage-text mb-1">
+                {t('lineItemEditor.misc.pickRecall')}
+              </label>
+              <Select
+                id={`recall-pick-${index}`}
+                value={item.recall_id == null ? '' : String(item.recall_id)}
+                onChange={(e) => onChange(index, 'recall_id', e.target.value ? Number(e.target.value) : null)}
+                disabled={disabled}
+                placeholder={t('lineItemEditor.misc.noSpecificRecall')}
+                options={recallOptions}
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id={`warranty-${index}`}
+              checked={item.is_warranty}
+              onChange={(e) => {
+                onChange(index, 'is_warranty', e.target.checked)
+                if (!e.target.checked) onChange(index, 'warranty_id', null)
+              }}
+              disabled={disabled}
+              className="w-4 h-4 accent-(--accent-solid) focus:ring-2 focus:ring-primary border-garage-border rounded"
+            />
+            <label htmlFor={`warranty-${index}`} className="text-sm text-garage-text">
+              {t('lineItemEditor.misc.isWarrantyItem')}
+            </label>
+          </div>
+          {item.is_warranty && (
+            <div>
+              <label htmlFor={`warranty-pick-${index}`} className="block text-sm font-medium text-garage-text mb-1">
+                {t('lineItemEditor.misc.pickWarranty')}
+              </label>
+              <Select
+                id={`warranty-pick-${index}`}
+                value={item.warranty_id == null ? '' : String(item.warranty_id)}
+                onChange={(e) => onChange(index, 'warranty_id', e.target.value ? Number(e.target.value) : null)}
+                disabled={disabled}
+                placeholder={t('lineItemEditor.misc.noSpecificWarranty')}
+                options={warrantyOptions}
+              />
+            </div>
           )}
 
           {/* Triggered by inspection (for repair items) — uses refId instead of array index */}

@@ -31,3 +31,10 @@ const SERVICE_CATEGORY_TONE: Record<string, Tone> = {
   Upgrades: 'muted',
 }
 export const getServiceCategoryTone = (category?: string): Tone => SERVICE_CATEGORY_TONE[category ?? ''] ?? 'default'
+
+/** The search params that open one service line from another tab. */
+export const SERVICE_ITEM_PARAMS = { visit: 'visit', item: 'item' } as const
+
+/** Search string for a link from the Recalls or Warranties tab to the line that used it. */
+export const serviceItemSearch = (visitId: number, itemId: number): string =>
+  `?tab=service&${SERVICE_ITEM_PARAMS.visit}=${visitId}&${SERVICE_ITEM_PARAMS.item}=${itemId}`

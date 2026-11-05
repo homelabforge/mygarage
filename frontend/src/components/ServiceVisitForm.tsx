@@ -8,6 +8,8 @@ import { reminderDraftToCreate } from '../types/reminder'
 import type { Vehicle, VehicleType } from '../types/vehicle'
 import { NON_MOTORIZED_TYPES } from '../schemas/vehicle'
 import type { Supply } from '../types/supplies'
+import type { Recall } from '../types/recall'
+import type { WarrantyRecord } from '../types/warranty'
 import { SERVICE_CATEGORIES } from '../schemas/serviceVisit'
 import { MONEY_MAX } from '../schemas/shared'
 import VendorSearch from './VendorSearch'
@@ -16,6 +18,8 @@ import ServiceVisitAttachmentUpload from './ServiceVisitAttachmentUpload'
 import ServiceVisitAttachmentList from './ServiceVisitAttachmentList'
 import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/useServiceVisits'
 import { useSupplies } from '../hooks/queries/useSupplies'
+import { useRecallRecords } from '../hooks/queries/useRecallRecords'
+import { useWarrantyRecords } from '../hooks/queries/useWarrantyRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useLatestMileage } from '../hooks/useLatestMileage'
@@ -27,7 +31,7 @@ import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors, withoutFieldError } from '../hooks/useApiFormErrors'
-import { Button, Chip, Field, Input, NumberInput, Textarea, Mono } from './ui'
+import { Button, Chip, Field, Input, NumberInput, Textarea, Mono, type SelectOption } from './ui'
 import CurrencyInput from './common/CurrencyInput'
 import { formatCurrency, formatCurrencyZero } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -102,6 +106,14 @@ const REF_FIELDS: readonly { field: RefField; id: string }[] = [
 const REF_MAX_LENGTH = 50
 
 const isRefField = (field: string): field is RefField => REF_FIELDS.some((ref) => ref.field === field)
+
+/**
+ * Whether a line on this visit may link the recall. An open or hand-resolved
+ * recall nobody links is free, and so is one a line of this same visit holds,
+ * so a link can move between lines in one save. One fixed on another visit isn't.
+ */
+const recallIsFree = (recall: Recall, visitId: number | undefined): boolean =>
+  recall.linked_visit == null || recall.linked_visit.visit_id === visitId
 
 /** A seeded number as box text. It's only parsed once the user edits it; until then formData keeps the number. */
 const textOf = (value: number | undefined): string => (value == null ? '' : String(value))
@@ -179,6 +191,14 @@ function ServiceVisitForm({
     supplyUnitsRef.current = grown
   }
   const unitsBySupplyId = supplyUnitsRef.current
+  // Every recall (open and resolved) and warranty, for the line items' pickers.
+  // Same cache entries as the Recalls and Warranties tabs.
+  const { data: recallData } = useRecallRecords(vin)
+  const { data: warrantyData } = useWarrantyRecords(vin)
+  const recalls = useMemo(() => recallData?.recalls ?? [], [recallData])
+  // The answer is a list. Anything else (an error page from a proxy) reads as none,
+  // so it can't take the whole form down.
+  const warranties = useMemo<WarrantyRecord[]>(() => (Array.isArray(warrantyData) ? warrantyData : []), [warrantyData])
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -394,6 +414,33 @@ function ServiceVisitForm({
       }))
       .filter((item) => item.failed)
   }, [formData.line_items])
+
+  const recallLabel = (recall: Recall): string =>
+    [recall.nhtsa_campaign_number || recall.external_id, recall.component].filter(Boolean).join(' · ') ||
+    t('vehicles:recallList.unnamed')
+
+  // A recall can only be on one line (D9), so each line's list leaves out the
+  // ones the other lines picked, but always keeps its own.
+  const recallOptionsFor = (index: number): SelectOption[] => {
+    const own = formData.line_items[index]?.recall_id ?? null
+    const taken = new Set(
+      formData.line_items
+        .filter((other, i) => i !== index && other.is_recall && other.recall_id != null)
+        .map((other) => other.recall_id),
+    )
+    return recalls
+      .filter((r) => r.id === own || (!taken.has(r.id) && recallIsFree(r, visit?.id)))
+      .map((r) => ({ value: String(r.id), label: recallLabel(r) }))
+  }
+
+  const warrantyOptions = useMemo<SelectOption[]>(
+    () =>
+      warranties.map((w) => ({
+        value: String(w.id),
+        label: w.provider ? `${w.warranty_type} (${w.provider})` : w.warranty_type,
+      })),
+    [warranties],
+  )
 
   const handleFieldChange = (field: keyof ServiceVisitFormData, value: unknown): void => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -973,6 +1020,8 @@ function ServiceVisitForm({
                     isNewItem={!item.id}
                     currentMileage={currentMileage}
                     tracksHours={tracksHours}
+                    recallOptions={recallOptionsFor(index)}
+                    warrantyOptions={warrantyOptions}
                   />
                   {/* Quick action to add repair from failed inspection */}
                   {item.is_inspection &&

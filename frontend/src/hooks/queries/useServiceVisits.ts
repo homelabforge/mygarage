@@ -1,7 +1,17 @@
-import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import { invalidateMaintenanceQueries } from '@/hooks/useReminders'
-import type { ServiceVisitListResponse, ServiceVisitCreate, ServiceVisitUpdate } from '@/types/serviceVisit'
+import type { ServiceVisit, ServiceVisitListResponse, ServiceVisitCreate, ServiceVisitUpdate } from '@/types/serviceVisit'
+
+/**
+ * A visit write can link, unlink or drop a recall or warranty, and the Recalls
+ * and Warranties tabs both show the visit that used them, so they go stale too.
+ */
+function invalidateVisitWrite(queryClient: QueryClient, vin: string): void {
+  invalidateMaintenanceQueries(queryClient, vin)
+  void queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
+  void queryClient.invalidateQueries({ queryKey: ['warranties', vin] })
+}
 
 export function useServiceVisits(vin: string) {
   return useQuery({
@@ -13,6 +23,21 @@ export function useServiceVisits(vin: string) {
       return data
     },
     enabled: !!vin,
+  })
+}
+
+/**
+ * One visit by id, for a link from the Recalls or Warranties tab. The list
+ * only holds the first page, so an older visit has to come from here.
+ */
+export function useServiceVisit(vin: string, visitId: number | null) {
+  return useQuery({
+    queryKey: ['serviceVisits', vin, 'visit', visitId],
+    queryFn: async () => {
+      const { data } = await api.get<ServiceVisit>(`/vehicles/${vin}/service-visits/${visitId}`)
+      return data
+    },
+    enabled: !!vin && visitId != null,
   })
 }
 
@@ -51,7 +76,7 @@ export function useCreateServiceVisit(vin: string) {
     // A typed service is the newest event of a rule's type: it can complete
     // a pending reminder and create the next one, so reminders (and the
     // readings the visit synced) are invalidated with the visits.
-    onSuccess: () => invalidateMaintenanceQueries(queryClient, vin),
+    onSuccess: () => invalidateVisitWrite(queryClient, vin),
   })
 }
 
@@ -65,7 +90,7 @@ export function useUpdateServiceVisit(vin: string) {
     // A typed service is the newest event of a rule's type: it can complete
     // a pending reminder and create the next one, so reminders (and the
     // readings the visit synced) are invalidated with the visits.
-    onSuccess: () => invalidateMaintenanceQueries(queryClient, vin),
+    onSuccess: () => invalidateVisitWrite(queryClient, vin),
   })
 }
 
@@ -78,6 +103,6 @@ export function useDeleteServiceVisit(vin: string) {
     // A typed service is the newest event of a rule's type: it can complete
     // a pending reminder and create the next one, so reminders (and the
     // readings the visit synced) are invalidated with the visits.
-    onSuccess: () => invalidateMaintenanceQueries(queryClient, vin),
+    onSuccess: () => invalidateVisitWrite(queryClient, vin),
   })
 }
