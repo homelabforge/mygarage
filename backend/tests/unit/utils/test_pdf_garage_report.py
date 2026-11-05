@@ -192,7 +192,8 @@ class TestGenerateGarageAnalyticsPdf:
         assert "GARAGE VALUE" in text
         assert "RUNNING COST" in text
         assert "OPERATING COST" not in text
-        assert "TOTAL MAINTENANCE" in text
+        assert "TOTAL MAINTENANCE $5,000.00 Maintenance category" in text
+        assert "Service records" not in text
         assert "TOTAL FUEL" in text
 
     def test_contains_vehicle_names(self) -> None:
@@ -298,6 +299,40 @@ class TestGenerateGarageAnalyticsPdf:
         assert "$300" in text  # detailing
 
 
+class TestCostByVehicleTotals:
+    """The Total column prints cents, so the rows add up to the Running Cost card.
+    Normalized, not whitespace-stripped, so a total wrapped mid-number fails."""
+
+    @staticmethod
+    def _with_cents(data: dict) -> dict:
+        totals = [Decimal("5850.25"), Decimal("10200.75"), Decimal("1450.40")]
+        for vehicle, total in zip(data["cost_by_vehicle"], totals, strict=True):
+            vehicle["total_cost"] = total
+        data["total_costs"]["total_running_cost"] = sum(totals, Decimal("0.00"))
+        return data
+
+    def test_the_total_column_carries_cents(self) -> None:
+        data = self._with_cents(_make_garage_data())
+        text = _extract_text(
+            generate_garage_analytics_pdf(data, date_order="mdy").read(), normalize=True
+        )
+        for total in ("$5,850.25", "$10,200.75", "$1,450.40"):
+            assert total in text
+        # The other money columns stay compact.
+        assert "$30,000" in text and "$30,000.00" not in text
+
+    def test_a_five_figure_total_with_a_long_symbol_fits_on_one_line(self) -> None:
+        data = self._with_cents(_make_garage_data())
+        data["cost_by_vehicle"][1]["total_cost"] = Decimal("12345.67")
+        text = _extract_text(
+            generate_garage_analytics_pdf(
+                data, currency_code="CAD", locale="en-CA", date_order="mdy"
+            ).read(),
+            normalize=True,
+        )
+        assert "CA$12,345.67" in text
+
+
 class TestLargeCurrencyValuesRenderIntact:
     """A knock-on effect of Task 5's KPI value fitting, on a report Task 5
     does not otherwise touch.
@@ -354,23 +389,24 @@ def test_every_chart_labels_money_in_the_report_currency(
         assert not any("$" in t for t in texts), texts
 
 
-def _twelve_months(nonzero: dict[str, dict[str, Decimal]] | None = None) -> list[dict]:
+def _twelve_months(
+    nonzero: dict[str, dict[str, Decimal]] | None = None,
+) -> list[dict[str, str | Decimal]]:
     """The 12-month window the API now sends, zeros included."""
     nonzero = nonzero or {}
-    months = []
+    months: list[dict[str, str | Decimal]] = []
     for i in range(12):
         month = f"M{i + 1:02d} 2026"
-        row = {
-            "month": month,
+        amounts: dict[str, Decimal] = {
             "service": Decimal("0.00"),
             "fuel": Decimal("0.00"),
             "def_cost": Decimal("0.00"),
             "insurance": Decimal("0.00"),
             "financing": Decimal("0.00"),
         }
-        row.update(nonzero.get(month, {}))
-        row["total"] = row["service"] + row["fuel"] + row["def_cost"]
-        months.append(row)
+        amounts.update(nonzero.get(month, {}))
+        total = amounts["service"] + amounts["fuel"] + amounts["def_cost"]
+        months.append({"month": month, **amounts, "total": total})
     return months
 
 
