@@ -625,7 +625,6 @@
       "selectPlaceholder": "Seleziona...",
       "typeOrSelect": "Digita o seleziona un servizio...",
       "selectCategoryFirst": "Seleziona prima una categoria...",
-      "isInspectionItem": "Questa è una voce di revisione/ispezione",
       "triggeredByFailedInspection": "Generato da un'ispezione non superata",
       "notTriggeredByInspection": "Non generato da un'ispezione",
       "notesPlaceholder": "Ulteriori dettagli...",

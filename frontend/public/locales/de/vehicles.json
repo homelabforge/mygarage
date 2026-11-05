@@ -526,7 +526,6 @@
       "selectPlaceholder": "Auswählen...",
       "typeOrSelect": "Service eingeben oder auswählen...",
       "selectCategoryFirst": "Wähle zuerst eine Kategorie aus...",
-      "isInspectionItem": "Dies ist ein Inspektionspunkt",
       "triggeredByFailedInspection": "Ausgelöst durch fehlgeschlagene Inspektion",
       "notTriggeredByInspection": "Nicht durch Inspektion ausgelöst",
       "notesPlaceholder": "Zusätzliche Details...",

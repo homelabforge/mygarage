@@ -10,7 +10,7 @@ import CurrencyInput from './common/CurrencyInput'
 import SupplyUsedPicker from './SupplyUsedPicker'
 import MaintenanceTypeSelect from './MaintenanceTypeSelect'
 import RecurrenceFields from './RecurrenceFields'
-import { Select, useCombobox, type SelectOption } from './ui'
+import { Chip, Select, useCombobox, type SelectOption } from './ui'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { readTypedNumber } from '../utils/decimalInput'
 
@@ -287,25 +287,48 @@ export default function LineItemEditor({
             </div>
           </div>
 
-          {/* Inspection toggle */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
+          {/* Inspection, recall and warranty are independent flags (D14). Turning one
+              off drops what hangs off it: the result, or the link (D8, D2). */}
+          <div role="group" aria-labelledby={`item-kind-label-${index}`} className="flex flex-wrap items-center gap-2">
+            <span id={`item-kind-label-${index}`} className="text-sm font-medium text-garage-text">
+              {t('lineItemEditor.misc.markAs')}
+            </span>
+            <Chip
               id={`inspection-${index}`}
-              checked={item.is_inspection}
-              onChange={(e) => {
-                onChange(index, 'is_inspection', e.target.checked)
-                if (!e.target.checked) {
+              selected={item.is_inspection}
+              disabled={disabled}
+              onClick={() => {
+                onChange(index, 'is_inspection', !item.is_inspection)
+                if (item.is_inspection) {
                   onChange(index, 'inspection_result', '')
                   onChange(index, 'inspection_severity', '')
                 }
               }}
+            >
+              {t('lineItemEditor.misc.inspectionChip')}
+            </Chip>
+            <Chip
+              id={`recall-${index}`}
+              selected={item.is_recall}
               disabled={disabled}
-              className="w-4 h-4 accent-(--accent-solid) focus:ring-2 focus:ring-primary border-garage-border rounded"
-            />
-            <label htmlFor={`inspection-${index}`} className="text-sm text-garage-text">
-              {t('lineItemEditor.misc.isInspectionItem')}
-            </label>
+              onClick={() => {
+                onChange(index, 'is_recall', !item.is_recall)
+                if (item.is_recall) onChange(index, 'recall_id', null)
+              }}
+            >
+              {t('lineItemEditor.misc.recallChip')}
+            </Chip>
+            <Chip
+              id={`warranty-${index}`}
+              selected={item.is_warranty}
+              disabled={disabled}
+              onClick={() => {
+                onChange(index, 'is_warranty', !item.is_warranty)
+                if (item.is_warranty) onChange(index, 'warranty_id', null)
+              }}
+            >
+              {t('lineItemEditor.misc.warrantyChip')}
+            </Chip>
           </div>
 
           {/* Inspection result (if inspection) */}
@@ -319,24 +342,6 @@ export default function LineItemEditor({
             />
           )}
 
-          {/* Recall and warranty work. Each is a flag with an optional link (D8, D2);
-              unticking drops the link too. Independent of the inspection flag (D14). */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id={`recall-${index}`}
-              checked={item.is_recall}
-              onChange={(e) => {
-                onChange(index, 'is_recall', e.target.checked)
-                if (!e.target.checked) onChange(index, 'recall_id', null)
-              }}
-              disabled={disabled}
-              className="w-4 h-4 accent-(--accent-solid) focus:ring-2 focus:ring-primary border-garage-border rounded"
-            />
-            <label htmlFor={`recall-${index}`} className="text-sm text-garage-text">
-              {t('lineItemEditor.misc.isRecallItem')}
-            </label>
-          </div>
           {item.is_recall && (
             <div>
               <label htmlFor={`recall-pick-${index}`} className="block text-sm font-medium text-garage-text mb-1">
@@ -353,22 +358,6 @@ export default function LineItemEditor({
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id={`warranty-${index}`}
-              checked={item.is_warranty}
-              onChange={(e) => {
-                onChange(index, 'is_warranty', e.target.checked)
-                if (!e.target.checked) onChange(index, 'warranty_id', null)
-              }}
-              disabled={disabled}
-              className="w-4 h-4 accent-(--accent-solid) focus:ring-2 focus:ring-primary border-garage-border rounded"
-            />
-            <label htmlFor={`warranty-${index}`} className="text-sm text-garage-text">
-              {t('lineItemEditor.misc.isWarrantyItem')}
-            </label>
-          </div>
           {item.is_warranty && (
             <div>
               <label htmlFor={`warranty-pick-${index}`} className="block text-sm font-medium text-garage-text mb-1">

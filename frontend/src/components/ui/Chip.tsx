@@ -8,6 +8,9 @@ interface ChipProps {
   /** Present ⇒ renders a real <button> with aria-pressed. */
   onClick?: () => void
   selected?: boolean
+  /** Only for the button form. */
+  id?: string
+  disabled?: boolean
   className?: string
 }
 
@@ -53,6 +56,8 @@ export default function Chip({
   icon: Icon,
   onClick,
   selected = false,
+  id,
+  disabled = false,
   className = '',
 }: ChipProps) {
   const base = `inline-flex items-center gap-1.5 rounded-chip border px-2.5 py-1 text-xs font-medium ${TONE[selected ? 'accent' : tone]} ${className}`
@@ -70,9 +75,11 @@ export default function Chip({
   return (
     <button
       type="button"
+      id={id}
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={selected}
-      className={`${base} ui-focus-ring ui-motion ${HOVER[selected ? 'accent' : tone]} cursor-pointer`}
+      className={`${base} ui-focus-ring ui-motion ui-disabled ${HOVER[selected ? 'accent' : tone]} cursor-pointer`}
     >
       {content}
     </button>

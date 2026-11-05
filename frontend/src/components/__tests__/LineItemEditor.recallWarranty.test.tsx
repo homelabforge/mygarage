@@ -149,8 +149,8 @@ const visit = {
 } as unknown as ServiceVisit
 
 const drawerForm = (): HTMLFormElement => screen.getByRole('dialog').querySelector('form') as HTMLFormElement
-const recallBox = (i: number): HTMLInputElement => document.getElementById(`recall-${i}`) as HTMLInputElement
-const warrantyBox = (i: number): HTMLInputElement => document.getElementById(`warranty-${i}`) as HTMLInputElement
+const recallBox = (i: number): HTMLButtonElement => document.getElementById(`recall-${i}`) as HTMLButtonElement
+const warrantyBox = (i: number): HTMLButtonElement => document.getElementById(`warranty-${i}`) as HTMLButtonElement
 const recallSelect = (i: number): HTMLSelectElement | null => document.getElementById(`recall-pick-${i}`) as HTMLSelectElement | null
 const warrantySelect = (i: number): HTMLSelectElement | null => document.getElementById(`warranty-pick-${i}`) as HTMLSelectElement | null
 const optionTexts = (select: HTMLSelectElement | null): string[] =>
@@ -185,7 +185,21 @@ beforeEach(() => {
 })
 
 describe('LineItemEditor: recall items', () => {
-  it('ticking "This is a recall item" shows a recall select of the open and hand-resolved recalls, none another visit fixed', async () => {
+  it('inspection, recall and warranty are one row of toggle chips', async () => {
+    await renderNew()
+    const group = screen.getAllByRole('group', { name: 'lineItemEditor.misc.markAs' })[0]
+    const names = ['lineItemEditor.misc.inspectionChip', 'lineItemEditor.misc.recallChip', 'lineItemEditor.misc.warrantyChip']
+    for (const name of names) {
+      expect(within(group).getByRole('button', { name })).toHaveAttribute('aria-pressed', 'false')
+    }
+    expect(screen.queryByRole('checkbox', { name: /lineItemEditor\.misc\.is/ })).not.toBeInTheDocument()
+
+    fireEvent.click(within(group).getByRole('button', { name: 'lineItemEditor.misc.recallChip' }))
+    expect(recallBox(0)).toHaveAttribute('aria-pressed', 'true')
+    expect(recallSelect(0)).not.toBeNull()
+  })
+
+  it('selecting the Recall chip shows a recall select of the open and hand-resolved recalls, none another visit fixed', async () => {
     await renderNew()
     expect(recallSelect(0)).toBeNull()
 
@@ -267,9 +281,9 @@ describe('LineItemEditor: editing a visit', () => {
   it('shows the stored links, and only this visit\'s line holds its recall', async () => {
     await renderEdit()
 
-    expect(recallBox(0)).toBeChecked()
+    expect(recallBox(0)).toHaveAttribute('aria-pressed', 'true')
     expect(recallSelect(0)?.value).toBe('4')
-    expect(warrantyBox(0)).toBeChecked()
+    expect(warrantyBox(0)).toHaveAttribute('aria-pressed', 'true')
     expect(warrantySelect(0)?.value).toBe('9')
 
     fireEvent.click(recallBox(1))

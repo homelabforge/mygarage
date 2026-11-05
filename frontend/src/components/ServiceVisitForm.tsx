@@ -972,7 +972,7 @@ function ServiceVisitForm({
               <div role="group" aria-labelledby="service-refs-label" className="flex flex-wrap items-center gap-2">
                 <span id="service-refs-label" className="text-sm font-medium text-text">{t('service.refs.toggleLabel')}</span>
                 {REF_FIELDS.map(({ field }) => (
-                  <Chip key={field} selected={refsOn[field]} onClick={() => toggleRef(field)}>
+                  <Chip key={field} selected={refsOn[field]} disabled={submitting} onClick={() => toggleRef(field)}>
                     {refText[field].label}
                   </Chip>
                 ))}
