@@ -10,6 +10,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import date, datetime, time
 
 from fastapi import HTTPException
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,8 +88,9 @@ async def validate_links(db: AsyncSession, vin: str, items: Sequence[ServiceLine
                 )
             seen.add(rid)
         query = select(ServiceLineItem.recall_id).where(ServiceLineItem.recall_id.in_(seen))
-        # Every item is flushed by now, so each has its id.
-        ours = [i.id for i in items]
+        # Only items with a row: an unflushed one's NULL id in NOT IN would
+        # match nothing and let a second link through.
+        ours = [i.id for i in items if sa_inspect(i).has_identity]
         if ours:
             query = query.where(ServiceLineItem.id.not_in(ours))
         taken = sorted({int(rid) for rid in (await db.scalars(query)).all()})

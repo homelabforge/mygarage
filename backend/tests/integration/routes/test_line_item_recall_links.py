@@ -1084,3 +1084,70 @@ async def test_linking_reads_the_recall_fresh(
 
     await _create(client, auth_headers, vin, [{**_LINE, "is_recall": True, "recall_id": rid}])
     assert await _state(test_sessionmaker, rid) == (True, _NOON_NOV_3, "manual")
+
+
+@pytest.mark.parametrize("path", ("create", "put_new", "post_item"))
+async def test_a_linked_foreign_recall_answers_like_a_missing_one(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    vin: str,
+    other_vin: str,
+    db_session: AsyncSession,
+    path: str,
+) -> None:
+    """The VIN check runs before the "already linked" one, or a 409 would say the
+    other garage's recall exists."""
+    foreign = await _recall(db_session, other_vin)
+    await _create(
+        client, auth_headers, other_vin, [{**_LINE, "is_recall": True, "recall_id": foreign}]
+    )
+    answers: list[tuple[int, bytes]] = []
+    for target in (foreign, 2_000_000_000):
+        visit = None if path == "create" else await _create(client, auth_headers, vin, [_LINE])
+        r = await _write_link(client, auth_headers, vin, path, _link("recall", target), visit)
+        answers.append((r.status_code, r.content))
+    assert answers[0][0] == 422, answers
+    assert answers[0] == answers[1], answers
+
+
+async def test_a_linked_foreign_recall_on_an_existing_item_clears_like_a_missing_one(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    vin: str,
+    other_vin: str,
+    db_session: AsyncSession,
+) -> None:
+    foreign = await _recall(db_session, other_vin)
+    await _create(
+        client, auth_headers, other_vin, [{**_LINE, "is_recall": True, "recall_id": foreign}]
+    )
+    answers: list[tuple[int, Any]] = []
+    for target in (foreign, 2_000_000_000):
+        visit = await _create(client, auth_headers, vin, [_LINE])
+        r = await _write_link(
+            client, auth_headers, vin, "put_existing", _link("recall", target), visit
+        )
+        if r.status_code == 200:
+            got = r.json()["line_items"][0]
+            answers.append((200, (got["is_recall"], got["recall_id"], got["recall_summary"])))
+        else:
+            answers.append((r.status_code, r.json()))
+    assert answers[0] == (200, (True, None, None)), answers
+    assert answers[0] == answers[1], answers
+
+
+async def test_an_unflushed_item_still_sees_another_visits_link(
+    client: AsyncClient, auth_headers: dict[str, str], vin: str, db_session: AsyncSession
+) -> None:
+    """An item with no id yet must not put NULL in the NOT IN list, which would
+    match nothing and wave the second link through."""
+    from fastapi import HTTPException
+
+    from app.services import recall_links
+
+    rid = await _recall(db_session, vin)
+    await _create(client, auth_headers, vin, [{**_LINE, "is_recall": True, "recall_id": rid}])
+    fresh = ServiceLineItem(description="Not flushed", is_recall=True, recall_id=rid)
+    with pytest.raises(HTTPException) as caught:
+        await recall_links.validate_links(db_session, vin, [fresh])
+    assert caught.value.status_code == 409
