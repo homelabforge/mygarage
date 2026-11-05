@@ -43,6 +43,15 @@ def _blank_ref_is_none(value: object) -> object:
     return value.strip() or None
 
 
+def _strip_description(value: object) -> object:
+    """Trim a line item description, so "Recall " saves as "Recall".
+
+    Runs before min_length, so whitespace-only is refused, and before
+    max_length, so padding can't push it over 200.
+    """
+    return value.strip() if isinstance(value, str) else value
+
+
 #: Each flag and the optional link it allows (D8). The visit writers share it.
 FLAGGED_LINKS = (("is_recall", "recall_id"), ("is_warranty", "warranty_id"))
 
@@ -145,6 +154,9 @@ class ServiceLineItemCreate(ServiceLineItemBase):
         default_factory=list, description="Supplies consumed by this line item"
     )
 
+    # Write side only, so a stored description reads back as it was saved.
+    _trim_description = field_validator("description", mode="before")(_strip_description)
+
     # Here and not on the base: the response shares it, and a legacy row with a
     # free-text type ("Oil Change") would 500 the visit.
     @field_validator("maintenance_type")
@@ -217,6 +229,8 @@ class ServiceLineItemUpdate(BaseModel):
             "send [] to remove them."
         ),
     )
+
+    _trim_description = field_validator("description", mode="before")(_strip_description)
 
     @field_validator("maintenance_type")
     @classmethod

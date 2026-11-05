@@ -118,3 +118,32 @@ def test_recall_resolved_via_reads_unknown_as_null() -> None:
     read = RecallResponse.model_validate(base)
     assert read.resolved_via is None
     assert read.linked_visit is None
+
+
+# The description is trimmed on the way in, so "Recall " saves as "Recall".
+
+
+@pytest.mark.parametrize("schema", [ServiceLineItemCreate, ServiceLineItemUpdate])
+def test_write_schemas_trim_the_description(
+    schema: type[ServiceLineItemCreate] | type[ServiceLineItemUpdate],
+) -> None:
+    assert schema.model_validate({"description": "  Recall \n"}).description == "Recall"
+    # Padding doesn't count toward the 200 cap.
+    padded = schema.model_validate({"description": " " + "x" * 200 + " "})
+    assert padded.description == "x" * 200
+
+
+@pytest.mark.parametrize("schema", [ServiceLineItemCreate, ServiceLineItemUpdate])
+def test_write_schemas_refuse_a_blank_description(
+    schema: type[ServiceLineItemCreate] | type[ServiceLineItemUpdate],
+) -> None:
+    with pytest.raises(ValidationError, match="description"):
+        schema.model_validate({"description": "   "})
+
+
+def test_a_stored_padded_description_reads_as_saved() -> None:
+    """The trim is on the write schemas only."""
+    item = ServiceLineItemResponse.model_validate(
+        {"id": 1, "visit_id": 1, "description": "Recall ", "created_at": datetime(2026, 3, 1)}
+    )
+    assert item.description == "Recall "
