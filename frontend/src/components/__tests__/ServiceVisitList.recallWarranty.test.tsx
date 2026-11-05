@@ -90,7 +90,7 @@ function Where(): ReactElement {
   return <div data-testid="where">{location.pathname + location.search}</div>
 }
 
-function renderAt(url: string): void {
+function renderAt(url: string, onEditClick: (visit: ServiceVisit) => void = vi.fn()): void {
   render(
     <MemoryRouter initialEntries={[url]}>
       <Routes>
@@ -98,7 +98,7 @@ function renderAt(url: string): void {
           path="/vehicles/:vin"
           element={
             <>
-              <ServiceVisitList vin="V1" onAddClick={vi.fn()} onEditClick={vi.fn()} />
+              <ServiceVisitList vin="V1" onAddClick={vi.fn()} onEditClick={onEditClick} />
               <Where />
             </>
           }
@@ -166,6 +166,23 @@ describe('ServiceVisitList: opening a service line from a link', () => {
 
     fireEvent.click(within(dialog).getAllByRole('button', { name: 'Close' })[0])
 
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/vehicles\/V1\?tab=service$/))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('edits a deep-linked visit that is not in the first page', async () => {
+    // Its recall can only be unlinked from the visit form, so this is the way in.
+    useServiceVisitMock.mockImplementation((_vin: string, id: number | null) =>
+      id === 500 ? { data: oldVisit, isError: false } : { data: undefined, isError: false },
+    )
+    const onEditClick = vi.fn()
+    renderAt('/vehicles/V1?tab=service&visit=500&item=9001', onEditClick)
+
+    const dialog = await screen.findByRole('dialog', { name: 'Water pump' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Edit visit' }))
+
+    expect(onEditClick).toHaveBeenCalledTimes(1)
+    expect(onEditClick).toHaveBeenCalledWith(oldVisit)
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/vehicles\/V1\?tab=service$/))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })

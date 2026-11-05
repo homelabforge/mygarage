@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '../../__tests__/test-utils'
+import { render, screen, fireEvent } from '../../__tests__/test-utils'
 import { presetUnitsFor } from '../../types/units'
 import type { ServiceVisit, ServiceLineItem } from '../../types/serviceVisit'
 
@@ -99,5 +99,21 @@ describe('ServiceLineItemDetail readings follow the vehicle the list resolved', 
     render(<ServiceLineItemDetail visit={visit} item={withUsage({ unit_type: 'count', quantity: '1' })} tracksDistance={false} tracksHours onClose={vi.fn()} />)
     expect(screen.getByText('812.4 hr')).toBeInTheDocument()
     expect(screen.queryByText(/80,467/)).not.toBeInTheDocument()
+  })
+})
+
+describe('ServiceLineItemDetail edit action', () => {
+  const item = withUsage({ unit_type: 'count', quantity: '1' })
+
+  it('has no edit button unless the caller passes onEdit', () => {
+    render(<ServiceLineItemDetail visit={visit} item={item} {...DISTANCE} onClose={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'serviceList.detail.editVisit' })).not.toBeInTheDocument()
+  })
+
+  it('calls onEdit from the footer', () => {
+    const onEdit = vi.fn()
+    render(<ServiceLineItemDetail visit={visit} item={item} {...DISTANCE} onClose={vi.fn()} onEdit={onEdit} />)
+    fireEvent.click(screen.getByRole('button', { name: 'serviceList.detail.editVisit' }))
+    expect(onEdit).toHaveBeenCalledTimes(1)
   })
 })

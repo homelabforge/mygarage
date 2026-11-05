@@ -25,6 +25,8 @@ interface ServiceLineItemDetailProps {
   tracksDistance: boolean
   tracksHours: boolean
   onClose: () => void
+  /** Opens the whole visit in its form. The only way to unlink a recall from a deep-linked old visit. */
+  onEdit?: () => void
 }
 
 /** Read-only view of one service on a visit: what was done, what it cost, what was used. */
@@ -34,6 +36,7 @@ export default function ServiceLineItemDetail({
   tracksDistance,
   tracksHours,
   onClose,
+  onEdit,
 }: ServiceLineItemDetailProps): ReactElement {
   const { t } = useTranslation('vehicles')
   const { currencyCode, locale } = useCurrencyPreference()
@@ -51,9 +54,16 @@ export default function ServiceLineItemDetail({
       onClose={onClose}
       width="md"
       footer={
-        <Button variant="secondary" onClick={onClose}>
-          {t('common:close')}
-        </Button>
+        <>
+          {onEdit && (
+            <Button variant="secondary" onClick={onEdit}>
+              {t('serviceList.detail.editVisit')}
+            </Button>
+          )}
+          <Button variant="secondary" onClick={onClose}>
+            {t('common:close')}
+          </Button>
+        </>
       }
     >
       <div className="space-y-5">

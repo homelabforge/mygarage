@@ -1195,6 +1195,7 @@
     "logVisit": "Log Service Visit",
     "detail": {
       "cost": "Cost",
+      "editVisit": "Edit visit",
       "labor": "Labor / shop",
       "noSupplies": "No supplies recorded for this service.",
       "openSupply": "Open {{name}} in Supplies",

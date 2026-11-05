@@ -121,6 +121,12 @@ export default function ServiceVisitList({
     if (linkedDetail) dropLinkParams()
   }
 
+  // A deep-linked visit can sit past the first page, so this is its only edit button.
+  const editShownVisit = (visit: ServiceVisit): void => {
+    closeDetail()
+    onEditClick(visit)
+  }
+
   // Fetch vehicle data to determine tracked usage dimension(s).
   useEffect(() => {
     const fetchVehicleUsage = async () => {
@@ -590,6 +596,7 @@ export default function ServiceVisitList({
           tracksDistance={tracksDistance}
           tracksHours={tracksHours}
           onClose={closeDetail}
+          onEdit={() => editShownVisit(shown.visit)}
         />
       )}
     </div>
