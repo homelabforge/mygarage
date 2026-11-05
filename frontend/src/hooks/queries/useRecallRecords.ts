@@ -1,6 +1,12 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import type { RecallListResponse, RecallCheckResponse, RecallCreate, RecallUpdate } from '@/types/recall'
+
+/** Visit items show their recall's campaign, and a deleted recall drops off its item. */
+function invalidateRecallWrite(queryClient: QueryClient, vin: string): void {
+  void queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
+  void queryClient.invalidateQueries({ queryKey: ['serviceVisits', vin] })
+}
 
 export function useRecallRecords(vin: string, statusFilter: 'all' | 'active' | 'resolved' = 'all') {
   return useQuery({
@@ -23,9 +29,7 @@ export function useCreateRecallRecord(vin: string) {
       const { data } = await api.post(`/vehicles/${vin}/recalls`, payload)
       return data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
-    },
+    onSuccess: () => invalidateRecallWrite(queryClient, vin),
   })
 }
 
@@ -36,9 +40,7 @@ export function useUpdateRecallRecord(vin: string) {
       const { data } = await api.put(`/vehicles/${vin}/recalls/${id}`, payload)
       return data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
-    },
+    onSuccess: () => invalidateRecallWrite(queryClient, vin),
   })
 }
 
@@ -48,9 +50,7 @@ export function useDeleteRecallRecord(vin: string) {
     mutationFn: async (recordId: number) => {
       await api.delete(`/vehicles/${vin}/recalls/${recordId}`)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
-    },
+    onSuccess: () => invalidateRecallWrite(queryClient, vin),
   })
 }
 
@@ -60,9 +60,7 @@ export function useCheckNHTSA(vin: string) {
     mutationFn: async () => {
       await api.post(`/vehicles/${vin}/recalls/check-nhtsa`)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
-    },
+    onSuccess: () => invalidateRecallWrite(queryClient, vin),
   })
 }
 
@@ -78,9 +76,7 @@ export function useCheckRecalls(vin: string) {
       const { data } = await api.post<RecallCheckResponse>(`/vehicles/${vin}/recalls/check`)
       return data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
-    },
+    onSuccess: () => invalidateRecallWrite(queryClient, vin),
   })
 }
 
@@ -92,8 +88,8 @@ export function useToggleRecallResolved(vin: string) {
         is_resolved: isResolved,
       })
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
-    },
+    // Settled, not just success: a 409 means this card is stale (a visit
+    // linked it since), so refetch and it comes back with the button off.
+    onSettled: () => invalidateRecallWrite(queryClient, vin),
   })
 }

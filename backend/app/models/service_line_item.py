@@ -15,6 +15,8 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    false,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -23,8 +25,10 @@ from app.database import Base
 from app.models._types import ScaledNumeric
 
 if TYPE_CHECKING:
+    from app.models.recall import Recall
     from app.models.service_visit import ServiceVisit
     from app.models.supply import SupplyUsage
+    from app.models.warranty import WarrantyRecord
 
 
 class ServiceLineItem(Base):
@@ -52,6 +56,20 @@ class ServiceLineItem(Base):
     triggered_by_inspection_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("service_line_items.id")
     )
+    # Recall and warranty work (migration 158). Each flag stands on its own and
+    # the link is optional, so a deleted recall or warranty leaves the flag.
+    is_recall: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    recall_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("recalls.id", ondelete="SET NULL")
+    )
+    is_warranty: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    warranty_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("warranty_records.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
@@ -69,6 +87,9 @@ class ServiceLineItem(Base):
         foreign_keys=[triggered_by_inspection_id],
         back_populates="triggered_by_inspection",
     )
+    # Load these explicitly: async never lazy-loads.
+    recall: Mapped[Recall | None] = relationship("Recall")
+    warranty: Mapped[WarrantyRecord | None] = relationship("WarrantyRecord")
     supply_usages: Mapped[list[SupplyUsage]] = relationship(
         "SupplyUsage",
         back_populates="line_item",
@@ -86,6 +107,15 @@ class ServiceLineItem(Base):
         ),
         Index("idx_service_line_items_visit", "visit_id"),
         Index("ix_service_line_items_maintenance_type", "maintenance_type"),
+        # One item per recall (D9). Same index migration 158 builds.
+        Index(
+            "uq_line_items_recall_id",
+            "recall_id",
+            unique=True,
+            sqlite_where=text("recall_id IS NOT NULL"),
+            postgresql_where=text("recall_id IS NOT NULL"),
+        ),
+        Index("ix_line_items_warranty_id", "warranty_id"),
     )
 
     @property

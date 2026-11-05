@@ -1514,6 +1514,15 @@ async def get_garage_analytics(
             total_insurance=total_insurance,
             total_taxes=total_taxes,
             total_financing=total_financing,
+            total_running_cost=(
+                total_maintenance
+                + total_upgrades
+                + total_inspection
+                + total_collision
+                + total_detailing
+                + total_fuel
+                + total_def
+            ),
         ),
         cost_breakdown_by_category=cost_breakdown,
         cost_by_vehicle=vehicle_costs,

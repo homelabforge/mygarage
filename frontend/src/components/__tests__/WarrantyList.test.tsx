@@ -21,7 +21,8 @@ vi.mock('../../hooks/useUnitPreference', () => ({
     units: METRIC_UNITS,
   }),
 }))
-vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => undefined }))
+vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
+vi.mock('../../hooks/useCurrencyPreference', () => ({ useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US' }) }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import WarrantyList from '../WarrantyList'
@@ -96,5 +97,38 @@ describe('WarrantyList — expired status (both ways) + empty state', () => {
     expect(screen.getByText('warrantyList.noRecords')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'warrantyList.addFirstWarranty' }))
     expect(onAddClick).toHaveBeenCalled()
+  })
+})
+
+describe('WarrantyList: what was done under it', () => {
+  it('lists each linked item under "Used on" with its date, description and cost, linked to the item', () => {
+    useWarrantyRecordsMock.mockReturnValue({
+      data: [
+        // One nothing used yet, so "Used on" shows once.
+        { ...activeWarranty, id: 3, linked_items: [] },
+        {
+          ...activeWarranty,
+          linked_items: [
+            { visit_id: 77, line_item_id: 502, date: '2026-11-03', description: 'Water pump', cost: '412.50' },
+            { visit_id: 40, line_item_id: 310, date: '2025-06-14', description: 'Thermostat', cost: null },
+          ],
+        },
+      ],
+      isLoading: false,
+      error: null,
+    })
+    render(<WarrantyList {...PROPS} />)
+
+    expect(screen.getAllByText('warrantyList.usedOn')).toHaveLength(1)
+    const rows = screen.getAllByRole('listitem')
+    expect(rows).toHaveLength(2)
+    // Newest first, as the server sends them.
+    expect(rows[0]).toHaveTextContent('Nov 3, 2026')
+    expect(rows[0]).toHaveTextContent('Water pump')
+    expect(rows[0]).toHaveTextContent('$412.50')
+    expect(rows[1]).toHaveTextContent('Jun 14, 2025')
+    expect(rows[1]).toHaveTextContent('Thermostat')
+    const link = rows[0].querySelector('a') as HTMLAnchorElement
+    expect(link.getAttribute('href')).toMatch(/\?tab=service&visit=77&item=502$/)
   })
 })

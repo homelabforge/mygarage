@@ -56,6 +56,9 @@ vi.mock('../../hooks/queries/useSupplies', () => ({
   }),
 }))
 // The real VendorSearch clears through onSelect(null); this stand-in does the same.
+// The line items' recall and warranty pickers; nothing to offer here.
+vi.mock('../../hooks/queries/useRecallRecords', () => ({ useRecallRecords: () => ({ data: { recalls: [] } }) }))
+vi.mock('../../hooks/queries/useWarrantyRecords', () => ({ useWarrantyRecords: () => ({ data: [] }) }))
 vi.mock('../VendorSearch', () => ({
   default: ({ value, onSelect }: { value?: number; onSelect: (v: null) => void }) => (
     <div data-testid="vendor-search" data-value={value ?? ''}>
@@ -89,6 +92,9 @@ const visit = {
   engine_hours: '640.5',
   notes: 'Old notes',
   insurance_claim_number: 'CLM-1',
+  invoice_number: 'INV-1',
+  po_number: 'PO-1',
+  work_order_number: 'WO-1',
   tax_amount: '4.50',
   shop_supplies: '3.25',
   misc_fees: '2.00',
@@ -182,7 +188,7 @@ describe('ServiceVisitForm: clearing a field on edit', () => {
     await renderEdit()
 
     fireEvent.click(screen.getByRole('button', { name: 'clear vendor' }))
-    for (const id of ['service-odometer', 'service-engine-hours', 'insurance-claim', 'visit-notes', 'tax-amount', 'shop-supplies', 'misc-fees']) {
+    for (const id of ['service-odometer', 'service-engine-hours', 'insurance-claim', 'invoice-number', 'po-number', 'work-order-number', 'visit-notes', 'tax-amount', 'shop-supplies', 'misc-fees']) {
       fireEvent.change(input(id), { target: { value: '' } })
     }
 
@@ -192,6 +198,9 @@ describe('ServiceVisitForm: clearing a field on edit', () => {
       odometer_km: null,
       engine_hours: null,
       insurance_claim_number: null,
+      invoice_number: null,
+      po_number: null,
+      work_order_number: null,
       notes: null,
       tax_amount: null,
       shop_supplies: null,
@@ -208,11 +217,32 @@ describe('ServiceVisitForm: clearing a field on edit', () => {
       odometer_km: 72420,
       engine_hours: 640.5,
       insurance_claim_number: 'CLM-1',
+      invoice_number: 'INV-1',
+      po_number: 'PO-1',
+      work_order_number: 'WO-1',
       notes: 'Old notes',
       tax_amount: 4.5,
       shop_supplies: 3.25,
       misc_fees: 2,
     })
+  })
+
+  // A ref with no stored value has its chip off and no input. Sending null for
+  // it would be harmless here, but it's the same code path that would wipe a
+  // value the form never showed, so the key stays out of the PUT entirely (D6).
+  it('leaves out every ref whose chip it never showed', async () => {
+    await renderEdit({
+      ...visit,
+      insurance_claim_number: null,
+      invoice_number: null,
+      po_number: null,
+      work_order_number: null,
+    } as unknown as ServiceVisit)
+
+    const body = await submittedBody()
+    for (const key of ['insurance_claim_number', 'invoice_number', 'po_number', 'work_order_number']) {
+      expect(body).not.toHaveProperty(key)
+    }
   })
 })
 
@@ -333,5 +363,33 @@ describe('ServiceVisitForm: a repair link follows its inspection', () => {
     expect(items).toHaveLength(1)
     expect(items[0]).toHaveProperty('id', 602)
     expect(items[0]).toHaveProperty('triggered_by_inspection_id', null)
+  })
+})
+
+// The editor has no recall or warranty controls yet, so an edit has to hand
+// the stored flags and links back untouched instead of dropping or zeroing them.
+describe('ServiceVisitForm: recall and warranty links on edit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedApiPut.mockResolvedValue({ data: {} })
+  })
+
+  it('sends back the stored flags and links of every item', async () => {
+    const linked = {
+      ...visit,
+      line_items: [
+        { ...visit.line_items[0], is_recall: true, recall_id: 41, is_warranty: true, warranty_id: 9 },
+      ],
+    } as unknown as ServiceVisit
+    await renderEdit(linked)
+
+    const body = await submittedBody()
+    expect((body.line_items as Record<string, unknown>[])[0]).toMatchObject({
+      id: 501,
+      is_recall: true,
+      recall_id: 41,
+      is_warranty: true,
+      warranty_id: 9,
+    })
   })
 })

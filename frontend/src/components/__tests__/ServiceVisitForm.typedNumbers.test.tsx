@@ -61,6 +61,9 @@ const COOLANT: Supply = { ...OIL_FILTER, id: 2, name: 'Coolant', unit_type: 'vol
 vi.mock('../../hooks/queries/useSupplies', () => ({
   useSupplies: () => ({ data: { supplies: [OIL_FILTER, COOLANT], total: 2 }, isSuccess: true, isLoading: false, isError: false }),
 }))
+// The line items' recall and warranty pickers; nothing to offer here.
+vi.mock('../../hooks/queries/useRecallRecords', () => ({ useRecallRecords: () => ({ data: { recalls: [] } }) }))
+vi.mock('../../hooks/queries/useWarrantyRecords', () => ({ useWarrantyRecords: () => ({ data: [] }) }))
 vi.mock('../VendorSearch', () => ({ default: () => <div data-testid="vendor-search" /> }))
 vi.mock('../ServiceVisitAttachmentUpload', () => ({ default: () => <div /> }))
 vi.mock('../ServiceVisitAttachmentList', () => ({ default: () => <div /> }))

@@ -396,7 +396,9 @@
     "attachments": "Załączniki",
     "createTitle": "Utwórz wpis serwisowy",
     "editTitle": "Edytuj serwis",
-    "insuranceClaim": "Szkoda ubezpieczeniowa",
+    "refs": {
+      "insuranceClaim": "Szkoda ubezpieczeniowa"
+    },
     "miscFees": "Inne opłaty",
     "servicesPerformed": "Wykonane usługi",
     "shopSupplies": "Materiały warsztatowe",

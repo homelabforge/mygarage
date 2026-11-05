@@ -61,6 +61,9 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
     formatCurrency: () => '$0.00',
   }),
 }))
+// The line items' recall and warranty pickers; nothing to offer here.
+vi.mock('../../hooks/queries/useRecallRecords', () => ({ useRecallRecords: () => ({ data: { recalls: [] } }) }))
+vi.mock('../../hooks/queries/useWarrantyRecords', () => ({ useWarrantyRecords: () => ({ data: [] }) }))
 vi.mock('../VendorSearch', () => ({ default: () => <div data-testid="vendor-search" /> }))
 vi.mock('../ServiceVisitAttachmentUpload', () => ({ default: () => <div /> }))
 vi.mock('../ServiceVisitAttachmentList', () => ({ default: () => <div /> }))

@@ -6,16 +6,20 @@ from dataclasses import dataclass, field
 
 import httpx
 from fastapi import HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import Select, delete, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.recall import Recall
+from app.models.service_line_item import ServiceLineItem
+from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.recall import (
     RecallCheckResponse,
     RecallCreate,
+    RecallLinkedVisit,
     RecallListResponse,
     RecallResponse,
     RecallUpdate,
@@ -26,6 +30,7 @@ from app.services.recalls.base import SOURCE_MANUAL, SOURCE_NHTSA, RecallHit, Re
 from app.services.recalls.nhtsa import NHTSA_RECALL_URL
 from app.services.recalls.registry import providers_for
 from app.services.settings_service import SettingsService
+from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.vehicle_key import has_real_vin
@@ -34,6 +39,44 @@ logger = logging.getLogger(__name__)
 
 #: ``recalls.component`` is VARCHAR(200) since migration 137 (K10).
 _COMPONENT_WIDTH = 200
+
+#: resolved_via for a recall marked fixed on the Recalls tab (D10).
+RESOLVED_BY_HAND = "manual"
+
+
+def _select_recalls() -> Select[tuple[Recall]]:
+    """Recalls with the line item that fixed them, its visit and the shop.
+
+    populate_existing so a copy the session already holds picks up a link
+    another write made since.
+    """
+    return (
+        select(Recall)
+        .options(
+            selectinload(Recall.linked_line_item)
+            .selectinload(ServiceLineItem.visit)
+            .selectinload(ServiceVisit.vendor)
+        )
+        .execution_options(populate_existing=True)
+    )
+
+
+def _to_response(recall: Recall) -> RecallResponse:
+    """The response, with linked_visit filled from the loaded link.
+
+    Needs `_select_recalls()`'s loaders: async never lazy-loads.
+    """
+    response = RecallResponse.model_validate(recall)
+    item = recall.linked_line_item
+    if item is not None:
+        visit = item.visit
+        response.linked_visit = RecallLinkedVisit(
+            visit_id=visit.id,
+            line_item_id=item.id,
+            date=visit.date,
+            vendor_name=visit.vendor.name if visit.vendor is not None else None,
+        )
+    return response
 
 
 @dataclass
@@ -176,7 +219,7 @@ class RecallService:
         try:
             await get_vehicle_or_403(vin, current_user, self.db)
 
-            query = select(Recall).where(Recall.vin == vin)
+            query = _select_recalls().where(Recall.vin == vin)
 
             if status == "active":
                 query = query.where(Recall.is_resolved.is_(False))
@@ -192,7 +235,7 @@ class RecallService:
             resolved_count = sum(1 for r in recalls if r.is_resolved)
 
             return RecallListResponse(
-                recalls=[RecallResponse.model_validate(r) for r in recalls],
+                recalls=[_to_response(r) for r in recalls],
                 total=len(recalls),
                 active_count=active_count,
                 resolved_count=resolved_count,
@@ -295,7 +338,7 @@ class RecallService:
 
             # Return updated list
             result = await self.db.execute(
-                select(Recall)
+                _select_recalls()
                 .where(Recall.vin == vin)
                 .order_by(Recall.is_resolved.asc(), Recall.created_at.desc())
             )
@@ -305,7 +348,7 @@ class RecallService:
             resolved_count = sum(1 for r in recalls if r.is_resolved)
 
             return RecallListResponse(
-                recalls=[RecallResponse.model_validate(r) for r in recalls],
+                recalls=[_to_response(r) for r in recalls],
                 total=len(recalls),
                 active_count=active_count,
                 resolved_count=resolved_count,
@@ -437,10 +480,10 @@ class RecallService:
 
             if data.is_resolved:
                 db_recall.resolved_at = utc_now()
+                db_recall.resolved_via = RESOLVED_BY_HAND
 
             self.db.add(db_recall)
             await self.db.commit()
-            await self.db.refresh(db_recall)
 
             logger.info(
                 "Created recall %s for vehicle %s",
@@ -448,7 +491,11 @@ class RecallService:
                 sanitize_for_log(vin),
             )
 
-            return RecallResponse.model_validate(db_recall)
+            # A bare refresh loads no relationships; re-select with the loaders.
+            created = (
+                await self.db.execute(_select_recalls().where(Recall.id == db_recall.id))
+            ).scalar_one()
+            return _to_response(created)
 
         except HTTPException:
             raise
@@ -493,14 +540,14 @@ class RecallService:
             await get_vehicle_or_403(vin, current_user, self.db)
 
             result = await self.db.execute(
-                select(Recall).where(Recall.id == recall_id, Recall.vin == vin)
+                _select_recalls().where(Recall.id == recall_id, Recall.vin == vin)
             )
             recall = result.scalar_one_or_none()
 
             if not recall:
                 raise HTTPException(status_code=404, detail="Recall not found")
 
-            return RecallResponse.model_validate(recall)
+            return _to_response(recall)
 
         except HTTPException:
             raise
@@ -537,9 +584,12 @@ class RecallService:
 
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            # Same lock the visit writers take, before the first read, so a visit
+            # linking this recall right now is committed before we look (R1-H1).
+            await lock_vehicle_for_write(self.db, vin)
 
             result = await self.db.execute(
-                select(Recall).where(Recall.id == recall_id, Recall.vin == vin)
+                _select_recalls().where(Recall.id == recall_id, Recall.vin == vin)
             )
             recall = result.scalar_one_or_none()
 
@@ -547,22 +597,35 @@ class RecallService:
                 raise HTTPException(status_code=404, detail="Recall not found")
 
             update_data = data.model_dump(exclude_unset=True)
+            wanted = update_data.pop("is_resolved", None)
 
-            # Handle is_resolved field specially
-            if "is_resolved" in update_data:
-                new_resolved_status = update_data["is_resolved"]
-                old_resolved_status = recall.is_resolved
-
-                if new_resolved_status and not old_resolved_status:
+            # Only a real change touches resolved_at and resolved_via: the form
+            # resends is_resolved on every save, and that mustn't turn a visit's
+            # fix into a manual one.
+            if wanted is not None and wanted != recall.is_resolved:
+                if wanted:
+                    recall.is_resolved = True
                     recall.resolved_at = utc_now()
-                elif not new_resolved_status and old_resolved_status:
+                    recall.resolved_via = RESOLVED_BY_HAND
+                else:
+                    # Keyed on the link, whatever resolved_via says (D11).
+                    item = recall.linked_line_item
+                    if item is not None:
+                        raise HTTPException(
+                            status_code=409,
+                            detail=(
+                                f"Fixed on the service visit on {item.visit.date.isoformat()}. "
+                                "Unlink it there to reopen."
+                            ),
+                        )
+                    recall.is_resolved = False
                     recall.resolved_at = None
+                    recall.resolved_via = None
 
             for field, value in update_data.items():
                 setattr(recall, field, value)
 
             await self.db.commit()
-            await self.db.refresh(recall)
 
             logger.info(
                 "Updated recall %s for vehicle %s",
@@ -570,7 +633,10 @@ class RecallService:
                 sanitize_for_log(vin),
             )
 
-            return RecallResponse.model_validate(recall)
+            updated = (
+                await self.db.execute(_select_recalls().where(Recall.id == recall_id))
+            ).scalar_one()
+            return _to_response(updated)
 
         except HTTPException:
             raise
@@ -612,6 +678,9 @@ class RecallService:
 
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            # Same lock as the visit writers, so a delete can't land between a
+            # visit PUT's link check and its flush.
+            await lock_vehicle_for_write(self.db, vin)
 
             result = await self.db.execute(
                 select(Recall).where(Recall.id == recall_id, Recall.vin == vin)

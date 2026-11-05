@@ -346,3 +346,102 @@ async def test_a_hand_entered_recall_never_matches_a_campaign_row(
     # main: KeyError; with no campaign filter in the key, the NHTSA row is spent instead
     assert (data["recalls"]["success_count"], data["recalls"]["skipped_count"]) == (1, 0), data
     assert [r[0] for r in await _recalls(test_sessionmaker, vin)] == ["24V000003", None]
+
+
+async def _resolved_via(sessionmaker: Any, vin: str) -> list[tuple[Any, ...]]:
+    """Each recall's (campaign, is_resolved, resolved_via), oldest first."""
+    async with sessionmaker() as fresh:
+        rows = (
+            (await fresh.execute(select(Recall).where(Recall.vin == vin).order_by(Recall.id)))
+            .scalars()
+            .all()
+        )
+    return [(r.nhtsa_campaign_number, r.is_resolved, r.resolved_via) for r in rows]
+
+
+async def test_resolved_via_travels_with_the_recall(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    test_sessionmaker: Any,
+    new_vehicle: NewVehicle,
+):
+    source = await new_vehicle()
+    target = await new_vehicle()
+    db_session.add_all(
+        [
+            Recall(
+                vin=source,
+                nhtsa_campaign_number="24V300001",
+                is_resolved=True,
+                resolved_at=_RESOLVED_AT,
+                resolved_via="manual",
+            ),
+            Recall(
+                vin=source,
+                nhtsa_campaign_number="24V300002",
+                is_resolved=True,
+                resolved_at=_RESOLVED_AT,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    data = await import_json(
+        client, auth_headers, target, await export_json(client, auth_headers, source)
+    )
+    assert data["errors"] == [], data
+    # main: the manual one came back NULL
+    assert await _resolved_via(test_sessionmaker, target) == [
+        ("24V300001", True, "manual"),
+        ("24V300002", True, None),
+    ]
+
+
+async def test_an_unknown_resolved_via_is_a_row_error(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    test_sessionmaker: Any,
+    new_vehicle: NewVehicle,
+):
+    vin = await new_vehicle()
+    data = await import_json(
+        client,
+        auth_headers,
+        vin,
+        _v9({"nhtsa_campaign_number": "24V300003", "is_resolved": True, "resolved_via": "magic"}),
+    )
+    # main: stored as given
+    assert data["recalls"]["error_count"] == 1, data
+    assert any("resolved_via" in e for e in data["errors"]), data
+    assert await _resolved_via(test_sessionmaker, vin) == []
+
+
+async def test_the_duplicate_fill_brings_resolved_via_along(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
+    test_sessionmaker: Any,
+    new_vehicle: NewVehicle,
+):
+    vin = await new_vehicle()
+    # The nightly check put it back, open and with no notes.
+    db_session.add(Recall(vin=vin, nhtsa_campaign_number="24V300004", is_resolved=False))
+    await db_session.commit()
+
+    data = await import_json(
+        client,
+        auth_headers,
+        vin,
+        _v9(
+            {
+                "nhtsa_campaign_number": "24V300004",
+                "is_resolved": True,
+                "resolved_at": "2026-03-04T15:30:00",
+                "resolved_via": "manual",
+            }
+        ),
+    )
+    assert data["recalls"]["skipped_count"] == 1, data
+    # main: the fill left resolved_via NULL
+    assert await _resolved_via(test_sessionmaker, vin) == [("24V300004", True, "manual")]

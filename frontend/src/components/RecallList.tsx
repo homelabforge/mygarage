@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { AlertTriangle, Plus, Trash2, Edit, CheckCircle, RefreshCw, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Recall } from '../types/recall'
@@ -15,6 +16,7 @@ import { formatAPITimestamp } from '../utils/parseAPITimestamp'
 import { useRecallRecords, useDeleteRecallRecord, useCheckRecalls, useToggleRecallResolved } from '../hooks/queries/useRecallRecords'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, IconButton, EmptyState, Mono, Chip, Select } from './ui'
+import { serviceItemSearch } from '../constants/serviceVisit'
 
 /** Each recall source has its own translated label (#211). */
 const SOURCE_LABEL_KEYS: Record<string, string> = {
@@ -150,6 +152,12 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
       t('recallList.notAvailable'),
     )
 
+  // The visit's own day (D13): resolved_at is noon there, which can cross the UTC day.
+  const resolvedAtVisitText = (link: NonNullable<Recall['linked_visit']>): string =>
+    link.vendor_name
+      ? t('recallList.resolvedAtVisitVendor', { date: formatDate(link.date), vendor: link.vendor_name })
+      : t('recallList.resolvedAtVisit', { date: formatDate(link.date) })
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
@@ -210,108 +218,130 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
         />
       ) : (
         <div className="space-y-3">
-          {recalls.map((recall) => (
-            <div
-              key={recall.id}
-              className={`rounded-card border bg-surface p-6 ${recall.is_resolved ? 'border-border opacity-75' : 'border-danger/50'}`}
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-start gap-3 flex-1">
-                  {recall.is_resolved
-                    ? <CheckCircle aria-hidden="true" className="text-success mt-1 flex-shrink-0" size={24} />
-                    : <AlertTriangle aria-hidden="true" className="text-danger mt-1 flex-shrink-0" size={24} />}
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <h3 className="text-lg font-semibold text-text">{recall.component}</h3>
-                      {recall.nhtsa_campaign_number && (
-                        <Chip tone="muted"><Mono size="xs" tone="inherit">{recall.nhtsa_campaign_number}</Mono></Chip>
+          {recalls.map((recall) => {
+            // Linked means a line item fixed it, whatever resolved_via says (D11).
+            const link = recall.linked_visit ?? null
+            const hintId = `recall-${recall.id}-reopen-blocked`
+            const reopenBlocked = link ? t('recallList.reopenBlocked') : undefined
+            return (
+              <div
+                key={recall.id}
+                className={`rounded-card border bg-surface p-6 ${recall.is_resolved ? 'border-border opacity-75' : 'border-danger/50'}`}
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    {recall.is_resolved
+                      ? <CheckCircle aria-hidden="true" className="text-success mt-1 flex-shrink-0" size={24} />
+                      : <AlertTriangle aria-hidden="true" className="text-danger mt-1 flex-shrink-0" size={24} />}
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="text-lg font-semibold text-text">{recall.component || t('recallList.unnamed')}</h3>
+                        {recall.nhtsa_campaign_number && (
+                          <Chip tone="muted"><Mono size="xs" tone="inherit">{recall.nhtsa_campaign_number}</Mono></Chip>
+                        )}
+                        {/* Where it came from (#211), and how sure the match is
+                            when the source has no VIN to go by. */}
+                        {recall.source && (
+                          <span data-testid="recall-source">
+                            <Chip tone="muted">{t(SOURCE_LABEL_KEYS[recall.source] ?? recall.source)}</Chip>
+                          </span>
+                        )}
+                        {recall.match_confidence != null && recall.match_confidence < 100 && (
+                          <span data-testid="recall-confidence">
+                            <Chip tone={recall.match_confidence >= 90 ? 'success' : 'warning'}>
+                              {t('recallList.confidence', { percent: recall.match_confidence })}
+                            </Chip>
+                          </span>
+                        )}
+                      </div>
+                      {recall.date_announced && (
+                        <p className="text-sm text-text-mute mb-2">{t('recallList.announced')}: <Mono size="sm" tone="muted">{formatDate(recall.date_announced)}</Mono></p>
                       )}
-                      {/* Where it came from (#211), and how sure the match is
-                          when the source has no VIN to go by. */}
-                      {recall.source && (
-                        <span data-testid="recall-source">
-                          <Chip tone="muted">{t(SOURCE_LABEL_KEYS[recall.source] ?? recall.source)}</Chip>
-                        </span>
+                      {recall.source === 'rappelconso' && (
+                        <p className="text-xs text-text-mute mb-2">{t('recallList.matchedByModel')}</p>
                       )}
-                      {recall.match_confidence != null && recall.match_confidence < 100 && (
-                        <span data-testid="recall-confidence">
-                          <Chip tone={recall.match_confidence >= 90 ? 'success' : 'warning'}>
-                            {t('recallList.confidence', { percent: recall.match_confidence })}
-                          </Chip>
-                        </span>
+                      {recall.external_url && (
+                        <a
+                          href={recall.external_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-(--accent-fg) underline-offset-2 hover:underline mb-2"
+                        >
+                          <ExternalLink aria-hidden="true" size={14} />
+                          {t('recallList.viewNotice')}
+                        </a>
                       )}
                     </div>
-                    {recall.date_announced && (
-                      <p className="text-sm text-text-mute mb-2">{t('recallList.announced')}: <Mono size="sm" tone="muted">{formatDate(recall.date_announced)}</Mono></p>
-                    )}
-                    {recall.source === 'rappelconso' && (
-                      <p className="text-xs text-text-mute mb-2">{t('recallList.matchedByModel')}</p>
-                    )}
-                    {recall.external_url && (
-                      <a
-                        href={recall.external_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-(--accent-fg) underline-offset-2 hover:underline mb-2"
-                      >
-                        <ExternalLink aria-hidden="true" size={14} />
-                        {t('recallList.viewNotice')}
-                      </a>
-                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <IconButton
+                      icon={recall.is_resolved ? AlertTriangle : CheckCircle}
+                      label={recall.is_resolved ? t('recallList.markActive') : t('recallList.markResolved')}
+                      title={reopenBlocked}
+                      aria-describedby={link ? hintId : undefined}
+                      disabled={!!link}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleMarkResolved(recall)}
+                    />
+                    <IconButton icon={Edit} label={t('common:edit')} variant="ghost" size="sm" onClick={() => onEditClick(recall)} />
+                    <IconButton
+                      icon={Trash2}
+                      label={t('common:delete')}
+                      variant="danger"
+                      size="sm"
+                      disabled={deleteMutation.isPending && deleteMutation.variables === recall.id}
+                      onClick={() => handleDelete(recall.id)}
+                    />
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <IconButton
-                    icon={recall.is_resolved ? AlertTriangle : CheckCircle}
-                    label={recall.is_resolved ? t('recallList.markActive') : t('recallList.markResolved')}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleMarkResolved(recall)}
-                  />
-                  <IconButton icon={Edit} label={t('common:edit')} variant="ghost" size="sm" onClick={() => onEditClick(recall)} />
-                  <IconButton
-                    icon={Trash2}
-                    label={t('common:delete')}
-                    variant="danger"
-                    size="sm"
-                    disabled={deleteMutation.isPending && deleteMutation.variables === recall.id}
-                    onClick={() => handleDelete(recall.id)}
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-3 ml-9">
-                <div>
-                  <p className="text-xs text-text-mute mb-1">{t('recallList.summary')}</p>
-                  <p className="text-sm text-text whitespace-pre-wrap">{recall.summary}</p>
+                <div className="space-y-3 ml-9">
+                  {recall.summary && (
+                    <div>
+                      <p className="text-xs text-text-mute mb-1">{t('recallList.summary')}</p>
+                      <p className="text-sm text-text whitespace-pre-wrap">{recall.summary}</p>
+                    </div>
+                  )}
+                  {recall.consequence && (
+                    <div>
+                      <p className="text-xs text-text-mute mb-1">{t('recallList.consequence')}</p>
+                      <p className="text-sm text-text whitespace-pre-wrap">{recall.consequence}</p>
+                    </div>
+                  )}
+                  {recall.remedy && (
+                    <div>
+                      <p className="text-xs text-text-mute mb-1">{t('recallList.remedy')}</p>
+                      <p className="text-sm text-text whitespace-pre-wrap">{recall.remedy}</p>
+                    </div>
+                  )}
+                  {recall.notes && (
+                    <div>
+                      <p className="text-xs text-text-mute mb-1">{t('recallList.notes')}</p>
+                      <p className="text-sm text-text whitespace-pre-wrap">{recall.notes}</p>
+                    </div>
+                  )}
+                  {link ? (
+                    <div>
+                      <p className="text-xs text-text-mute mb-1">{t('recallList.resolved')}</p>
+                      <Link
+                        to={{ search: serviceItemSearch(link.visit_id, link.line_item_id) }}
+                        className="text-sm text-success underline-offset-2 hover:underline"
+                      >
+                        {resolvedAtVisitText(link)}
+                      </Link>
+                      <p id={hintId} className="text-xs text-text-mute mt-1">{reopenBlocked}</p>
+                    </div>
+                  ) : recall.is_resolved && recall.resolved_at && (
+                    <div>
+                      <p className="text-xs text-text-mute mb-1">{t('recallList.resolved')}</p>
+                      <Mono as="p" size="sm" tone="success">{formatTimestamp(recall.resolved_at)}</Mono>
+                    </div>
+                  )}
                 </div>
-                {recall.consequence && (
-                  <div>
-                    <p className="text-xs text-text-mute mb-1">{t('recallList.consequence')}</p>
-                    <p className="text-sm text-text whitespace-pre-wrap">{recall.consequence}</p>
-                  </div>
-                )}
-                {recall.remedy && (
-                  <div>
-                    <p className="text-xs text-text-mute mb-1">{t('recallList.remedy')}</p>
-                    <p className="text-sm text-text whitespace-pre-wrap">{recall.remedy}</p>
-                  </div>
-                )}
-                {recall.notes && (
-                  <div>
-                    <p className="text-xs text-text-mute mb-1">{t('recallList.notes')}</p>
-                    <p className="text-sm text-text whitespace-pre-wrap">{recall.notes}</p>
-                  </div>
-                )}
-                {recall.is_resolved && recall.resolved_at && (
-                  <div>
-                    <p className="text-xs text-text-mute mb-1">{t('recallList.resolved')}</p>
-                    <Mono as="p" size="sm" tone="success">{formatTimestamp(recall.resolved_at)}</Mono>
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

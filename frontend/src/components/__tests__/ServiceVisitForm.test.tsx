@@ -43,6 +43,9 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 
 // Mock components that make additional API calls or are complex to render
 // Keeps the id it's handed, so the label's htmlFor can be checked against it.
+// The line items' recall and warranty pickers; nothing to offer here.
+vi.mock('../../hooks/queries/useRecallRecords', () => ({ useRecallRecords: () => ({ data: { recalls: [] } }) }))
+vi.mock('../../hooks/queries/useWarrantyRecords', () => ({ useWarrantyRecords: () => ({ data: [] }) }))
 vi.mock('../VendorSearch', () => ({
   default: ({ id }: { id?: string }) => <input data-testid="vendor-search" id={id} />,
 }))

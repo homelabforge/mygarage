@@ -18,6 +18,16 @@ describe('Chip', () => {
     expect(onClick).toHaveBeenCalledOnce()
   })
 
+  it('a disabled chip ignores clicks', () => {
+    const onClick = vi.fn()
+    render(<Chip onClick={onClick} disabled id="kind-0">Recall</Chip>)
+    const button = screen.getByRole('button', { name: 'Recall' })
+    expect(button).toHaveAttribute('id', 'kind-0')
+    expect(button).toBeDisabled()
+    fireEvent.click(button)
+    expect(onClick).not.toHaveBeenCalled()
+  })
+
   it('exposes selection state to assistive tech', () => {
     render(<Chip onClick={() => {}} selected>Service</Chip>)
     expect(screen.getByRole('button', { name: 'Service' })).toHaveAttribute('aria-pressed', 'true')

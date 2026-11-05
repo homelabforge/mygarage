@@ -77,6 +77,10 @@ function itemWith(intervalKm?: number): ServiceVisitFormLineItem {
     inspection_result: '',
     inspection_severity: '',
     triggered_by_inspection_id: undefined,
+    is_recall: false,
+    recall_id: null,
+    is_warranty: false,
+    warranty_id: null,
     supplies_used: [],
     reminderDraft: {
       enabled: true,

@@ -729,7 +729,9 @@
     "attachments": "Lampiran",
     "createTitle": "Log Lawatan Servis",
     "editTitle": "Edit Lawatan Servis",
-    "insuranceClaim": "Tuntutan Insurans #",
+    "refs": {
+      "insuranceClaim": "Tuntutan Insurans #"
+    },
     "lineItemCostDecimals": "Item baris {{number}}: kos membenarkan maksimum 2 tempat perpuluhan",
     "lineItemCostInvalid": "Item baris {{number}}: masukkan nombor untuk kos",
     "lineItemCostNegative": "Item baris {{number}}: kos tidak boleh negatif",

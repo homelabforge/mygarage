@@ -10236,6 +10236,11 @@
             "title": "Total Maintenance",
             "type": "string"
           },
+          "total_running_cost": {
+            "default": "0.00",
+            "title": "Total Running Cost",
+            "type": "string"
+          },
           "total_taxes": {
             "default": "0.00",
             "title": "Total Taxes",
@@ -12210,6 +12215,76 @@
           "password"
         ],
         "title": "LinkOIDCAccountRequest",
+        "type": "object"
+      },
+      "LinkedRecall": {
+        "description": "The recall a line item links, enough to label its chip.",
+        "properties": {
+          "campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "NHTSA campaign number, else the provider's own identifier",
+            "title": "Campaign"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Component the recall covers",
+            "title": "Component"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "LinkedRecall",
+        "type": "object"
+      },
+      "LinkedWarranty": {
+        "description": "The warranty a line item links, enough to label its chip.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Warranty provider name",
+            "title": "Provider"
+          },
+          "warranty_type": {
+            "description": "Type of warranty coverage",
+            "title": "Warranty Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "warranty_type"
+        ],
+        "title": "LinkedWarranty",
         "type": "object"
       },
       "LiveLinkDeviceListResponse": {
@@ -17945,6 +18020,44 @@
         "title": "RecallCreate",
         "type": "object"
       },
+      "RecallLinkedVisit": {
+        "description": "The service visit whose line item fixed the recall.",
+        "properties": {
+          "date": {
+            "description": "The visit's date, the day the recall was fixed",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "line_item_id": {
+            "title": "Line Item Id",
+            "type": "integer"
+          },
+          "vendor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the work was done",
+            "title": "Vendor Name"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit_id",
+          "line_item_id",
+          "date"
+        ],
+        "title": "RecallLinkedVisit",
+        "type": "object"
+      },
       "RecallListResponse": {
         "description": "Schema for list of recalls.",
         "properties": {
@@ -17981,9 +18094,16 @@
         "description": "Schema for recall response.",
         "properties": {
           "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Component affected by recall",
-            "title": "Component",
-            "type": "string"
+            "title": "Component"
           },
           "consequence": {
             "anyOf": [
@@ -18047,6 +18167,17 @@
             "title": "Is Resolved",
             "type": "boolean"
           },
+          "linked_visit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecallLinkedVisit"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The service visit that fixed it, when a line item links it"
+          },
           "match_confidence": {
             "anyOf": [
               {
@@ -18107,6 +18238,22 @@
             ],
             "title": "Resolved At"
           },
+          "resolved_via": {
+            "anyOf": [
+              {
+                "enum": [
+                  "manual",
+                  "service_visit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "manual or service_visit; null on an older row, read as manual",
+            "title": "Resolved Via"
+          },
           "source": {
             "anyOf": [
               {
@@ -18125,9 +18272,16 @@
             "title": "Source"
           },
           "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Summary of the recall issue",
-            "title": "Summary",
-            "type": "string"
+            "title": "Summary"
           },
           "vin": {
             "title": "Vin",
@@ -18135,8 +18289,6 @@
           }
         },
         "required": [
-          "component",
-          "summary",
           "id",
           "vin",
           "is_resolved",
@@ -20086,6 +20238,18 @@
             "title": "Is Inspection",
             "type": "boolean"
           },
+          "is_recall": {
+            "default": false,
+            "description": "Is this recall work",
+            "title": "Is Recall",
+            "type": "boolean"
+          },
+          "is_warranty": {
+            "default": false,
+            "description": "Is this warranty work",
+            "title": "Is Warranty",
+            "type": "boolean"
+          },
           "maintenance_type": {
             "anyOf": [
               {
@@ -20111,6 +20275,18 @@
             ],
             "description": "Additional notes",
             "title": "Notes"
+          },
+          "recall_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recall this item fixed, when it's in MyGarage (needs is_recall)",
+            "title": "Recall Id"
           },
           "reminder": {
             "anyOf": [
@@ -20154,6 +20330,18 @@
             ],
             "description": "ID of inspection that triggered this repair",
             "title": "Triggered By Inspection Id"
+          },
+          "warranty_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The warranty that covered this item, if any (needs is_warranty)",
+            "title": "Warranty Id"
           }
         },
         "required": [
@@ -20270,6 +20458,18 @@
             "title": "Is Inspection",
             "type": "boolean"
           },
+          "is_recall": {
+            "default": false,
+            "description": "Is this recall work",
+            "title": "Is Recall",
+            "type": "boolean"
+          },
+          "is_warranty": {
+            "default": false,
+            "description": "Is this warranty work",
+            "title": "Is Warranty",
+            "type": "boolean"
+          },
           "maintenance_type": {
             "anyOf": [
               {
@@ -20300,6 +20500,29 @@
             "description": "Additional notes",
             "title": "Notes"
           },
+          "recall_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The recall this item fixed, when it's in MyGarage (needs is_recall)",
+            "title": "Recall Id"
+          },
+          "recall_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedRecall"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked recall, if any"
+          },
           "supply_usages": {
             "items": {
               "$ref": "#/components/schemas/SupplyUsageResponse"
@@ -20322,6 +20545,29 @@
           "visit_id": {
             "title": "Visit Id",
             "type": "integer"
+          },
+          "warranty_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The warranty that covered this item, if any (needs is_warranty)",
+            "title": "Warranty Id"
+          },
+          "warranty_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkedWarranty"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The linked warranty, if any"
           }
         },
         "required": [
@@ -20334,7 +20580,7 @@
         "type": "object"
       },
       "ServiceLineItemUpdate": {
-        "description": "Line item shape for diff-based visit updates.\n\nAn existing item (`id` set) keeps any field the request leaves out. A\nnullable field sent as null is cleared; `is_inspection` takes false, not\nnull; `supplies_used` takes [] to remove every usage (null is refused);\n`description` is always required.\n\ntemp_id: negative int assigned by client for new items so other new items\ncan reference them via triggered_by_inspection_id before flush.",
+        "description": "Line item shape for diff-based visit updates.\n\nAn existing item (`id` set) keeps any field the request leaves out. A\nnullable field sent as null is cleared; `is_inspection`, `is_recall` and\n`is_warranty` take false, not null; `supplies_used` takes [] to remove\nevery usage (null is refused); `description` is always required.\n\ntemp_id: negative int assigned by client for new items so other new items\ncan reference them via triggered_by_inspection_id before flush.",
         "properties": {
           "category": {
             "anyOf": [
@@ -20425,6 +20671,16 @@
             "title": "Is Inspection",
             "type": "boolean"
           },
+          "is_recall": {
+            "default": false,
+            "title": "Is Recall",
+            "type": "boolean"
+          },
+          "is_warranty": {
+            "default": false,
+            "title": "Is Warranty",
+            "type": "boolean"
+          },
           "maintenance_type": {
             "anyOf": [
               {
@@ -20448,6 +20704,17 @@
               }
             ],
             "title": "Notes"
+          },
+          "recall_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall Id"
           },
           "reminder": {
             "anyOf": [
@@ -20489,6 +20756,17 @@
               }
             ],
             "title": "Triggered By Inspection Id"
+          },
+          "warranty_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warranty Id"
           }
         },
         "required": [
@@ -20599,6 +20877,19 @@
             "description": "Insurance claim number",
             "title": "Insurance Claim Number"
           },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shop invoice number",
+            "title": "Invoice Number"
+          },
           "line_items": {
             "description": "Services performed during this visit",
             "items": {
@@ -20654,6 +20945,19 @@
             ],
             "description": "Odometer reading in kilometers",
             "title": "Odometer Km"
+          },
+          "po_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Purchase order number",
+            "title": "Po Number"
           },
           "service_category": {
             "anyOf": [
@@ -20736,6 +21040,19 @@
             ],
             "description": "Vendor ID",
             "title": "Vendor Id"
+          },
+          "work_order_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Work order number",
+            "title": "Work Order Number"
           }
         },
         "required": [
@@ -20858,6 +21175,18 @@
             "description": "Insurance claim number",
             "title": "Insurance Claim Number"
           },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shop invoice number",
+            "title": "Invoice Number"
+          },
           "line_item_count": {
             "description": "Number of line items",
             "title": "Line Item Count",
@@ -20912,6 +21241,18 @@
             "description": "\u03a3 supply usage cost snapshots across line items",
             "title": "Parts Supplies Cost",
             "type": "string"
+          },
+          "po_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Purchase order number",
+            "title": "Po Number"
           },
           "service_category": {
             "anyOf": [
@@ -21009,6 +21350,18 @@
           "vin": {
             "title": "Vin",
             "type": "string"
+          },
+          "work_order_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Work order number",
+            "title": "Work Order Number"
           }
         },
         "required": [
@@ -21076,6 +21429,19 @@
             "description": "Insurance claim number",
             "title": "Insurance Claim Number"
           },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shop invoice number",
+            "title": "Invoice Number"
+          },
           "line_items": {
             "anyOf": [
               {
@@ -21137,6 +21503,19 @@
             ],
             "description": "Odometer reading in kilometers",
             "title": "Odometer Km"
+          },
+          "po_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Purchase order number",
+            "title": "Po Number"
           },
           "service_category": {
             "anyOf": [
@@ -21219,6 +21598,19 @@
             ],
             "description": "Vendor ID",
             "title": "Vendor Id"
+          },
+          "work_order_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Work order number",
+            "title": "Work Order Number"
           }
         },
         "title": "ServiceVisitUpdate",
@@ -33931,6 +34323,50 @@
         "title": "VendorUpdate",
         "type": "object"
       },
+      "WarrantyLinkedItem": {
+        "description": "A line item done under the warranty.",
+        "properties": {
+          "cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cost for this line item",
+            "title": "Cost"
+          },
+          "date": {
+            "description": "The visit's date",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "description": {
+            "description": "Service description",
+            "title": "Description",
+            "type": "string"
+          },
+          "line_item_id": {
+            "title": "Line Item Id",
+            "type": "integer"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit_id",
+          "line_item_id",
+          "date",
+          "description"
+        ],
+        "title": "WarrantyLinkedItem",
+        "type": "object"
+      },
       "WarrantyRecord": {
         "description": "Schema for warranty record response.",
         "properties": {
@@ -33967,6 +34403,14 @@
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "linked_items": {
+            "description": "Line items done under this warranty, by visit date",
+            "items": {
+              "$ref": "#/components/schemas/WarrantyLinkedItem"
+            },
+            "title": "Linked Items",
+            "type": "array"
           },
           "mileage_limit_km": {
             "anyOf": [

@@ -3,11 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
-import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory, SupplyUsedEntry } from '../types/serviceVisit'
+import type { ServiceVisit, ServiceLineItem, ServiceVisitCreate, ServiceVisitUpdate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory, SupplyUsedEntry } from '../types/serviceVisit'
 import { reminderDraftToCreate } from '../types/reminder'
 import type { Vehicle, VehicleType } from '../types/vehicle'
 import { NON_MOTORIZED_TYPES } from '../schemas/vehicle'
 import type { Supply } from '../types/supplies'
+import type { Recall } from '../types/recall'
+import type { WarrantyRecord } from '../types/warranty'
 import { SERVICE_CATEGORIES } from '../schemas/serviceVisit'
 import { MONEY_MAX } from '../schemas/shared'
 import VendorSearch from './VendorSearch'
@@ -16,6 +18,8 @@ import ServiceVisitAttachmentUpload from './ServiceVisitAttachmentUpload'
 import ServiceVisitAttachmentList from './ServiceVisitAttachmentList'
 import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/useServiceVisits'
 import { useSupplies } from '../hooks/queries/useSupplies'
+import { useRecallRecords } from '../hooks/queries/useRecallRecords'
+import { useWarrantyRecords } from '../hooks/queries/useWarrantyRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useLatestMileage } from '../hooks/useLatestMileage'
@@ -27,7 +31,7 @@ import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors, withoutFieldError } from '../hooks/useApiFormErrors'
-import { Button, Field, Input, NumberInput, Textarea, Mono } from './ui'
+import { Button, Chip, Field, Input, NumberInput, Textarea, Mono, type SelectOption } from './ui'
 import CurrencyInput from './common/CurrencyInput'
 import { formatCurrency, formatCurrencyZero } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -75,6 +79,10 @@ const createEmptyLineItem = (tempId: number): ServiceVisitFormLineItem => ({
   inspection_result: '',
   inspection_severity: '',
   triggered_by_inspection_id: undefined,
+  is_recall: false,
+  recall_id: null,
+  is_warranty: false,
+  warranty_id: null,
   supplies_used: [],
 })
 
@@ -82,6 +90,30 @@ const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
 
 /** The visit's own number boxes, each held as typed text. */
 type NumericVisitField = 'odometer_km' | 'engine_hours' | 'tax_amount' | 'shop_supplies' | 'misc_fees'
+
+/** The visit's paperwork refs. Each one sits behind a chip, off until it has a value. */
+type RefField = 'insurance_claim_number' | 'invoice_number' | 'po_number' | 'work_order_number'
+
+/** Chip order, and the id each ref's input keeps for tests and labels. */
+const REF_FIELDS: readonly { field: RefField; id: string }[] = [
+  { field: 'insurance_claim_number', id: 'insurance-claim' },
+  { field: 'invoice_number', id: 'invoice-number' },
+  { field: 'po_number', id: 'po-number' },
+  { field: 'work_order_number', id: 'work-order-number' },
+]
+
+/** The API's cap. It strips first, so padding doesn't count. */
+const REF_MAX_LENGTH = 50
+
+const isRefField = (field: string): field is RefField => REF_FIELDS.some((ref) => ref.field === field)
+
+/**
+ * Whether a line on this visit may link the recall. An open or hand-resolved
+ * recall nobody links is free, and so is one a line of this same visit holds,
+ * so a link can move between lines in one save. One fixed on another visit isn't.
+ */
+const recallIsFree = (recall: Recall, visitId: number | undefined): boolean =>
+  recall.linked_visit == null || recall.linked_visit.visit_id === visitId
 
 /** A seeded number as box text. It's only parsed once the user edits it; until then formData keeps the number. */
 const textOf = (value: number | undefined): string => (value == null ? '' : String(value))
@@ -159,6 +191,12 @@ function ServiceVisitForm({
     supplyUnitsRef.current = grown
   }
   const unitsBySupplyId = supplyUnitsRef.current
+  // Every recall (open and resolved) and warranty, for the line items' pickers.
+  // Same cache entries as the Recalls and Warranties tabs.
+  const { data: recallData } = useRecallRecords(vin)
+  const { data: warrantyData } = useWarrantyRecords(vin)
+  const recalls = useMemo(() => recallData?.recalls ?? [], [recallData])
+  const warranties = useMemo<WarrantyRecord[]>(() => warrantyData ?? [], [warrantyData])
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -201,6 +239,9 @@ function ServiceVisitForm({
         engine_hours: visit.engine_hours != null ? Number(visit.engine_hours) : undefined,
         notes: visit.notes || '',
         insurance_claim_number: visit.insurance_claim_number || '',
+        invoice_number: visit.invoice_number || '',
+        po_number: visit.po_number || '',
+        work_order_number: visit.work_order_number || '',
         tax_amount: visit.tax_amount !== undefined && visit.tax_amount !== null ? Number(visit.tax_amount) : undefined,
         shop_supplies: visit.shop_supplies !== undefined && visit.shop_supplies !== null ? Number(visit.shop_supplies) : undefined,
         misc_fees: visit.misc_fees !== undefined && visit.misc_fees !== null ? Number(visit.misc_fees) : undefined,
@@ -216,6 +257,10 @@ function ServiceVisitForm({
           inspection_result: item.inspection_result || '',
           inspection_severity: item.inspection_severity || '',
           triggered_by_inspection_id: item.triggered_by_inspection_id ?? undefined,
+          is_recall: item.is_recall,
+          recall_id: item.recall_id ?? null,
+          is_warranty: item.is_warranty,
+          warranty_id: item.warranty_id ?? null,
           // Hydrated from visit.line_items[*].supply_usages once the supplies
           // list loads (see the hydration effect below). supply_usages carries
           // canonical quantities and needs each supply's pinned unit to convert.
@@ -233,6 +278,9 @@ function ServiceVisitForm({
       engine_hours: undefined,
       notes: '',
       insurance_claim_number: '',
+      invoice_number: '',
+      po_number: '',
+      work_order_number: '',
       tax_amount: undefined,
       shop_supplies: undefined,
       misc_fees: undefined,
@@ -249,6 +297,48 @@ function ServiceVisitForm({
     shop_supplies: textOf(formData.shop_supplies),
     misc_fees: textOf(formData.misc_fees),
   }))
+
+  // A ref's chip starts on when there's something stored. `refsTouched` marks a
+  // chip the user flipped, so an edit only sends refs it showed at some point.
+  const [refsOn, setRefsOn] = useState<Record<RefField, boolean>>(() => ({
+    insurance_claim_number: !!formData.insurance_claim_number,
+    invoice_number: !!formData.invoice_number,
+    po_number: !!formData.po_number,
+    work_order_number: !!formData.work_order_number,
+  }))
+  const [refsTouched, setRefsTouched] = useState<Partial<Record<RefField, true>>>({})
+
+  const refText: Record<RefField, { label: string; placeholder: string; tooLong: string }> = {
+    insurance_claim_number: {
+      label: t('service.refs.insuranceClaim'),
+      placeholder: t('service.refs.insuranceClaimPlaceholder'),
+      tooLong: t('common:validation.serviceVisit.insuranceClaimNumberTooLong'),
+    },
+    invoice_number: {
+      label: t('service.refs.invoice'),
+      placeholder: t('service.refs.invoicePlaceholder'),
+      tooLong: t('common:validation.serviceVisit.invoiceNumberTooLong'),
+    },
+    po_number: {
+      label: t('service.refs.po'),
+      placeholder: t('service.refs.poPlaceholder'),
+      tooLong: t('common:validation.serviceVisit.poNumberTooLong'),
+    },
+    work_order_number: {
+      label: t('service.refs.workOrder'),
+      placeholder: t('service.refs.workOrderPlaceholder'),
+      tooLong: t('common:validation.serviceVisit.workOrderNumberTooLong'),
+    },
+  }
+
+  const toggleRef = (field: RefField): void => {
+    setRefsOn((prev) => ({ ...prev, [field]: !prev[field] }))
+    setRefsTouched((prev) => ({ ...prev, [field]: true }))
+    setFieldErrors((prev) => withoutFieldError(prev, field))
+  }
+
+  // Its text while the chip is on; turning the chip off clears it.
+  const refValue = (field: RefField): string | null => (refsOn[field] ? formData[field] || null : null)
 
   // Hydrate supplies_used from visit.line_items[*].supply_usages once the
   // supplies list has loaded. This can't happen in the formData initializer
@@ -322,6 +412,49 @@ function ServiceVisitForm({
       }))
       .filter((item) => item.failed)
   }, [formData.line_items])
+
+  const recallLabel = (campaign: string | null | undefined, component: string | null | undefined): string =>
+    [campaign, component].filter(Boolean).join(' · ') || t('vehicles:recallList.unnamed')
+  const warrantyLabel = (type: string, provider: string | null | undefined): string =>
+    provider ? `${type} (${provider})` : type
+
+  // The stored line this form line edits, for its saved recall and warranty summaries.
+  const storedItem = (index: number): ServiceLineItem | undefined => {
+    const id = formData.line_items[index]?.id
+    return id == null ? undefined : visit?.line_items.find((li) => li.id === id)
+  }
+
+  // A recall can only be on one line (D9), so each line's list leaves out the
+  // ones the other lines picked, but always keeps its own. While the list is
+  // loading (or failed) the stored link comes from the visit's own summary, so
+  // the select never reads "No specific recall" over a link it still sends.
+  const recallOptionsFor = (index: number): SelectOption[] => {
+    const own = formData.line_items[index]?.recall_id ?? null
+    const taken = new Set(
+      formData.line_items
+        .filter((other, i) => i !== index && other.is_recall && other.recall_id != null)
+        .map((other) => other.recall_id),
+    )
+    const options = recalls
+      .filter((r) => r.id === own || (!taken.has(r.id) && recallIsFree(r, visit?.id)))
+      .map((r) => ({ value: String(r.id), label: recallLabel(r.nhtsa_campaign_number || r.external_id, r.component) }))
+    const summary = storedItem(index)?.recall_summary
+    if (own != null && summary?.id === own && !options.some((o) => o.value === String(own))) {
+      options.unshift({ value: String(own), label: recallLabel(summary.campaign, summary.component) })
+    }
+    return options
+  }
+
+  // Same for warranties: every one is offered, plus the stored link if the list lacks it.
+  const warrantyOptionsFor = (index: number): SelectOption[] => {
+    const own = formData.line_items[index]?.warranty_id ?? null
+    const options = warranties.map((w) => ({ value: String(w.id), label: warrantyLabel(w.warranty_type, w.provider) }))
+    const summary = storedItem(index)?.warranty_summary
+    if (own != null && summary?.id === own && !options.some((o) => o.value === String(own))) {
+      options.unshift({ value: String(own), label: warrantyLabel(summary.warranty_type, summary.provider) })
+    }
+    return options
+  }
 
   const handleFieldChange = (field: keyof ServiceVisitFormData, value: unknown): void => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -460,6 +593,12 @@ function ServiceVisitForm({
       const fraction = text.includes('.') ? text.split('.')[1].length : 0
       if (fraction > places) {
         errors[key] = t('common:tooManyDecimals', { count: places })
+      }
+    }
+
+    for (const { field } of REF_FIELDS) {
+      if (refsOn[field] && formData[field].trim().length > REF_MAX_LENGTH) {
+        errors[field] = refText[field].tooLong
       }
     }
 
@@ -612,6 +751,10 @@ function ServiceVisitForm({
           inspection_result: item.inspection_result || null,
           inspection_severity: item.inspection_severity || null,
           triggered_by_inspection_id: item.triggered_by_inspection_id ?? null,
+          is_recall: item.is_recall,
+          recall_id: item.recall_id,
+          is_warranty: item.is_warranty,
+          warranty_id: item.warranty_id,
           // Always sent, even []: that's how a supply the user removed gets
           // cleared. Leaving the field out would keep the item's old usages.
           supplies_used: mapSuppliesUsedForSubmit(item),
@@ -620,6 +763,13 @@ function ServiceVisitForm({
             ? reminderDraftToCreate(item.reminderDraft)
             : undefined,
         }))
+
+        // A ref the form never showed stays out of the PUT, so it can't wipe
+        // a stored value. Shown or turned off, it goes out like any field (D6).
+        const updateRefs: Pick<ServiceVisitUpdate, RefField> = {}
+        for (const { field } of REF_FIELDS) {
+          if (refsOn[field] || refsTouched[field]) updateRefs[field] = refValue(field)
+        }
 
         // Null, not undefined, for anything left empty: the update route
         // skips keys that aren't sent, so a cleared field kept its old value.
@@ -632,7 +782,7 @@ function ServiceVisitForm({
           // (mirrors FuelRecordForm's engine_hours submit).
           engine_hours: formData.engine_hours ?? null,
           notes: formData.notes || null,
-          insurance_claim_number: formData.insurance_claim_number || null,
+          ...updateRefs,
           tax_amount: formData.tax_amount ?? null,
           shop_supplies: formData.shop_supplies ?? null,
           misc_fees: formData.misc_fees ?? null,
@@ -651,6 +801,10 @@ function ServiceVisitForm({
           inspection_result: item.inspection_result || undefined,
           inspection_severity: item.inspection_severity || undefined,
           triggered_by_inspection_id: item.triggered_by_inspection_id,
+          is_recall: item.is_recall,
+          recall_id: item.recall_id,
+          is_warranty: item.is_warranty,
+          warranty_id: item.warranty_id,
           temp_id: item.tempId,
           supplies_used: mapSuppliesUsedForSubmit(item),
           reminder: item.reminderDraft?.enabled
@@ -665,7 +819,10 @@ function ServiceVisitForm({
           // Dimensionless — submitted verbatim, no canonical conversion.
           engine_hours: formData.engine_hours,
           notes: formData.notes || undefined,
-          insurance_claim_number: formData.insurance_claim_number || undefined,
+          insurance_claim_number: refValue('insurance_claim_number'),
+          invoice_number: refValue('invoice_number'),
+          po_number: refValue('po_number'),
+          work_order_number: refValue('work_order_number'),
           tax_amount: formData.tax_amount,
           shop_supplies: formData.shop_supplies,
           misc_fees: formData.misc_fees,
@@ -682,15 +839,15 @@ function ServiceVisitForm({
       onSuccess()
       onClose()
     } catch (err) {
-      // Render targets: date, odometer_km, engine_hours, insurance_claim_number,
-      // notes, tax_amount, shop_supplies, misc_fees. vendor_id and line_items
-      // have no fieldErrors-wired Field, so a problem addressed to either must
-      // fall through to the banner below.
+      // Render targets: date, odometer_km, engine_hours, the four refs, notes,
+      // tax_amount, shop_supplies, misc_fees. vendor_id and line_items have no
+      // fieldErrors-wired Field, so a problem addressed to either must fall
+      // through to the banner below.
       const { attached, unhandled, errorsByField } = applyControlledFieldErrors(err, [
         'date',
         'odometer_km',
         'engine_hours',
-        'insurance_claim_number',
+        ...REF_FIELDS.map((ref) => ref.field),
         'notes',
         'tax_amount',
         'shop_supplies',
@@ -698,6 +855,11 @@ function ServiceVisitForm({
       ])
       if (attached.length > 0) {
         setFieldErrors(errorsByField)
+        // A ref's input only renders with its chip on, so the message needs it on.
+        const refsHit = attached.map((p) => p.field).filter(isRefField)
+        if (refsHit.length > 0) {
+          setRefsOn((prev) => ({ ...prev, ...Object.fromEntries(refsHit.map((f) => [f, true])) }))
+        }
       }
       if (attached.length === 0 || unhandled.length > 0) {
         setError(getActionErrorMessage(err, t('service.saveAction')))
@@ -806,16 +968,32 @@ function ServiceVisitForm({
               />
             </div>
 
-            <Field id="insurance-claim" label={t('service.insuranceClaim')} error={fieldErrors.insurance_claim_number}>
-              <Input
-                type="text"
-                id="insurance-claim"
-                value={formData.insurance_claim_number}
-                onChange={(e) => handleFieldChange('insurance_claim_number', e.target.value)}
-                placeholder="Claim #12345"
-                disabled={submitting}
-              />
-            </Field>
+            <div className="mb-4 space-y-3">
+              <div role="group" aria-labelledby="service-refs-label" className="flex flex-wrap items-center gap-2">
+                <span id="service-refs-label" className="text-sm font-medium text-text">{t('service.refs.toggleLabel')}</span>
+                {REF_FIELDS.map(({ field }) => (
+                  <Chip key={field} selected={refsOn[field]} disabled={submitting} onClick={() => toggleRef(field)}>
+                    {refText[field].label}
+                  </Chip>
+                ))}
+              </div>
+              {REF_FIELDS.some(({ field }) => refsOn[field]) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+                  {REF_FIELDS.filter(({ field }) => refsOn[field]).map(({ field, id }) => (
+                    <Field key={field} id={id} label={refText[field].label} error={fieldErrors[field]}>
+                      <Input
+                        type="text"
+                        id={id}
+                        value={formData[field]}
+                        onChange={(e) => handleFieldChange(field, e.target.value)}
+                        placeholder={refText[field].placeholder}
+                        disabled={submitting}
+                      />
+                    </Field>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <Field id="visit-notes" label={t('service.visitNotes')} error={fieldErrors.notes}>
               <Textarea
@@ -856,6 +1034,8 @@ function ServiceVisitForm({
                     isNewItem={!item.id}
                     currentMileage={currentMileage}
                     tracksHours={tracksHours}
+                    recallOptions={recallOptionsFor(index)}
+                    warrantyOptions={warrantyOptionsFor(index)}
                   />
                   {/* Quick action to add repair from failed inspection */}
                   {item.is_inspection &&

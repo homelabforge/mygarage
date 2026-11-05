@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ServiceVisit } from '../../types/serviceVisit'
 import { METRIC_UNITS } from '../../__tests__/factories'
 import { formatDateForDisplay } from '../../utils/dateUtils'
-import { render as renderWithRouter } from '../../__tests__/test-utils'
+// The list reads its link params from the router, so every render needs one.
+import { render } from '../../__tests__/test-utils'
 
 const useServiceVisitsMock = vi.fn()
 const deleteMutate = vi.fn()
@@ -12,6 +13,7 @@ const deleteMutate = vi.fn()
 vi.mock('../../hooks/queries/useServiceVisits', () => ({
   useServiceVisits: () => useServiceVisitsMock(),
   useDeleteServiceVisit: () => ({ mutate: deleteMutate, isPending: false, variables: undefined }),
+  useServiceVisit: () => ({ data: undefined, isError: false }),
 }))
 // Hoisted + mutable (kept "mock"-prefixed per Vitest's factory-hoisting rule) so the
 // Task 14 usage-tracking suite below can vary the /vehicles/{vin} response per test;
@@ -302,7 +304,7 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
 
   // The detail holds a <Link>, so these need the router from test-utils.
   const openVisit = (): void => {
-    renderWithRouter(<ServiceVisitList {...PROPS} />)
+    render(<ServiceVisitList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { expanded: false }))
   }
   const detailOpen = (): boolean => document.querySelector('[data-testid="drawer-backdrop"]') !== null
@@ -350,5 +352,27 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
     screen.getByRole('button', { name: 'serviceList.detail.viewDetails' }).focus()
     await user.keyboard('{Enter}')
     expect(detailOpen()).toBe(true)
+  })
+})
+
+describe('ServiceVisitList: reference numbers', () => {
+  it('shows each stored ref beside the claim line and skips the empty ones', async () => {
+    const refsVisit = {
+      ...visit,
+      insurance_claim_number: 'CLM-9',
+      invoice_number: '4CCS403925',
+      po_number: null,
+      work_order_number: 'WO-12',
+    } as unknown as ServiceVisit
+    useServiceVisitsMock.mockReturnValue({ data: { visits: [refsVisit] }, isLoading: false, error: null })
+    render(<ServiceVisitList {...PROPS} />)
+
+    fireEvent.click(screen.getByRole('button', { name: `Tire rotation ${formatDateForDisplay('2026-03-01')}` }))
+
+    await waitFor(() => expect(screen.getByText('4CCS403925')).toBeInTheDocument())
+    expect(screen.getByText('4CCS403925').parentElement).toHaveTextContent('serviceList.invoice: 4CCS403925')
+    expect(screen.getByText('WO-12').parentElement).toHaveTextContent('serviceList.workOrder: WO-12')
+    expect(screen.getByText('CLM-9').parentElement).toHaveTextContent('serviceList.insuranceClaim: CLM-9')
+    expect(screen.queryByText(/serviceList\.po:/)).toBeNull()
   })
 })

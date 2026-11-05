@@ -82,6 +82,9 @@ vi.mock('../../hooks/queries/useSupplies', () => ({
   })),
 }))
 
+// The line items' recall and warranty pickers; nothing to offer here.
+vi.mock('../../hooks/queries/useRecallRecords', () => ({ useRecallRecords: () => ({ data: { recalls: [] } }) }))
+vi.mock('../../hooks/queries/useWarrantyRecords', () => ({ useWarrantyRecords: () => ({ data: [] }) }))
 vi.mock('../VendorSearch', () => ({
   default: () => <div data-testid="vendor-search" />,
 }))
@@ -211,6 +214,8 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
           needs_followup: false,
           notes: null,
           triggered_by_inspection_id: null,
+          is_recall: false,
+          is_warranty: false,
           supply_usages: [
             {
               id: 1,
@@ -305,6 +310,8 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
             needs_followup: false,
             notes: null,
             triggered_by_inspection_id: null,
+            is_recall: false,
+            is_warranty: false,
             supply_usages: [
               {
                 id: 5,
@@ -390,6 +397,8 @@ describe('ServiceVisitForm: each supply converts in its own unit', () => {
         needs_followup: false,
         notes: null,
         triggered_by_inspection_id: null,
+        is_recall: false,
+        is_warranty: false,
         supply_usages: [
           {
             id: 1,

@@ -3,7 +3,7 @@
 # pyright: reportReturnType=false
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
@@ -17,6 +17,9 @@ from app.models.service_visit import ServiceVisit
 from app.models.supply import SupplyUsage
 from app.models.user import User
 from app.schemas.service_visit import (
+    FLAGGED_LINKS,
+    LinkedRecall,
+    LinkedWarranty,
     ServiceLineItemCreate,
     ServiceLineItemResponse,
     ServiceLineItemUpdate,
@@ -26,7 +29,7 @@ from app.schemas.service_visit import (
     VendorSummary,
 )
 from app.schemas.supply import SupplyUsageInput
-from app.services import maintenance_service
+from app.services import maintenance_service, recall_links
 from app.services.attachment_cleanup import purge_record_attachments, remove_attachment_files
 from app.services.supply_service import SupplyService, usage_cost_subject
 from app.services.vehicle_lock import lock_vehicle_for_write
@@ -41,7 +44,8 @@ logger = logging.getLogger(__name__)
 # An update leaves these alone on an existing line item unless it sends them
 # (Ruling 11): omitted keeps the value, null clears it. The form sends null
 # for every blank field. triggered_by_inspection_id follows the same rule but
-# is resolved in pass 2, once new items have ids.
+# is resolved in pass 2, once new items have ids. The recall and warranty
+# flags and links follow it too, through _wanted_links and recall_links.
 _KEPT_WHEN_OMITTED = (
     "category",
     "cost",
@@ -69,9 +73,49 @@ def drop_stray_links(items: Sequence[ServiceLineItem]) -> None:
             item.triggered_by_inspection_id = None
 
 
+def _new_item_links(
+    item_data: ServiceLineItemCreate | ServiceLineItemUpdate,
+) -> tuple[int | None, int | None]:
+    """A new item's (recall_id, warranty_id). A flag that's off takes its link with it."""
+    return (
+        item_data.recall_id if item_data.is_recall else None,
+        item_data.warranty_id if item_data.is_warranty else None,
+    )
+
+
+def _wanted_links(
+    row: ServiceLineItem,
+    item_data: ServiceLineItemUpdate,
+    known: Mapping[str, set[int]],
+) -> tuple[int | None, int | None]:
+    """An existing item's (recall_id, warranty_id) once this update applies.
+
+    Omitted keeps the stored value; a flag sent false unlinks. A sent id that
+    isn't one of this vehicle's (`known`, by link column) reads as cleared: the
+    form seeds stored links, and one deleted since is gone already. Another
+    garage's id gets the same answer, so it can't be told apart. Sets the flags
+    it was sent.
+    """
+    sent = item_data.model_fields_set
+    out: dict[str, int | None] = {}
+    for flag, link in FLAGGED_LINKS:
+        if flag in sent:
+            setattr(row, flag, getattr(item_data, flag))
+        value = getattr(item_data, link) if link in sent else getattr(row, link)
+        if link in sent and value is not None and value not in known[link]:
+            value = None
+        if not getattr(row, flag):
+            if link in sent and value is not None:
+                raise HTTPException(status_code=422, detail=f"{link} needs {flag} set to true")
+            value = None
+        out[link] = value
+    return out["recall_id"], out["warranty_id"]
+
+
 def service_visit_full_load_options():
     """Loader options for building a full ServiceVisitResponse: line_items →
-    supply_usages → supply (needed for SupplyUsageResponse.supply_name) + vendor.
+    supply_usages → supply (needed for SupplyUsageResponse.supply_name), each
+    item's recall and warranty (its chip summaries) + vendor.
 
     Required before any read of calculated_total_cost / parts_supplies_cost —
     async SQLAlchemy raises MissingGreenlet on an unloaded relationship rather
@@ -81,6 +125,8 @@ def service_visit_full_load_options():
         selectinload(ServiceVisit.line_items)
         .selectinload(ServiceLineItem.supply_usages)
         .selectinload(SupplyUsage.supply),
+        selectinload(ServiceVisit.line_items).selectinload(ServiceLineItem.recall),
+        selectinload(ServiceVisit.line_items).selectinload(ServiceLineItem.warranty),
         selectinload(ServiceVisit.vendor),
     )
 
@@ -288,6 +334,9 @@ class ServiceVisitService:
             notes=visit_data.notes,
             service_category=first_cat or visit_data.service_category,
             insurance_claim_number=visit_data.insurance_claim_number,
+            invoice_number=visit_data.invoice_number,
+            po_number=visit_data.po_number,
+            work_order_number=visit_data.work_order_number,
         )
         self.db.add(visit)
         await self.db.flush()  # Get visit ID
@@ -308,12 +357,25 @@ class ServiceVisitService:
                 inspection_result=item_data.inspection_result,
                 inspection_severity=item_data.inspection_severity,
                 triggered_by_inspection_id=None,  # resolved in Pass 2
+                is_recall=item_data.is_recall,
+                is_warranty=item_data.is_warranty,
             )
             self.db.add(line_item)
             await self.db.flush()
             if item_data.temp_id is not None:
                 temp_id_map[item_data.temp_id] = line_item.id
             created_items.append((item_data, line_item))
+
+        # Recall and warranty links go on once every item exists, checked
+        # against this vehicle, and resolve the recalls they name.
+        await recall_links.apply_links(
+            self.db,
+            vin,
+            visit.date,
+            [line_item for _data, line_item in created_items],
+            [(li, *_new_item_links(data)) for data, li in created_items],
+            before=(),
+        )
 
         # Pass 2: Resolve triggered_by_inspection_id and create reminders
         for item_data, line_item in created_items:
@@ -400,6 +462,8 @@ class ServiceVisitService:
             # rule: serialise with every other rule writer before the first read.
             await lock_vehicle_for_write(self.db, vin)
             visit = await self.get_service_visit(vin, visit_id, current_user)
+            old_date = visit.date
+            linked_before = [item.recall_id for item in visit.line_items]
 
             update_data = visit_data.model_dump(exclude_unset=True)
 
@@ -454,6 +518,16 @@ class ServiceVisitService:
                 new_items: list[tuple[ServiceLineItemUpdate, ServiceLineItem]] = []
                 # Every link the request sends, set in pass 2.
                 links: list[tuple[ServiceLineItem, int | None]] = []
+                # Recall and warranty links, set after pass 1 by recall_links.
+                wanted: list[recall_links.WantedLinks] = []
+                known = await recall_links.known_ids(
+                    self.db,
+                    vin,
+                    {
+                        link: {getattr(i, link) for i in submitted if i.id} - {None}
+                        for _flag, link in FLAGGED_LINKS
+                    },
+                )
 
                 for item_data in submitted:
                     if item_data.id and item_data.id in existing:
@@ -465,6 +539,7 @@ class ServiceVisitService:
                                 setattr(row, field, getattr(item_data, field))
                         if "triggered_by_inspection_id" in sent:
                             links.append((row, item_data.triggered_by_inspection_id))
+                        wanted.append((row, *_wanted_links(row, item_data, known)))
                         if "maintenance_type" in sent:
                             row.maintenance_type = item_data.maintenance_type
                         elif row.maintenance_type is None:
@@ -491,6 +566,8 @@ class ServiceVisitService:
                             inspection_result=item_data.inspection_result,
                             inspection_severity=item_data.inspection_severity,
                             triggered_by_inspection_id=None,  # resolved in Pass 2
+                            is_recall=item_data.is_recall,
+                            is_warranty=item_data.is_warranty,
                         )
                         self.db.add(line_item)
                         await self.db.flush()
@@ -498,8 +575,20 @@ class ServiceVisitService:
                             temp_id_map[item_data.temp_id] = line_item.id
                         new_items.append((item_data, line_item))
                         links.append((line_item, item_data.triggered_by_inspection_id))
+                        wanted.append((line_item, *_new_item_links(item_data)))
                         if line_item.category:
                             effective_cats.append(line_item.category)
+
+                # Every item exists now, so links can move between them.
+                await recall_links.apply_links(
+                    self.db,
+                    vin,
+                    visit.date,
+                    [row for row, _rid, _wid in wanted],
+                    wanted,
+                    before=linked_before,
+                    restamp=visit.date != old_date,
+                )
 
                 # Pass 2: a temp id names a new item; a real id (checked above)
                 # keeps the link only if this PUT keeps that item.
@@ -530,6 +619,11 @@ class ServiceVisitService:
                 # From the items' categories as they are now, kept or sent.
                 if effective_cats:
                     visit.service_category = effective_cats[0]
+            elif visit.date != old_date:
+                # A new date is a new repair date for every recall it links (D12).
+                await recall_links.link_recalls(
+                    self.db, [(rid, visit.date) for rid in linked_before if rid is not None]
+                )
 
             # Always recompute total_cost from line items + supplies + fees (denormalized cache)
             await self.db.flush()
@@ -685,6 +779,8 @@ class ServiceVisitService:
             # Attachments have no FK to the visit, so nothing cascades to them.
             attachment_paths = await purge_record_attachments(self.db, "service_visit", visit_id)
 
+            # The recalls this visit resolved open again (D1).
+            await recall_links.unlink_recalls(self.db, [i.recall_id for i in visit.line_items])
             await self.db.delete(visit)
             # Sessions don't autoflush and the reconcile reads history first,
             # so the delete has to be in the database before it runs.
@@ -772,11 +868,22 @@ class ServiceVisitService:
                 inspection_result=item_data.inspection_result,
                 inspection_severity=item_data.inspection_severity,
                 triggered_by_inspection_id=item_data.triggered_by_inspection_id,
+                is_recall=item_data.is_recall,
+                is_warranty=item_data.is_warranty,
             )
             self.db.add(line_item)
             await self.db.flush()
             # A link to an item that isn't an inspection just goes.
             drop_stray_links([*visit.line_items, line_item])
+            # Checked against the visit's other items too: one item per recall.
+            await recall_links.apply_links(
+                self.db,
+                vin,
+                visit.date,
+                [*visit.line_items, line_item],
+                [(line_item, *_new_item_links(item_data))],
+                before=[item.recall_id for item in visit.line_items],
+            )
 
             if item_data.reminder:
                 await maintenance_service.create_reminder_for_line_item(
@@ -795,12 +902,15 @@ class ServiceVisitService:
 
             # Reload with supply usages + supply + owning visit eager-loaded so the
             # response can carry supply_usages (to_usage_response reads usage.supply.name
-            # and, for job usages, usage.line_item.visit.date — both must be loaded).
+            # and, for job usages, usage.line_item.visit.date; both must be loaded),
+            # plus the recall and warranty its summaries read.
             reloaded = await self.db.execute(
                 select(ServiceLineItem)
                 .options(
                     selectinload(ServiceLineItem.supply_usages).selectinload(SupplyUsage.supply),
                     joinedload(ServiceLineItem.visit),
+                    selectinload(ServiceLineItem.recall),
+                    selectinload(ServiceLineItem.warranty),
                 )
                 .where(ServiceLineItem.id == line_item.id)
             )
@@ -867,6 +977,8 @@ class ServiceVisitService:
             if not line_item:
                 raise HTTPException(status_code=404, detail=f"Line item {line_item_id} not found")
 
+            # Its recall opens again if this link resolved it (D1).
+            await recall_links.unlink_recalls(self.db, [line_item.recall_id])
             await self.db.delete(line_item)
             # Flushed before the reconcile reads history: sessions don't autoflush.
             await self.db.flush()
@@ -1019,6 +1131,55 @@ class ServiceVisitService:
                 )
         await self.db.flush()
 
+    def _line_item_to_response(
+        self, item: ServiceLineItem, supply_service: SupplyService | None = None
+    ) -> ServiceLineItemResponse:
+        """Convert a line item to its response, the visit's and the POST's alike.
+
+        Needs supply_usages (with each supply), recall and warranty loaded:
+        async never lazy-loads.
+        """
+        # Reuse SupplyService's usage->response mapping rather than duplicating
+        # it here (it also fills in service_visit_id/service_visit_date via
+        # usage.line_item.visit, back_populates-populated for free by the
+        # line_items/supply_usages eager-load, no extra query).
+        supply_service = supply_service or SupplyService(self.db)
+        recall = item.recall
+        warranty = item.warranty
+        return ServiceLineItemResponse(  # type: ignore[arg-type]
+            id=item.id,
+            visit_id=item.visit_id,
+            description=item.description,
+            category=item.category,
+            maintenance_type=item.maintenance_type,
+            cost=item.cost,
+            notes=item.notes,
+            is_inspection=item.is_inspection,
+            inspection_result=item.inspection_result,
+            inspection_severity=item.inspection_severity,
+            triggered_by_inspection_id=item.triggered_by_inspection_id,
+            is_recall=item.is_recall,
+            recall_id=item.recall_id,
+            is_warranty=item.is_warranty,
+            warranty_id=item.warranty_id,
+            created_at=item.created_at,
+            is_failed_inspection=item.is_failed_inspection,
+            needs_followup=item.needs_followup,
+            supply_usages=[supply_service.to_usage_response(u) for u in item.supply_usages],
+            recall_summary=LinkedRecall(
+                id=recall.id,
+                campaign=recall.nhtsa_campaign_number or recall.external_id,
+                component=recall.component,
+            )
+            if recall is not None
+            else None,
+            warranty_summary=LinkedWarranty(
+                id=warranty.id, warranty_type=warranty.warranty_type, provider=warranty.provider
+            )
+            if warranty is not None
+            else None,
+        )
+
     def _visit_to_response(self, visit: ServiceVisit) -> ServiceVisitResponse:
         """Convert ServiceVisit model to response schema."""
         vendor_summary = None
@@ -1030,31 +1191,9 @@ class ServiceVisitService:
                 state=visit.vendor.state,
             )
 
-        # Reuse SupplyService's usage->response mapping rather than duplicating
-        # it here (it also fills in service_visit_id/service_visit_date via
-        # usage.line_item.visit, both back_populates-populated for free by the
-        # line_items/supply_usages eager-load above — no extra query).
         supply_service = SupplyService(self.db)
-
         line_item_responses = [
-            ServiceLineItemResponse(  # type: ignore[arg-type]
-                id=item.id,
-                visit_id=item.visit_id,
-                description=item.description,
-                category=item.category,
-                maintenance_type=item.maintenance_type,
-                cost=item.cost,
-                notes=item.notes,
-                is_inspection=item.is_inspection,
-                inspection_result=item.inspection_result,
-                inspection_severity=item.inspection_severity,
-                triggered_by_inspection_id=item.triggered_by_inspection_id,
-                created_at=item.created_at,
-                is_failed_inspection=item.is_failed_inspection,
-                needs_followup=item.needs_followup,
-                supply_usages=[supply_service.to_usage_response(u) for u in item.supply_usages],
-            )
-            for item in visit.line_items
+            self._line_item_to_response(item, supply_service) for item in visit.line_items
         ]
 
         return ServiceVisitResponse(  # type: ignore[arg-type]
@@ -1074,6 +1213,9 @@ class ServiceVisitService:
             notes=visit.notes,
             service_category=visit.service_category,
             insurance_claim_number=visit.insurance_claim_number,
+            invoice_number=visit.invoice_number,
+            po_number=visit.po_number,
+            work_order_number=visit.work_order_number,
             line_item_count=visit.line_item_count,
             has_failed_inspections=visit.has_failed_inspections,
             created_at=visit.created_at,

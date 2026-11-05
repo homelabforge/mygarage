@@ -635,7 +635,9 @@
     "attachments": "Anhänge",
     "createTitle": "Servicebesuch erfassen",
     "editTitle": "Servicebesuch bearbeiten",
-    "insuranceClaim": "Versicherungsschadensnummer #",
+    "refs": {
+      "insuranceClaim": "Versicherungsschadensnummer #"
+    },
     "miscFees": "Sonstige Gebühren",
     "partsSupplies": "Teile / Vorräte",
     "servicesPerformed": "Durchgeführte Services",

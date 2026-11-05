@@ -38,11 +38,17 @@ class Recall(Base):
     date_announced: Mapped[date | None] = mapped_column(Date)
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # 'manual', 'service_visit' or NULL (a legacy row, read as manual). Migration 158.
+    resolved_via: Mapped[str | None] = mapped_column(String(20))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
     vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="recalls")
+    # The one line item that fixed it, if any. Read-only: the item owns the link.
+    linked_line_item: Mapped[ServiceLineItem | None] = relationship(
+        "ServiceLineItem", viewonly=True, uselist=False
+    )
 
     __table_args__ = (
         Index("idx_recalls_vin", "vin"),
@@ -51,4 +57,5 @@ class Recall(Base):
     )
 
 
+from app.models.service_line_item import ServiceLineItem
 from app.models.vehicle import Vehicle

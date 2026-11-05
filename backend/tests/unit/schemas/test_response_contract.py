@@ -259,6 +259,8 @@ def test_no_response_constrains_text():
 #: Twins that differ from the field they shadow on purpose: (model, field) -> why.
 DELIBERATE_TWINS: dict[tuple[str, str], str] = {
     ("AddressBookEntryResponse", "email"): "a plain str: EmailStr refuses a local-domain address",
+    ("RecallResponse", "component"): "nullable column: a sync or import can store none",
+    ("RecallResponse", "summary"): "nullable column: a sync or import can store none",
     ("TopicMapResponse", "role"): "lenient read; the input stays strict",
     ("UserResponse", "email"): "a plain str: EmailStr refuses an SSO email at a local domain",
     ("VehicleResponse", "usage_unit"): "lenient read; the input stays strict",
@@ -772,6 +774,7 @@ VOCABULARY_NAMESAKES = (
     "device_status",
     "anchor_kind",
     "wheel_layout",
+    "resolved_via",
 )
 #: Namesakes that carry something else: (model, field) -> what they carry.
 FREE_TEXT_NAMESAKES: dict[tuple[str, str], str] = {
@@ -914,6 +917,15 @@ def test_the_wheel_layout_override_reads_leniently():
     by_name = {model.__name__: model for model in RESPONSE_MODELS}
     info = by_name["VehicleResponse"].model_fields["wheel_layout"]
     assert _vocabulary(info.annotation)
+    assert _reads_leniently(info)
+
+
+def test_the_recall_resolved_via_reads_leniently():
+    """recalls.resolved_via has no CHECK, so it reads leniently (D10): a value
+    a restored backup or a downgrade left there reads as null, i.e. manual."""
+    by_name = {model.__name__: model for model in RESPONSE_MODELS}
+    info = by_name["RecallResponse"].model_fields["resolved_via"]
+    assert _vocabulary(info.annotation) == {"manual", "service_visit"}
     assert _reads_leniently(info)
 
 

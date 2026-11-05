@@ -84,6 +84,7 @@ const GARAGE = {
     total_insurance: '2000.00',
     total_taxes: '400.00',
     total_financing: '0.00',
+    total_running_cost: '10800.00',
   },
   cost_breakdown_by_category: [
     { category: 'Maintenance', amount: '3000.00' },

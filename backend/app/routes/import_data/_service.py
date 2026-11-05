@@ -28,10 +28,12 @@ from app.routes.import_data._common import (
     _blank_to_none,
     _ImportBoundError,
     _in_vocabulary,
+    _json_bool,
     _json_decimal,
     _json_text,
     _RowError,
     _within_api_bounds,
+    _within_length,
     parse_date,
     parse_decimal,
 )
@@ -56,9 +58,52 @@ from app.utils.csv_units import (
 from app.utils.maintenance_types import classify, resolve_type
 from app.utils.money_fits import too_large
 
+#: What a dropped recall or warranty link says, after the item it's on.
+_LINK_DROPPED = "so it was saved without the link"
 
-def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str, Any], int | None]:
-    """One v9 line item's columns, and the index of the item that triggered it.
+
+@dataclass(frozen=True)
+class _ItemLinks:
+    """A line item's recall and warranty, as places in the file's lists (Task 8).
+
+    `dropped` says why a link the item carried won't be restored. The route
+    sets the links once both lists are in.
+    """
+
+    recall: int | None = None
+    warranty: int | None = None
+    dropped: tuple[str, ...] = ()
+
+
+def _item_links(position: int, item: Mapping[str, Any], flags: Mapping[str, bool]) -> _ItemLinks:
+    """The item's recall and warranty indexes. A bad one or one with its flag off drops,
+    with a reason, so the visit still comes in."""
+    found: dict[str, int | None] = {}
+    dropped: list[str] = []
+    for kind in ("recall", "warranty"):
+        index = item.get(kind)
+        found[kind] = None
+        if index is None:
+            continue
+        if not flags[kind]:
+            dropped.append(
+                f"line item {position}: {kind} is set but is_{kind} is false, {_LINK_DROPPED}"
+            )
+        elif isinstance(index, bool) or not isinstance(index, int) or index < 0:
+            dropped.append(
+                f"line item {position}: {kind} must be the index of a {kind} in this file, "
+                f"{_LINK_DROPPED}"
+            )
+        else:
+            found[kind] = index
+    return _ItemLinks(found["recall"], found["warranty"], tuple(dropped))
+
+
+def _line_item_from_json(
+    position: int, item: Any, count: int
+) -> tuple[dict[str, Any], int | None, _ItemLinks]:
+    """One v9 line item's columns, the index of the item that triggered it, and its
+    recall and warranty links.
 
     The API's rules re-applied (R2); a row error names the item by `position`.
     """
@@ -101,6 +146,8 @@ def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str
             raise _RowError(
                 "triggered_by_inspection must be the index of another line item in this visit"
             )
+        is_recall = _json_bool(item, "is_recall", default=False)
+        is_warranty = _json_bool(item, "is_warranty", default=False)
     except _RowError as e:
         raise _RowError(f"line item {position}: {e.reason}") from e
     columns = {
@@ -112,8 +159,11 @@ def _line_item_from_json(position: int, item: Any, count: int) -> tuple[dict[str
         "is_inspection": bool(item.get("is_inspection", False)),
         "inspection_result": inspection_result,
         "inspection_severity": inspection_severity,
+        "is_recall": is_recall,
+        "is_warranty": is_warranty,
     }
-    return columns, link
+    links = _item_links(position, item, {"recall": is_recall, "warranty": is_warranty})
+    return columns, link, links
 
 
 @dataclass(frozen=True)
@@ -131,6 +181,9 @@ class _ServiceCsvRow:
     shop_supplies: Decimal | None
     misc_fees: Decimal | None
     insurance_claim_number: str | None
+    invoice_number: str | None
+    po_number: str | None
+    work_order_number: str | None
     split_notes: bool  # the file has Item Notes and Visit Notes (v8)
     visit_notes: str | None
     item_notes: str | None  # a v<=7 file's one Notes cell lands here and in visit_notes
@@ -165,6 +218,9 @@ _VISIT_FIELDS: tuple[tuple[str, str], ...] = (
     ("shop_supplies", "Shop Supplies"),
     ("misc_fees", "Misc Fees"),
     ("insurance_claim_number", "Insurance Claim"),
+    ("invoice_number", "Invoice #"),
+    ("po_number", "PO #"),
+    ("work_order_number", "WO #"),
     ("visit_notes", "Visit Notes"),
 )
 
@@ -257,7 +313,12 @@ def _parse_service_row(
         tax_amount=tax_amount,
         shop_supplies=shop_supplies,
         misc_fees=misc_fees,
-        insurance_claim_number=text("Insurance Claim"),
+        # Capped at the column, or PG refuses what SQLite keeps.
+        insurance_claim_number=_within_length(text("Insurance Claim"), "Insurance Claim", 50),
+        # Not in the dedupe key (D7): an older file lacks them.
+        invoice_number=_within_length(text("Invoice #"), "Invoice #", 50),
+        po_number=_within_length(text("PO #"), "PO #", 50),
+        work_order_number=_within_length(text("WO #"), "WO #", 50),
         split_notes=split_notes,
         visit_notes=visit_notes,
         item_notes=item_notes,
@@ -494,6 +555,9 @@ async def _write_service_csv_visit(
         shop_supplies=first.shop_supplies,
         misc_fees=first.misc_fees,
         insurance_claim_number=first.insurance_claim_number,
+        invoice_number=first.invoice_number,
+        po_number=first.po_number,
+        work_order_number=first.work_order_number,
         notes=visit_notes,
         total_cost=total_cost,
     )

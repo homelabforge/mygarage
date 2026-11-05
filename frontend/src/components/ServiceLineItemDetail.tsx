@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Calendar, ExternalLink, Gauge, Store } from 'lucide-react'
 import type { ServiceVisit, ServiceLineItem } from '../types/serviceVisit'
 import FormModalWrapper from './FormModalWrapper'
+import LineItemLinkChips from './LineItemLinkChips'
 import { Button, Chip, Mono } from './ui'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
@@ -24,6 +25,8 @@ interface ServiceLineItemDetailProps {
   tracksDistance: boolean
   tracksHours: boolean
   onClose: () => void
+  /** Opens the whole visit in its form. The only way to unlink a recall from a deep-linked old visit. */
+  onEdit?: () => void
 }
 
 /** Read-only view of one service on a visit: what was done, what it cost, what was used. */
@@ -33,6 +36,7 @@ export default function ServiceLineItemDetail({
   tracksDistance,
   tracksHours,
   onClose,
+  onEdit,
 }: ServiceLineItemDetailProps): ReactElement {
   const { t } = useTranslation('vehicles')
   const { currencyCode, locale } = useCurrencyPreference()
@@ -50,9 +54,16 @@ export default function ServiceLineItemDetail({
       onClose={onClose}
       width="md"
       footer={
-        <Button variant="secondary" onClick={onClose}>
-          {t('common:close')}
-        </Button>
+        <>
+          {onEdit && (
+            <Button variant="secondary" onClick={onEdit}>
+              {t('serviceList.detail.editVisit')}
+            </Button>
+          )}
+          <Button variant="secondary" onClick={onClose}>
+            {t('common:close')}
+          </Button>
+        </>
       }
     >
       <div className="space-y-5">
@@ -86,6 +97,7 @@ export default function ServiceLineItemDetail({
               {t(INSPECTION_RESULT_KEYS[item.inspection_result] ?? INSPECTION_RESULT_FALLBACK_KEY)}
             </Chip>
           )}
+          <LineItemLinkChips item={item} />
         </div>
 
         <section className="space-y-2">

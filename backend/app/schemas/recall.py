@@ -16,6 +16,23 @@ LenientRecallSource = Annotated[
 ]
 
 
+#: How a resolved recall got resolved (D10). No CHECK; NULL is a legacy row,
+#: read as manual.
+ResolvedVia = Literal["manual", "service_visit"]
+LenientResolvedVia = Annotated[
+    ResolvedVia | None, BeforeValidator(lenient_reader(ResolvedVia)), LenientVocab(None)
+]
+
+
+class RecallLinkedVisit(BaseModel):
+    """The service visit whose line item fixed the recall."""
+
+    visit_id: int
+    line_item_id: int
+    date: dt.date = Field(..., description="The visit's date, the day the recall was fixed")
+    vendor_name: str | None = Field(None, description="Where the work was done")
+
+
 class RecallBase(BaseModel):
     """Base recall schema with common fields."""
 
@@ -73,8 +90,10 @@ class RecallResponse(RecallBase):
     # still reads instead of 500ing (test_response_contract).
     nhtsa_campaign_number: str | None = Field(None, description="NHTSA campaign number")
     external_url: str | None = Field(None, description="Link to the recall notice online")
-    component: str = Field(..., description="Component affected by recall")
-    summary: str = Field(..., description="Summary of the recall issue")
+    # Both columns are nullable and a sync or an import can leave them empty,
+    # so a missing one reads as null instead of 500ing the list.
+    component: str | None = Field(None, description="Component affected by recall")
+    summary: str | None = Field(None, description="Summary of the recall issue")
     id: int
     vin: str
     is_resolved: bool
@@ -85,6 +104,14 @@ class RecallResponse(RecallBase):
     external_id: str | None = Field(None, description="The provider's own identifier")
     match_confidence: int | None = Field(
         None, description="0 to 100: how surely the notice concerns this vehicle"
+    )
+    resolved_via: LenientResolvedVia = Field(
+        None, description="manual or service_visit; null on an older row, read as manual"
+    )
+    # Not an ORM attribute, so from_attributes leaves it null; whoever loads
+    # the link sets it.
+    linked_visit: RecallLinkedVisit | None = Field(
+        None, description="The service visit that fixed it, when a line item links it"
     )
 
     class Config:

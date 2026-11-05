@@ -92,6 +92,7 @@ const GARAGE: GarageAnalyticsData = {
     total_insurance: ZERO,
     total_taxes: ZERO,
     total_financing: '1450.00',
+    total_running_cost: '500.00',
   },
   cost_breakdown_by_category: [
     { category: 'Fuel', amount: '500.00' },

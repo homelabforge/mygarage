@@ -168,7 +168,9 @@ function CalendarInner({ householdTimeZone }: { householdTimeZone: string | null
   const loadVehicles = useCallback(async () => {
     try {
       const response = await api.get('/vehicles')
-      setVehicles(response.data.vehicles || [])
+      // Archived vehicles get no events, so a chip for one would filter to nothing.
+      const all: Vehicle[] = response.data.vehicles || []
+      setVehicles(all.filter((vehicle) => !vehicle.archived_at))
     } catch {
       toast.error(t('calendar.loadVehiclesError'))
     }
