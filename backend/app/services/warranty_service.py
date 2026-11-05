@@ -3,13 +3,16 @@
 import logging
 
 from fastapi import HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import Select, delete, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models import WarrantyRecord as WarrantyRecordModel
+from app.models.service_line_item import ServiceLineItem
 from app.models.user import User
 from app.schemas.warranty import (
+    WarrantyLinkedItem,
     WarrantyRecord,
     WarrantyRecordCreate,
     WarrantyRecordUpdate,
@@ -17,6 +20,44 @@ from app.schemas.warranty import (
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
+
+
+def _select_warranties() -> Select[tuple[WarrantyRecordModel]]:
+    """Warranty records with the line items done under them and their visits.
+
+    populate_existing so a copy the session already holds sees new links.
+    """
+    return (
+        select(WarrantyRecordModel)
+        .options(
+            selectinload(WarrantyRecordModel.linked_line_items).selectinload(ServiceLineItem.visit)
+        )
+        .execution_options(populate_existing=True)
+    )
+
+
+def _to_response(record: WarrantyRecordModel) -> WarrantyRecord:
+    """The response, with linked_items newest visit first.
+
+    Needs `_select_warranties()`'s loaders: async never lazy-loads.
+    """
+    response = WarrantyRecord.model_validate(record)
+    items = sorted(
+        record.linked_line_items,
+        key=lambda i: (i.visit.date, i.visit_id, i.id),
+        reverse=True,
+    )
+    response.linked_items = [
+        WarrantyLinkedItem(
+            visit_id=i.visit_id,
+            line_item_id=i.id,
+            date=i.visit.date,
+            description=i.description,
+            cost=i.cost,
+        )
+        for i in items
+    ]
+    return response
 
 
 class WarrantyService:
@@ -45,7 +86,7 @@ class WarrantyService:
             await get_vehicle_or_403(vin, current_user, self.db)
 
             result = await self.db.execute(
-                select(WarrantyRecordModel)
+                _select_warranties()
                 .where(WarrantyRecordModel.vin == vin)
                 .order_by(WarrantyRecordModel.start_date.desc())
                 .offset(skip)
@@ -53,7 +94,7 @@ class WarrantyService:
             )
             records = result.scalars().all()
 
-            return [WarrantyRecord.model_validate(r) for r in records]
+            return [_to_response(r) for r in records]
 
         except HTTPException:
             raise
@@ -75,7 +116,7 @@ class WarrantyService:
         await get_vehicle_or_403(vin, current_user, self.db)
 
         result = await self.db.execute(
-            select(WarrantyRecordModel).where(
+            _select_warranties().where(
                 WarrantyRecordModel.vin == vin, WarrantyRecordModel.id == warranty_id
             )
         )
@@ -84,7 +125,7 @@ class WarrantyService:
         if not record:
             raise HTTPException(status_code=404, detail=f"Warranty record {warranty_id} not found")
 
-        return WarrantyRecord.model_validate(record)
+        return _to_response(record)
 
     async def create_warranty(
         self, vin: str, data: WarrantyRecordCreate, current_user: User | None
@@ -103,7 +144,6 @@ class WarrantyService:
             record = WarrantyRecordModel(**record_dict)
             self.db.add(record)
             await self.db.commit()
-            await self.db.refresh(record)
 
             logger.info(
                 "Created warranty record %s for %s",
@@ -111,7 +151,13 @@ class WarrantyService:
                 sanitize_for_log(vin),
             )
 
-            return WarrantyRecord.model_validate(record)
+            # A bare refresh loads no relationships; re-select with the loaders.
+            created = (
+                await self.db.execute(
+                    _select_warranties().where(WarrantyRecordModel.id == record.id)
+                )
+            ).scalar_one()
+            return _to_response(created)
 
         except HTTPException:
             raise
@@ -164,7 +210,6 @@ class WarrantyService:
                 setattr(record, field, value)
 
             await self.db.commit()
-            await self.db.refresh(record)
 
             logger.info(
                 "Updated warranty record %s for %s",
@@ -172,7 +217,12 @@ class WarrantyService:
                 sanitize_for_log(vin),
             )
 
-            return WarrantyRecord.model_validate(record)
+            updated = (
+                await self.db.execute(
+                    _select_warranties().where(WarrantyRecordModel.id == warranty_id)
+                )
+            ).scalar_one()
+            return _to_response(updated)
 
         except HTTPException:
             raise

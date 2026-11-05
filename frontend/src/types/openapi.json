@@ -18089,9 +18089,16 @@
         "description": "Schema for recall response.",
         "properties": {
           "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Component affected by recall",
-            "title": "Component",
-            "type": "string"
+            "title": "Component"
           },
           "consequence": {
             "anyOf": [
@@ -18260,9 +18267,16 @@
             "title": "Source"
           },
           "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Summary of the recall issue",
-            "title": "Summary",
-            "type": "string"
+            "title": "Summary"
           },
           "vin": {
             "title": "Vin",
@@ -18270,8 +18284,6 @@
           }
         },
         "required": [
-          "component",
-          "summary",
           "id",
           "vin",
           "is_resolved",

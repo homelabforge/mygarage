@@ -90,8 +90,10 @@ class RecallResponse(RecallBase):
     # still reads instead of 500ing (test_response_contract).
     nhtsa_campaign_number: str | None = Field(None, description="NHTSA campaign number")
     external_url: str | None = Field(None, description="Link to the recall notice online")
-    component: str = Field(..., description="Component affected by recall")
-    summary: str = Field(..., description="Summary of the recall issue")
+    # Both columns are nullable and a sync or an import can leave them empty,
+    # so a missing one reads as null instead of 500ing the list.
+    component: str | None = Field(None, description="Component affected by recall")
+    summary: str | None = Field(None, description="Summary of the recall issue")
     id: int
     vin: str
     is_resolved: bool

@@ -7,12 +7,20 @@ Every test writes on its own vehicle: warranties end years out, and on the
 shared test_vehicle they'd outlive the run (the far-future leak guard).
 """
 
+import datetime as dt
 from datetime import datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.models.vehicle import Vehicle
+from app.models.warranty import WarrantyRecord as WarrantyRecordModel
+from app.schemas.service_visit import ServiceLineItemCreate, ServiceVisitCreate
+from app.schemas.warranty import WarrantyRecordCreate
+from app.services.service_visit_service import ServiceVisitService
+from app.services.warranty_service import WarrantyService
 
 
 @pytest.mark.integration
@@ -323,3 +331,115 @@ class TestWarrantyRecordRoutes:
                 assert float(data[key]) == value
             else:
                 assert data[key] == value
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestWarrantyLinkedItems:
+    async def test_list_get_and_update_carry_linked_items_newest_first(
+        self, client: AsyncClient, auth_headers, own_vehicle: Vehicle
+    ):
+        vin = own_vehicle.vin
+        r = await client.post(
+            f"/api/vehicles/{vin}/warranties",
+            json={"warranty_type": "Powertrain", "start_date": "2025-01-01"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 201, r.text
+        wid = r.json()["id"]
+        assert r.json()["linked_items"] == []
+
+        made: dict[str, tuple[int, int]] = {}
+        for day, description, cost in (
+            ("2026-10-01", "Water pump", "120.00"),
+            ("2026-11-03", "Thermostat", "80.50"),
+        ):
+            r = await client.post(
+                f"/api/vehicles/{vin}/service-visits",
+                json={
+                    "date": day,
+                    "line_items": [
+                        {
+                            "description": description,
+                            "cost": cost,
+                            "is_warranty": True,
+                            "warranty_id": wid,
+                        },
+                        {"description": f"{description} gasket", "cost": "5.00"},
+                    ],
+                },
+                headers=auth_headers,
+            )
+            assert r.status_code == 201, r.text
+            item = next(i for i in r.json()["line_items"] if i["description"] == description)
+            made[description] = (r.json()["id"], item["id"])
+
+        expected = [
+            {
+                "visit_id": made["Thermostat"][0],
+                "line_item_id": made["Thermostat"][1],
+                "date": "2026-11-03",
+                "description": "Thermostat",
+                "cost": "80.50",
+            },
+            {
+                "visit_id": made["Water pump"][0],
+                "line_item_id": made["Water pump"][1],
+                "date": "2026-10-01",
+                "description": "Water pump",
+                "cost": "120.00",
+            },
+        ]
+
+        r = await client.get(f"/api/vehicles/{vin}/warranties", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        (listed,) = [w for w in r.json() if w["id"] == wid]
+        assert listed["linked_items"] == expected
+
+        r = await client.get(f"/api/vehicles/{vin}/warranties/{wid}", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert r.json()["linked_items"] == expected
+
+        r = await client.put(
+            f"/api/vehicles/{vin}/warranties/{wid}",
+            json={"notes": "Claim filed"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["linked_items"] == expected
+
+    async def test_a_session_that_read_the_warranty_before_the_link_sees_it(
+        self, db_session, test_sessionmaker, own_vehicle: Vehicle
+    ):
+        """Its copy was read with no links; another request linked an item since."""
+        vin = own_vehicle.vin
+        service = WarrantyService(db_session)
+        made = await service.create_warranty(
+            vin,
+            WarrantyRecordCreate(warranty_type="Powertrain", start_date=dt.date(2025, 1, 1)),
+            None,
+        )
+        # Hold the ORM copy, no links loaded, so the identity map keeps it.
+        held = (
+            await db_session.execute(
+                select(WarrantyRecordModel)
+                .options(selectinload(WarrantyRecordModel.linked_line_items))
+                .where(WarrantyRecordModel.id == made.id)
+            )
+        ).scalar_one()
+        assert held.linked_line_items == []
+        async with test_sessionmaker() as other:
+            visit = await ServiceVisitService(other).create_service_visit(
+                vin,
+                ServiceVisitCreate(
+                    date=dt.date(2026, 11, 3),
+                    line_items=[
+                        ServiceLineItemCreate(
+                            description="Thermostat", is_warranty=True, warranty_id=made.id
+                        )
+                    ],
+                ),
+                None,
+            )
+        got = await service.get_warranty(vin, made.id, None)
+        assert [i.line_item_id for i in got.linked_items] == [visit.line_items[0].id]

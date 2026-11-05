@@ -15529,7 +15529,7 @@ export interface components {
              * Component
              * @description Component affected by recall
              */
-            component: string;
+            component?: string | null;
             /**
              * Consequence
              * @description Potential consequences
@@ -15597,7 +15597,7 @@ export interface components {
              * Summary
              * @description Summary of the recall issue
              */
-            summary: string;
+            summary?: string | null;
             /** Vin */
             vin: string;
         };

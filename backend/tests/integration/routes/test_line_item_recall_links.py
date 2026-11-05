@@ -26,6 +26,8 @@ from app.models.service_visit import ServiceVisit
 from app.models.settings import Setting
 from app.models.vehicle import Vehicle
 from app.models.warranty import WarrantyRecord
+from app.schemas.recall import RecallUpdate
+from app.services.recall_service import RecallService
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -66,9 +68,10 @@ async def _recall(
     vin: str,
     *,
     campaign: str = "24V100000",
-    resolved_via: str | None = None,
     resolved_at: datetime | None = None,
 ) -> int:
+    """A recall row. With resolved_at it's a legacy resolved row (resolved_via NULL);
+    resolve one by hand through `_resolve_by_hand` instead."""
     recall = Recall(
         vin=vin,
         nhtsa_campaign_number=campaign,
@@ -76,7 +79,6 @@ async def _recall(
         summary="The inflator may rupture.",
         is_resolved=resolved_at is not None,
         resolved_at=resolved_at,
-        resolved_via=resolved_via,
     )
     db.add(recall)
     await db.commit()
@@ -137,6 +139,27 @@ async def _put(
     )
 
 
+async def _resolve_by_hand(
+    client: AsyncClient, headers: dict[str, str], vin: str, recall_id: int
+) -> None:
+    """Mark it resolved on the Recalls tab, which writes resolved_via='manual'."""
+    r = await client.put(
+        f"/api/vehicles/{vin}/recalls/{recall_id}", json={"is_resolved": True}, headers=headers
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["resolved_via"] == "manual"
+
+
+async def _linked_items(client: AsyncClient, headers: dict[str, str], vin: str) -> dict[int, Any]:
+    """Each recall's linked_visit.line_item_id (None when unlinked), from the Recalls list."""
+    r = await client.get(f"/api/vehicles/{vin}/recalls", headers=headers)
+    assert r.status_code == 200, r.text
+    return {
+        x["id"]: x["linked_visit"] and x["linked_visit"]["line_item_id"]
+        for x in r.json()["recalls"]
+    }
+
+
 def _keep(item: dict[str, Any], **changes: Any) -> dict[str, Any]:
     """An existing item as an API client sends it back: id and description, plus changes."""
     return {"id": item["id"], "description": item["description"], **changes}
@@ -168,7 +191,8 @@ async def test_a_hand_resolved_recall_keeps_manual_and_moves_to_the_visit_date(
     db_session: AsyncSession,
     test_sessionmaker: Sessions,
 ) -> None:
-    rid = await _recall(db_session, vin, resolved_via="manual", resolved_at=_YESTERDAY)
+    rid = await _recall(db_session, vin)
+    await _resolve_by_hand(client, auth_headers, vin, rid)
     visit = await _create(
         client, auth_headers, vin, [{**_LINE, "is_recall": True, "recall_id": rid}]
     )
@@ -214,9 +238,8 @@ async def test_changing_the_visit_date_moves_resolved_at(
 ) -> None:
     """Both ways a date changes: alone, and in a form save that resends every item."""
     auto = await _recall(db_session, vin, campaign="24V100001")
-    manual = await _recall(
-        db_session, vin, campaign="24V100002", resolved_via="manual", resolved_at=_YESTERDAY
-    )
+    manual = await _recall(db_session, vin, campaign="24V100002")
+    await _resolve_by_hand(client, auth_headers, vin, manual)
     visit = await _create(
         client,
         auth_headers,
@@ -418,6 +441,7 @@ async def test_moving_the_link_to_another_item_keeps_it_resolved(
     got = _by_desc(r.json())
     assert got["Tie rod"]["recall_summary"]["id"] == rid
     assert got["Oil change"]["recall_summary"] is None
+    assert (await _linked_items(client, auth_headers, vin))[rid] == b["id"]
 
 
 async def test_moving_the_link_to_a_new_item_keeps_it_resolved(
@@ -484,6 +508,7 @@ async def test_swapping_two_recalls_between_two_items(
     got = _by_desc(r.json())
     assert got["Oil change"]["recall_summary"]["campaign"] == "24V100012"
     assert got["Tie rod"]["recall_summary"]["campaign"] == "24V100011"
+    assert await _linked_items(client, auth_headers, vin) == {r1: b["id"], r2: a["id"]}
     for rid in (r1, r2):
         assert await _state(test_sessionmaker, rid) == (True, _NOON_NOV_3, "service_visit")
 
@@ -1076,11 +1101,10 @@ async def test_linking_reads_the_recall_fresh(
     rid = await _recall(db_session, vin)
     held = await db_session.get(Recall, rid)
     assert held is not None and not held.is_resolved
+    # Resolved on the Recalls tab by another request, in its own session.
     async with test_sessionmaker() as s:
-        other = await s.get(Recall, rid)
-        assert other is not None
-        other.is_resolved, other.resolved_at, other.resolved_via = True, _YESTERDAY, "manual"
-        await s.commit()
+        await RecallService(s).update_recall(vin, rid, RecallUpdate(is_resolved=True), None)
+    assert (await _state(test_sessionmaker, rid))[2] == "manual"
 
     await _create(client, auth_headers, vin, [{**_LINE, "is_recall": True, "recall_id": rid}])
     assert await _state(test_sessionmaker, rid) == (True, _NOON_NOV_3, "manual")
