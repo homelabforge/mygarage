@@ -10,14 +10,14 @@ fresh session.
 """
 
 import copy
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import date, datetime
 from typing import Any
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.recall import Recall
@@ -685,6 +685,67 @@ async def test_a_link_the_database_refuses_rolls_back_alone(
         "Newcomer": (True, None, False, None),
     }
     assert await _state(test_sessionmaker, rid) == before
+
+
+async def test_a_warranty_link_the_database_refuses_rolls_back_alone(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    test_sessionmaker: Sessions,
+    new_vehicle: NewVehicle,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The warranty twin. A delete that lands after the ownership check leaves the
+    FK to refuse the link; the item's recall link still holds after the failed
+    savepoint expires it."""
+    vin = await new_vehicle()
+    real_ours = json_links._ours
+
+    async def deleted_after_the_check(
+        db: AsyncSession,
+        own_vin: str,
+        model: type[Recall] | type[WarrantyRecord],
+        ids: Mapping[int, int],
+    ) -> dict[int, int]:
+        found = await real_ours(db, own_vin, model, ids)
+        if model is WarrantyRecord:
+            await db.execute(delete(WarrantyRecord).where(WarrantyRecord.id.in_(found.values())))
+        return found
+
+    monkeypatch.setattr(json_links, "_ours", deleted_after_the_check)
+    data = await import_json(
+        client,
+        auth_headers,
+        vin,
+        _file(
+            [_file_recall("24V575001", resolved=False)],
+            [
+                {
+                    "description": "Inflator swap",
+                    "is_recall": True,
+                    "recall": 0,
+                    "is_warranty": True,
+                    "warranty": 0,
+                }
+            ],
+            warranties=[
+                {"warranty_type": "Powertrain", "provider": "Acme", "start_date": "2025-01-01"}
+            ],
+        ),
+    )
+    assert data["errors"] == [], data
+    assert data["service_records"]["success_count"] == 1, data
+    assert data["warnings"] == [
+        f"Service visit 0: line item 0: its warranty couldn't be linked, {_DROPPED}"
+    ], data
+    recall_ids, warranty_ids = await _ids_by(test_sessionmaker, vin)
+    assert warranty_ids == {}
+    rid = recall_ids["24V575001"]
+    assert await _items(test_sessionmaker, vin) == {"Inflator swap": (True, rid, True, None)}
+    assert await _state(test_sessionmaker, rid) == (
+        True,
+        resolved_at_for(date(2026, 11, 3)),
+        "service_visit",
+    )
 
 
 @pytest.mark.parametrize("kind", ["recall", "warranty"])
