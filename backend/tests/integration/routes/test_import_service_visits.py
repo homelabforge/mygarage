@@ -426,6 +426,7 @@ async def test_a_csv_from_before_the_refs_imports_them_as_null_and_matches_a_vis
 
     The refs aren't in the dedupe key, so re-importing an old export into a
     vehicle whose visit now carries an invoice # skips it instead of doubling it.
+    The reverse direction kills refs keyed only when the file has their columns.
     """
     source = await _vehicle(db_session, test_user["id"], "B3RTSVCCSVOLD0001")
     target = await _vehicle(db_session, test_user["id"], "B3RTSVCCSVOLD0002")
@@ -450,6 +451,16 @@ async def test_a_csv_from_before_the_refs_imports_them_as_null_and_matches_a_vis
 
     data = await _post_csv(client, auth_headers, source, old)
     assert (data["success_count"], data["skipped_count"], data["error_count"]) == (0, 2, 0), data
+
+    # Today's export, refs and all, still matches the visit the old file left without them.
+    exported = await client.get(
+        f"/api/export/vehicles/{source}/service/csv?units=metric", headers=auth_headers
+    )
+    assert exported.status_code == 200, exported.text
+    data = await _post_csv(client, auth_headers, target, exported.text)
+    # Only the item-less visit is new: the old file didn't carry it.
+    assert (data["success_count"], data["skipped_count"], data["error_count"]) == (1, 2, 0), data
+    assert [len(v.line_items) for v in await _visits(test_sessionmaker, target)] == [0, 2]
 
 
 # -- JSON v9: service_visits with nested line items ----------------------------
@@ -581,6 +592,7 @@ async def test_a_json_visit_without_the_ref_keys_imports_them_as_null_and_still_
     """Guard (passes before the refs too): an older backup has no ref keys.
 
     They land as NULL, and D7 keeps that backup matching a stored visit that has them.
+    The reverse direction kills refs keyed only when the entry has their keys.
     """
     source = await _vehicle(db_session, test_user["id"], "B3RTSVCJSONOLD001")
     target = await _vehicle(db_session, test_user["id"], "B3RTSVCJSONOLD002")
@@ -607,6 +619,16 @@ async def test_a_json_visit_without_the_ref_keys_imports_them_as_null_and_still_
         0,
         2,
     ), data
+
+    # The full backup, refs and all, still matches the visits that landed without them.
+    exported = await client.get(f"/api/export/vehicles/{source}/json", headers=auth_headers)
+    assert exported.status_code == 200, exported.text
+    data = await _post_json(client, auth_headers, target, exported.json())
+    assert (data["service_records"]["success_count"], data["service_records"]["skipped_count"]) == (
+        0,
+        2,
+    ), data
+    assert len(await _visits(test_sessionmaker, target)) == 2
 
 
 async def test_a_line_item_link_outside_its_visit_is_a_row_error(
