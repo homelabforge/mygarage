@@ -17,6 +17,7 @@ from app.schemas.warranty import (
     WarrantyRecordCreate,
     WarrantyRecordUpdate,
 )
+from app.services.vehicle_lock import lock_vehicle_for_write
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -253,6 +254,9 @@ class WarrantyService:
 
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+            # Visit items link warranties now, so take the visit writers' lock.
+            # Otherwise a delete can land between a visit PUT's link check and its flush.
+            await lock_vehicle_for_write(self.db, vin)
 
             result = await self.db.execute(
                 select(WarrantyRecordModel).where(

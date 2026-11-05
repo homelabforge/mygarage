@@ -9,16 +9,19 @@ shared test_vehicle they'd outlive the run (the far-future leak guard).
 
 import datetime as dt
 from datetime import datetime, timedelta
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.vehicle import Vehicle
 from app.models.warranty import WarrantyRecord as WarrantyRecordModel
 from app.schemas.service_visit import ServiceLineItemCreate, ServiceVisitCreate
 from app.schemas.warranty import WarrantyRecordCreate
+from app.services import warranty_service as warranty_service_module
 from app.services.service_visit_service import ServiceVisitService
 from app.services.warranty_service import WarrantyService
 
@@ -443,3 +446,39 @@ class TestWarrantyLinkedItems:
             )
         got = await service.get_warranty(vin, made.id, None)
         assert [i.line_item_id for i in got.linked_items] == [visit.line_items[0].id]
+
+    async def test_delete_warranty_locks_before_it_reads_the_warranty(
+        self, db_session: AsyncSession, own_vehicle: Vehicle, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Same race as the recall delete: a visit PUT checks the link, the
+        warranty goes, and the PUT's flush gets a bogus 409 on PG."""
+        vin = own_vehicle.vin
+        service = WarrantyService(db_session)
+        made = await service.create_warranty(
+            vin,
+            WarrantyRecordCreate(warranty_type="Powertrain", start_date=dt.date(2025, 1, 1)),
+            None,
+        )
+        order: list[str] = []
+        real_lock = warranty_service_module.lock_vehicle_for_write
+
+        async def recording_lock(db: AsyncSession, lock_vin: str) -> None:
+            order.append("lock")
+            await real_lock(db, lock_vin)
+
+        real_execute = db_session.execute
+
+        async def recording_execute(statement: Any, *args: Any, **kwargs: Any) -> Any:
+            descriptions: list[dict[str, Any]] = (
+                getattr(statement, "column_descriptions", None) or []
+            )
+            if descriptions and descriptions[0].get("entity") is WarrantyRecordModel:
+                order.append("warranty_read")
+            return await real_execute(statement, *args, **kwargs)
+
+        monkeypatch.setattr(warranty_service_module, "lock_vehicle_for_write", recording_lock)
+        monkeypatch.setattr(db_session, "execute", recording_execute)
+        await service.delete_warranty(vin, made.id, None)
+        assert order[:2] == ["lock", "warranty_read"]
+        assert order.count("lock") == 1
+        assert await db_session.get(WarrantyRecordModel, made.id) is None
