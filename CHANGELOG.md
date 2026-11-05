@@ -13,14 +13,14 @@ Back up first; migrations 157 and 158 are FATAL.
 
 ### Added
 - Date format setting in Quick Settings: English dates month-first (10/24/2026) or day-first (24/10/2026), PDF reports included (#278, thanks @dpruddel)
-- Invoice, PO and work order numbers on a service visit.
-- Recall and warranty line items (linking a recall resolves it on the visit's date).
+- Invoice, PO and work order numbers on a service visit
+- Recall and warranty line items (linking a recall resolves it on the visit's date)
 
 ### Changed
-- The garage PDF's Operating Cost is now Running Cost (service, fuel and DEF), matching the Analytics page.
+- The garage PDF's Operating Cost is now Running Cost (service, fuel and DEF), matching the Analytics page
 
 ### Fixed
-- The calendar no longer shows archived vehicles' reminders, warranties and service history.
+- The calendar no longer shows archived vehicles' reminders, warranties and service history
 - The service history PDF exported from archived vehicles printed USD instead of your currency
 - Search terms, names and other request values are stripped of control characters before they're logged, so they can't forge log lines
 
