@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
-import type { ServiceVisit, ServiceVisitCreate, ServiceVisitUpdate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory, SupplyUsedEntry } from '../types/serviceVisit'
+import type { ServiceVisit, ServiceLineItem, ServiceVisitCreate, ServiceVisitUpdate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory, SupplyUsedEntry } from '../types/serviceVisit'
 import { reminderDraftToCreate } from '../types/reminder'
 import type { Vehicle, VehicleType } from '../types/vehicle'
 import { NON_MOTORIZED_TYPES } from '../schemas/vehicle'
@@ -196,9 +196,7 @@ function ServiceVisitForm({
   const { data: recallData } = useRecallRecords(vin)
   const { data: warrantyData } = useWarrantyRecords(vin)
   const recalls = useMemo(() => recallData?.recalls ?? [], [recallData])
-  // The answer is a list. Anything else (an error page from a proxy) reads as none,
-  // so it can't take the whole form down.
-  const warranties = useMemo<WarrantyRecord[]>(() => (Array.isArray(warrantyData) ? warrantyData : []), [warrantyData])
+  const warranties = useMemo<WarrantyRecord[]>(() => warrantyData ?? [], [warrantyData])
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -415,12 +413,21 @@ function ServiceVisitForm({
       .filter((item) => item.failed)
   }, [formData.line_items])
 
-  const recallLabel = (recall: Recall): string =>
-    [recall.nhtsa_campaign_number || recall.external_id, recall.component].filter(Boolean).join(' · ') ||
-    t('vehicles:recallList.unnamed')
+  const recallLabel = (campaign: string | null | undefined, component: string | null | undefined): string =>
+    [campaign, component].filter(Boolean).join(' · ') || t('vehicles:recallList.unnamed')
+  const warrantyLabel = (type: string, provider: string | null | undefined): string =>
+    provider ? `${type} (${provider})` : type
+
+  // The stored line this form line edits, for its saved recall and warranty summaries.
+  const storedItem = (index: number): ServiceLineItem | undefined => {
+    const id = formData.line_items[index]?.id
+    return id == null ? undefined : visit?.line_items.find((li) => li.id === id)
+  }
 
   // A recall can only be on one line (D9), so each line's list leaves out the
-  // ones the other lines picked, but always keeps its own.
+  // ones the other lines picked, but always keeps its own. While the list is
+  // loading (or failed) the stored link comes from the visit's own summary, so
+  // the select never reads "No specific recall" over a link it still sends.
   const recallOptionsFor = (index: number): SelectOption[] => {
     const own = formData.line_items[index]?.recall_id ?? null
     const taken = new Set(
@@ -428,19 +435,26 @@ function ServiceVisitForm({
         .filter((other, i) => i !== index && other.is_recall && other.recall_id != null)
         .map((other) => other.recall_id),
     )
-    return recalls
+    const options = recalls
       .filter((r) => r.id === own || (!taken.has(r.id) && recallIsFree(r, visit?.id)))
-      .map((r) => ({ value: String(r.id), label: recallLabel(r) }))
+      .map((r) => ({ value: String(r.id), label: recallLabel(r.nhtsa_campaign_number || r.external_id, r.component) }))
+    const summary = storedItem(index)?.recall_summary
+    if (own != null && summary?.id === own && !options.some((o) => o.value === String(own))) {
+      options.unshift({ value: String(own), label: recallLabel(summary.campaign, summary.component) })
+    }
+    return options
   }
 
-  const warrantyOptions = useMemo<SelectOption[]>(
-    () =>
-      warranties.map((w) => ({
-        value: String(w.id),
-        label: w.provider ? `${w.warranty_type} (${w.provider})` : w.warranty_type,
-      })),
-    [warranties],
-  )
+  // Same for warranties: every one is offered, plus the stored link if the list lacks it.
+  const warrantyOptionsFor = (index: number): SelectOption[] => {
+    const own = formData.line_items[index]?.warranty_id ?? null
+    const options = warranties.map((w) => ({ value: String(w.id), label: warrantyLabel(w.warranty_type, w.provider) }))
+    const summary = storedItem(index)?.warranty_summary
+    if (own != null && summary?.id === own && !options.some((o) => o.value === String(own))) {
+      options.unshift({ value: String(own), label: warrantyLabel(summary.warranty_type, summary.provider) })
+    }
+    return options
+  }
 
   const handleFieldChange = (field: keyof ServiceVisitFormData, value: unknown): void => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -1021,7 +1035,7 @@ function ServiceVisitForm({
                     currentMileage={currentMileage}
                     tracksHours={tracksHours}
                     recallOptions={recallOptionsFor(index)}
-                    warrantyOptions={warrantyOptions}
+                    warrantyOptions={warrantyOptionsFor(index)}
                   />
                   {/* Quick action to add repair from failed inspection */}
                   {item.is_inspection &&

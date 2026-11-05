@@ -5,7 +5,7 @@ import type { ServiceVisit } from '../../types/serviceVisit'
 import { METRIC_UNITS } from '../../__tests__/factories'
 import { formatDateForDisplay } from '../../utils/dateUtils'
 // The list reads its link params from the router, so every render needs one.
-import { render, render as renderWithRouter } from '../../__tests__/test-utils'
+import { render } from '../../__tests__/test-utils'
 
 const useServiceVisitsMock = vi.fn()
 const deleteMutate = vi.fn()
@@ -304,7 +304,7 @@ describe('ServiceVisitList: a service line shows what it cost and opens its deta
 
   // The detail holds a <Link>, so these need the router from test-utils.
   const openVisit = (): void => {
-    renderWithRouter(<ServiceVisitList {...PROPS} />)
+    render(<ServiceVisitList {...PROPS} />)
     fireEvent.click(screen.getByRole('button', { expanded: false }))
   }
   const detailOpen = (): boolean => document.querySelector('[data-testid="drawer-backdrop"]') !== null

@@ -134,7 +134,16 @@ const visit = {
   updated_at: null,
   vendor: null,
   line_items: [
-    lineItem({ id: 501, description: 'Seat belt pretensioner', is_recall: true, recall_id: 4, is_warranty: true, warranty_id: 9 }),
+    lineItem({
+      id: 501,
+      description: 'Seat belt pretensioner',
+      is_recall: true,
+      recall_id: 4,
+      recall_summary: { id: 4, campaign: '23V300000', component: 'Seat Belts' },
+      is_warranty: true,
+      warranty_id: 9,
+      warranty_summary: { id: 9, warranty_type: 'Powertrain', provider: 'Toyota' },
+    }),
     lineItem({ id: 502, description: 'Wipers' }),
   ],
 } as unknown as ServiceVisit
@@ -299,5 +308,28 @@ describe('LineItemEditor: editing a visit', () => {
 
     const items = (mockedApiPut.mock.calls.at(-1)?.[1] as { line_items: Record<string, unknown>[] }).line_items
     expect(items[0]).toMatchObject({ id: 501, is_recall: true, recall_id: null, is_warranty: true, warranty_id: 9 })
+  })
+})
+
+describe('LineItemEditor: before the recall and warranty lists arrive', () => {
+  it.each([
+    ['loading', { data: undefined, isLoading: true, isError: false }],
+    ['failed', { data: undefined, isLoading: false, isError: true }],
+  ])('while the lists are %s, the stored links still show, named from the visit', async (_case, state) => {
+    useRecallRecordsMock.mockReturnValue(state)
+    useWarrantyRecordsMock.mockReturnValue(state)
+    await renderEdit()
+
+    expect(recallSelect(0)?.value).toBe('4')
+    expect(recallSelect(0)?.selectedOptions[0]?.textContent).toBe('23V300000 · Seat Belts')
+    expect(warrantySelect(0)?.value).toBe('9')
+    expect(warrantySelect(0)?.selectedOptions[0]?.textContent).toBe('Powertrain (Toyota)')
+  })
+
+  it('once the list arrives the stored recall is listed once, not twice', async () => {
+    await renderEdit()
+
+    expect(optionTexts(recallSelect(0)).filter((label) => label === '23V300000 · Seat Belts')).toHaveLength(1)
+    expect(optionTexts(warrantySelect(0)).filter((label) => label === 'Powertrain (Toyota)')).toHaveLength(1)
   })
 })

@@ -71,7 +71,7 @@ function renderList(): void {
 }
 
 const markActive = (): HTMLElement => screen.getByRole('button', { name: 'Mark as active' })
-const HINT = 'Fixed on the service visit on Nov 3, 2026. Unlink it there to reopen.'
+const HINT = 'Unlink it on the service visit to reopen.'
 
 beforeEach(() => {
   vi.clearAllMocks()

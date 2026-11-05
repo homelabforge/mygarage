@@ -56,6 +56,9 @@ vi.mock('../../hooks/queries/useSupplies', () => ({
   }),
 }))
 // The real VendorSearch clears through onSelect(null); this stand-in does the same.
+// The line items' recall and warranty pickers; nothing to offer here.
+vi.mock('../../hooks/queries/useRecallRecords', () => ({ useRecallRecords: () => ({ data: { recalls: [] } }) }))
+vi.mock('../../hooks/queries/useWarrantyRecords', () => ({ useWarrantyRecords: () => ({ data: [] }) }))
 vi.mock('../VendorSearch', () => ({
   default: ({ value, onSelect }: { value?: number; onSelect: (v: null) => void }) => (
     <div data-testid="vendor-search" data-value={value ?? ''}>

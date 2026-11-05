@@ -222,7 +222,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
             // Linked means a line item fixed it, whatever resolved_via says (D11).
             const link = recall.linked_visit ?? null
             const hintId = `recall-${recall.id}-reopen-blocked`
-            const reopenBlocked = link ? t('recallList.reopenBlocked', { date: formatDate(link.date) }) : undefined
+            const reopenBlocked = link ? t('recallList.reopenBlocked') : undefined
             return (
               <div
                 key={recall.id}

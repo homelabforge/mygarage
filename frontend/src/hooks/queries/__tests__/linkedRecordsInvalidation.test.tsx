@@ -133,3 +133,20 @@ describe('a warranty write marks the service visits stale', () => {
     expect(stale(qc, ['serviceVisits', OTHER])).toBe(false)
   })
 })
+
+describe('a refused Mark active still refreshes the recall', () => {
+  it('a 409 marks the recalls and visits stale, so the card comes back linked', async () => {
+    vi.mocked(api.put).mockRejectedValueOnce({ isAxiosError: true, response: { status: 409, data: { detail: 'linked' } } })
+    const qc = seededClient()
+    const { result } = renderHook(() => useToggleRecallResolved(VIN), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+      ),
+    })
+
+    await expect(result.current.mutateAsync({ recallId: 1, isResolved: false })).rejects.toBeTruthy()
+
+    expect(stale(qc, RECALLS)).toBe(true)
+    expect(stale(qc, VISITS)).toBe(true)
+  })
+})

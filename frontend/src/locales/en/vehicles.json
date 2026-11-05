@@ -1100,7 +1100,7 @@
     "unnamed": "Unnamed recall",
     "resolvedAtVisit": "Resolved at the service visit on {{date}}",
     "resolvedAtVisitVendor": "Resolved at the service visit on {{date}} ({{vendor}})",
-    "reopenBlocked": "Fixed on the service visit on {{date}}. Unlink it there to reopen."
+    "reopenBlocked": "Unlink it on the service visit to reopen."
   },
   "reminderList": {
     "addReminder": "Add Reminder",

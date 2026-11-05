@@ -54,6 +54,9 @@ vi.mock('../../hooks/queries/useSupplies', () => ({
     isError: false,
   }),
 }))
+// The line items' recall and warranty pickers; nothing to offer here.
+vi.mock('../../hooks/queries/useRecallRecords', () => ({ useRecallRecords: () => ({ data: { recalls: [] } }) }))
+vi.mock('../../hooks/queries/useWarrantyRecords', () => ({ useWarrantyRecords: () => ({ data: [] }) }))
 vi.mock('../VendorSearch', () => ({
   default: () => <div data-testid="vendor-search" />,
 }))

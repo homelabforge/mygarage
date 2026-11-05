@@ -88,6 +88,8 @@ export function useToggleRecallResolved(vin: string) {
         is_resolved: isResolved,
       })
     },
-    onSuccess: () => invalidateRecallWrite(queryClient, vin),
+    // Settled, not just success: a 409 means this card is stale (a visit
+    // linked it since), so refetch and it comes back with the button off.
+    onSettled: () => invalidateRecallWrite(queryClient, vin),
   })
 }
