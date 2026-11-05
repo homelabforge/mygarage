@@ -179,6 +179,11 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "inspection_result",
             "inspection_severity",
             "triggered_by_inspection_id",
+            # Links live in the JSON backup (D15).
+            "is_recall",
+            "recall_id",
+            "is_warranty",
+            "warranty_id",
             "created_at",
         },
         shared_headers={

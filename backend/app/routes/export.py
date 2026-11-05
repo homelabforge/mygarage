@@ -251,7 +251,10 @@ _ALWAYS_EXCLUDED = frozenset({"id", "vin", "created_at", "updated_at"})
 #: The vendor travels by name; the total is recomputed from the items and fees.
 _SERVICE_VISIT_JSON_EXCLUDE = _ALWAYS_EXCLUDED | {"vendor_id", "total_cost"}
 #: The visit is the parent; the inspection link travels as an index in the visit.
-_LINE_ITEM_JSON_EXCLUDE = frozenset({"id", "visit_id", "triggered_by_inspection_id", "created_at"})
+#: recall_id and warranty_id are this database's ids, so they never go out as is.
+_LINE_ITEM_JSON_EXCLUDE = frozenset(
+    {"id", "visit_id", "triggered_by_inspection_id", "recall_id", "warranty_id", "created_at"}
+)
 #: Every fuel column travels; the station and driver links go with their names.
 _FUEL_JSON_EXCLUDE = _ALWAYS_EXCLUDED
 #: The fill-up that wrote a synced DEF row is a fuel row on this instance.

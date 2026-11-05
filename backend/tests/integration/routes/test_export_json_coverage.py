@@ -250,10 +250,22 @@ SECTIONS = [
                 "is_inspection",
                 "inspection_result",
                 "inspection_severity",
+                "is_recall",
+                "is_warranty",
             }
         ),
         # The visit is the parent; the inspection link travels as an index in the visit.
-        exclude=frozenset({"id", "visit_id", "triggered_by_inspection_id", "created_at"}),
+        # The recall and warranty ids are this database's, never written as is.
+        exclude=frozenset(
+            {
+                "id",
+                "visit_id",
+                "triggered_by_inspection_id",
+                "recall_id",
+                "warranty_id",
+                "created_at",
+            }
+        ),
         portable=frozenset({"triggered_by_inspection", "supply_usages"}),
     ),
     JsonSection(
@@ -521,6 +533,7 @@ SECTIONS = [
                 "date_announced",
                 "is_resolved",
                 "resolved_at",
+                "resolved_via",
                 "notes",
             }
         ),

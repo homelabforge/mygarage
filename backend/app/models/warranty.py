@@ -44,6 +44,10 @@ class WarrantyRecord(Base):
 
     # Relationships
     vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="warranty_records")
+    # Line items done under this warranty. Read-only: each item owns its link.
+    linked_line_items: Mapped[list[ServiceLineItem]] = relationship(
+        "ServiceLineItem", viewonly=True
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -55,4 +59,5 @@ class WarrantyRecord(Base):
     )
 
 
+from app.models.service_line_item import ServiceLineItem
 from app.models.vehicle import Vehicle
