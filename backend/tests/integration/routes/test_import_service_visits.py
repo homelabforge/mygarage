@@ -732,15 +732,6 @@ _CATEGORY_WORDS = "Maintenance, Inspection, Collision, Upgrades, Detailing"
             "invoice_number must be text",
             id="invoice-not-text",
         ),
-        # PG refuses past VARCHAR(50) where SQLite keeps it, so the import says so for both.
-        *(
-            pytest.param(
-                {key: "X" * 51, "line_items": []},
-                f"{key} must be at most 50 characters",
-                id=f"{key}-past-50",
-            )
-            for key in ("invoice_number", "po_number", "work_order_number")
-        ),
         pytest.param(
             {"vendor_name": 7, "line_items": []}, "vendor_name must be text", id="vendor-not-text"
         ),
@@ -780,6 +771,53 @@ async def test_a_json_visit_the_api_would_refuse_is_a_row_error(
     )
     assert data["errors"] == [f"Service visit 0: {reason}"], data
     assert await _visits(test_sessionmaker, vin) == []
+
+
+_TEXT_REF_KEYS = ["insurance_claim_number", "invoice_number", "po_number", "work_order_number"]
+
+
+@pytest.mark.parametrize("key", _TEXT_REF_KEYS)
+async def test_a_json_visit_ref_past_50_characters_is_a_row_error(
+    key: str,
+    client: AsyncClient,
+    auth_headers,
+    test_user,
+    db_session: AsyncSession,
+    test_sessionmaker,
+):
+    """PG refuses past VARCHAR(50) where SQLite keeps it, so the import says so for both.
+
+    Only that visit is refused; the next one still lands.
+    """
+    vin = await _vehicle(
+        db_session, test_user["id"], f"B3RTSVCJSONREF{_TEXT_REF_KEYS.index(key):03d}"
+    )
+    data = await _post_json(
+        client,
+        auth_headers,
+        vin,
+        {
+            "export_version": "9",
+            "units": "metric",
+            "service_visits": [
+                {"date": "2026-07-12", "odometer_km": 9300.0, key: "X" * 51, "line_items": []},
+                {
+                    "date": "2026-07-13",
+                    "odometer_km": 9310.0,
+                    **dict.fromkeys(_TEXT_REF_KEYS, "X" * 50),
+                    "line_items": [],
+                },
+            ],
+        },
+    )
+    assert data["errors"] == [f"Service visit 0: {key} must be at most 50 characters"], data
+    assert data["service_records"]["success_count"] == 1, data
+    (landed,) = await _visits(test_sessionmaker, vin)
+    assert (landed.date, landed.insurance_claim_number, landed.work_order_number) == (
+        date(2026, 7, 13),
+        "X" * 50,
+        "X" * 50,
+    )
 
 
 async def test_a_json_visit_at_a_vendor_past_100_characters_restores_with_it(
@@ -833,7 +871,10 @@ async def test_a_csv_visit_whose_total_is_past_the_column_is_a_row_error_on_ever
     assert await _visits(test_sessionmaker, vin) == []
 
 
-@pytest.mark.parametrize("column", ["Invoice #", "PO #", "WO #"])
+_TEXT_REF_COLUMNS = ["Insurance Claim", "Invoice #", "PO #", "WO #"]
+
+
+@pytest.mark.parametrize("column", _TEXT_REF_COLUMNS)
 async def test_a_csv_visit_ref_past_50_characters_is_a_row_error(
     column: str,
     client: AsyncClient,
@@ -842,21 +883,32 @@ async def test_a_csv_visit_ref_past_50_characters_is_a_row_error(
     db_session: AsyncSession,
     test_sessionmaker,
 ):
-    """PG refuses past VARCHAR(50) where SQLite keeps it, so the import says so for both."""
+    """PG refuses past VARCHAR(50) where SQLite keeps it, so the import says so for both.
+
+    Only that visit's row is refused; the next visit still lands.
+    """
     vin = await _vehicle(
-        db_session,
-        test_user["id"],
-        f"B3RTSVCCSVREF{['Invoice #', 'PO #', 'WO #'].index(column):04d}",
+        db_session, test_user["id"], f"B3RTSVCCSVREF{_TEXT_REF_COLUMNS.index(column):04d}"
     )
-    cells = {"Invoice #": "", "PO #": "", "WO #": "", column: "X" * 51}
+    long = {c: ("X" * 51 if c == column else "") for c in _TEXT_REF_COLUMNS}
     body = (
         f"{_V8_REFS_HEADER}\n"
-        "8,metric,1,2026-07-12,Maintenance,Oil,9300.00,,40.00,,,,,,,"
-        f"{cells['Invoice #']},{cells['PO #']},{cells['WO #']},\n"
+        "8,metric,1,2026-07-12,Maintenance,Oil,9300.00,,40.00,,,,,,"
+        + ",".join(long[c] for c in _TEXT_REF_COLUMNS)
+        + ",\n"
+        "8,metric,2,2026-07-13,Maintenance,Wipers,9310.00,,15.00,,,,,,"
+        + ",".join("X" * 50 for _c in _TEXT_REF_COLUMNS)
+        + ",\n"
     )
     data = await _post_csv(client, auth_headers, vin, body)
     assert data["errors"] == [f"Row 2: {column} must be at most 50 characters"], data
-    assert await _visits(test_sessionmaker, vin) == []
+    assert (data["success_count"], data["error_count"]) == (1, 1), data
+    (landed,) = await _visits(test_sessionmaker, vin)
+    assert (landed.date, landed.insurance_claim_number, landed.work_order_number) == (
+        date(2026, 7, 13),
+        "X" * 50,
+        "X" * 50,
+    )
 
 
 async def test_a_v8_service_records_backup_still_imports_and_syncs_its_reading(

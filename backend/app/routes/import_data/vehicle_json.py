@@ -510,7 +510,8 @@ async def import_vehicle_json(
             # As given: the CSV and v8 imports make vendors with no length cap, and
             # _vendor_id_for matches the exact name, so a cut name would make a second.
             vendor_name = _json_text(visit_data, "vendor_name")
-            insurance_claim_number = _json_text(visit_data, "insurance_claim_number")
+            # Capped at the column, or PG refuses what SQLite keeps.
+            insurance_claim_number = _json_text(visit_data, "insurance_claim_number", max_length=50)
             # Left out of fee_key below (D7), so an older backup still matches.
             invoice_number = _json_text(visit_data, "invoice_number", max_length=50)
             po_number = _json_text(visit_data, "po_number", max_length=50)

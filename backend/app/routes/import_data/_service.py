@@ -264,7 +264,8 @@ def _parse_service_row(
         tax_amount=tax_amount,
         shop_supplies=shop_supplies,
         misc_fees=misc_fees,
-        insurance_claim_number=text("Insurance Claim"),
+        # Capped at the column, or PG refuses what SQLite keeps.
+        insurance_claim_number=_within_length(text("Insurance Claim"), "Insurance Claim", 50),
         # Not in the dedupe key (D7): an older file lacks them.
         invoice_number=_within_length(text("Invoice #"), "Invoice #", 50),
         po_number=_within_length(text("PO #"), "PO #", 50),
