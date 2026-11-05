@@ -20599,6 +20599,19 @@
             "description": "Insurance claim number",
             "title": "Insurance Claim Number"
           },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shop invoice number",
+            "title": "Invoice Number"
+          },
           "line_items": {
             "description": "Services performed during this visit",
             "items": {
@@ -20654,6 +20667,19 @@
             ],
             "description": "Odometer reading in kilometers",
             "title": "Odometer Km"
+          },
+          "po_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Purchase order number",
+            "title": "Po Number"
           },
           "service_category": {
             "anyOf": [
@@ -20736,6 +20762,19 @@
             ],
             "description": "Vendor ID",
             "title": "Vendor Id"
+          },
+          "work_order_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Work order number",
+            "title": "Work Order Number"
           }
         },
         "required": [
@@ -20858,6 +20897,18 @@
             "description": "Insurance claim number",
             "title": "Insurance Claim Number"
           },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shop invoice number",
+            "title": "Invoice Number"
+          },
           "line_item_count": {
             "description": "Number of line items",
             "title": "Line Item Count",
@@ -20912,6 +20963,18 @@
             "description": "\u03a3 supply usage cost snapshots across line items",
             "title": "Parts Supplies Cost",
             "type": "string"
+          },
+          "po_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Purchase order number",
+            "title": "Po Number"
           },
           "service_category": {
             "anyOf": [
@@ -21009,6 +21072,18 @@
           "vin": {
             "title": "Vin",
             "type": "string"
+          },
+          "work_order_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Work order number",
+            "title": "Work Order Number"
           }
         },
         "required": [
@@ -21076,6 +21151,19 @@
             "description": "Insurance claim number",
             "title": "Insurance Claim Number"
           },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shop invoice number",
+            "title": "Invoice Number"
+          },
           "line_items": {
             "anyOf": [
               {
@@ -21137,6 +21225,19 @@
             ],
             "description": "Odometer reading in kilometers",
             "title": "Odometer Km"
+          },
+          "po_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Purchase order number",
+            "title": "Po Number"
           },
           "service_category": {
             "anyOf": [
@@ -21219,6 +21320,19 @@
             ],
             "description": "Vendor ID",
             "title": "Vendor Id"
+          },
+          "work_order_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Work order number",
+            "title": "Work Order Number"
           }
         },
         "title": "ServiceVisitUpdate",

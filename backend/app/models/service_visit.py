@@ -51,6 +51,10 @@ class ServiceVisit(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     service_category: Mapped[str | None] = mapped_column(String(30))
     insurance_claim_number: Mapped[str | None] = mapped_column(String(50))
+    # The shop's paperwork refs. Migration 157.
+    invoice_number: Mapped[str | None] = mapped_column(String(50))
+    po_number: Mapped[str | None] = mapped_column(String(50))
+    work_order_number: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 

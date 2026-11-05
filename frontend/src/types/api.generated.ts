@@ -16477,6 +16477,11 @@ export interface components {
              */
             insurance_claim_number?: string | null;
             /**
+             * Invoice Number
+             * @description Shop invoice number
+             */
+            invoice_number?: string | null;
+            /**
              * Line Items
              * @description Services performed during this visit
              */
@@ -16496,6 +16501,11 @@ export interface components {
              * @description Odometer reading in kilometers
              */
             odometer_km?: number | string | null;
+            /**
+             * Po Number
+             * @description Purchase order number
+             */
+            po_number?: string | null;
             /**
              * Service Category
              * @description Primary service category
@@ -16521,6 +16531,11 @@ export interface components {
              * @description Vendor ID
              */
             vendor_id?: number | null;
+            /**
+             * Work Order Number
+             * @description Work order number
+             */
+            work_order_number?: string | null;
         };
         /**
          * ServiceVisitListResponse
@@ -16606,6 +16621,11 @@ export interface components {
              */
             insurance_claim_number?: string | null;
             /**
+             * Invoice Number
+             * @description Shop invoice number
+             */
+            invoice_number?: string | null;
+            /**
              * Line Item Count
              * @description Number of line items
              */
@@ -16636,6 +16656,11 @@ export interface components {
              * @default 0
              */
             parts_supplies_cost: string;
+            /**
+             * Po Number
+             * @description Purchase order number
+             */
+            po_number?: string | null;
             /**
              * Service Category
              * @description Primary service category
@@ -16668,6 +16693,11 @@ export interface components {
             vendor_id?: number | null;
             /** Vin */
             vin: string;
+            /**
+             * Work Order Number
+             * @description Work order number
+             */
+            work_order_number?: string | null;
         };
         /**
          * ServiceVisitUpdate
@@ -16694,6 +16724,11 @@ export interface components {
              */
             insurance_claim_number?: string | null;
             /**
+             * Invoice Number
+             * @description Shop invoice number
+             */
+            invoice_number?: string | null;
+            /**
              * Line Items
              * @description Diff-based line items (if provided)
              */
@@ -16713,6 +16748,11 @@ export interface components {
              * @description Odometer reading in kilometers
              */
             odometer_km?: number | string | null;
+            /**
+             * Po Number
+             * @description Purchase order number
+             */
+            po_number?: string | null;
             /**
              * Service Category
              * @description Primary service category
@@ -16738,6 +16778,11 @@ export interface components {
              * @description Vendor ID
              */
             vendor_id?: number | null;
+            /**
+             * Work Order Number
+             * @description Work order number
+             */
+            work_order_number?: string | null;
         };
         /**
          * SettingCreate

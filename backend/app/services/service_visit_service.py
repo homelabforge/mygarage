@@ -288,6 +288,9 @@ class ServiceVisitService:
             notes=visit_data.notes,
             service_category=first_cat or visit_data.service_category,
             insurance_claim_number=visit_data.insurance_claim_number,
+            invoice_number=visit_data.invoice_number,
+            po_number=visit_data.po_number,
+            work_order_number=visit_data.work_order_number,
         )
         self.db.add(visit)
         await self.db.flush()  # Get visit ID
@@ -1074,6 +1077,9 @@ class ServiceVisitService:
             notes=visit.notes,
             service_category=visit.service_category,
             insurance_claim_number=visit.insurance_claim_number,
+            invoice_number=visit.invoice_number,
+            po_number=visit.po_number,
+            work_order_number=visit.work_order_number,
             line_item_count=visit.line_item_count,
             has_failed_inspections=visit.has_failed_inspections,
             created_at=visit.created_at,

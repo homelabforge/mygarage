@@ -157,6 +157,10 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "total_cost",
             "created_at",
             "updated_at",
+            # Not in the CSV yet. The next commit adds their columns and drops these.
+            "invoice_number",
+            "po_number",
+            "work_order_number",
         },
         shared_headers={"Visit", "Description", "Cost", "Item Notes"},
     ),

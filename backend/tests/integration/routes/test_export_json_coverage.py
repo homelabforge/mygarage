@@ -228,6 +228,9 @@ SECTIONS = [
                 "notes",
                 "service_category",
                 "insurance_claim_number",
+                "invoice_number",
+                "po_number",
+                "work_order_number",
             }
         ),
         # vendor_id travels as vendor_name; total_cost is recomputed from the items and fees.

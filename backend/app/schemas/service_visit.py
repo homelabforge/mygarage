@@ -28,6 +28,20 @@ LenientServiceCategory = Annotated[
 InspectionResult = Literal["passed", "failed", "needs_attention"]
 InspectionSeverity = Literal["green", "yellow", "red"]
 
+#: The visit's free-text paperwork refs.
+_REF_FIELDS = ("insurance_claim_number", "invoice_number", "po_number", "work_order_number")
+
+
+def _blank_ref_is_none(value: object) -> object:
+    """Strip a ref; blank or whitespace-only is no ref.
+
+    Runs before max_length, so padding can't push a ref over 50. On Create and
+    Update only, so a stored ref still reads back as it was saved.
+    """
+    if not isinstance(value, str):
+        return value
+    return value.strip() or None
+
 
 class ServiceLineItemBase(BaseModel):
     """Base service line item schema."""
@@ -238,6 +252,9 @@ class ServiceVisitBase(BaseModel):
     insurance_claim_number: str | None = Field(
         None, description="Insurance claim number", max_length=50
     )
+    invoice_number: str | None = Field(None, description="Shop invoice number", max_length=50)
+    po_number: str | None = Field(None, description="Purchase order number", max_length=50)
+    work_order_number: str | None = Field(None, description="Work order number", max_length=50)
     vendor_id: int | None = Field(None, description="Vendor ID")
     tax_amount: OptionalMoney = Field(None, description="Sales tax")
     shop_supplies: OptionalMoney = Field(None, description="Shop supplies/environmental fee")
@@ -272,6 +289,8 @@ class ServiceVisitCreate(ServiceVisitBase):
         description="Ignored: the server always computes the total from line items, "
         "supplies, tax and fees. Accepted so existing clients don't 422.",
     )
+
+    _blank_refs = field_validator(*_REF_FIELDS, mode="before")(_blank_ref_is_none)
 
     @model_validator(mode="after")
     def validate_line_item_temp_ids(self) -> ServiceVisitCreate:
@@ -337,6 +356,9 @@ class ServiceVisitUpdate(BaseModel):
     insurance_claim_number: str | None = Field(
         None, description="Insurance claim number", max_length=50
     )
+    invoice_number: str | None = Field(None, description="Shop invoice number", max_length=50)
+    po_number: str | None = Field(None, description="Purchase order number", max_length=50)
+    work_order_number: str | None = Field(None, description="Work order number", max_length=50)
     vendor_id: int | None = Field(None, description="Vendor ID")
     total_cost: OptionalMoney = Field(
         None,
@@ -352,6 +374,7 @@ class ServiceVisitUpdate(BaseModel):
 
     # NOT NULL column: omitted keeps the stored value, null is a 422.
     _no_null = reject_null("date")
+    _blank_refs = field_validator(*_REF_FIELDS, mode="before")(_blank_ref_is_none)
 
     @model_validator(mode="after")
     def validate_line_item_temp_ids(self) -> ServiceVisitUpdate:
@@ -419,6 +442,9 @@ class ServiceVisitResponse(ServiceVisitBase):
     # still reads instead of 500ing (test_response_contract).
     notes: str | None = Field(None, description="Visit notes")
     insurance_claim_number: str | None = Field(None, description="Insurance claim number")
+    invoice_number: str | None = Field(None, description="Shop invoice number")
+    po_number: str | None = Field(None, description="Purchase order number")
+    work_order_number: str | None = Field(None, description="Work order number")
     id: int
     vin: str
     total_cost: Decimal | None = None

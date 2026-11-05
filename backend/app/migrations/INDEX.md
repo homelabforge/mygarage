@@ -166,3 +166,4 @@ migrations must swallow their own operational errors.
 | `154_widen_brake_position_check` | **FATAL**: Widen the brake position CHECK to take F and R, for one-wheel axles (#272). |
 | `155_wheel_layout_position_remap` | **FATAL**: Move existing two-wheelers onto F/R and pin four on no-wheel types with data (#272). |
 | `156_add_date_format` | **FATAL**: Add users.date_format: the order of day and month in this person's dates. |
+| `157_add_visit_reference_numbers` | **FATAL**: Add invoice, PO and work order numbers to service_visits. |
