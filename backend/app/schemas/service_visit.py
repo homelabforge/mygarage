@@ -43,8 +43,8 @@ def _blank_ref_is_none(value: object) -> object:
     return value.strip() or None
 
 
-#: Each flag and the optional link it allows (D8).
-_FLAGGED_LINKS = (("is_recall", "recall_id"), ("is_warranty", "warranty_id"))
+#: Each flag and the optional link it allows (D8). The visit writers share it.
+FLAGGED_LINKS = (("is_recall", "recall_id"), ("is_warranty", "warranty_id"))
 
 
 def _require_link_flags(item: BaseModel, flags_sent: set[str] | None) -> None:
@@ -53,7 +53,7 @@ def _require_link_flags(item: BaseModel, flags_sent: set[str] | None) -> None:
     `flags_sent` is None when an omitted flag means false. Otherwise only a
     flag the request sent counts, since an omitted one keeps the stored value.
     """
-    for flag, link in _FLAGGED_LINKS:
+    for flag, link in FLAGGED_LINKS:
         if getattr(item, link) is None or getattr(item, flag):
             continue
         if flags_sent is None or flag in flags_sent:

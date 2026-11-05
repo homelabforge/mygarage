@@ -6,7 +6,7 @@ the visit writers own the transaction and call these under the vehicle lock.
 """
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import date, datetime, time
 
 from fastapi import HTTPException
@@ -32,29 +32,37 @@ def resolved_at_for(visit_date: date) -> datetime:
     return household_wall_clock_to_utc(datetime.combine(visit_date, time(12)))
 
 
-async def known_ids(
-    db: AsyncSession, recall_ids: Iterable[int], warranty_ids: Iterable[int]
-) -> tuple[set[int], set[int]]:
-    """The recall and warranty ids that still exist, on any vehicle.
+#: Each link column and the table it points at.
+_LINK_TARGETS: dict[str, type[Recall] | type[WarrantyRecord]] = {
+    "recall_id": Recall,
+    "warranty_id": WarrantyRecord,
+}
+#: A new item's answer for an id that isn't this vehicle's. No id in it, so a
+#: missing id and another garage's read exactly the same.
+_NOT_OURS = {
+    "recall_id": "The linked recall is not on this vehicle",
+    "warranty_id": "The linked warranty is not on this vehicle",
+}
 
-    Lets an existing item's stale link (deleted since the form loaded) read as
-    cleared, while another vehicle's id still gets its 422.
+
+async def _own_ids(db: AsyncSession, vin: str, link: str, ids: set[int]) -> set[int]:
+    """The ids in `ids` that point at this vehicle's rows."""
+    if not ids:
+        return set()
+    model = _LINK_TARGETS[link]
+    query = select(model.id).where(model.id.in_(ids), model.vin == vin)
+    return set((await db.scalars(query)).all())
+
+
+async def known_ids(
+    db: AsyncSession, vin: str, sent: Mapping[str, Iterable[int]]
+) -> dict[str, set[int]]:
+    """Of the ids sent per link column, the ones that are this vehicle's.
+
+    An existing item treats anything else as cleared, whether it was deleted
+    since the form loaded or never was ours, so the two can't be told apart.
     """
-    recalls = set(recall_ids)
-    warranties = set(warranty_ids)
-    found_recalls: set[int] = set()
-    found_warranties: set[int] = set()
-    if recalls:
-        found_recalls = set(
-            (await db.scalars(select(Recall.id).where(Recall.id.in_(recalls)))).all()
-        )
-    if warranties:
-        found_warranties = set(
-            (
-                await db.scalars(select(WarrantyRecord.id).where(WarrantyRecord.id.in_(warranties)))
-            ).all()
-        )
-    return found_recalls, found_warranties
+    return {link: await _own_ids(db, vin, link, set(sent.get(link, ()))) for link in _LINK_TARGETS}
 
 
 async def validate_links(db: AsyncSession, vin: str, items: Sequence[ServiceLineItem]) -> None:
@@ -62,34 +70,14 @@ async def validate_links(db: AsyncSession, vin: str, items: Sequence[ServiceLine
     recall is already linked by an item outside `items`.
 
     `items` is every item the visit keeps, links set but not flushed. Missing and
-    other-VIN ids get the same answer, so it can't probe another garage.
+    other-VIN ids get the same 422, word for word, so it can't probe another garage.
     """
+    for link in _LINK_TARGETS:
+        wanted = {v for v in (getattr(i, link) for i in items) if v is not None}
+        if wanted - await _own_ids(db, vin, link, wanted):
+            raise HTTPException(status_code=422, detail=_NOT_OURS[link])
+
     recall_ids = [i.recall_id for i in items if i.recall_id is not None]
-    warranty_ids = {i.warranty_id for i in items if i.warranty_id is not None}
-
-    if recall_ids:
-        wanted = set(recall_ids)
-        own = set(
-            (
-                await db.scalars(select(Recall.id).where(Recall.id.in_(wanted), Recall.vin == vin))
-            ).all()
-        )
-        for rid in sorted(wanted - own):
-            raise HTTPException(status_code=422, detail=f"Recall {rid} is not on this vehicle")
-
-    if warranty_ids:
-        own = set(
-            (
-                await db.scalars(
-                    select(WarrantyRecord.id).where(
-                        WarrantyRecord.id.in_(warranty_ids), WarrantyRecord.vin == vin
-                    )
-                )
-            ).all()
-        )
-        for wid in sorted(warranty_ids - own):
-            raise HTTPException(status_code=422, detail=f"Warranty {wid} is not on this vehicle")
-
     if recall_ids:
         seen: set[int] = set()
         for rid in recall_ids:
@@ -99,10 +87,11 @@ async def validate_links(db: AsyncSession, vin: str, items: Sequence[ServiceLine
                 )
             seen.add(rid)
         query = select(ServiceLineItem.recall_id).where(ServiceLineItem.recall_id.in_(seen))
-        ours = [i.id for i in items if i.id is not None]
+        # Every item is flushed by now, so each has its id.
+        ours = [i.id for i in items]
         if ours:
             query = query.where(ServiceLineItem.id.not_in(ours))
-        taken = sorted(set((await db.scalars(query)).all()))
+        taken = sorted({int(rid) for rid in (await db.scalars(query)).all()})
         if taken:
             raise HTTPException(
                 status_code=409,

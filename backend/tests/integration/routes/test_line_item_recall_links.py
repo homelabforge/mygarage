@@ -665,7 +665,7 @@ def _link(kind: str, target: int | None) -> dict[str, Any]:
 
 @pytest.mark.parametrize("kind", _KINDS)
 @pytest.mark.parametrize("path", _PATHS)
-async def test_another_vehicles_recall_or_warranty_is_a_422(
+async def test_another_vehicles_recall_or_warranty_never_links(
     client: AsyncClient,
     auth_headers: dict[str, str],
     vin: str,
@@ -682,7 +682,14 @@ async def test_another_vehicles_recall_or_warranty_is_a_422(
     )
     visit = None if path == "create" else await _create(client, auth_headers, vin, [_LINE])
     r = await _write_link(client, auth_headers, vin, path, _link(kind, foreign), visit)
-    assert r.status_code == 422, r.text
+    if path == "put_existing":
+        # An existing item treats any id that isn't this vehicle's as cleared,
+        # the same as one deleted since the form loaded.
+        assert r.status_code == 200, r.text
+        got = r.json()["line_items"][0]
+        assert (got[f"is_{kind}"], got[f"{kind}_id"], got[f"{kind}_summary"]) == (True, None, None)
+    else:
+        assert r.status_code == 422, r.text
 
     async with test_sessionmaker() as s:
         linked = (
@@ -709,6 +716,75 @@ async def test_a_new_item_linking_a_missing_id_is_a_422(
     visit = None if path == "create" else await _create(client, auth_headers, vin, [_LINE])
     r = await _write_link(client, auth_headers, vin, path, _link(kind, missing), visit)
     assert r.status_code == 422, r.text
+
+
+@pytest.mark.parametrize("kind", _KINDS)
+@pytest.mark.parametrize("path", ("create", "put_new", "post_item"))
+async def test_a_missing_and_a_foreign_id_get_the_same_422(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    vin: str,
+    other_vin: str,
+    db_session: AsyncSession,
+    kind: str,
+    path: str,
+) -> None:
+    """Otherwise the answer says whether id N exists in some other garage."""
+    make = _recall if kind == "recall" else _warranty
+    foreign = await make(db_session, other_vin)
+    answers: list[tuple[int, bytes]] = []
+    for target in (foreign, 2_000_000_000):
+        visit = None if path == "create" else await _create(client, auth_headers, vin, [_LINE])
+        r = await _write_link(client, auth_headers, vin, path, _link(kind, target), visit)
+        answers.append((r.status_code, r.content))
+    assert answers[0][0] == 422
+    assert answers[0] == answers[1]
+
+
+@pytest.mark.parametrize("kind", _KINDS)
+async def test_a_foreign_id_on_an_existing_item_is_never_stored(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    vin: str,
+    other_vin: str,
+    db_session: AsyncSession,
+    test_sessionmaker: Sessions,
+    kind: str,
+) -> None:
+    """Not on an item that already links one of ours, and not against a stored-false
+    flag either: both answer like a missing id would."""
+    make = _recall if kind == "recall" else _warranty
+    mine = await make(db_session, vin)
+    foreign = await make(db_session, other_vin)
+    visit = await _create(
+        client,
+        auth_headers,
+        vin,
+        [{**_LINE, **_link(kind, mine)}, {**_LINE, "description": "Tie rod"}],
+    )
+    a, b = _by_desc(visit)["Oil change"], _by_desc(visit)["Tie rod"]
+    r = await _put(
+        client,
+        auth_headers,
+        vin,
+        visit["id"],
+        {
+            "line_items": [
+                _keep(a, **{f"{kind}_id": foreign}),
+                _keep(b, **{f"{kind}_id": foreign}),
+            ]
+        },
+    )
+    assert r.status_code == 200, r.text
+    flag = (True, None, False, None) if kind == "recall" else (False, None, True, None)
+    assert await _links(test_sessionmaker, visit["id"]) == {
+        "Oil change": flag,
+        "Tie rod": (False, None, False, None),
+    }
+    if kind == "recall":
+        assert await _state(test_sessionmaker, foreign) == (False, None, None)
+        # Ours lost its only link, so it opens again.
+        assert await _state(test_sessionmaker, mine) == (False, None, None)
 
 
 @pytest.mark.parametrize("kind", _KINDS)
@@ -761,7 +837,7 @@ async def test_an_existing_item_sending_a_gone_id_clears_the_link(
     assert await _links(test_sessionmaker, visit["id"]) == {"Oil change": flag, "Tie rod": other}
 
 
-@pytest.mark.parametrize("path", ("create", "put_existing", "post_item"))
+@pytest.mark.parametrize("path", _PATHS)
 async def test_a_recall_another_visit_links_is_a_409(
     client: AsyncClient,
     auth_headers: dict[str, str],
@@ -786,23 +862,74 @@ async def test_a_recall_another_visit_links_is_a_409(
     )
 
 
-async def test_one_recall_on_two_items_of_one_payload_is_a_409(
-    client: AsyncClient, auth_headers: dict[str, str], vin: str, db_session: AsyncSession
+@pytest.mark.parametrize("path", _PATHS)
+async def test_one_recall_on_two_items_of_one_visit_is_a_409(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    vin: str,
+    db_session: AsyncSession,
+    test_sessionmaker: Sessions,
+    path: str,
 ) -> None:
+    """A sibling on the same visit already holds the recall, or gets it in the same payload."""
     rid = await _recall(db_session, vin)
-    r = await client.post(
-        f"/api/vehicles/{vin}/service-visits",
-        json={
-            "date": "2026-11-03",
-            "line_items": [
-                {**_LINE, "is_recall": True, "recall_id": rid},
-                {**_LINE, "description": "Tie rod", "is_recall": True, "recall_id": rid},
-            ],
-        },
-        headers=auth_headers,
-    )
+    linked = {**_LINE, "is_recall": True, "recall_id": rid}
+    if path == "create":
+        r = await client.post(
+            f"/api/vehicles/{vin}/service-visits",
+            json={
+                "date": "2026-11-03",
+                "line_items": [linked, {**linked, "description": "Tie rod"}],
+            },
+            headers=auth_headers,
+        )
+    else:
+        visit = await _create(
+            client, auth_headers, vin, [linked, {**_LINE, "description": "Tie rod"}]
+        )
+        a, b = _by_desc(visit)["Oil change"], _by_desc(visit)["Tie rod"]
+        link = _link("recall", rid)
+        if path == "put_new":
+            body = {"line_items": [_keep(a), _keep(b), {"description": "New", **link}]}
+            r = await _put(client, auth_headers, vin, visit["id"], body)
+        elif path == "put_existing":
+            body = {"line_items": [_keep(a), _keep(b, **link)]}
+            r = await _put(client, auth_headers, vin, visit["id"], body)
+        else:
+            r = await client.post(
+                f"/api/vehicles/{vin}/service-visits/{visit['id']}/line-items",
+                json={"description": "New", **link},
+                headers=auth_headers,
+            )
+        assert r.status_code == 409, r.text
+        assert await _links(test_sessionmaker, visit["id"]) == {
+            "Oil change": (True, rid, False, None),
+            "Tie rod": (False, None, False, None),
+        }
     assert r.status_code == 409, r.text
     assert "already linked" in r.json()["detail"]
+
+
+async def test_posting_an_unlinked_item_keeps_a_siblings_recall_resolved(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    vin: str,
+    db_session: AsyncSession,
+    test_sessionmaker: Sessions,
+) -> None:
+    """The new item links nothing, but the sibling's link still counts as linked."""
+    rid = await _recall(db_session, vin)
+    visit = await _create(
+        client, auth_headers, vin, [{**_LINE, "is_recall": True, "recall_id": rid}]
+    )
+    assert await _state(test_sessionmaker, rid) == (True, _NOON_NOV_3, "service_visit")
+    r = await client.post(
+        f"/api/vehicles/{vin}/service-visits/{visit['id']}/line-items",
+        json={"description": "Wipers"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 201, r.text
+    assert await _state(test_sessionmaker, rid) == (True, _NOON_NOV_3, "service_visit")
 
 
 async def test_a_bad_link_in_a_wider_put_changes_nothing(
@@ -832,7 +959,8 @@ async def test_a_bad_link_in_a_wider_put_changes_nothing(
             "notes": "Changed",
             "line_items": [
                 _keep(a, recall_id=None, cost="99.00"),
-                _keep(b, is_recall=True, recall_id=foreign),
+                _keep(b),
+                {"description": "New", "is_recall": True, "recall_id": foreign},
             ],
         },
     )

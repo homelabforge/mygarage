@@ -3,7 +3,7 @@
 # pyright: reportReturnType=false
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
@@ -17,6 +17,7 @@ from app.models.service_visit import ServiceVisit
 from app.models.supply import SupplyUsage
 from app.models.user import User
 from app.schemas.service_visit import (
+    FLAGGED_LINKS,
     LinkedRecall,
     LinkedWarranty,
     ServiceLineItemCreate,
@@ -72,10 +73,6 @@ def drop_stray_links(items: Sequence[ServiceLineItem]) -> None:
             item.triggered_by_inspection_id = None
 
 
-#: Each flag and the link it carries (D8).
-_FLAGGED_LINKS = (("is_recall", "recall_id"), ("is_warranty", "warranty_id"))
-
-
 def _new_item_links(
     item_data: ServiceLineItemCreate | ServiceLineItemUpdate,
 ) -> tuple[int | None, int | None]:
@@ -89,28 +86,30 @@ def _new_item_links(
 def _wanted_links(
     row: ServiceLineItem,
     item_data: ServiceLineItemUpdate,
-    known: tuple[set[int], set[int]],
+    known: Mapping[str, set[int]],
 ) -> tuple[int | None, int | None]:
     """An existing item's (recall_id, warranty_id) once this update applies.
 
-    Omitted keeps the stored value; a flag sent false unlinks. A sent id that no
-    longer exists reads as cleared: the form seeds stored links, and a recall
-    deleted since already nulled this one. Sets the flags it was sent.
+    Omitted keeps the stored value; a flag sent false unlinks. A sent id that
+    isn't one of this vehicle's (`known`, by link column) reads as cleared: the
+    form seeds stored links, and one deleted since is gone already. Another
+    garage's id gets the same answer, so it can't be told apart. Sets the flags
+    it was sent.
     """
     sent = item_data.model_fields_set
-    out: list[int | None] = []
-    for (flag, link), still_there in zip(_FLAGGED_LINKS, known, strict=True):
+    out: dict[str, int | None] = {}
+    for flag, link in FLAGGED_LINKS:
         if flag in sent:
             setattr(row, flag, getattr(item_data, flag))
         value = getattr(item_data, link) if link in sent else getattr(row, link)
-        if link in sent and value is not None and value not in still_there:
+        if link in sent and value is not None and value not in known[link]:
             value = None
         if not getattr(row, flag):
             if link in sent and value is not None:
                 raise HTTPException(status_code=422, detail=f"{link} needs {flag} set to true")
             value = None
-        out.append(value)
-    return out[0], out[1]
+        out[link] = value
+    return out["recall_id"], out["warranty_id"]
 
 
 def service_visit_full_load_options():
@@ -523,8 +522,11 @@ class ServiceVisitService:
                 wanted: list[recall_links.WantedLinks] = []
                 known = await recall_links.known_ids(
                     self.db,
-                    {i.recall_id for i in submitted if i.id and i.recall_id is not None},
-                    {i.warranty_id for i in submitted if i.id and i.warranty_id is not None},
+                    vin,
+                    {
+                        link: {getattr(i, link) for i in submitted if i.id} - {None}
+                        for _flag, link in FLAGGED_LINKS
+                    },
                 )
 
                 for item_data in submitted:
